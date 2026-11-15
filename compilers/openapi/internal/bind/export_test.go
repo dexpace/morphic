@@ -21,3 +21,13 @@ const MaxPointerTokens = maxPointerTokens
 // Steps reports the work the table cost, which only this package's external
 // tests read, to try every limit short of it.
 func (t *Table) Steps() int { return t.steps }
+
+// Passes reports how many passes the table was read in, the last standing,
+// which only this package's external tests read.
+func (t *Table) Passes() int { return t.passes }
+
+// Sat is sat, for the external tests that read the saturating sum.
+var Sat = sat
+
+// SatMul is satMul, for the external tests that read the saturating product.
+var SatMul = satMul

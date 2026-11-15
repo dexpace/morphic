@@ -199,7 +199,7 @@ func TestValueFromNode_ReadsAMappingAsTheParserDoes(t *testing.T) {
 		{"a merge comes first", "x: &x {a: 1}\nv: {b: 2, <<: *x}\n", []string{"a", "b"}},
 		{"every merge merges", "x: &x {a: 1}\ny: &y {c: 3}\nv: {<<: *x, b: 2, <<: *y}\n", []string{"a", "c", "b"}},
 		{"an alias key is its scalar", "k: &k rate\nv: {*k : 1, other: 2}\n", []string{"rate", "other"}},
-		{"a key no scalar is empty", "v: {? [x] : 1}\n", []string{""}},
+		{"an entry whose key is no scalar is left out", "v: {? [x] : 1}\n", nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

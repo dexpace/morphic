@@ -49,16 +49,17 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's five functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy bind may not import (Locate, Refuse), and two readings
+		// bind.Config's six functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Map, Refuse), and two readings
 		// of a document's rows, which load holds and bind may not import, asked
 		// only of a document a reference opens, so no list made before binding
 		// holds them (Dialect, KeysByURI): designed seams, one kind.
-		"compilers/openapi/internal/load": 5,
+		"compilers/openapi/internal/load": 6,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and
-		// overlays name: I/O at a designed seam.
+		// overlays name, and judges a document read before for an asker its
+		// first read stated no bound for: I/O at a designed seam.
 		"engine":        2,
 		"engine/reader": 6,
 	},
@@ -67,7 +68,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// are handed before they return: immediate callbacks. operation's are a
 		// union's file reading and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    17,
+		"compilers/openapi/internal/schema":    19,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -79,18 +80,19 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
+		"compilers/openapi/internal/doctree":     1,
 		"compilers/openapi/internal/load":        3,
-		"compilers/openapi/internal/oas":         2,
-		"compilers/openapi/internal/overlay":     4,
+		"compilers/openapi/internal/oas":         3,
+		"compilers/openapi/internal/overlay":     3,
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate, Seen, RootRows and Later, which #1488 keeps under
-		// #1477's rule: the checker places its own findings to drop the repeat an
-		// alias makes, a policy, and Seen observes the walk, RootRows answers the
-		// rows of each schema it enters and Later takes each it leaves unread,
-		// traversal callbacks.
-		"compilers/openapi/internal/load": 20,
+		// oas.Options' Locate, Seen, Skip, Judged, Referenced, RootRows and Later,
+		// which #1488 keeps under #1477's rule: the checker places its own
+		// findings to drop the repeat an alias makes, a policy, and the others
+		// observe or steer the walk, RootRows answering the rows of each schema
+		// it enters and Later taking each it leaves unread: traversal callbacks.
+		"compilers/openapi/internal/load": 28,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

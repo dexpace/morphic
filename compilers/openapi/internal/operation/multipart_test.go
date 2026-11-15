@@ -1328,11 +1328,19 @@ func TestPartEncodings_AnEntryNamingNoPartIsKeptWhole(t *testing.T) {
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
-			name:  "a $dynamicRef body",
-			doc:   formDoc("", multipartForm, "{$dynamicRef: '#/components/schemas/F'}", "{file: "+pngSource+"}", "components:\n  schemas:\n    F: "+fileForm+"\n"),
+			name: "a $dynamicRef body",
+			doc: formDoc("", multipartForm, "{$dynamicRef: '#form'}", "{file: "+pngSource+"}",
+				"components:\n  schemas:\n    F: {$dynamicAnchor: form, type: object, properties: {file: {type: string, format: binary}}}\n"),
 			media: mfd, keyed: map[ir.PropID][]string{},
 			open: true,
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
+		},
+		{
+			name: "a $dynamicRef body naming no $dynamicAnchor, read as the $ref it spells",
+			doc: formDoc("", multipartForm, "{$dynamicRef: '#/components/schemas/F'}", "{file: "+pngSource+", ghost: "+pngSource+"}",
+				"components:\n  schemas:\n    F: "+fileForm+"\n"),
+			media: mfd, keyed: map[ir.PropID][]string{"p/openapi/components/schemas/F/properties/file": {"image/png"}},
+			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name: "a $ref beside properties",
@@ -1820,14 +1828,14 @@ func TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError(t *te
 		name     string
 		encoding string
 		// reported names the entry load reports for key: the one written, or for
-		// an alias the anchor, since load reads a node once.
+		// an alias the least place mounting it, since load reads a node once.
 		reported func(key string) string
 	}{
 		{"null", "{%s: null}", func(key string) string { return key }},
 		{"a number", "{%s: 5}", func(key string) string { return key }},
 		{"a string", "{%s: hello}", func(key string) string { return key }},
 		{"a list", "{%s: [a]}", func(key string) string { return key }},
-		{"an alias of null", "{anchor: &n null, %s: *n}", func(string) string { return "anchor" }},
+		{"an alias of null", "{anchor: &n null, %s: *n}", func(key string) string { return min(key, "anchor") }},
 	}
 	for _, tc := range cases {
 		for _, key := range []string{"ghost", "a"} {

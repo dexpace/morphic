@@ -646,7 +646,7 @@ func TestEngine_RunHandsTheCompileAReaderForWhatASettingNames(t *testing.T) {
 
 	got, err := comp.reader.ReadDocument(t.Context(), compilers.DocumentRequest{Location: comp.options.Settings["shape"]})
 	require.NoError(t, err)
-	assert.Equal(t, "Widget\n", string(got))
+	assert.Equal(t, "Widget\n", string(got.Data))
 }
 
 // TestEngine_RunRefusesTwoOptionChannelsWhateverTheSource pins that the

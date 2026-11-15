@@ -5,6 +5,7 @@ package load
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -48,13 +50,16 @@ type Options struct {
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
 	OverlaySrcIndex int
-	// MaxSourceBytes bounds the source document's size in bytes. The compiler's
-	// public Limits resolves its defaults and its spelling of "unbounded" before
-	// projecting onto this (budget.FromOption), so the zero Limit, unbounded,
-	// is a budget no caller set, as in each budget below.
+	// MaxSourceBytes bounds the size in bytes of the source, of the overlay and
+	// of each document a reference reads, each checked before anything reads
+	// it. The compiler's public Limits resolves its defaults and its spelling of
+	// "unbounded" before projecting onto this (budget.FromOption), so the zero
+	// Limit, unbounded, is a budget no caller set, as in each budget below.
 	MaxSourceBytes budget.Limit
-	// MaxSourceNodes bounds the YAML nodes the source parses to, counted after any
-	// overlay is applied.
+	// MaxSourceNodes bounds the nodes a document holds as it is read: the
+	// source, the overlay and each document a reference reads, and the source
+	// again as the overlay leaves it. A JSON text is held to it as it is read,
+	// and a YAML text once it is parsed (doctree.Read).
 	MaxSourceNodes budget.Limit
 	// MaxAliasSurplus bounds the nodes YAML aliases may add to the source, and to
 	// the overlay, beyond their own. The ratio refusal scan makes beside it holds
@@ -63,6 +68,10 @@ type Options struct {
 	// MaxExternalDocuments bounds the documents external references read in one
 	// compile, each counted once however often it is asked for.
 	MaxExternalDocuments budget.Limit
+	// Mappings is where the caller put the documents under a URI prefix,
+	// applied where a document is opened, before any read judges it, and never
+	// to an identifier; none is applied by inference.
+	Mappings []Mapping
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
@@ -76,56 +85,49 @@ type Options struct {
 	// cancels at the start of a phase through it, and lists the phases a load
 	// enters.
 	entered func(phase)
+	// judging is told each object a check of what the references reach reads
+	// as a kind, or is nil. It is this package's test seam: a test counts how
+	// often each is read, and in which phase.
+	judging func(oas.Kind, *yaml.Node)
 }
 
-// readyForModel readies every node of the model's source tree, in one walk: it
-// clears each anchor's name, and tags each mistagged scalar a string. root
-// must not be nil.
+// readyForModel clears the name of each anchor in the model's source tree, in
+// one walk. root must not be nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
 // GitHub #459). That skip is the only read of a name; an alias reaches its
-// target by a kept pointer. Run it after the pre-parse refusals, which read
-// names. A document read through external is readied too (GitHub #501).
-func readyForModel(ctx context.Context, root *yaml.Node) {
-	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
-	// is judged from its parent, which knows whether it is a key.
+// target by a kept pointer. Run it after the refusals and the judgment, which
+// read names; it returns the anchors it cleared (loading.judgeLate). A
+// document read through external is readied too (GitHub #501). It sets aside
+// in a each pair whose key is no scalar (docs/parser-library.md#non-scalar-key).
+func readyForModel(ctx context.Context, root *yaml.Node, a *aside) []anchor {
+	var cleared []anchor
+	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		n.Anchor = ""
-		for i, c := range n.Content {
-			if mistagged(n, i) {
-				c.Tag = "!!str"
-			}
+		if n.Anchor != "" {
+			cleared = append(cleared, anchor{node: n, name: n.Anchor})
+			n.Anchor = ""
+		}
+		if n.Kind == yaml.MappingNode {
+			a.hide(n, noKey)
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+	return cleared
 }
 
-// mistagged reports whether the i-th of n's Content is a scalar the parser tags
-// as no string where YAML 1.2, which OpenAPI recommends, reads the string it
-// spells: a date, a timestamp to the parser
-// (docs/parser-library.md#scalar-resolution), or a `<<` anywhere but a
-// mapping's key, the one place it merges, written with no tag or YAML's
-// non-specific `!`. The model decodes no string from either, so a field so
-// written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
-// #1280).
-//
-// A scalar under any other tag keeps it, and reads as
-// docs/compilers/openapi.md#values says; whether one outside YAML's JSON
-// schema ruleset is reported is GitHub #1368's to settle.
-func mistagged(n *yaml.Node, i int) bool {
-	c := n.Content[i]
-	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {
-		return false
-	}
-	switch c.ShortTag() {
-	case "!!timestamp":
-		return true
-	case "!!merge":
-		return n.Kind != yaml.MappingNode || i%2 == 1
-	default:
-		return false
-	}
+// anchor is a node readyForModel cleared the anchor of, and its name.
+type anchor struct {
+	node *yaml.Node
+	name string
+}
+
+// noKey reports whether the pair key names no key of its mapping and is no
+// `<<` merge key: its key is no scalar (nodeview.KeyOf).
+func noKey(key, _ *yaml.Node) bool {
+	_, own := nodeview.KeyOf(key)
+	return !own && !nodeview.IsMergeKey(key)
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not
@@ -201,8 +203,9 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	}
 	// A relative Location would leave what a reference names to the working
 	// directory, which Location exists to keep out of the compile.
-	if src.Location != "" && !filepath.IsAbs(src.Location) {
-		return nil, nil, fmt.Errorf("openapi: source %d's location %q is not an absolute path", srcIndex, src.Location)
+	if src.Location != "" && !filepath.IsAbs(src.Location) && !fetchedFrom(src.Location) {
+		return nil, nil, fmt.Errorf("openapi: source %d's location %q is neither an absolute path nor an http(s) URL",
+			srcIndex, src.Location)
 	}
 
 	// The byte budget is checked before anything reads the bytes, because it is
@@ -215,7 +218,10 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	if err := opts.enter(ctx, phaseParse); err != nil {
 		return nil, nil, err
 	}
-	parsed, err := parsedFor(ctx, src)
+	parsed, err := parsedFor(ctx, src, opts.MaxSourceNodes)
+	if d, past := pastNodes(ir.Provenance{Source: srcIndex}, "source", err); past {
+		return nil, []ir.Diagnostic{d}, nil
+	}
 	if err != nil {
 		// A parse its context stopped is no source that will not parse.
 		return nil, nil, stopped(ctx, fmt.Errorf("openapi: decode source %d: %w: %w", srcIndex, err, ErrParse))
@@ -224,7 +230,7 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 	if err != nil {
 		return nil, nil, err
 	}
-	return doc, append(parsed.rest.diagnostics(srcIndex), diags...), nil
+	return doc, append(streamDiagnostics(srcIndex, sourceStream, parsed.doc.Rest), diags...), nil
 }
 
 // build turns the decoded tree of a source's first document into a Document,
@@ -244,7 +250,9 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 		src.Location = places.File(location)
 	}
 	opts.Within = places.Directory(opts.Within)
-	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root, places: places}
+	l := &loading{srcIndex: srcIndex, src: src, opts: opts, read: parsed.doc, root: parsed.doc.Root, places: places}
+	// A load that ends before reach leaves the tree as the source wrote it.
+	defer l.aside.restore()
 	for _, s := range steps() {
 		if err := opts.enter(ctx, s.phase); err != nil {
 			return nil, nil, err
@@ -269,13 +277,14 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 // sourceChecks runs the rules the compiler checks over the source: the
 // repeats of a parameter or servers list, each entry read through the
 // bindings, as the lowering reads it, in the lists the source's walk meets and
-// in those of each path item a reference lands on in the source
+// in those of each path item a reference lands on, in whichever document
 // (landingRepeats).
-func sourceChecks(ctx context.Context, place provenance.Doc, doc *soa.OpenAPI, sibs Siblings,
+func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Siblings,
 	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	return append(listRepeats(place, sibs, bindings, walkSource(ctx, doc, sibs, media)),
-		landingRepeats(ctx, place, sibs, bindings)...)
+	at := func(p jsontext.Pointer) ir.Provenance { return sites.source.At(p) }
+	return append(listRepeats(at, sibs, bindings, walkSource(ctx, doc, sibs, media)),
+		landingRepeats(ctx, sites, sibs, bindings)...)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -296,6 +305,7 @@ func defaultIndex(ctx context.Context, root *yaml.Node) sourceindex.Index {
 // part, and an alias allowance derived from a partial node count would refuse
 // documents on a bound they never crossed.
 func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, root *yaml.Node, opts Options,
+	closed bool,
 ) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
@@ -309,7 +319,7 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := shapeRefusals(ctx, tree, whole, idx, opts)
+	diags := shapeRefusals(ctx, tree, whole, idx, opts, closed)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
 		diags = append(diags, taggedMappingRefusal(tree, scan.Least(ctx, root, tagged)))
 	}
@@ -321,21 +331,37 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 // (scan.Aliases) and, where neither is refused, the bytes of its nodes'
 // pointers (scan.PointerAmplification), which deep nesting and aliasing both
 // multiply, so one defect is not reported twice. tree places a finding at a
-// node, and whole one about the tree as a whole.
+// node, and whole one about the tree as a whole. A closed document, the source
+// as written or patched, past the pointer bound is weighed again by what a
+// compile names (namedWithin).
 func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index, opts Options,
+	closed bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if d, deep := scan.Nesting(ctx, tree, idx); deep {
 		diags = append(diags, d)
 	}
-	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus)...)
+	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus, opts.MaxSourceBytes)...)
 	if diag.HasError(diags) {
 		return diags
 	}
-	if d, long := scan.PointerAmplification(whole, idx); long {
+	if d, long := scan.PointerAmplification(whole, idx); long && (!closed || !namedWithin(ctx, idx)) {
 		diags = append(diags, d)
 	}
 	return diags
+}
+
+// namedWithin reports whether the pointers a compile of idx's tree names one
+// by one total within the bound its size allows, counting a value kept raw by
+// its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
+// leaves, one too large to weigh so, and one that may name a dialect, whose
+// schemas another grammar may read (namesDialect), are not within it.
+func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
+	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) {
+		return false
+	}
+	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
+	return complete && total <= scan.PointerAllowance(idx.Written())
 }
 
 // taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where
@@ -371,9 +397,9 @@ func unmarshal(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI,
 
 // buildRecovered runs build, the parser's build of a document, behind
 // diag.Catch. The parser faults on degenerate input such as a whitespace-only
-// document (docs/parser-library.md#recoverable-panic), and a fault is an
-// ErrParse error quoting it, which the compiler reports as a source it cannot
-// read.
+// document (docs/parser-library.md#recoverable-panic,
+// docs/parser-library.md#nil-populate-panic), and a fault is an ErrParse error
+// quoting it, which the compiler reports as a source it cannot read.
 //
 // A fault on a goroutine the decoder starts is beyond any barrier, so the one
 // shape known to fault there, a tagged mapping at a reference position

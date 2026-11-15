@@ -92,6 +92,31 @@ func (b *Bindings) Entry(js *schemaRef) (bind.Entry, bool) {
 	return b.table.Entry(p)
 }
 
+// RefKeyword returns the keyword js is a reference site under, which the
+// lowering reads through the table (Entry) rather than as a body: "$ref" for a
+// schema writing one, an empty one included, and "$dynamicRef" for one whose
+// $dynamicRef the table reads as the $ref it spells, as JSON Schema 2020-12
+// §8.2.3.2 resolves one naming no $dynamicAnchor
+// (docs/compilers/openapi.md#dynamic-ref). It is empty for any other schema.
+// A reader asks it rather than the model's $ref, so the two spellings lower
+// alike.
+func (b *Bindings) RefKeyword(js *schemaRef) string {
+	if js == nil || js.IsBool() {
+		return ""
+	}
+	if js.GetSchema().Ref != nil {
+		return "$ref"
+	}
+	if e, ok := b.Entry(js); ok && e.Keyword == "$dynamicRef" {
+		return e.Keyword
+	}
+	return ""
+}
+
+// RefSite reports whether js is a reference site: one RefKeyword names a
+// keyword for.
+func (b *Bindings) RefSite(js *schemaRef) bool { return b.RefKeyword(js) != "" }
+
 // Declared returns the schema written where js's $ref lands, or nil where it
 // does not land on one.
 func (b *Bindings) Declared(js *schemaRef) *schemaRef {

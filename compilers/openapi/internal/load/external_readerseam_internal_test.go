@@ -36,12 +36,12 @@ type fakeReader struct {
 type ctxKey struct{}
 
 // ReadDocument records req and answers it.
-func (f *fakeReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (f *fakeReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reqs = append(f.reqs, req)
 	f.ctxs = append(f.ctxs, ctx.Value(ctxKey{}))
-	return f.data, f.err
+	return compilers.DocumentRead{Data: f.data}, f.err
 }
 
 // seen returns the requests the reader has answered, in order.
@@ -61,7 +61,7 @@ func (f *fakeReader) contexts() []any {
 // externalOver returns an external reading through r under opts.
 func externalOver(opts Options, r compilers.DocumentReader) *external {
 	opts.Reader = r
-	return newExternal(opts, newExternalReads(sourceDocument{}, budget.Unbounded()))
+	return newExternal(opts, newExternalReads(sourceDocument{}, budget.Unbounded()), &aside{})
 }
 
 // TestExternal_FetchWithNoReaderIsRefusedUnread pins that a compile handed no
@@ -75,10 +75,10 @@ func TestExternal_FetchWithNoReaderIsRefusedUnread(t *testing.T) {
 		ask  func(ext *external) error
 		key  string
 	}{
-		{"readAs", func(ext *external) error { return ext.readAs(t.Context(), "k", "k", "loc.yaml").err }, "k"},
-		{"a file", func(ext *external) error { _, err := ext.document(t.Context(), "loc.yaml"); return err }, "loc.yaml"},
+		{"readAs", func(ext *external) error { return ext.readAs(t.Context(), "k", "k", "loc.yaml", "spec.yaml").err }, "k"},
+		{"a file", func(ext *external) error { _, err := ext.document(t.Context(), "loc.yaml", "spec.yaml"); return err }, "loc.yaml"},
 		{"a URL", func(ext *external) error {
-			_, err := ext.document(t.Context(), "http://host/doc.yaml")
+			_, err := ext.document(t.Context(), "http://host/doc.yaml", "spec.yaml")
 			return err
 		}, "http://host/doc.yaml"},
 	}
@@ -109,7 +109,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 		outside  = `external document %s refused: it lies outside the source's directory "/srv/specs", ` +
 			"which a read leaves only when external references are allowed"
 		network = "external document %s refused: it is on the network, " +
-			"which a read reaches only when external references are allowed"
+			"which a read reaches only when external references are allowed; a locate option maps its URL to a location"
 	)
 	const url = "http://host/a.yaml"
 	tests := []struct {
@@ -135,7 +135,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 			opts := Options{Within: "/srv/specs", MaxSourceBytes: budget.AtMost(16)}
 			ext := externalOver(opts, &fakeReader{err: tc.err})
 
-			got := ext.fetch(t.Context(), tc.key, tc.key, tc.key).err
+			got := ext.fetch(t.Context(), tc.key, tc.key, tc.key, compilers.SpaceUnstated).err
 
 			require.Error(t, got)
 			if tc.want == "" {
@@ -175,7 +175,7 @@ func TestExternal_FetchRefusesBytesPastTheBudgetAReaderReturned(t *testing.T) {
 			require.Len(t, body, tc.size)
 			ext := externalOver(Options{MaxSourceBytes: tc.limit}, &fakeReader{data: body})
 
-			got := ext.fetch(t.Context(), "k", "k", "k")
+			got := ext.fetch(t.Context(), "k", "k", "k", compilers.SpaceUnstated)
 
 			_, cached := ext.read.preparedFor("k")
 			if tc.refuse {
@@ -205,10 +205,12 @@ func TestExternal_ReadsAskTheReaderForTheCompilesBounds(t *testing.T) {
 		want string
 	}
 	doors := []door{
-		{"fetch", func(ctx context.Context, ext *external) { ext.fetch(ctx, "k", "k", "dir/./a.yaml") }, "dir/./a.yaml"},
-		{"a file", func(ctx context.Context, ext *external) { _, _ = ext.document(ctx, "dir/../b/./a.yaml") }, "b/a.yaml"},
+		{"fetch", func(ctx context.Context, ext *external) {
+			ext.fetch(ctx, "k", "k", "dir/./a.yaml", compilers.SpaceUnstated)
+		}, "dir/./a.yaml"},
+		{"a file", func(ctx context.Context, ext *external) { _, _ = ext.document(ctx, "dir/../b/./a.yaml", "spec.yaml") }, "b/a.yaml"},
 		{"a URL", func(ctx context.Context, ext *external) {
-			_, _ = ext.document(ctx, "http://host:80/a.yaml?v=1")
+			_, _ = ext.document(ctx, "http://host:80/a.yaml?v=1", "spec.yaml")
 		}, "http://host:80/a.yaml?v=1"},
 	}
 	for _, d := range doors {
@@ -237,7 +239,7 @@ func TestExternal_DocumentKeepsAnEmptyNameAnError(t *testing.T) {
 	fake := &fakeReader{err: fs.ErrNotExist}
 	ext := externalOver(Options{}, fake)
 
-	_, err := ext.document(t.Context(), "")
+	_, err := ext.document(t.Context(), "", "spec.yaml")
 
 	assert.ErrorIs(t, err, fs.ErrNotExist, "no file, passed through from the reader")
 	assert.Empty(t, cmp.Diff([]compilers.DocumentRequest{{Location: ""}}, fake.seen()))
@@ -251,7 +253,7 @@ func TestExternal_DocumentServesWhatTheReaderReturned(t *testing.T) {
 	fake := &fakeReader{data: []byte("a: 1\n")}
 	ext := externalOver(Options{}, fake)
 
-	tree, err := ext.document(t.Context(), "virtual/a.yaml")
+	tree, err := ext.document(t.Context(), "virtual/a.yaml", "spec.yaml")
 	require.NoError(t, err)
 
 	assert.Equal(t, "a", nodeview.DocumentRoot(tree).Content[0].Value)
@@ -260,36 +262,30 @@ func TestExternal_DocumentServesWhatTheReaderReturned(t *testing.T) {
 	assert.Same(t, tree, recorded)
 }
 
-// TestExternal_AReadRefusesByHowItIsNamed pins what a read confined to the
-// source's directory refuses unread, with its reason: a file URI, in any case
-// of its scheme. Any other key is read, a path that reads like a URL among
-// them, and so is a file URI unconfined. A refusal by how the $ref spells its
-// document part is the binder's (bind.Config.Refuse), made before it asks.
+// TestExternal_AReadRefusesByHowItIsNamed pins that a read refuses no key by
+// its spelling: a file URI, confined or not, a path that reads like a URL and
+// a relative path are each read. A refusal by how the $ref spells its document
+// part is the binder's (bind.Config.Refuse, refusedByName), made before it
+// asks, so it depends on no order of reading (GitHub #1886).
 func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()
-	const allowed = ", which a read follows only when external references are allowed"
-	for _, tc := range []struct{ name, key, within, want string }{
-		{"a file URI", "file:///r/a.yaml", "/r", "external document file:///r/a.yaml refused: it is named by a file URI" + allowed},
-		{"a file URI in capitals", "FILE:///r/a.yaml", "/r", "external document FILE:///r/a.yaml refused: it is named by a file URI" + allowed},
-		{"a joined path that reads like a URL", "foo:b.yaml", "/r", ""},
-		{"an absolute key", "/r/a.yaml", "/r", ""},
-		{"a relative path", "a.yaml", "/r", ""},
-		{"a file URI, unconfined", "file:///r/a.yaml", "", ""},
+	for _, tc := range []struct{ name, key, within string }{
+		{"a file URI", "file:///r/a.yaml", "/r"},
+		{"a file URI in capitals", "FILE:///r/a.yaml", "/r"},
+		{"a joined path that reads like a URL", "foo:b.yaml", "/r"},
+		{"an absolute key", "/r/a.yaml", "/r"},
+		{"a relative path", "a.yaml", "/r"},
+		{"a file URI, unconfined", "file:///r/a.yaml", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fake := &fakeReader{data: []byte("X: {}\n")}
 			ext := externalOver(Options{Within: tc.within}, fake)
 
-			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key)
+			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key, "spec.yaml")
 
-			if tc.want == "" {
-				require.NoError(t, a.err)
-				assert.Equal(t, "X: {}\n", string(a.body))
-				return
-			}
-			require.EqualError(t, a.err, tc.want)
-			assert.Empty(t, fake.reqs, "the reader is never asked")
+			require.NoError(t, a.err)
+			assert.Equal(t, "X: {}\n", string(a.body))
 		})
 	}
 }
@@ -305,13 +301,15 @@ func TestDirectoryNamed_SaysTheWorkingDirectory(t *testing.T) {
 }
 
 // TestRefusedByName_JudgesADocumentPartByItsSpelling pins what a read refuses
-// by a $ref's spelling alone. Confined, an absolute file path is refused
-// wherever it points, unless it names the source. In either mode, a URL whose
+// by a $ref's spelling alone. Confined, an absolute file path and a file URI
+// are refused wherever they point, unless they name the source. In either
+// mode, a URL whose
 // scheme is none of http, https and file is. A relative path, a colon past a
 // dot segment among them, is not, and with no reader nothing is.
 func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 	t.Parallel()
 	const absolute, scheme = "the $ref names it by an absolute path", "it is named by a URL with the scheme"
+	const fileURI = "it is named by a file URI, which a read follows only when external references are allowed"
 	for _, tc := range []struct {
 		uri                string
 		confined, anywhere string
@@ -321,7 +319,9 @@ func TestRefusedByName_JudgesADocumentPartByItsSpelling(t *testing.T) {
 		{"foo:b.yaml", scheme + ` "foo"`, scheme + ` "foo"`},
 		{"X-Morphic-Refused:%2Fr%2Fa.yaml", scheme + ` "x-morphic-refused"`, scheme + ` "x-morphic-refused"`},
 		{"a.yaml", "", ""}, {"../a.yaml", "", ""}, {"./foo:b.yaml", "", ""},
-		{"https://h.test/a.yaml", "", ""}, {"http://h.test/a.yaml", "", ""}, {"file:///r/a.yaml", "", ""},
+		{"https://h.test/a.yaml", "", ""}, {"http://h.test/a.yaml", "", ""},
+		{"file:///r/a.yaml", fileURI, ""}, {"FILE:///elsewhere/a.yaml", fileURI, ""},
+		{"file:///r/root.yaml", "", ""}, {"file:///r/./root.yaml", "", ""},
 	} {
 		for _, run := range []struct {
 			within, want string

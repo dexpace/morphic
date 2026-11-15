@@ -102,7 +102,7 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 // which they would restate under too, as more declarations admit less.
 func setsDeclareShape(c lowering.Ctx, s *oas3.Schema, sets ...[]*oas3.JSONSchema[oas3.Referenceable]) bool {
 	branches := slices.Concat(sets...)
-	if slices.ContainsFunc(branches, isRefBranch) {
+	if slices.ContainsFunc(branches, c.Bindings().RefSite) {
 		return true
 	}
 	settled := ownRestatements(c, s, branches)
@@ -250,7 +250,7 @@ func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceabl
 				return nil, nil, false
 			}
 			inner = append(inner, nested{written: s.GetItems(), at: r.declarationsAt(c).items})
-		case kv.Key == "$ref":
+		case kv.Key == r.w.c.Bindings().RefKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false
 			}

@@ -226,10 +226,14 @@ type Chain struct {
 }
 
 // Entry is one position writing a schema $ref: its hop and its chain.
+// Keyword is the keyword the reference is written under: `$ref`, or a
+// `$dynamicRef` naming no `$dynamicAnchor`, which is the $ref it spells (JSON
+// Schema 2020-12 §8.2.3.2).
 type Entry struct {
-	Site  Position
-	Hop   Hop
-	Chain Chain
+	Site    Position
+	Hop     Hop
+	Chain   Chain
+	Keyword string
 }
 
 // Lands reports whether e's $ref lands where a type can be read: its hop

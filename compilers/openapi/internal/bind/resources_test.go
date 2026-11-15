@@ -214,7 +214,7 @@ func TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt(t *testing.T) {
 		"/dir/c.yaml": "C: {type: boolean}\n", "/dir/schemas/tag.json": "T: {type: string}\n",
 	})
 	open := cfg.Open
-	cfg.Open = func(name string) (*yaml.Node, error) { opened = append(opened, name); return open(name) }
+	cfg.Open = func(name, from string) (*yaml.Node, error) { opened = append(opened, name); return open(name, from) }
 	cfg.Self = "/dir/spec.yaml"
 	cfg.Locate = func(uri, base string) (string, bool) {
 		if strings.HasPrefix(uri, "/") {
@@ -321,9 +321,9 @@ func TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork(t *testing.T) {
 	}
 	open := cfg.Open
 	var opened []string
-	cfg.Open = func(name string) (*yaml.Node, error) {
+	cfg.Open = func(name, from string) (*yaml.Node, error) {
 		opened = append(opened, name)
-		return open(name)
+		return open(name, from)
 	}
 	table := bound(t, head+"components:\n  schemas:\n"+
 		"    F: {$ref: 'file:///dir/secret.yaml#/X'}\n"+

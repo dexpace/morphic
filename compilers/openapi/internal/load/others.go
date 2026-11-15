@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"maps"
-	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,6 +14,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -50,6 +51,12 @@ type Others struct {
 	list   []Other
 	byName map[string]int
 	trees  []provenance.Tree
+	// found is what reading each document found in its own entry: a stream
+	// past its first document, and a YAML version it declares and is not read
+	// as. repeats is each key one of its mappings writes twice
+	// (oas.CheckRepeatedKeys), reported unless a reached object's check reports
+	// it first (unreportedRepeats).
+	found, repeats []ir.Diagnostic
 }
 
 // tree returns where a node of the document a reference reads by name is
@@ -93,10 +100,7 @@ func (o Others) Named(name string) (Other, bool) {
 
 // index returns where in list the document a reference reads by name is.
 func (o Others) index(name string) (int, bool) {
-	if i, ok := o.byName[name]; ok {
-		return i, true
-	}
-	i, ok := o.byName[readKey(name)]
+	i, ok := o.byName[name]
 	return i, ok
 }
 
@@ -107,7 +111,7 @@ func unreachedKeys(table *bind.Table) map[string]bool {
 	unused := map[string]bool{}
 	for id := range bind.DocID(table.Documents()) {
 		if d := table.Document(id); d.Unreached {
-			unused[readKey(d.Name)] = true
+			unused[d.Name] = true
 		}
 	}
 	return unused
@@ -132,6 +136,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		byLabel[label] = append(byLabel[label], key)
 	}
 	o := Others{byName: map[string]int{}}
+	cancelled := false
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
@@ -140,8 +145,17 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: read.self.shownPathOf(keys[0]), Hash: ir.SourceHash(data),
 		}, Rows: rows, version: version, dialect: dialect})
-		o.trees = append(o.trees, provenance.Tree{Doc: provenance.Doc{Source: first + i},
-			Pointers: pointersIn(ctx, read.trees, keys)})
+		tree := provenance.Tree{Doc: provenance.Doc{Source: first + i}, Pointers: pointersIn(ctx, read.trees, keys)}
+		o.trees = append(o.trees, tree)
+		doc := read.read[keys[0]]
+		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
+		// Once ctx is done no document is read on, so a cancel costs one ask.
+		if root := read.trees[keys[0]]; !cancelled && ctx.Err() == nil {
+			o.repeats = append(o.repeats, oas.CheckRepeatedKeys(ctx, root, version, oas.Options{
+				Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
+		} else {
+			cancelled = true
+		}
 		for _, key := range keys {
 			o.byName[key] = i
 		}
@@ -214,15 +228,4 @@ func (s sourceDocument) shownPathOf(key string) string {
 	default:
 		return fileNamed(filepath.Join(dir, local))
 	}
-}
-
-// readKey is the key a document a reference names by name is read under: a
-// URL's as the request built from it spells it (see external.document), any
-// other name itself.
-func readKey(name string) string {
-	u, err := url.Parse(name)
-	if err != nil || !refscope.IsURL(name) {
-		return name
-	}
-	return u.String()
 }

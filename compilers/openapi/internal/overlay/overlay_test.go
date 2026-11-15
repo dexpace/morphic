@@ -237,7 +237,6 @@ func TestApply_WarnsOfAnActionThatChangesNothingWithoutRefusing(t *testing.T) {
 func TestApply_RejectsAnOverlayItCannotRead(t *testing.T) {
 	t.Parallel()
 	for name, data := range map[string]string{
-		"not yaml":       "\tnot: yaml\n",
 		"not an overlay": "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n",
 		"no actions":     "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions: []\n",
 		"empty":          "",

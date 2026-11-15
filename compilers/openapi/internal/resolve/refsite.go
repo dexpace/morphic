@@ -60,30 +60,19 @@ func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
 	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
 }
 
-// IsRefSite reports whether a position is $ref-shaped: the library's own
-// IsReference (a non-empty $ref), or a schema body that carries a Ref field of
-// its own even when empty. That is deliberately broader than annotation.At's
-// classification: schemaRefHomed and TargetSchema both need "there is a
-// $ref-carrying body here," not "there is a genuine, followable reference," so
-// the degenerate {$ref: ""} shape counts for them even though it does not count
-// as an annotation.Reference. s is the schema body the caller already holds; a
-// nil s (a boolean schema carries none) is never $ref-shaped.
-func IsRefSite(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
-	return js.IsReference() || (s != nil && s.Ref != nil)
-}
-
-// TargetSchema returns the schema the chain of $refs from js ends on when js
-// is a $ref, so use-site annotations can fall back to the referent, and nil
-// otherwise or where the chain ends on none.
-func (s Scope) TargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
-	target, _ := s.TargetAt(js, ref)
+// TargetSchema returns the schema the chain of references from js ends on
+// when js is a reference site (typed.Bindings.RefSite), so use-site
+// annotations can fall back to the referent, and nil otherwise or where the
+// chain ends on none.
+func (s Scope) TargetSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
+	target, _ := s.TargetAt(js)
 	return target
 }
 
 // TargetAt is TargetSchema with the position the schema is read at, for a reader
 // keeping what it reads of a target per target rather than per use.
-func (s Scope) TargetAt(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) (*oas3.Schema, bind.Position) {
-	if !IsRefSite(js, ref) {
+func (s Scope) TargetAt(js *oas3.JSONSchema[oas3.Referenceable]) (*oas3.Schema, bind.Position) {
+	if !s.Bindings.RefSite(js) {
 		return nil, bind.Position{}
 	}
 	entry, _ := s.Bindings.Entry(js)

@@ -125,7 +125,7 @@ func mediaTypesFrom(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree,
 // buildMediaType builds node, a Media Type Object or a Reference Object, as the
 // parser builds a reference object of its own kinds. Nothing is validated: the
 // rule table judges the source, and what a reference reaches is held to it
-// (validateReached).
+// (judgeReached).
 func buildMediaType(ctx context.Context, node *yaml.Node) (*refscope.ReferencedMediaType, error) {
 	registerMediaTypeReference()
 	model := &refscope.ReferencedMediaType{}

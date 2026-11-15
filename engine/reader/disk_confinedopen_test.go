@@ -39,7 +39,7 @@ func TestDisk_ReadDocumentConfinedOpenFailureNamesTheRequestedPath(t *testing.T)
 				compilers.DocumentRequest{Location: tc.location, Within: in})
 
 			require.Error(t, err)
-			assert.Nil(t, got)
+			assert.Nil(t, got.Data)
 			if tc.wantIs != nil {
 				assert.ErrorIs(t, err, tc.wantIs)
 			}

@@ -129,3 +129,34 @@ func TestCompiler_SourceLimitReadsTheCallersOptions(t *testing.T) {
 		})
 	}
 }
+
+// TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget holds
+// recognition to the node budget the compile is held to, for a YAML and a JSON
+// source: the read that recognizes a source is the read that is bounded, and
+// the decline says what the compile says of the same source.
+func TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget(t *testing.T) {
+	t.Parallel()
+	tests := map[string]string{
+		"YAML": budgetedSpec + "x-p: [0, 0, 0, 0, 0, 0, 0, 0]\n",
+		"JSON": `{"openapi":"3.1.0","info":{"title":"T","version":"1"},"paths":{},"x-p":[0,0,0,0,0,0,0,0]}`,
+	}
+	opts := compilers.Options{FormatOptions: openapi.Options{Limits: openapi.Limits{MaxSourceNodes: 12}}}
+	for name, text := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := compilers.Source{Path: "api.yaml", Data: []byte(text)}
+
+			rec, diags, ok := openapi.New().Detect(t.Context(), src, opts)
+
+			assert.False(t, ok)
+			assert.Equal(t, compilers.Recognition{}, rec)
+			require.Len(t, diags, 1)
+			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+
+			_, compiled, err := openapi.New().Compile(t.Context(), []compilers.Source{src}, opts)
+			require.NoError(t, err)
+			require.Len(t, compiled, 1)
+			assert.Equal(t, compiled[0].Message, diags[0].Message, "detection and the compile refuse the source alike")
+		})
+	}
+}

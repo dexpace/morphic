@@ -5,10 +5,12 @@ package load
 
 import (
 	"context"
+	"net/url"
 
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -31,6 +33,9 @@ type sourceDocument struct {
 	root   *yaml.Node
 	judged judgment
 	tree   provenance.Tree
+	// mappings is where the caller put the documents under a URI prefix
+	// (Options.Mappings).
+	mappings []Mapping
 }
 
 // treeOf places the nodes of root in the document doc places, their pointers
@@ -58,6 +63,15 @@ func newSourceDocument(src compilers.Source, places *refscope.Places, root *yaml
 ) sourceDocument {
 	return sourceDocument{path: Location(src), places: places, handed: src.Path, data: src.Data, root: root,
 		judged: judged, tree: tree}
+}
+
+// fetchedFrom reports whether location is an absolute http(s) URL, naming a
+// host, which a source fetched from the network is located at
+// (compilers.Source): its references are then bounded as a fetched
+// document's are.
+func fetchedFrom(location string) bool {
+	u, err := url.Parse(location)
+	return err == nil && bind.OverNetwork(location) && u.Host != ""
 }
 
 // Location is where src lies, as the references in it are read against: its

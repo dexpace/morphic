@@ -172,7 +172,7 @@ func standingUnion(c lowering.Ctx, a *oas3.Schema) *oas3.Schema {
 	if !at.ok {
 		return nil
 	}
-	return allOfBranches(a, "").branches[at.index].schema.GetSchema()
+	return allOfBranches(c.Bindings(), a, "").branches[at.index].schema.GetSchema()
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels
@@ -238,7 +238,7 @@ func composedByBranch(c lowering.Ctx, s *oas3.Schema, u unionAt) bool {
 		branches, _, _ := unionBranches(u.holder)
 		return slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 			target := b.GetSchema()
-			if isRefBranch(b) {
+			if c.Bindings().RefSite(b) {
 				target = refBranchTarget(c.Bindings(), b)
 			}
 			return target != nil && slices.ContainsFunc(discriminatedAncestors(c.Bindings(), target),
@@ -253,7 +253,7 @@ func composedByBranch(c lowering.Ctx, s *oas3.Schema, u unionAt) bool {
 // schema two branches both name from being queued, and walked, twice.
 func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3.Schema]bool) []*oas3.Schema {
 	var out []*oas3.Schema
-	for b := range allOfRefBranches(s) {
+	for b := range allOfRefBranches(refs, s) {
 		target := refBranchTarget(refs, b)
 		if target == nil || visited[target] {
 			continue

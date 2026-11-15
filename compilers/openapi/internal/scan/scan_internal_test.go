@@ -215,7 +215,7 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), budget.AtMost(defaultSurplus)))
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), budget.AtMost(defaultSurplus), budget.Unbounded()))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -230,7 +230,7 @@ const defaultSurplus = 1 << 18
 // the default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, data), budget.AtMost(defaultSurplus))
+	return Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, data), budget.AtMost(defaultSurplus), budget.Unbounded())
 }
 
 // scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
@@ -238,7 +238,7 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
 	idx := indexOf(t, data)
-	return Aliases(t.Context(), provenance.Tree{Pointers: Pointers(t.Context(), idx.Root())}, ir.Provenance{}, idx, budget.AtMost(defaultSurplus))
+	return Aliases(t.Context(), provenance.Tree{Pointers: Pointers(t.Context(), idx.Root())}, ir.Provenance{}, idx, budget.AtMost(defaultSurplus), budget.Unbounded())
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -421,7 +421,7 @@ func TestAliases_AnchorsThroughTheTree(t *testing.T) {
 			}}
 
 			got := Aliases(t.Context(), tree, ir.Provenance{}, indexOf(t, readReproducer(t, fixture)),
-				budget.AtMost(defaultSurplus))
+				budget.AtMost(defaultSurplus), budget.Unbounded())
 			require.Len(t, got, 1)
 			require.NotNil(t, seen, "the tree was asked about the node the refusal is about")
 			assert.Equal(t, tree.Node(seen), got[0].Provenance)
@@ -440,7 +440,7 @@ func TestAliases_AnchorsThroughTheTree(t *testing.T) {
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
 	aliases := func(src string) []ir.Diagnostic {
-		return Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(defaultSurplus))
+		return Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(defaultSurplus), budget.Unbounded())
 	}
 
 	anchor := aliases("a: &x [*x]\n")
@@ -467,7 +467,7 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	panicking := provenance.Tree{Pointers: func(*yaml.Node) (jsontext.Pointer, bool) { panic("pointers fault") }}
 	whole := ir.Provenance{Source: 6}
 
-	got := Aliases(t.Context(), panicking, whole, indexOf(t, []byte("a: &x [*x]\n")), budget.AtMost(defaultSurplus))
+	got := Aliases(t.Context(), panicking, whole, indexOf(t, []byte("a: &x [*x]\n")), budget.AtMost(defaultSurplus), budget.Unbounded())
 
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)

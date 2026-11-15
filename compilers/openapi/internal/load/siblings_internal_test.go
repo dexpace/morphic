@@ -338,15 +338,16 @@ func walkSites(items iter.Seq[soa.WalkItem]) []string {
 	return sites
 }
 
-// TestLoad_AFieldTheParserFaultsOnIsReported pins the parser fault's way into
-// the load phase's report, for shapes a document can write beside a $ref: an
-// error where the use site is written, once, and the document still loads, so
-// the fields are never dropped in silence.
-func TestLoad_AFieldTheParserFaultsOnIsReported(t *testing.T) {
+// TestLoad_ANullRefBesideAPathItemRefIsReportedAtTheRefAndNotAsAFault pins what
+// the model's build of the fields written beside a path item's $ref makes of a
+// Reference Object whose $ref is null: the rule table's error at that $ref,
+// once, the entry read as left out, and no fault of the parser to report, so
+// the document loads without a finding that a field could not be read.
+func TestLoad_ANullRefBesideAPathItemRefIsReportedAtTheRefAndNotAsAFault(t *testing.T) {
 	t.Parallel()
-	for _, beside := range []string{
-		"parameters: [{$ref: null}]",
-		"put: {requestBody: {$ref: null}, responses: {'200': {description: ok}}}",
+	for beside, pointer := range map[string]string{
+		"parameters: [{$ref: null}]": "/paths/~1a/parameters/0/$ref",
+		"put: {requestBody: {$ref: null}, responses: {'200': {description: ok}}}": "/paths/~1a/put/requestBody/$ref",
 	} {
 		doc, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -360,15 +361,17 @@ paths:
 		require.NoError(t, err)
 		require.NotNil(t, doc, "%s: the document still loads", beside)
 
-		var faults []ir.Diagnostic
+		var mismatches []ir.Diagnostic
 		for _, d := range diags {
-			if d.Code == diag.Validation && strings.Contains(d.Message, "could not be read") {
-				faults = append(faults, d)
+			assert.NotContains(t, d.Message, "could not be read", "%s: no fault of the parser is reported", beside)
+			if d.Code == diag.Validation+"/validation-type-mismatch" {
+				mismatches = append(mismatches, d)
 			}
 		}
-		require.Len(t, faults, 1, "%s: reported once", beside)
-		assert.Equal(t, ir.SeverityError, faults[0].Severity)
-		assert.Equal(t, 5, faults[0].Provenance.Position.Line, "%s: sited where the use site is written", beside)
+		require.Len(t, mismatches, 1, "%s: reported once: %+v", beside, diags)
+		assert.Equal(t, ir.SeverityError, mismatches[0].Severity)
+		assert.Equal(t, pointer, string(mismatches[0].Provenance.Pointer))
+		assert.Equal(t, 6, mismatches[0].Provenance.Position.Line, "%s: sited where it is written", beside)
 	}
 }
 

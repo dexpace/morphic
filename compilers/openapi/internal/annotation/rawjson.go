@@ -80,6 +80,9 @@ func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Va
 	if n == nil {
 		return nil, errors.New("nil yaml node")
 	}
+	// A value the load phase read as left out is rendered as the source wrote
+	// it (nodeview.Unread).
+	n = nodeview.Written(n)
 	if depth > maxRawDepth {
 		return nil, fmt.Errorf("nesting exceeds %d", maxRawDepth)
 	}
@@ -111,17 +114,14 @@ func (c *rawConv) node(dst jsontext.Value, n *yaml.Node, depth int) (jsontext.Va
 
 // appendScalar appends a scalar node to dst as value.Classify reads it, the
 // classification an ir.Value is lowered from too, so a scalar kept verbatim and
-// one lowered are never two kinds (GitHub #783). What is kept differs only
-// where JSON has no type for the kind: a timestamp, a !!binary and a scalar
-// under the document's own tag keep the text the source wrote, because the
-// resolved form is derivable from the spelling and the spelling is not
-// derivable from the resolved form (GitHub #242).
+// one lowered are never two kinds (GitHub #783), as the JSON kind it reads as
+// (value.Scalar.JSONKind).
 func appendScalar(dst jsontext.Value, n *yaml.Node) (jsontext.Value, error) {
 	s, err := value.Classify(n)
 	if err != nil {
 		return nil, err
 	}
-	switch s.Kind {
+	switch s.JSONKind() {
 	case value.ScalarNull:
 		return append(dst, "null"...), nil
 	case value.ScalarBool:

@@ -147,10 +147,10 @@ func codes() []string {
 	return []string{
 		diag.Validation, diag.UnsupportedVersion, diag.UnresolvedRef, diag.CyclicRef,
 		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.PointerAmplification, diag.TaggedMapping,
-		diag.StreamDocumentsDropped,
+		diag.StreamDocumentsDropped, diag.YAMLVersionReading,
 		diag.UndecodableSource,
-		diag.OverlayInvalid, diag.OverlayFailed, diag.OverlayUnsupported,
-		diag.OverlayAction, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
+		diag.OverlayInvalid, diag.OverlayFailed,
+		diag.OverlayAction, diag.OverlayAnchoredPattern, diag.OverlayReplacedValue, diag.OverlayOriginIncomplete,
 		diag.ValidationOnlyKeyword, diag.FalseSchema, diag.EmptyEnum, diag.DuplicateEnumValue, diag.RepeatedEntry,
 		diag.NumericPrecision, diag.ExclusiveBoundForm, diag.InvalidStatusKey,
 		diag.DuplicateStatusKey, diag.DuplicateParameter, diag.DuplicateServerName,

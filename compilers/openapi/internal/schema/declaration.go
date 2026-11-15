@@ -54,7 +54,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 	if home != annotation.HomeOwnNode || s == nil {
 		return ref, nil
 	}
-	if !unhomed && !declaresPositionScoped(c, s) {
+	if !unhomed && !declaresPositionScoped(c, s, pointer) {
 		return ref, nil
 	}
 	// The home stands where its target stood, so it keeps what the reference
@@ -75,12 +75,14 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 // keyword recordDeclarationResidue keeps, or one PreserveUnknownKeywords keeps.
 // It is the gate on hoisting an alias, so it must stay in step with what those
 // actually keep: a keyword listed here but stored nowhere would hoist an empty
-// node, and one stored but missing here would still be dropped.
-func declaresPositionScoped(c lowering.Ctx, s *oas3.Schema) bool {
+// node, and one stored but missing here would still be dropped. A $dynamicRef
+// making pointer a reference site (typed.Bindings.RefSite) is its reference,
+// which recordUnexpandedDynamicRef keeps nowhere, as a $ref.
+func declaresPositionScoped(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
 		annotation.DeclaresAny(s, collectionBoundKeywords) ||
 		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
-		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
+		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(heldAt(c, pointer)) ||
 		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
 }

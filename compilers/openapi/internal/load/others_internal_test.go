@@ -25,8 +25,8 @@ import (
 type servedReader struct{}
 
 // ReadDocument answers req.
-func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	return []byte("X: {type: string}\n"), nil
+func (servedReader) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{Data: []byte("X: {type: string}\n")}, nil
 }
 
 // loadReferencing loads a source at /r/root.yaml whose component A is a $ref
@@ -47,9 +47,9 @@ func loadReferencing(t *testing.T, ref string) (*Document, []string) {
 }
 
 // TestOthers_NamesADocumentByEverySpellingItIsReadUnder pins how a document a
-// reference reads is found again: by the name the binder spells it with, which
-// for a URL is as written, and by the key its request was read under, which
-// escapes what the URL's syntax requires. A name no read answered, or one no
+// reference reads is found again by the name the binder spells it with, which
+// for a URL is the one spelling it is located by (resolve.Locate), escaping
+// what the URL's syntax requires. A name no read answered, or one no
 // request could be built from, finds nothing; nor does an index past the list.
 // A space is no URI reference, which validation reports, and the document is
 // read all the same.
@@ -63,10 +63,10 @@ func TestOthers_NamesADocumentByEverySpellingItIsReadUnder(t *testing.T) {
 	assert.Equal(t, 1, ext.Index, "the first entry after the source")
 	assert.Equal(t, "http://h/a%20b.yaml", ext.Label)
 	assert.Equal(t, "http://h/a%20b.yaml", ext.Info.Path)
-	assert.Equal(t, "http://h/a b.yaml", doc.Bindings.Table().Document(1).Name, "sanity: the binder's spelling")
+	assert.Equal(t, "http://h/a%20b.yaml", doc.Bindings.Table().Document(1).Name, "sanity: the binder's spelling")
 
 	for name, want := range map[string]bool{
-		"http://h/a b.yaml":   true,
+		"http://h/a b.yaml":   false,
 		"http://h/a%20b.yaml": true,
 		"http://h/c.yaml":     false,
 		"http://h/%zz":        false,
@@ -196,7 +196,7 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
 	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
 		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
-		Open: func(name string) (*yaml.Node, error) {
+		Open: func(name, _ string) (*yaml.Node, error) {
 			var n yaml.Node
 			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
 		}})

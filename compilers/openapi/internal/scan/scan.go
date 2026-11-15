@@ -21,8 +21,8 @@ import (
 
 // Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
 // the parser keys them (nodeview.KeyOf), and whether the tree holds it. A
-// scalar key shares its member's pointer, and an alias's target is placed
-// where it is written. A nil node or root is held by none, nor is a node under
+// scalar key shares its member's pointer, and a shared node is placed by
+// rehome. A nil node or root is held by none, nor is a node under
 // a `<<` merge key, whose pair the merge's document holds elsewhere, nor a key
 // that is no scalar, which no pointer reads inside.
 //
@@ -37,13 +37,21 @@ func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.P
 		if steps == nil {
 			// Never cut short by the bound for a tree the loader reads: each
 			// passed a sourceindex walk under the same bound first.
-			steps, _ = stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
+			steps = placesIn(ctx, root)
 		}
 		if _, held := steps[n]; !held {
 			return "", false
 		}
 		return pointerOf(steps, n), true
 	}
+}
+
+// placesIn indexes root's tree by stepsIn under the compiler's node bound,
+// each node aliases share placed at the least of its places (rehome).
+func placesIn(ctx context.Context, root *yaml.Node) map[*yaml.Node]step {
+	steps, _ := stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
+	rehome(steps)
+	return steps
 }
 
 // step is how a node of a tree is reached from the node holding it: that node,
@@ -107,17 +115,16 @@ func reachChildren(n *yaml.Node, reach func(*yaml.Node, step)) {
 
 // eachChild hands visit each child of a mapping or sequence n, with the token
 // naming it and whether a pointer reaches it there: a pair under a `<<` merge
-// key is n's but has no pointer of its own, and a key that is no scalar has
-// none either, though its value is read under the empty key the parser gives
-// it. A scalar holds nothing, and an alias's target is written elsewhere.
+// key is n's but has no pointer of its own, and an entry whose key is no
+// scalar, which every reader leaves out, has none either. A scalar holds
+// nothing, and an alias's target is written elsewhere.
 func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
 			token, own := nodeview.KeyOf(key)
-			k := nodeview.Deref(key)
-			visit(key, token, own && k != nil && k.Kind == yaml.ScalarNode)
+			visit(key, token, own)
 			visit(value, token, own)
 		}
 	case yaml.SequenceNode:
@@ -169,15 +176,15 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // without end or far past its own size (GitHub #12, #27): an anchor naming its
 // own ancestor overflows the parser's stack, and an alias bomb exhausts its
 // memory (docs/parser-library.md#alias-cycle,
-// docs/parser-library.md#alias-expansion). It serves an overlay too
-// (load.overlayRefusals). tree places a refusal at its node; an incomplete
-// scan yields a diag.CycleScanFailed warning at whole.
+// docs/parser-library.md#alias-expansion), or add past maxBytes of scalar
+// text (GitHub #1429). tree places a refusal at its node; an incomplete scan
+// warns at whole.
 //
-// The index must cover the whole tree that will reach the parser: an alias to
-// an ancestor is visible only from the root. surplus is the alias budget;
-// yaml.v3's own alias guard never fires on a yaml.Node decode (GitHub #479).
+// The index must cover the whole tree that reaches the parser: an alias to an
+// ancestor shows only from the root. surplus is the alias budget, which no
+// guard of yaml.v3's enforces on a node decode (GitHub #479).
 func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index,
-	surplus budget.Limit,
+	surplus, maxBytes budget.Limit,
 ) []ir.Diagnostic {
 	return scanRecovered(whole, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(ctx, tree, idx); ok {
@@ -185,6 +192,10 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 		}
 		if d, ok := aliasAmplification(ctx, tree, idx.Root(), idx.Nodes(), surplus); ok {
 			return []ir.Diagnostic{d}
+		}
+		if added := idx.AliasText(); !maxBytes.Admits(added) {
+			return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, whole,
+				"YAML aliases add %d bytes of scalar text to the document, past the %d-byte budget", added, maxBytes.Cap())}
 		}
 		return nil
 	})
@@ -209,7 +220,7 @@ func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Inde
 
 // anchorName is the anchor label an alias points at, for the diagnostic message.
 func anchorName(alias *yaml.Node) string {
-	if alias.Alias != nil && alias.Alias.Anchor != "" {
+	if alias.Kind == yaml.AliasNode && alias.Alias != nil && alias.Alias.Anchor != "" {
 		return alias.Alias.Anchor
 	}
 	return alias.Value

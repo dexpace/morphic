@@ -563,6 +563,7 @@ components:
         agreeing: {allOf: [{title: One, type: object}, {title: One, type: object}]}
         overruled: {title: Own, allOf: [{title: One, type: object}]}
         referenced: {allOf: [{$ref: '#/components/schemas/Pet', title: Beside A Ref}]}
+        dynamic: {allOf: [{$dynamicRef: '#/components/schemas/Pet', title: Beside A Dynamic Ref}]}
         nested: {allOf: [{allOf: [{title: Deep, type: object}]}]}
         mapped: {allOf: {a: {title: Mapped Title, type: object}}}
       $defs:
@@ -642,6 +643,7 @@ var titleRows = func() []struct{ name, pointer, want string } {
 		{"one title allOf branches agree on", keyed + "/properties/agreeing", "one"},
 		{"a schema's own title before its branches'", keyed + "/properties/overruled", "own"},
 		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "referenced"},
+		{"a title beside a $dynamicRef in an allOf", keyed + "/properties/dynamic", "dynamic"},
 		{"a title an allOf branch nests", keyed + "/properties/nested", "nested"},
 		{"a title under an allOf written as a mapping", keyed + "/properties/mapped", "mapped"},
 		{"a title a branch's allOf writes is its siblings' too", "/components/schemas/Conjoined/anyOf/0", "variant_0"},

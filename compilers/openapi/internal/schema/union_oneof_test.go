@@ -1026,6 +1026,11 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 	}
 }
 
+// nodeTwice declares the $dynamicAnchor node twice, after the schema a case
+// writes, so a $dynamicRef naming it is irreducible: the target depends on the
+// evaluation path.
+const nodeTwice = "    N1: {$dynamicAnchor: node}\n    N2: {$dynamicAnchor: node}\n"
+
 // TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape holds a branch that says
 // something of shape the body does not to distribution, and pins each
 // way of doing so a looser comparison would read as a restatement: a type, a
@@ -1158,7 +1163,7 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"DynamicRefBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{properties: {a: {type: string}}, $dynamicRef: '#node'}]
-`, "openapi:oneOf"},
+` + nodeTwice, "openapi:oneOf"},
 		"NestedPropertySaysMore": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string}}}}
       oneOf: [{required: [a], properties: {a: {type: object, properties: {x: {type: integer}}}}}]
@@ -1187,7 +1192,7 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"DynamicRefAlone": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{$dynamicRef: '#node'}, {required: [a]}]
-`, "openapi:oneOf"},
+` + nodeTwice, "openapi:oneOf"},
 		"FormatInABareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], format: uri}]

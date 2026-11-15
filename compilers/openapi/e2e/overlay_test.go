@@ -230,12 +230,12 @@ func TestCompile_OverlayAppliesBeforeLowering(t *testing.T) {
 	assert.Equal(t, []string{"name", "tag"}, names(after), "and the overlay adds the second")
 }
 
-// TestCompile_OverlayWorkAnAliasMountsStaysTheSources pins where attribution
-// falls back. It records what the overlay wrote at the anchor it wrote it
-// under, so a position an alias or a `<<` merge key mounts that content at is
-// one it never recorded, and names no writer: under-attributed rather than
-// misattributed (provenance.Attribution.WriterAt).
-func TestCompile_OverlayWorkAnAliasMountsStaysTheSources(t *testing.T) {
+// TestCompile_OverlayWorkAnAliasMountsStaysWhereItWasWritten pins where the
+// overlay's writes land when the source shares the node it writes. The overlay
+// wrote the anchor's own position, so that one is credited to it, and the
+// positions an alias and a `<<` merge key stand at keep the value they stood
+// for, which the overlay never wrote: they hold no property it added.
+func TestCompile_OverlayWorkAnAliasMountsStaysWhereItWasWritten(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -260,10 +260,21 @@ actions:
 
 	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/A/properties/added", WrittenBy: 1},
 		propertyProvenance(t, doc, "A", "added"), "the overlay wrote the anchor's own position")
-	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/B/properties/added"},
-		propertyProvenance(t, doc, "B", "added"), "an alias mounts it where attribution never looked")
-	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/C/allOf/0/properties/added"},
-		propertyProvenance(t, doc, "C", "added"), "and so does a merge key")
+	seen := 0
+	for _, name := range []string{"B", "C"} {
+		for _, def := range doc.Types {
+			model, ok := def.(*ir.Model)
+			if !ok || model.Name.Source != name {
+				continue
+			}
+			seen++
+			_, has := propByWire(model, "added")
+			assert.False(t, has, "%s keeps the value the anchor had, with nothing the overlay added", name)
+			_, kept := propByWire(model, "old")
+			assert.True(t, kept, "%s still holds the property the source wrote", name)
+		}
+	}
+	assert.Equal(t, 2, seen, "B and C are each a model")
 }
 
 // TestCompile_OverlayIsCreditedWithAFieldItRedeclares pins where an allOf fold

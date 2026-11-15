@@ -921,7 +921,8 @@ func TestDiscriminatorMapping_ReportsAValueNamingNothingOnce(t *testing.T) {
 		both    = ": the entry document declares no schema component of that name, and as a URI reference "
 		at      = "/components/schemas/Pets/discriminator/"
 		refused = "the document it names could not be read: external document https://y.test/z refused: " +
-			"it is on the network, which a read reaches only when external references are allowed"
+			"it is on the network, which a read reaches only when external references are allowed; " +
+			"a locate option maps its URL to a location"
 	)
 	for _, reversed := range []bool{false, true} {
 		doc, diags, dir := compileFiles(t, nil, rawSpec("3.2.0", blocks, "", reversed), openapi.Options{})

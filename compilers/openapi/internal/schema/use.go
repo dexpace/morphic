@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -220,14 +219,14 @@ func passageOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (passag
 // is distributed across it or kept beside it, so that allOf lends nothing. It
 // reads the source and its bindings alone, since a chain asks it of every link.
 func throughRef(c lowering.Ctx, s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
-	refs := slices.Collect(allOfRefBranches(s))
+	refs := slices.Collect(allOfRefBranches(c.Bindings(), s))
 	if len(refs) != 1 {
 		return nil
 	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		return refs[0]
 	}
-	if !allOfMayRefine(s) || annotation.DeclaresAny(s, objectKeywords) || !refinableBranches(allOfBranches(s, "")) {
+	if !allOfMayRefine(s) || annotation.DeclaresAny(s, objectKeywords) || !refinableBranches(c, allOfBranches(c.Bindings(), s, "")) {
 		return nil
 	}
 	if declaresUnion(s) && allOfComposes(c, s) {
@@ -258,7 +257,7 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 // it composes as Base and Mixins.
 func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) Use {
 	s := js.GetSchema()
-	if resolve.IsRefSite(js, s) {
+	if c.Bindings().RefSite(js) {
 		u := lentBy(c, c.Bindings().Declared(js))
 		u.nullable = t.Nullable
 		return u
@@ -357,7 +356,7 @@ func (u *Use) lendRun(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (
 			return nil, false
 		}
 		at := placeOf(c, js)
-		if !resolve.IsRefSite(js, s) {
+		if !c.Bindings().RefSite(js) {
 			u.lend(s, at)
 			u.lendBranches(c, s, at)
 			return s, true
@@ -448,8 +447,8 @@ func DecidingSchema(c lowering.Ctx, s *oas3.Schema) *oas3.Schema {
 			break
 		}
 		s = r.principal.schema.GetSchema()
-		if isRefBranch(r.principal.schema) {
-			s = c.RefScope().TargetSchema(r.principal.schema, s)
+		if c.Bindings().RefSite(r.principal.schema) {
+			s = c.RefScope().TargetSchema(r.principal.schema)
 		}
 	}
 	return s

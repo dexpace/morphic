@@ -15,21 +15,22 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
-// listRepeats reports each entry of a list written in the source that repeats
-// what an earlier entry of the same list is identified by: a parameter's name
-// and location (paramRepeats), or a server's name (serverRepeats).
+// listRepeats reports each entry of a list that repeats what an earlier entry
+// of the same list is identified by: a parameter's name and location
+// (paramRepeats), or a server's name (serverRepeats), at the position at
+// places in the document that writes the list.
 //
-// items is a walk that visits each list where the source writes it, lowered
+// items is a walk that visits each list where its document writes it, lowered
 // or not, and again wherever a YAML alias mounts it, but never through a $ref:
 // walkSource's, or a landing's (landingRepeats). The lists beside a path item's
 // $ref are sibs's model's (writtenItem). A panic in the walk is reported at the
 // model it reached.
-func listRepeats(place provenance.Doc, sibs Siblings, b *typed.Bindings, items iter.Seq[soa.WalkItem],
+func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, b *typed.Bindings,
+	items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
@@ -38,44 +39,49 @@ func listRepeats(place provenance.Doc, sibs Siblings, b *typed.Bindings, items i
 			// Placed from "", not site: the library renders the root's location
 			// as "/", the pointer to a key named "". Read from the field, since
 			// GetServers stands in a server the source never wrote.
-			diags = append(diags, serverRepeats(place, m.Servers, "")...)
+			diags = append(diags, serverRepeats(at, m.Servers, "")...)
 		case *soa.ReferencedPathItem:
 			if item, ok := writtenItem(m, b, sibs, site); ok {
-				diags = append(diags, paramRepeats(place, b, item.GetParameters(), site)...)
-				diags = append(diags, serverRepeats(place, item.GetServers(), site)...)
+				diags = append(diags, paramRepeats(at, b, item.GetParameters(), site)...)
+				diags = append(diags, serverRepeats(at, item.GetServers(), site)...)
 			}
 		case *soa.Operation:
-			diags = append(diags, paramRepeats(place, b, m.GetParameters(), site)...)
-			diags = append(diags, serverRepeats(place, m.GetServers(), site)...)
+			diags = append(diags, paramRepeats(at, b, m.GetParameters(), site)...)
+			diags = append(diags, serverRepeats(at, m.GetServers(), site)...)
 		default:
 			// No other model holds a parameter or a servers list.
 		}
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
 	}
 	return diags
 }
 
 // landingRepeats reports what listRepeats finds in each path item a reference
-// lands on where the source's grammar reads none, such as under an x- key,
-// which the lowering mounts and no walk of the source meets. Each is walked
-// from the landing's own pointer, entering the fields beside each $ref in it
-// (sibs), so each list is checked where it is written, once, however many
-// references mount it: a landing inside another draws its findings twice,
-// identical, which the compile records once (compile.Diags). Another
-// document's parameters are the lowering's to check (operation.paramLedger),
-// and its servers no reader checks (GitHub #880).
-func landingRepeats(ctx context.Context, place provenance.Doc, sibs Siblings, b *typed.Bindings) []ir.Diagnostic {
+// lands on where its document's grammar reads none, such as under an x- key
+// or in another document, which the lowering mounts and no walk of the source
+// meets (GitHub #880). Each is walked from the landing's own pointer, entering
+// the fields beside each $ref in it (sibs), so each list is checked where it is
+// written, in whichever document, once, however many references mount it: a
+// landing inside another draws its findings twice, identical, which the
+// compile records once (compile.Diags).
+func landingRepeats(ctx context.Context, sites places, sibs Siblings, b *typed.Bindings) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, l := range b.Table().ObjectLandings() {
+		// A cancelled load reports nothing it found, so it reads no further.
+		if ctx.Err() != nil {
+			return nil
+		}
 		rp, built := b.ObjectAt(l.At, bind.RefPathItem).(*soa.ReferencedPathItem)
-		if l.At.Doc != bind.Source || l.Kind != bind.RefPathItem || !l.Reached || !built {
+		if l.Kind != bind.RefPathItem || !l.Reached || !built {
 			continue
 		}
+		doc := l.At.Doc
+		at := func(p jsontext.Pointer) ir.Provenance { return sites.position(bind.Position{Doc: doc, Pointer: p}) }
 		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), l.At.Pointer))
-		diags = append(diags, listRepeats(place, sibs, b, items)...)
+		diags = append(diags, listRepeats(at, sibs, b, items)...)
 	}
 	return diags
 }
@@ -104,7 +110,8 @@ func writtenItem(rp *soa.ReferencedPathItem, b *typed.Bindings, sibs Siblings, s
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
 // reported here is one the lowering finds; one whose $ref resolved to nothing
 // has no slot.
-func paramRepeats(place provenance.Doc, b *typed.Bindings, params []*soa.ReferencedParameter, owner jsontext.Pointer,
+func paramRepeats(at func(jsontext.Pointer) ir.Provenance, b *typed.Bindings, params []*soa.ReferencedParameter,
+	owner jsontext.Pointer,
 ) []ir.Diagnostic {
 	type holder struct {
 		at   jsontext.Pointer
@@ -124,7 +131,7 @@ func paramRepeats(place provenance.Doc, b *typed.Bindings, params []*soa.Referen
 			firstAt[ids.SlotOf(name, in)] = holder{at: entry, name: name}
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, place.At(entry),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, at(entry),
 			"%s", diag.RepeatedParameter(name, in, first.at, first.name)))
 	}
 	return diags
@@ -136,7 +143,7 @@ func paramRepeats(place provenance.Doc, b *typed.Bindings, params []*soa.Referen
 // repeats nothing: a URL hint is the lowering's, not a name the source wrote.
 // A list shorter than two entries has nothing to compare, so most lists cost
 // no map.
-func serverRepeats(place provenance.Doc, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
+func serverRepeats(at func(jsontext.Pointer) ir.Provenance, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
 	if len(servers) < 2 {
 		return nil
 	}
@@ -153,7 +160,7 @@ func serverRepeats(place provenance.Doc, servers []*soa.Server, owner jsontext.P
 			firstAt[name] = key
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, place.At(key),
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, at(key),
 			"server name %q repeats the name at %s; both servers are kept, and a consumer "+
 				"keying servers by name cannot tell them apart", name, first))
 	}

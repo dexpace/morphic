@@ -17,29 +17,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestNodeCount_CountsEveryNodeAndAnswersForNothing(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		src  string
-		want int
-	}{
-		// document + mapping + one key + one scalar value.
-		{"a one-entry mapping", "a: 1\n", 4},
-		// document + mapping + key + sequence + three scalars.
-		{"a three-element sequence", "a: [1, 2, 3]\n", 7},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			root, _, err := decodeStream(t.Context(), []byte(tc.src))
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, nodeCount(t.Context(), root))
-		})
-	}
-	assert.Equal(t, 0, nodeCount(t.Context(), nil), "an absent tree counts nothing rather than panicking")
-}
-
 func TestLoad_SourceByteBudgetBindsOnlyPastTheLimit(t *testing.T) {
 	t.Parallel()
 	size := len(minimal31)

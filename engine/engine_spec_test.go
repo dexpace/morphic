@@ -50,7 +50,7 @@ func (c rereadCompiler) Compile(ctx context.Context, sources []compilers.Source,
 	if c.at != "" {
 		location = c.at
 	}
-	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: location})
+	got, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: location})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,7 +58,7 @@ func (c rereadCompiler) Compile(ctx context.Context, sources []compilers.Source,
 	if err != nil {
 		return nil, nil, err
 	}
-	return &ir.Document{IRVersion: ir.IRVersion, Name: string(data), Version: setting, Types: ir.TypeRegistry{},
+	return &ir.Document{IRVersion: ir.IRVersion, Name: string(got.Data), Version: setting, Types: ir.TypeRegistry{},
 		Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
 }
 
@@ -70,8 +70,8 @@ func readSetting(ctx context.Context, opts compilers.Options) (string, error) {
 	if name == "" {
 		return "", nil
 	}
-	data, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: name})
-	return string(data), err
+	got, err := opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{Location: name})
+	return string(got.Data), err
 }
 
 // TestEngine_RunSpecCompilesTheHeldBytesBesideFilesOnDisk pins RunSpec's two

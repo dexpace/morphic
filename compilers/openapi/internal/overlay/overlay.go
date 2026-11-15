@@ -28,7 +28,8 @@ type Options struct {
 	// Path names the overlay document. It is recorded as the overlay's SourceInfo
 	// path and never opened.
 	Path string
-	// Data is the overlay document's bytes. The caller reads them; nothing here
+	// Data is the overlay document's bytes, whose digest names it. The caller
+	// reads them and reads them into the tree Apply is handed; nothing here
 	// performs I/O, so the compiler stays pure (compilers.Source's contract).
 	Data []byte
 	// Lax turns off strict application.
@@ -41,10 +42,10 @@ type Options struct {
 	Lax bool
 	// MaxNodes bounds the document the overlay may grow the source to, checked
 	// before each action builds anything and as the alias repair copies;
-	// unset, it is unbounded. It is the compile's node budget: the loader
-	// checks the patched tree against the same limit afterwards, and this is
-	// what stops an overlay spending memory to build a tree that check would
-	// refuse (GitHub #491).
+	// unset, it is unbounded. It is the compile's node budget, which the
+	// loader reads the source within and checks the patched tree against no
+	// more, so this alone holds the tree the overlay leaves to it, refusing an
+	// action before it spends memory building past it (GitHub #491).
 	MaxNodes budget.Limit
 }
 
@@ -81,32 +82,31 @@ func (o Origin) Source() ir.SourceInfo { return o.source }
 // provenance.Tree).
 func (o Origin) Attribution() provenance.Attribution { return o.attribution }
 
-// Apply applies opts to root in place and returns the attribution of what it
-// changed, with index as the overlay's place in Document.Sources.
+// Apply applies the overlay document doc, read from opts.Data, to root in place
+// and returns the attribution of what it changed, with index as the overlay's
+// place in Document.Sources. doc is a document node, or a node of no kind for a
+// stream holding none.
 //
 // An error-severity diagnostic means root was not usefully overlaid and the
 // caller must refuse to lower: actions apply in order and the ones that landed
 // are not undone, so a tree left behind by a failed application is neither the
 // source nor what the overlay asked for.
-func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
-	return applyWithin(ctx, index, root, opts, budget.AtMost(maxNodes))
+func Apply(ctx context.Context, index int, root, doc *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
+	return applyWithLimits(ctx, index, root, doc, opts, budget.AtMost(maxNodes), budget.AtMost(MaxSteps))
 }
 
-// applyWithin is Apply with the attribution walk's node bound as a parameter.
+// applyWithLimits is Apply with the attribution walk's node bound and the
+// selectors' steps as parameters.
 //
-// The bound is the walk's, not the caller's: Apply is the only production
-// entry and always passes maxNodes, so nothing outside this package can weaken
-// it. It is a parameter so the degradation at the bound is reachable from a
-// test with a small tree.
-func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
+// The bounds are the package's, not the caller's: Apply is the only
+// production entry and always passes maxNodes and MaxSteps, so nothing
+// outside this package can weaken them. They are parameters so what happens
+// at each is reachable from a test with a small tree.
+func applyWithLimits(ctx context.Context, index int, root, doc *yaml.Node, opts Options, walks, steps budget.Limit,
+) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
-	p, diags := read(ctx, at, opts.Data)
+	p, diags := read(at, doc)
 	if diag.HasError(diags) {
-		// A parse a cancel cut short refuses as a cancelled sequence does, with
-		// nothing reported, since the caller reads its context next.
-		if ctx.Err() != nil {
-			return Origin{}, nil
-		}
 		return Origin{}, diags
 	}
 
@@ -116,7 +116,7 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 			out []ir.Diagnostic
 			ok  bool
 		)
-		g, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes)
+		g, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes, steps)
 		return out, ok
 	})
 	diags = append(diags, reported...)
@@ -137,7 +137,8 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
 			"overlay applied, but the aliases a remove left naming what it removed expand past %d nodes", walks.Cap()))
 	}
-	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data)}
+	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data),
+		SelfURI: p.selfURI}
 	positions, attributed := attribute(ctx, root, g.written, walks)
 	if !attributed {
 		// Applied without attribution: the source keeps every position, but the
@@ -150,8 +151,7 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 
 // applyRecovered runs apply, the overlay's application, behind diag.Catch and
 // turns a panic in it into a refusal quoting what it panicked with, so the
-// no-panics-escape invariant holds. The application runs the parser library's
-// JSONPath evaluator, whose faults are not this package's to bound. A
+// no-panics-escape invariant holds over a tree no parse builds. A
 // half-applied tree is never reported as applied.
 func applyRecovered(at ir.Provenance, apply func() ([]ir.Diagnostic, bool)) ([]ir.Diagnostic, bool) {
 	var (

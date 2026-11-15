@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -405,7 +406,7 @@ func TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember(t *testing.T) {
 // withDocuments is self reading other documents from docs, by name.
 func withDocuments(docs map[string]string) bind.Config {
 	cfg := self
-	cfg.Open = func(name string) (*yaml.Node, error) {
+	cfg.Open = func(name, _ string) (*yaml.Node, error) {
 		src, ok := docs[name]
 		if !ok {
 			return nil, errors.New("no such document")
@@ -430,7 +431,7 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	cfg.Self = resolving.Self
 	opened := map[string]int{}
 	open := cfg.Open
-	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	cfg.Open = func(name, from string) (*yaml.Node, error) { opened[name]++; return open(name, from) }
 	var located, refused []string
 	cfg.Locate = func(uri, base string) (string, bool) {
 		located = append(located, uri)
@@ -458,7 +459,9 @@ func TestBind_RefuseJudgesEachReferenceByItsSpelling(t *testing.T) {
 	assert.Equal(t, bind.Unreadable, abs.Hop.Reason)
 	assert.Equal(t, "the document it names could not be read: named by its spelling", abs.Hop.Why())
 	assert.Equal(t, 1, opened["/other.yaml"], "read for the relative $ref alone")
-	assert.ElementsMatch(t, []string{"other.yaml", "/other.yaml"}, refused)
+	slices.Sort(refused)
+	assert.Equal(t, []string{"/other.yaml", "other.yaml"}, slices.Compact(refused),
+		"each spelling is judged, once for each time its hop is read")
 	assert.Contains(t, located, "/elsewhere/b", "the $id is placed")
 	id := entryAt(t, table, "/components/schemas/Id")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Res"}, id.Hop.Target, id.Hop.Why())
@@ -482,7 +485,7 @@ func TestBind_ReportsADocumentThatDoesNotParse(t *testing.T) {
 	t.Parallel()
 	parser := errors.New("yaml: line 1: did not find expected node content")
 	cfg := self
-	cfg.Open = func(string) (*yaml.Node, error) { return nil, &bind.UnparsableError{Err: parser} }
+	cfg.Open = func(string, string) (*yaml.Node, error) { return nil, &bind.UnparsableError{Err: parser} }
 
 	table := bound(t, "components:\n  schemas:\n    A: {$ref: 'bad.yaml#/x'}\n", cfg)
 
@@ -510,7 +513,7 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	cfg := withDocuments(docs)
 	opened := map[string]int{}
 	open := cfg.Open
-	cfg.Open = func(name string) (*yaml.Node, error) { opened[name]++; return open(name) }
+	cfg.Open = func(name, from string) (*yaml.Node, error) { opened[name]++; return open(name, from) }
 	cfg.Locate = func(uri, base string) (string, bool) { return uri, uri != "nowhere" }
 	table := bound(t, head+`components:
   schemas:

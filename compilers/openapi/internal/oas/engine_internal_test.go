@@ -147,6 +147,54 @@ func TestCiteFor_PicksTheLatestCitationTheMinorHasReached(t *testing.T) {
 	assert.Equal(t, Cite{}, citeFor(nil, V30))
 }
 
+// TestLessPointer_OrdersTokenByToken holds the order a finding names the
+// position that read it by: token by token, each by its bytes, a prefix first.
+func TestLessPointer_OrdersTokenByToken(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		a, b jsontext.Pointer
+		less bool
+	}{
+		{"/A/x", "/A-/x", true},
+		{"/A-/x", "/A/x", false},
+		{"/A", "/A/x", true},
+		{"/A/x", "/A/x", false},
+	} {
+		assert.Equal(t, tc.less, lessPointer(tc.a, tc.b), "%s < %s", tc.a, tc.b)
+	}
+}
+
+// TestSharedNode_IsTrueForAnAliasAndForAnAnchoredNodeAlone holds the node
+// another place may read to the two ways it is shared, and an absent node to
+// none.
+func TestSharedNode_IsTrueForAnAliasAndForAnAnchoredNodeAlone(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: &m {k: 1}\nb: *m\nc: {k: 1}\n"), &root))
+	pairs := root.Content[0].Content
+
+	assert.False(t, sharedNode(nil), "an absent node")
+	assert.True(t, sharedNode(pairs[1]), "an anchored mapping")
+	assert.True(t, sharedNode(pairs[3]), "an alias")
+	assert.False(t, sharedNode(pairs[5]), "a mapping written once")
+}
+
+// TestOutsideRuleset_IsFalseForAnAbsentNodeAndTrueForATagOutsideIt holds a
+// node under a tag YAML 1.2's JSON schema ruleset lacks to being outside it,
+// and an absent node, a plain scalar and a tag the ruleset has to being inside.
+func TestOutsideRuleset_IsFalseForAnAbsentNodeAndTrueForATagOutsideIt(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("a: !acme x\nb: !!int 3\nc: plain\nd: !acme [x]\n"), &root))
+	pairs := root.Content[0].Content
+
+	assert.False(t, outsideRuleset(nil), "an absent node")
+	assert.True(t, outsideRuleset(pairs[1]), "a scalar under a local tag")
+	assert.False(t, outsideRuleset(pairs[3]), "a scalar under a tag the ruleset has")
+	assert.False(t, outsideRuleset(pairs[5]), "a plain scalar")
+	assert.True(t, outsideRuleset(pairs[7]), "a sequence under a local tag")
+}
+
 // TestKeyPlacer_ReadsTheMappingOnce holds a placer to one scan of its mapping
 // for its aliases, however many keys it places, which is what keeps n findings
 // about the keys of one object at n: an alias added after the first key is
@@ -167,4 +215,23 @@ func TestKeyPlacer_ReadsTheMappingOnce(t *testing.T) {
 	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "b"}, alias)
 	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 99}}, places.place("b"),
 		"the mapping was read for its aliases once, before b was written")
+}
+
+// TestKeyPlacer_PlacesAKeyWhoseValueIsAnchoredAtItsOwn holds a key whose value
+// is anchored, and read again through another key's alias, to its own pointer
+// and its value's coordinate: the locator places a shared node at the least
+// position reading it, here the other key, and a finding about a key is about
+// the key.
+func TestKeyPlacer_PlacesAKeyWhoseValueIsAnchoredAtItsOwn(t *testing.T) {
+	t.Parallel()
+	doc := openapitest.YAMLDocument(t, "b: &m 1\na: *m\n")
+	w := &walker{}
+	w.locate = func(p jsontext.Pointer) ir.Provenance {
+		if p == "" {
+			return ir.Provenance{}
+		}
+		return ir.Provenance{Pointer: "/a"}
+	}
+	places := newKeyPlacer(w, doc.Content[0], "")
+	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 1, Column: 4}}, places.place("b"))
 }

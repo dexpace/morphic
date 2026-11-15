@@ -68,11 +68,11 @@ func TestReaders_AnswerAlikeThroughTheContract(t *testing.T) {
 
 				if tc.wantIs != nil {
 					require.ErrorIs(t, err, tc.wantIs)
-					assert.Nil(t, got)
+					assert.Nil(t, got.Data)
 					return
 				}
 				require.NoError(t, err)
-				assert.Equal(t, tc.want, string(got))
+				assert.Equal(t, tc.want, string(got.Data))
 			})
 		}
 	}

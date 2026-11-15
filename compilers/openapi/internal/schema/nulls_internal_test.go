@@ -109,6 +109,9 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, body.String()))
 		for i, src := range schemas {
+			if version == "3.0.3" && src == `{type: ["null", "null"]}` {
+				continue // 3.0 writes no type list, so it reads this one as left out
+			}
 			s := declared(t, l, "S"+string(rune('a'+i)))
 			got, ok := nullAloneReading(l.Ctx, s)
 			require.True(t, ok, "%s %s leaves no value but null", version, src)

@@ -216,7 +216,7 @@ func (r ruler) entryCount(field string) (int, jsontext.Pointer, bool) {
 	if node == nil {
 		return 0, ptr, false
 	}
-	if _, ok := r.w.shapeOf(r.f, r.f.fieldAt(field, r.w.minor), node); !ok {
+	if _, ok := shapeOf(r.f, r.f.fieldAt(field, r.w.minor), node, r.w.minor); !ok {
 		return 0, ptr, false
 	}
 	switch node.Kind {

@@ -506,7 +506,7 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) 
 	v.note(js, s)
 	w := partWalk{parts: propertyParts(s)}
 	branches := []*oas3.Schema{s}
-	for _, br := range schema.FlattenedAllOf(s) {
+	for _, br := range schema.FlattenedAllOf(v.refs, s) {
 		if br.Ref {
 			w.parts = append(w.parts, bodyParts(br.Schema, hops+1, v).parts...)
 			continue
@@ -576,15 +576,16 @@ func catchAllValues(s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
 // resolving to nothing, and beside a $ref on the chain, which the walk reads
 // to its end (schemaOf).
 func declaresUnread(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
-	if writesUnread(s) {
+	if writesUnread(s, "") {
 		return true
 	}
 	for range maxBodyAliasHops {
-		if js == nil || !js.IsSchema() || js.GetSchema().Ref == nil {
+		keyword := refs.RefKeyword(js)
+		if keyword == "" {
 			return false
 		}
 		site := js.GetSchema()
-		if refs.End(js) == nil || writesUnread(site) || admitsMembers(site) || len(site.GetAllOf()) > 0 ||
+		if refs.End(js) == nil || writesUnread(site, keyword) || admitsMembers(site) || len(site.GetAllOf()) > 0 ||
 			len(site.GetOneOf()) > 0 || len(site.GetAnyOf()) > 0 || site.GetProperties().Len() > 0 {
 			return true
 		}
@@ -595,10 +596,11 @@ func declaresUnread(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable
 
 // writesUnread reports whether s writes a keyword that can declare a property
 // the part walk does not read: if, then, else, dependentSchemas or a
-// $dynamicRef.
-func writesUnread(s *oas3.Schema) bool {
+// $dynamicRef, unless that is the reference keyword s is a reference site under
+// (typed.Bindings.RefKeyword), which the walk follows.
+func writesUnread(s *oas3.Schema, reference string) bool {
 	return s.GetIf() != nil || s.GetThen() != nil || s.GetElse() != nil || s.GetDependentSchemas().Len() > 0 ||
-		nodeview.Child(s.GetRootNode(), "$dynamicRef") != nil
+		reference != "$dynamicRef" && nodeview.Child(s.GetRootNode(), "$dynamicRef") != nil
 }
 
 // propertyParts returns the properties s declares itself, in source order.

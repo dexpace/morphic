@@ -473,7 +473,7 @@ func TestInlinePosition_HoistGateFollowsWhatIsKept(t *testing.T) {
 		{"contentEncoding", "contentEncoding: base64"},
 		{"contentMediaType", "contentMediaType: image/png"},
 		{"contentSchema", "contentSchema: {type: object}"},
-		{"$dynamicRef", "$dynamicRef: '#nosuch'"},
+		{"$dynamicRef", "$dynamicRef: '#/components/schemas/A'"},
 		{"$id", "$id: 'urn:example:i'"},
 		{"$schema", "$schema: 'https://json-schema.org/draft/2020-12/schema'"},
 		{"$vocabulary", "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}"},

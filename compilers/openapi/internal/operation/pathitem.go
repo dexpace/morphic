@@ -412,8 +412,8 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 
 // pathItemDeclares reports whether key, read off a path item's raw mapping, is
 // one the object accounts for: held in the operations map (the first reading of
-// undeclaredPathItemKeys answers for it), naming a standard method, a field of
-// the model, or an x- extension.
+// undeclaredPathItemKeys answers for it), a standard method, a field of the
+// model, its own $ref, or an x- extension.
 //
 // A method held nowhere in the map is still declared: naming a standard method
 // is enough. Where its anchor is left in place (see undeclaredPathItemKeys),
@@ -421,7 +421,7 @@ var pathItemFields = []string{"summary", "description", "servers", "parameters",
 // specification defines the key, so the census cannot truthfully call it one
 // the document may not write.
 func pathItemDeclares(pi *soa.PathItem, key string) bool {
-	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) ||
+	return pi.Has(soa.HTTPMethod(key)) || soa.IsStandardMethod(key) || key == "$ref" ||
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)
 }
 
@@ -494,8 +494,7 @@ func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, de
 		}
 		p := resolve.Object[soa.Parameter](c.Bindings(), rp)
 		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
-		occurrence, repeatDiags := ledger.count(c, p.GetName(), string(p.GetIn()), entry)
-		diags = append(diags, repeatDiags...)
+		occurrence := ledger.count(p.GetName(), string(p.GetIn()))
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
 		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
 			ir.ReasonNoIRHome, c.Place().At(entry))

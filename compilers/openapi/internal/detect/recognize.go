@@ -16,22 +16,26 @@ import (
 
 // Recognize reads the dialect data declares, data being the source at srcIndex:
 // the discriminating key it writes and its version's major.minor prefix, with
-// the parse that read them. maxBytes bounds that parse; ctx stops it,
-// declining silently.
+// the parse that read them. maxBytes and maxNodes bound that parse; ctx stops
+// it, declining silently.
 //
-// Two sources are declined with an error whatever their format: one past
-// maxBytes, unread, with the refusal load.Load gives it, and one whose root
+// Three sources are declined with an error whatever their format: one past
+// maxBytes, unread, or past maxNodes, with load.Load's refusal, and one whose root
 // merges past the depth the read expands, its own keys leaving the version
 // open (settledByOwnPairs). Any other decline is silent unless the source is
 // unreadable and declares a version where a document declares one
 // (declaresProbeKey).
-func Recognize(ctx context.Context, srcIndex int, data []byte, maxBytes budget.Limit) (compilers.Recognition, []ir.Diagnostic, bool) {
+func Recognize(ctx context.Context, srcIndex int, data []byte, maxBytes, maxNodes budget.Limit,
+) (compilers.Recognition, []ir.Diagnostic, bool) {
 	atSource := ir.Provenance{Source: srcIndex}
 	if d, over := load.OverByteBudget(atSource, data, maxBytes); over {
 		return compilers.Recognition{}, []ir.Diagnostic{d}, false
 	}
 
-	probe, parsed, err := sniff(ctx, data)
+	probe, parsed, err := sniff(ctx, data, maxNodes)
+	if d, past := load.OverNodeBudget(atSource, err); past {
+		return compilers.Recognition{}, []ir.Diagnostic{d}, false
+	}
 	switch {
 	case ctx.Err() != nil:
 		return compilers.Recognition{}, nil, false

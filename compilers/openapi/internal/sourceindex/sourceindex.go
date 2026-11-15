@@ -42,6 +42,7 @@ type Index struct {
 	nesting        int
 	written        int
 	pointers       int
+	text, expanded int
 	anchorCycles   []*yaml.Node
 	taggedMappings []*yaml.Node
 	truncated      bool
@@ -92,6 +93,11 @@ func (x Index) Nesting() int { return x.nesting }
 // keys count and a document's layout does not. It is meaningful only when
 // Truncated is false.
 func (x Index) Written() int { return x.written }
+
+// AliasText is how many bytes of scalar text the tree's aliases add to it: its
+// text with every alias substituted, less what its scalars write once each. A tree with no alias adds none,
+// however its escapes decode (GitHub #1429).
+func (x Index) AliasText() int { return max(x.expanded-x.text, 0) }
 
 // PointerBytes is how many bytes the JSON pointers naming the tree's nodes total,
 // every alias expanded: for each node, the keys and indexes on the way to it
@@ -173,6 +179,7 @@ func (x *Index) walk(ctx context.Context, maxNodes int) {
 func (w *walker) visit(ctx context.Context, n *yaml.Node, depth int) nodeview.Step {
 	w.x.recordTag(n)
 	w.x.written = sum(w.x.written, len(n.Value)+1)
+	w.x.text = sum(w.x.text, scalarText(n))
 	tracked := depth <= maxTrackedDepth
 	if n.Kind == yaml.AliasNode {
 		if tracked {
@@ -184,7 +191,7 @@ func (w *walker) visit(ctx context.Context, n *yaml.Node, depth int) nodeview.St
 	if tracked {
 		w.ancestors[n] = true
 	}
-	w.open = append(w.open, openNode{n: n, shape: shape{nodes: 1}})
+	w.open = append(w.open, openNode{n: n, shape: shape{nodes: 1, text: scalarText(n)}})
 	return nodeview.Descend
 }
 
@@ -204,7 +211,7 @@ func (w *walker) leave(n *yaml.Node, depth int) {
 // root. The walk visits no nil child, so the index skips those first.
 func (w *walker) finish(s shape) {
 	if len(w.open) == 0 {
-		w.x.nesting, w.x.pointers = s.nesting, s.pointers
+		w.x.nesting, w.x.pointers, w.x.expanded = s.nesting, s.pointers, s.text
 		return
 	}
 	top := &w.open[len(w.open)-1]
@@ -227,7 +234,7 @@ func (x *Index) recordTag(n *yaml.Node) {
 
 // recordAlias keeps an alias whose target is on the current path.
 func (x *Index) recordAlias(alias *yaml.Node, ancestors map[*yaml.Node]bool) {
-	if alias.Alias != nil && ancestors[alias.Alias] {
+	if alias.Kind == yaml.AliasNode && alias.Alias != nil && ancestors[alias.Alias] {
 		x.anchorCycles = append(x.anchorCycles, alias)
 	}
 }

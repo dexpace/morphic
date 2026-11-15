@@ -43,8 +43,6 @@ func TestMappingPairs_ReadsWhatTheModelReads(t *testing.T) {
 			[]string{"b=b", "d=second"}},
 		{"a source's key written twice is read at its first copy", "{<<: *dup}", []string{"d=first"}},
 		{"a merge naming a scalar merges nothing", "{<<: 5, a: {title: a}}", []string{"a=a"}},
-		{"a key that is no scalar is the empty string", "{? [x] : {title: list}, a: {title: a}}",
-			[]string{"=list", "a=a"}},
 		{"an alias key is the key it names", "{*ka : {title: aliased}, b: {title: b}}", []string{"a=aliased", "b=b"}},
 	}
 	for _, tc := range cases {
@@ -101,7 +99,9 @@ func propertiesSource(anchors, props string) string {
 }
 
 // modelPairs returns S's properties as the parser's model holds them, each as
-// key=title, in order.
+// key=title, in order, less those it keys "": the generator writes no empty
+// key, so each is a key that is no scalar, whose entry the view leaves out
+// (docs/parser-library.md#non-scalar-key).
 func modelPairs(t *testing.T, src string) []string {
 	t.Helper()
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(src))
@@ -111,6 +111,9 @@ func modelPairs(t *testing.T, src string) []string {
 	// Empty, not nil, where the model holds none, as the view's reading is.
 	out := make([]string, 0, s.GetSchema().GetProperties().Len())
 	for key, prop := range s.GetSchema().GetProperties().All() {
+		if key == "" {
+			continue
+		}
 		out = append(out, key+"="+prop.GetSchema().GetTitle())
 	}
 	return out

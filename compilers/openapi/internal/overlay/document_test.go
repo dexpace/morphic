@@ -13,16 +13,15 @@ import (
 )
 
 // TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch pins the versions an
-// overlay may declare: 1.0 and 1.1, whose patch the specification asks
-// tooling not to tell apart, applied; 1.2, a valid version the compiler does
-// not apply yet, unsupported; and any other invalid. Each refusal comes before
-// anything applies.
+// overlay may declare: 1.0, 1.1 and 1.2, whose patch the specification asks
+// tooling not to tell apart, applied; and any other invalid. Each refusal
+// comes before anything applies.
 func TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch(t *testing.T) {
 	t.Parallel()
 	const head = "info: {title: O, version: \"1\"}\nactions:\n  - target: $.info\n    update: {description: d}\n"
 	for version, refused := range map[string]string{
 		"1.0.0": "", "1.0.1": "", "1.0.10": "", "1.1.0": "", "1.1.7": "",
-		"1.2.0": diag.OverlayUnsupported, "1.2.3": diag.OverlayUnsupported,
+		"1.2.0": "", "1.2.3": "",
 		"1.3.0": diag.OverlayInvalid, "2.0.0": diag.OverlayInvalid, "1.0": diag.OverlayInvalid, "1.2": diag.OverlayInvalid,
 		"1.1.x": diag.OverlayInvalid, "1.1.0-rc1": diag.OverlayInvalid, "0.1.0": diag.OverlayInvalid,
 		"1..0": diag.OverlayInvalid, "1.1.": diag.OverlayInvalid,
@@ -40,7 +39,7 @@ func TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch(t *testing.T) {
 
 // TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks pins each of
 // the overlay's required fields, each refused on its own, so an overlay
-// lacking several is told of every one.
+// lacking several is told of every one, and one of the wrong form once.
 func TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
@@ -51,6 +50,7 @@ func TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks(t *testing.T
 		"no title and no info version": {"overlay: 1.0.0\ninfo: {}\nactions: [{target: $, remove: true}]\n", []string{"no title", "no version"}},
 		"an extends that is no URI":    {"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nextends: '%zz'\nactions: [{target: $, remove: true}]\n", []string{"no URI reference"}},
 		"no action":                    {"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\n", []string{"holds no action"}},
+		"actions that are no list":     {"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions: {target: $, remove: true}\n", []string{"is not a list"}},
 		"an action naming no target":   {v10 + "  - update: {a: b}\n", []string{"names no target"}},
 	}
 	for name, tc := range tests {

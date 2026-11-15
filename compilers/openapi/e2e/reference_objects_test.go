@@ -4,7 +4,6 @@
 package e2e_test
 
 import (
-	"encoding/json/jsontext"
 	"fmt"
 	"math"
 	"net/http"
@@ -627,8 +626,10 @@ x-params:
 }
 
 // TestReferenceObjects_AnObjectThatCannotBeBuiltIsReported pins a reference
-// object landing on raw YAML that no object can be built from, which the
-// parser faults on: it is reported at the reference, never lowered as nothing.
+// object landing on raw YAML the parser would fault building an object from, a
+// Reference Object whose $ref is null: judged before it is built (GitHub
+// #1928), it draws the rule table's one error at its $ref, no build fails, and
+// the entry is left out, as the same Reference Object written in place is.
 func TestReferenceObjects_AnObjectThatCannotBeBuiltIsReported(t *testing.T) {
 	t.Parallel()
 	refSpec{spec: `openapi: 3.1.0
@@ -643,19 +644,16 @@ x-p:
   q: {$ref: null}
 x-r:
   B: {$ref: null}
-`}.inBothOrders(t, func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+`}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		t.Helper()
-		got := map[jsontext.Pointer]string{}
-		for _, d := range diags {
-			if d.Code == diag.Validation {
-				got[d.Provenance.Pointer] = d.Message
-			}
-		}
-		const panicked = "parser panicked: runtime error: invalid memory address or nil pointer dereference"
-		assert.Equal(t, map[jsontext.Pointer]string{
-			"/paths/~1a/get/parameters/0":  "the $ref here reaches #/x-p/q, where no parameter could be built: " + panicked,
-			"/paths/~1a/get/responses/200": "the $ref here reaches #/x-r/B, where no response could be built: " + panicked,
-		}, got)
+		assert.Equal(t, []string{
+			"error " + typeMismatch + " /x-p/q/$ref",
+			"error " + typeMismatch + " /x-r/B/$ref",
+		}, sitedFindings(diags))
+		ops := allOperations(doc)
+		require.Len(t, ops, 1)
+		assert.Empty(t, ops[0].Params, "the parameter is left out")
+		assert.Empty(t, ops[0].Responses, "the response is left out")
 	})
 }
 
@@ -789,20 +787,14 @@ paths:
 }
 
 // TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies pins a reference
-// object's document part read as a schema $ref's is, against where the source
-// lies though it declares $self, so the two kinds read one document alike
-// (GitHub #863, docs/compilers/openapi.md#self-uri).
+// object's document part read as a schema $ref's is, against the source's
+// $self, its base (GitHub #863, docs/compilers/openapi.md#self-uri), so the two
+// kinds name one document alike: the URL the $self puts other.yaml at, read
+// once and refused for both, never the file beside the source.
 func TestReferenceObjects_ADocumentPartIsReadWhereTheSourceLies(t *testing.T) {
 	t.Parallel()
-	doc, diags := refSpec{disk: true, others: map[string]string{"other.yaml": `openapi: 3.2.0
-info: {title: o, version: "1"}
-paths: {}
-components:
-  responses:
-    R: {description: r}
-  schemas:
-    OS: {type: string}
-`}}.compile(t, `openapi: 3.2.0
+	rec := &recordingReader{inner: failingReader{}}
+	_, diags := compileWithReader(t, "api/openapi.yaml", `openapi: 3.2.0
 $self: https://example.com/api/openapi.yaml
 info: {title: t, version: "1"}
 paths:
@@ -812,12 +804,15 @@ paths:
       responses:
         "200": {$ref: "other.yaml#/components/responses/R"}
         "201": {description: s, content: {application/json: {schema: {$ref: "other.yaml#/components/schemas/OS"}}}}
-`)
-	assert.Empty(t, sitedFindings(diags))
-	op, ok := opByName(doc, "a")
-	require.True(t, ok)
-	require.Len(t, op.Responses, 2)
-	assert.Equal(t, ir.Docs{Description: "r"}, op.Responses[0].Docs, "the response other.yaml declares")
+`, openapi.Options{}, rec)
+	assert.Equal(t, []string{"https://example.com/api/other.yaml"}, rec.locations(), "one read, of the URL")
+	assert.Equal(t, []string{
+		"error " + diag.UnresolvedRef + " /paths/~1a/get/responses/200",
+		"error " + diag.UnresolvedRef + " /paths/~1a/get/responses/201/content/application~1json/schema",
+	}, sitedFindings(diags))
+	for _, d := range diags {
+		assert.Contains(t, d.Message, "https://example.com/api/other.yaml", "both kinds read the URL")
+	}
 }
 
 // TestReferenceObjects_PastTheExpansionBudgetNoChainIsRead pins that once the

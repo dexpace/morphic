@@ -154,7 +154,7 @@ func (f modelFields) Untyped(p ir.Provenance) bool {
 		return false
 	}
 	r := conjunctTypes{refs: f.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
-	return r.schema(js.GetSchema()) == anyInstance && !r.steps.Exhausted() && !r.passedOver
+	return r.schema(js.GetSchema(), f.c.Bindings().RefKeyword(js)) == anyInstance && !r.steps.Exhausted() && !r.passedOver
 }
 
 // Mint registers node, the type of the field the declaration at pointer names
@@ -238,8 +238,8 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
 func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
 	return func() (ir.RawValue, error) {
-		if annotation.IsNullLiteral(js) {
-			return ir.RawValue("null"), nil
+		if annotation.IsNoSchema(js) {
+			return annotation.RawFromNode(js.GetCore().GetRootNode())
 		}
 		if b := js.GetBool(); b != nil {
 			return ir.RawValue(strconv.FormatBool(*b)), nil

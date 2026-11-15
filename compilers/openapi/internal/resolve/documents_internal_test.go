@@ -171,8 +171,8 @@ type linkReader struct {
 	asked    map[string]int
 }
 
-func (r *linkReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	return nil, errors.New("reads nothing")
+func (r *linkReader) ReadDocument(context.Context, compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	return compilers.DocumentRead{}, errors.New("reads nothing")
 }
 
 func (r *linkReader) LocateDirectory(dir string) string {

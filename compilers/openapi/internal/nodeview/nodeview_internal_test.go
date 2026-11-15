@@ -265,12 +265,12 @@ func TestMappingPairs_Cases(t *testing.T) {
 			map[string]string{"k": "v"},
 		},
 		{
-			"non-scalar key is read as the empty string",
+			"an entry whose key is no scalar is left out",
 			ynode.Map(
 				ynode.Map(ynode.Scalar("x"), ynode.Scalar("1")), ynode.Scalar("empty"),
 				ynode.Scalar("real"), ynode.Scalar("kept"),
 			),
-			map[string]string{"": "empty", "real": "kept"},
+			map[string]string{"real": "kept"},
 		},
 		{
 			"a nil key, which no parse produces, is skipped",
@@ -426,9 +426,9 @@ func TestMappingPairs_MergeKeySources(t *testing.T) {
 			want: map[string]string{"a": "1", "b": "2"},
 		},
 		{
-			name: "a non-scalar key is read as the empty string",
+			name: "an entry whose key is no scalar is left out",
 			src:  "use:\n  ? [a, b]\n  : v\n  k: 1\n",
-			want: map[string]string{"": "v", "k": "1"},
+			want: map[string]string{"k": "1"},
 		},
 	}
 	for _, tc := range tests {
@@ -943,12 +943,12 @@ func TestKeyOf_KeysAPairAsTheParserDoes(t *testing.T) {
 	}
 }
 
-// TestKeyOf_ReadsAKeyThatIsNoScalarAsTheEmptyString holds KeyOf to the parser,
-// which keys a pair whose key is no scalar, aliased or not, with the empty
-// string (docs/parser-library.md#non-scalar-key), so the view reads the entry
-// the parser reads. No node at all is the one row the parser cannot be asked,
-// since it never hands one back, and it names no key.
-func TestKeyOf_ReadsAKeyThatIsNoScalarAsTheEmptyString(t *testing.T) {
+// TestKeyOf_ANameForAKeyThatIsNoScalarIsNone holds KeyOf to naming no key for a
+// pair whose key is no scalar, aliased or not, though the parser keys it with
+// the empty string (docs/parser-library.md#non-scalar-key): the entry is left
+// out of the view, which is what keeps one pointer from standing for every such
+// key. No node at all names no key either.
+func TestKeyOf_ANameForAKeyThatIsNoScalarIsNone(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, pair string
@@ -966,7 +966,7 @@ func TestKeyOf_ReadsAKeyThatIsNoScalarAsTheEmptyString(t *testing.T) {
 			key, own := KeyOf(raw)
 
 			assert.Empty(t, key)
-			assert.True(t, own)
+			assert.False(t, own, "no key is named, as for a merge key")
 		})
 	}
 
@@ -988,7 +988,7 @@ func TestRepeatedKeys_NamesEachRepeatedKeyOnce(t *testing.T) {
 		{"two keys repeated", "{a: 1, b: 1, b: 2, a: 2}", []string{"b", "a"}},
 		{"a key shared with a merge is no repeat", "{<<: {a: 1}, a: 2}", nil},
 		{"a merge key twice is no repeat", "{<<: {a: 1}, <<: {b: 1}}", nil},
-		{"two keys that are no scalar both read as the empty string", "{? [x] : 1, ? [y] : 2}", []string{""}},
+		{"two keys that are no scalar name no key, so no repeat", "{? [x] : 1, ? [y] : 2}", nil},
 		{"a sequence repeats nothing", "[a, a]", nil},
 		{"a scalar repeats nothing", "a", nil},
 	}

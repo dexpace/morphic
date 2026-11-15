@@ -48,8 +48,7 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 		if p == nil {
 			continue
 		}
-		id, repeatDiags := ledger.next(pc, p.GetName(), string(p.GetIn()), sp.pointer)
-		diags = append(diags, repeatDiags...)
+		id := ledger.next(p.GetName(), string(p.GetIn()))
 		param, binding, paramDiags := lowerParameter(dc, w, id, p, pptr)
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
@@ -455,14 +454,11 @@ func paramKey(b *typed.Bindings, rp *soa.ReferencedParameter) (ids.ParamSlot, bo
 // derived from the name as written (ids.Param), so X-Trace and x-trace keep
 // the IDs each has alone, and deleting one renames neither.
 //
-// A repeat in a list the source writes is load's to report, once, where it is
-// written (paramRepeats). One in another document's content, which that
-// walk does not reach, is reported here, at the entry it was lowered or kept
-// from.
+// A repeat in any list, in whichever document writes it, is load's to report,
+// once, where it is written (load.listRepeats).
 type paramLedger struct {
-	mount   jsontext.Pointer
-	seen    map[paramSpelling]int
-	firstAt map[ids.ParamSlot]slotHolder
+	mount jsontext.Pointer
+	seen  map[paramSpelling]int
 }
 
 // paramSpelling is a parameter's name and location as written, which its ID
@@ -471,41 +467,20 @@ type paramSpelling struct {
 	name, in string
 }
 
-// slotHolder is the entry that first holds a slot, and the name it spells.
-type slotHolder struct {
-	entry jsontext.Pointer
-	name  string
-}
-
 // newParamLedger returns a ledger for the operation mounted at mount.
 func newParamLedger(mount jsontext.Pointer) *paramLedger {
-	return &paramLedger{mount: mount, seen: map[paramSpelling]int{}, firstAt: map[ids.ParamSlot]slotHolder{}}
+	return &paramLedger{mount: mount, seen: map[paramSpelling]int{}}
 }
 
-// next returns the ID of the parameter holding name in in, written by the list
-// entry at entry, and what count reports there.
-func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Pointer) (ir.ParamID, []ir.Diagnostic) {
-	occurrence, diags := l.count(c, name, in, entry)
-	return ids.Param(l.mount, name, in, occurrence), diags
+// next returns the ID of the parameter holding name in in.
+func (l *paramLedger) next(name, in string) ir.ParamID {
+	return ids.Param(l.mount, name, in, l.count(name, in))
 }
 
-// count records the list entry at entry as one more holder of name in in, and
-// returns which holder of that spelling it is, counting from one, and the
-// error a repeat of its slot raises there when c reads another document's
-// content. The first holder of a slot raises none.
-func (l *paramLedger) count(c lowering.Ctx, name, in string, entry jsontext.Pointer) (int, []ir.Diagnostic) {
+// count records one more holder of name in in, and returns which holder of
+// that spelling it is, counting from one.
+func (l *paramLedger) count(name, in string) int {
 	spelled := paramSpelling{name: name, in: in}
 	l.seen[spelled]++
-	occurrence := l.seen[spelled]
-	slot := ids.SlotOf(name, in)
-	first, repeated := l.firstAt[slot]
-	if !repeated {
-		l.firstAt[slot] = slotHolder{entry: entry, name: name}
-		return occurrence, nil
-	}
-	if !c.RefScope().Foreign {
-		return occurrence, nil
-	}
-	return occurrence, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
-		"%s", diag.RepeatedParameter(name, in, first.entry, first.name))}
+	return l.seen[spelled]
 }

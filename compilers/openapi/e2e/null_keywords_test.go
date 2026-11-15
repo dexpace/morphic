@@ -89,8 +89,8 @@ info: {title: t, version: "1"}
 // TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut holds the two readers of
 // the raw tree that decide whether a $dynamicRef expands, which no keyword of
 // the sweep above reaches, as it writes no $dynamicRef: a null $id at or above
-// either end starts no resource, and a null $dynamicAnchor is no anchor named
-// "null".
+// either end starts no resource, and a null $dynamicAnchor is no second anchor
+// named "null".
 func TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -109,6 +109,7 @@ func TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut(t *testing.T) {
     S: {$dynamicRef: '#dyn'}
 `},
 		{"as the anchor a reference spells", "$dynamicAnchor", `
+    Named: {$dynamicAnchor: 'null', type: string}
     Anchored: {type: object%s}
     S: {$dynamicRef: '#null'}
 `},

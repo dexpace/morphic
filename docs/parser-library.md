@@ -1,12 +1,12 @@
 # Parser library behaviours
 
 The OpenAPI compiler reads a document through `github.com/speakeasy-api/openapi`, the parser
-library. Its decoder builds the typed model from the YAML tree, its resolver follows `$ref`s, which
-the compiler never asks it to, and its overlay package reads an overlay document and the JSONPath
-selectors in it, which the compiler applies itself. This page records what the compiler depends on
-the library doing, defects included: each behaviour the compiler refuses input over or works
-around. Each entry gives the behaviour, the smallest input that shows it, the compiler code that
-exists because of it, and the test that pins it.
+library. Its decoder builds the typed model from the YAML tree, and its resolver follows `$ref`s,
+which the compiler never asks it to; an overlay document and its selectors the compiler reads
+itself. This page records what the compiler depends on the library doing, defects included: each
+behaviour the compiler refuses input over or works around. Each entry gives the behaviour, the
+smallest input that shows it, the compiler code that exists because of it, and the test that pins
+it.
 
 Not every reading the compiler shares with the library is an entry. Where the compiler reproduces
 one, a test beside the reproduction asks the library the same question. The resolver oracle in
@@ -81,7 +81,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
-  - `load.bindAll` binds every `$ref` in the compiler, never through the resolver.
+  - `load.bindTable` binds every `$ref` in the compiler, never through the resolver.
 
 ### `defs-order`
 
@@ -148,7 +148,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
-  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `load.bindTable` binds every reference object in the compiler, never through the resolver.
   - `bind.objects.closeLoop` records a loop of reference objects, to be reported once.
 
 ### `trailing-empty-token`
@@ -172,7 +172,7 @@ x-params:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
-  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `load.bindTable` binds every reference object in the compiler, never through the resolver.
   - `bind.objects.readRef` reads a reference object's pointer as RFC 6901 does.
 
 ### `merge-list-pointer`
@@ -422,6 +422,50 @@ B: {$ref}   # decoded as a response, which A names
   - `bind/typed.Builder.decodeRecovered` turns a panic in decoding raw YAML as a schema into a
     failure to build it.
 
+### `nil-populate-panic`
+
+Building the model of a Reference Object whose `$ref` is null, at any position that admits one,
+dereferences nil, and so does building a 3.2 `additionalOperations` entry that is no mapping. The
+panic happens on the caller's goroutine, so a `recover` there reaches it, and the whole model is
+lost: the document is refused for one ill-typed field.
+
+```yaml
+paths:
+  /a:
+    get:
+      parameters:
+        - $ref:          # building the operation's model panics
+    additionalOperations:
+      PURGE: ~           # so does this entry, in a 3.2 document
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/nil-populate-panic`
+- Code:
+  - `load.setAside` sets each such shape the source writes aside for the model's builds, and each
+    one a reference reaches outside the source's model once `load.judgeReached` has judged it.
+  - `load.aside` holds what it set aside, puts it back while what a reference reaches is judged as
+    written, and puts it back for good.
+  - `load.buildRecovered` turns the panic into an `ErrParse` error.
+
+### `alias-field-on-scalar`
+
+The decoder and the encoder read a node's `Alias` field only for an alias node: a scalar whose
+`Alias` holds another node decodes into a map or a struct, and encodes, as the scalar it is. So the
+compiler keeps, behind a value it reads as left out, the node the source wrote there, which only a
+renderer of what the source wrote asks for.
+
+```go
+n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null", Alias: written}
+// decodes as nil, encodes as null
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/alias-field-on-scalar`
+- Code:
+  - `nodeview.Unread` keeps the node as written there.
+  - `nodeview.Written` returns it.
+
 ### `anchored-entry-dropped`
 
 An anchored entry of a map the model embeds is left out of the model, with no finding: a path in
@@ -507,7 +551,7 @@ components:
   - `nodeview.Child` reads one at the copy the model does, a merge source's at its first.
   - `annotation.RawFromNode` and `value.FromNode` render one at the copy `nodeview.View.MappingPairs`
     reads.
-  - `load.bindAll` binds every reference object in the compiler, never through the resolver.
+  - `load.bindTable` binds every reference object in the compiler, never through the resolver.
 
 ### `merge-keys`
 
@@ -553,36 +597,40 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/non-scalar-key`
 - Code:
-  - `nodeview.KeyOf` reads such a key as the empty string.
+  - `nodeview.KeyOf` names no key for it, so every reader of the compiler leaves the entry out.
+  - `load.readyForModel` sets the entry aside for the model's build.
   - `oas.CheckFormat` reports it.
 
 ### `scalar-resolution`
 
-The YAML parser tags a plain scalar by neither YAML version alone, and the compiler keeps the tag it
-gives ([`values`](compilers/openapi.md#values)) but a plain date's and a plain `<<` value's, which
-it tags a string ([`undecoded-scalar`](#undecoded-scalar)). As in YAML 1.1, a leading `0` is octal,
-`0b` is binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is octal
-and `yes`, `on` and the base-60 `1:30` are strings. So `0644` is 420, where 1.2's core schema reads
-644, and `on` under `type: boolean` stays a string, where 1.1 reads true. OpenAPI recommends 1.2,
-and the compiler reports no scalar the two versions read apart.
+The YAML parser tags a plain scalar by neither YAML version alone. As in YAML 1.1, a leading `0` is
+octal, `0b` is binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is
+octal and `yes`, `on` and the base-60 `1:30` are strings. A digit run with a leading zero that is no
+octal, `089`, and an integer past 64 bits are `!!float`. So `0644` is 420 to the parser, where YAML
+1.2's core schema, which OpenAPI recommends, reads 644. The compiler resolves every plain value
+scalar by the core schema ([`yaml-decoding`](compilers/openapi.md#yaml-decoding)): a number the core
+schema does not spell is a string, and a number it does is read in the base its prefix names, never
+through the parser's decode. An `0o` or `0x` integer past 64 bits is the exception, which the parser
+tags a string and the compiler reads as one (#1975).
 
 ```yaml
 components:
   schemas:
     S:
       properties:
-        a: {type: integer, default: 0644}        # 420
+        a: {type: integer, default: 0644}        # 420 to the parser, 644 to the compiler
         b: {type: integer, default: 0o17}        # 15
-        c: {type: integer, default: 1_000}       # 1000
+        c: {type: integer, default: 1_000}       # 1000 to the parser, "1_000" to the compiler
         d: {type: boolean, default: on}          # "on"
-        e: {type: string, default: 2021-01-01}   # a timestamp, read as written
+        e: {type: string, default: 2021-01-01}   # a timestamp to the parser, a string to the compiler
 ```
 
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/scalar-resolution`
 - Code:
-  - `value.Classify` reads a scalar by the tag the parser gave it.
-  - `value.NumericLiteral` gives an `!!int` the number its prefix means.
+  - `doctree.resolve` tags a plain scalar as the core schema reads it.
+  - `value.NumericLiteral` reads an integer the core schema spells in the base its prefix names.
+  - `annotation.ExactCount` takes a count from its literal, not from the parser's decode.
 
 ### `json-as-yaml`
 
@@ -594,9 +642,9 @@ characters written `"key":`); a raw DEL, U+FFFE, U+FFFF or a C1 control other th
 string; and a tab before the root value or on a line after the one it ends on. It refuses half of a
 pair as it refuses a whole one, and every message names no position within the line. It reads a raw
 U+0085 in a string as a space, and, as YAML 1.1 does, counts U+0085, U+2028 and U+2029 as line ends,
-where JSON tools count LF, CR and CR LF alone. The compiler parses the source and each document a
-reference names with it, and the library parses an overlay with it, so each meets the refusal or the
-misreading ([`yaml-decoding`](compilers/openapi.md#yaml-decoding)).
+where JSON tools count LF, CR and CR LF alone. The compiler parses the source, an overlay and each
+document a reference names with it, so each would meet the refusal or the misreading
+([`yaml-decoding`](compilers/openapi.md#yaml-decoding)).
 
 ```json
 {"description": "x\ud83d\ude00"}
@@ -610,11 +658,39 @@ text to the parser.
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/json-as-yaml`
 - Code:
-  - `jsontree.Read` reads a JSON text into the parser's tree, and refuses half of a pair with the
+  - `doctree.readJSON` reads a JSON text into the parser's tree, and refuses half of a pair with the
     escape and its position.
-  - `load.readJSON` reads a source, and an external document, as JSON first.
-  - `overlay.parseDocument` reads an overlay as JSON first and decodes the tree the library's
-    overlay type decodes.
+  - `doctree.Read` reads every input, the source, an overlay and a document a reference names, as
+    JSON first.
+
+### `yaml11-lexing`
+
+The parser lexes YAML as YAML 1.1 where YAML 1.2 lexes otherwise. It refuses a `\/` escape, which
+YAML 1.2 adds, and a pair of `\u` escapes naming the two halves of a surrogate pair, which YAML 1.2
+reads as the one character it names, as JSON writes one, and reads `\a` as the bell in a
+double-quoted scalar. It refuses a `%YAML 1.2`
+directive as an incompatible document, and reads `%YAML 1.1`, also after a byte order mark, padded
+with a space, and for a later document after `...`. It ends a line at a raw U+0085, U+2028 and
+U+2029, which YAML 1.2 reads as characters: U+0085 in a double-quoted scalar reads as a space, and
+every node after it is placed a line low. A private-use character such as U+E000 is an ordinary
+one in every style, a key and a comment, with every position after it exact, and a `%HH` run in a
+tag decodes to its characters. A bare `!` tags a string with no `TaggedStyle`; a plain date is a
+`!!timestamp` without one.
+
+```yaml
+a: "x\/y"            # refused: found unknown escape character
+b: "\uD83D\uDE00"   # refused: found invalid Unicode character escape code
+```
+
+The compiler writes each line-break character, each escaped slash and each pair of escapes naming a
+surrogate pair as private-use characters the text spells nowhere, one character for one, writes a later minor's directive as `1.1` padded to its
+width, and reads back what it wrote by each scalar's style, so the tree is YAML 1.2's.
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/yaml11-lexing`
+- Code:
+  - `doctree.respell` writes what the parser lexes as YAML 1.1 as text it lexes alike.
+  - `doctree.directives` writes a later minor's `%YAML` directive as one the parser reads.
 
 ### `undecoded-scalar`
 
@@ -631,8 +707,9 @@ and reports neither. The core keeps the node, and what is written beside it.
 YAML 1.2, which OpenAPI recommends, reads a plain date and a plain `<<` as strings, as it reads any
 scalar under the non-specific `!`, so the compiler tags each such date and `<<` a string in the
 source and each document it reads beside it before their models are built, but a `<<` key, which
-merges ([`merge-keys`](#merge-keys)). A scalar under any other tag keeps it, and still reads as
-above (#1368).
+merges ([`merge-keys`](#merge-keys)). A scalar under any other tag keeps it, and the compiler's
+table refuses it where a typed field holds it, so the load phase reads it as the field left out
+before the model is built.
 
 ```yaml
 info: {title: 2021-01-01}    # GetTitle is empty
@@ -644,9 +721,30 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/undecoded-scalar`
 - Code:
-  - `load.mistagged` finds a plain date or `<<` value, which `load.readyForModel` tags a string.
+  - `doctree.resolve` tags a plain date or `<<` value a string.
   - `nodeview.Strings` reads a list's items by their text.
   - `auth.docsBeside` reads what is written beside it from the core.
+
+### `string-as-boolean`
+
+A boolean field of the model, such as a parameter's `required` or `explode`, decodes from a string
+scalar: `yes`, `on` and `y` as true, `no`, `off` and `n` as false, quoted or not, and any other
+string as a false that is no nil, so a reader asking whether the field is set reads it as written
+`false`. Only a scalar tagged `!!bool` is a boolean in YAML 1.2's JSON schema, which OpenAPI's
+typing is.
+
+```yaml
+parameters:
+  - {name: p, in: query, required: on}         # Required is true
+  - {name: q, in: query, required: "yes"}      # Required is true
+  - {name: r, in: query, explode: "true"}      # Explode is false, not nil
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/string-as-boolean`
+- Code:
+  - `oas.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports such a
+    string.
 
 ### `unmodeled-keywords`
 
@@ -676,21 +774,23 @@ components:
 
 A `null` written where a schema belongs decodes as the boolean `false` schema: `IsBool` reports
 true and `GetBool` false, at a keyword such as `additionalProperties` or `items` and at an entry
-such as a property or a component alike. Only the schema's node, a scalar tagged `!!null`, tells it
-from a written `false`. A `null` states nothing about the values there, where `false` admits none.
+such as a property or a component alike. So does any other value that is neither a mapping nor a
+boolean: a string, a number or a list. Only the schema's node tells it from a written `false`. Such
+a value states nothing about the values there, where `false` admits none.
 
 ```yaml
 components:
   schemas:
     A: {properties: {p: null}, additionalProperties: null}
     C: null
+    D: hello      # false as well
 ```
 
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
-  - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
-  - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
+  - `annotation.IsNoSchema` tells such a value from `false` by its node.
+  - `annotation.IsFalseSchema` excludes it, so no reader takes one for `false`.
 
 ### `failure-beneath-itself`
 
@@ -761,52 +861,3 @@ components:
   - `load.unmarshal` builds the model in the one call a cancel waits out, and the model phase asks
     the context just before it, so a cancel that cut short the walks preparing the tree is not
     waited out on a tree half prepared.
-
-## Overlays
-
-### `overlay-jsonpath-dialect`
-
-`Overlay.NewPath`, the overlay package's reader of a selector, reads one as RFC 9535 only for an
-overlay declaring Overlay 1.1 or later, or one whose `x-speakeasy-jsonpath` extension says
-`rfc9535`. It reads any other in an older dialect of its own, in which an RFC 9535 filter does not
-parse, though both versions of the Overlay Specification make every selector RFC 9535. With the
-overlay's `JSONPathVersion` field set to `rfc9535` it reads every selector as RFC 9535, the
-property-name operator `~` included, which RFC 9535 does not have.
-
-```yaml
-overlay: 1.0.0
-actions:
-  - target: '$.paths.*[?@.operationId=="putBlob"]'   # does not parse
-```
-
-- Verified at: v1.26.3
-- Pinned by: `TestLibraryBehaviour/overlay-jsonpath-dialect`
-- Code:
-  - `overlay.read` sets every overlay it reads to RFC 9535, whatever it declares.
-  - `overlay.scanSelector` finds a `~`, which `overlay.readSelector` refuses.
-
-### `jsonpath-rfc9535`
-
-The RFC 9535 parser the overlay package reads selectors with parts from RFC 9535. It refuses a
-member name `true`, `false` or `null` written after a dot, and any `\u` escape in a string, both of
-which RFC 9535 reads. It reads the escape `\r` as a line feed, so a selector naming a member by one
-selects another, and it accepts a control character written unescaped in a string, which RFC 9535
-refuses. Its `match()` and `search()` answer true for a node lacking the value they test, where RFC
-9535 answers false, so a filter calling one selects every such node. Its comparisons read a scalar
-by its YAML tag: a plain date, which the compiler reads as the string it spells, equals no string
-and equals every other plain date, and `0x10` compares as 0. Two objects compare equal only with
-their members in the same order.
-
-```yaml
-actions:
-  - target: "$.paths.*[?match(@.summary, 'Pets.*')]"   # selects every operation with no summary too
-  - target: "$.paths.*[?@['x-limit'] == 0]"           # selects x-limit: 0x10 too
-```
-
-- Verified at: v1.26.3
-- Pinned by: `TestLibraryBehaviour/jsonpath-rfc9535`
-- Code:
-  - `overlay.scanSelector` finds each of these in a selector's text, bar the comparisons, which no
-    text shows.
-  - `overlay.readSelector` refuses each it finds, before any action applies. A comparison applies
-    as the library reads it (#1835).

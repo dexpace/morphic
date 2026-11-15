@@ -4,7 +4,6 @@
 package overlay
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,7 +54,7 @@ func TestGrafter_RefusesWhatItCannotCopy(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			g := newGrafter(tc.version, nil)
-			_, err := g.write([]*yaml.Node{tc.target}, tc.update)
+			_, err := g.write(t.Context(), []*yaml.Node{tc.target}, tc.update)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.says)
 		})
@@ -100,7 +99,7 @@ func TestGrafter_NamesTheKindsOfMixedTargetsInOneOrder(t *testing.T) {
 	}
 	messages := make([]string, 0, len(orders))
 	for _, targets := range orders {
-		_, err := newGrafter(v11, nil).write(targets, ynode.Map())
+		_, err := newGrafter(v11, nil).write(t.Context(), targets, ynode.Map())
 		require.Error(t, err)
 		messages = append(messages, err.Error())
 	}
@@ -114,7 +113,7 @@ func TestGrafter_NamesTheKindsOfMixedTargetsInOneOrder(t *testing.T) {
 func TestGrafter_RefusesAMixOfAnAliasAndAValue(t *testing.T) {
 	t.Parallel()
 	g := newGrafter(v11, nil)
-	_, err := g.write([]*yaml.Node{ynode.Map(), ynode.Alias(ynode.Map())}, ynode.Map())
+	_, err := g.write(t.Context(), []*yaml.Node{ynode.Map(), ynode.Alias(ynode.Map())}, ynode.Map())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "an object and a YAML alias")
 }
@@ -138,11 +137,6 @@ func TestDetach_RemovesAMemberOrAnElementAndNothingElse(t *testing.T) {
 	assert.Equal(t, []*yaml.Node{first}, list.Content)
 	assert.Zero(t, detach(ynode.Scalar("s"), map[*yaml.Node]bool{element: true}), "a scalar holds nothing")
 
-	g := newGrafter(v10, nil)
-	g.parents = map[*yaml.Node]*yaml.Node{key: mapping}
-	err := g.remove([]*yaml.Node{key})
-	require.Error(t, err, "remove refuses a node its holder does not hold as a value")
-	assert.Contains(t, err.Error(), "holds as no member or element")
 }
 
 // TestRemove_TakesTheTargetsOfEachHolderTogether pins a remove selecting many
@@ -154,39 +148,17 @@ func TestRemove_TakesTheTargetsOfEachHolderTogether(t *testing.T) {
 	inner := ynode.Seq(ynode.Scalar("0"), ynode.Scalar("1"), ynode.Scalar("2"))
 	holder := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), inner, ynode.Scalar("c"), ynode.Scalar("3"))
 	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{holder}}
+	at := func(h *yaml.Node, slot int) position { return position{holder: h, slot: slot, raw: h.Content[slot]} }
 	g := newGrafter(v11, root)
-	require.True(t, g.indexParents(t.Context()))
 
-	require.NoError(t, g.remove([]*yaml.Node{holder.Content[1], inner.Content[0], inner.Content[2], holder.Content[5]}))
+	require.NoError(t, g.remove([]position{at(holder, 1), at(inner, 0), at(inner, 2), at(holder, 5)}))
 	assert.Equal(t, "b", holder.Content[0].Value)
 	assert.Len(t, holder.Content, 2)
 	assert.Equal(t, "1", inner.Content[0].Value)
 	assert.Len(t, inner.Content, 1)
-	assert.True(t, g.removed)
+	assert.True(t, g.detached)
 
 	g = newGrafter(v11, root)
-	require.True(t, g.indexParents(t.Context()))
-	require.NoError(t, g.remove([]*yaml.Node{inner, inner.Content[0]}))
+	require.NoError(t, g.remove([]position{at(holder, 1), at(inner, 0)}))
 	assert.Empty(t, holder.Content, "the array went, and its element with it")
-}
-
-// TestIndexParents_BuildsOnceAndStopsOnceTheContextIsDone pins the index a
-// remove reads: built under a live context once, then kept, and not built
-// under a done one, which the sequence takes as its cancel.
-func TestIndexParents_BuildsOnceAndStopsOnceTheContextIsDone(t *testing.T) {
-	t.Parallel()
-	value := ynode.Scalar("v")
-	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Map(ynode.Scalar("k"), value)}}
-	cancelled, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	g := newGrafter(v10, root)
-	assert.False(t, g.indexParents(cancelled))
-	assert.Nil(t, g.parents)
-
-	require.True(t, g.indexParents(t.Context()))
-	assert.Same(t, root.Content[0], g.parents[value])
-	built := g.parents
-	require.True(t, g.indexParents(cancelled), "an index built is kept, and asks nothing of the context")
-	assert.Equal(t, built, g.parents)
 }

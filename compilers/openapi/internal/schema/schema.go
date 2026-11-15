@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -150,7 +149,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 	// Past the IsBool check, the either's left schema is always set (an empty
 	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
-	if resolve.IsRefSite(js, schema) {
+	if c.Bindings().RefSite(js) {
 		return refSiteRef(c, ts, js, schema, pointer, home)
 	}
 	return schemaBody(c, ts, depth, schema, pointer, home)

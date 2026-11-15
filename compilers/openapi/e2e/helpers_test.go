@@ -153,7 +153,7 @@ type recordingReader struct {
 }
 
 // ReadDocument records req, then answers it as inner does.
-func (r *recordingReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (r *recordingReader) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	r.mu.Lock()
 	r.reqs = append(r.reqs, req)
 	r.mu.Unlock()

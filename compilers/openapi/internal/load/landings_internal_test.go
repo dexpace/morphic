@@ -10,10 +10,11 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/ir"
 )
 
 // TestBuildObjects_ModelsFieldsBesideAForeignPathItemRef pins the fields beside
@@ -64,10 +65,12 @@ paths:
 	assert.NotNil(t, nested.Item.Post())
 }
 
-// TestBuildObjects_AFaultBesideALandingsRefIsReportedOnce pins a landing whose
-// fields beside its $ref the parser faults on: no model is kept, and the fault
-// is reported once, at the $ref reaching the landing, though two reach it.
-func TestBuildObjects_AFaultBesideALandingsRefIsReportedOnce(t *testing.T) {
+// TestBuildObjects_ANullRefBesideALandingsRefIsReportedOnce pins a landing
+// whose fields beside its $ref write a null $ref, a shape the parser faults on,
+// which the load judges before it builds: the table's error at the null $ref
+// is reported once, though two references reach the landing, and nothing
+// faults, so the landing's fields are modelled.
+func TestBuildObjects_ANullRefBesideALandingsRefIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := loadTargets(t, "landing.yaml", `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -81,15 +84,9 @@ paths:
   /b:
     get: {responses: {"200": {description: ok}}}
 `, false)
-	var faults []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.Validation {
-			faults = append(faults, d)
-		}
-	}
-	require.Len(t, faults, 1, "%+v", diags)
-	assert.Equal(t, jsontext.Pointer("/paths/~1a"), faults[0].Provenance.Pointer)
-	assert.Contains(t, faults[0].Message, "the fields written beside its $ref could not be read: ")
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/x-shared/item/parameters/0/$ref"), diags[0].Provenance.Pointer)
 
 	a, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
@@ -98,5 +95,24 @@ paths:
 	landing, ok := doc.Bindings.ObjectAt(r.Hop.Target, bind.RefPathItem).(*soa.ReferencedPathItem)
 	require.True(t, ok)
 	_, ok = doc.Siblings.Of(landing)
-	assert.False(t, ok, "a faulted landing holds no model")
+	assert.True(t, ok, "the landing's fields are modelled")
+}
+
+// TestBuildObjects_AFaultBesideALandingsRefIsAFailedBuild holds the guard
+// around the fields beside a path item landing's $ref: built without the load
+// judging what they write first, a null $ref among them faults the parser, and
+// the landing is a failed build naming those fields, never a panic.
+func TestBuildObjects_AFaultBesideALandingsRefIsAFailedBuild(t *testing.T) {
+	t.Parallel()
+	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a: {$ref: '#/x-item'}\n"+
+		"  /b: {get: {responses: {'200': {description: ok}}}}\n"+
+		"x-item:\n  $ref: '#/paths/~1b'\n  parameters: [{$ref: ~}]\n")
+	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		bind.Config{Self: "spec.yaml"})
+
+	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{}, &Siblings{})
+
+	require.Len(t, failed, 1)
+	assert.Equal(t, jsontext.Pointer("/x-item"), failed[0].landing.At.Pointer)
+	assert.ErrorContains(t, failed[0].err, "the fields written beside its $ref could not be read: ")
 }

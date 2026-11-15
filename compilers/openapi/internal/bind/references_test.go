@@ -314,14 +314,18 @@ x-l:
 }
 
 // TestPositionOrder_ReadsTheSourceFirstThenEachDocumentByName pins the order a
-// table reads positions in, whatever order it read the documents in.
+// table reads positions in, whatever order it read the documents in: b.yaml
+// is read first, as a.yaml is named only from it.
 func TestPositionOrder_ReadsTheSourceFirstThenEachDocumentByName(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head+`components:
   parameters:
     A: {$ref: 'b.yaml#/P'}
-    B: {$ref: 'a.yaml#/P'}
-`, withDocuments(map[string]string{"a.yaml": "P: {name: a, in: query}\n", "b.yaml": "P: {name: b, in: query}\n"}))
+    B: {$ref: 'b.yaml#/Q'}
+`, withDocuments(map[string]string{
+		"a.yaml": "P: {name: a, in: query}\n",
+		"b.yaml": "P: {name: b, in: query}\nQ: {$ref: 'a.yaml#/P'}\n",
+	}))
 	b, ok := table.Find("b.yaml")
 	require.True(t, ok)
 	a, ok := table.Find("a.yaml")

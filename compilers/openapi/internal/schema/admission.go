@@ -15,7 +15,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -313,7 +312,7 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 		return admitted{kinds: kindAny}
 	}
 	s := js.GetSchema()
-	if declaresDynamicRef(s) {
+	if declaresDynamicRef(s) && !w.c.Bindings().RefSite(js) {
 		w.reads.Exhaust()
 	}
 	out := w.written(s, definesNullableAt(w.c, js))
@@ -326,7 +325,7 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if branches := s.GetAnyOf(); len(branches) > 0 {
 		out = out.and(w.union(branches))
 	}
-	if !resolve.IsRefSite(js, s) {
+	if !w.c.Bindings().RefSite(js) {
 		return out
 	}
 	next := w.c.Bindings().Declared(js)

@@ -8,12 +8,16 @@ import (
 	"fmt"
 	"maps"
 	"mime"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
@@ -331,6 +335,12 @@ type Options struct {
 	// lowered there. One past the source's budgets or pre-parse refusals fails
 	// each reference naming it.
 	AllowExternalRefs bool `json:"allowExternalRefs"`
+	// Locations maps where the documents named under a URI prefix are read
+	// from, as the caller writes it: nothing is mapped unless it is written
+	// here. Each is applied where a document is opened, before any read judges
+	// it, and never to an $id or a $self, which keeps the URI it writes
+	// (docs/compilers/openapi.md#references).
+	Locations []Location `json:"locations,omitempty"`
 	// Overlay is an OpenAPI Overlay document to apply to the source before
 	// lowering, or nil for none. It is the source-document patching hook
 	// architecture §2.2 names, and is deliberately not the IR overlay pass beside
@@ -350,9 +360,10 @@ type Options struct {
 // (4,475,339 bytes, 138,990 nodes, no enum at all).
 const (
 	// DefaultMaxSourceBytes is the byte budget: 64 MiB, a 5.2x margin over the
-	// largest measured description. It is the only budget enforceable before the
-	// source is parsed, which is why it is the loosest — it exists to bound the
-	// parse itself, and everything finer is measured after it.
+	// largest measured description. It is the only budget enforceable before a
+	// YAML source is parsed, which is why it is the loosest — it exists to bound
+	// that parse, and everything finer is measured after it. A JSON text is
+	// held to the node budget as it is read.
 	DefaultMaxSourceBytes = 1 << 26
 	// DefaultMaxSourceNodes is the parsed-node budget: 2,097,152, a 4.4x margin
 	// over the largest measured description. Node count, not byte count, is what
@@ -419,14 +430,14 @@ type Limits struct {
 	// no further than it allows. It binds the same way on an overlay and on a
 	// document an external reference names, each read no further.
 	MaxSourceBytes int `json:"maxSourceBytes,omitzero"`
-	// MaxSourceNodes bounds the YAML nodes one source document parses to,
-	// checked before the typed model is built from it. With an overlay it
-	// bounds the tree the overlay leaves: an action that would build past it
-	// is refused before it builds anything, and one that builds nothing, such
-	// as a remove, is applied however large the tree. A document an external
-	// reference names is checked against it the same way, before the resolver
-	// builds from that document, and what references reach in it is validated
-	// within this budget plus MaxAliasSurplus.
+	// MaxSourceNodes bounds the nodes one document holds as it is read: the
+	// source, the overlay and each document an external reference names, a
+	// JSON text read no further than the first node past it and a YAML text
+	// counted once parsed, before the typed model or the resolver builds from
+	// it. It also bounds the tree an overlay leaves: an action that would build
+	// past it is refused before it builds anything, so no overlay lifts a
+	// source past it. What references reach in an external document is
+	// validated within this budget plus MaxAliasSurplus.
 	MaxSourceNodes int `json:"maxSourceNodes,omitzero"`
 	// MaxEnumMembers bounds the members of a single enum. An enum past it lowers
 	// as the top type with an error diagnostic naming the budget; the rest of the
@@ -461,6 +472,15 @@ type Limits struct {
 	// copy of what its path item declares. A document past it is refused as
 	// openapi/budget-exceeded, compiling to no Document.
 	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
+}
+
+// Location maps the documents a URI prefix names to where their bytes are:
+// the URI Prefix + rest is read at Location + rest. Prefix is an absolute
+// URI ending in "/", with no query or fragment. Location is a directory, a
+// relative one read against the source's, or an http(s) URL ending in "/".
+type Location struct {
+	Prefix   string `json:"prefix"`
+	Location string `json:"location"`
 }
 
 // Overlay is one OpenAPI Overlay document and how strictly to apply it.
@@ -563,6 +583,7 @@ const (
 	optGroupingAliases   = "grouping-aliases"
 	optGroupingFallback  = "grouping-fallback"
 	optAllowExternalRefs = "allow-external-refs"
+	optLocate            = "locate"
 	optOverlay           = "overlay"
 	optOverlayLax        = "overlay-lax"
 	optStreamingMedia    = "streaming-media"
@@ -611,7 +632,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
-		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optPromotionTargets, optPromotionPrefixes,
+		optLocate, optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optPromotionTargets, optPromotionPrefixes,
 	}
 	names = slices.AppendSeq(names, maps.Keys(switchOptions(&Options{})))
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
@@ -656,6 +677,8 @@ func (d *optionDecode) set(key, value string) error {
 		return d.groupingExtension(key, value)
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
+	case optLocate:
+		return decodeLocations(&d.opts.Locations, value)
 	case optOverlay:
 		// An empty path is refused rather than read as "no overlay". Taking it
 		// would apply none while the caller believes one was applied, and would
@@ -776,6 +799,59 @@ func decodePromotionTargets(out *map[ExtensionTarget][]ExtensionSource, value st
 	}
 	*out = targets
 	return nil
+}
+
+// decodeLocations reads value as mappings separated by commas, each split at
+// the first "=" that follows a "/", so a prefix with no "=" in its path and a
+// location naming a URL both read; each is held to mappingsOf.
+func decodeLocations(out *[]Location, value string) error {
+	var ls []Location
+	for pair := range strings.SplitSeq(value, ",") {
+		slash := strings.Index(pair, "/")
+		eq := strings.Index(pair[max(slash, 0):], "=")
+		if slash < 0 || eq < 0 {
+			return fmt.Errorf("openapi: option %q: want prefix=location pairs separated by commas, got %q",
+				optLocate, pair)
+		}
+		ls = append(ls, Location{Prefix: pair[:slash+eq], Location: pair[slash+eq+1:]})
+	}
+	if _, err := mappingsOf(ls); err != nil {
+		return err
+	}
+	*out = ls
+	return nil
+}
+
+// mappingsOf is ls as the load phase reads it, each prefix spelled as a
+// located URL is (bind.NormalURI), or why a prefix match could mistake one: a
+// prefix that is no absolute URI, holds a query or a fragment, or ends in no
+// "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
+// prefix written twice however it is spelled, an empty location, and a URL
+// location ending in no "/", which the rest of a URL would be appended to as
+// the end of its last segment.
+func mappingsOf(ls []Location) ([]load.Mapping, error) {
+	out := make([]load.Mapping, 0, len(ls))
+	seen := map[string]bool{}
+	for _, l := range ls {
+		u, err := url.Parse(l.Prefix)
+		switch {
+		case err != nil || !u.IsAbs() || u.Opaque != "":
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q is no absolute URI", optLocate, l.Prefix)
+		case u.RawQuery != "" || u.ForceQuery || strings.Contains(l.Prefix, "#"):
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q holds a query or a fragment", optLocate, l.Prefix)
+		case !strings.HasSuffix(l.Prefix, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q ends in no \"/\"", optLocate, l.Prefix)
+		case l.Location == "":
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, l.Prefix)
+		case refscope.IsURL(l.Location) && !strings.HasSuffix(l.Location, "/"):
+			return nil, fmt.Errorf("openapi: option %q: the location %q is a URL ending in no \"/\"", optLocate, l.Location)
+		case seen[bind.NormalURI(u)]:
+			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, l.Prefix)
+		}
+		seen[bind.NormalURI(u)] = true
+		out = append(out, load.Mapping{Prefix: bind.NormalURI(u), Location: l.Location})
+	}
+	return out, nil
 }
 
 // decodeMediaList reads the media list of the setting key, streaming's or

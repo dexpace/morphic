@@ -155,13 +155,13 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	for _, entry := range a.write(s) {
 		lent[entry] = lent[entry] || !writesFalseFlag(entry, foldValue(s, entry))
 	}
-	comp := allOfBranches(s, "")
+	comp := allOfBranches(c.Bindings(), s, "")
 	n := len(comp.branches)
 	out := voicing{speaks: make([]bool, n), lends: make([]bool, n), rebased: make([]bool, n)}
 	writes := make([][]string, n)
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
-		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
+		if bs := e.schema.GetSchema(); bs != nil && !c.Bindings().RefSite(e.schema) {
 			if out.rebased[i] = underID(e, bs, ids) && foldsReference(c, bs) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(bs)
 			}
@@ -321,7 +321,7 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 	if !allOfDecides(c, s) {
 		return nil
 	}
-	comp := allOfBranches(s, pointer)
+	comp := allOfBranches(c.Bindings(), s, pointer)
 	var out []annotation.Voice
 	for i, speaks := range voicesAmong(c, s) {
 		e := comp.branches[i]
@@ -344,7 +344,7 @@ func lendingBranches(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
 	if !allOfDecides(c, s) {
 		return nil
 	}
-	comp := allOfBranches(s, "")
+	comp := allOfBranches(c.Bindings(), s, "")
 	var out []allOfBranch
 	for i, lends := range voicingOf(c, s).lends {
 		if lends {
@@ -357,7 +357,7 @@ func lendingBranches(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
 // declaresScoped reports whether a voice writes what only the position can hold,
 // as declaresPositionScoped asks of the schema written there.
 func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
-	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node) })
+	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node, v.At) })
 }
 
 // recordVoicedResidue is recordDeclarationResidue for what voices write, each

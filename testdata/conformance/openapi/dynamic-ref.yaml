@@ -11,6 +11,12 @@ components:
     Leaf:
       $dynamicAnchor: leaf-node
       type: string
+    Twice:
+      $dynamicAnchor: twice
+      type: string
+    TwiceAgain:
+      $dynamicAnchor: twice
+      type: integer
     Tree:
       type: object
       properties:
@@ -20,9 +26,16 @@ components:
         # A fragment is URI text, in which '%2D' and '-' are the same character
         # (RFC 3986 section 2.3), so this names the anchor 'leaf-node'.
         escaped: {$dynamicRef: '#leaf%2Dnode'}
-        # No anchor declares this name, so the reference is irreducible and is
-        # kept verbatim instead of being dropped.
-        ghost: {$dynamicRef: '#Missing'}
+        # Two anchors declare this name, so the target depends on the evaluation
+        # path: the reference is irreducible and is kept verbatim instead of
+        # being dropped.
+        ghost: {$dynamicRef: '#twice'}
+        # It names no $dynamicAnchor, so it is the $ref it spells (JSON Schema
+        # 2020-12 section 8.2.3.2) and lowers as one.
+        static: {$dynamicRef: '#/components/schemas/Leaf'}
+        # The one anchor of this name is declared in the resource the "" schema
+        # below starts, so the reference may not expand across it.
+        boundary: {$dynamicRef: 'https://example.com/empty#edge'}
         # The one anchor of this name sits under $defs, a position a $ref can
         # name too, so the reference expands to the type a $ref there names.
         deep: {$dynamicRef: '#deep'}
@@ -50,10 +63,11 @@ components:
         children: {type: array, items: {$recursiveRef: '#'}}
     # A component keyed "" is addressed by /components/schemas/, a pointer whose
     # last reference token is empty. The $id here starts a schema resource of its
-    # own, so this reference may not expand across it — and deciding that means
-    # reading the trailing empty token as this schema's own position instead of
-    # dropping it and reading the components/schemas map above it, which declares
-    # no $id and would have let the expansion through.
+    # own, so Tree's boundary reference may not expand across it — and deciding
+    # that means reading the trailing empty token as this schema's own position
+    # instead of dropping it and reading the components/schemas map above it,
+    # which declares no $id and would have let the expansion through.
     "":
       $id: https://example.com/empty
-      $dynamicRef: '#T'
+      $dynamicAnchor: edge
+      type: string

@@ -5,7 +5,9 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"math"
 	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -79,32 +81,43 @@ func Constraints(s *oas3.Schema, take Bounds, exclusiveBoolean bool, pointer jso
 	return c, residue.kept, diags
 }
 
-// ExactCount returns count, the parser's reading of the integer keyword s writes,
-// where it is the number the keyword's literal states (CountIsExact), and nil
-// where it is not, so no bound stands for a value the source does not state.
+// ExactCount returns the count the integer keyword s writes states, where the
+// parser's model holds one, count, and nil where the literal states no count:
+// no number, or none that is a non-negative integer within int64. The count is the literal's, read as
+// YAML 1.2's core schema reads it (value.NumericLiteral,
+// docs/parser-library.md#scalar-resolution), never the model's,
+// which reads 010 as 8, holds an integer past int64 as 0 and cuts a fraction to
+// an integer. A negative one is the load phase's to report.
 func ExactCount(s *oas3.Schema, keyword string, count *int64) *int64 {
-	if !CountIsExact(s, keyword, count) {
+	node := RawPropertyNode(s, keyword)
+	if count == nil || node == nil || (node.ShortTag() != "!!int" && node.ShortTag() != "!!float") {
 		return nil
 	}
-	return count
+	literal, err := value.NumericLiteral(node)
+	if err != nil {
+		return nil
+	}
+	stated, err := literal.Decimal()
+	most, mostErr := ir.ParseDecimal(strconv.FormatInt(math.MaxInt64, 10))
+	if err != nil || mostErr != nil || !stated.IsInt() || stated.Sign() < 0 || stated.Cmp(most) > 0 {
+		return nil
+	}
+	// Within int64, the digits and the zeros the exponent adds are at most 19.
+	var v int64
+	zeros := max(int(stated.Exponent())+1-len(stated.Digits()), 0)
+	for _, d := range stated.Digits() + strings.Repeat("0", zeros) {
+		v = v*10 + int64(d-'0')
+	}
+	if v == *count {
+		return count
+	}
+	return &v
 }
 
-// CountIsExact reports whether count, the parser's reading of the integer
-// keyword s writes, is the number the keyword's literal states, and a count,
-// which is never negative. The model holds an integer past int64 as 0, and a
-// fraction cut to an integer, so a reader asks here before it trusts the model;
-// a negative one is the load phase's to report.
+// CountIsExact reports whether the integer keyword s writes states a count,
+// the parser's model holding one, count (ExactCount).
 func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
-	if count == nil || *count < 0 {
-		return false
-	}
-	literal, err := value.NumericLiteral(RawPropertyNode(s, keyword))
-	if err != nil {
-		return false
-	}
-	stated, statedErr := literal.Decimal()
-	read, readErr := ir.ParseDecimal(strconv.FormatInt(*count, 10))
-	return statedErr == nil && readErr == nil && stated.Cmp(read) == 0
+	return ExactCount(s, keyword, count) != nil
 }
 
 // boundResidue is where a schema's bounds were written, and what became of a

@@ -378,7 +378,7 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 // draft and stays in its branch at the other, a body schema writing `id` is a
 // file under the draft alone, and a boolean exclusive bound bounds under the
 // draft and is dropped, reported by the rule table's check, at the other. The roots' names, which order
-// them, decide none of it.
+// them, decide only where a shared node's finding is placed.
 func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *testing.T) {
 	t.Parallel()
 	body := func(path, at string) string {
@@ -404,8 +404,14 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *
 					bounds = append(bounds, string(d.Provenance.Pointer)+": "+d.Message)
 				}
 			}
-			assert.Equal(t, []string{"/components/schemas/" + root + "/properties/lo/exclusiveMinimum: exclusiveMinimum must " +
-				"be a number in this schema's dialect; read at /components/schemas/Now/properties/lo/exclusiveMinimum"}, bounds,
+			// The shared node is placed at the least place mounting it, and names the
+			// place that read it when that is another.
+			want := "/components/schemas/" + root + "/properties/lo/exclusiveMinimum: exclusiveMinimum must " +
+				"be a number in this schema's dialect; read at /components/schemas/Now/properties/lo/exclusiveMinimum"
+			if root > "Now" {
+				want = "/components/schemas/Now/properties/lo/exclusiveMinimum: exclusiveMinimum must be a number in this schema's dialect"
+			}
+			assert.Equal(t, []string{want}, bounds,
 				"the rule table's check judges the node once in each place, sound under the draft")
 			unmodeled := func(at string) ir.Unmodeled {
 				td := doc.Types[ir.TypeID("t/anon/components/schemas/"+at+"/properties/dep")]

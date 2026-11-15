@@ -86,10 +86,16 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err := formatOpts.checkGrouping(); err != nil {
 		return nil, nil, err
 	}
+	mapped, err := mappingsOf(formatOpts.Locations)
+	if err != nil {
+		return nil, nil, err
+	}
 	if err := formatOpts.Promotions.Check(); err != nil {
 		return nil, nil, fmt.Errorf("openapi: %w", err)
 	}
-	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
+	loading := loadOptions(formatOpts, opts.Reader, sources[0])
+	loading.Mappings = mapped
+	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loading)
 	// The load phase reads a document once under each name a reference spells
 	// it by, as a relative and an absolute path to one file where external
 	// references are allowed, so what it finds there it finds once per name,

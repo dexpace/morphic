@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -64,8 +65,8 @@ components:
 // TestDynamicRef_NamesNoAnchorOfTheSourceFromAnotherDocument pins the other side
 // for a schema a $ref reaches: the source's Held names the schema of parameter
 // P, a $ref into ext.yaml, whose document declares no such anchor, so its
-// $dynamicRef is kept on the property, not expanded to the source's anchor of
-// that name (GitHub #762).
+// $dynamicRef is the $ref it spells there, which resolves nowhere, and is
+// never expanded to the source's anchor of that name (GitHub #762).
 func TestDynamicRef_NamesNoAnchorOfTheSourceFromAnotherDocument(t *testing.T) {
 	t.Parallel()
 	doc, diags, _ := compileBeside(t, map[string]string{"ext.yaml": `Param:
@@ -85,7 +86,10 @@ components:
 
 	ext := ids.In("ext.yaml")
 	inner := jsontext.Pointer("/Param/schema/properties/inner")
-	assert.Empty(t, cmp.Diff([]ir.Diagnostic{dynamicRefNotExpanded(inner + "/$dynamicRef")}, diags))
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: inner}, diags[0].Provenance, "placed in ext.yaml")
+	assert.True(t, strings.HasPrefix(diags[0].Message, `unresolved $dynamicRef "#node": `), diags[0].Message)
 
 	held, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/Held")].(*ir.Scalar)
 	require.True(t, ok)
@@ -98,7 +102,7 @@ components:
 	prop := model.Properties[0]
 	assert.Equal(t, ext.Prop(inner), prop.ID)
 	assert.Equal(t, ir.TypeID("t/prim/any"), prop.Type.Target)
-	assert.Equal(t, ir.ReasonDegradedLowering, prop.Unmodeled["openapi:$dynamicRef"].Reason)
+	assert.NotContains(t, prop.Unmodeled, "openapi:$dynamicRef")
 }
 
 // TestDynamicRef_ExpandsAgainstTheOneMatchingAnchor pins the resolvable half of
@@ -166,10 +170,11 @@ func TestDynamicRef_FragmentIsPercentDecoded(t *testing.T) {
 // TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing pins that an anchor is
 // read as a $ref's is: 2020-12 §8.2.2's production admits no `%`, so the document
 // validator reports the declaration, and it declares no name for a reference to
-// reach, however the reference spells one.
+// reach, however the reference spells one: the reference names no
+// $dynamicAnchor, so it is the $ref it spells, which resolves nowhere.
 func TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, openapitest.ComponentSpec(
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    B: {$dynamicAnchor: 'pct%name', type: string}\n"+
 			"    A: {$dynamicRef: '#pct%25name'}\n"))
 
@@ -177,7 +182,8 @@ func TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing(t *testing.T) {
 	require.True(t, ok, "the reference position owns a node")
 	require.NotNil(t, sc.Base)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), sc.Base.Target)
-	assert.Equal(t, ir.ReasonDegradedLowering, sc.Unmodeled["openapi:$dynamicRef"].Reason)
+	assert.NotContains(t, sc.Unmodeled, "openapi:$dynamicRef")
+	assertDiagContains(t, diags, "/components/schemas/A", `unresolved $dynamicRef "#pct%25name": `)
 }
 
 // TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the irreducible half of the
@@ -191,29 +197,9 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		"    M2: {$dynamicAnchor: dup, type: integer}\n" +
 		"    Deep: {type: object, properties: {i: {$dynamicAnchor: deep, type: string}}}\n"
 	const anchor = "    M: {$dynamicAnchor: m, type: string}\n"
-	// at is the node keeping the reference, defaulting to the component A itself;
-	// invalid is the error the load phase reports of a reference that is no URI
-	// reference, "" for none.
 	cases := []struct {
-		name, schemas, wantWhy, invalid string
-		at                              ir.TypeID
+		name, schemas, wantWhy string
 	}{
-		{name: "no such anchor", schemas: "    A: {$dynamicRef: '#nope'}\n",
-			wantWhy: "no $dynamicAnchor \"nope\" is declared"},
-		{name: "another document", schemas: "    A: {$dynamicRef: 'other.json#m'}\n",
-			wantWhy: "is not a plain same-document fragment"},
-		{name: "a pointer, not an anchor", schemas: "    A: {$dynamicRef: '#/components/schemas/M1'}\n",
-			wantWhy: "not a plain same-document fragment"},
-		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n",
-			wantWhy: `"#my%zzanchor" is not valid percent-encoded text: invalid URL escape "%zz"`,
-			invalid: "openapi/validation/validation-invalid-format at /components/schemas/A/$dynamicRef"},
-		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
-			wantWhy: `no $dynamicAnchor "pct%name" is declared`},
-		// The anchor here is what a second decode would land on: it would read
-		// this fragment as "#my-anchor" and expand. Being kept is the proof.
-		{name: "the decode is not applied twice",
-			schemas: "    H: {$dynamicAnchor: my-anchor, type: string}\n    A: {$dynamicRef: '#my%252Danchor'}\n",
-			wantWhy: `no $dynamicAnchor "my%2Danchor" is declared`},
 		{name: "declared twice", schemas: anchors + "    A: {$dynamicRef: '#dup'}\n",
 			wantWhy: "declared 2 times"},
 		{name: "co-declared with a shape", schemas: anchors + "    A: {$dynamicRef: '#deep', type: string}\n",
@@ -235,33 +221,12 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			wantWhy: "co-declared with another applicator",
 		},
 		{
+			// Its fragment names the anchor, as a $ref resolves it, in a resource
+			// the reference is not in.
 			name: "the anchor is in a resource of its own",
 			schemas: "    M: {$id: 'https://example.com/m', $dynamicAnchor: m, type: string}\n" +
-				"    A: {$dynamicRef: '#m'}\n",
+				"    A: {$dynamicRef: 'https://example.com/m#m'}\n",
 			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
-		},
-		{
-			name:    "the reference is in a resource of its own",
-			schemas: anchor + "    A: {$id: 'https://example.com/a', $dynamicRef: '#m'}\n",
-			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
-		},
-		{
-			// The pointer of a schema named "" ends in an empty reference token,
-			// which the path walk once dropped as if it were the artifact of
-			// splitting a pointer on '/' — reading the components/schemas map for
-			// the $id instead of the schema itself, and expanding across a
-			// boundary it should have stopped at.
-			name:    `a schema named "" is still in a resource of its own`,
-			schemas: anchor + "    \"\": {$id: 'https://example.com/empty', $dynamicRef: '#m'}\n",
-			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
-			at:      "t/anon/components/schemas/",
-		},
-		{
-			name: "an enclosing schema starts the resource",
-			schemas: anchor +
-				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
-			wantWhy: `an identifier between it and "/components/schemas/M" puts the two in different schema resources`,
-			at:      "t/anon/components/schemas/A/items",
 		},
 		{
 			name: "expanding it would close a cycle",
@@ -279,25 +244,125 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
-			var invalid []string
-			for _, d := range diags {
-				if d.Severity == ir.SeverityError {
-					invalid = append(invalid, d.Code+" at "+string(d.Provenance.Pointer))
-				}
-			}
-			assert.Equal(t, tc.invalid, strings.Join(invalid, "; "), "the errors: %+v", diags)
-
-			at := tc.at
-			if at == "" {
-				at = componentID("A")
-			}
-			td, ok := doc.Types[at]
+			openapitest.RequireNoErrorDiags(t, diags)
+			td, ok := doc.Types[componentID("A")]
 			require.True(t, ok, "the position owns a node to keep the reference on")
 			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
 			require.True(t, ok, "an irreducible $dynamicRef is kept verbatim, not dropped")
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assertDiagContains(t, diags, string(entry.Provenance.Pointer), tc.wantWhy)
 		})
+	}
+}
+
+// TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells pins the static half of
+// docs/compilers/openapi.md#dynamic-ref: a $dynamicRef whose fragment names no
+// $dynamicAnchor, as a $ref resolves it, is that $ref (JSON Schema 2020-12
+// §8.2.3.2). One resolving nowhere draws the error its $ref twin draws, worded
+// with its keyword, and lowers the top type, keeping nothing; a pointer
+// resolves.
+func TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells(t *testing.T) {
+	t.Parallel()
+	const anchor = "    M: {$dynamicAnchor: m, type: string}\n"
+	cases := []struct {
+		name, schemas, ref, at, invalid string
+	}{
+		{name: "no such anchor", schemas: "    A: {$dynamicRef: '#nope'}\n", ref: "#nope"},
+		{name: "another document", schemas: "    A: {$dynamicRef: 'other.json#m'}\n", ref: "other.json#m"},
+		{name: "an invalid percent escape", schemas: "    A: {$dynamicRef: '#my%zzanchor'}\n", ref: "#my%zzanchor",
+			invalid: "openapi/validation/validation-invalid-format at /components/schemas/A/$dynamicRef"},
+		{name: "an escaped percent decodes to the character", schemas: "    A: {$dynamicRef: '#pct%25name'}\n",
+			ref: "#pct%25name"},
+		// The anchor here is what a second decode would land on: it would read
+		// this fragment as "#my-anchor" and resolve. Resolving nowhere is the proof.
+		{name: "the decode is not applied twice",
+			schemas: "    H: {$dynamicAnchor: my-anchor, type: string}\n    A: {$dynamicRef: '#my%252Danchor'}\n",
+			ref:     "#my%252Danchor"},
+		{name: "the anchor is in a resource of its own",
+			schemas: "    M: {$id: 'https://example.com/m', $dynamicAnchor: m, type: string}\n    A: {$dynamicRef: '#m'}\n",
+			ref:     "#m"},
+		{name: "the reference is in a resource of its own",
+			schemas: anchor + "    A: {$id: 'https://example.com/a', $dynamicRef: '#m'}\n", ref: "#m"},
+		{name: "an enclosing schema starts the resource",
+			schemas: anchor + "    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
+			ref:     "#m", at: "/components/schemas/A/items"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tc.schemas))
+			at := tc.at
+			if at == "" {
+				at = "/components/schemas/A"
+			}
+			var errs []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+				}
+				assert.NotEqual(t, diag.DynamicRefExpanded, d.Code, "%+v", d)
+				if d.Severity == ir.SeverityInfo {
+					assert.False(t, strings.HasSuffix(string(d.Provenance.Pointer), "/$dynamicRef"), "nothing is kept: %+v", d)
+				}
+			}
+			want := []string{"openapi/unresolved-ref at " + at}
+			if tc.invalid != "" {
+				want = append(want, tc.invalid)
+			}
+			assert.ElementsMatch(t, want, errs, "%+v", diags)
+			assertDiagContains(t, diags, at, `unresolved $dynamicRef "`+tc.ref+`": `)
+			for id, td := range doc.Types {
+				assert.NotContains(t, td.Common().Unmodeled, "openapi:$dynamicRef", id)
+			}
+		})
+	}
+
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    M1: {type: string}\n    A: {$dynamicRef: '#/components/schemas/M1'}\n"))
+	assert.Empty(t, diags)
+	a, ok := doc.Types[componentID("A")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, a.Base)
+	assert.Equal(t, componentID("M1"), a.Base.Target, "a pointer resolves")
+	assert.Empty(t, a.Unmodeled)
+}
+
+// TestDynamicRef_AnAnchorOnlyAnotherDocumentDeclaresIsKept pins a $dynamicRef
+// whose fragment lands on a $dynamicAnchor of another document: it is dynamic,
+// and read against the declarations of the document it is written in, where
+// none of its name stands, so it is kept.
+func TestDynamicRef_AnAnchorOnlyAnotherDocumentDeclaresIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{"ext.yaml": "$defs: {M: {$dynamicAnchor: m, type: string}}\n"},
+		openapitest.ComponentSpec("    A: {$dynamicRef: './ext.yaml#m'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	a, ok := doc.Types[componentID("A")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, a.Unmodeled["openapi:$dynamicRef"].Reason)
+	assertDiagContains(t, diags, "/components/schemas/A/$dynamicRef", `no $dynamicAnchor "m" is declared in this document`)
+}
+
+// TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept pins a name
+// declared once in the reference's document and again in a resource of the
+// source that reaches it by a $ref: that resource is in the dynamic scope and
+// outermost (JSON Schema 2020-12 §8.2.3.2), so the target depends on the
+// evaluation path and the reference is kept.
+func TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{"ext.yaml": "List:\n  $id: https://example.com/list\n" +
+		"  type: array\n  items: {$dynamicRef: '#items'}\n  $defs: {items: {$dynamicAnchor: items, type: integer}}\n"},
+		openapitest.ComponentSpec("    StrList: {$id: 'https://example.com/strlist', $ref: 'list', "+
+			"$defs: {items: {$dynamicAnchor: items, type: string}}}\n    Plain: {$ref: './ext.yaml#/List'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	items, ok := doc.Types[ids.In("ext.yaml").AnonType("/List/items")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, items.Unmodeled["openapi:$dynamicRef"].Reason)
+	assert.Empty(t, openapitest.PointersOf(diags, diag.DynamicRefExpanded))
+	for _, d := range diags {
+		if d.Provenance.Pointer == "/List/items/$dynamicRef" {
+			assert.Equal(t, 1, d.Provenance.Source)
+			assert.Contains(t, d.Message, `$dynamicAnchor "items" is also declared in a schema resource of another `+
+				"document that reaches this one")
+		}
 	}
 }
 
@@ -462,9 +527,9 @@ func TestDynamicRef_ChainEndsAtAnAnchorItCannotFollow(t *testing.T) {
 
 // TestDynamicRef_NonScalarValueIsKeptNotExpanded covers the one irreducible case
 // the sibling table cannot: a $dynamicRef whose value is not a string is a type
-// error the document validator also reports, so the case arrives with an error
-// diagnostic beside it. The lowering still has to keep the construct rather than
-// treat a malformed reference as absent.
+// error the rule table reports, and every reader then takes the field for left
+// out (docs/compilers/openapi.md#validation), so nothing is kept or expanded and
+// the table's error is the one report.
 func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
@@ -478,22 +543,11 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 				"    M1: {$dynamicAnchor: ok, type: string}\n"+schemas))
 
 			td, ok := doc.Types[componentID("A")]
-			require.True(t, ok, "the position owns a node to keep the reference on")
-			entry, ok := td.Common().Unmodeled["openapi:$dynamicRef"]
-			require.True(t, ok, "a malformed $dynamicRef is kept verbatim, not dropped")
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assertDiagContains(t, diags, string(entry.Provenance.Pointer), "not a reference string")
+			require.True(t, ok, "the position owns a node")
+			assert.NotContains(t, td.Common().Unmodeled, "openapi:$dynamicRef", "the malformed $dynamicRef is read as left out")
+			assertDiagContains(t, diags, "/components/schemas/A/$dynamicRef", "must be a string")
 		})
 	}
-}
-
-// dynamicRefNotExpanded is the report of a $dynamicRef written in another
-// document, at the pointer in that document's Document.Sources entry.
-func dynamicRefNotExpanded(pointer jsontext.Pointer) ir.Diagnostic {
-	return ir.Diagnostic{Severity: ir.SeverityInfo, Code: "openapi/degraded-construct",
-		Message: `$dynamicRef was not expanded because no $dynamicAnchor "node" is declared in this document; ` +
-			"it is kept verbatim under Unmodeled",
-		Provenance: ir.Provenance{Source: 1, Pointer: pointer}}
 }
 
 // mergeBoundOrderSpec writes one document whose resource boundary is reachable
@@ -610,7 +664,8 @@ func TestDynamicRef_ExpandsToAnyPositionARefNames(t *testing.T) {
 // read in one schema resource an $id starts: the reference expands to the
 // anchor, there the resource's root, as the usual JSON Schema spelling of a
 // recursive schema has it. An $id between the two puts them in two resources,
-// and the reference is kept.
+// so the fragment names no anchor of the reference's, which makes it the $ref
+// it spells, resolving nowhere.
 func TestDynamicRef_ExpandsWithinOneResource(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
@@ -618,16 +673,19 @@ func TestDynamicRef_ExpandsWithinOneResource(t *testing.T) {
 			"      properties: {children: {type: array, items: {$dynamicRef: '#node'}}}\n"+
 			"    Split:\n      $dynamicAnchor: split\n      type: object\n"+
 			"      properties: {c: {$id: 'https://example.com/c', type: array, items: {$dynamicRef: '#split'}}}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
 	items, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Dyn/properties/children/items")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, items.Base)
 	assert.Equal(t, componentID("Dyn"), items.Base.Target)
-	kept := doc.Types[ir.TypeID("t/anon/components/schemas/Split/properties/c/items")]
-	require.NotNil(t, kept)
-	assert.Contains(t, kept.Common().Unmodeled, "openapi:$dynamicRef")
-	assertDiagContains(t, diags, "/components/schemas/Split/properties/c/items/$dynamicRef",
-		`an identifier between it and "/components/schemas/Split" puts the two in different schema resources`)
+	var errs []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"openapi/unresolved-ref at /components/schemas/Split/properties/c/items"}, errs,
+		"#split names no anchor of c's own resource, so it is the $ref it spells, which resolves nowhere")
+	assertDiagContains(t, diags, "/components/schemas/Split/properties/c/items", `unresolved $dynamicRef "#split": `)
 }
 
 // d2019 is the `$schema` of JSON Schema 2019-09, which spells a dynamic
@@ -637,12 +695,12 @@ const d2019 = "$schema: 'https://json-schema.org/draft/2019-09/schema'"
 // TestRecursiveRef_ExpandsWhereItsTargetIsStatic pins 2019-09's $recursiveRef
 // in an OpenAPI document: "#" names the root of the resource the reference is
 // in, and the reference expands to it where that declares no $recursiveAnchor
-// true, or every schema of the document declaring one, in a dialect defining
-// the keyword, lies in its resource. Under no identifier "#" names the OpenAPI
-// Object, which holds no schema, so it is kept, saying what makes it expand.
-// Any other value, a sibling it cannot carry, two resources declaring the
-// anchor and an identifier or a declaration the merge bound may hide each keep
-// it too, under degraded_lowering, saying why.
+// true, or no other resource declaring one, in a dialect defining the keyword,
+// reaches it. Under no identifier "#" names the OpenAPI Object, which holds no
+// schema, so it is kept, saying what makes it expand. Any other value, a
+// sibling it cannot carry, a resource declaring the anchor that reaches it and
+// an identifier or a declaration the merge bound may hide each keep it too,
+// under degraded_lowering, saying why.
 func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 	t.Parallel()
 	items := func(name, head, ref string) string {
@@ -669,7 +727,9 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 			model: "Static", expandsTo: "Static"},
 		{name: "a root declaring none beside two resources declaring it", model: "Static", expandsTo: "Static",
 			schemas: items("Static", "$id: 'https://example.com/s', ", "{$recursiveRef: '#'}") + tree +
-				items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}")},
+				items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{$ref: 'https://example.com/tree'}")},
+		{name: "two resources neither reaching the other", model: "Tree", expandsTo: "Tree",
+			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}")},
 		{name: "a resource declaring it in a dialect defining none", model: "Tree", expandsTo: "Tree",
 			schemas: tree + "    Modern: {$id: 'https://example.com/m', $recursiveAnchor: true}\n"},
 		{name: "a root declaring the anchor false", model: "False", expandsTo: "False",
@@ -683,9 +743,10 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 		{name: "a sibling", model: "Beside",
 			schemas: items("Beside", "$id: 'https://example.com/b', ", "{$recursiveRef: '#', type: string}"),
 			why:     "it is co-declared with another applicator"},
-		{name: "two resources", model: "Tree",
-			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}"),
-			why:     "$recursiveAnchor: true is declared in 2 schema resources of this document"},
+		{name: "a resource declaring it that reaches this one", model: "Tree",
+			schemas: tree + items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ",
+				"{$ref: 'https://example.com/tree'}"),
+			why: "$recursiveAnchor: true is also declared in a schema resource that reaches this one"},
 		{name: "a declaration past the merge bound", model: "Tree", extra: chain,
 			schemas: tree + "    Deep: {<<: *c70}\n",
 			why:     "this document's identifiers were not read whole"},
@@ -786,4 +847,37 @@ func TestRecursiveRef_LandsOnTheRootOfItsResource(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, items.Base)
 	assert.Equal(t, root, items.Base.Target)
+}
+
+// TestDynamicRef_AListAnotherReadingKeepsIsNoReference holds a $dynamicRef
+// whose value is a list an alias shares with another schema's `required`,
+// which accepts it, so the value stays as written: the reference is not
+// expanded, since its value is no reference string.
+func TestDynamicRef_AListAnotherReadingKeepsIsNoReference(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-l: &l [a]\n" +
+		"components:\n  schemas:\n    S: {$dynamicRef: *l}\n    T: {type: object, required: *l, properties: {a: {type: string}}}\n"
+
+	_, diags, _ := compileFiles(t, nil, src, openapi.Options{})
+
+	assertDiagContains(t, diags, "/components/schemas/S/$dynamicRef",
+		"$dynamicRef was not expanded because its value is not a reference string")
+}
+
+// TestDiscriminator_AListAnotherReadingKeepsResolvesNothing holds a schema's
+// `discriminator` that is a list an alias shares with another schema's
+// `required`, which accepts it, so it stays as written and the census keeps
+// it: the model holds no discriminator there, so no mapping is resolved, and
+// the one finding is the table's.
+func TestDiscriminator_AListAnotherReadingKeepsResolvesNothing(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-l: &l [a]\n" +
+		"components:\n  schemas:\n    S: {type: string, discriminator: *l}\n" +
+		"    T: {type: object, required: *l, properties: {a: {type: string}}}\n"
+
+	doc, diags, _ := compileFiles(t, nil, src, openapi.Options{})
+
+	require.Len(t, diags, 2, "%+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/discriminator"), diags[0].Provenance.Pointer)
+	assert.Contains(t, doc.Types[componentID("S")].Common().Unmodeled, "openapi:discriminator", "kept verbatim")
 }

@@ -1,0 +1,37 @@
+# Copyright (c) 2026 dexpace.
+# Licensed under the MIT License. See LICENSE in the repository root for details.
+#
+# A document declaring YAML 1.1, read as YAML 1.2: each plain scalar YAML 1.1
+# reads as another JSON value, a scalar tagged !!int in a form YAML 1.1 reads in
+# another base, and each line-break character YAML 1.1 ends a line at, draw
+# one openapi/yaml-version-reading warning each; 0x1F reads alike in both and
+# draws none. A break in a comment is left to inline tests: the YAML library
+# the order oracles rewrite with lexes 1.1 and refuses it.
+# docs/compilers/openapi.md#yaml-decoding
+%YAML 1.1
+---
+openapi: 3.1.0
+info:
+  title: t
+  version: "1"
+  description: "nelhere"
+  summary: "ls here"
+  termsOfService: "https://example.com/ps here"
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties:
+        octal: {type: integer, default: 0644}
+        tagged: {type: integer, default: !!int 0644}
+        coreOctal: {type: integer, default: 0o17}
+        signedHex: {type: string, default: +0x1F}
+        binary: {type: string, default: 0b1010}
+        separated: {type: string, default: 1_000}
+        sexagesimal: {type: string, default: 1:30}
+        exponent: {type: number, default: 1e3}
+        sexagesimalFloat: {type: string, default: 1:30.5}
+        separatedFloat: {type: string, default: 1_000.5}
+        hex: {type: integer, default: 0x1F}
+x-flags: [y, Y, yes, Yes, YES, n, N, no, No, NO, on, On, ON, off, Off, OFF]

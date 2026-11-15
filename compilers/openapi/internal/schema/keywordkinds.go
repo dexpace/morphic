@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -61,7 +62,7 @@ func typeKinds(st oas3.SchemaType) kindSet {
 // GitHub #1889's fold, and one left is reported at its position, not its key.
 func positionTypes(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	own := declaredInstanceTypes(s)
-	if s == nil || own == 0 || !namesSchema(s) || !writesBound(s) {
+	if s == nil || own == 0 || !namesSchema(s) || !writesBound(c.Bindings(), s) {
 		return own
 	}
 	return own & namedTypes(c, s, pointer)
@@ -77,12 +78,12 @@ func namesSchema(s *oas3.Schema) bool {
 // writesBound reports whether s, or an inline branch of its flattened allOf,
 // writes a value or collection bound: where none does, no reader asks its types.
 // A bound beside a branch's own $ref is that branch's.
-func writesBound(s *oas3.Schema) bool {
+func writesBound(refs *typed.Bindings, s *oas3.Schema) bool {
 	if declaresBound(s) {
 		return true
 	}
-	for st := range walkAllOf(s) {
-		if bs := st.schema.GetSchema(); bs != nil && isInlineBranch(st.schema) && declaresBound(bs) {
+	for st := range walkAllOf(refs, s) {
+		if bs := st.schema.GetSchema(); bs != nil && !refs.RefSite(st.schema) && declaresBound(bs) {
 			return true
 		}
 	}
@@ -139,14 +140,14 @@ func (r *boundTypes) schema(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 
 // names is what every schema s, written at pointer of c's document, names
 // admits, in the four ways namesSchema tests for: its allOf entries, the end of
-// its $ref chain, the target its dynamic reference names (dynamicTarget), and
-// its union's branches.
+// its chain of references where it is a reference site (typed.Bindings.RefSite),
+// else the target its dynamic reference names (dynamicTarget), and its union's
+// branches.
 func (r *boundTypes) names(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) kindSet {
 	out := r.conjuncts(c, s, pointer)
-	if s.Ref != nil {
-		out &= r.ref(c, heldAt(c, pointer))
-	}
-	if at, ok := dynamicTarget(c, s, pointer); ok {
+	if held := heldAt(c, pointer); c.Bindings().RefSite(held) {
+		out &= r.ref(c, held)
+	} else if at, ok := dynamicTarget(c, s, pointer); ok {
 		out &= r.at(c, at)
 	}
 	return out & r.unions(c, s, pointer)
@@ -200,7 +201,7 @@ func (r *boundTypes) unions(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 // is joined.
 func (r *boundTypes) entry(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, key string, i int) kindSet {
 	at := pointer
-	if isInlineBranch(b) {
+	if !c.Bindings().RefSite(b) {
 		at += ids.Ptr(key, strconv.Itoa(i))
 	}
 	return r.branch(c, b, at)
@@ -210,7 +211,7 @@ func (r *boundTypes) entry(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable
 // one's own schema, a $ref's the schema its chain ends on. A keyword beside the
 // $ref is not read (GitHub #1390).
 func (r *boundTypes) branch(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) kindSet {
-	if isRefBranch(b) {
+	if c.Bindings().RefSite(b) {
 		return r.ref(c, b)
 	}
 	return r.schema(c, b.GetSchema(), pointer)

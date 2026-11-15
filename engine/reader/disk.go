@@ -4,11 +4,14 @@
 package reader
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,8 +34,18 @@ var (
 // opening a FIFO waits for a writer and no context interrupts that wait. One
 // sized past the limit is refused unread.
 type Disk struct {
-	// Client fetches http(s) URLs. Nil uses http.DefaultClient.
+	// Client fetches http(s) URLs. Nil uses http.DefaultClient, which sets no
+	// deadline on a read, as none bounds a compile's reads together (GitHub
+	// #1036); a Client's own Timeout bounds each read through it.
+	// Every read goes through a copy whose transport keeps no connection and
+	// judges each address it dials (guardedClient), which needs Client's
+	// transport to be nil or an *http.Transport dialling through no function
+	// of its own.
 	Client *http.Client
+	// classify ranks an address dialled; nil ranks it by spaceOf.
+	classify func(netip.AddrPort) compilers.AddressSpace
+	// resolver resolves the names a read dials; nil is net's default.
+	resolver *net.Resolver
 }
 
 // ErrNotRegular reports a file that is not a regular file: a directory, a
@@ -44,49 +57,77 @@ var ErrNotRegular = errors.New("not a regular file")
 func (Disk) LocateDirectory(dir string) string { return locateDirectory(dir) }
 
 // ReadDocument implements compilers.DocumentReader.
-func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (d Disk) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return compilers.DocumentRead{}, err
 	}
 	loc, err := locate(req, runtime.GOOS == "windows")
 	if err != nil {
-		return nil, err
+		return compilers.DocumentRead{}, err
 	}
+	if loc.url != "" {
+		return d.fetch(ctx, loc.url, req)
+	}
+	var data []byte
 	switch {
-	case loc.url != "":
-		return d.fetch(ctx, loc.url, req.Limit)
 	case req.Within != "":
-		return readWithin(ctx, req.Within, loc.path, req.Limit)
+		data, err = readWithin(ctx, req.Within, loc.path, req.Limit)
 	default:
-		return readFile(ctx, osFiles{}, loc.path, req.Limit)
+		data, err = readFile(ctx, osFiles{}, loc.path, req.Limit)
 	}
+	if err != nil {
+		return compilers.DocumentRead{}, err
+	}
+	return compilers.DocumentRead{Data: data}, nil
 }
 
 // fetch reads the document at the http(s) URL u, failing on any status but a
-// success.
-func (d Disk) fetch(ctx context.Context, u string, limit int) ([]byte, error) {
-	client := d.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+// success, through a client judging each address the read dials against
+// req.Reach (guardedClient), and states the space the answer came from.
+func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
+	client, g, err := guardedClient(d.client(), req.Reach, d.classifier(), cmp.Or(d.resolver, net.DefaultResolver))
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", u, err)
+		return compilers.DocumentRead{}, fmt.Errorf("%s: %w", u, err)
 	}
-	resp, err := client.Do(req)
+	get, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return nil, err // a *url.Error, naming the request and its URL
+		return compilers.DocumentRead{}, fmt.Errorf("%s: %w", u, err)
+	}
+	resp, err := client.Do(get)
+	if err != nil {
+		return compilers.DocumentRead{}, g.failed(err) // a *url.Error, naming the request and its URL
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, errors.Join(fmt.Errorf("GET %s: %s", u, resp.Status), resp.Body.Close())
+		return compilers.DocumentRead{}, errors.Join(fmt.Errorf("GET %s: %s", u, resp.Status), resp.Body.Close())
 	}
 	// The response's length is the server's word, so it sizes nothing: a
-	// hostile one could ask for any allocation.
-	data, err := readLimited(ctx, u, resp.Body, limit, 0)
+	// hostile one could ask for any allocation. A compressed body is counted
+	// as it expands, since net/http hands it over decompressed.
+	data, err := readLimited(ctx, u, resp.Body, req.Limit, 0)
 	if err = errors.Join(err, resp.Body.Close()); err != nil {
-		return nil, err
+		return compilers.DocumentRead{}, err
 	}
-	return data, nil
+	read := compilers.DocumentRead{Data: data}
+	if g != nil {
+		read.Space, read.Bound = g.stated()
+	}
+	return read, nil
+}
+
+// client is the client d fetches through: Client, or http.DefaultClient.
+func (d Disk) client() *http.Client {
+	if d.Client != nil {
+		return d.Client
+	}
+	return http.DefaultClient
+}
+
+// classifier is how d ranks an address it dials.
+func (d Disk) classifier() func(netip.AddrPort) compilers.AddressSpace {
+	if d.classify != nil {
+		return d.classify
+	}
+	return func(ap netip.AddrPort) compilers.AddressSpace { return spaceOf(ap.Addr()) }
 }
 
 // readWithin reads the file at path, which must lie inside within, through an

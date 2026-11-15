@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
@@ -441,7 +442,7 @@ func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
 
-	origin, diags := overlay.Apply(t.Context(), index, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	origin, diags := overlay.Apply(t.Context(), index, &root, overlayDoc(t, ov), overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	require.True(t, origin.Applied())
 	return origin
@@ -559,9 +560,9 @@ components:
 	assert.False(t, isUse, "an entry written inline is no use")
 }
 
-// TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument pins that the sites are
-// the table's for the document c reads, every one of them counted.
-func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
+// TestDynamicAnchor_ReadsTheBindingsOfItsDocument pins that the declarations
+// are the table's for the document c reads, every one of them counted.
+func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
@@ -569,9 +570,8 @@ func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := lowering.New(0, doc, lowering.Policy{})
 
-	sites, whole := c.DynamicAnchorSites("m")
-	assert.Equal(t, []bind.Position{{Pointer: "/components/schemas/A"}, {Pointer: "/components/schemas/B"}}, sites)
-	assert.True(t, whole)
+	assert.Equal(t, bind.DynamicAnchor{Site: bind.Position{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
+		c.DynamicAnchor("m"))
 }
 
 // TestPosition_PlacesAPointerInTheContextsDocument pins that a context reading
@@ -591,4 +591,13 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Grouping: lowering.GroupByTags, Limits: limits})
 
 	assert.Equal(t, limits, c.Limits)
+}
+
+// overlayDoc reads ov as the compile reads an overlay document, into the tree
+// overlay.Apply is handed.
+func overlayDoc(t testing.TB, ov string) *yaml.Node {
+	t.Helper()
+	doc, err := doctree.Read(t.Context(), []byte(ov), budget.Unbounded())
+	require.NoError(t, err)
+	return doc.Root
 }

@@ -123,7 +123,7 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 `))
 	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	comp := allOfBranches(decl.GetSchema(), "/components/schemas/M")
+	comp := allOfBranches(nil, decl.GetSchema(), "/components/schemas/M")
 	entries := comp.branches
 	require.Len(t, entries, 6, "four inline branches and two wrappers")
 	wantKeys := []string{
@@ -166,14 +166,14 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 	m := decl.GetSchema()
 
 	var all []bool // wrapper flag of every step, in order
-	for st := range walkAllOf(m) {
+	for st := range walkAllOf(nil, m) {
 		all = append(all, st.wrapper)
 	}
 	assert.Equal(t, []bool{false, true, false}, all, "the ref, its wrapper, then the inline branch")
 
 	for stop := range all {
 		var seen int
-		for range walkAllOf(m) {
+		for range walkAllOf(nil, m) {
 			seen++
 			if seen > stop {
 				break
@@ -183,7 +183,7 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 	}
 
 	var refs int
-	for range allOfRefBranches(m) {
+	for range allOfRefBranches(nil, m) {
 		refs++
 		break
 	}
@@ -192,7 +192,7 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 	flatDecl, ok := l.Ctx.Doc.Components.Schemas.Get("Flat")
 	require.True(t, ok)
 	var flatRefs int
-	for range allOfRefBranches(flatDecl.GetSchema()) {
+	for range allOfRefBranches(nil, flatDecl.GetSchema()) {
 		flatRefs++
 		break
 	}

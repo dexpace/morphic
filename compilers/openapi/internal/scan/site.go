@@ -5,16 +5,15 @@ package scan
 
 import (
 	"context"
-	"encoding/json/jsontext"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 )
 
 // Least returns the node of nodes whose JSON pointer in root's tree, as
-// Pointers gives it, is least in byte order: the site a refusal with several
+// Pointers gives it, is least, token by token (lessTokens): the site a refusal with several
 // candidates names, which no reordering of the source's declarations moves
 // (GitHub #912). A node with none, under a `<<` merge key or a non-scalar key,
 // ranks after every node with one. Of nodes sharing a pointer, as a repeated
@@ -29,7 +28,7 @@ func Least(ctx context.Context, root *yaml.Node, nodes []*yaml.Node) *yaml.Node 
 		}
 		return nodes[0]
 	}
-	steps, _ := stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
+	steps := placesIn(ctx, root)
 	top := nodeview.DocumentRoot(root)
 	want := map[*yaml.Node]int{} // each held node, and where nodes first gives it
 	for i, n := range nodes {
@@ -88,25 +87,24 @@ func pathsTo(steps map[*yaml.Node]step, nodes []*yaml.Node, want map[*yaml.Node]
 
 // leastSteps returns, of the nodes one step below those of level, which share
 // one pointer, the ones under which the least pointer lies. Their pointers
-// share everything up to the step, so the step's escaped token decides,
-// followed by the separator for a node only leading to a wanted one, since
-// what lies under it carries one: a wanted node itself is the least pointer
-// under it, its own a prefix of every other.
+// share everything up to the step, so the step's token decides, compared by
+// its bytes as lessTokens compares one, and of one token a wanted node comes
+// first, its own pointer a prefix of every other under it.
 func leastSteps(steps map[*yaml.Node]step, level []*yaml.Node, under map[*yaml.Node][]*yaml.Node,
 	want map[*yaml.Node]int,
 ) []*yaml.Node {
 	var least []*yaml.Node
-	var leastKey string
+	var leastToken string
+	leastWanted := false
 	for _, at := range level {
 		for _, n := range under[at] {
-			key := string(jsontext.Pointer("").AppendToken(steps[n].token))
-			if _, wanted := want[n]; !wanted {
-				key += "/"
-			}
+			token := steps[n].token
+			_, wanted := want[n]
+			c := strings.Compare(token, leastToken)
 			switch {
-			case least == nil || key < leastKey:
-				least, leastKey = append(least[:0], n), key
-			case key == leastKey:
+			case least == nil || c < 0 || c == 0 && wanted && !leastWanted:
+				least, leastToken, leastWanted = append(least[:0], n), token, wanted
+			case c == 0 && wanted == leastWanted:
 				least = append(least, n)
 			}
 		}

@@ -29,8 +29,8 @@ func readBounded(t *testing.T, req compilers.DocumentRequest) ([]byte, error) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		data, err := reader.Disk{}.ReadDocument(t.Context(), req)
-		done <- result{data, err}
+		got, err := reader.Disk{}.ReadDocument(t.Context(), req)
+		done <- result{got.Data, err}
 	}()
 	select {
 	case got := <-done:
@@ -102,7 +102,7 @@ func TestDisk_ReadDocumentRefusesADevice(t *testing.T) {
 			require.Error(t, err)
 			assert.ErrorIs(t, err, reader.ErrNotRegular)
 			assert.Contains(t, err.Error(), "/dev/null")
-			assert.Nil(t, got)
+			assert.Nil(t, got.Data)
 		})
 	}
 }

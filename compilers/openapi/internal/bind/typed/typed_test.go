@@ -44,7 +44,13 @@ components:
 // schema built for each landing.
 func bindings(t *testing.T) (*typed.Bindings, *soa.OpenAPI, []typed.Built) {
 	t.Helper()
-	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec))
+	return bindingsOf(t, spec)
+}
+
+// bindingsOf is bindings for the document text.
+func bindingsOf(t *testing.T, text string) (*typed.Bindings, *soa.OpenAPI, []typed.Built) {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(text))
 	require.NoError(t, err)
 	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	for item := range soa.Walk(t.Context(), doc) {
@@ -97,6 +103,38 @@ func TestBindings_AnswerByTheSchemaTheLoweringHolds(t *testing.T) {
 	assert.False(t, ok, "a schema the bindings never met")
 	assert.Nil(t, b.Declared(stranger))
 	assert.NotNil(t, b.Table())
+}
+
+// TestBindings_RefSiteIsWhereTheTableReadsAReference pins RefKeyword: a $ref,
+// an empty one included, and a $dynamicRef naming no $dynamicAnchor, which the
+// table reads as the $ref it spells, are reference sites; a body, a boolean, a
+// $dynamicRef landing on a $dynamicAnchor and nil are not, and RefSite
+// agrees. A nil Bindings knows the model's $ref alone.
+func TestBindings_RefSiteIsWhereTheTableReadsAReference(t *testing.T) {
+	t.Parallel()
+	b, doc, _ := bindingsOf(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$dynamicAnchor: node, type: string}
+    Ref: {$ref: '#/components/schemas/A'}
+    Empty: {$ref: ''}
+    Static: {$dynamicRef: '#/components/schemas/A'}
+    Dynamic: {$dynamicRef: '#node'}
+    Bool: true
+`)
+	for name, want := range map[string]string{"A": "", "Ref": "$ref", "Empty": "$ref", "Static": "$dynamicRef",
+		"Dynamic": "", "Bool": ""} {
+		js := component(t, doc, name)
+		assert.Equal(t, want, b.RefKeyword(js), name)
+		assert.Equal(t, want != "", b.RefSite(js), name)
+	}
+	assert.False(t, b.RefSite(nil))
+
+	var none *typed.Bindings
+	assert.True(t, none.RefSite(component(t, doc, "Ref")), "the model writes a $ref")
+	assert.False(t, none.RefSite(component(t, doc, "Static")), "only the table reads a $dynamicRef")
 }
 
 // TestBindings_AnswerAMappingValueByItsDiscriminator pins Mapping: a value of

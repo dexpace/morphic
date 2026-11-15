@@ -179,7 +179,8 @@ func TestShape_SaturatesItsCounts(t *testing.T) {
 
 // TestEdge_ReadsTreesNoParseProduces pins edge on the hand-built shapes the
 // walk still meets: a pair whose key is nil spells a separator alone, and a
-// document node nested in a tree adds no token to what it holds. The index
+// document node nested in a tree adds no token to what it holds; and on a key
+// holding a character a JSON pointer escapes, counted as written. The index
 // and the measure agree on each.
 func TestEdge_ReadsTreesNoParseProduces(t *testing.T) {
 	t.Parallel()
@@ -190,6 +191,9 @@ func TestEdge_ReadsTreesNoParseProduces(t *testing.T) {
 	}{
 		"nil key":         {ynode.Map(nil, ynode.Scalar("v")), len("/")},
 		"nested document": {ynode.Seq(nested), len("/0") + len("/0")},
+		// Each byte a key writes counts once, its escape `~1a~0b` aside, for the
+		// key and its value alike.
+		"a key holding / and ~": {ynode.Map(ynode.Scalar("/a~b"), ynode.Scalar("v")), 2 * len("//a~b")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

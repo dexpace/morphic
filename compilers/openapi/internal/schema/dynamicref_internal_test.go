@@ -74,10 +74,11 @@ func TestSameResource_SaysWhyTwoPositionsMayLieInTwo(t *testing.T) {
 // refuse or refuses what it should expand (#202).
 //
 // A hop needs a schema at the position, a $dynamicRef written on it, and
-// exactly one site declaring the anchor it names. Anything else ends the chain,
-// and a chain that ends has no cycle and expands, which is the direction sites
-// already errs in. Hopping on any other count would pick an arbitrary branch,
-// reporting a cycle the document does not have, or index an empty slice.
+// exactly one site declaring the anchor it names, or a $ref site, whose chain
+// it takes. Anything else ends the chain, and a chain that ends has no cycle
+// and expands, the direction sites already err in. Hopping on any other count
+// would pick an arbitrary branch, reporting a cycle the document does not
+// have, or index an empty slice.
 func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -94,9 +95,10 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			at: "/components/schemas/C", anchor: "m", wantSites: 2,
 		},
 		{
-			name:    "the anchor is declared nowhere, so it names nothing",
-			schemas: "    C: {$dynamicRef: '#ghost'}\n",
-			at:      "/components/schemas/C", anchor: "ghost", wantSites: 0,
+			name: "it names no anchor, so it is the $ref it spells and hops where its chain ends",
+			schemas: "    A: {type: string}\n    B: {$ref: '#/components/schemas/A'}\n" +
+				"    C: {$dynamicRef: '#/components/schemas/B'}\n",
+			at: "/components/schemas/C", wantNext: "/components/schemas/A",
 		},
 		{
 			name:    "the component writes no $dynamicRef at all",
@@ -122,8 +124,8 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			l, diags := LoweredFor(t, openapitest.ComponentSpec(tc.schemas))
 			openapitest.RequireNoErrorDiags(t, diags)
 			if tc.anchor != "" {
-				sites, _ := l.Ctx.DynamicAnchorSites(tc.anchor)
-				require.Len(t, sites, tc.wantSites, "the fixture must set up the case it is named for")
+				require.Equal(t, tc.wantSites, l.Ctx.DynamicAnchor(tc.anchor).Count,
+					"the fixture must set up the case it is named for")
 			}
 
 			next, hops := dynamicHop(l.Ctx, bind.Position{Pointer: tc.at})
@@ -194,7 +196,7 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	}
 	branch := func(name string) allOfBranch {
 		s := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).GetSchema()
-		return allOfBranches(s, "").branches[0]
+		return allOfBranches(nil, s, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
 		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))

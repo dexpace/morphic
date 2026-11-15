@@ -40,10 +40,13 @@ node records; its `Provenance.Source` names that document's `Sources` entry
 source's directory, as one segment, escaped as RFC 6901 escapes a token:
 `t/openapi@schemas~1pet.yaml/components/schemas/Pet` is the `Pet` component that `schemas/pet.yaml`
 declares. The location, not the entry's index, qualifies it, so an ID moves only when its document
-does. Operations, parameters and the security schemes the source's `securitySchemes` names are
-named by where the source mounts or names them, so they take the source's namespace whichever
-document declares them; a scheme an OpenAPI 3.2 requirement key reaches outside them is named where
-it is declared ([unresolved schemes](#unresolved-schemes)).
+does. A document's label is its location from the directory its source lies in, whatever spelling
+names it, a relative path, an absolute one or a `file:` URI; an absolute reference changes no label,
+and a URL is labelled as it is spelled once normalized, one way for every spelling. Operations,
+parameters and the security schemes the source's `securitySchemes` names are named by where the
+source mounts or names them, so they take the source's namespace whichever document declares them;
+a scheme an OpenAPI 3.2 requirement key reaches outside them is named where it is declared
+([unresolved schemes](#unresolved-schemes)).
 
 ## Across revisions
 

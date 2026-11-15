@@ -150,7 +150,7 @@ func TestAliases_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 
-	unbounded := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded())
+	unbounded := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded(), budget.Unbounded())
 	require.NotEmpty(t, unbounded, "turning the alias budget off leaves the ratio rule standing")
 	assert.Equal(t, diag.AliasAmplification, unbounded[0].Code)
 }
@@ -213,9 +213,9 @@ func TestAliases_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Contains(t, diags[0].Message, fmt.Sprintf("past the %d-node alias budget", defaultSurplus))
 
-	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(2*defaultSurplus)),
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(2*defaultSurplus), budget.Unbounded()),
 		"a caller who raised the budget has the document admitted")
-	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded()),
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded(), budget.Unbounded()),
 		"a caller who turned the budget off has the document admitted")
 }
 
@@ -255,7 +255,7 @@ func TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget(t *testing.
 	for name, surplus := range map[string]budget.Limit{
 		"a budget of one": budget.AtMost(1), "the default": budget.AtMost(defaultSurplus), "no budget": budget.Unbounded(),
 	} {
-		diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, data), surplus)
+		diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, data), surplus, budget.Unbounded())
 		require.Len(t, diags, 1, name)
 		assert.Equal(t, diag.AliasAmplification, diags[0].Code, name)
 	}
@@ -303,10 +303,10 @@ func TestAliases_HoldsAnOverlayToTheBudgetItIsGiven(t *testing.T) {
 	t.Parallel()
 	src := "a: &x {p: 1, q: 2}\nb: [*x, *x, *x, *x]\n"
 
-	diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(1))
+	diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(1), budget.Unbounded())
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded()), "no budget, and well inside the ratio")
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded(), budget.Unbounded()), "no budget, and well inside the ratio")
 }
 
 // chainedAliasSpec writes a document whose Root schema is the top of a chain
@@ -382,7 +382,9 @@ func TestAliases_AllocatesLinearlyInItsInput(t *testing.T) {
 				var diags []ir.Diagnostic
 				// No alias budget, so only the expansion ratio refuses, and it
 				// refuses none of these sizes.
-				allocs[i] = testing.AllocsPerRun(1, func() { diags = Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, idx, budget.Unbounded()) })
+				allocs[i] = testing.AllocsPerRun(1, func() {
+					diags = Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, idx, budget.Unbounded(), budget.Unbounded())
+				})
 				for _, d := range diags {
 					paths[i] = append(paths[i], d.Code)
 				}
@@ -608,7 +610,7 @@ func TestAliases_ARecursiveAnchorBelowTheTrackedDepthReachesTheCut(t *testing.T)
 			idx := indexOf(t, []byte(src))
 			require.Equal(t, tc.cycle, len(idx.AnchorCycles()) > 0, "whether the index finds the anchor cycle")
 
-			diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, idx, budget.Unbounded())
+			diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, idx, budget.Unbounded(), budget.Unbounded())
 			require.Len(t, diags, 1)
 			assert.Equal(t, tc.code, diags[0].Code)
 			_, deep := Nesting(t.Context(), provenance.Tree{}, idx)

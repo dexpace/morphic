@@ -17,14 +17,62 @@ import (
 // A compiler does no I/O of its own, so the caller supplies the reader and
 // every read is the caller's. Which document a reference names, and whether
 // the compile may leave the source's directory to read it, are the compiler's
-// to decide; the reader enforces the confinement a request asks for and the
-// size it allows. One reader may serve overlapping reads.
+// to decide; the reader enforces the confinement a request asks for, the size
+// it allows and the addresses it may dial. One reader may serve overlapping
+// reads.
 type DocumentReader interface {
-	// ReadDocument returns the bytes of the document req names. A document
-	// outside req.Within fails with ErrOutsideWithin, one larger than
-	// req.Limit with ErrDocumentTooLarge; any other failure is the reader's to
-	// describe. ctx bounds the read.
-	ReadDocument(ctx context.Context, req DocumentRequest) ([]byte, error)
+	// ReadDocument returns the document req names and where it was read from.
+	// A document outside req.Within fails with ErrOutsideWithin, one larger
+	// than req.Limit with ErrDocumentTooLarge, one whose read would dial an
+	// address more private than req.Reach with ErrAddressSpace, and a bounded
+	// read the reader cannot judge with ErrUnboundedRead; any other failure is
+	// the reader's to describe. ctx bounds the read.
+	ReadDocument(ctx context.Context, req DocumentRequest) (DocumentRead, error)
+}
+
+// AddressSpace ranks how private a network address is, least private first,
+// as Private Network Access ranks them: a reference in a document read from
+// one space may dial that space and any below it
+// (docs/compilers/openapi.md#references).
+type AddressSpace uint8
+
+const (
+	// SpaceUnstated is no space: a read that dialled no address, as a file's,
+	// or one whose reader did not say. As a request's Reach it bounds nothing.
+	SpaceUnstated AddressSpace = iota
+	// SpacePublic is an address on the public internet.
+	SpacePublic
+	// SpacePrivate is a private, link-local, shared, reserved or multicast
+	// address.
+	SpacePrivate
+	// SpaceLocal is a loopback or unspecified address.
+	SpaceLocal
+)
+
+// DocumentRead is one document as a reader read it.
+type DocumentRead struct {
+	// Data is the document's bytes.
+	Data []byte
+	// Space is where the address that answered lies, where the reader dialled
+	// it itself or a proxy dialled a URL whose host is an address, which the
+	// proxy dials as written, or SpaceUnstated: a file, a proxied read of a
+	// name, a read a hop of which a proxy dialled unjudged, a reader that
+	// cannot say. It ranks the document as a referrer, bounding what its own
+	// references may dial, so it is never more private than that address.
+	Space AddressSpace
+	// Bound is the most private space the read can have dialled, by the
+	// reader's own judgement, over every hop of a redirect: the most private
+	// address it dialled or proxied host it judged, else SpaceUnstated. It
+	// ranks the document as a target, so it is never less private than an
+	// address the read dialled.
+	Bound AddressSpace
+}
+
+// MostPrivate is the most private space r can have dialled, which ranks it as
+// a target: Bound, or Space where a reader states that more private, since the
+// address that answered bounds the read however its reader states the bound.
+func (r DocumentRead) MostPrivate() AddressSpace {
+	return max(r.Space, r.Bound)
 }
 
 // DirectoryLocator is what a DocumentReader that reads files may also offer:
@@ -50,6 +98,9 @@ type DocumentRequest struct {
 	// Limit is the most bytes the document may hold. Zero or less allows any
 	// size.
 	Limit int
+	// Reach is the most private address the read may dial, each redirect's
+	// included. SpaceUnstated bounds none.
+	Reach AddressSpace
 }
 
 // ErrOutsideWithin reports a document a request confined to a directory that
@@ -58,6 +109,31 @@ var ErrOutsideWithin = errors.New("outside the directory the read is confined to
 
 // ErrDocumentTooLarge reports a document larger than a request allows.
 var ErrDocumentTooLarge = errors.New("larger than the read allows")
+
+// ErrAddressSpace reports a read that would dial an address more private than
+// its request's Reach.
+var ErrAddressSpace = errors.New("at an address more private than the read may reach")
+
+// AddressSpaceError is ErrAddressSpace naming the address refused and the
+// space it lies in.
+type AddressSpaceError struct {
+	// Address is the address the read would have dialled.
+	Address string
+	// Space is where Address lies.
+	Space AddressSpace
+}
+
+// Error implements error.
+func (e *AddressSpaceError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Address, ErrAddressSpace)
+}
+
+// Unwrap returns ErrAddressSpace.
+func (e *AddressSpaceError) Unwrap() error { return ErrAddressSpace }
+
+// ErrUnboundedRead reports a request stating a Reach to a reader that cannot
+// judge the addresses the read would dial.
+var ErrUnboundedRead = errors.New("the reader cannot bound the addresses this read dials")
 
 // FilePath returns the path of the local file the file URI u names (RFC
 // 8089), as readers and compiles read it: percent-decoded,

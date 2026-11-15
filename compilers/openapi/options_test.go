@@ -191,7 +191,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
 				`discriminator-inference, extension-promotion, grouping, grouping-aliases, grouping-fallback, ` +
-				`grouping-key, grouping-lists, http-date-inference, idempotency-inference, max-alias-surplus, ` +
+				`grouping-key, grouping-lists, http-date-inference, idempotency-inference, locate, max-alias-surplus, ` +
 				`max-enum-members, max-external-documents, max-reference-expansion, max-source-bytes, ` +
 				`max-source-nodes, nullable-inference, overlay, overlay-lax, pagination-inference, promotion-prefixes, ` +
 				`promotion-targets, replacement-inference, secret-inference, streaming-inference, streaming-media, ` +

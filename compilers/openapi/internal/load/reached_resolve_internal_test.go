@@ -321,8 +321,8 @@ components:
 // be reached more than once: two $refs to one component, a container reached
 // beside something inside it, at the lesser $ref and at the greater, and one
 // node read as two kinds. Each finding is placed at its node in other.yaml,
-// whichever $ref is declared first. Inside a container, an object is validated
-// twice, and charged twice, and its finding reported once.
+// whichever $ref is declared first. An object is checked once for each kind it
+// is read as, charged to no budget, and its finding reported once.
 func TestResolve_AnObjectReachedTwiceIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	compile := func(t *testing.T, other, root string, opts Options) []ir.Diagnostic {
@@ -387,16 +387,17 @@ paths:
 		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 	})
 
-	t.Run("what a container holds is charged again", func(t *testing.T) {
+	t.Run("what a container holds is checked once and charged nothing", func(t *testing.T) {
 		t.Parallel()
 		diags := compile(t, nestedOtherFixture(), containedFirst, Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
 
-		require.Len(t, diags, 2, "the container fits this budget and its parameter, charged again, "+
-			"does not: %+v", diags)
+		require.Len(t, diags, 1, "the container fits this budget, and its parameter, read once, "+
+			"is no more than it: %+v", diags)
 		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
 		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-		assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[1].Provenance.Pointer)
-		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
+		for _, d := range diags {
+			assert.NotEqual(t, diag.BudgetExceeded, d.Code, "%+v", d)
+		}
 	})
 
 	t.Run("what a container spans but does not read is validated through its own $ref", func(t *testing.T) {
@@ -530,88 +531,6 @@ components:
 		"openapi/validation/validation-allowed-values /paths/~1y/get/parameters/0/in", // r: /e holds what /f reaches
 		"openapi/validation/validation-required-field /components/parameters/P2",      // P2 writes no name
 	}, sites)
-}
-
-// TestResolve_AChainIsChargedToTheDocumentItEndsIn reaches one object of
-// b.yaml directly and a schema inside it through a.yaml. Both are b.yaml's
-// nodes, so both are charged to b.yaml, and together they cross a budget
-// neither crosses alone. Charged to the first document each $ref names, the
-// schema would go to a.yaml and nothing would cross.
-func TestResolve_AChainIsChargedToTheDocumentItEndsIn(t *testing.T) {
-	t.Parallel()
-	root := `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths:
-  /a: {get: {parameters: [{name: q, in: query, schema: {$ref: "./a.yaml#/components/schemas/X"}}], responses: {"200": {description: ok}}}}
-  /b: {get: {parameters: [{$ref: "./b.yaml#/components/parameters/Y"}], responses: {"200": {description: ok}}}}
-`
-	dir := externalDir(t, map[string]string{
-		"a.yaml": "components:\n  schemas:\n    X: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}\n",
-		"b.yaml": "components:\n  parameters:\n    Y: {name: p, in: sideways, schema: " +
-			"{type: object, properties: {p1: {type: string}, p2: {type: string}, p3: {type: string}, p4: {type: string}, p5: {type: string}, p6: {type: string}, p7: {type: string}, p8: {type: string}, p9: {type: string}, p10: {type: string}}}}\n",
-	})
-	bPath := filepath.Join(dir, "b.yaml")
-
-	_, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(60), MaxAliasSurplus: budget.AtMost(1)})
-
-	require.Len(t, diags, 1, "%+v", diags)
-	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Equal(t, jsontext.Pointer("/paths/~1b/get/parameters/0"), diags[0].Provenance.Pointer)
-	assert.Contains(t, diags[0].Message, "reach in "+bPath+" span more than the 61 nodes")
-
-	_, diags = loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(120), MaxAliasSurplus: budget.AtMost(1)})
-	require.Len(t, diags, 1, "a budget both fit admits both: %+v", diags)
-	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-}
-
-// TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere pins where a finding
-// about a reached object is placed when the $ref reaching it is written in
-// another document: in that document's own Document.Sources entry, at the
-// $ref, never at the same pointer of the source. In each row the source
-// reaches an object of b.yaml first, and a $ref a.yaml writes then reaches
-// one inside it, crossing b.yaml's budget: a schema's $ref and a reference
-// object.
-func TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere(t *testing.T) {
-	t.Parallel()
-	object := func(fields int) string {
-		props := make([]string, fields)
-		for i := range props {
-			props[i] = fmt.Sprintf("p%d: {type: string}", i+1)
-		}
-		return "{type: object, properties: {" + strings.Join(props, ", ") + "}}"
-	}
-	for name, tc := range map[string]struct {
-		paths, a, b string
-		at          jsontext.Pointer
-	}{
-		"a schema's $ref": {
-			paths: "  /a: {get: {parameters: [{$ref: \"./a.yaml#/components/parameters/W\"}], responses: {\"200\": {description: ok}}}}\n" +
-				"  /b: {get: {parameters: [{$ref: \"./b.yaml#/components/parameters/Y\"}], responses: {\"200\": {description: ok}}}}\n",
-			a:  "components:\n  parameters:\n    W: {name: w, in: query, schema: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}}\n",
-			b:  "components:\n  parameters:\n    Y: {name: p, in: query, schema: " + object(10) + "}\n",
-			at: "/components/parameters/W/schema",
-		},
-		"a reference object": {
-			paths: "  /a: {$ref: \"./a.yaml#/paths/~1a\"}\n  /b: {$ref: \"./b.yaml#/components/pathItems/PI\"}\n",
-			a: "paths:\n  /a: {get: {parameters: [{$ref: \"./b.yaml#/components/pathItems/PI/get/parameters/0\"}], " +
-				"responses: {\"200\": {description: ok}}}}\n",
-			b: "components:\n  pathItems:\n    PI: {get: {parameters: [{name: p, in: query, schema: " + object(7) + "}], " +
-				"responses: {\"200\": {description: ok}}}}\n",
-			at: "/paths/~1a/get/parameters/0",
-		},
-	} {
-		dir := externalDir(t, map[string]string{"a.yaml": tc.a, "b.yaml": tc.b})
-		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + tc.paths
-
-		got, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(60), MaxAliasSurplus: budget.AtMost(1)})
-
-		a, ok := got.Others.Named(filepath.Join(dir, "a.yaml"))
-		require.True(t, ok, "%s: a.yaml is read beside the source", name)
-		require.NotZero(t, a.Index, name)
-		require.Len(t, diags, 1, "%s: %+v", name, diags)
-		assert.Equal(t, diag.BudgetExceeded, diags[0].Code, name)
-		assert.Equal(t, ir.Provenance{Source: a.Index, Pointer: tc.at}, diags[0].Provenance, name)
-	}
 }
 
 // v32OtherFixture and v32RootFixture are a 3.2 root reaching two external
@@ -783,52 +702,27 @@ func nestedRoot(paths []string) string {
 	return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + strings.Join(paths, "")
 }
 
-// TestResolve_ReachedValidationIsBudgeted runs nestedRootPaths under three
-// budgets. At 151 nodes (150 + 1) the parameter's finding is reported once,
-// reached from /a, the path item at /b, which charges those nodes again, is refused
-// as budget-exceeded, and Small at /c is not validated, in either declaration
-// order. The three total 206 nodes, so 206 (205 + 1) admits all of them where
-// MaxSourceNodes alone, 205, would not: that boundary is what shows the alias
-// budget's share is counted. An unbounded budget admits them all too.
-func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
+// TestResolve_AReachedObjectIsChargedToNoBudget runs nestedRootPaths under the
+// budgets that once refused it. An object is checked once for each kind it is
+// read as, so what a container holds is no cost of the container's, and the
+// parameter's finding and Small's are both reported at 151 nodes (150 + 1) as at
+// 206 and unbounded, in either declaration order, and none is budget-exceeded.
+func TestResolve_AReachedObjectIsChargedToNoBudget(t *testing.T) {
 	t.Parallel()
 	nestedRootFixture := nestedRoot(nestedRootPaths)
-	other := nestedOtherFixture()
-	dir := externalDir(t, map[string]string{"other.yaml": other})
-	otherPath := filepath.Join(dir, "other.yaml")
-
-	t.Run("a tight budget refuses the container after the overlap", func(t *testing.T) {
-		t.Parallel()
-		_, diags := loadExternal(t, dir, nestedRootFixture, Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
-
-		require.Len(t, diags, 2, "exactly two: Small's document is already over budget, so neither "+
-			"its finding nor a second budget-exceeded is reported: %+v", diags)
-		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
-		assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
-
-		assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
-		assert.Equal(t, ir.SeverityError, diags[1].Severity)
-		assert.Equal(t, jsontext.Pointer("/paths/~1b"), diags[1].Provenance.Pointer)
-		assert.Equal(t, fmt.Sprintf(
-			"the objects references reach in %s span more than the 151 nodes a document is validated over; "+
-				"its validation stops at this one", otherPath),
-			diags[1].Message)
-
-		reversed := slices.Clone(nestedRootPaths)
-		slices.Reverse(reversed)
-		_, again := loadExternal(t, dir, nestedRoot(reversed), Options{MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)})
-		if d := cmp.Diff(diags, again); d != "" {
-			t.Errorf("the budget is crossed at another object when the paths are reversed (-as written +reversed):\n%s", d)
-		}
-	})
+	reversed := slices.Clone(nestedRootPaths)
+	slices.Reverse(reversed)
+	dir := externalDir(t, map[string]string{"other.yaml": nestedOtherFixture()})
 
 	for name, opts := range map[string]Options{
-		"a budget the three fit admits them all": {MaxSourceNodes: budget.AtMost(205), MaxAliasSurplus: budget.AtMost(1)},
-		"an unbounded budget admits them all":    {},
+		"a tight budget":         {MaxSourceNodes: budget.AtMost(150), MaxAliasSurplus: budget.AtMost(1)},
+		"a budget the three fit": {MaxSourceNodes: budget.AtMost(205), MaxAliasSurplus: budget.AtMost(1)},
+		"an unbounded budget":    {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := loadExternal(t, dir, nestedRootFixture, opts)
+			_, again := loadExternal(t, dir, nestedRoot(reversed), opts)
 
 			require.Len(t, diags, 2, "%+v", diags)
 			assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/0/in"), diags[0].Provenance.Pointer)
@@ -836,6 +730,9 @@ func TestResolve_ReachedValidationIsBudgeted(t *testing.T) {
 			assert.Equal(t, jsontext.Pointer("/components/responses/Small/content/application~1json/schema/minLength"),
 				diags[1].Provenance.Pointer)
 			assert.Equal(t, diag.Validation+"/validation-type-mismatch", diags[1].Code)
+			if d := cmp.Diff(diags, again); d != "" {
+				t.Errorf("the findings depend on the order the paths are declared in (-as written +reversed):\n%s", d)
+			}
 		})
 	}
 }
@@ -1120,57 +1017,6 @@ func TestResolve_InSourceReachedSitesDoNotDependOnDeclarationOrder(t *testing.T)
 	}
 }
 
-// TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget pins that what a
-// $ref reaches in the source is charged to the validation budget only when the
-// source's own validation did not cover it. A parameter and the schema inside
-// it, both reached, fit a budget of the source's own size when the model
-// declares them, as it has validated them already; written under an x-* key,
-// the same two overlap, are charged twice, and cross it.
-func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) {
-	t.Parallel()
-	var props []string
-	for i := 1; i <= 20; i++ {
-		props = append(props, fmt.Sprintf("p%d: {type: string}", i))
-	}
-	param := "{name: q, in: query, schema: {type: object, properties: {" + strings.Join(props, ", ") + "}}}"
-	const header = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
-	const paths = "paths:\n  /a:\n    get:\n      parameters:\n        - $ref: '%s'\n      responses: {\"200\": {description: ok}}\n"
-	declared := header + fmt.Sprintf(paths, "#/components/parameters/P") +
-		"components:\n  schemas:\n    S: {$ref: '#/components/parameters/P/schema'}\n  parameters:\n    P: " + param + "\n"
-	undeclared := header + fmt.Sprintf(paths, "#/x-lib/P") +
-		"components:\n  schemas:\n    S: {$ref: '#/x-lib/P/schema'}\nx-lib:\n  P: " + param + "\n"
-	// load compiles spec under a budget of its own size, and returns the budget
-	// a document's validation is held to: that size and the alias surplus.
-	load := func(t *testing.T, spec string) (diags []ir.Diagnostic, limit int) {
-		t.Helper()
-		root, _, err := decodeStream(t.Context(), []byte(spec))
-		require.NoError(t, err)
-		nodes := nodeCount(t.Context(), root)
-		opts := Options{MaxSourceNodes: budget.AtMost(nodes), MaxAliasSurplus: budget.AtMost(1)}
-		got, diags, err := Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, opts)
-		require.NoError(t, err)
-		require.NotNil(t, got, "%+v", diags)
-		return diags, nodes + 1
-	}
-
-	t.Run("a declared parameter and its schema", func(t *testing.T) {
-		t.Parallel()
-		diags, _ := load(t, declared)
-
-		assert.Empty(t, diags)
-	})
-	t.Run("the same two under an extension", func(t *testing.T) {
-		t.Parallel()
-		diags, limit := load(t, undeclared)
-
-		require.Len(t, diags, 1, "%+v", diags)
-		assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-		assert.Equal(t, ir.SeverityError, diags[0].Severity)
-		assert.Equal(t, jsontext.Pointer("/paths/~1a/get/parameters/0"), diags[0].Provenance.Pointer)
-		assert.Contains(t, diags[0].Message, fmt.Sprintf("span more than the %d nodes", limit))
-	})
-}
-
 // TestResolve_AReachedObjectIsHeldToTheLaterVersionTable pins that an object
 // a $ref reaches in the source outside its model draws what the same object
 // written inline draws in an older document: a warning for each construct a
@@ -1368,8 +1214,8 @@ paths:
 			}
 			slices.Sort(placed)
 			assert.Equal(t, []string{
-				"1 /components/parameters/Base 3:11",
-				"1 /components/parameters/Base/in 3:31",
+				"1 /components/parameters/Bad 3:11",
+				"1 /components/parameters/Bad/in 3:31",
 			}, placed, "%+v", diags)
 			require.Len(t, doc.Others.List(), 1, "one file, one entry")
 			assert.Equal(t, "ext.yaml", doc.Others.List()[0].Label)
@@ -1422,9 +1268,9 @@ components:
 				}
 			}
 			assert.Equal(t, map[jsontext.Pointer]string{
-				"/x-param/in":                   "/paths/~1x/get/parameters/0/in",
-				"/x-schema/type":                "/components/schemas/S/properties/s/type",
-				"/components/parameters/Bad/in": "",
+				"/paths/~1x/get/parameters/0/in":          "",
+				"/components/schemas/S/properties/s/type": "",
+				"/components/parameters/Bad/in":           "",
 			}, read, "%+v", diags)
 			assert.Equal(t, 3, found, "each node once: %+v", diags)
 		})

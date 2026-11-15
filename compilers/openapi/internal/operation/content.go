@@ -206,7 +206,7 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 		return nil
 	}
 	s := js.GetSchema()
-	if s != nil && s.Ref != nil {
+	if refs.RefSite(js) {
 		if end := refs.End(js); end != nil {
 			return end.GetSchema()
 		}

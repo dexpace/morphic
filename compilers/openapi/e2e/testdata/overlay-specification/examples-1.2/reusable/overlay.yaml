@@ -1,0 +1,24 @@
+overlay: 1.2.0
+info:
+  title: Use reusable actions to insert error responses
+  version: 1.0.0
+components:
+  actions:
+    errorResponse:
+      fields:
+        update:
+          404:
+            description: Not Found
+            content:
+              application/json:
+                schema:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+      description: Adds an error response to the operation
+actions:
+- $ref: '#/components/actions/errorResponse'
+  target: "$.paths['/items'].get.responses"
+- $ref: '#/components/actions/errorResponse'
+  target: "$.paths['/some-items'].delete.responses"

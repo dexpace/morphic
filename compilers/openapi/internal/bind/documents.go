@@ -6,6 +6,8 @@ package bind
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"net/url"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -33,6 +35,11 @@ type document struct {
 	view    *nodeview.View
 	grammar bool
 	openapi bool
+	// self is the URI the document's $self names, resolved against its name,
+	// its base and a second name of it, or empty for none (selfOf), and
+	// absolute whether the $self is written as a URI or an absolute path.
+	self     string
+	absolute bool
 }
 
 // docs is every document a table has read, and the work reading them costs.
@@ -80,9 +87,34 @@ func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	for _, name := range cfg.Components {
 		components[name] = true
 	}
-	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
+	d := &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
 		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{},
 		components: components, schemes: setOf(cfg.SecuritySchemes), keyRefs: map[Position]string{}}
+	src.self, src.absolute = d.selfOf(src)
+	return d
+}
+
+// selfOf is the URI the $self doc's OpenAPI Object writes names, resolved
+// against where doc was read (resources.resolveURI), and whether it is written
+// as a URI or an absolute path; or empty: for a document no OpenAPI Object
+// roots, one writing no string $self, one whose $self holds a `#`, which
+// OpenAPI 3.2 forbids and the rule table reports, and one that resolves to
+// nothing. A URI is a name, not a location, so no mapping the caller wrote
+// moves it (Config.Locate): it is spelled one way.
+func (d *docs) selfOf(doc *document) (string, bool) {
+	written, ok := scalarOf(doc.view.ChildByToken(doc.root, "$self"))
+	written = strings.TrimSpace(written)
+	if !doc.openapi || !ok || strings.Contains(written, "#") {
+		return "", false
+	}
+	if u, err := url.Parse(written); err == nil && len(u.Scheme) > 1 {
+		return NormalURI(u), true
+	}
+	uri, ok := resources{d}.resolveURI(written, doc.name)
+	if !ok {
+		return "", false
+	}
+	return uri, filepath.IsAbs(written)
 }
 
 // setOf returns names as a set.
@@ -109,6 +141,17 @@ func (d *docs) locate(uri, base string) (string, bool) {
 	return d.cfg.Locate(uri, base)
 }
 
+// opening is the name the document uri names, written in the document named
+// base, is opened under in d: located (docs.locate), then put where the caller
+// mapped it (Config.Map).
+func opening(d *docs, uri, base string) (string, bool) {
+	name, ok := d.locate(uri, base)
+	if !ok || d.cfg.Map == nil {
+		return name, ok
+	}
+	return d.cfg.Map(name), true
+}
+
 // refusal is why Config.Refuse refuses a reference whose document part is
 // spelled uri, unread, or empty where it refuses none.
 func (d *docs) refusal(uri string) string {
@@ -121,10 +164,13 @@ func (d *docs) refusal(uri string) string {
 }
 
 // open returns the document named name, reading it through Config.Open the
-// first time it is asked for, and the same answer every later time.
-func (d *docs) open(name string) (DocID, error) {
+// first time it is asked for, by from, and the same answer every later time.
+// A read refused to from alone (BarredError) is no answer of the document's.
+// Opening reaches nothing: a hop that resolves into the document does
+// (binder.read), so a document read for a reference that a declaration then
+// answers declares nothing.
+func (d *docs) open(name, from string) (DocID, error) {
 	if id, ok := d.byName[name]; ok {
-		d.reach(id)
 		return id, nil
 	}
 	if err, ok := d.failed[name]; ok {
@@ -133,10 +179,12 @@ func (d *docs) open(name string) (DocID, error) {
 	if d.cfg.Open == nil {
 		return 0, errNotRead
 	}
-	d.work.spend(1)
-	tree, err := d.cfg.Open(name)
+	tree, err := askOpen(d, name, from)
 	if err == nil && IsEmpty(tree) {
 		err = ErrEmptyDocument
+	}
+	if barred := (*BarredError)(nil); errors.As(err, &barred) {
+		return 0, err
 	}
 	if err != nil {
 		d.failed[name] = err
@@ -145,10 +193,31 @@ func (d *docs) open(name string) (DocID, error) {
 	id := DocID(len(d.list))
 	root := nodeview.DocumentRoot(tree)
 	view := nodeview.New()
-	d.list = append(d.list, &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)})
+	opened := &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)}
+	opened.self, opened.absolute = d.selfOf(opened)
+	d.list = append(d.list, opened)
 	d.byName[name] = id
-	d.reach(id)
 	return id, nil
+}
+
+// judge returns the refusal Config.Open gives the document from for name,
+// one read before, or nil where from may read it. Only a document Open read
+// is read before, the source aside, which a reference reaches unasked, so
+// Open is set; were it not, the document is refused, as one never read.
+func (d *docs) judge(name, from string) error {
+	if d.cfg.Open == nil {
+		return errNotRead
+	}
+	_, err := askOpen(d, name, from)
+	return err
+}
+
+// askOpen asks Config.Open, which is set, for the document named name as from
+// reads it, a step of the work: the one call bind makes into the reader, for a
+// read and a judgement alike.
+func askOpen(d *docs, name, from string) (*yaml.Node, error) {
+	d.work.spend(1)
+	return d.cfg.Open(name, from)
 }
 
 // reach notes that the pass under way asked for document id.
@@ -174,7 +243,7 @@ func writesOpenAPI(view *nodeview.View, root *yaml.Node) bool {
 }
 
 // unread reports whether a read of name would be the first, one that a compile
-// reading other documents has yet to make.
+// reading other documents has yet to make, for any asker (reads.unread).
 func (d *docs) unread(name string) bool {
 	_, opened := d.byName[name]
 	_, failed := d.failed[name]

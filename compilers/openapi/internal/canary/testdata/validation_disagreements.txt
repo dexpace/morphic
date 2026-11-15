@@ -180,8 +180,8 @@ testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-allow
 testdata/conformance/openapi/content-several-entries.yaml	18:13	validation-entry-count	compiler	rule-name
 testdata/conformance/openapi/content-several-entries.yaml	26:17	validation-entry-count	compiler	library-silent
 testdata/conformance/openapi/discriminator-default-mapping.yaml	19:25	validation-invalid-schema	library	old-grammar
-testdata/conformance/openapi/dynamic-ref.yaml	45:7	validation-type-mismatch	library	declared-dialect
-testdata/conformance/openapi/dynamic-ref.yaml	58:7	validation-invalid-syntax	compiler	component-names
+testdata/conformance/openapi/dynamic-ref.yaml	58:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/dynamic-ref.yaml	71:7	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	12:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	16:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	85:7	validation-type-mismatch	library	declared-dialect
@@ -323,8 +323,6 @@ testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/yaml-merge-keys.yaml	10:23	unknown-object-key	compiler	undefined-key
 testdata/conformance/openapi/yaml-merge-keys.yaml	41:30	validation-allowed-values	library	over-strict
-testdata/conformance/openapi/yaml-timestamp-scalars.yaml	6:12	validation-type-mismatch	library	plain-date
-testdata/conformance/openapi/yaml-timestamp-scalars.yaml	11:16	validation-type-mismatch	library	plain-date
 testdata/dangling/openapi/f07-discriminator.yaml	13:10	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f31-discriminator-empty-name.yaml	17:7	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invalid-syntax	compiler	component-names
@@ -399,3 +397,4 @@ testdata/openapi/unknown_keys.yaml	91:16	unknown-object-key	compiler	undefined-k
 testdata/openapi/unknown_keys.yaml	93:58	unknown-object-key	compiler	undefined-key
 testdata/openapi/unknown_keys.yaml	97:22	unknown-object-key	compiler	undefined-key
 testdata/openapi/unknown_keys.yaml	101:18	unknown-object-key	compiler	undefined-key
+testdata/openapi/yaml11_scalars.yaml	24:7	validation-invalid-syntax	library	numeric-literal

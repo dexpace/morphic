@@ -34,27 +34,27 @@ components:
         sampled:
           type: number
           example: .5
-        # YAML takes an integer's base from its prefix, so these are 420 and
-        # 493 — not what the same digits mean in base 10. Reading the source
-        # spelling as decimal would store a different number.
+        # YAML 1.2's core schema takes an integer's base from its prefix (0o,
+        # 0x), so these are 420 and 493. Reading the spelling as decimal
+        # would store a different number.
         mode:
           type: integer
-          default: 0644
-          enum: [0644, 0755]
+          default: 0o644
+          enum: [0o644, 0o755]
         # The same rule on every numeric bound, and on an example: 15, 31, 10
         # and 30.
         bounds:
           type: integer
-          minimum: 017
+          minimum: 0o17
           maximum: 0x1f
-          multipleOf: 0b1010
-          example: 0b11110
-        # "_" is a separator YAML drops from a numeric scalar.
+          multipleOf: 10
+          example: 30
+        # A plain digit string is the integer it spells.
         counted:
           type: integer
-          default: 1_000_000
-        # A leading zero that YAML resolves as a decimal float, not an octal
-        # integer: the value is 9, and the stored literal must be JSON-valid.
+          default: 1000000
+        # A leading zero is a base ten integer in the core schema: the value is
+        # 9, and the stored literal must be JSON-valid.
         loose:
           type: number
           default: 09

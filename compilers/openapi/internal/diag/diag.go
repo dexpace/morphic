@@ -100,6 +100,13 @@ const (
 	// nothing — a bare separator, an explicit null — drops nothing and is not
 	// reported.
 	StreamDocumentsDropped = "openapi/stream-documents-dropped"
+	// YAMLVersionReading reports a document read as YAML 1.2, as YAML 1.2
+	// asks of a processor, that declares another version: a later minor, at
+	// its directive, and in a document declaring 1.1 each plain scalar, each
+	// one tagged !!int and each line-break character YAML 1.1 reads as another
+	// JSON value
+	// (docs/compilers/openapi.md#yaml-decoding).
+	YAMLVersionReading = "openapi/yaml-version-reading"
 	// UndecodableSource reports a source that declares one of this compiler's
 	// discriminating keys and does not parse as YAML or JSON, or is JSON that
 	// writes half of a UTF-16 surrogate pair, whose message then names the
@@ -111,9 +118,9 @@ const (
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
 	// parsed but is not a valid Overlay — a missing version or one no Overlay
-	// Specification names, no actions, an action naming no target, a selector that
-	// is no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
-	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
+	// Specification names, no actions, a field of the wrong form or one its
+	// version does not define, a reference naming no reusable action, a selector
+	// that is no RFC 9535 query — as overlay.read and overlay.readSelector find. Nothing is applied, so the compile refuses rather
 	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
 	// OverlayFailed reports an overlay that does not fit the document it is
@@ -123,19 +130,21 @@ const (
 	// (overlay.runSequence), and an application that panicked. Actions apply in
 	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
-	// OverlayUnsupported reports a valid overlay the compiler does not apply: an
-	// Overlay 1.2 document, or a selector RFC 9535 reads that the compiler's
-	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
-	// is applied, so the compile refuses.
-	OverlayUnsupported = "openapi/overlay-unsupported"
 	// OverlayAction reports a warning about the overlay or a single action,
 	// naming the action and its target: that it changed nothing, because what it
 	// writes is there already, because it selects nothing under lax application,
 	// or because it sets no modifier; that it sets a field with no effect beside
 	// another; that it writes a merge key, or inside a node YAML aliases name;
 	// or that the source holds aliases or merge keys a selector does not read
-	// through, as overlay.runSequence and overlay.read find.
+	// through, as overlay.runSequence and overlay.read find; or that a pattern
+	// a selector writes matches no string (overlay.readSelector).
 	OverlayAction = "openapi/overlay-action"
+	// OverlayAnchoredPattern reports a pattern a selector hands match or search
+	// that writes `^` or `$` outside a class, which is read as an anchor where
+	// RFC 9485's grammar reads the character, naming the class that writes it
+	// (overlay.readSelector). Info, as the anchor may be what was meant; a
+	// pattern the anchor leaves matching no string is OverlayAction's instead.
+	OverlayAnchoredPattern = "openapi/overlay-anchored-pattern"
 	// OverlayReplacedValue reports an action that replaced a primitive the source
 	// declares, as against adding one the source lacks, naming both values: an
 	// overlay written to fill a gap keeps winning once the source fills it, and

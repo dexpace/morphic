@@ -29,7 +29,8 @@ func retainedSections() []string {
 // only they know what they followed (lowering.Ctx.Reached), and a $ref string
 // they never follow, in an x- extension or an example's value, carries nothing
 // of its target into the IR. A section is read as the parser reads it, through `<<` merge keys,
-// so a merged-in entry is kept under its own name.
+// so a merged-in entry is kept under its own name. One whose $ref names
+// nothing is kept too, as written.
 func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 	view := nodeview.New()
 	components := view.ChildByToken(nodeview.DocumentRoot(c.Doc.GetRootNode()), "components")

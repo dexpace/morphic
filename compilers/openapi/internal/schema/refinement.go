@@ -88,8 +88,8 @@ func decide(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) decision {
 	if annotation.DeclaresAny(s, objectKeywords) {
 		return decision{}
 	}
-	comp := allOfBranches(s, pointer)
-	if !refinableBranches(comp) {
+	comp := allOfBranches(c.Bindings(), s, pointer)
+	if !refinableBranches(c, comp) {
 		return decision{}
 	}
 	w := newAdmission(c)
@@ -98,7 +98,7 @@ func decide(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) decision {
 	for _, cj := range conjuncts[1:] {
 		joint = joint.and(cj.read)
 	}
-	ref := refBranchOf(conjuncts)
+	ref := refBranchOf(c, conjuncts)
 	says := slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
 	if disjoint(joint, conjuncts) || (joint.kinds&kindObject != 0 && (ref != nil || says)) {
 		return decision{}
@@ -116,22 +116,22 @@ func decide(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) decision {
 // for another would drop a branch the source wrote
 // (docs/ir/models.md#composition-entries). A union on a branch is a conjunct
 // admitting what its branches do (inlineConjunct).
-func refinableBranches(comp allOfComposition) bool {
+func refinableBranches(c lowering.Ctx, comp allOfComposition) bool {
 	if len(comp.branches) > maxRefinedConjuncts {
 		return false
 	}
-	refs := 0
+	named := 0
 	for _, e := range comp.branches {
 		bs := e.schema.GetSchema()
 		if e.capped || annotation.IsFalseSchema(e.schema) ||
-			declaresDynamicRef(bs) || annotation.DeclaresAny(bs, objectKeywords) {
+			declaresDynamicRef(bs) && !c.Bindings().RefSite(e.schema) || annotation.DeclaresAny(bs, objectKeywords) {
 			return false
 		}
-		if isRefBranch(e.schema) {
-			refs++
+		if c.Bindings().RefSite(e.schema) {
+			named++
 		}
 	}
-	return refs <= 1
+	return named <= 1
 }
 
 // conjuncts reads s's own keywords, a union among them as on an inline branch,
@@ -145,7 +145,7 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 		bs := e.schema.GetSchema()
 		switch {
 		case bs == nil:
-		case isRefBranch(e.schema):
+		case w.c.Bindings().RefSite(e.schema):
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
 			out = append(out, conjunct{branch: e, read: inlineConjunct(w, bs), says: saysKind(bs) || declaresUnion(bs)})
@@ -174,9 +174,9 @@ func saysKind(s *oas3.Schema) bool {
 }
 
 // refBranchOf returns the conjunct holding the one $ref branch, if any.
-func refBranchOf(conjuncts []conjunct) *conjunct {
+func refBranchOf(c lowering.Ctx, conjuncts []conjunct) *conjunct {
 	for i := range conjuncts {
-		if b := conjuncts[i].branch; b != nil && isRefBranch(b.schema) {
+		if b := conjuncts[i].branch; b != nil && c.Bindings().RefSite(b.schema) {
 			return &conjuncts[i]
 		}
 	}
@@ -271,7 +271,7 @@ func (w *admission) conesOver(conjuncts []conjunct, i int) int {
 // $ref the principal beat is still resolved: nothing else may lower what it names.
 func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
-	if isRefBranch(e.schema) {
+	if c.Bindings().RefSite(e.schema) {
 		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
 		return ref.Target, diags
 	}
@@ -346,12 +346,12 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
 		// inline branch on the node it owns, a type array's census included.
-		if r.principalIs(e) && (isRefBranch(e.schema) || LoweredToOwnNode(c, ts, e.pointer, target)) {
+		if r.principalIs(e) && (c.Bindings().RefSite(e.schema) || LoweredToOwnNode(c, ts, e.pointer, target)) {
 			continue
 		}
 		bs := e.schema.GetSchema()
 		switch {
-		case isRefBranch(e.schema):
+		case c.Bindings().RefSite(e.schema):
 			k.branches = append(k.branches, keptBranch{entry: e})
 		case bs != nil:
 			residue := unmergedBranchKeys(bs, func(key string) bool {

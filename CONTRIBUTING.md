@@ -356,10 +356,10 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
 Dependabot opens the pull requests [`.github/dependabot.yml`](.github/dependabot.yml) asks for each
 week: the Go modules' minor and patch updates together, the parser library and any major update
 each on its own, and the workflow's actions together. It proposes direct modules only, so an
-indirect one such as go-yit, which `go.mod` holds back (#798), moves only when a direct module
-requires it. Every proposal waits a week after its release. A security update opens when an
-advisory names a module in `go.mod`, direct or indirect, and does not wait. Nothing proposes a Go or
-golangci-lint release: the `Makefile` comment above `GO_VERSION` says what moves with them, by hand.
+indirect one moves only when a direct module requires it. Every proposal waits a week after its
+release. A security update opens when an advisory names a module in `go.mod`, direct or indirect,
+and does not wait. Nothing proposes a Go or golangci-lint release: the `Makefile` comment above
+`GO_VERSION` says what moves with them, by hand.
 
 1. **Re-read [`docs/parser-library.md`](docs/parser-library.md)** when the update is to the parser
    library, following its steps to bump the library, and push the result onto Dependabot's branch.

@@ -625,7 +625,8 @@ func TestDetectCycles_ComponentOnlyCyclesAreLoopsNotAliasCycles(t *testing.T) {
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, scanIndex(t, tc.data), budget.AtMost(openapi.DefaultMaxAliasSurplus)),
+			assert.Empty(t, scan.Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, scanIndex(t, tc.data), budget.AtMost(openapi.DefaultMaxAliasSurplus),
+				budget.Unbounded()),
 				"a components-only cycle is no alias cycle")
 
 			doc, diags, err := openapi.New().Compile(t.Context(),

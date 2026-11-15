@@ -157,7 +157,7 @@ func TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused(t *testing.T) {
 	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\nx-r: &r {\"200\": {description: ok}}\n" +
 		"paths:\n  /b:\n    get:\n      responses: *r\n"
 	const ov = "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
-		"  - target: $['x-r']\n    update: {\"404\": !x {description: nf}}\n" +
+		"  - target: $.paths['/b'].get.responses\n    update: {\"404\": !x {description: nf}}\n" +
 		"  - target: $['x-r']\n    remove: true\n"
 	opts := Options{Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(ov)}, OverlaySrcIndex: 1}
 

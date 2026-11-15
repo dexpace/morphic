@@ -89,27 +89,28 @@ func TestLoad_A32KeywordIn32DocumentDrawsNoFinding(t *testing.T) {
 	assert.Empty(t, diags, "a 3.2 keyword in a 3.2 document is no finding")
 }
 
-// TestLoad_AnObjectTheParserFaultsOnIsReportedOnce pins the last refusal in
-// the load path: raw YAML a reference object lands on, which the parser
-// panics building an object from, is reported once, at the reference, as a
-// build failure, so the fault never escapes as a Go error or a crash, and the
-// document is lowered with nothing at that reference.
+// TestLoad_AnObjectTheParserFaultsOnIsReportedOnce holds raw YAML a reference
+// object lands on, which the parser panics building an object from, a
+// Reference Object whose $ref is null, to the reading it gets where the source
+// writes it (GitHub #1928): judged before anything is built for it, reported
+// once by the rule table at its $ref, set aside for the build, so no fault is
+// reported as a build failure, escapes as a Go error or crashes, and the
+// document is lowered.
 func TestLoad_AnObjectTheParserFaultsOnIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(parserPanicSpec), Options{})
 
 	require.NoError(t, err, "a parser fault is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
+	assert.NotNil(t, doc)
 	assert.Zero(t, countErrorsAt(diags, diag.UnresolvedRef), "%+v", diags)
-	var built []ir.Diagnostic
+	var at []jsontext.Pointer
 	for _, d := range diags {
-		if d.Code == diag.Validation {
-			built = append(built, d)
+		assert.NotEqual(t, diag.Validation, d.Code, "no build failed: %+v", d)
+		if d.Code == diag.Validation+"/validation-type-mismatch" && d.Provenance.Pointer == "/B/$ref" {
+			at = append(at, d.Provenance.Pointer)
 		}
 	}
-	require.Len(t, built, 1, "reported once: %+v", diags)
-	assert.Equal(t, jsontext.Pointer("/components/responses/000"), built[0].Provenance.Pointer, "at the reference")
-	assert.Contains(t, built[0].Message, "the $ref here reaches #/B, where no response could be built: parser panicked: ")
+	assert.Len(t, at, 1, "the table reports the $ref once: %+v", diags)
 }
 
 // TestLoad_RecoverableLiteralIsNotAFinding pins that a numeric bound YAML writes
@@ -285,8 +286,9 @@ func TestLoad_ADocumentThatFailsToBuildIsAGoError(t *testing.T) {
 
 // TestLoad_RejectsARelativeLocation pins that a source's Location, where it
 // lies, must be absolute: a relative one would read its references against the
-// working directory, which it is there to keep out of the compile. It is a
-// caller's mistake, a Go error; an absolute one, and none, are read.
+// working directory, which it is there to keep out of the compile, and so is
+// a URL naming no host or of a scheme other than http(s). It is a caller's
+// mistake, a Go error; an absolute one, and none, are read.
 func TestLoad_RejectsARelativeLocation(t *testing.T) {
 	t.Parallel()
 	src := openapitest.SourceOf(minimal31)
@@ -295,9 +297,15 @@ func TestLoad_RejectsARelativeLocation(t *testing.T) {
 	refused, diags, err := Load(t.Context(), 0, src, Options{})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `location "api/spec.yaml" is not an absolute path`)
+	assert.Contains(t, err.Error(), `location "api/spec.yaml" is neither an absolute path nor an http(s) URL`)
 	assert.Nil(t, refused)
 	assert.Nil(t, diags)
+	for _, location := range []string{"https:///x.yaml", "ftp://h/x.yaml"} {
+		src.Location = location
+		_, _, err = Load(t.Context(), 0, src, Options{})
+		assert.ErrorContains(t, err, "is neither an absolute path nor an http(s) URL", "%s: a URL naming no host, "+
+			"or one of another scheme, is no fetched source's", location)
+	}
 	src.Location = filepath.Join(t.TempDir(), "spec.yaml")
 	got, diags, err := Load(t.Context(), 0, src, Options{})
 	require.NoError(t, err, "%+v", diags)

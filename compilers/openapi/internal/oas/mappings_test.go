@@ -38,8 +38,8 @@ func formatFindings(t *testing.T, version, doc string, limit budget.Limit) []fin
 
 // TestCheckFormat_AKeyIsAString pins the Format section's rule on keys over
 // the tree as written, objects, values and extensions alike: a key that is no
-// scalar, aliased or not, is placed at the pointer the parser reads it at,
-// under the empty key; a `<<` naming no mapping, by itself or in a list, is
+// scalar, aliased or not, is placed at the pointer of the mapping holding it,
+// its entry being left out; a `<<` naming no mapping, by itself or in a list, is
 // placed at the mapping it merges into; a pair a merge writes in place is the
 // merging mapping's. A node an alias mounts twice is reported once.
 func TestCheckFormat_AKeyIsAString(t *testing.T) {
@@ -50,19 +50,21 @@ func TestCheckFormat_AKeyIsAString(t *testing.T) {
 	}{
 		{"a well-formed document draws nothing",
 			"a: {b: 1}\nm: &m {k: v}\nn: {<<: *m}\nl: {<<: [*m, *m]}\n", []finding{}},
-		{"a mapping key", "x-e:\n  ? {k: v}\n  : 1\n", []finding{at(mismatch, "/x-e/")}},
-		{"a list key", "x-e:\n  ? [k]\n  : 1\n", []finding{at(mismatch, "/x-e/")}},
-		{"an alias to a mapping as a key", "m: &m {k: v}\nx-e: {*m : 1}\n", []finding{at(mismatch, "/x-e/")}},
+		{"a mapping key", "x-e:\n  ? {k: v}\n  : 1\n", []finding{at(mismatch, "/x-e")}},
+		{"a list key", "x-e:\n  ? [k]\n  : 1\n", []finding{at(mismatch, "/x-e")}},
+		{"two keys of one mapping are two findings", "x-e:\n  ? [a]\n  : 1\n  ? [b]\n  : 2\n",
+			[]finding{at(mismatch, "/x-e"), at(mismatch, "/x-e")}},
+		{"an alias to a mapping as a key", "m: &m {k: v}\nx-e: {*m : 1}\n", []finding{at(mismatch, "/x-e")}},
 		{"a merge of a scalar", "x-e: {<<: 5}\n", []finding{at(mismatch, "/x-e")}},
 		{"a merge of an alias to a scalar", "s: &s five\nx-e: {<<: *s}\n", []finding{at(mismatch, "/x-e")}},
 		{"a scalar in a merge list", "m: &m {k: v}\nx-e: {<<: [*m, 5]}\n", []finding{at(mismatch, "/x-e")}},
 		{"a scalar in an aliased merge list", "m: &m {k: v}\nl: &l [*m, 5]\nx-e: {<<: *l}\n",
 			[]finding{at(mismatch, "/x-e")}},
 		{"a key no scalar in a merged mapping is the merging mapping's",
-			"x-e: {<<: {? [k] : 1}}\n", []finding{at(mismatch, "/x-e/")}},
-		{"in a merged list too", "x-e: {<<: [{? [k] : 1}]}\n", []finding{at(mismatch, "/x-e/")}},
+			"x-e: {<<: {? [k] : 1}}\n", []finding{at(mismatch, "/x-e")}},
+		{"in a merged list too", "x-e: {<<: [{? [k] : 1}]}\n", []finding{at(mismatch, "/x-e")}},
 		{"a node an alias mounts twice is reported once", "m: &m {? [k] : 1}\na: *m\nb: *m\n",
-			[]finding{at(mismatch, "/m/")}},
+			[]finding{at(mismatch, "/m")}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -86,7 +88,7 @@ func TestCheckFormat_SaysWhatItRead(t *testing.T) {
 	require.Len(t, diags, 2)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, "a mapping key must be a string in OpenAPI 3.0 (Format), and this one is a list; "+
-		"it is read as the empty string", diags[0].Message)
+		"the entry is read as left out", diags[0].Message)
 	assert.Equal(t, "a `<<` merge key must name a mapping or a list of mappings, and this one names a scalar; "+
 		"it merges nothing", diags[1].Message)
 }
@@ -101,10 +103,10 @@ func TestCheckFormat_IsBoundedAndKeyedToTheMinor(t *testing.T) {
 	assert.Empty(t, formatFindings(t, "2.0", doc, budget.Unbounded()))
 	assert.Equal(t, []finding{at(diag.BudgetExceeded, "")}, formatFindings(t, "3.1.0", doc, budget.AtMost(2)),
 		"cut before the mapping holding the key, the third node")
-	assert.Equal(t, []finding{at(mismatch, "/x-e/"), at(diag.BudgetExceeded, "")},
+	assert.Equal(t, []finding{at(mismatch, "/x-e"), at(diag.BudgetExceeded, "")},
 		formatFindings(t, "3.1.0", doc, budget.AtMost(5)), "cut past it, one node short of the tree")
-	assert.Equal(t, []finding{at(mismatch, "/x-e/")}, formatFindings(t, "3.1.0", doc, budget.AtMost(6)))
-	assert.Equal(t, []finding{at(mismatch, "/x-e/")}, formatFindings(t, "3.1.0", doc, budget.Unbounded()))
+	assert.Equal(t, []finding{at(mismatch, "/x-e")}, formatFindings(t, "3.1.0", doc, budget.AtMost(6)))
+	assert.Equal(t, []finding{at(mismatch, "/x-e")}, formatFindings(t, "3.1.0", doc, budget.Unbounded()))
 }
 
 // TestCheckFormat_NamesEachKind pins kindName over what a merge can name: a
@@ -117,4 +119,21 @@ func TestCheckFormat_NamesEachKind(t *testing.T) {
 	diags := oas.CheckFormat(t.Context(), root, "3.1.0", oas.Options{})
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message, "names nothing")
+}
+
+// TestCheckFormat_PlacesEachKeyAtItsOwnLine pins that a finding about a key that
+// is no scalar carries the key's own line and column, so two such keys of one
+// mapping, which share its pointer, are told apart.
+func TestCheckFormat_PlacesEachKeyAtItsOwnLine(t *testing.T) {
+	t.Parallel()
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("x-e:\n  ? [a]\n  : 1\n  ? {b: 1}\n  : 2\n"), &n))
+
+	diags := oas.CheckFormat(t.Context(), &n, "3.1.0", oas.Options{
+		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+	})
+
+	require.Len(t, diags, 2)
+	assert.Equal(t, ir.Position{Line: 2, Column: 5}, diags[0].Provenance.Position)
+	assert.Equal(t, ir.Position{Line: 4, Column: 5}, diags[1].Provenance.Position)
 }

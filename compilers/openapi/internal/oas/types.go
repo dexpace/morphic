@@ -121,6 +121,9 @@ const (
 	// (RFC 9110 §5.1), so two keys of a map keyed by one that differ in case
 	// alone name one field.
 	FieldName
+	// SelfURI is a URI reference holding no fragment, not even an empty one,
+	// as OpenAPI 3.2 has a document's $self be.
+	SelfURI
 	// MediaTypeKey is a media type or a media type range, as a content map's
 	// key must be: type "/" subtype, each a token, so "*/*" and "type/*", then
 	// any parameters (RFC 9110 §8.3.1, §12.5.1).

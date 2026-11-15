@@ -14,7 +14,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -57,26 +58,26 @@ func description(t *testing.T, doc *yaml.Node) string {
 // that is YAML is read as YAML (docs/parser-library.md#json-as-yaml).
 func TestDecode_ReadsAJSONSourceAsJSON(t *testing.T) {
 	t.Parallel()
-	parsed, err := Decode(t.Context(), []byte(jsonPair()))
+	parsed, err := Decode(t.Context(), []byte(jsonPair()), budget.Unbounded())
 
 	require.NoError(t, err)
 	assert.Equal(t, "x😀y", description(t, parsed.Root()))
 
-	yamlParsed, err := Decode(t.Context(), []byte("openapi: 3.0.3\ninfo: {title: t, version: '1', description: \"x\\U0001F600y\"}\npaths: {}\n"))
+	yamlParsed, err := Decode(t.Context(), []byte("openapi: 3.0.3\ninfo: {title: t, version: '1', description: \"x\\U0001F600y\"}\npaths: {}\n"), budget.Unbounded())
 	require.NoError(t, err)
 	assert.Equal(t, "x😀y", description(t, yamlParsed.Root()))
 }
 
 // TestDecode_ReturnsALoneSurrogateAsItIs pins the error a source writing half
-// a surrogate pair gets: the *jsontree.LoneSurrogateError itself, which
+// a surrogate pair gets: the *doctree.LoneSurrogateError itself, which
 // detection quotes, and Load wraps as ErrParse, where the YAML parser's error
 // for the same bytes is not the reader's to give.
 func TestDecode_ReturnsALoneSurrogateAsItIs(t *testing.T) {
 	t.Parallel()
-	parsed, err := Decode(t.Context(), []byte(jsonHalf()))
+	parsed, err := Decode(t.Context(), []byte(jsonHalf()), budget.Unbounded())
 
 	assert.Nil(t, parsed)
-	var lone *jsontree.LoneSurrogateError
+	var lone *doctree.LoneSurrogateError
 	require.ErrorAs(t, err, &lone)
 	assert.Same(t, lone, err, "not wrapped")
 	assert.Equal(t, `line 1, column 70: the escape \ud83d is half of a UTF-16 surrogate pair, `+
@@ -117,8 +118,9 @@ func TestDecode_AJSONTextBesideAStreamIsReadAsYAML(t *testing.T) {
 	require.NotNil(t, doc)
 
 	doc, _, err = Load(t.Context(), 0, compilers.Source{Path: "solidus.json", Data: []byte(solidus + "\n# end\n")}, Options{})
-	assert.Nil(t, doc)
-	assert.ErrorIs(t, err, ErrParse, "a solidus escape beside a comment is YAML's to read, and it refuses it")
+	require.NoError(t, err, "a solidus escape beside a comment is YAML's to read, which reads it as YAML 1.2 does")
+	require.NotNil(t, doc)
+	assert.Equal(t, "a/b", doc.Doc.Info.Title)
 }
 
 // TestParseTree_ReadsJSONAsJSON pins the parse of an external document and of
@@ -131,7 +133,7 @@ func TestParseTree_ReadsJSONAsJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "x😀y", description(t, tree))
 
-	var lone *jsontree.LoneSurrogateError
+	var lone *doctree.LoneSurrogateError
 	tree, err = parseTree(t.Context(), []byte(jsonHalf()))
 	assert.Nil(t, tree)
 	require.ErrorAs(t, err, &lone)
@@ -157,7 +159,7 @@ func TestReadJSON_ADoneContextEndsTheReadWithoutAYAMLParse(t *testing.T) {
 	t.Parallel()
 	for name, read := range map[string]func(context.Context) error{
 		"a source": func(ctx context.Context) error {
-			_, err := Decode(ctx, []byte(jsonPair()))
+			_, err := Decode(ctx, []byte(jsonPair()), budget.Unbounded())
 			return err
 		},
 		"an external document": func(ctx context.Context) error {
@@ -185,7 +187,7 @@ func TestReadJSON_AContextDoneByTheEndOfTheReadIsCtxsError(t *testing.T) {
 	t.Parallel()
 	ctx := liveFor(t, 1)
 
-	_, err := Decode(ctx, []byte(jsonHalf()))
+	_, err := Decode(ctx, []byte(jsonHalf()), budget.Unbounded())
 
 	assert.ErrorIs(t, err, context.Canceled)
 	assert.Equal(t, 2, ctx.Calls, "the reader's one ask, which passed, and the check of its error")

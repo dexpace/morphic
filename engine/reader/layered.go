@@ -43,7 +43,7 @@ func (l Layered) LocateDirectory(dir string) string {
 }
 
 // ReadDocument implements compilers.DocumentReader.
-func (l Layered) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
+func (l Layered) ReadDocument(ctx context.Context, req compilers.DocumentRequest) (compilers.DocumentRead, error) {
 	if l.Held.holds(req.Location) {
 		return l.Held.ReadDocument(ctx, req)
 	}

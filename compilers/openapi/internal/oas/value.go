@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
-	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,13 +26,22 @@ import (
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
+	shared := f.shared || sharedNode(val)
 	if f.rows.rows != nil && dialectShape(w, f, fld, node, ptr) {
+		w.accept(shared, node)
 		return
 	}
-	shape, ok := w.shapeOf(f, fld, node)
+	shape, ok := shapeOf(f, fld, node, w.minor)
 	if !ok {
+		w.refuse(node)
 		w.mismatch(f, fld, node, ptr)
 		return
+	}
+	// A field of any shape reads no type: its value is the values' to render as
+	// written (nodeview.Written), so it has no say in a node another place
+	// refuses.
+	if fld.Shape != Any {
+		w.accept(shared, node)
 	}
 	if shape == String {
 		w.text(f, fmt.Sprintf("field %q", fld.Name), fld, node, ptr)
@@ -51,7 +59,7 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 // an error saying what the document's version writes instead.
 func dialectShape(w *walker, f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) bool {
 	switch {
-	case fld.Decimal && !isNull(node) && (matches(fld.Shape, node) || !outOfRange(fld.Shape, node)):
+	case fld.Decimal && !isNull(node) && !outsideRuleset(node) && (matches(fld.Shape, node) || !outOfRange(fld.Shape, node)):
 		decimalBound(w, f, fld, node, ptr)
 		return true
 	case fld.Name == "items" && node.Kind == yaml.SequenceNode && !f.rows.Takes("items", List):
@@ -124,8 +132,50 @@ func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Poin
 			return
 		}
 	}
+	if tagged := taggedOutside(node); tagged != nil {
+		null = fmt.Sprintf("; it is tagged %q, outside YAML 1.2's JSON schema ruleset, to which OpenAPI %s limits tags (Format)",
+			tagged.Tag, w.minor)
+	}
 	w.report(sev, classType, ptr, "%s field %q must be %s in %s (%s)%s",
 		f.obj.Name, fld.Name, describeShape(fld), f.in(w.minor), citeFor(fld.Cites, w.minor).Section, null)
+}
+
+// taggedOutside returns node, or for a list the first item, that is tagged
+// outside the ruleset (outsideRuleset), or nil for none.
+func taggedOutside(node *yaml.Node) *yaml.Node {
+	if outsideRuleset(node) {
+		return node
+	}
+	if node == nil || node.Kind != yaml.SequenceNode {
+		return nil
+	}
+	for _, item := range node.Content {
+		if item = nodeview.Deref(item); outsideRuleset(item) {
+			return item
+		}
+	}
+	return nil
+}
+
+// outsideRuleset reports whether node is a scalar or a sequence under a tag
+// YAML 1.2's JSON schema ruleset lacks, which OpenAPI limits a document's tags
+// to (Format): it has no shape a typed field admits. A tagged mapping is
+// refused before the check reads the tree.
+func outsideRuleset(node *yaml.Node) bool {
+	switch {
+	case node == nil:
+		return false
+	case node.Kind == yaml.SequenceNode:
+		return node.ShortTag() != "!!seq"
+	case node.Kind != yaml.ScalarNode || node.Style&yaml.TaggedStyle == 0:
+		return false
+	}
+	switch node.ShortTag() {
+	case "!!null", "!!bool", "!!int", "!!float", "!!str":
+		return false
+	default:
+		return true
+	}
 }
 
 // nullReading is how the compiler reads a null written for a field.
@@ -205,13 +255,17 @@ func isNull(node *yaml.Node) bool {
 }
 
 // shapeOf finds the shape, among the field's own and the alternatives that hold
-// at the declared minor, that the node has.
-func (w *walker) shapeOf(f frame, fld Field, node *yaml.Node) (Shape, bool) {
+// at the declared minor, that the node has. A node tagged outside the ruleset
+// has none, but where the field takes any value (outsideRuleset).
+func shapeOf(f frame, fld Field, node *yaml.Node, minor Minor) (Shape, bool) {
+	if fld.Shape != Any && outsideRuleset(node) {
+		return fld.Shape, false
+	}
 	if matches(fld.Shape, node) {
 		return fld.Shape, true
 	}
 	for _, alt := range fld.Alts {
-		if alt.Span.Holds(w.minor) && matches(alt.Shape, node) {
+		if alt.Span.Holds(minor) && matches(alt.Shape, node) {
 			return alt.Shape, true
 		}
 	}
@@ -304,7 +358,8 @@ func (f frame) admitted(fld Field, m Minor) string {
 func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr jsontext.Pointer, depth int) {
 	switch shape {
 	case Nested:
-		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind}, depth+1)
+		w.object(site{kind: fld.Of, node: node, ptr: ptr, held: fld.Name, rows: f.rows, in: f.obj.Kind,
+			shared: f.shared}, depth+1)
 	case Map:
 		w.repeated(node, ptr, "field "+strconv.Quote(fld.Name)+" of the "+f.obj.Name)
 		pairs := w.view.MappingPairs(node)
@@ -316,13 +371,14 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 		for _, p := range pairs {
 			if !f.holdsBoolean(fld, p.Val) {
 				w.object(site{kind: fld.Of, node: p.Val, ptr: ptr.AppendToken(p.Key), held: p.Key, rows: f.rows,
-					in: f.obj.Kind}, depth+1)
+					in: f.obj.Kind, shared: f.shared}, depth+1)
 			}
 		}
 	case List:
 		for i, item := range node.Content {
 			if !f.holdsBoolean(fld, item) {
-				w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind}, depth+1)
+				w.object(site{kind: fld.Of, node: item, ptr: itemPointer(ptr, i), rows: f.rows, in: f.obj.Kind,
+					shared: f.shared}, depth+1)
 			}
 		}
 	case StringList:
@@ -433,7 +489,9 @@ func fieldNames(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []key
 
 // Admits reports whether node, a field's value, has the shape s as the check
 // reads one, an alias read as the node it names, so a package reading a value
-// the check owns can tell one it passed from one it reported.
+// the check owns can tell one it passed from one it reported. Only a scalar
+// tagged !!bool is a Boolean, where the model reads a string as one
+// (docs/parser-library.md#string-as-boolean).
 func (s Shape) Admits(node *yaml.Node) bool {
 	n := nodeview.Deref(node)
 	return n != nil && matches(s, n)
@@ -458,14 +516,14 @@ func matches(shape Shape, node *yaml.Node) bool {
 }
 
 // allScalar reports whether every entry or item of the container is a scalar
-// that is not null.
+// that is neither null nor tagged outside the ruleset (outsideRuleset).
 func allScalar(node *yaml.Node) bool {
 	for i, n := range node.Content {
 		if node.Kind == yaml.MappingNode && i%2 == 0 {
 			continue
 		}
 		n = nodeview.Deref(n)
-		if n == nil || n.Kind != yaml.ScalarNode || n.Tag == "!!null" {
+		if n == nil || n.Kind != yaml.ScalarNode || n.Tag == "!!null" || outsideRuleset(n) {
 			return false
 		}
 	}
@@ -515,21 +573,19 @@ func inRange(shape Shape, sign int, integral bool) bool {
 // parseNumber reads the sign and integrality of a YAML number without
 // materializing it. The decimal grammar is ir's, so 1e1000001 reads as the
 // integer it is, and so does a literal past the range a BigVal holds: the spec's
-// validity does not hang on that range. A based integer (0x10, 0b1010, 0o17) is
-// YAML's. A literal with a leading zero reads as decimal or as octal to one sign
-// and integrality, so trying the decimal grammar first is safe. A fraction such
-// as 4/2 or a binary exponent is text, not a number, in YAML and JSON alike.
+// validity does not hang on that range. A based integer is YAML 1.2's core
+// schema's, 0o17 or 0x10 (docs/parser-library.md#scalar-resolution): 0b1010,
+// 1_000 and +0x10 are text, as a fraction such as 4/2 or a binary exponent is.
 func parseNumber(text string) (sign int, integral, ok bool) {
-	plain := strings.ReplaceAll(text, "_", "")
-	d, err := ir.ParseDecimal(plain)
+	d, err := ir.ParseDecimal(text)
 	if err == nil {
 		return d.Sign(), d.IsInt(), true
 	}
 	if past, isPast := errors.AsType[*ir.ExponentRangeError](err); isPast {
 		return past.Sign(), past.IsInt(), true
 	}
-	if i, isBased := new(big.Int).SetString(plain, 0); isBased {
-		return i.Sign(), true, true
+	if c, isCore := nodeview.ParseCoreInteger(text); isCore {
+		return c.Sign(), true, true
 	}
 	return 0, false, false
 }

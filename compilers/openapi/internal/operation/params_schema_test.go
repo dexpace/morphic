@@ -464,6 +464,10 @@ paths:
         - {name: enc, in: query, schema: {contentEncoding: base64}}
         - {name: dyn, in: query, schema: {$dynamicRef: '#ghost'}}
       responses: {'200': {description: ok}}
+components:
+  schemas:
+    G1: {$dynamicAnchor: ghost}
+    G2: {$dynamicAnchor: ghost}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -115,7 +116,7 @@ type allOfFrame struct {
 // alone (allOfRefBranches) cannot disagree about what is flattened. It builds
 // no pointer or key. The walk is iterative, over an explicit stack, so it adds
 // no recursion cycle to this package.
-func walkAllOf(s *oas3.Schema) iter.Seq[allOfStep] {
+func walkAllOf(refs *typed.Bindings, s *oas3.Schema) iter.Seq[allOfStep] {
 	return func(yield func(allOfStep) bool) {
 		stack := []allOfFrame{{list: s.GetAllOf()}}
 		var path []int
@@ -132,12 +133,12 @@ func walkAllOf(s *oas3.Schema) iter.Seq[allOfStep] {
 			}
 			b := f.list[f.next]
 			f.next++
-			if flattensInto(b, len(stack)-1) {
+			if flattensInto(refs, b, len(stack)-1) {
 				stack = append(stack, allOfFrame{list: b.GetSchema().GetAllOf(), owner: b})
 				continue
 			}
 			path = stackPath(path[:0], stack)
-			if !yield(allOfStep{schema: b, path: path, capped: wrapsAllOf(b)}) {
+			if !yield(allOfStep{schema: b, path: path, capped: wrapsAllOf(refs, b)}) {
 				return
 			}
 		}
@@ -184,9 +185,9 @@ func (a allOfComposition) branchSpeaks(i int) bool { return a.speaks != nil && a
 // allOfBranches returns the branches of s's allOf as walkAllOf yields them, each
 // with the pointer it was written at, under the schema written at pointer. allOf
 // is associative, so the list classifies exactly as its flat spelling would.
-func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
+func allOfBranches(refs *typed.Bindings, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 	var out []allOfBranch
-	for st := range walkAllOf(s) {
+	for st := range walkAllOf(refs, s) {
 		p := pointer
 		for _, i := range st.path {
 			p += ids.Ptr("allOf", strconv.Itoa(i))
@@ -204,7 +205,7 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 // position takes it up; both composers pass it, and the report of an allOf the
 // election passed over does not.
 func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
-	comp := allOfBranches(s, pointer)
+	comp := allOfBranches(c.Bindings(), s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
 	comp.bounds = positionTypes(c, s, pointer)
 	if allOfDecides(c, s) {
@@ -219,18 +220,18 @@ func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfCo
 
 // allOfRefBranches yields the $ref branches of s's allOf after flattening,
 // schemas only: the view an ancestor walk needs, which reads no pointer.
-func allOfRefBranches(s *oas3.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceable]] {
+func allOfRefBranches(refs *typed.Bindings, s *oas3.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceable]] {
 	return func(yield func(*oas3.JSONSchema[oas3.Referenceable]) bool) {
-		if list := s.GetAllOf(); !slices.ContainsFunc(list, wrapsAllOf) {
+		if list := s.GetAllOf(); !slices.ContainsFunc(list, func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return wrapsAllOf(refs, b) }) {
 			for _, b := range list { // nothing flattens: walkAllOf would yield the list itself
-				if isRefBranch(b) && !yield(b) {
+				if refs.RefSite(b) && !yield(b) {
 					return
 				}
 			}
 			return
 		}
-		for st := range walkAllOf(s) {
-			if isRefBranch(st.schema) && !yield(st.schema) {
+		for st := range walkAllOf(refs, s) {
+			if refs.RefSite(st.schema) && !yield(st.schema) {
 				return
 			}
 		}
@@ -255,10 +256,10 @@ type FlatBranch struct {
 // this package takes the same flattening and the same cap, in the same order
 // (docs/compilers/openapi.md#allof-classification). It reads the one walk
 // allOfBranches does.
-func FlattenedAllOf(s *oas3.Schema) []FlatBranch {
+func FlattenedAllOf(refs *typed.Bindings, s *oas3.Schema) []FlatBranch {
 	var out []FlatBranch
-	for st := range walkAllOf(s) {
-		out = append(out, FlatBranch{Schema: st.schema, Ref: isRefBranch(st.schema), Capped: st.capped})
+	for st := range walkAllOf(refs, s) {
+		out = append(out, FlatBranch{Schema: st.schema, Ref: refs.RefSite(st.schema), Capped: st.capped})
 	}
 	return out
 }
@@ -280,15 +281,15 @@ func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
 // docs/compilers/openapi.md#allof-classification states it. What else b writes
 // is no concern of this predicate: the merge keeps that as residue
 // (preserveUnmergedBranch).
-func flattensInto(b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
-	return depth < MaxAllOfFlattenDepth && wrapsAllOf(b)
+func flattensInto(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
+	return depth < MaxAllOfFlattenDepth && wrapsAllOf(refs, b)
 }
 
 // wrapsAllOf reports whether b is inline and declares a non-empty allOf. An empty
 // allOf, and a boolean branch (its schema is nil; GetAllOf is nil-safe), wrap
 // nothing.
-func wrapsAllOf(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return !isRefBranch(b) && len(b.GetSchema().GetAllOf()) > 0
+func wrapsAllOf(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return !refs.RefSite(b) && len(b.GetSchema().GetAllOf()) > 0
 }
 
 // compositionRequired collects every required-property name declared across an
@@ -322,7 +323,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c, comp.branches)
 	for i, e := range comp.branches {
-		if !isRefBranch(e.schema) {
+		if !c.Bindings().RefSite(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.GetSchema(), e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
 			continue
@@ -341,8 +342,9 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 	id, ok := resolveSchemaRef(c, ts, b)
 	if !ok {
 		if !onLoop(c, b) {
+			keyword, ref := refSpelling(c, b)
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, e.pointer,
-				"unresolved allOf $ref %q%s", b.GetRef().String(), unresolvedWhy(c, b)))
+				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(c, b)))
 		}
 		return diags
 	}
@@ -587,7 +589,7 @@ func rawMappingKeys(root *yaml.Node) []string {
 func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
-		if isRefBranch(e.schema) {
+		if c.Bindings().RefSite(e.schema) {
 			refIdxs = append(refIdxs, i)
 		}
 	}

@@ -18,7 +18,7 @@ import (
 // TestRecognize_HoldsTheParseToItsByteBudget sets one of its own.
 func recognize(t testing.TB, src string) (compilers.Recognition, []ir.Diagnostic, bool) {
 	t.Helper()
-	return detect.Recognize(t.Context(), 0, []byte(src), budget.Unbounded())
+	return detect.Recognize(t.Context(), 0, []byte(src), budget.Unbounded(), budget.Unbounded())
 }
 
 // codesOf reduces diagnostics to their codes, which is the whole of what the

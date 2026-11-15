@@ -84,6 +84,16 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 	return locations, sound
 }
 
+// SettledRequests returns what r was asked, in the order an entry lists it.
+func SettledRequests(r *Recorder) []compilers.DocumentRequest {
+	reads, _ := r.settled()
+	requests := make([]compilers.DocumentRequest, 0, len(reads))
+	for _, read := range reads {
+		requests = append(requests, read.Request)
+	}
+	return requests
+}
+
 // SettledDirectories returns each directory r placed and where, in the order
 // an entry lists them.
 func SettledDirectories(r *Recorder) [][2]string {
@@ -110,3 +120,7 @@ func Verdict(failOn FailOn, doc *ir.Document, findings []triage.Finding) (bool, 
 	}
 	return t.verdict(doc, findings)
 }
+
+// ReadUnder makes e read every document but a run's spec through r, under the
+// record a cached run keeps of its reads.
+func ReadUnder(e *Engine, r compilers.DocumentReader) { e.under = r }

@@ -33,13 +33,13 @@ func TestRecognize_HoldsTheParseToItsByteBudget(t *testing.T) {
 	refusal, over := load.OverByteBudget(ir.Provenance{Source: 0}, []byte(src), budget.AtMost(len(src)-1))
 	require.True(t, over, "the refusal the case expects")
 
-	rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), budget.AtMost(len(src)-1))
+	rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), budget.AtMost(len(src)-1), budget.Unbounded())
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Recognition{}, rec, "a source declined unread carries no parse")
 	assert.Equal(t, []ir.Diagnostic{refusal}, diags, "the refusal Load gives the same source")
 
 	for name, limit := range map[string]budget.Limit{"at the budget": budget.AtMost(len(src)), "unbounded": budget.Unbounded()} {
-		rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), limit)
+		rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), limit, budget.Unbounded())
 		require.True(t, ok, "%s: %v", name, diags)
 		assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format, name)
 	}
@@ -59,10 +59,10 @@ func TestRecognize_DeclinesSilentlyOnceTheContextIsDone(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, live, claimed := detect.Recognize(t.Context(), 0, []byte(src), budget.Unbounded())
+			_, live, claimed := detect.Recognize(t.Context(), 0, []byte(src), budget.Unbounded(), budget.Unbounded())
 			require.True(t, claimed || len(live) > 0, "live, the source is claimed or reported")
 
-			rec, diags, ok := detect.Recognize(ctx, 0, []byte(src), budget.Unbounded())
+			rec, diags, ok := detect.Recognize(ctx, 0, []byte(src), budget.Unbounded(), budget.Unbounded())
 
 			assert.False(t, ok)
 			assert.Empty(t, diags)
@@ -91,7 +91,7 @@ func TestRecognize_ADeclineNamesTheSourceItWasHanded(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, diags, ok := detect.Recognize(t.Context(), srcIndex, tc.src, tc.maxBytes)
+			_, diags, ok := detect.Recognize(t.Context(), srcIndex, tc.src, tc.maxBytes, budget.Unbounded())
 			assert.False(t, ok)
 			require.Len(t, diags, 1)
 			assert.Equal(t, tc.code, diags[0].Code)

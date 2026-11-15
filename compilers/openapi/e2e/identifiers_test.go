@@ -161,9 +161,10 @@ components:
 
 // TestCompile_ADynamicRefAReferenceObjectReachesNamesItsDocumentsAnchor pins
 // content a reference object resolved to in another document, at the last copy
-// of a key written twice, as the model reads one: its $dynamicRef names that
-// document's $dynamicAnchor, here none, so it is kept where that document
-// writes it, and never read against the source's.
+// of a key written twice, as the model reads one: its $dynamicRef names no
+// $dynamicAnchor of that document, so it is the $ref it spells, read there and
+// never against the source's anchor, and resolves nowhere: an error placed in
+// that document, worded with its keyword, and nothing kept or expanded.
 func TestCompile_ADynamicRefAReferenceObjectReachesNamesItsDocumentsAnchor(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -176,13 +177,14 @@ q:
 	src := strings.Replace(specNaming("    Node: {$dynamicAnchor: node, type: object}\n"), "paths: {}",
 		"paths:\n  /a: {get: {parameters: [{$ref: 'ext.yaml#/q'}], responses: {'200': {description: ok}}}}", 1)
 	_, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), src, false)
-	kept := diagsAt(diags, "openapi/degraded-construct", "/q/schema/items/$dynamicRef")
-	require.Len(t, kept, 1, "%+v", diags)
+	failed := diagsAt(diags, "openapi/unresolved-ref", "/q/schema/items")
+	require.Len(t, failed, 1, "%+v", diags)
 	for _, d := range diags {
 		assert.NotEqual(t, "openapi/dynamic-ref-expanded", d.Code)
-		if d.Code == "openapi/degraded-construct" {
+		assert.NotEqual(t, "openapi/degraded-construct", d.Code)
+		if d.Code == "openapi/unresolved-ref" {
 			assert.Equal(t, 1, d.Provenance.Source, "placed in ext.yaml")
-			assert.Contains(t, d.Message, `no $dynamicAnchor "node" is declared in this document`)
+			assert.Contains(t, d.Message, `unresolved $dynamicRef "#node"`)
 		}
 	}
 }

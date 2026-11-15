@@ -10,6 +10,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
@@ -37,9 +38,9 @@ type sniffProbe struct {
 // declares nothing from one that will not parse. The parse is the one the
 // compile lowers, not a second reading beside it that would have to be kept in
 // agreement with it (GitHub #486). The caller's byte budget, which Recognize
-// checks first, bounds it.
-func sniff(ctx context.Context, data []byte) (sniffProbe, *load.Parsed, error) {
-	probe, parsed, err := decodeYAML(ctx, data)
+// checks first, bounds it, and maxNodes bounds the tree as it is read.
+func sniff(ctx context.Context, data []byte, maxNodes budget.Limit) (sniffProbe, *load.Parsed, error) {
+	probe, parsed, err := decodeYAML(ctx, data, maxNodes)
 	return declaredVersions(probe), parsed, err
 }
 
@@ -67,8 +68,8 @@ func declaredVersions(probe sniffProbe) sniffProbe {
 // abandons the mapping, leaving the probe empty as well as expensive. Reading
 // the keys off the tree is linear and answers the same for repeated keys,
 // which the compile's own parse reports once each, sited.
-func decodeYAML(ctx context.Context, data []byte) (sniffProbe, *load.Parsed, error) {
-	parsed, err := load.Decode(ctx, data)
+func decodeYAML(ctx context.Context, data []byte, maxNodes budget.Limit) (sniffProbe, *load.Parsed, error) {
+	parsed, err := load.Decode(ctx, data, maxNodes)
 	if err != nil {
 		return sniffProbe{}, nil, err
 	}

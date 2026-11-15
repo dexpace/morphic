@@ -109,17 +109,17 @@ components:
 }
 
 // TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope pins that a scope
-// is the text a list writes, whatever tag it is written under. The model decodes
-// no item under a tag outside YAML's JSON schema ruleset
-// (docs/parser-library.md#undecoded-scalar), and would lose every scope beside it
-// with nothing reported. A plain date, which the load phase tags a string, is a
-// scope too.
+// is the text a list writes. A plain date, which the load phase tags a string,
+// is a scope. A list holding an item under a tag outside YAML's JSON schema
+// ruleset, which the model decodes nothing of
+// (docs/parser-library.md#undecoded-scalar), is the rule table's error, and is
+// read as left out: the name stands, listing no scopes.
 func TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope(t *testing.T) {
 	t.Parallel()
 	for written, want := range map[string][]string{
 		"[read, 2021-01-01]":    {"read", "2021-01-01"},
-		"[!!binary aGk=, read]": {"aGk=", "read"},
-		"[read, !local tagged]": {"read", "tagged"},
+		"[!!binary aGk=, read]": nil,
+		"[read, !local tagged]": nil,
 		"[*date, read]":         {"2021-01-01", "read"},
 		"*dates":                {"2021-01-01"},
 	} {
@@ -136,7 +136,12 @@ components:
   securitySchemes:
     key: {type: oauth2, flows: {implicit: {authorizationUrl: 'https://a', scopes: {read: r}}}}
 `)
-			assert.Empty(t, diags)
+			if want == nil {
+				require.Len(t, diags, 1, "%+v", diags)
+				assert.Equal(t, "openapi/validation/validation-type-mismatch", diags[0].Code)
+			} else {
+				assert.Empty(t, diags)
+			}
 			assert.Equal(t, []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key"), Scopes: want}}}}, svc.Auth)
 		})
 	}
@@ -973,8 +978,8 @@ func carrierAuth(t *testing.T, doc *ir.Document) map[string][]ir.AuthRequirement
 // access the document never wrote. It names no scheme either, so it lowers to no
 // option, at every carrier and in every spelling of the merge, while a merge of
 // a mapping, an empty one included, is what it merges. The loader's error at
-// the fault is the one report of a dropped entry: at the entry, or where an
-// alias it merges is written.
+// the fault is the one report of a dropped entry: at its least place, or where
+// an alias it merges is written.
 func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
 	t.Parallel()
 	key := ir.AuthRequirement{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key")}}}
@@ -990,7 +995,7 @@ func TestSecurityRequirement_AMergeNamingNoMappingIsNoOption(t *testing.T) {
 		{`{<<: [5]}`, none, "/security/1"}, {`{<<: [{}, 5]}`, none, "/security/1"},
 		{`{<<: {<<: 5}}`, none, "/security/1"}, {`{!!merge <<: 5}`, none, "/security/1"},
 		{`{!!merge "<<": 5}`, none, "/security/1"}, {`{<<: *s}`, none, "/security/1"},
-		{`{<<: [*e, *s]}`, none, "/security/1"}, {`*bad`, none, "/x-defs/bad"}, {`{<<: *bad}`, none, "/x-defs/bad"},
+		{`{<<: [*e, *s]}`, none, "/security/1"}, {`*bad`, none, "/components/pathItems/Mounted/get/security/1"}, {`{<<: *bad}`, none, "/x-defs/bad"},
 		{`{<<: {}}`, empty, ""}, {`{<<: &empty {}}`, empty, ""}, {`{<<: *e}`, empty, ""}, {`{<<: []}`, empty, ""},
 		{`{<<: 5, key: []}`, []ir.AuthRequirement{key, key}, ""},
 		// JSON has no merge key: the quoted key is a name, which reaches no
