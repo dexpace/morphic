@@ -236,13 +236,13 @@ func TestDisk_ACompressedResponseIsCountedAsItExpands(t *testing.T) {
 	require.ErrorIs(t, err, compilers.ErrDocumentTooLarge)
 }
 
-// TestDisk_AStalledReadEndsAtItsDeadline pins that a read through the
-// default client is bounded in time, and that a read through a caller's
-// client keeps that client's own bound: a server that never answers fails
-// the read once it passes.
+// TestDisk_AStalledReadEndsAtItsDeadline pins that a read through a caller's
+// client keeps that client's own bound, a server that never answers failing
+// the read once it passes, and that the default client is http's own, which
+// sets none: whether a read is bounded in time by default is GitHub #1036's.
 func TestDisk_AStalledReadEndsAtItsDeadline(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, fetchTimeout, Disk{}.client().Timeout)
+	assert.Same(t, http.DefaultClient, Disk{}.client())
 	srv := newProbeServer(t, false, func(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() })
 
 	start := time.Now()

@@ -34,11 +34,13 @@ var (
 // opening a FIFO waits for a writer and no context interrupts that wait. One
 // sized past the limit is refused unread.
 type Disk struct {
-	// Client fetches http(s) URLs. Nil uses http.DefaultClient, each read
-	// bounded in time (fetchTimeout). Every read goes through a copy whose
-	// transport keeps no connection and judges each address it dials
-	// (guardedClient), which needs Client's transport to be nil or an
-	// *http.Transport dialling through no function of its own.
+	// Client fetches http(s) URLs. Nil uses http.DefaultClient, which bounds
+	// a read in no time, as no deadline bounds a compile's reads together
+	// (GitHub #1036); a Client's own Timeout bounds each read through it.
+	// Every read goes through a copy whose transport keeps no connection and
+	// judges each address it dials (guardedClient), which needs Client's
+	// transport to be nil or an *http.Transport dialling through no function
+	// of its own.
 	Client *http.Client
 	// classify ranks an address dialled; nil ranks it by spaceOf.
 	classify func(netip.AddrPort) compilers.AddressSpace
@@ -113,15 +115,12 @@ func (d Disk) fetch(ctx context.Context, u string, req compilers.DocumentRequest
 	return read, nil
 }
 
-// client is the client d fetches through: Client, or a copy of
-// http.DefaultClient bounded in time.
+// client is the client d fetches through: Client, or http.DefaultClient.
 func (d Disk) client() *http.Client {
 	if d.Client != nil {
 		return d.Client
 	}
-	c := *http.DefaultClient
-	c.Timeout = fetchTimeout
-	return &c
+	return http.DefaultClient
 }
 
 // classifier is how d ranks an address it dials.

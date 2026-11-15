@@ -23,13 +23,6 @@ import (
 // judged as the first is, and a chain past it fails the read.
 const MaxRedirects = 10
 
-// fetchTimeout bounds one read through the default client, which sets none
-// of its own: a server that accepts and never answers fails the read once it
-// passes, body included, where it would stall the compile. A caller's own
-// Client keeps its own Timeout, and no deadline bounds a compile's reads
-// together (GitHub #1036).
-const fetchTimeout = 30 * time.Second
-
 // dialTimeout and dialKeepAlive are what http.DefaultTransport dials with.
 const (
 	dialTimeout   = 30 * time.Second
