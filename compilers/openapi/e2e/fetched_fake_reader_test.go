@@ -18,10 +18,13 @@ import (
 )
 
 // fetchedDoc is one document a fetchedReader serves: its bytes, and the
-// address space it says it was read from.
+// address space it says it was read from. A proxied one is read as a proxy
+// reads a name resolving to space, or to none where that is unstated: served
+// unbounded stating nothing, and bounded judged by space, stated as its bound.
 type fetchedDoc struct {
-	data  string
-	space compilers.AddressSpace
+	data    string
+	space   compilers.AddressSpace
+	proxied bool
 }
 
 // fetchedRead is one request a fetchedReader was asked for.
@@ -65,7 +68,7 @@ func (f *fetchedReader) ReadDocument(ctx context.Context, req compilers.Document
 	switch {
 	case !ok:
 		return compilers.DocumentRead{}, fmt.Errorf("no such document %s", req.Location)
-	case req.Reach != compilers.SpaceUnstated && f.unhookable:
+	case req.Reach != compilers.SpaceUnstated && (f.unhookable || doc.proxied && doc.space == compilers.SpaceUnstated):
 		f.refused = append(f.refused, read)
 		return compilers.DocumentRead{}, compilers.ErrUnboundedRead
 	case req.Reach != compilers.SpaceUnstated && doc.space > req.Reach:
@@ -73,7 +76,13 @@ func (f *fetchedReader) ReadDocument(ctx context.Context, req compilers.Document
 		return compilers.DocumentRead{}, compilers.ErrAddressSpace
 	}
 	f.served = append(f.served, read)
-	return compilers.DocumentRead{Data: []byte(doc.data), Space: doc.space}, nil
+	switch {
+	case !doc.proxied:
+		return compilers.DocumentRead{Data: []byte(doc.data), Space: doc.space}, nil
+	case req.Reach == compilers.SpaceUnstated:
+		return compilers.DocumentRead{Data: []byte(doc.data)}, nil
+	}
+	return compilers.DocumentRead{Data: []byte(doc.data), Bound: doc.space}, nil
 }
 
 // servedAt returns the reaches the reader served location at, in order.

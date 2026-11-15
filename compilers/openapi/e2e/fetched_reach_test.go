@@ -4,6 +4,11 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
+	"fmt"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -345,4 +350,93 @@ func TestCompile_AFailedReadIsNoAnswerToADocumentThatCouldNotReadIt(t *testing.T
 			}
 		}
 	}
+}
+
+// TestCompile_ADocumentReadThroughAProxyAnswersEachReferenceAsItsOwnRead pins,
+// through the binder, that a document read through a proxy by a name answers
+// a public document's reference as that reference's own read would, whether
+// the source's reference read it first or the public document's did: served
+// where the name resolves public, refused where it resolves private or to
+// nothing. Its own reference to a private address is refused in both orders,
+// and the diagnostics and the types the two orders share are equal.
+func TestCompile_ADocumentReadThroughAProxyAnswersEachReferenceAsItsOwnRead(t *testing.T) {
+	t.Parallel()
+	const (
+		proxied = "http://name.example/d.yaml"
+		pub     = "https://pub.example/p.yaml"
+	)
+	// The source reads the document first where it names it, and after the
+	// public document where it reaches it through two files.
+	orders := map[string]string{
+		"source first": "    A: {$ref: '" + proxied + "#/D'}\n    B: {$ref: '" + pub + "#/X'}\n",
+		"public first": "    A: {$ref: 'f.yaml#/F'}\n    B: {$ref: '" + pub + "#/X'}\n",
+	}
+	for resolved, refusal := range map[compilers.AddressSpace]string{
+		compilers.SpacePublic:   "",
+		compilers.SpacePrivate:  "it is at a private address, which a reference in a document read from a public one",
+		compilers.SpaceUnstated: "the reader cannot bound the addresses its read dials",
+	} {
+		var diagsSeen []string
+		var typesSeen map[ir.TypeID]string
+		for name, schemas := range orders {
+			reads := &fetchedReader{docs: map[string]fetchedDoc{
+				proxied:     {data: "D: {$ref: '" + reachSecret + "#/S'}\n", space: resolved, proxied: true},
+				pub:         {data: "X: {$ref: '" + proxied + "#/D'}\n", space: compilers.SpacePublic},
+				reachSecret: {data: "S: {type: string, description: secret}\n", space: compilers.SpacePrivate},
+				"f.yaml":    {data: "F: {$ref: 'g.yaml#/G'}\n"},
+				"g.yaml":    {data: "G: {$ref: '" + proxied + "#/D'}\n"},
+			}}
+			doc, diags := compileFetched(t, reads, reachSource(schemas), "")
+			if resolved == compilers.SpacePublic {
+				read := map[string][]compilers.AddressSpace{
+					"source first": {compilers.SpaceUnstated, compilers.SpacePublic},
+					"public first": {compilers.SpacePublic},
+				}[name]
+				assert.Equal(t, read, reads.servedAt(proxied), "%s: the reach each read of it was asked at", name)
+			}
+			var got []string
+			for _, d := range diags {
+				got = append(got, fmt.Sprintf("%s %s %s %s", d.Code, doc.Sources[d.Provenance.Source].Path, d.Provenance.Pointer, d.Message))
+			}
+			slices.Sort(got)
+			require.NotEmpty(t, got, "%d, %s", resolved, name)
+			assert.Contains(t, strings.Join(got, "\n"), "d.yaml /D", "%d, %s: its own reference is refused", resolved, name)
+			if refusal == "" {
+				assert.Len(t, got, 1, "%d, %s: %v", resolved, name, got)
+			} else {
+				assert.Contains(t, strings.Join(got, "\n"), "p.yaml /X unresolved $ref", "%d, %s", resolved, name)
+				assert.Contains(t, strings.Join(got, "\n"), refusal, "%d, %s", resolved, name)
+			}
+			types := map[ir.TypeID]string{}
+			for id, ty := range doc.Types {
+				if s := string(id); !strings.Contains(s, "f.yaml") && !strings.Contains(s, "g.yaml") && id != componentID("A") {
+					types[id] = bySourcePath(t, doc, ty)
+				}
+			}
+			if diagsSeen != nil {
+				assert.Equal(t, diagsSeen, got, "%d: the diagnostics are alike in both orders", resolved)
+				assert.Equal(t, typesSeen, types, "%d: so are the types both orders share", resolved)
+			}
+			diagsSeen, typesSeen = got, types
+		}
+	}
+}
+
+// sourceIndex is a source's index as a type's encoding writes it.
+var sourceIndex = regexp.MustCompile(`"(source|writtenBy)":(\d+)`)
+
+// bySourcePath encodes ty with each source index written as the path of the
+// source it names, which two compiles reading their documents in other orders
+// number otherwise.
+func bySourcePath(t *testing.T, doc *ir.Document, ty ir.TypeDef) string {
+	t.Helper()
+	enc, err := json.Marshal(ty, json.Deterministic(true))
+	require.NoError(t, err)
+	return sourceIndex.ReplaceAllStringFunc(string(enc), func(m string) string {
+		parts := sourceIndex.FindStringSubmatch(m)
+		n, err := strconv.Atoi(parts[2])
+		require.NoError(t, err)
+		require.Less(t, n, len(doc.Sources))
+		return strconv.Quote(parts[1]) + ":" + strconv.Quote(doc.Sources[n].Path)
+	})
 }
