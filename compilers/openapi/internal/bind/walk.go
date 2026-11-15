@@ -89,7 +89,8 @@ func (w *finder) walk(r root, mark bool) {
 		w.identify(r.at.Doc)
 	}
 	w.ids.read[r.at.Doc] = w.ids.read[r.at.Doc] || declaring
-	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state, dialect: dialectAbove(w.docs, w.ids, r.at)}}
+	node := w.docs.node(r.at)
+	stack := []frame{{node: node, at: r.at, state: r.state, dialect: startDialect(w, r.at, node)}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]

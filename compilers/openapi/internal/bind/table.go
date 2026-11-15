@@ -426,7 +426,7 @@ func (b *binder) table(t *Table) *Table {
 	reached := dynamicReachOf(b.ids, t.bases, graph, shared)
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.dynamic = dynamicAnchorsOf(b.ids, t.exhausted, reached)
-	dialects := dialectsByDocument(b.ids.dialects)
+	dialects := dialectsByDocument(withLandingRoots(b.find, b.ids.dialects))
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
 		t.docs = append(t.docs, Document{Name: d.name, Self: d.self, Root: d.root, Unreached: !reached,

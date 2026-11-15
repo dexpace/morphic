@@ -4595,7 +4595,11 @@ no such warning: the rule table reports it where it judges it ([`validation`](#v
 in a document a reference reaches is only what the reference reaches
 ([`openapi-versions`](#openapi-versions)). A schema is read in the dialect of where it is, so a node
 an alias places under two roots is read in each one's at each, by the folding of an `allOf`, the
-reading of a body as a file and the rule table's check too.
+reading of a body as a file and the rule table's check too. A schema only a reference reaches, where
+no grammar reads one, an extension's content or raw YAML a document of another kind holds, is a root
+too where it writes a `$schema` naming a dialect and no other such schema holds it, which the set
+of them decides and no order of reading does; what it holds is read in its dialect from there, and
+no identifier in it declares anything ([`references`](#references)).
 
 A keyword a schema writes meets one of four outcomes, each taken from the rows of the dialect the
 schema is read in, never from its version or its name alone:
@@ -4642,7 +4646,9 @@ resolves to the schema declaring it.
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
-  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`
+  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`,
+  `e2e.TestCompile_ASchemaOnlyARefReachesReadsItsOwnDialect`,
+  `e2e.TestCompile_ASchemaAnotherLandingHoldsIsNotADialectRoot`
 - Status: partly built: an identifier naming its document by the 3.2 `$self` roots a resource of its
   own, as the document is known by its location alone (#863).
 

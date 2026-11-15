@@ -4,6 +4,7 @@
 package bind
 
 import (
+	"maps"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -215,4 +216,56 @@ func dialectRule(d *docs, id DocID, dialect string) DialectRule {
 	}
 	d.last.key, d.last.rule, d.last.asked = k, rule, true
 	return rule
+}
+
+// landingRoot returns the dialect root a landing at p, holding n, is, where it
+// is one: a schema the identity walk placed no schema at or above, content no
+// grammar reads, writing a `$schema` naming a dialect, that no other landing's
+// schema holds, so the `$schema` chooses the dialect of what it holds
+// (docs/compilers/openapi.md#dialect-keywords). Whether one holds it turns on
+// the landings alone, so no order of reading decides it.
+func landingRoot(w *finder, p Position, n *yaml.Node) (DialectRoot, bool) {
+	if !w.landings[p] || heldBySchema(w.docs.identityState(p.Doc), slices.Collect(p.Pointer.Tokens())) {
+		return DialectRoot{}, false
+	}
+	for above := p.Pointer; above != ""; {
+		above = above.Parent()
+		if w.landings[Position{Doc: p.Doc, Pointer: above}] {
+			return DialectRoot{}, false
+		}
+	}
+	n = nodeview.Deref(n)
+	uri, written := scalarOf(w.docs.list[p.Doc].view.ChildByToken(n, "$schema"))
+	if !written || dialectRule(w.docs, p.Doc, uri).NamesNone {
+		return DialectRoot{}, false
+	}
+	return DialectRoot{At: p, URI: uri, Node: n}, true
+}
+
+// startDialect is the dialect a walk from p, holding n, starts in: the one p
+// roots as a landing (landingRoot), else the one above it (dialectAbove).
+func startDialect(w *finder, p Position, n *yaml.Node) string {
+	if root, ok := landingRoot(w, p, n); ok {
+		return root.URI
+	}
+	return dialectAbove(w.docs, w.ids, p)
+}
+
+// withLandingRoots returns roots with each landing w found that is a dialect
+// root of its own (landingRoot) added, roots itself where none is. Each
+// landing's node is read as the walk that found it read it, charged then.
+func withLandingRoots(w *finder, roots map[Position]DialectRoot) map[Position]DialectRoot {
+	out := roots
+	for at := range w.landings {
+		doc := w.docs.list[at.Doc]
+		path, _ := doc.view.DocumentPath(doc.root, at.Pointer)
+		if root, ok := landingRoot(w, at, path[len(path)-1]); ok {
+			if len(out) == len(roots) {
+				out = make(map[Position]DialectRoot, len(roots)+1)
+				maps.Copy(out, roots)
+			}
+			out[at] = root
+		}
+	}
+	return out
 }
