@@ -18,12 +18,12 @@ import (
 // twinSpec writes a $ref at every schema position the lowering reads one at:
 // a property, a parameter, a header, request and response bodies, a part, a
 // file body, items, prefixItems, additionalProperties, patternProperties,
-// allOf, oneOf and anyOf members, a mapped variant, `not`, an alias, a chain,
-// an anchor, siblings, a bound its target's kind excludes, a refinement, an
-// allOf beside it, a restating branch, disjoint conjuncts, a property merged
-// through an alias and a composition, a name its resource declares twice while
-// another declares it a $dynamicAnchor, a missing target, one an alias misses,
-// a loop, and another document (twinOther).
+// allOf, oneOf, anyOf members, a mapped variant, `not`, an alias, a chain, an
+// anchor, siblings, a bound its target's kind excludes, a refinement, an allOf
+// beside it, a restating branch, disjoint conjuncts, a property merged through
+// an alias and a composition, a name its resource declares twice, another
+// declaring it a $dynamicAnchor, a missing target, one an alias misses, a
+// loop, a titled allOf branch, another document (twinOther).
 const twinSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths:
@@ -72,6 +72,7 @@ components:
         map: {type: object, additionalProperties: {$ref: '#/components/schemas/Pet'}}
         pattern: {type: object, patternProperties: {'^p': {$ref: '#/components/schemas/Pet'}}}
         negated: {type: string, not: {$ref: '#/components/schemas/Name'}}
+        titled: {allOf: [{$ref: '#/components/schemas/Pet', title: Lent Title}, {required: [name]}]}
     Blob: {type: string, contentMediaType: application/octet-stream}
     Form: {type: object, properties: {file: {$ref: '#/components/schemas/Blob'}, meta: {$ref: '#/components/schemas/Pet'}}}
     Broken: {$ref: '#/components/schemas/Missing'}
