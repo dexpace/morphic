@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -73,11 +74,7 @@ func holdsWhole(outer, inner ir.UnmodeledEntry) bool {
 	}
 	at := outer.Value
 	for token := range jsontext.Pointer("/" + rest).Tokens() {
-		var members map[string]jsontext.Value
-		if json.Unmarshal(at, &members) != nil {
-			return false // a value that is no object holds nothing beneath it
-		}
-		next, ok := members[token]
+		next, ok := heldAt(at, token)
 		if !ok {
 			return false
 		}
@@ -86,6 +83,30 @@ func holdsWhole(outer, inner ir.UnmodeledEntry) bool {
 	found, okFound := canonical(at)
 	want, okWant := canonical(inner.Value)
 	return okFound && okWant && found == want
+}
+
+// heldAt returns what v holds at the pointer token: an object's member it
+// names, or a list's element at the index it spells as RFC 6901 does, digits
+// with no leading zero. A value that is neither holds nothing beneath it.
+func heldAt(v jsontext.Value, token string) (jsontext.Value, bool) {
+	switch v.Kind() {
+	case '{':
+		var members map[string]jsontext.Value
+		if json.Unmarshal(v, &members) != nil {
+			return nil, false
+		}
+		next, ok := members[token]
+		return next, ok
+	case '[':
+		var elements []jsontext.Value
+		i, err := strconv.Atoi(token)
+		if err != nil || i < 0 || strconv.Itoa(i) != token || json.Unmarshal(v, &elements) != nil || i >= len(elements) {
+			return nil, false
+		}
+		return elements[i], true
+	default:
+		return nil, false
+	}
 }
 
 // canonical returns v in its canonical form (RFC 8785), and false for v that
