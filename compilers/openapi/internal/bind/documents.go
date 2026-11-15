@@ -191,9 +191,12 @@ func (d *docs) open(name, from string) (DocID, error) {
 
 // judge returns the refusal Config.Open gives the document from for name,
 // one read before, or nil where from may read it. Only a document Open read
-// is read before, the source aside, which a reference reaches unasked, so Open
-// is set.
+// is read before, the source aside, which a reference reaches unasked, so
+// Open is set; were it not, the document is refused, as one never read.
 func (d *docs) judge(name, from string) error {
+	if d.cfg.Open == nil {
+		return errNotRead
+	}
 	_, err := askOpen(d, name, from)
 	return err
 }

@@ -59,3 +59,15 @@ func TestReads_ARefusalToOneAskerIsNoAnswerOfTheDocument(t *testing.T) {
 	assert.Equal(t, DocID(1), id)
 	assert.Equal(t, 2, opens)
 }
+
+// TestDocs_JudgeWithNoOpenRefuses pins judge's precondition, which no binding
+// reaches: with no Config.Open no document is read before, and asked anyway
+// it refuses rather than admit or call nothing.
+func TestDocs_JudgeWithNoOpenRefuses(t *testing.T) {
+	t.Parallel()
+	var src yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\n"), &src))
+	cfg := Config{Self: "https://x.test/spec.yaml"}
+	d := newDocs(&src, cfg, &work{ctx: t.Context(), steps: budget.New(cfg.Limit)})
+	assert.ErrorIs(t, d.judge("https://x.test/other.yaml", cfg.Self), errNotRead)
+}
