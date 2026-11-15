@@ -151,3 +151,57 @@ func proxiedExternal(r *proxiedReader) *external {
 	src := sourceDocument{path: "spec.yaml", judged: judgment{checker: oas.NewChecker()}}
 	return newExternal(Options{Reader: r}, newExternalReads(src, budget.Unbounded()), &aside{})
 }
+
+// TestExternal_AJudgementIsKeptForItsReachAndItsBoundForEvery pins what a
+// judgement leaves for later askers: a refusal kept for its reach, so a second
+// asker there is refused with no read, and a bound that passed, by which an
+// asker at any reach is judged with no read either.
+func TestExternal_AJudgementIsKeptForItsReachAndItsBoundForEvery(t *testing.T) {
+	t.Parallel()
+	const pub2 = "https://pub2.example/b.yaml"
+	direct := spacedReads()
+	direct.docs[pub2] = spacedDoc{data: "Y: {type: string}\n", space: compilers.SpacePublic}
+	r := &proxiedReader{resolved: compilers.SpacePrivate, direct: direct}
+	e := proxiedExternal(r)
+	for _, asker := range []string{reachPub, pub2} {
+		_, err := e.document(t.Context(), asker, "spec.yaml")
+		require.NoError(t, err)
+	}
+	_, err := e.document(t.Context(), orderProxied, "spec.yaml")
+	require.NoError(t, err)
+	for _, asker := range []string{reachPub, pub2} {
+		_, err = e.document(t.Context(), orderProxied, asker)
+		barredWith(t, err, "it is at a private address, which a reference in a document read from a public one")
+	}
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePublic}, r.reqs,
+		"read once, and judged once at the reach both askers share")
+
+	passed := proxiedExternal(&proxiedReader{resolved: compilers.SpacePublic, direct: direct})
+	_, err = passed.document(t.Context(), reachPub, "spec.yaml")
+	require.NoError(t, err)
+	_, err = passed.document(t.Context(), orderProxied, "spec.yaml")
+	require.NoError(t, err)
+	_, err = passed.document(t.Context(), orderProxied, reachPub)
+	require.NoError(t, err)
+	for _, reach := range []compilers.AddressSpace{compilers.SpacePublic, compilers.SpacePrivate} {
+		err = passed.read.verdict(orderProxied, reach, func() (compilers.AddressSpace, error) {
+			t.Errorf("reach %d is judged by the bound a judgement stated, with no read", reach)
+			return compilers.SpaceUnstated, nil
+		})
+		assert.NoError(t, err, "reach %d", reach)
+	}
+}
+
+// TestExternal_ADocumentWhoseReaderStatesNoSpaceIsRefusedToItsAsker pins that
+// a fetched document's reference to one whose reader says nothing of where
+// it read it is refused, read at the asker's own reach.
+func TestExternal_ADocumentWhoseReaderStatesNoSpaceIsRefusedToItsAsker(t *testing.T) {
+	t.Parallel()
+	r := spacedReads()
+	e := spacedExternal(r, "spec.yaml")
+	_, err := e.document(t.Context(), reachPub, "spec.yaml")
+	require.NoError(t, err)
+	_, err = e.document(t.Context(), reachMute, reachPub)
+	barredWith(t, err, "the reader did not say what address it was read from")
+	assert.Equal(t, []compilers.AddressSpace{compilers.SpacePublic}, r.asked(reachMute))
+}
