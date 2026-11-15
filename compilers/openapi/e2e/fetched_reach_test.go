@@ -302,3 +302,47 @@ func TestCompile_AFetchedDocumentWhoseReaderSaidNothingIsRefusedToABoundedAsker(
 	assert.Empty(t, diags, "the same documents stating public resolve")
 	assert.NotEmpty(t, fetchedTypeNamed(doc, "b.yaml/Y"))
 }
+
+// TestCompile_AFailedReadIsNoAnswerToADocumentThatCouldNotReadIt pins that a
+// read made for the source's reference, which failed, answers a fetched
+// document's reference to the same private document as its own read would:
+// refused, in every order, and never with the failure, which says what lies
+// at an address the fetched document may not reach.
+func TestCompile_AFailedReadIsNoAnswerToADocumentThatCouldNotReadIt(t *testing.T) {
+	t.Parallel()
+	const (
+		a = "    A: {$ref: '" + reachEvil + "#/X'}\n"
+		b = "    B: {$ref: '" + reachSecret + "#/S'}\n"
+	)
+	for secret, failure := range map[string]string{
+		"S: [unclosed\n": "does not parse",
+		"":               "is empty",
+	} {
+		for name, tc := range map[string]struct {
+			schemas string
+			slow    map[string]time.Duration
+		}{
+			"A then B":            {a + b, nil},
+			"B then A":            {b + a, nil},
+			"evil answers last":   {a + b, map[string]time.Duration{reachEvil: 40 * time.Millisecond}},
+			"secret answers last": {b + a, map[string]time.Duration{reachSecret: 40 * time.Millisecond}},
+		} {
+			reads := reachEvilReader(compilers.SpacePublic)
+			reads.docs[reachSecret] = fetchedDoc{data: secret, space: compilers.SpacePrivate}
+			reads.slow = tc.slow
+			doc, diags := compileFetched(t, reads, reachSource(tc.schemas), "")
+
+			require.Len(t, diags, 2, "%s, %s: %v", failure, name, fetchedFindings(doc, diags))
+			for _, d := range diags {
+				switch d.Provenance.Pointer {
+				case "/X":
+					assert.Contains(t, d.Message, reachRefusalPrivate, "%s, %s", failure, name)
+					assert.NotContains(t, d.Message, failure, "%s, %s", failure, name)
+				default:
+					assert.EqualValues(t, "/components/schemas/B", d.Provenance.Pointer, "%s, %s", failure, name)
+					assert.Contains(t, d.Message, failure, "%s, %s: the source's own read failed", failure, name)
+				}
+			}
+		}
+	}
+}

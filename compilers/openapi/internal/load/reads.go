@@ -52,6 +52,11 @@ type answer struct {
 	err      error
 	prepared string
 	space    compilers.AddressSpace
+	// reach is the reach the read was asked under, where read says one was
+	// made: an answer no read gave, such as the document budget's refusal,
+	// is every asker's.
+	reach compilers.AddressSpace
+	read  bool
 }
 
 // reading is one document's read: the answer it got, set once, or, while it

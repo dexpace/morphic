@@ -59,7 +59,7 @@ func (e external) readAs(ctx context.Context, id, key, location, from string) an
 	reach := e.reachOf(from)
 	a := e.read.once(id, reach, func() answer { return e.fetch(ctx, id, key, location, reach) })
 	if a.err != nil {
-		return a
+		return answer{err: failureFor(id, a, reach)}
 	}
 	if err := admits(id, a.space, reach); err != nil {
 		return answer{err: err}
@@ -98,6 +98,22 @@ func admits(id string, space, reach compilers.AddressSpace) error {
 		return barred(id, beyondReach(space, reach))
 	}
 	return nil
+}
+
+// failureFor is the error the failed answer a of the document id is to a
+// reference bounded by reach: a's own where no read gave it or its read was
+// bounded no wider than reach, as the asker would have met it too; else, as a
+// read's answer is judged for each asker (admits), the refusal of a document
+// read from the space a states, or from none, before the failure a wider read
+// met, which says what lies at an address the asker may not reach.
+func failureFor(id string, a answer, reach compilers.AddressSpace) error {
+	if !a.read || !wider(a.reach, reach) {
+		return a.err
+	}
+	if err := admits(id, a.space, reach); err != nil {
+		return err
+	}
+	return a.err
 }
 
 // beyondReach is why a document at an address in space is refused to a
@@ -163,13 +179,13 @@ func (e external) fetch(ctx context.Context, id, key, location string, reach com
 		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
 	})
 	if err != nil {
-		return answer{err: readFailure(e.opts, id, err, reach)}
+		return answer{err: readFailure(e.opts, id, err, reach), reach: reach, read: true}
 	}
 	data, err := e.prepare(ctx, id, key, got.Data)
 	if err != nil {
-		return answer{err: err}
+		return answer{err: err, space: got.Space, reach: reach, read: true}
 	}
-	return answer{body: data, prepared: key, space: got.Space}
+	return answer{body: data, prepared: key, space: got.Space, reach: reach, read: true}
 }
 
 // unnamed returns the refusal of the document under key, read at location,

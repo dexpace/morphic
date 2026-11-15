@@ -61,14 +61,17 @@ func (r *reads) unread(d *docs, name, from string) bool {
 // open returns the document named name, as the document from may read it:
 // read through Config.Open the first time it is asked for, and judged by
 // Config.Admits for each asker read from the network where another read it
-// first, since what such a document may reach turns on where both were read
-// from. A refusal to from alone is kept for from alone.
+// first, or failed to, since what such a document may reach turns on where
+// both were read from, and a failure says what lies at an address. A refusal
+// to from alone is kept for from alone.
 func (r *reads) open(d *docs, name, from string) (DocID, error) {
 	k := ask{name, from}
 	if err, ok := r.barred[k]; ok {
 		return 0, err
 	}
-	if _, opened := d.byName[name]; opened && OverNetwork(from) && !r.judged[k] {
+	_, opened := d.byName[name]
+	_, failed := d.failed[name]
+	if (opened || failed) && OverNetwork(from) && !r.judged[k] {
 		r.judged[k] = true
 		if err := d.judge(name, from); err != nil {
 			r.barred[k] = err
