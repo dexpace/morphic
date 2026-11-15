@@ -347,6 +347,9 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema,
 // lowers to the top type, as such a $ref does, and the table's report of it
 // stands alone.
 func staticUnresolved(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+	if annotation.RawPropertyNode(s, "$dynamicRef") == nil {
+		return false // every schema body asks, nearly all writing none
+	}
 	_, static, ok := staticTarget(c, c.Position(pointer))
 	return static && !ok && !dynamicRefSiblings(s)
 }
