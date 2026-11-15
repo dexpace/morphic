@@ -160,7 +160,11 @@ func TestNamedPointerBytes_NamesTheEntriesOfAListAndTheReferenceOfAnObject(t *te
 	withReference, complete := namedTotal(t, fmt.Sprintf(operation, `[{$ref: "#/components/parameters/p"}]`))
 	require.True(t, complete)
 
-	assert.Greater(t, withList, bare, "the entries of a list are named")
+	// Each pointer counts once for the key and once for the value that holds
+	// it, under /components/schemas/S (21 bytes): the allOf key and its list,
+	// 27 each, then each of the two entries, 29, with its type key and value, 34
+	// each.
+	assert.Equal(t, 27+27+2*(29+34+34), withList-bare, "the entries of a list are named, each at its index")
 	assert.Greater(t, withReference, noParameters, "a parameter a list holds is named")
 }
 
