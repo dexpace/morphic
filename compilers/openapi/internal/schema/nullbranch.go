@@ -11,6 +11,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -24,13 +25,13 @@ import (
 // behind a nullable reference that the reference's bit says. A $ref branch
 // names a node the source declares, and stays the variant naming it.
 func nullBranch(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return inlineBranch(js) && NullAlone(c, js.GetSchema())
+	return inlineBranch(c.Bindings(), js) && NullAlone(c, js.GetSchema())
 }
 
 // inlineBranch reports whether js is a schema written in place: no boolean,
-// and no $ref (isRefBranch).
-func inlineBranch(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsSchema() && !isRefBranch(js)
+// and no reference site (typed.Bindings.RefSite).
+func inlineBranch(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return js != nil && js.IsSchema() && !refs.RefSite(js)
 }
 
 // liftedNull is a null branch (nullBranch) of a union, where it is written,

@@ -413,10 +413,10 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		w := newAdmission(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }
-		conjuncts := w.conjuncts(s, allOfBranches(s, ""))
-		principal := w.elect(conjuncts, refBranchOf(conjuncts))
+		conjuncts := w.conjuncts(s, allOfBranches(nil, s, ""))
+		principal := w.elect(conjuncts, refBranchOf(w.c, conjuncts))
 		require.NotNil(t, principal.branch)
-		require.False(t, isRefBranch(principal.branch.schema), "the narrowing is elected")
+		require.Nil(t, principal.branch.schema.GetSchema().Ref, "the narrowing is elected")
 		return total
 	}
 	assert.Equal(t, 1, walked(1000, 1))

@@ -65,8 +65,8 @@ func dynamicTarget(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (bi
 // (dynamicTargetOf), read against the anchors of the document it is written
 // in, so one another document holds names its own (GitHub #762), and it is what
 // a $ref to that position resolves to (resolvesAt). One closing a cycle of
-// expansions is irreducible (dynamicChainVerdict); a static one's loops are
-// the table's (staticTarget).
+// expansions is irreducible (dynamicChainVerdict). One naming no
+// $dynamicAnchor is a reference site (typed.Bindings.RefKeyword).
 func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (at bind.Position, why string, ok bool) {
 	ref, why, ok := expandableRef(c, s, pointer)
 	if !ok {
@@ -75,9 +75,6 @@ func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) 
 	from := c.Position(pointer)
 	if at, why, ok = dynamicTargetOf(c, ref, from); !ok {
 		return bind.Position{}, why, false
-	}
-	if _, static, _ := staticTarget(c, from); static {
-		return at, "", true
 	}
 	if why, ok = dynamicChainVerdict(c, at, from); !ok {
 		return bind.Position{}, why, false
@@ -104,16 +101,12 @@ func expandableRef(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dy
 
 // dynamicTargetOf returns the position the dynamic reference ref, written at
 // from, names, or why it names none that expands: for a $dynamicRef the one
-// $dynamicAnchor of its name its document declares, in its own resource, or
-// where the $ref it spells lands (staticTarget), and for a $recursiveRef the
-// root of its resource (recursiveTarget); each where a schema stands to
-// resolve to.
+// $dynamicAnchor of its name its document declares, in its own resource, and
+// for a $recursiveRef the root of its resource (recursiveTarget); each where a
+// schema stands to resolve to.
 func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from bind.Position) (bind.Position, string, bool) {
 	if ref.keyword == "$recursiveRef" {
 		return recursiveTarget(c, ref.node.Value, from)
-	}
-	if at, static, ok := staticTarget(c, from); static {
-		return at, "it resolves to no schema", ok
 	}
 	name, why, ok := bind.DynamicFragment(ref.node.Value)
 	var at bind.Position
@@ -131,22 +124,6 @@ func dynamicTargetOf(c lowering.Ctx, ref dynamicRef, from bind.Position) (bind.P
 			name, at.Pointer), false
 	}
 	return at, "", true
-}
-
-// staticTarget reports whether the $dynamicRef written at from is the $ref it
-// spells, naming no $dynamicAnchor (JSON Schema 2020-12 §8.2.3.2): the table
-// holds an entry for it. Its target is then where that $ref's hop lands, ok
-// where its chain resolves, so it ends on a schema and on no loop, which the
-// table reports, as it does a hop landing nowhere.
-func staticTarget(c lowering.Ctx, from bind.Position) (at bind.Position, static, ok bool) {
-	e, entry := c.Bindings().Table().Entry(from)
-	if !entry || e.Keyword != "$dynamicRef" {
-		return bind.Position{}, false, false
-	}
-	if e.Chain.Status != bind.Resolved || !resolvesAt(c, e.Hop.Target) {
-		return bind.Position{}, true, false
-	}
-	return e.Hop.Target, true, true
 }
 
 // recursiveTarget returns the position a $recursiveRef whose value is value,
@@ -322,16 +299,15 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 // survives the position lowering without it (the irreducible half of
 // docs/compilers/openapi.md#dynamic-ref). An expanded one is already the
 // position's type and must not also be preserved — that would tell a consumer
-// the compiler ignored it — and a static one with nothing beside it is the
-// $ref it spells, which the table reports where it resolves nowhere
-// (staticUnresolved).
+// the compiler ignored it — and one making its position a reference site
+// (typed.Bindings.RefKeyword) is the $ref it spells, resolved as one.
 func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	ref, written := dynamicRefOf(c, s, pointer)
-	if !written {
+	if !written || c.Bindings().RefKeyword(heldAt(c, pointer)) == ref.keyword {
 		return nil
 	}
 	_, why, expanded := dynamicExpansion(c, s, pointer)
-	if expanded || staticUnresolved(c, s, pointer) {
+	if expanded {
 		return nil
 	}
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, ref.keyword, ir.ReasonDegradedLowering, pointer, c.Place())
@@ -340,18 +316,6 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema,
 			"%s was not expanded because %s; it is kept verbatim under Unmodeled", ref.keyword, why))
 	}
 	return diags
-}
-
-// staticUnresolved reports whether s writes at pointer, with nothing beside
-// it, a $dynamicRef that is the $ref it spells and resolves to no schema: it
-// lowers to the top type, as such a $ref does, and the table's report of it
-// stands alone.
-func staticUnresolved(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
-	if annotation.RawPropertyNode(s, "$dynamicRef") == nil {
-		return false // every schema body asks, nearly all writing none
-	}
-	_, static, ok := staticTarget(c, c.Position(pointer))
-	return static && !ok && !dynamicRefSiblings(s)
 }
 
 // dynamicExpanded reports the expansion of the dynamic reference s writes at

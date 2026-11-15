@@ -19,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -150,7 +149,7 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 	// Past the IsBool check, the either's left schema is always set (an empty
 	// either reads as a bool), so GetSchema never returns nil here.
 	schema := js.GetSchema()
-	if resolve.IsRefSite(js, schema) {
+	if c.Bindings().RefSite(js) {
 		return refSiteRef(c, ts, js, schema, pointer, home)
 	}
 	return schemaBody(c, ts, depth, schema, pointer, home)
@@ -234,13 +233,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		// irverify.
 		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
-		if _, static, _ := staticTarget(c, c.Position(pointer)); static {
-			return ref, nullDiags // the $ref it spells, which reports nothing
-		}
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
-	}
-	if staticUnresolved(c, schema, pointer) {
-		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
 		if hasUnionSiblings(c, schema) {

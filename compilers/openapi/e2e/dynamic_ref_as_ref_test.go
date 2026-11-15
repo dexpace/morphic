@@ -252,20 +252,23 @@ func TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference(t *testing.T) {
 }
 
 // TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling pins that a
-// reference that reads as a $ref is no more expanded beside a keyword that
-// shapes the type than a dynamic one is: it is kept with the sibling info.
+// reference that reads as a $ref, beside a keyword that shapes the type, lowers
+// as its $ref twin does: an alias over its target keeping the sibling, and
+// nothing of the reference kept, since it resolved.
 func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileText(t, "spec.yaml", dynHead+dynPet+
 		"    C: {$dynamicRef: '#pet', description: d, type: object}\n", openapi.Options{})
+	twin, twinDiags := compileText(t, "spec.yaml", dynHead+dynPet+
+		"    C: {$ref: '#pet', description: d, type: object}\n", openapi.Options{})
 	require.NotNil(t, doc)
 	require.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"))
-	kept := diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C/$dynamicRef")
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, kept, "%+v", diags)
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "%+v", d)
-	}
-	assert.Contains(t, jsonOf(t, doc), `"openapi:$dynamicRef"`)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C"),
+		"%+v", diags)
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C/$dynamicRef"), "%+v", diags)
+	assert.Equal(t, jsonOf(t, twin), jsonOf(t, doc))
+	assert.Equal(t, twinDiags, diags)
+	assert.Contains(t, jsonOf(t, doc), `"openapi:type"`)
 }
 
 // TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds pins that a $ref

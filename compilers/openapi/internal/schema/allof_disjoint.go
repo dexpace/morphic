@@ -95,12 +95,14 @@ type conjunctTypes struct {
 // schema writing an allOf says nothing here where that conjunction leaves at
 // most a null, which keeps a schema composing a reported one from drawing a
 // second report. Where nothing reports it, as for a null its own entries share
-// or a `type: "null"` beside them, that is a miss.
-func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
+// or a `type: "null"` beside them, that is a miss. reference is the keyword s
+// is a reference site under (typed.Bindings.RefKeyword), which the read leaves
+// to branch, as it leaves a $ref.
+func (r *conjunctTypes) schema(s *oas3.Schema, reference string) kindSet {
 	if s == nil || !r.steps.Spend(1) {
 		return anyInstance
 	}
-	r.passedOver = r.passedOver || passesOver(s)
+	r.passedOver = r.passedOver || passesOver(s, reference)
 	out := declaredInstanceTypes(s)
 	entries := s.GetAllOf()
 	for _, b := range entries {
@@ -120,13 +122,13 @@ func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 // passed over (besideChain), as are a `false` entry and a $ref landing on no
 // schema.
 func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
-	if isRefBranch(b) {
+	if r.refs.RefSite(b) {
 		target := refBranchTarget(r.refs, b)
 		r.passedOver = r.passedOver || target == nil || r.besideChain(b)
-		return r.schema(target)
+		return r.schema(target, "")
 	}
 	r.passedOver = r.passedOver || annotation.IsFalseSchema(b)
-	return r.schema(b.GetSchema())
+	return r.schema(b.GetSchema(), "")
 }
 
 // besideChain reports whether b, an allOf entry writing a $ref, or an alias its
@@ -138,7 +140,7 @@ func (r *conjunctTypes) besideChain(b *oas3.JSONSchema[oas3.Referenceable]) bool
 	e, _ := r.refs.Entry(b)
 	hop := b
 	for i := 0; i < e.Chain.Hops && hop != nil; i++ {
-		if writesBesideRef(hop.GetSchema()) {
+		if writesBesideRef(hop.GetSchema(), r.refs.RefKeyword(hop)) {
 			return true
 		}
 		hop = r.refs.Declared(hop)
@@ -148,17 +150,20 @@ func (r *conjunctTypes) besideChain(b *oas3.JSONSchema[oas3.Referenceable]) bool
 
 // passesOver reports whether s writes a keyword that can refuse a value of some
 // instance type and that conjunctTypes does not read: a union, a `not`, a
-// condition, an `enum` or a `const`, or a dynamic or recursive reference.
-func passesOver(s *oas3.Schema) bool {
+// condition, an `enum` or a `const`, or a dynamic or recursive reference other
+// than reference, the keyword s is a reference site under
+// (typed.Bindings.RefKeyword), which conjunctTypes follows.
+func passesOver(s *oas3.Schema, reference string) bool {
 	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 || s.GetNot() != nil || s.GetIf() != nil ||
-		enumWritten(s) || s.GetConst() != nil || declaresDynamicRef(s) ||
+		enumWritten(s) || s.GetConst() != nil ||
+		reference != "$dynamicRef" && annotation.RawPropertyNode(s, "$dynamicRef") != nil ||
 		annotation.RawPropertyNode(s, "$recursiveRef") != nil
 }
 
-// writesBesideRef reports whether s, a schema writing a $ref, writes beside it
-// anything that can refuse a value of some instance type.
-func writesBesideRef(s *oas3.Schema) bool {
-	return s != nil && (writesType(s) || len(s.GetAllOf()) > 0 || passesOver(s))
+// writesBesideRef reports whether s, a reference site under reference, writes
+// beside it anything that can refuse a value of some instance type.
+func writesBesideRef(s *oas3.Schema, reference string) bool {
+	return s != nil && (writesType(s) || len(s.GetAllOf()) > 0 || passesOver(s, reference))
 }
 
 // entry is what one flattened entry adds. A wrapper adds only its own `type`,

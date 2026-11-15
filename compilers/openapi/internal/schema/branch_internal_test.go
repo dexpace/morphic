@@ -24,8 +24,3 @@ func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
 	require.True(t, ok)
 	assert.Nil(t, refBranchTarget(l.Ctx.Bindings(), decl.GetSchema().GetAllOf()[0]))
 }
-
-func TestIsRefBranch_Nil(t *testing.T) {
-	t.Parallel()
-	assert.False(t, isRefBranch(nil))
-}

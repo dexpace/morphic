@@ -112,7 +112,7 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := openapitest.SchemaFromYAML(t.Context(), t, tc.body).GetSchema()
-			assert.Equal(t, tc.want, writesBound(s))
+			assert.Equal(t, tc.want, writesBound(nil, s))
 		})
 	}
 }

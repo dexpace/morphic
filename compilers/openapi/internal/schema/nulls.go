@@ -18,7 +18,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -235,7 +234,7 @@ func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
 	sites := []*landing{landingOf(n.c, js)}
 	var aliases []nullHop
 	hop, at := n.refs.DeclaredAt(js)
-	for i := 1; i < e.Chain.Hops && hop != nil && resolve.IsRefSite(hop, hop.GetSchema()) && !sites[len(sites)-1].kept; i++ {
+	for i := 1; i < e.Chain.Hops && hop != nil && n.refs.RefSite(hop) && !sites[len(sites)-1].kept; i++ {
 		aliases = append(aliases, nullHop{s: hop.GetSchema(), nullable: definesNullableIn(n.c, at.Doc)})
 		sites = append(sites, landingOf(n.c, hop))
 		hop, at = n.refs.DeclaredAt(hop)
@@ -498,7 +497,7 @@ func isNullValue(node values.Value) bool {
 func unionNullReading(c lowering.Ctx, s *oas3.Schema) nullReading {
 	out := alike(nullSilent)
 	for _, b := range slices.Concat(s.GetOneOf(), s.GetAnyOf()) {
-		if !inlineBranch(b) {
+		if !inlineBranch(c.Bindings(), b) {
 			continue
 		}
 		r, ok := nullAloneReading(c, b.GetSchema())
@@ -631,7 +630,7 @@ func nullableVoices(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
 		if !allOfDecides(c, s) {
 			return nil
 		}
-		comp := allOfBranches(s, "")
+		comp := allOfBranches(c.Bindings(), s, "")
 		var out []allOfBranch
 		for i, speaks := range voicesAmong(c, s) {
 			e := comp.branches[i]
@@ -658,7 +657,7 @@ func (n *nulls) conjunct(b *oas3.JSONSchema[oas3.Referenceable], site nullSite) 
 		return alike(nullSilent)
 	}
 	s := b.GetSchema()
-	if resolve.IsRefSite(b, s) {
+	if n.refs.RefSite(b) {
 		return n.ref(b, site)
 	}
 	return n.schema(s, site)

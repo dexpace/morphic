@@ -75,8 +75,8 @@ func conjunctSchemas(c lowering.Ctx, r refinement, s *oas3.Schema) []*oas3.Schem
 	out := []*oas3.Schema{s}
 	for _, e := range r.comp.branches {
 		bs := e.schema.GetSchema()
-		if isRefBranch(e.schema) {
-			bs = DecidingSchema(c, c.RefScope().TargetSchema(e.schema, bs))
+		if c.Bindings().RefSite(e.schema) {
+			bs = DecidingSchema(c, c.RefScope().TargetSchema(e.schema))
 		}
 		if bs != nil {
 			out = append(out, bs)

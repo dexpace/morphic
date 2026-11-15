@@ -4483,8 +4483,9 @@ schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2)
 where that lands on a fragment a `$dynamicAnchor` created, so the anchor it names dynamically is one
 the resource it names declares. Anywhere else it is the `$ref` it spells: a pointer, a plain name an
 `$anchor` declares, another document, a name declared nowhere in the resource it names. It then
-lowers and binds as that `$ref` does, through [`references`](#references), reporting nothing where
-it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
+lowers and binds as that `$ref` does, through [`references`](#references), at every position and to
+every reader, which each ask the binding table whether a schema is a reference site rather than the
+model whether it writes a `$ref`, reporting nothing where it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
 through it being an `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)); one resolving
 nowhere lowers the top type, keeping nothing. A name declared more than once in the resource it
 names, one of the declarations a `$dynamicAnchor` of the reference's document, and one a merge past
@@ -4569,6 +4570,7 @@ written beside a reference that expands is read as one beside a `$ref` is
   `bind.TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead`,
   `bind.TestBind_ReadsADynamicRefAMergeMayHideTheAnchorOfAsDynamic`,
   `e2e.TestCompile_ADynamicRefNamingNoDynamicAnchorReadsAsTheRefItSpells`,
+  `e2e.TestCompile_AStaticDynamicRefLowersAsItsRefTwinAtEveryPosition`,
   `e2e.TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef`,
   `e2e.TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef`,
   `e2e.TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference`,

@@ -108,7 +108,7 @@ func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 		"Chain":    target,
 	} {
 		js := b.component(t, name)
-		got := b.scope.TargetSchema(js, js.GetSchema())
+		got := b.scope.TargetSchema(js)
 		if want == nil {
 			assert.Nil(t, got, name)
 			continue
@@ -121,10 +121,10 @@ func TestScope_TargetSchema_TheEndOfTheChainOrNothing(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "external", b.scope.Bindings.At(e.Chain.End).GetSchema().GetTitle(), "the chain ends there")
 	end := b.scope.Bindings.At(e.Chain.End).GetSchema()
-	assert.Same(t, end, b.scope.TargetSchema(other, other.GetSchema()), "a $ref into another document ends on E")
+	assert.Same(t, end, b.scope.TargetSchema(other), "a $ref into another document ends on E")
 
 	via := b.component(t, "Via")
-	assert.Nil(t, resolve.Scope{}.TargetSchema(via, via.GetSchema()), "no bindings, no referent")
+	assert.Nil(t, resolve.Scope{}.TargetSchema(via), "no bindings, no referent")
 }
 
 // TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne pins what counts as
@@ -175,25 +175,6 @@ func TestScope_NamesReferent_ADeclaredTargetOrAResolvedOne(t *testing.T) {
 	assert.False(t, none.scope.NamesReferent(none.component(t, "ToUser")),
 		"a component the lowering does not declare is no target, though the $ref landed on it")
 	assert.False(t, resolve.Scope{}.NamesReferent(b.component(t, "ToUser")), "no bindings, no target")
-}
-
-// TestIsRefSite_IncludesTheDegenerateRef pins the deliberately broad test. A
-// position carrying a $ref field is $ref-shaped even when the ref is empty:
-// callers here ask "is there a $ref-carrying body", not "is there a followable
-// reference", and reading the narrower question would treat {$ref: ""} as an
-// ordinary schema body.
-func TestIsRefSite_IncludesTheDegenerateRef(t *testing.T) {
-	t.Parallel()
-	ref := openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/T'}\n")
-	assert.True(t, resolve.IsRefSite(ref, ref.GetSchema()))
-
-	empty := openapitest.SchemaFromYAML(t.Context(), t, "{$ref: ''}\n")
-	assert.True(t, resolve.IsRefSite(empty, empty.GetSchema()),
-		"a present but empty $ref still carries a Ref field")
-
-	plain := openapitest.SchemaFromYAML(t.Context(), t, "type: string\n")
-	assert.False(t, resolve.IsRefSite(plain, plain.GetSchema()))
-	assert.False(t, resolve.IsRefSite(plain, nil), "a boolean schema carries no body to inspect")
 }
 
 func TestResolveComponentRef(t *testing.T) {

@@ -1505,9 +1505,9 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 // TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict pins a structure
 // writing no `type` beside a string, where a schema its allOf reaches writes
 // what the read of instance types does not follow but which can refuse a
-// string: a union, a `not`, a condition, an `enum` or `const`, a keyword beside
-// an entry's or an alias's $ref, a $ref landing on nothing or on `false`, or
-// a `false` entry.
+// string: a union, a `not`, a condition, an `enum` or `const`, a dynamic
+// reference, a keyword beside an entry's or an alias's $ref, a $ref landing on
+// nothing or on `false`, or a `false` entry.
 // The structure may admit no string, so the pair stays the conflict it was. A
 // `true` entry, and an alias of a structure holding only docs, refuse nothing,
 // so the string still narrows them.
@@ -1522,6 +1522,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
     AliasOneOf: {$ref: '#/components/schemas/Props', oneOf: [{type: object}]}
     AliasDoc: {$ref: '#/components/schemas/Props', description: d}
     Refuses: false
+    Anchored: {$dynamicAnchor: dyn, properties: {a: {type: string}}}
     T:
       allOf:
         - {properties: {f: {type: string}}}
@@ -1537,7 +1538,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		"{$ref: '#/components/schemas/Empty', type: object}",
 		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
 		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
-		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#/components/schemas/Props'}",
+		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#dyn'}",
 		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
 	} {
 		p, diags := compile(entry)

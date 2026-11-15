@@ -330,7 +330,7 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 	if !at.ok {
 		return unionAt{}, 0, false
 	}
-	e := allOfBranches(s, pointer).branches[at.index]
+	e := allOfBranches(c.Bindings(), s, pointer).branches[at.index]
 	u := unionAt{holder: e.schema.GetSchema(), at: e.pointer, disc: s.GetDiscriminator(), discAt: pointer, branch: true}
 	if d := u.holder.GetDiscriminator(); d != nil {
 		u.disc, u.discAt = d, e.pointer
@@ -358,11 +358,11 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
-	branches := allOfBranches(s, "").branches
+	branches := allOfBranches(c.Bindings(), s, "").branches
 	index, count := 0, 0
 	for i, e := range branches {
 		bs := e.schema.GetSchema()
-		if isRefBranch(e.schema) || !declaresUnion(bs) || !setsDeclareShape(c, s, bs.GetOneOf(), bs.GetAnyOf()) {
+		if c.Bindings().RefSite(e.schema) || !declaresUnion(bs) || !setsDeclareShape(c, s, bs.GetOneOf(), bs.GetAnyOf()) {
 			continue
 		}
 		index, count = i, count+1
@@ -391,7 +391,7 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
 	s := annotation.SchemaOf(b)
-	if s == nil || isRefBranch(b) {
+	if s == nil || c.Bindings().RefSite(b) {
 		return own
 	}
 	if _, titled := lowering.NameTitle(c, vptr); titled {
@@ -402,7 +402,7 @@ func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Refe
 	}
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
-	branches := allOfBranches(s, vptr).branches
+	branches := allOfBranches(c.Bindings(), s, vptr).branches
 	base, ok := selectAllOfBase(c, branches)
 	if !ok {
 		return own
@@ -770,7 +770,7 @@ func branchesAdmitOnlyObjects(c lowering.Ctx, s *oas3.Schema) bool {
 func branchesNameReferents(c lowering.Ctx, s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	return !slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return isRefBranch(b) && !c.RefScope().NamesReferent(b)
+		return c.Bindings().RefSite(b) && !c.RefScope().NamesReferent(b)
 	})
 }
 
@@ -828,12 +828,13 @@ func diagUnresolvedBranches(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poi
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
-		if !isRefBranch(b) || c.RefScope().NamesReferent(b) || onLoop(c, b) {
+		if !c.Bindings().RefSite(b) || c.RefScope().NamesReferent(b) || onLoop(c, b) {
 			continue
 		}
+		keyword, ref := refSpelling(c, b)
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
-			"union branch $ref %q is unresolved%s; the branch is kept verbatim", b.GetRef().String(), unresolvedWhy(c, b)))
+			"union branch %s %q is unresolved%s; the branch is kept verbatim", keyword, ref, unresolvedWhy(c, b)))
 	}
 	return diags
 }

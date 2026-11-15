@@ -69,7 +69,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return nil
 	}
-	if !resolve.IsRefSite(js, s) {
+	if !c.Bindings().RefSite(js) {
 		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
 		// reference just as a $ref site does.
 		return keepsAtOutcome(c, ts, s, t, pointer).record(c, ts, p, s, pointer)
@@ -90,7 +90,6 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // dropped to any too, with nothing of its own to report: the load phase reports
 // the loop once.
 func refTypeRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	ref := js.GetRef().String()
 	id, ok := resolveSchemaRef(c, ts, js)
 	if ok {
 		return refNullRef(c, id, js, siteAt(pointer))
@@ -98,8 +97,19 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 	if onLoop(c, js) {
 		return ts.PrimRef(ir.PrimAny), nil
 	}
+	keyword, ref := refSpelling(c, js)
 	return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
-		"unresolved $ref %q%s", ref, unresolvedWhy(c, js))}
+		"unresolved %s %q%s", keyword, ref, unresolvedWhy(c, js))}
+}
+
+// refSpelling is the keyword and the value of the reference js writes, as the
+// load phase reports one landing nowhere: the table's entry's, else the
+// model's $ref, which the budget left unread.
+func refSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (keyword, value string) {
+	if e, ok := c.Bindings().Entry(js); ok {
+		return e.Keyword, e.Hop.Ref
+	}
+	return "$ref", js.GetRef().String()
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no

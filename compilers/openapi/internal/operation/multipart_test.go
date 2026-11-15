@@ -1328,11 +1328,19 @@ func TestPartEncodings_AnEntryNamingNoPartIsKeptWhole(t *testing.T) {
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
 		},
 		{
-			name:  "a $dynamicRef body",
-			doc:   formDoc("", multipartForm, "{$dynamicRef: '#/components/schemas/F'}", "{file: "+pngSource+"}", "components:\n  schemas:\n    F: "+fileForm+"\n"),
+			name: "a $dynamicRef body",
+			doc: formDoc("", multipartForm, "{$dynamicRef: '#form'}", "{file: "+pngSource+"}",
+				"components:\n  schemas:\n    F: {$dynamicAnchor: form, type: object, properties: {file: {type: string, format: binary}}}\n"),
 			media: mfd, keyed: map[ir.PropID][]string{},
 			open: true,
 			kept: []unkeyedEntry{{name: "file", value: pngEntry}},
+		},
+		{
+			name: "a $dynamicRef body naming no $dynamicAnchor, read as the $ref it spells",
+			doc: formDoc("", multipartForm, "{$dynamicRef: '#/components/schemas/F'}", "{file: "+pngSource+", ghost: "+pngSource+"}",
+				"components:\n  schemas:\n    F: "+fileForm+"\n"),
+			media: mfd, keyed: map[ir.PropID][]string{"p/openapi/components/schemas/F/properties/file": {"image/png"}},
+			kept: []unkeyedEntry{{name: "ghost", value: pngEntry}},
 		},
 		{
 			name: "a $ref beside properties",

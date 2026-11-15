@@ -125,12 +125,13 @@ const maxFileRefHops = 64
 // text where X says nothing.
 func besideRefsOpen(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	for range maxFileRefHops + 1 {
-		if js == nil || js.IsBool() || js.GetSchema().Ref == nil {
+		keyword := c.Bindings().RefKeyword(js)
+		if keyword == "" {
 			return true
 		}
 		s := js.GetSchema()
 		if !writesOnly(s, func(key string) bool {
-			return key == "$ref" || key != "type" && openKeyword(schema.TwinKeyword(c, s, key), false /* unions */)
+			return key == keyword || key != "type" && openKeyword(schema.TwinKeyword(c, s, key), false /* unions */)
 		}) {
 			return false
 		}
@@ -164,7 +165,7 @@ func readHead(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (s *oas3.
 // refs resolved it, so a $ref to a boolean schema reads as that boolean; js
 // itself where it is no $ref or its chain ends nowhere.
 func refEnd(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oas3.JSONSchema[oas3.Referenceable] {
-	if js == nil || js.IsBool() || js.GetSchema().Ref == nil {
+	if !refs.RefSite(js) {
 		return js
 	}
 	if end := refs.End(js); end != nil {
