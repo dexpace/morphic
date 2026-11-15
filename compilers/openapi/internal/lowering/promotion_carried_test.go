@@ -67,7 +67,8 @@ func TestCarried_TheOwnKeyBeatsTheScopedOne(t *testing.T) {
 // TestLent_ASingleSidedFactHoldsWhereAnyStatesIt holds redaction and deprecation
 // to one side: a scope stating either lends it to the referent whatever the
 // carrier's own key says, a deprecation's members fill from the nearest scope
-// stating them, and a scope stating nothing lends nothing.
+// stating them, a scope stating nothing lends nothing, and every fact the $ref
+// target lends stays, its members filling what no scope states.
 func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 	p := promoter(lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
 		lowering.TargetRedaction:          {{Key: "x-sensitive"}},
@@ -88,8 +89,13 @@ func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 	assert.Equal(t, lowering.Referent{}, p.Lent(lowering.Referent{}, ir.Unmodeled{}, "schema"))
 	assert.Equal(t, lowering.Referent{}, p.Lent(lowering.Referent{}, ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, "schema"),
 		"the carrier's own key is the caller's to read, not a scope's")
-	from := lowering.Referent{Redacted: true}
-	assert.True(t, p.Lent(from, ir.Unmodeled{}, "schema").Redacted, "what the $ref target lends stays")
+	from := lowering.Referent{Deprecated: true, Redacted: true, Homes: true,
+		Members: ir.Deprecation{Message: "gone", Since: "1", RemovalVersion: "2", RemovalDate: "2099-01-01"}}
+	assert.Equal(t, from, p.Lent(from, ir.Unmodeled{}, "schema"), "what the $ref target lends stays, every fact")
+	scoped := p.Lent(from, ir.Unmodeled{"openapi:schema/x-why": vendorExtension(`"near"`)}, "schema")
+	assert.True(t, scoped.Deprecated && scoped.Redacted && scoped.Homes, "a scope stating a member withdraws no fact")
+	assert.Equal(t, ir.Deprecation{Message: "near", Since: "1", RemovalVersion: "2", RemovalDate: "2099-01-01"},
+		scoped.Members, "the nearest member wins and the target fills the rest")
 }
 
 // TestCarrierScopes_NamesTheSchemaOrTheContentEntryThenItsSchema holds the
