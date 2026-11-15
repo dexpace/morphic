@@ -182,6 +182,9 @@ func (s *sequence) unselectable(a action, err error) ir.Diagnostic {
 		return diag.Newf(ir.SeverityError, diag.BudgetExceeded, a.overlay,
 			"%s: its selectors hold more than the %d nodes an evaluation's nodelists may hold at once; nothing more applies",
 			a.label(), jsonpath.MaxResults)
+	case errors.Is(err, jsonpath.ErrMergeBound):
+		return fail(a, fmt.Errorf("it selects through a mapping whose `<<` merges run deeper than %d levels",
+			nodeview.MergeDepthLimit))
 	default:
 		return fail(a, err)
 	}

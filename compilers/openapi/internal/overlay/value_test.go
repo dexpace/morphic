@@ -83,6 +83,20 @@ func TestApply_RefusesAWriteIntoWhatItCannotMakeItsOwn(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code, "%+v", diags)
 }
 
+// TestApply_RefusesASelectorThroughMergesPastTheDepthItReads pins a target
+// whose selection reads a mapping merging past the depth the compiler
+// expands: the action is refused in the overlay's words, naming the bound.
+func TestApply_RefusesASelectorThroughMergesPastTheDepthItReads(t *testing.T) {
+	t.Parallel()
+	origin, _, diags := applied(t, deepMerge(), v11+"  - target: $['x-m'].*\n    update: 1\n", false)
+
+	assert.False(t, origin.Applied())
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Equal(t, diag.OverlayFailed, diags[0].Code)
+	assert.Equal(t, fmt.Sprintf(`overlay action 1 of 1 (update "$['x-m'].*"): it selects through a mapping whose `+
+		"`<<` merges run deeper than %d levels", nodeview.MergeDepthLimit), diags[0].Message)
+}
+
 // TestApply_RefusesAnOverlayDocumentOfTheWrongShape pins the reader's
 // refusals of objects and references that are no such thing, each at the
 // field it is about.
