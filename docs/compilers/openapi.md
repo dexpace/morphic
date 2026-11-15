@@ -4213,8 +4213,10 @@ A `null` written where a schema belongs states nothing about the values there, s
 schema written, never as the `false` schema the parser decodes it as
 ([`null-schema-is-false`](../parser-library.md#null-schema-is-false)), which admits no value. So is
 any other value that is neither a mapping nor a boolean, a string, a number or a list, which the
-load phase reports as the wrong type, on every route a schema is reached by, a `$ref` included;
-only a written `true` or `false` is a boolean schema. An
+load phase reports as the wrong type where the source's grammar reads a schema, and which a `$ref`
+naming that position reads alike; one a `$ref` reaches in raw YAML or another document is reported
+as that `$ref`'s `openapi/unresolved-ref` instead ([`references`](#references)), and the `$ref`
+lowers the top type. Only a written `true` or `false` is a boolean schema. An
 entry, which exists whatever its value — a property, a composition branch, a component, a
 `prefixItems` position, a parameter's, header's or media type's `schema` — lowers as the empty
 schema does: to the top type, or as an `allOf` branch to nothing composed, and a `$ref` naming it as
