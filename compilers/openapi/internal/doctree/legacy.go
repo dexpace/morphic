@@ -359,15 +359,21 @@ func integerOf(neg bool, text string, base int) reading {
 
 // decimalOf reads text, digits holding at most one point and then an exponent,
 // as a number: its significant digits and the power of ten they are scaled by.
-// An exponent past maxSpelledExp reads the number as its text.
+// An exponent past maxSpelledExp reads the number as its text, signed and in
+// lower case, which both versions' readings of one scalar then spell alike.
 func decimalOf(neg bool, text string) (reading, bool) {
-	mantissa, exp, _ := strings.Cut(strings.ToLower(text), "e")
+	lower := strings.ToLower(text)
+	mantissa, exp, _ := strings.Cut(lower, "e")
 	e, err := strconv.Atoi(exp)
 	if exp == "" {
 		e, err = 0, nil
 	}
 	if err != nil || e > maxSpelledExp || e < -maxSpelledExp {
-		return reading{kind: asOther, text: "the number " + text}, true
+		sign := ""
+		if neg {
+			sign = "-"
+		}
+		return reading{kind: asOther, text: "the number " + sign + lower}, true
 	}
 	whole, fraction, _ := strings.Cut(mantissa, ".")
 	digits := strings.TrimLeft(whole+fraction, "0")

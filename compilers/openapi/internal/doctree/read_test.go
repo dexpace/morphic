@@ -291,6 +291,7 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 		"        b: {type: integer, default: " + strings.Repeat("9", 310) + "}\n" +
 		"        x: {type: number, default: 1.0e+400}\n" +
 		"        z: {type: number, default: 1e400}\n" +
+		"        u: {type: number, default: 1.0E+1001}\n" +
 		"        y: {type: string}\n"
 
 	doc := read(t, "%YAML 1.1\n---\n"+body)
@@ -315,7 +316,7 @@ func TestRead_AYAML11DocumentRecordsWhatItReadsOtherwise(t *testing.T) {
 		{"1e400", 0, false},
 	}
 	assert.Equal(t, want, got, "in document order; nothing for 0X1F, abc, a number past float64's range "+
-		"both versions read, the quoted version, the key y or 3.1.0")
+		"or past the spelled exponent both versions read, the quoted version, the key y or 3.1.0")
 
 	for _, text := range []string{body, "%YAML 1.2\n---\n" + body, "%YAML 1.3\n---\n" + body} {
 		assert.Empty(t, read(t, text).Legacy, "a document that does not declare YAML 1.1 records nothing")

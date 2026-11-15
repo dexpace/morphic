@@ -29,7 +29,7 @@ func TestYAML11Reading_ReadsEachTypeByItsPublishedExpression(t *testing.T) {
 		"0b": "a string", "0x": "a string", "1:60": "a string", ":30": "a string", "1e3": "a string",
 		"1.e3": "a string", "1:30.5e+3": "a string", "x1.5": "a string", "a:1.5": "a string", "1.5.5": "a string",
 		".": "a string", "1.5e+x": "a string", "1:3a": "a string", "0b12": "a string", "1a:30": "a string",
-		"0b_": "the integer 0",
+		"0b_": "the integer 0", "-1.0E+1001": "the number -1.0e+1001",
 	} {
 		assert.Equal(t, want, yaml11Reading(text).String(), "%q", text)
 	}
@@ -47,6 +47,7 @@ func TestCoreReading_ReadsTheTagResolveGave(t *testing.T) {
 		{"!!float", ".inf", "positive infinity"}, {"!!float", "1.5", "the number 1.5"},
 		{"!!float", "089", "the integer 89"}, {"!!str", "089", "the integer 89"},
 		{"!!str", "1.5e400", "the number 15" + strings.Repeat("0", 399)}, {"!!str", "0x1f", "a string"},
+		{"!!str", "-1.0E+1001", "the number -1.0e+1001"}, {"!!float", "-1e-1001", "the number -1e-1001"},
 	} {
 		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: tc.tag, Value: tc.text}
 		assert.Equal(t, tc.want, coreReading(n).String(), "%s %q", tc.tag, tc.text)
