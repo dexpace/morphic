@@ -4,6 +4,7 @@
 package annotation
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -82,7 +83,7 @@ components:
 // and the other does not cannot arise.
 func TestDeclaresAny_AsksTheRawNodes(t *testing.T) {
 	t.Parallel()
-	assert.True(t, DeclaresAny(schemaFromYAML(t, "$id: 'urn:a'\ntype: string\n"), DialectKeywords))
-	assert.False(t, DeclaresAny(schemaFromYAML(t, "type: string\n"), DialectKeywords))
+	assert.True(t, DeclaresAny(schemaFromYAML(t, "$id: 'urn:a'\ntype: string\n"), slices.Collect(DialectKeywords())))
+	assert.False(t, DeclaresAny(schemaFromYAML(t, "type: string\n"), slices.Collect(DialectKeywords())))
 	assert.False(t, DeclaresAny(schemaFromYAML(t, "type: string\n"), nil))
 }

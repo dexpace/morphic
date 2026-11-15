@@ -242,7 +242,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	others := l.bound.others
-	l.bound = bindAll(ctx, table, l.doc, l.sibs, l.media)
+	l.bound = bindAll(ctx, table, l.doc, &l.sibs, l.media)
 	l.bound.others = others
 	l.resolved = slices.Concat(l.bound.others.found, unread, l.bound.faults.diags(l.sites, table), bindingDiags(l.sites, table),
 		buildFailures(l.sites, l.bound.built, l.bound.objects))

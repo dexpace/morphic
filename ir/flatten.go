@@ -119,6 +119,9 @@ type flattener struct {
 	// narrow is what a [NarrowedShapes] walk reads beside the flattening, nil
 	// in a [FlattenedProperties] walk.
 	narrow *narrowState
+	// query is the one member a [MemberReader] walk reads in place of every
+	// member, nil in any other walk.
+	query *memberQuery
 }
 
 // member is one wire name's declarations, in the order the walk reads them.
@@ -141,16 +144,25 @@ type frame struct {
 
 // flatten is [FlattenedProperties] over f's registry.
 func (f *flattener) flatten(root TypeID) Flattening {
+	if !f.read(root) {
+		return Flattening{}
+	}
+	return f.result()
+}
+
+// read walks the model root names, read through alias scalars, and reports
+// false where it names no model, which has no member to read.
+func (f *flattener) read(root TypeID) bool {
 	id := f.resolve(root)
 	m, ok := f.types[id].(*Model)
 	if !ok || m == nil {
-		return Flattening{}
+		return false
 	}
 	if f.narrow != nil {
 		f.narrow.root = id
 	}
 	f.walk(id, m)
-	return f.result()
+	return true
 }
 
 // walk reads the model id names and every model it composes in layout order.
@@ -301,8 +313,14 @@ func (f *flattener) resolve(id TypeID) TypeID {
 }
 
 // emit reads the model id names: each of its own properties, in source order,
-// as a declaration of its wire name, and each name its Requires lists.
+// as a declaration of its wire name, and each name its Requires lists. A
+// [MemberReader] walk reads the declaration of its one wire name alone.
 func (f *flattener) emit(id TypeID, m *Model) {
+	if f.query != nil {
+		f.steps++
+		f.query.emit(id, m)
+		return
+	}
 	for i := range m.Properties {
 		f.steps++
 		d := PropertyDecl{Owner: id, Property: &m.Properties[i]}
@@ -346,10 +364,10 @@ func (f *flattener) result() Flattening {
 	return out
 }
 
-// flat returns the member as a FlatProperty: the last declaration read takes
-// it, and every other is overridden, listed at its first reading.
+// flat returns the member as a FlatProperty: the declaration taken takes it,
+// and every other is overridden, listed at its first reading.
 func (f *flattener) flat(mb member) FlatProperty {
-	last := mb.reads[len(mb.reads)-1]
+	last := taken(mb.reads)
 	fp := FlatProperty{PropertyDecl: last, Required: f.required[last.Property.EffectiveWireName()]}
 	var listed map[PropID]bool
 	for _, d := range mb.reads {
@@ -368,6 +386,14 @@ func (f *flattener) flat(mb member) FlatProperty {
 		fp.Overridden = append(fp.Overridden, d)
 	}
 	return fp
+}
+
+// taken returns the declaration a member takes of reads, its wire name's
+// declarations in the order the walk reads them, which holds one at least: the
+// last. It is the one rule [FlattenedProperties] and [MemberReader] take a
+// declaration by, so a change to it changes both.
+func taken(reads []PropertyDecl) PropertyDecl {
+	return reads[len(reads)-1]
 }
 
 // sensitive reports whether id names a type that is Sensitive, or whose Base

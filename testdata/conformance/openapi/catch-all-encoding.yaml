@@ -1,0 +1,49 @@
+openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /snippet:
+    put:
+      operationId: putSnippet
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata: {type: object, properties: {main_module: {type: string}}}
+              additionalProperties:
+                type: array
+                items: {type: string, format: binary}
+      responses: {"204": {description: ok}}
+  /assets:
+    post:
+      operationId: uploadAssets
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: {type: string, format: binary}
+      responses: {"204": {description: ok}}
+  /mixed:
+    post:
+      operationId: mixed
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              oneOf:
+                - {$ref: '#/components/schemas/Files'}
+                - {$ref: '#/components/schemas/Notes'}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    Files:
+      type: object
+      patternProperties: {'^f_': {type: string, format: binary}}
+      additionalProperties: false
+    Notes:
+      type: object
+      additionalProperties: {type: string}

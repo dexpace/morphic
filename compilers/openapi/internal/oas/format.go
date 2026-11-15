@@ -38,6 +38,8 @@ func validFormat(format Format, s string) bool {
 		return validServerURL(s)
 	case MediaRanges:
 		return validMediaRanges(s)
+	case MediaTypeKey:
+		return validMediaType(s)
 	case AnchorName:
 		return validAnchorName(s)
 	case ResourceURI:
@@ -98,13 +100,20 @@ func validMediaRanges(s string) bool {
 		if element == "" {
 			continue
 		}
-		mediaType, _, err := mime.ParseMediaType(element)
-		if err != nil || !strings.Contains(mediaType, "/") {
+		if !validMediaType(element) {
 			return false
 		}
 		named = true
 	}
 	return named
+}
+
+// validMediaType reports whether s is a media type or a media type range, its
+// parameters included: a type and a subtype, each a token, so a wildcard
+// either side passes and no finer reading of a range is made.
+func validMediaType(s string) bool {
+	mediaType, _, err := mime.ParseMediaType(s)
+	return err == nil && strings.Contains(mediaType, "/")
 }
 
 // validURI parses s as a URI reference, or returns nil when it holds a space

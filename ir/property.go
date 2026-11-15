@@ -169,7 +169,8 @@ func (p *Property) EffectiveWireName() string {
 type Header struct {
 	Property
 	// Style is how the value is written into the field, in
-	// HTTPParamBinding.Style's vocabulary, as declared; "" = none, so simple.
+	// HTTPParamBinding.Style's vocabulary, as declared; "" = none, so simple,
+	// unless the media type Encoding names serializes the value.
 	Style string `json:"style,omitempty"`
 	// Explode is the header's explode, as declared, which
 	// HTTPParamBinding.Explode is a parameter's; nil = the style's default.

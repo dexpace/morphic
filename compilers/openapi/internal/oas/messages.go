@@ -198,9 +198,15 @@ func (r *reporter) laterSibling(obj Object, key string, minor, since Minor, ptr 
 // model reads the last copy and drops the rest without a word. what names the
 // mapping in the message.
 func (w *walker) repeated(node *yaml.Node, ptr jsontext.Pointer, what string) {
-	for _, key := range nodeview.RepeatedKeys(node) {
-		w.report(ir.SeverityWarning, classDuplicate, ptr.AppendToken(key),
-			"%s writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)", what, key, w.minor)
+	keys := nodeview.RepeatedKeys(node)
+	if len(keys) == 0 {
+		return
+	}
+	places := newKeyPlacer(w, node, ptr)
+	for _, key := range keys {
+		w.add(diag.Newf(ir.SeverityWarning, diag.Validation+"/"+classDuplicate, places.place(key),
+			"%s writes the key %q more than once, and only the last copy is read in OpenAPI %s (Format)",
+			what, key, w.minor), ptr.AppendToken(key))
 	}
 }
 
@@ -224,6 +230,7 @@ func describeFormat(format Format) string {
 		VersionNumber:     "a version number of the form major.minor.patch",
 		ServerURL:         "a URL reference, its variables aside",
 		MediaRanges:       "a comma-separated list of media types and media type ranges",
+		MediaTypeKey:      "a media type or a media type range",
 		AnchorName:        "a name of a letter or '_', then letters, digits, '-', '_' and '.'",
 		PlainName:         "a name of a letter, then letters, digits, '-', '_', ':' and '.'",
 		PlainNameURI:      "a URI reference whose fragment, where written alone and no JSON pointer, is a name of a letter, then letters, digits, '-', '_', ':' and '.'",

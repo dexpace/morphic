@@ -45,7 +45,7 @@ witnessing it.
 
 ### `negation`
 
-- Witnesses: `negation-not`
+- Witnesses: `negation-not`, `kept-ref-landings`
 
 ### `enums-string`
 
@@ -84,7 +84,8 @@ witnessing it.
 
 ### `defaults`
 
-- Witnesses: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `param-ref-inheritance`
+- Witnesses: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `param-ref-inheritance`,
+  `ref-chain-annotations`
 
 ### `constraints`
 
@@ -97,7 +98,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`, `extension-redaction`, `secret-inference`
+- Witnesses: `secret-format`, `extension-redaction`, `secret-inference`, `carried-keys`
 
 ### `recursive-types`
 
@@ -121,11 +122,15 @@ witnessing it.
 
 ### `operation-grouping`
 
-- Witnesses: `tags-grouping`, `group-identity`, `tags-grouping-32`
+- Witnesses: `tags-grouping`, `group-identity`, `tags-grouping-32`, `path-prefix-query`
 
 ### `http-binding`
 
 - Witnesses: `param-identity`, `http-binding`, `path-item-operations`, `path-key-fragments`
+
+### `exclusive-parameters`
+
+- Witnesses: `param-choices`
 
 ### `param-styles`
 
@@ -139,7 +144,7 @@ witnessing it.
 
 - Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
   `file-items-32`, `encoding-unkeyed`, `encoding-union-branches`, `encoding-outside-form`,
-  `multipart-defaults-30`, `multipart-defaults-31`, `multipart-defaults-32`
+  `multipart-defaults-30`, `multipart-defaults-31`, `multipart-defaults-32`, `catch-all-encoding`
 
 ### `per-status-errors`
 
@@ -147,7 +152,7 @@ witnessing it.
 
 ### `streaming-server`
 
-- Witnesses: `sequential-media`, `streaming-media-30`, `streaming-media-31`
+- Witnesses: `sequential-media`, `streaming-media-30`, `streaming-media-31`, `stream-terminator`
 
 ### `streaming-client`
 
@@ -163,11 +168,12 @@ witnessing it.
 
 ### `operation-links`
 
-- Witnesses: `response-links`
+- Witnesses: `response-links`, `body-alias`
 
 ### `pagination`
 
-- Witnesses: `extension-pagination`, `pagination-inferred`
+- Witnesses: `extension-pagination`, `pagination-inferred`, `body-alias`, `pagination-flag`,
+  `pagination-body`, `pagination-links`, `extension-pagination-root`
 
 ### `long-running-operations`
 
@@ -203,7 +209,7 @@ witnessing it.
 
 ### `stability`
 
-- Witnesses: `extension-stability`
+- Witnesses: `extension-stability`, `carried-keys`
 
 ### `examples`
 
@@ -212,11 +218,11 @@ witnessing it.
 ### `docs-summary-description`
 
 - Witnesses: `param-ref-inheritance`, `path-item-docs`, `docs-summary-desc`, `request-body-docs`,
-  `ref-site-docs`, `response-summary-32`
+  `ref-site-docs`, `response-summary-32`, `ref-chain-annotations`
 
 ### `vendor-extensions`
 
-- Witnesses: `extensions-x`, `inline-annotations`
+- Witnesses: `extensions-x`, `inline-annotations`, `carried-keys`, `ref-beside-keys`
 
 ### `positional-encoding`
 

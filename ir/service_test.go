@@ -135,6 +135,7 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 		Availability: populatedAvailability(),
 		Stability:    ir.StabilityBeta,
 		Unmodeled:    populatedUnmodeled(),
+		Inferred:     "extension-promotion",
 	})
 }
 

@@ -783,3 +783,69 @@ it sees. Changes made together in one bump are listed together under it.
   ([annotations](./annotations.md#docs-deprecation-examples)). No compiler in this repository
   wrote any of them, and none writes `Input` or mints either ID, so a document it compiled changes
   only its stamp. A consumer pinned to the prior version refuses the document.
+- **0.68.0** — `Pagination.HasMore`, the page's flag saying another page follows, and the stop
+  `no_more`, ending a walk at a page whose flag is false, null or absent
+  ([pagination](./interaction-patterns.md#pagination)); `no_more` with no `HasMore` is
+  `ir/page-stop-without-flag`. The OpenAPI compiler fills them from a promotion target
+  `pagination.hasMore` and from a cursor walk's page stating one flag, and writes for the first time
+  a walk whose inputs are members of the request body or of an object query parameter, `NextLink`
+  and `PrevLink` beside a walk an input continues, a header `NextCursor`, and the strategies
+  `next_link` and `link_header` where no input continues a page
+  ([`pagination-policy`](../compilers/openapi.md#pagination-policy)). `Parameter.Encoding`, a
+  parameter's own encoding, overriding its type's field by field as `Property.Encoding` does
+  ([encodings](./constraints.md#encodings)); the OpenAPI compiler writes `http-date` there on a
+  header parameter its HTTP-date reading reaches
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). `Content.Inferred`, the
+  heuristics that filled a field from a key the content keeps, the marker a promotion from a content
+  records ([promotion](./unmodeled.md#promotion)); the OpenAPI compiler writes for the first time a
+  response stream's `Terminator` and `Condition`, from the promotion targets `stream.terminator` and
+  `stream.condition` ([`streaming-media`](../compilers/openapi.md#streaming-media)).
+  `Operation.ParamChoices`, with `ParamChoice` and `ParamVariant`, the choices a source states among
+  parameters it declares one by one, the parameter list untouched
+  ([choices among parameters](./operations.md#choices-among-parameters));
+  `ir/param-choice-single`, `ir/param-variant-empty` and `ir/param-choice-name-duplicate` are new
+  verifier codes. Three markers are renamed, as each inference's marker is `<fact>-inference`:
+  `streaming-media-type` is `streaming-inference`, `binary-media-type` is `binary-inference` and
+  `nullable-widening` is `nullable-inference`. `TagDef.Unmodeled`, the keys a tag object writes, and
+  `OperationGroup.Inferred`, the marker a promotion from a key the group keeps records
+  ([carriers](./unmodeled.md#carriers), [promotion](./unmodeled.md#promotion)). What a parameter's or a
+  header's schema writes is keyed beneath the schema's scope, `openapi:schema/<key>`, or
+  `openapi:content/<mt>/schema/<key>` under an elected content entry, where it was unscoped beside the
+  object's own keys ([keys](./unmodeled.md#keys)). What a Reference Object writes beside its `$ref`,
+  dropped before, is kept on the node its use lowers to under `openapi:reference/<i>/<key>`; the
+  `summary` and `description` a content entry's chain writes, kept under
+  `openapi:content/<mt>/summary` and `…/description` as the nearest position's, move to
+  `openapi:content/<mt>/reference/<i>/…`, every position's. An entry another entry of its carrier
+  holds whole, by provenance and value, is no longer kept a second time: `openapi:xml/<x-k>` beside a
+  whole `xml`, a `readOnly` read out of an `allOf` branch kept whole, and
+  `openapi:discriminator/<x-k>` beside a whole `openapi:discriminator`, bar a key the promotion
+  policy reads, which stays where a promotion finds it. A tag's keys, kept on the
+  Document under `openapi:tags/<i>/` and `openapi:tags/<i>/externalDocs/`, move to its `TagDef`,
+  unscoped and under `openapi:externalDocs/`, and the group a tag forms keeps its vendor extensions
+  and the tier they state. `Content.CatchAllEncoding`, with `CatchAllParts`, the encoding of the
+  parts a form body's catch-all admits, keyed by the map or model holding it
+  ([payloads](./payloads.md#a-catch-alls-parts)), which the OpenAPI compiler fills
+  ([`multipart-encoding`](../compilers/openapi.md#multipart-encoding));
+  `ir/catch-all-encoding-empty` is a new verifier code and `ir/encoding-key-unknown-catch-all` a new
+  `pass.Validate` error. An examples entry keyed by the empty string, which lowers unnamed, keeps
+  the key on its `Example` under `openapi:examples/key`, and a parameter serialized through its content
+  states no `HTTPParamBinding.Style` it does not write, where it took its location's default
+  ([HTTP binding](./http-binding.md)). A use of a schema reads each hop of its `$ref` chain, nearest
+  first, an alias's annotations and `default` among them, where it read the chain's end alone, and a
+  carrier takes no `default` where the nearest is one no `Value` holds
+  ([`ref-use-site`](../compilers/openapi.md#ref-use-site)). A parameter or a header takes a
+  redaction or a deprecation an object it carries states, and the tier, `allowReserved` or pagination
+  mark the nearest of them states, its own first; an operation takes its path item's tier where it
+  states none, and a pagination key it writes `true` reads its path item's walk before the
+  document root's ([promotion](./unmodeled.md#promotion)). A value writing a key twice is read at the
+  copy the model reads, where it was refused, and an encoding entry naming no property, a file
+  body's or one under a media type that is neither multipart nor form, is kept `out_of_scope`, where
+  it was `no_ir_home`. The fields beside a path item's `$ref`
+  lower wherever the bindings land it, and each position a schema `$ref` lands on, none in a loop of
+  them, lowers to a node. A 3.2 security requirement key naming no component is read as a
+  reference: a Security Scheme Object it lands on outside the source's `securitySchemes` lowers under
+  its own position's ID in its document's space, which `idSpaces.auth` declares for every document a
+  compile reads, used or not, and a key landing on none mints one unresolved scheme per document
+  writing it, another document's qualifier in its ID ([identity](./identity.md#unresolved-schemes)). A consumer pinned to 0.67.0 refuses the document;
+  one reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker
+  by its old name no longer finds it.

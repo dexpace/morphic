@@ -186,17 +186,19 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
 `))
 	got := lendingBranches(l.Ctx, declared(t, l, "T"))
 	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
-	require.NotNil(t, got[0].ReadOnly)
-	assert.True(t, *got[0].ReadOnly)
-	assert.Equal(t, "d", got[0].GetDescription())
+	assert.Equal(t, jsontext.Pointer("/allOf/2"), got[0].pointer)
+	b := got[0].schema.GetSchema()
+	require.NotNil(t, b.ReadOnly)
+	assert.True(t, *b.ReadOnly)
+	assert.Equal(t, "d", b.GetDescription())
 
 	split, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
 `))
 	got = lendingBranches(split.Ctx, declared(t, split, "T"))
 	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
-	assert.Empty(t, got[0].GetTitle())
-	assert.Equal(t, "d", got[0].GetDescription())
+	assert.Empty(t, got[0].schema.GetSchema().GetTitle())
+	assert.Equal(t, "d", got[0].schema.GetSchema().GetDescription())
 }
 
 // TestLentBy_ReadsATargetOnce pins that what a schema lends is read once a run
@@ -207,12 +209,13 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
     T: {allOf: [{$ref: '#/components/schemas/Str'}, {description: d}]}
 `))
-	s := declared(t, l, "T")
-	first := lentBy(l.Ctx, s).Referents
+	js, ok := l.Ctx.Doc.Components.Schemas.Get("T")
+	require.True(t, ok)
+	first := lentBy(l.Ctx, js).Referents
 	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
 
-	s.AllOf = nil
-	assert.Equal(t, first, lentBy(l.Ctx, s).Referents, "the second ask reads what the first read")
+	js.GetSchema().AllOf = nil
+	assert.Equal(t, first, lentBy(l.Ctx, js).Referents, "the second ask reads what the first read")
 }
 
 // TestAdmission_RendersASchemaOnce pins that a schema's text is rendered once a run

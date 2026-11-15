@@ -91,7 +91,7 @@
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file": {
-                        "inferred": "binary-media-type",
+                        "inferred": "binary-inference",
                         "contentTypes": [
                           "image/png"
                         ],

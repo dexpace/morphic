@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -257,7 +258,7 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	types := compile.NewTypes()
 	types.Register("", nil)
 
-	_, diags, err := openapi.Run(t.Context(), loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), types)
+	_, diags, err := openapi.Run(t.Context(), loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), types, whole.New)
 	require.NoError(t, err)
 
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {

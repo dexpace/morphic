@@ -24,9 +24,12 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/paramchoice"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/stream"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -116,7 +119,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → document metadata;
 	// assembles Document
-	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
+	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(), whole.New)
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
@@ -180,16 +183,16 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
-// first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then deferred
-// settlements; then document metadata.
+// first, so operations' refs find interned IDs; then security schemes, which
+// requirements reference; then the service walk and deferred settlements; then
+// the steps reading whole.Document.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. It drops the document, since
 // the phases honouring ctx stop mid-registry, leaving references to types never
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
-func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
+func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*ir.Document) *whole.Document) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
 	out := &ir.Document{}
@@ -216,6 +219,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
+	schema.PromiseLandings(c, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
 	// (compile.Types.Promise), and what was deferred until the registry is whole
@@ -235,27 +239,34 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// states. A link names operations and members anywhere in the service, and
 	// a server it names registers then too, so the servers are read after it.
 	// A replacement may be declared after what it replaces, and what a name
-	// implies turns on the type a $ref names, built in any order.
+	// implies turns on the type a $ref names, built in any order. Each step
+	// reads the document through w, which lists and indexes it once for all;
+	// newWhole is whole.New, which a test counts.
+	w := newWhole(out)
 	srv := servers.Reopen(lowered.Servers)
-	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
+	acc.AppendAll(lowered.Links.Resolve(c, w, srv))
 	out.Servers = srv.Servers()
+	// The document's root is lowered before the promotions, as a pagination key
+	// an operation writes true reads the root's; its findings keep their place.
+	m, metaDiags := document.Lower(c)
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	// The operations whose extensions speak of a pagination are what the
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that
 	// there is none, wins over what the names an operation uses suggest.
-	stated, pageDiags := pagination.Promote(c, &out.Services[0], reg)
+	stated, pageDiags := pagination.Promote(c, w, out.Unmodeled)
 	acc.AppendAll(pageDiags)
-	acc.AppendAll(replacement.Resolve(c, out))
-	acc.AppendAll(replacement.Infer(c, out))
-	acc.AppendAll(convention.Apply(c, out))
-	acc.AppendAll(pagination.InferWalks(c, out, stated))
+	acc.AppendAll(stream.PromoteDetail(c, w))
+	acc.AppendAll(paramchoice.PromoteChoices(c, w))
+	acc.AppendAll(replacement.Resolve(c, w))
+	acc.AppendAll(replacement.Infer(c, w))
+	acc.AppendAll(convention.Apply(c, w))
+	acc.AppendAll(pagination.InferWalks(c, w, stated))
 
-	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
 	// An extension under a prefix the policy owns is judged once every node
 	// that could keep one is built, the document's own Unmodeled included.
@@ -326,10 +337,10 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
 			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
 		},
-		Streaming:              o.StreamingMedia,
-		Binary:                 o.BinaryMedia,
+		StreamingInference:     o.StreamingInference,
+		BinaryInference:        o.BinaryInference,
 		Promotions:             o.Promotions,
-		NullableWidening:       o.NullableWidening,
+		NullableInference:      o.NullableInference,
 		DiscriminatorInference: o.DiscriminatorInference,
 		IdempotencyInference:   o.IdempotencyInference,
 		SecretInference:        o.SecretInference,

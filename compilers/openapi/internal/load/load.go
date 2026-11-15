@@ -5,6 +5,7 @@ package load
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -275,11 +276,15 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 
 // sourceChecks runs the rules the compiler checks over the source: the
 // repeats of a parameter or servers list, each entry read through the
-// bindings, as the lowering reads it.
+// bindings, as the lowering reads it, in the lists the source's walk meets and
+// in those of each path item a reference lands on, in whichever document
+// (landingRepeats).
 func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Siblings,
 	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	return listRepeats(sites, sibs, bindings, walkSource(ctx, doc, sibs, media))
+	at := func(p jsontext.Pointer) ir.Provenance { return sites.source.At(p) }
+	return append(listRepeats(at, sibs, bindings, walkSource(ctx, doc, sibs, media)),
+		landingRepeats(ctx, sites, sibs, bindings)...)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

@@ -85,7 +85,7 @@
                     "description": "Filters codes by leading characters."
                   },
                   "unmodeled": {
-                    "openapi:x-facet": {
+                    "openapi:schema/x-facet": {
                       "reason": "vendor_extension",
                       "value": "prefix",
                       "provenance": {
@@ -154,7 +154,7 @@
                         "description": "Opaque cursor for the next page."
                       },
                       "unmodeled": {
-                        "openapi:x-sensitive": {
+                        "openapi:schema/x-sensitive": {
                           "reason": "vendor_extension",
                           "value": false,
                           "provenance": {

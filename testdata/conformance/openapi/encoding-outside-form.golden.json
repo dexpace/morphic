@@ -75,7 +75,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/f": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "contentType": "text/plain",
                           "x-note": "kept"
@@ -151,7 +151,7 @@
                     },
                     "unmodeled": {
                       "openapi:encoding/f": {
-                        "reason": "no_ir_home",
+                        "reason": "out_of_scope",
                         "value": {
                           "contentType": "image/png"
                         },

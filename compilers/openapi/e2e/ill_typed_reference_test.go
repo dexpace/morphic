@@ -363,9 +363,10 @@ func TestCompile_AnAliasedNullRefIsReadWithoutAFault(t *testing.T) {
 }
 
 // TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten holds an entry of a
-// section with no registry, whose $ref is a list, to the one error at its $ref
-// and to its verbatim copy, which shows every key the source wrote: the entry
-// is read as left out, and the lossless channel still shows it.
+// section with no registry, whose $ref is a list, to the one error at its $ref,
+// beside the warning for each key written beside a $ref, and to its verbatim
+// copy, which shows every key the source wrote: the entry is read as left out,
+// and the lossless channel still shows it.
 func TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +
@@ -374,9 +375,13 @@ func TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten(t *testing.T) {
 	doc, diags := compileText(t, "spec.yaml", spec, openapi.Options{})
 
 	require.NotNil(t, doc, "%+v", diags)
-	require.Len(t, diags, 1, "%+v", diags)
+	require.Len(t, diags, 3, "%+v", diags)
 	assert.Equal(t, typeMismatch, diags[0].Code)
 	assert.Equal(t, "/components/parameters/Unused/$ref", string(diags[0].Provenance.Pointer))
+	for i, key := range []string{"name", "in"} {
+		assert.Equal(t, diag.UnknownObjectKey, diags[i+1].Code)
+		assert.Equal(t, "/components/parameters/Unused/"+key, string(diags[i+1].Provenance.Pointer))
+	}
 	kept, ok := doc.Unmodeled["openapi:components/parameters/Unused"]
 	require.True(t, ok, "the entry is kept verbatim: %v", doc.Unmodeled)
 	assert.JSONEq(t, `{"$ref":["x"],"name":"u","in":"query"}`, string(kept.Value))

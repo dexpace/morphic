@@ -48,6 +48,9 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 	}{
 		{"a budget one short of the objects", five, budget.AtMost(4), true},
 		{"a budget of the objects", five, budget.AtMost(5), false},
+		// One schema, then a list and three mappings read as no object.
+		{"a budget one short of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(4), true},
+		{"a budget of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(5), false},
 		{"no budget", five, budget.Unbounded(), false},
 		{"depth", deep, budget.Unbounded(), true},
 	}
@@ -63,6 +66,26 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 		})
 	}
+}
+
+// TestKeyPlace_NamesNoPointerItCannotDerive holds an aliased key of an object
+// placed by its line alone, as a merge source written inline is, to no pointer:
+// only the root's key is the empty pointer's own, so only it is named.
+func TestKeyPlace_NamesNoPointerItCannotDerive(t *testing.T) {
+	doc := openapitest.YAMLDocument(t, "openapi: 3.1.0\nx-m: &m 1\ninfo: {title: t, version: v, bogus: *m}\npaths: {}\nroot: *m\n")
+	diags := NewChecker().Check(t.Context(), doc, "3.1.0", Options{
+		Locate: func(jsontext.Pointer) ir.Provenance { return ir.Provenance{Position: ir.Position{Line: 1}} },
+	})
+	var places []ir.Provenance
+	for _, d := range diags {
+		if d.Code == diag.UnknownObjectKey {
+			places = append(places, d.Provenance)
+		}
+	}
+	assert.Equal(t, []ir.Provenance{
+		{Position: ir.Position{Line: 3, Column: 37}},
+		{Pointer: "/root", Position: ir.Position{Line: 5, Column: 7}},
+	}, places, "each at its alias, and a pointer only for the root's key")
 }
 
 // TestCheck_DefaultsFillTheUnsetOptions pins the options a caller may leave out.
@@ -170,4 +193,26 @@ func TestOutsideRuleset_IsFalseForAnAbsentNodeAndTrueForATagOutsideIt(t *testing
 	assert.False(t, outsideRuleset(pairs[3]), "a scalar under a tag the ruleset has")
 	assert.False(t, outsideRuleset(pairs[5]), "a plain scalar")
 	assert.True(t, outsideRuleset(pairs[7]), "a sequence under a local tag")
+}
+
+// TestKeyPlacer_ReadsTheMappingOnce holds a placer to one scan of its mapping
+// for its aliases, however many keys it places, which is what keeps n findings
+// about the keys of one object at n: an alias added after the first key is
+// placed is not seen. A merge key is no key the mapping writes itself.
+func TestKeyPlacer_ReadsTheMappingOnce(t *testing.T) {
+	doc := openapitest.YAMLDocument(t, "x-m: &m 1\n<<: {c: 2}\na: *m\n")
+	located := func(p jsontext.Pointer) ir.Provenance {
+		return ir.Provenance{Pointer: p, Position: ir.Position{Line: 99}}
+	}
+	w := &walker{}
+	w.locate = located
+	places := newKeyPlacer(w, doc.Content[0], "")
+	assert.Equal(t, ir.Provenance{Pointer: "/a", Position: ir.Position{Line: 3, Column: 4}}, places.place("a"))
+	assert.Equal(t, ir.Provenance{Pointer: "/c", Position: ir.Position{Line: 99}}, places.place("c"))
+
+	mapping := places.mapping
+	alias := mapping.Content[len(mapping.Content)-1]
+	mapping.Content = append(mapping.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "b"}, alias)
+	assert.Equal(t, ir.Provenance{Pointer: "/b", Position: ir.Position{Line: 99}}, places.place("b"),
+		"the mapping was read for its aliases once, before b was written")
 }

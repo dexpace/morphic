@@ -238,8 +238,7 @@ const (
 	// written: kept raw for want of a home or past a bound (callbacks too deep,
 	// operation.operationCallbacks), lowered weaker (a mixed enum as a union, an
 	// unconvertible value as the top type, a member or const its type rejects as
-	// written), or dropped (a default or example, an enum's excluded null, the
-	// fields beside a path item $ref the load phase's walk misses). A promotion
+	// written), or dropped (an example, an enum's excluded null). A promotion
 	// or grouping by extension reports an extension kept but read into no field
 	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
 	// lowerings reported, not every one.
@@ -401,6 +400,11 @@ const (
 	// unconditional, not an Options switch, because nothing is inferred (invariant
 	// 6). Warning, not error: the document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
+	// UnloweredConstruct reports a construct malformed or contradictory, so not
+	// lowered as written: a consumer gets the IR without it. A default no
+	// ir.Value holds is reported once, where it is written, and every carrier
+	// reading it takes none (schema.Use.Default).
+	UnloweredConstruct = "openapi/unlowered-construct"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
 	// converted to JSON either, so Unmodeled could not hold it. It is an error
@@ -410,7 +414,7 @@ const (
 	UnpreservableConstruct = "openapi/unpreservable-construct"
 	// UnknownSchemaKeyword reports a JSON Schema keyword the schema model does
 	// not name, or names but the schema's dialect does not define (`nullable`
-	// with the nullable-widening policy off), kept verbatim under Unmodeled.
+	// with the nullable-inference policy off), kept verbatim under Unmodeled.
 	//
 	// Info, because the document did nothing wrong: JSON Schema requires an
 	// implementation to ignore a keyword it does not recognize, and says such a
@@ -420,7 +424,9 @@ const (
 	// is the same thing ValidationOnlyKeyword records beside it.
 	UnknownSchemaKeyword = "openapi/unknown-schema-keyword"
 	// UnknownObjectKey reports a key on an OpenAPI object that the specification
-	// neither defines nor admits as an extension, kept verbatim under Unmodeled.
+	// neither defines nor admits as an extension, a key beside a Reference
+	// Object's $ref included. The rule table reports it wherever the object is
+	// written, lowered or not; the lowering keeps it and reports nothing.
 	//
 	// Warning where its schema neighbour UnknownSchemaKeyword is info: OpenAPI
 	// gives its objects a closed key set and requires extensions to be prefixed
@@ -434,6 +440,35 @@ const (
 	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
 	// is most likely one it reads, misspelt.
 	UnreadExtension = "openapi/unread-extension"
+	// UnpromotedExtension reports a promotion key whose value states nothing
+	// usable, saying why, at the key: a key a target reads that states nothing
+	// the target can fill on its node, or states it where the node has nothing
+	// to fill, as a stream's terminator or the input selecting it (stream) and
+	// a choice among parameters (paramchoice)
+	// (docs/compilers/openapi.md#extension-promotion), and a pagination key
+	// written true where neither its path item nor the document's root states
+	// a walk (docs/compilers/openapi.md#extension-pagination). Info: the key is
+	// kept verbatim, so nothing it says is lost.
+	UnpromotedExtension = "openapi/unpromoted-extension"
+	// UnhomedConstruct reports documentation a use writes beside a $ref where
+	// the position has no docs to hold it, a callback's or a parameter's or
+	// header's content entry's, kept verbatim on the node the use lowers to
+	// (docs/compilers/openapi.md#reference-object-siblings). Info: nothing is
+	// lost, and the entry leaves when the field arrives.
+	UnhomedConstruct = "openapi/unhomed-construct"
+	// PartlessFormBody reports a multipart/form-data or url-encoded body whose
+	// schema stands for no object, so it names no part to send
+	// (docs/compilers/openapi.md#multipart-encoding). A warning: the body
+	// lowers as declared, and the document likely says other than it means.
+	PartlessFormBody = "openapi/partless-form-body"
+	// BodyWithoutSemantics reports a request body on a GET, HEAD or DELETE, for
+	// which HTTP defines no semantics (docs/compilers/openapi.md#request-body).
+	// An info: the body lowers as declared, and APIs do take one.
+	BodyWithoutSemantics = "openapi/body-without-semantics"
+	// BodyForbiddenByMethod reports a request body on a TRACE or CONNECT, which
+	// HTTP has a client send none with (docs/compilers/openapi.md#request-body).
+	// A warning: the body lowers as declared, and none can be sent.
+	BodyForbiddenByMethod = "openapi/body-forbidden-by-method"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
 	// form at all.
@@ -519,7 +554,7 @@ const (
 	// fragment, which the URI template leaves out and each operation's binding
 	// keeps. Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
-	// InferredNullable reports a null the nullable-widening policy reads in
+	// InferredNullable reports a null the nullable-inference policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
 	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
 	// that excludes null, or on an allOf branch another conjunct contradicts, at
@@ -551,10 +586,11 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
-	// InferredHTTPDate reports a response header the HTTP-date policy writes and
-	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
-	// date-time, whose text format spells as RFC 3339's, at the header. The
-	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// InferredHTTPDate reports a response header or a header parameter the
+	// HTTP-date policy writes and reads as an HTTP-date, a field an RFC defines
+	// so whose schema declares a date-time, whose text format spells as RFC
+	// 3339's, at the header or the parameter (convention). The node is marked
+	// Inferred (docs/compilers/openapi.md#http-date-inference).
 	// Info, as InferredDiscriminator is: the reading departs from what the
 	// format says, and the mark keeps what the document declared.
 	InferredHTTPDate = "openapi/inferred-http-date"
@@ -571,8 +607,8 @@ const (
 	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
 	// the message keeps its prose, so nothing it says is lost.
 	UndecidedReplacement = "openapi/undecided-replacement"
-	// UndecidedPagination reports an operation whose query parameters name a
-	// pagination input the pagination-inference policy cannot settle into an
+	// UndecidedPagination reports an operation whose request or response names a
+	// pagination the pagination-inference policy cannot settle into an
 	// ir.Pagination, saying why, at the operation: it is left with none
 	// (docs/compilers/openapi.md#pagination-policy). Info: the document
 	// declares no pagination, so nothing it says is lost.

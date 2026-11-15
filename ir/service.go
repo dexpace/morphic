@@ -84,6 +84,10 @@ type OperationGroup struct {
 	Stability Stability `json:"stability,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Inferred lists the heuristics that filled a field from a key the group
+	// keeps (docs/ir/unmodeled.md#promotion), as [Provenance].Inferred does on
+	// a node that has one; empty means none did.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // ResourceInfo carries Smithy resource semantics for an OperationGroup

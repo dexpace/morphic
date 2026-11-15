@@ -239,7 +239,7 @@
           "type": {
             "target": "t/prim/any",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -267,7 +267,7 @@
           "type": {
             "target": "t/anon/components/schemas/Holder/properties/composed",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -295,7 +295,7 @@
           "type": {
             "target": "t/anon/components/schemas/Holder/properties/unlisted",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -350,7 +350,7 @@
           "type": {
             "target": "t/anon/components/schemas/Holder/properties/typedComposed",
             "nullable": true,
-            "inferred": "nullable-widening"
+            "inferred": "nullable-inference"
           },
           "required": false,
           "clientOptional": false,
@@ -488,7 +488,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/untyped/nullable"
@@ -497,7 +497,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/composed/nullable"
@@ -506,7 +506,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this schema's enum lists no null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though this schema's enum lists no null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/unlisted/nullable"
@@ -515,7 +515,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/typedComposed/nullable"
@@ -526,7 +526,7 @@
     {
       "format": "openapi@3.0",
       "path": "nullable-keyword-30.yaml",
-      "hash": "58a2d3f772d66df3fbf0c5a0c4cbd8fdcd51a6b5c8707614d3b1465b2869a996"
+      "hash": "af03dd2e7c345948978d549a0c8295b0ac7f21e89bb93af200a1fca7dac983d8"
     }
   ]
 }

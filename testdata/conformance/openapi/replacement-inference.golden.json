@@ -300,6 +300,255 @@
                 "source": 0,
                 "pointer": "/paths/~1v2~1zones/get"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1v0~1zones/get",
+              "name": {
+                "source": "listZonesV0",
+                "canonical": "list_zones_v_0"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/v0/zones",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1v0~1zones/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1v0~1zones/post",
+              "name": {
+                "source": "createZoneV0",
+                "canonical": "create_zone_v_0"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/v0/zones",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1v0~1zones/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1old~1zones/get",
+              "name": {
+                "source": "listZonesOld",
+                "canonical": "list_zones_old"
+              },
+              "docs": {},
+              "deprecation": {
+                "message": "Unlike `GET /v0/zones`, this pages."
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/old/zones",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-deprecated-reason": {
+                  "reason": "vendor_extension",
+                  "value": "Unlike `GET /v0/zones`, this pages.",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1old~1zones/get/x-deprecated-reason"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1old~1zones/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1old~1zones/post",
+              "name": {
+                "source": "createZoneOld",
+                "canonical": "create_zone_old"
+              },
+              "docs": {},
+              "deprecation": {
+                "message": "This endpoint replaced POST /v0/zones."
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/old/zones",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-deprecated-reason": {
+                  "reason": "vendor_extension",
+                  "value": "This endpoint replaced POST /v0/zones.",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1old~1zones/post/x-deprecated-reason"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1old~1zones/post",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1things/get",
+              "name": {
+                "source": "listThings",
+                "canonical": "list_things"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1things/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/things",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1things/get"
+              }
             }
           ]
         }
@@ -313,6 +562,166 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1things/get/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1things/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {
+            "message": "Formerly `b`."
+          },
+          "unmodeled": {
+            "openapi:x-deprecated-reason": {
+              "reason": "vendor_extension",
+              "value": "Formerly `b`.",
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema/properties/a/x-deprecated-reason"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema/properties/a",
+            "inferred": "extension-promotion"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema/properties/b"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "wireName": "c",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {
+            "message": "Use `d`, not `b`.",
+            "replacedBy": [
+              {
+                "property": "p/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/d"
+              }
+            ]
+          },
+          "unmodeled": {
+            "openapi:x-deprecated-reason": {
+              "reason": "vendor_extension",
+              "value": "Use `d`, not `b`.",
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema/properties/c/x-deprecated-reason"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema/properties/c",
+            "inferred": "extension-promotion,replacement-inference"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1things/get/responses/200/content/application~1json/schema/properties/d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireName": "d",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1things/get/responses/200/content/application~1json/schema/properties/d"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Zone": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Zone",
@@ -556,7 +965,7 @@
     {
       "format": "openapi@3.1",
       "path": "replacement-inference.yaml",
-      "hash": "87d1583df686c39e43c834119341683035c710b378f59daf3af3681ac4c00cd6"
+      "hash": "4d286ea93e498b152082ce99b1d1cc2e35c2c627bc1f58f00b3d84f125a4de06"
     }
   ]
 }

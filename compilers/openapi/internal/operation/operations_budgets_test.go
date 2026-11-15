@@ -168,9 +168,11 @@ func leastBudget(t *testing.T, spec string) int {
 
 // TestLowerService_AnItemsParametersAreChargedOnceACopy pins what an item's
 // parameters add to the least budget it lowers within, beside a get and a
-// LINK: a $ref'd one is charged at each operation, by Declared, and not again,
-// and one written beside the item's $ref, a layer of its own, is charged at
-// LINK alone, as it weighs: 25, as a parameter of this shape does.
+// LINK: a $ref'd one is charged at each operation, by Declared, with the
+// $ref's own mapping (1), and not again, and one written beside the item's
+// $ref, a layer of its own, is charged at LINK, as it weighs, 25 as a parameter
+// of this shape does, and once more in the use's mapping, which writes it beside
+// its $ref: the key parameters (11), the list (1) and the parameter (25).
 func TestLowerService_AnItemsParametersAreChargedOnceACopy(t *testing.T) {
 	t.Parallel()
 	const param = 25
@@ -182,7 +184,7 @@ func TestLowerService_AnItemsParametersAreChargedOnceACopy(t *testing.T) {
 	const components = "components:\n  parameters:\n    P: {name: q, in: query, schema: {type: string}}\n"
 	plain := leastBudget(t, head+ops+components)
 	referenced := leastBudget(t, head+"    parameters: [{$ref: '#/components/parameters/P'}]\n"+ops+components)
-	assert.Equal(t, plain+2*param, referenced, "a $ref'd parameter is charged at each operation, once")
+	assert.Equal(t, plain+2*(param+1), referenced, "a $ref'd parameter is charged at each operation, once")
 
 	layered := func(params string) string {
 		return head + "    $ref: '#/components/pathItems/I'\n" + params + components + "  pathItems:\n    I:\n" +
@@ -193,5 +195,5 @@ func TestLowerService_AnItemsParametersAreChargedOnceACopy(t *testing.T) {
 	}
 	without := leastBudget(t, layered(""))
 	with := leastBudget(t, layered("    parameters: [{name: q, in: query, schema: {type: string}}]\n"))
-	assert.Equal(t, without+param, with, "a parameter beside the item's $ref is charged at LINK alone")
+	assert.Equal(t, without+param+(11+1+param), with, "a parameter beside the item's $ref is charged at LINK and in the use")
 }

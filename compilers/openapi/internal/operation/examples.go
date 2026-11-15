@@ -56,12 +56,19 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	// keywords are written: a $ref entry holds none of them. ir.Example carries an
 	// Unmodeled map, so neither the object's x-* nor its undeclared keys need a
 	// scope.
-	ex, dc, decl := lowering.Declared[soa.Example](c, re, pointer+ids.Ptr("examples", name))
+	use := pointer + ids.Ptr("examples", name)
+	ex, dc, decl := lowering.Declared[soa.Example](c, re, use)
 	if ex == nil {
 		return out, nil
 	}
 	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.Place(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.Place(), decl)...)
+	beside, besideDiags := lowering.Beside[soa.Example](c, re, use, true)
+	ext = annotation.MergeUnmodeled(ext, beside)
+	diags = append(diags, besideDiags...)
+	if name == "" {
+		diags = append(diags, keepEmptyName(c, &ext, use)...)
+	}
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
 	docs := resolve.UseDocs[soa.Example](c.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
@@ -74,6 +81,18 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	}
 	out, exDiags := appendExampleValue(c, dc, out, proto, ex, re, pointer, decl, name)
 	return out, append(diags, exDiags...)
+}
+
+// keepEmptyName keeps the empty key of the examples entry at use, which
+// ir.Example.Name reads as no name, on the example's own Unmodeled as
+// openapi:examples/key (docs/compilers/openapi.md#example-values), with an info
+// there. No key of the Example Object can spell it, as one holding a "/" is
+// escaped, so an undeclared name key the object writes stays its own entry.
+func keepEmptyName(c lowering.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.Diagnostic {
+	annotation.PreserveInto(ext, annotation.EntryKey("examples", "key"), ir.RawValue(`""`),
+		ir.ReasonDegradedLowering, c.Place().At(use))
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, use,
+		"examples entry is keyed by the empty string, which ir.Example.Name reads as no name; the key is kept under Unmodeled")}
 }
 
 // appendExampleValue appends the entry under the annotations proto already

@@ -37,6 +37,14 @@ differ reports ([surface verification](../surface-verification.md)). A dynamic t
 differ — Python's keyword arguments are additive as they stand — which is why the shape is
 per-target rather than a plan fact.
 
+A choice among parameters (`Operation.ParamChoices`) changes no field of the request type: each
+parameter it names stays the optional field it is, since a sum in their place would break every
+caller the day a document states the choice (property 2). The request type's `Validate()` checks it
+([constraints](constraints.md)). An emitter that does not read the field degrades to independent
+optional parameters, the request type it makes without it: nothing wrong is sent for a caller
+following the API's documentation, and a request setting two variants is refused by the API rather
+than by the SDK.
+
 ## The body
 
 The body is what its content's `Type` lowers to, save for a form or multipart one's fields, below,
@@ -53,7 +61,10 @@ A form or multipart content whose type, read through `TypePlan.Alias` and its sc
 model or a map holds its fields and parts in the body's place, whether or not `RequestText` names
 one: the request type has a field for each member the body's shape holds and one for its catch-all,
 or one for a map's entries, each declared as that shape declares it ([the declaration a shape
-takes](../plan/types.md#the-declaration-a-shape-takes)), save that each `RequestText` names, its
+takes](../plan/types.md#the-declaration-a-shape-takes)), a part that field or those entries send
+taking the encoding `Content.CatchAllEncoding` keys under the type holding the catch-all, its
+pattern's where one matches the part's name and its `Value` where none does ([a catch-all's
+parts](../../ir/payloads.md#a-catch-alls-parts)), save that each `RequestText` names, its
 `Rest` among them, is a list of pairs, each pair sent as a field or a part of the body. Where
 `Payload.Required` is not true, each field is optional, none set sends no body, and a member the
 shape requires left unset beside one that is set fails the call before anything is sent. So a member
@@ -71,4 +82,9 @@ and as JSON by another, the first's request type holds `metadata` as pairs and t
 member typed as pairs in the model's own declaration gives a JSON body pairs it cannot write, and a
 multipart content added later would retype a member its callers build. A declaration of the model
 for each such content needs a name the shape rules do not give, since which members are text follows
-the content's encoding and no shape. T-48 holds it.
+the content's encoding and no shape. T-48 holds it. An emitter that does not read
+`Content.CatchAllEncoding` degrades to its own rule for the parts a catch-all admits, as for a
+property with no `Encoding` entry: the field restates the content type OpenAPI gives the value's type
+by default and the part's `Multi` and `Filename`, so a rule deriving those from the type sends what
+the field says, and one that does not, sending an array value as one part or a binary one with no
+file name, sends a request the API may refuse, though never one missing a member.

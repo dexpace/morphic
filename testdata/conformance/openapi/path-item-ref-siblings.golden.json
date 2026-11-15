@@ -356,10 +356,14 @@
     {
       "severity": "warning",
       "code": "openapi/unknown-object-key",
-      "message": "key \"bogusBeside\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "message": "key \"bogusBeside\" is not defined by the Path Item Object it is written on and is not an x- extension",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1a/bogusBeside"
+        "pointer": "/paths/~1a/bogusBeside",
+        "position": {
+          "line": 16,
+          "column": 18
+        }
       }
     },
     {

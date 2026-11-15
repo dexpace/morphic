@@ -446,22 +446,24 @@ paths: {}
 	}
 }
 
-// TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead pins the clause a
-// 3.2 document's error adds: a URI naming a scheme outside the source's
-// securitySchemes is not followed, so the reader is not told only that the
-// scheme has no mechanism.
-func TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead(t *testing.T) {
+// TestSecurityRequirement_A32URIIsReadWhereverItLands pins a 3.2 key that is a
+// URI naming no entry of the source's securitySchemes: one landing on a Security
+// Scheme Object anywhere names it, lowered where it is declared, and one landing
+// on nothing is reported with why.
+func TestSecurityRequirement_A32URIIsReadWhereverItLands(t *testing.T) {
 	t.Parallel()
-	_, _, diags := serviceSpec(t, `openapi: 3.2.0
+	_, svc, diags := serviceSpec(t, `openapi: 3.2.0
 info: {title: T, version: "1"}
-security: [{"#/x-schemes/extra": []}]
+security: [{"#/x-schemes/extra": []}, {"#/x-schemes/missing": []}]
 paths: {}
 x-schemes:
   extra: {type: http, scheme: bearer}
 `)
-	assert.Equal(t, []string{`security requirement references unresolved scheme "#/x-schemes/extra": ` +
-		`the requirement is kept, and the scheme has no mechanism; a URI naming a Security Scheme Object ` +
-		`outside the source's components/securitySchemes is not read`},
+	require.Len(t, svc.Auth, 2)
+	assert.Equal(t, []ir.AuthID{ids.In("").Auth("/x-schemes/extra")}, schemeUses(svc.Auth[0]))
+	assert.Equal(t, []ir.AuthID{ids.In("").UnresolvedAuth("#/x-schemes/missing")}, schemeUses(svc.Auth[1]))
+	assert.Equal(t, []string{`security requirement references unresolved scheme "#/x-schemes/missing": ` +
+		`the requirement is kept, and the scheme has no mechanism; it names nothing in the document it points into`},
 		messagesAt(diags, diag.UnresolvedSecurityScheme))
 }
 
@@ -492,7 +494,7 @@ components:
 		source, other string
 		want          []ir.AuthID
 	}{
-		{"3.1.1", "3.2.0", []ir.AuthID{ids.Auth("key"), ghostFragment}},
+		{"3.1.1", "3.2.0", []ir.AuthID{ids.Auth("key"), ids.In("other.yaml").Auth("/components/securitySchemes/key")}},
 		{"3.2.0", "3.1.1", []ir.AuthID{ids.UnresolvedAuth("root.yaml#/components/securitySchemes/key"), ghostFragment}},
 	} {
 		doc, diags := compileBeside(t, `openapi: `+tc.source+`
@@ -1162,8 +1164,7 @@ func TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss(t *testing.T
 		{"3.1.1", "basicAuth", `"basicAuth": ` + plain},
 		{"3.1.1", "oauth", `"oauth": ` + plain},
 		{"3.2.0", "#/components/securitySchemes/api_key", `"#/components/securitySchemes/api_key": ` + plain +
-			`; a scheme named "apiKey" is declared; a URI naming a Security Scheme Object outside the source's ` +
-			`components/securitySchemes is not read`},
+			`; a scheme named "apiKey" is declared; it names nothing in the document it points into`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.version+" "+tc.key, func(t *testing.T) {

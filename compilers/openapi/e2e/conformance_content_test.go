@@ -194,7 +194,7 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	out := render.Responses[0].Payload.Contents
 	require.Len(t, out, 3)
 	for _, c := range out[:2] {
-		assert.Equal(t, &ir.FileInfo{ContentTypes: []string{c.MediaType}, Inferred: "binary-media-type"}, c.File,
+		assert.Equal(t, &ir.FileInfo{ContentTypes: []string{c.MediaType}, Inferred: "binary-inference"}, c.File,
 			c.MediaType)
 	}
 	assert.Equal(t, ir.TypeID("t/prim/any"), out[0].Type.Target, "a file the policy reads keeps its type")
@@ -216,7 +216,7 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, files, parts["pair"])
 	assert.Equal(t, files, parts["fileOrFiles"], "one file or a list of them")
 	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Filename: true,
-		Inferred: "binary-media-type"}, parts["profileImage"])
+		Inferred: "binary-inference"}, parts["profileImage"])
 	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}}, parts["avatar"],
 		"a string part is text, whatever media type it names")
 }
@@ -233,7 +233,7 @@ func assertFileItems32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		{"listPhotos", ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Multi: true, Filename: true}},
 		{"listAttachments", ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true}},
 		{"listThumbnails", ir.PartEncoding{ContentTypes: []string{"image/webp"}, Multi: true, Filename: true,
-			Inferred: "binary-media-type"}},
+			Inferred: "binary-inference"}},
 	} {
 		op, ok := opByName(doc, tc.op)
 		require.True(t, ok, tc.op)
@@ -432,7 +432,11 @@ func assertUnkeyedEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.Equal(t, []string{"openapi:encoding/" + tc.key}, slices.Sorted(maps.Keys(content.Unmodeled)),
 			"%s: one record and nothing for what the entry declares", tc.op)
 		entry := content.Unmodeled["openapi:encoding/"+tc.key]
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, tc.op)
+		wantReason := ir.ReasonNoIRHome
+		if tc.names {
+			wantReason = ir.ReasonOutOfScope // the entry names no property, so it has no effect
+		}
+		assert.Equal(t, wantReason, entry.Reason, tc.op)
 		assert.JSONEq(t, tc.value, string(entry.Value), "%s: kept as written", tc.op)
 		assert.Equal(t, jsontext.Pointer(tc.pointer), entry.Provenance.Pointer, "%s: located at the entry", tc.op)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, tc.pointer),

@@ -236,6 +236,13 @@ type Entry struct {
 	Keyword string
 }
 
+// Lands reports whether e's $ref lands where a type can be read: its hop
+// resolves, and its position is no member of a loop of $refs, which resolves
+// nowhere.
+func (e Entry) Lands() bool {
+	return e.Hop.Status == Resolved && !e.Chain.Member
+}
+
 // Loop is a cycle of $refs: its members, ordered, and Site, where it is
 // reported: the least of them, in whichever document. Kind is the kind of
 // object a loop of reference objects stands for, and zero for one of schema
@@ -285,11 +292,14 @@ func (k RefKind) String() string {
 
 // Reference is one position writing a Reference Object's $ref, read as Kind:
 // its hop, which lands on an object of Kind or fails NotObject, and its chain.
+// Key is set where the site is no Reference Object but a requirement key the
+// table reads as one (Config.KeysByURI), whose value is the key's scopes.
 type Reference struct {
 	Site  Position
 	Kind  RefKind
 	Hop   Hop
 	Chain Chain
+	Key   bool
 }
 
 // ObjectLanding is a position a Reference Object's chain lands on that the

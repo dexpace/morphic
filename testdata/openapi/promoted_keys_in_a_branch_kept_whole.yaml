@@ -1,0 +1,165 @@
+openapi: 3.0.3
+info: {title: T, version: "1"}
+paths:
+  /facts:
+    get:
+      operationId: facts
+      parameters:
+        - name: ref_first
+          in: query
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Id'
+              - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+        - name: branch_first
+          in: query
+          schema:
+            allOf:
+              - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+              - $ref: '#/components/schemas/Id'
+        - name: content_ref_first
+          in: query
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Id'
+                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+        - name: content_branch_first
+          in: query
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  - $ref: '#/components/schemas/Id'
+      responses:
+        "200":
+          description: ok
+          headers:
+            H-Ref-First:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Id'
+                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+            H-Branch-First:
+              schema:
+                allOf:
+                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  - $ref: '#/components/schemas/Id'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ref_first:
+                    allOf:
+                      - $ref: '#/components/schemas/Id'
+                      - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  branch_first:
+                    allOf:
+                      - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                      - $ref: '#/components/schemas/Id'
+  /pages-ref-first:
+    get:
+      operationId: pagesRefFirst
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Id'
+              - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_param}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Next:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Id'
+                  - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_field}}
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: string}, x-stainless-pagination-property: {purpose: items}}
+  /pages-branch-first:
+    get:
+      operationId: pagesBranchFirst
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            allOf:
+              - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_param}}
+              - $ref: '#/components/schemas/Id'
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Next:
+              schema:
+                allOf:
+                  - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_field}}
+                  - $ref: '#/components/schemas/Id'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: string}, x-stainless-pagination-property: {purpose: items}}
+  /pages-content-ref-first:
+    get:
+      operationId: pagesContentRefFirst
+      parameters:
+        - name: cursor
+          in: query
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Id'
+                  - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_param}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: string}, x-stainless-pagination-property: {purpose: items}}
+                  next:
+                    allOf:
+                      - $ref: '#/components/schemas/Id'
+                      - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_field}}
+  /pages-content-branch-first:
+    get:
+      operationId: pagesContentBranchFirst
+      parameters:
+        - name: cursor
+          in: query
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_param}}
+                  - $ref: '#/components/schemas/Id'
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {type: string}, x-stainless-pagination-property: {purpose: items}}
+                  next:
+                    allOf:
+                      - {type: string, format: uuid, x-stainless-pagination-property: {purpose: next_cursor_field}}
+                      - $ref: '#/components/schemas/Id'
+components:
+  schemas:
+    Id: {type: string}

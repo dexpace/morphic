@@ -4,10 +4,9 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"iter"
-	"maps"
-	"slices"
 	"strconv"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -22,15 +21,17 @@ import (
 
 // listRepeats reports each entry of a list that repeats what an earlier entry
 // of the same list is identified by: a parameter's name and location
-// (paramRepeats), or a server's name (serverRepeats). Each list is read once,
-// where it is written, in whichever document. items is walkSource's walk of
-// the source's lists, those beside a path item's $ref sibs's model's
-// (writtenItem); then each path item the bindings built for a landing is read
-// with its operations (landedRepeats, GitHub #880).
-func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[soa.WalkItem],
+// (paramRepeats), or a server's name (serverRepeats), at the position at
+// places in the document that writes the list.
+//
+// items is a walk that visits each list where its document writes it, lowered
+// or not, and again wherever a YAML alias mounts it, but never through a $ref:
+// walkSource's, or a landing's (landingRepeats). The lists beside a path item's
+// $ref are sibs's model's (writtenItem). A panic in the walk is reported at the
+// model it reached.
+func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, b *typed.Bindings,
+	items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
-	place := sites.source
-	at := func(p jsontext.Pointer) ir.Provenance { return place.At(p) }
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
 		switch m := model.(type) {
@@ -53,53 +54,36 @@ func listRepeats(sites places, sibs Siblings, b *typed.Bindings, items iter.Seq[
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
-	}
-	return append(diags, landedRepeats(sites, b)...)
-}
-
-// landedRepeats reads the lists of each path item the bindings built for a
-// landing, and of its operations, its additionalOperations among them, each
-// list once: a landing is a position the
-// source's grammar reads as raw YAML, so no list of the source's own walk is
-// one of them, and each lies at one position read as a path item.
-func landedRepeats(sites places, b *typed.Bindings) []ir.Diagnostic {
-	if b == nil {
-		return nil
-	}
-	var diags []ir.Diagnostic
-	for _, l := range b.Table().ObjectLandings() {
-		rp, ok := b.ObjectAt(l.At, bind.RefPathItem).(*soa.ReferencedPathItem)
-		if !l.Reached || l.Kind != bind.RefPathItem || !ok {
-			continue
-		}
-		item := refscope.Object[soa.PathItem](b, rp)
-		if item == nil {
-			continue
-		}
-		at := func(p jsontext.Pointer) ir.Provenance {
-			return sites.position(bind.Position{Doc: l.At.Doc, Pointer: p})
-		}
-		owners := map[jsontext.Pointer]lists{l.At.Pointer: {item.GetParameters(), item.GetServers()}}
-		for method, op := range item.All() {
-			owners[l.At.Pointer.AppendToken(string(method))] = lists{op.GetParameters(), op.GetServers()}
-		}
-		additional := l.At.Pointer.AppendToken("additionalOperations")
-		for method, op := range item.GetAdditionalOperations().All() {
-			owners[additional.AppendToken(method)] = lists{op.GetParameters(), op.GetServers()}
-		}
-		for _, owner := range slices.Sorted(maps.Keys(owners)) {
-			diags = append(diags, paramRepeats(at, b, owners[owner].params, owner)...)
-			diags = append(diags, serverRepeats(at, owners[owner].servers, owner)...)
-		}
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
 	}
 	return diags
 }
 
-// lists are the parameter and servers lists an object holds.
-type lists struct {
-	params  []*soa.ReferencedParameter
-	servers []*soa.Server
+// landingRepeats reports what listRepeats finds in each path item a reference
+// lands on where its document's grammar reads none, such as under an x- key
+// or in another document, which the lowering mounts and no walk of the source
+// meets (GitHub #880). Each is walked from the landing's own pointer, entering
+// the fields beside each $ref in it (sibs), so each list is checked where it is
+// written, in whichever document, once, however many references mount it: a
+// landing inside another draws its findings twice, identical, which the
+// compile records once (compile.Diags).
+func landingRepeats(ctx context.Context, sites places, sibs Siblings, b *typed.Bindings) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, l := range b.Table().ObjectLandings() {
+		// A cancelled load reports nothing it found, so it reads no further.
+		if ctx.Err() != nil {
+			return nil
+		}
+		rp, built := b.ObjectAt(l.At, bind.RefPathItem).(*soa.ReferencedPathItem)
+		if l.Kind != bind.RefPathItem || !l.Reached || !built {
+			continue
+		}
+		doc := l.At.Doc
+		at := func(p jsontext.Pointer) ir.Provenance { return sites.position(bind.Position{Doc: doc, Pointer: p}) }
+		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), l.At.Pointer))
+		diags = append(diags, listRepeats(at, sibs, b, items)...)
+	}
+	return diags
 }
 
 // writtenItem returns the path item whose lists rp writes at site: its own

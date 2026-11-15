@@ -31,6 +31,9 @@ const (
 	TargetPaginationItems ExtensionTarget = "pagination.items"
 	// TargetPaginationNextCursor is the next cursor in a page, NextCursor.
 	TargetPaginationNextCursor ExtensionTarget = "pagination.nextCursor"
+	// TargetPaginationHasMore is the flag in a page saying another page
+	// follows, HasMore, which ends the walk where it is false, null or absent.
+	TargetPaginationHasMore ExtensionTarget = "pagination.hasMore"
 	// TargetPaginationNextLink is the next page's link in a page, NextLink, a
 	// walk of strategy next_link where no input continues it.
 	TargetPaginationNextLink ExtensionTarget = "pagination.nextLink"
@@ -76,12 +79,52 @@ func (p Promoter) Sources(target ExtensionTarget) []ExtensionSource {
 // spells where it lists no Values, and whether its value is one of them where
 // it does. The key written false says nothing is there to read. Any other
 // value stating nothing to every pagination source of the key is reported,
-// worded alike for each of them, so one report stands per node.
-func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+// worded alike for each, so one report stands per node. root is the document
+// root's Unmodeled where the node is an operation, and nil otherwise, as an
+// operation's true reads the root's (rootStatement).
+func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, unmodeled, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
 	entry, written := unmodeled[extensionKeyPrefix+src.Key]
 	if !written {
 		return PageStatement{}, nil
 	}
+	if root != nil && src.Member != "" && len(src.Values) == 0 && entry.Value.Kind() == 't' {
+		return rootStatement(p, target, src, entry, unmodeled, root)
+	}
+	return pageStatement(p, target, src, entry)
+}
+
+// pathItemKeyPrefix starts the key an operation keeps a vendor extension its
+// path item writes under, as the operation lowering spells it.
+const pathItemKeyPrefix = extensionKeyPrefix + "pathItem/"
+
+// rootStatement reads what src says on an operation writing its key true,
+// entry, beside the operation's own entries, own: the walk the nearest object
+// above it states under the same key, its path item's, kept among own, else
+// the document root's, root, as if the operation wrote it, and written either
+// way. A root writing none, or a statement that is no object, states nothing
+// and is reported, the latter at its own key, so every operation writing true
+// shares one finding.
+func rootStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry, own, root ir.Unmodeled) (PageStatement, []ir.Diagnostic) {
+	st := PageStatement{At: entry.Provenance, Written: true}
+	stated, ok := own[pathItemKeyPrefix+src.Key]
+	if !ok {
+		stated, ok = root[extensionKeyPrefix+src.Key]
+	}
+	switch {
+	case !ok:
+		return st, []ir.Diagnostic{Unpromoted(src.Key, entry.Provenance,
+			"is true, which reads the walk its path item, else the document's root, states under the same key, "+
+				"and neither writes one",
+			"no pagination is inferred for the operation")}
+	case stated.Value.Kind() != '{':
+		return st, []ir.Diagnostic{Unpromoted(src.Key, stated.Provenance,
+			"is "+ShapeOf(stated.Value)+", not an object", "it states no walk for the operations that write true")}
+	}
+	return pageStatement(p, target, src, stated)
+}
+
+// pageStatement reads what src says in entry, a node's value of its key.
+func pageStatement(p Promoter, target ExtensionTarget, src ExtensionSource, entry ir.UnmodeledEntry) (PageStatement, []ir.Diagnostic) {
 	st := PageStatement{At: entry.Provenance, Written: true}
 	raw, at, held, located := src.value(entry)
 	switch {
@@ -92,7 +135,7 @@ func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, un
 		return st, nil
 	case located == misfit:
 		return st, []ir.Diagnostic{unreadPage(src, src.Key, at,
-			"is "+shapeOf(entry.Value)+", not an object", "value of a walk")}
+			"is "+ShapeOf(entry.Value)+", not an object", "value of a walk")}
 	case located == statesNothing:
 		return st, p.unreadMembers(src, held, at)
 	case len(src.Values) > 0:
@@ -106,7 +149,7 @@ func PageStatementOf(p Promoter, target ExtensionTarget, src ExtensionSource, un
 	case ok:
 		return st, []ir.Diagnostic{unreadPage(src, src.String(), at, "is an empty string", string(target))}
 	default:
-		return st, []ir.Diagnostic{unreadPage(src, src.String(), at, "is "+shapeOf(raw)+", not a string",
+		return st, []ir.Diagnostic{unreadPage(src, src.String(), at, "is "+ShapeOf(raw)+", not a string",
 			string(target))}
 	}
 }
@@ -178,9 +221,9 @@ func unreadPage(src ExtensionSource, subject string, at ir.Provenance, why, what
 		subject, why, what, reach)
 }
 
-// shapeOf names the kind of raw, a value in the IR's canonical form, as a
+// ShapeOf names the kind of raw, a value in the IR's canonical form, as a
 // report spells it.
-func shapeOf(raw ir.RawValue) string {
+func ShapeOf(raw ir.RawValue) string {
 	switch raw.Kind() {
 	case 't':
 		return "true"

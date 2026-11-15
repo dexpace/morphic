@@ -17,7 +17,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
@@ -363,11 +362,12 @@ components:
 	assert.Equal(t, reported[0], reported[1], "whichever order the references are declared in")
 }
 
-// TestCompile_FieldsBesideARefReachedPastAPlusKeyAreInTheOtherDocument pins the
-// words a finding about fields written beside a path item's $ref uses for where
-// they are: "/m" reaches x-n through the $ref of "/a+b" into ext.yaml, where x-n
-// writes a description beside its own $ref. Read through a key spelled with a
-// space, the pointer would pass no $ref and name a position of this document.
+// TestCompile_FieldsBesideARefReachedPastAPlusKeyAreInTheOtherDocument pins
+// where the fields written beside a path item's $ref are read: "/m" reaches x-n
+// through the $ref of "/a+b" into ext.yaml, where x-n writes an operation beside
+// its own $ref, which "/m" mounts as ext.yaml declares it. Read through a key
+// spelled with a space, the pointer would pass no $ref and name a position of
+// this document.
 func TestCompile_FieldsBesideARefReachedPastAPlusKeyAreInTheOtherDocument(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -377,7 +377,7 @@ paths:
   /a:
     x-n:
       $ref: './ext.yaml#/paths/~1b'
-      description: beside
+      put: {operationId: putBeside, responses: {"200": {description: ok}}}
   /b:
     get:
       responses: {"200": {description: ok}}
@@ -398,7 +398,11 @@ paths:
 
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	assert.Equal(t, "the path item at #/paths/~1a+b/x-n writes fields beside its $ref in another document, "+
-		"which this compiler does not read; they are not lowered at this mount",
-		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/paths/~1m"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	put := opWithID(t, doc, "op/openapi/paths/~1m/put")
+	assert.Equal(t, "putBeside", put.Name.Source)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1a/x-n/put"}, put.Provenance)
+	for _, d := range diags {
+		assert.NotEqual(t, "/paths/~1m", string(d.Provenance.Pointer), "%+v", d)
+	}
 }

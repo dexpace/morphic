@@ -217,7 +217,7 @@ func TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild(t *testing.T) {
 		bind.Config{Self: "spec.yaml"})
 	require.NotEmpty(t, table.ObjectLandings())
 
-	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{})
+	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{}, &Siblings{})
 
 	require.Len(t, failed, 1)
 	assert.Equal(t, jsontext.Pointer("/x-p"), failed[0].landing.At.Pointer)

@@ -461,6 +461,24 @@ func statingValue(target lowering.ExtensionTarget) string {
 // unapplied that a real lowering does apply.
 func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) {
 	return []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic){
+		// A stream's terminator and condition are filled once the document is
+		// whole (stream.PromoteDetail), from the text their sources state: what is
+		// read here is that text.
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			var stated bool
+			var diags []ir.Diagnostic
+			for _, target := range []lowering.ExtensionTarget{lowering.TargetStreamTerminator, lowering.TargetStreamCondition} {
+				st, readDiags := p.TextOf(target, unmodeled)
+				stated, diags = stated || st.Text != "", append(diags, readDiags...)
+			}
+			return stated, diags
+		},
+		// The choices among an operation's parameters are read once the
+		// document is whole (paramchoice.PromoteChoices), from the value read here.
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			_, written, diags := p.StatementOf(lowering.TargetParamChoices, unmodeled)
+			return written, diags
+		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var dep *ir.Deprecation
 			var prov ir.Provenance
@@ -524,7 +542,7 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 					continue
 				}
 				for _, src := range p.Sources(target) {
-					st, readDiags := lowering.PageStatementOf(p, target, src, unmodeled)
+					st, readDiags := lowering.PageStatementOf(p, target, src, unmodeled, nil)
 					stated, diags = stated || st.Stated, append(diags, readDiags...)
 				}
 			}
@@ -585,8 +603,12 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetPaginationItems:           {"Operation.Pagination"},
 	lowering.TargetPaginationNextCursor:      {"Operation.Pagination"},
 	lowering.TargetPaginationNextLink:        {"Operation.Pagination"},
+	lowering.TargetPaginationHasMore:         {"Operation.Pagination"},
 	lowering.TargetPaginationTotalCount:      {"Operation.Pagination"},
 	lowering.TargetPaginationTotalPages:      {"Operation.Pagination"},
+	lowering.TargetStreamTerminator:          {"StreamDetail.Terminator"},
+	lowering.TargetStreamCondition:           {"StreamDetail.Condition"},
+	lowering.TargetParamChoices:              {"Operation.ParamChoices"},
 }
 
 // promotionDoc is the document whose table says what a promotion can fill.
@@ -1340,4 +1362,34 @@ func TestPromoter_ACallersValuesAreCopied(t *testing.T) {
 	var prov ir.Provenance
 	p.Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"deprecated"`)}, lowering.Referent{}, &dep, &prov)
 	assert.NotNil(t, dep)
+}
+
+// TestUnheldDeprecation_ReportsEachKeyStatingOne holds a tag's deprecation keys
+// to one finding each where they state a deprecation: none where nothing
+// states one, none for a listed source whose value is another, and none for a
+// tier key of a tag forming no group, which UnformedTier reports.
+func TestUnheldDeprecation_ReportsEachKeyStatingOne(t *testing.T) {
+	t.Parallel()
+	p := promoter(lowering.ExtensionPromotions{})
+	at := func(u ir.Unmodeled, formed bool) []string {
+		diags := lowering.UnheldDeprecation(p, "T", formed, u)
+		out := make([]string, 0, len(diags))
+		for _, d := range diags {
+			out = append(out, string(d.Provenance.Pointer))
+		}
+		return out
+	}
+	entry := func(key, raw string) ir.UnmodeledEntry {
+		return ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(raw),
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer("/tags/0/" + key)}}
+	}
+	deprecated := ir.Unmodeled{
+		"openapi:x-stability":         entry("x-stability", `"deprecated"`),
+		"openapi:x-fern-availability": entry("x-fern-availability", `"beta"`),
+		"openapi:x-deprecated-reason": entry("x-deprecated-reason", `"old"`),
+	}
+	assert.Equal(t, []string{"/tags/0/x-stability", "/tags/0/x-deprecated-reason"}, at(deprecated, true))
+	assert.Equal(t, []string{"/tags/0/x-deprecated-reason"}, at(deprecated, false), "the tier keys are UnformedTier's")
+	assert.Empty(t, at(ir.Unmodeled{"openapi:x-deprecated-reason": entry("x-deprecated-reason", `"old"`)}, true),
+		"a member beside no deprecation states none")
 }

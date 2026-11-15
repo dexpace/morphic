@@ -236,7 +236,9 @@ func TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition(t *testing.T) {
 			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, pointer),
 			"lowered to a nullable reference to its one non-null branch, which has no home for discriminator", pointer)
 	}
-	assert.Equal(t, 6, strings.Count(marshalForTest(t, doc), `"openapi:discriminator"`),
+	marshaled := marshalForTest(t, doc)
+	assert.Equal(t, 6, strings.Count(marshaled, `"openapi:discriminator"`)+
+		strings.Count(marshaled, `"openapi:schema/discriminator"`),
 		"one entry per position, including the parameter and the response, none duplicated")
 }
 

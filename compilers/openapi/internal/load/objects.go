@@ -6,6 +6,7 @@ package load
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 
 	"github.com/speakeasy-api/openapi/marshaller"
@@ -68,16 +69,20 @@ func refKindOf(model any) (bind.RefKind, bool) {
 // returns each position it could build nothing for, with why, and stops once
 // ctx is done.
 func buildObjects(ctx context.Context, bd *typed.Builder, table *bind.Table, media MediaTypes, faults mediaFaults,
+	sibs *Siblings,
 ) []builtObject {
 	o := objectBuild{bd: bd, table: table, media: media, faults: faults, view: nodeview.New(),
-		tried: map[objectSite]bool{}}
+		tried: map[objectSite]bool{}, sibs: sibs}
 	for _, l := range table.ObjectLandings() {
 		if !o.build(ctx, l) {
 			return o.failed
 		}
 	}
 	for _, r := range table.References() {
-		at := []bind.Position{r.Site}
+		var at []bind.Position
+		if !r.Key {
+			at = append(at, r.Site)
+		}
 		if r.Chain.Status == bind.Resolved {
 			at = append(at, r.Chain.End)
 		}
@@ -103,6 +108,8 @@ type objectBuild struct {
 	// failed is reported once, at the first site it was tried for.
 	tried  map[objectSite]bool
 	failed []builtObject
+	// sibs gains the fields beside the $ref of each path item built.
+	sibs *Siblings
 }
 
 // objectSite is a position read as a kind of object.
@@ -130,7 +137,23 @@ func (o *objectBuild) build(ctx context.Context, l bind.ObjectLanding) bool {
 	}
 	o.bd.Object(model, l.Kind, l.At)
 	indexWalk(o.bd, o.media.within(ctx, items), l.At, o.faults)
+	o.besideRefs(ctx, l, items)
 	return true
+}
+
+// besideRefs models the fields written beside each path item $ref of items,
+// the walk of the object built for l, as the source's own are (Siblings), and
+// indexes each model's walk where it is written, in l's document. A model the
+// parser faults on is reported as the object landing's failure, once.
+func (o *objectBuild) besideRefs(ctx context.Context, l bind.ObjectLanding, items iter.Seq[soa.WalkItem]) {
+	first, err := o.sibs.addLanding(ctx, items, l.At.Pointer)
+	for i := first; i < len(o.sibs.list); i++ {
+		indexWalk(o.bd, o.media.within(ctx, o.sibs.modelWalk(ctx, i)), bind.Position{Doc: l.At.Doc}, o.faults)
+	}
+	if err != nil {
+		o.failed = append(o.failed, builtObject{landing: l,
+			err: fmt.Errorf("the fields written beside its $ref could not be read: %w", err)})
+	}
 }
 
 // decodeObject decodes node as a wrapper of kind, as the parser decodes one

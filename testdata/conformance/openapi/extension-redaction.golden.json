@@ -80,7 +80,7 @@
                   "docs": {},
                   "secret": true,
                   "unmodeled": {
-                    "openapi:x-sensitive": {
+                    "openapi:schema/x-sensitive": {
                       "reason": "vendor_extension",
                       "value": true,
                       "provenance": {
@@ -138,7 +138,7 @@
                   "docs": {},
                   "secret": true,
                   "unmodeled": {
-                    "openapi:x-sensitive": {
+                    "openapi:schema/x-sensitive": {
                       "reason": "vendor_extension",
                       "value": true,
                       "provenance": {
@@ -183,7 +183,7 @@
                   "required": false,
                   "docs": {},
                   "unmodeled": {
-                    "openapi:x-sensitive": {
+                    "openapi:schema/x-sensitive": {
                       "reason": "vendor_extension",
                       "value": false,
                       "provenance": {
@@ -210,7 +210,7 @@
                   "required": false,
                   "docs": {},
                   "unmodeled": {
-                    "openapi:x-sensitive": {
+                    "openapi:schema/x-sensitive": {
                       "reason": "vendor_extension",
                       "value": "yes",
                       "provenance": {
@@ -302,7 +302,7 @@
                       "secret": true,
                       "docs": {},
                       "unmodeled": {
-                        "openapi:x-sensitive": {
+                        "openapi:schema/x-sensitive": {
                           "reason": "vendor_extension",
                           "value": true,
                           "provenance": {

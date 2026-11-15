@@ -244,7 +244,11 @@ and size the budgets above leave free. A declaration a `$ref` names, a schema as
 each `$ref` naming it, so each such `$ref` is charged what the declarations its chain names weigh:
 the one it ends at, and each component alias it passes through, whose fields beside its own `$ref`
 lower at every use too ([`reference-object-siblings`](#reference-object-siblings),
-[`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
+[`path-item-ref-fields`](#path-item-ref-fields)), and the use itself. An alias, and the mapping
+that writes the use's `$ref`, each weigh one node for the mapping and what it writes beside its
+`$ref`, weighed as a declaration is: the `$ref` is read, not copied, so a bare use and each bare
+alias of its chain weigh one node, and a `$ref` merged in through `<<` is weighed as written. A
+declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
 schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
@@ -320,6 +324,9 @@ node bound. An overlay document and a document a reference reads keep the first 
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
   `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
   `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
+  `lowering.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
+  `lowering.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
+  `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
   `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestWeightOf_CountsASchemaAsOneNode`,
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
@@ -1321,8 +1328,14 @@ specification reads every key as a string, and one that is no scalar as the empt
 float64's range included, a YAML timestamp in the spelling written, a `!!binary` as its source text,
 and a scalar under a tag of the document's own as its text, since that tag claims no kind its text
 could contradict. A field a reader finds is found the same way, so one supplied through a merge key
-or an alias is kept as a written one is. A node no JSON can hold — a key a mapping or a mapping
-merged into it writes twice, `.nan` or `.inf`, a scalar whose text its tag does not admit, which
+or an alias is kept as a written one is. A key a mapping writes twice is held at the copy the model
+reads, the mapping's own last and a merge source's first
+([`duplicate-key`](../parser-library.md#duplicate-key)), so a kept value agrees with the typed IR
+read beside it, and the rule table warns of the repeat once, at its later copy, as an
+`openapi/validation` warning of the class `validation-duplicate-key`: in a value it reads as no
+object, an extension's, an undefined key's or an `example`'s, as in an object
+([`validation`](#validation)). A node no JSON can hold — `.nan` or `.inf`, a scalar whose text its
+tag does not admit, which
 [`values`](#values) refuses for the reason given there, invalid UTF-8, an alias that cycles or
 expands past the converter's node budget, a merge chain deeper than the reader expands — reaches the
 IR in no form, and so does a number past `ir.MaxDecimalExp`, which the reader a lowered value goes
@@ -1339,7 +1352,10 @@ extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)'
   `schema.TestAllOf_TheBindingCountPastTheDecimalRangeIsRefusedInEveryOrder`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
   `annotation.TestRawFromNode_PreservesMergeAndOrderingSemantics`,
-  `annotation.TestRawFromNode_NamesTheRepeatedKey`, `annotation.TestScalarRenderers_AgreeOnKind`,
+  `annotation.TestRawFromNode_KeepsTheLastCopyOfARepeatedKey`,
+  `annotation.TestScalarRenderers_AgreeOnKind`, `e2e.TestCompile_ARepeatedKeyIsKeptAsItsLastCopy`,
+  `e2e.TestCompile_ARepeatedDefaultIsKeptAsItsLastCopy`,
+  `e2e.TestCompile_ARepeatedKeyIsReadAsItsLastCopyInEverySpelling`,
   `annotation.TestRawPropertyNode_ReadsAKeywordAsTheParserDoes`
 
 ### `unmodeled-dialect-fields`
@@ -1348,10 +1364,10 @@ A source revision may add a field the bundled parser's model names no member for
 `Response.summary`, XML `nodeType`, the nested Encoding fields, a Media Type Object's `description`,
 `components/mediaTypes` and a content entry written as a Reference Object are the live set. Such a
 field is read off the raw node by a reader of its own, and the object census is *told* which keys
-that reader took: the census grades a key by the parser's model, so left alone it reports a field
-the document defines as an undefined key. The reader runs whatever version the document declares, as
-[`later-version-construct`](#later-version-construct) requires, so the census never calls such a
-field undefined.
+that reader took: the census grades a key by the parser's model, so left alone it keeps a field the
+document defines as an undefined key. The reader runs whatever version the document declares, as
+[`later-version-construct`](#later-version-construct) requires, so the census never keeps such a
+field as undefined.
 
 The census is told what the reader actually took, never a key list by version. A value the parser
 would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
@@ -1395,7 +1411,9 @@ unconditionally. A section is read as the parser reads it, through `<<` merge ke
 entry is kept under its own name, and an entry whose key is no scalar is left out
 ([`validation`](#validation) reports the key). An entry whose `$ref` is no string, which every
 reader takes for the entry left out ([`references`](#references)), is kept as the source wrote it,
-beside the rule table's error at the `$ref`. Where the components merge
+beside the rule table's error at the `$ref`. A key an entry writes that its object does not define
+is reported all the same, by the rule table ([`unknown-keys`](#unknown-keys)), and rides inside the
+kept entry. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -1535,9 +1553,10 @@ same literal tagged `!!float` is. A quoted one stays a string. A value no `Value
 `.nan`, a number past `ir.MaxDecimalExp`, a `!!binary` that is not base64, a scalar whose text its
 tag does not admit (`!!null abc`, `!!timestamp soon`), a tag the compiler does not lower (`!acme`), a
 key a mapping or a mapping merged into it writes twice, a merge chain deeper than the reader
-expands, nesting past the reader's depth bound — is not coerced: a default or example is dropped
-with an `openapi/degraded-construct` warning at its position, and a `const` or an enum member is
-[`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
+expands, nesting past the reader's depth bound — is not coerced: an example is dropped with an
+`openapi/degraded-construct` warning at its position, a default with an `openapi/unlowered-construct`
+warning at its own `default`, in whichever document and once however many carriers read it, each of
+which then takes none, and a `const` or an enum member is [`enum-const`](#enum-const)'s. A scalar whose text its tag does not admit is refused rather than
 read as its text, since its tag says what kind of value it is, YAML's own decoding refuses it, and
 its text read as a string would be a value of a kind the source never wrote, where the warning says
 what the document got wrong. The number reader is the numeric bounds' as well
@@ -1545,14 +1564,15 @@ what the document got wrong. The number reader is the numeric bounds' as well
 [`verbatim-preservation`](#verbatim-preservation)'s.
 
 - Cases: `defaults`, `yaml-timestamp-scalars`, `numeric-precision`, `yaml-merge-keys`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/degraded-construct`, `openapi/unlowered-construct`
 - Tests: `value.TestNumericLiteral_YAMLBases`, `value.TestValueFromNode_Timestamp`,
   `value.TestValueFromNode_Scalars`, `value.TestValueFromNode_ReadsAMappingAsTheParserDoes`,
   `value.TestValueFromNode_RefusesWhatNoObjectHolds`, `value.TestClassify_ReadsEachSpellingOnce`,
   `value.TestClassify_RefusesAPlainNumberPastTheExponentRange`,
-  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`
-- Status: partly built: an unconvertible default is reported at the schema of the property or
-  parameter that reads it rather than at its own position (#1101).
+  `annotation.TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped`,
+  `schema.TestUseDefault_ReportsAtTheDefault`, `schema.TestUseDefault_ReportsAHeadersDefaultAtTheDefault`,
+  `schema.TestUseDefault_AChainReportsAtTheHopThatSupplied`,
+  `operation.TestParams_AnUnconvertibleDefaultIsReportedWhereItIsWritten`
 
 ## 4. Schemas: identity, references and annotations
 
@@ -1601,8 +1621,9 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 The keywords written beside a schema's `$ref`, which 3.1 admits and which are applied the same way in
 a 3.0 document, each read in its own document's dialect
-([`later-version-construct`](#later-version-construct)), and the annotations its target
-declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
+([`later-version-construct`](#later-version-construct)), and the annotations each hop of its `$ref`
+chain declares, nearest first — documentation, deprecation, redaction, visibility and `default` — merge
+onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
 the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
@@ -1621,7 +1642,7 @@ than override, so each position keeps the ones it declared and none is copied to
 
 A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
 one reads its target by this rule, and one holding a `$ref` to a refinement reads through it, up to 64
-`$ref`s: what the target declares, what its inline branches lend it
+refinements, an alias between two spending none of them: what the target declares, what its inline branches lend it
 ([`allof-inline-residue`](#allof-inline-residue)), then what its own `$ref` declares, nearest first. A
 `$ref` that loses the type to a value set narrowing it still speaks, for documentation, deprecation,
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
@@ -1638,7 +1659,7 @@ it composes as `Base` and `Mixins`, which lends a carrier nothing, where a conju
 the `$ref` would lend written alone, since the visibility and `default` of the use have no other home.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
-  `schema-ref-siblings-30`, `allof-refinement`
+  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
@@ -1647,8 +1668,9 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`, `annotation.TestEffectiveDeprecated_AnySchemaDeprecates`,
   `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
-  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`
-- Status: partly built: a use reads the end of its chain and not the schema it names (#1029).
+  `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
+  `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
+  `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`
 
 ### `reference-object-siblings`
 
@@ -1659,9 +1681,7 @@ parameter, a response or error case, a header, an example, a request body, a sec
 body's media type, a link — both are read off the entry and folded over the declaration's docs field
 by field, a sibling the entry writes winning and one it omits leaving the declaration's value
 standing.
-A parameter's or header's content entry has no docs field of its own, so what the fold takes there
-is kept verbatim under `no_ir_home`, each from the position writing it, in whichever document, with
-an info `openapi/degraded-construct`. A component that is itself
+A component that is itself
 a `$ref` (an alias) is a use of what it names, so the fold runs along the whole chain from the
 declaration outward: an alias's siblings override the declaration's, and a use site's override the
 alias's. The fold applies at every version whose parser presents the siblings, which is all of them:
@@ -1673,17 +1693,45 @@ permitted. OpenAPI 3.0 goes further, admitting no key beside a `$ref` and saying
 ignored; there the fold is the 3.1 reading, and each sibling it reads is reported with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
-- Cases: `ref-site-docs`, `later-version-constructs`, `component-media-types-32`
-- Codes: `openapi/later-version-construct`, `openapi/degraded-construct`
+Every other key a Reference Object of the chain writes beside its `$ref`, read as the model reads the
+mapping, a `<<` included, rides on the node the use lowers to, under
+`openapi:reference/<i>/<key>`: `i` is 0 for the use, then counts the aliases the chain passes,
+nearest first, so a use and an alias writing one key are two entries. Each is kept `out_of_scope`,
+OpenAPI giving it no effect, with its own key's provenance in the document writing it; the rule
+table reports it ([`unknown-keys`](#unknown-keys)), and keeping it reports nothing more. Where the
+position has no docs field, a callback's and a parameter's or header's content entry's, the use folds
+nothing, so the `summary` and `description` each Reference Object writes are kept the same way,
+`no_ir_home`, each reported as an info `openapi/unhomed-construct` at its key, and the entry leaves
+when a docs field arrives. The Media Type Object's own keys keep `openapi:content/<mt>/<key>`, which
+a key of the chain's never shares: a key is read whole, never by its prefix.
+
+| Use | Node the entries ride on | Scope before `reference/<i>/` | Folds docs |
+|---|---|---|---|
+| parameter, header | the `ir.Parameter`, the header's `ir.Property` | none | yes |
+| request body, response, example | the operation's `Request`, the `ir.Response` or `ir.ErrorCase`, the `ir.Example` | none | yes |
+| link | the response's link | none | yes |
+| callback | the operation's HTTP binding | `callbacks/<name>/` | no |
+| media type of a body | the `ir.Content` | none | yes |
+| media type of a parameter's or header's content | the parameter or the header's property | `content/<mt>/` | no |
+| security scheme | the `ir.AuthScheme` | none | yes |
+
+A path item's fields beside its `$ref` are its own ([`path-item-ref-fields`](#path-item-ref-fields)).
+Rejected: keeping the keys on the Document by the use's coordinate, which nothing on the node leads
+to; and one flat `reference/` scope, which would make a use and an alias writing one key one entry.
+
+- Cases: `ref-site-docs`, `later-version-constructs`, `component-media-types-32`, `ref-beside-keys`
+- Codes: `openapi/later-version-construct`, `openapi/unhomed-construct`
 - Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesArePlacedThere`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
-  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`,
-  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`
-- Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
-  no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
-  declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
-  takes, and is reported as represented in no form (#396).
+  `operation.TestMediaTypeRef_ABodyFoldsAndAParameterKeepsEachPosition`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`, `lowering.TestBeside_KeysTheUseAndEachAlias`,
+  `lowering.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
+  `operation.TestContentDocs_AKeyIsReadWhole`, `operation.TestCallbacks_AUseKeepsItsDocs`,
+  `e2e.TestBeside_AnAliasInAnotherDocumentKeepsItsKeyThere`,
+  `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`,
+  `operation.TestMediaTypeRef_ABodyKeepsTheKeysBesideEachRef`,
+  `operation.TestMediaTypeRef_ADocKeyNotKeptDrawsNoKeptInfo`
 
 ### `use-bound-annotations`
 
@@ -1697,6 +1745,8 @@ for it, as [`ref-use-site`](#ref-use-site) merges them: a `default` with use-sit
 `readOnly` and `writeOnly` in force where either side sets them, and the declaration keeps its
 own copy verbatim under `no_ir_home`, reported with an info `openapi/degraded-construct` at the
 keyword. That copy is what a component nothing references would otherwise lose in silence. A
+`default` no `ir.Value` holds is pushed down to no carrier, as [`values`](#values) reports where it
+is written, and its info says so. A
 position a property, parameter or header carries keeps them on its carrier whichever reaches it
 first, the carrier or a `$ref` naming the position: a `$ref` leaves lowering a position to the
 declaration that owns it.
@@ -1757,18 +1807,33 @@ naming a replacement it cannot settle as an info `openapi/undecided-replacement`
 3. A model member's message names, in each code span, a member of its model by name, a member the
    model's composition flattens in among them, as a replacement key names one.
 
-A code span is read as CommonMark reads one. The policy's trigger is a message naming an entity of
-the node's class other than the node: one naming none, or the node alone, fills nothing and is not
-reported, since prose naming something else is no defect. Where it names one, the names fill the
-field all or none, the node itself passed over and a repeat kept once: a name naming no entity, or
-several, leaves the field unset, reported at the node, quoting the first such name. The message
-keeps its prose either way. The words around a name are not read, so a message naming a declared
-entity for another reason, as ``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does,
-fills the field with it, and a document whose messages write so is compiled with the policy off. The
-reading runs once the document is whole, as a replacement may be declared after what it replaces. A
-Markdown link's title is display text and its URL a page of documentation, neither naming an entity
-the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
-message, where no measured document names a replacement such a scope resolves. On the golden spec
+A code span is read as CommonMark reads one. A name is read only where a phrase introduces it as a
+replacement, within one sentence, its words compared in lower case, in one forward pass over the
+message:
+
+| Part | Rule |
+|---|---|
+| cue | `use`, with nothing before it in its sentence but words ending in `please`, `should`, `must` or `instead` (a comma after one aside); or `renamed to`, `replaced by`, `replaced with`, `superseded by`, `in favor of`, `in favour of`, anywhere in the sentence |
+| negation | none of `not`, `never`, `no`, `cannot`, or a word ending `n't`, before the cue in its sentence |
+| filler | then at most `the`, `a`, `an`, `new`, and an opening `(` or quote; a route's method word outside its code span belongs to the name |
+| name | a route for an operation, a code span for a parameter or a member |
+| more names | each joined to the one before by `,`, `and` or `or` alone |
+| sentence end | `.`, `!`, `?` or `;` followed by white space or the end, or a blank line, none inside a name |
+
+So ``Use `a`, `b` or `c`.`` names three, ``Do not use `b`; use `a`.`` and ``Use `a` instead of `b`.``
+name `a` alone, and ``Unlike `GET /v0/zones`, this pages.``, ``Formerly `b`.``,
+``If you use `c`, set `d`.``, ``You may use `c`.``, ``Deprecated: use `c`.`` and
+``This was not replaced by `c`.`` name none. A name no phrase introduces is neither read nor
+reported. The policy's trigger is a message introducing an entity of the node's class other than
+the node: one introducing none, or the node alone, fills nothing and is not reported, since prose
+naming something else is no defect. Where it introduces one, the names fill the field all or none,
+the node itself passed over and a repeat kept once: a name naming no entity, or several, leaves the
+field unset, reported at the node, quoting the first such name. The message keeps its prose either
+way. The reading runs once the document is whole, as a replacement may be declared after what it
+replaces. A Markdown link's title is display text and its URL a page of documentation, neither
+naming an entity the document holds, so a link is never read; nor is a header's, a schema's or a
+security scheme's message, where no measured document names a replacement such a scope resolves.
+On the golden spec
 (spec @86556f6f), of the 217 operations whose deprecation carries a message, 25 name a route the
 document declares, 16 in a code span and 9 beside one, and take it; 10 name a path relative to the
 prefix the document mounts it under, which names no route as written, and 146 a link, and take
@@ -1783,7 +1848,11 @@ replacement its message tells a caller to use, and no message is reported.
   `replacement.TestMessage_ANameTwoParametersCarryIsReported`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`,
   `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
+  `replacement.TestMessage_ReadsOnlyIntroducedNames`, `replacement.TestMessage_ReadsEachCueAndNoNearMiss`,
+  `replacement.TestMessage_CostsItsLength`, `replacement.TestMessage_UseOpensItsSentence`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: open: a `use` after a colon, a parenthesis or a dash is no cue, so
+  ``Deprecated: use `b` instead.``, which `main` read, names nothing (#1956).
 
 ### `disjoint-visibility`
 
@@ -1829,7 +1898,7 @@ OpenAPI 3.0's `nullable: true` adds `null` to the `type` written in the same Sch
 clarification of every 3.0 release. With no `type` beside it, it has no effect, and 3.1 removed the
 keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
 use it to say that a schema admits null, and write `{$ref: T, type: [object, "null"]}` for the
-nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-widening
+nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-inference
 policy, on by default, reads such a null as widening what it is written on rather than conjoining
 with it: `nullable: true` admits null for the whole schema it is written on, whatever else that
 schema says, and keywords beside a `$ref` that admit null by themselves admit it for the whole
@@ -1837,13 +1906,13 @@ reference, and a `nullable: true` on an inline `allOf` branch writing no `proper
 the whole schema holding the `allOf`, a `type` beside the `allOf` included, as beside the `allOf` it
 does ([`allof-inline-residue`](#allof-inline-residue)). A `type` without `null` beside a `$ref` still
 narrows what it lands on, and a `type: [T, "null"]` on a conjunct of an `allOf` conjoins with the
-rest. A reference whose null only that reading admits names `nullable-widening` in
+rest. A reference whose null only that reading admits names `nullable-inference` in
 `TypeRef.Inferred` (invariant 6), so `Nullable` with no marker is the declared reading, and each
 such null is reported once as an info `openapi/inferred-nullable`, at the `nullable` keyword or, for
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
-whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
+whatever references its schema. The policy is the Go option `Options.NullableInference`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-widening`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
+`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
 its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
@@ -1861,15 +1930,15 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `nullability-conjunction`, `nullable-keyword-30`, `nullable-keyword-31`
 - Codes: `openapi/inferred-nullable`, `openapi/unknown-schema-keyword`, `openapi/validation`
 - Tests: `schema.TestSchemaRef_NullableNormalization`,
-  `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
-  `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
-  `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `schema.TestNullableInference_EachShapeReadsByItsVersion`,
+  `e2e.TestNullableInference_AKeywordIsReportedOnceAtItself`,
+  `e2e.TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine`,
   `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
-  `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
+  `e2e.TestNullableInference_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
-  `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`,
+  `schema.TestNullableInference_ABranchWidensTheAllOfHoldingIt`,
   `oas.TestCheck_NullableAppliesBesideAType`,
-  `e2e.TestNullableWidening_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`
+  `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`
 
 ### `schema-examples`
 
@@ -2080,7 +2149,7 @@ union of a `uuid` and an `integer`. A use reads past such a refinement as past a
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
 verbatim reading no target ([`shape-applicator`](#shape-applicator)), and on `type: [T, "null"]`,
-which the nullable-widening policy reads as widening beside a `$ref` and which conjoins here, as JSON
+which the nullable-inference policy reads as widening beside a `$ref` and which conjoins here, as JSON
 Schema says ([`nullable`](#nullable)). A `$ref` naming either parts as well: it reads what `K` says
 here, and past it there, as a chain of `$ref`s is read to its end ([`ref-use-site`](#ref-use-site)).
 
@@ -2160,7 +2229,7 @@ collection bounds, `format: password` ([`password`](#password)), vendor extensio
 validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
 the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
 which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
-the nullable-widening policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
+the nullable-inference policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
 `unevaluatedItems` folds, in any form: each applies to what no keyword beside it evaluates (JSON
 Schema 2020-12 §11.2, §11.3), so on a branch it holds the instance to what that branch alone
 evaluates, where beside the `allOf` it would exempt what the position and the other branches
@@ -2842,7 +2911,7 @@ states a set of JSON instance types, an `integer` within a `number` and named as
 beside the `allOf`; an inline entry's `type`, conjoined with
 what its own `allOf` states; and for a `$ref` entry, what the schema it lands on states. The schema
 is reported where those sets share no member and the schema admits no null as
-[`nullable`](#nullable) reads it, under the nullable-widening policy where that is on: a null every
+[`nullable`](#nullable) reads it, under the nullable-inference policy where that is on: a null every
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
 null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
@@ -2990,13 +3059,13 @@ document contradicts itself, and this rule does not read it otherwise. A `$ref` 
 schema of `null` alone stays a variant, a nullable reference to that schema's `Enum`, which an
 emitter reads as the union's `null` ([unions](../emitters/refine/unions.md#a-null-a-variant-admits)):
 it names a node the source declares, which lifting it would drop, and reading it would take a
-distant declaration. A branch whose `null` only the nullable-widening policy admits is a null branch
+distant declaration. A branch whose `null` only the nullable-inference policy admits is a null branch
 while the policy is on, and the reference's `null` then names it in `Inferred`, with its
 `openapi/inferred-nullable` info at the branch ([`nullable`](#nullable)); with the policy off, the
 branch admits nothing and is a variant.
 
 A null branch writing a key beside `type`, `enum`, `const`, and a `nullable` its dialect or the
-nullable-widening policy reads, such as a `description`, is kept whole under
+nullable-inference policy reads, such as a `description`, is kept whole under
 `openapi:<combinator>/<index>`, the branch's path from the schema, with the reason `no_ir_home`,
 since the `null` is typed exactly and only what the branch says of it has no field: on the `Union`
 the branches leave, or, where they collapse, where the position keeps what else the collapse cannot
@@ -3029,7 +3098,7 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
   `schema.TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt`,
   `schema.TestNullBranch_KeepsANullableNothingReads`,
   `schema.TestNullBranch_ARepeatedNullIsReportedAtTheBranch`,
-  `schema.TestNullableWidening_EachShapeReadsByItsVersion`
+  `schema.TestNullableInference_EachShapeReadsByItsVersion`
 
 ### `union-null-only`
 
@@ -3690,7 +3759,7 @@ lowered first.
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
-  `schema.TestNullableWidening_AnEnumsNullMemberFollowsTheReadingInForce`,
+  `schema.TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 
 ## 6. Schemas: objects, arrays and scalars
@@ -4385,10 +4454,13 @@ Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Sche
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
 info `openapi/validation-only-keyword` at the schema that wrote it, an `openapi:unevaluated` one
-holding an inert keyword naming it and the keyword that leaves it inert.
+holding an inert keyword naming it and the keyword that leaves it inert. A position a kept keyword's
+`$ref` lands on is lowered all the same, and so is each position a chain of them passes, an alias
+keeping what it writes beside its `$ref`: the compiler lowers every position a schema `$ref` of the
+document lands on, hop by hop, as it would one a lowered keyword names.
 
 - Cases: `negation-not`, `dependent-required`, `schema-drafts`, `maps`, `tuples-prefixitems`,
-  `unevaluated-at-every-outcome`
+  `unevaluated-at-every-outcome`, `kept-ref-landings`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
   `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
@@ -4670,9 +4742,12 @@ written with one value, written with a second — requiring that the absent form
 first and the first from the second, and an exception asserts the inverse with its written
 justification. A keyword that stops being carried fails there rather than waiting for a reader to
 notice. The guarantee is a floor rather than an inventory: it compares one pair of values per
-keyword, so a lowering that carried one spelling and dropped another would still pass.
+keyword, so a lowering that carried one spelling and dropped another would still pass. A keyword
+kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
+([`validation-only`](#validation-only)).
 
-- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`
+- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`, `schema.TestPromiseLandings_BuildsNothingTwice`,
+  `schema.TestPromiseLandings_LowersWhatNothingElseReached`, `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
 
 ## 8. Paths and operations
 
@@ -4825,22 +4900,24 @@ reads on in the item the `$ref`'s chain ends at, so a pointer and a mount read o
 whichever reference, schema `$ref` or reference object, writes it. A `#/$defs/...` pointer written
 in those fields reads its definition there by the same rule. An item another document holds is
 declared where that document declares it, and a finding names its positions by the reference. The
-fields beside a `$ref` the load phase's walk does not reach, in another document or under an `x-*`
-key, are not lowered, reported as an `openapi/degraded-construct` warning at the mount naming the
-reference that reaches them.
+fields beside a `$ref` are lowered at every position the bindings' table lands a path item on, in
+the source or another document and under an `x-*` key alike, declared where they are written.
 
 - Cases: `path-item-ref-siblings`
-- Codes: `openapi/path-item-ref-collision`, `openapi/degraded-construct`
+- Codes: `openapi/path-item-ref-collision`
 - Tests: `operation.TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins`,
   `operation.TestPathItemRefSiblings_AReferenceIntoTheFieldsBesideARefReadsThem`,
   `operation.TestPathItemRefSiblings_APointerIntoTheFieldsTakesWhatTheyDeclare`,
   `operation.TestPathItemRefSiblings_APointerBesideTheRefReadsTheFieldsInEitherOrder`,
   `operation.TestPathItemRefSiblings_ADefsPointerBesideARefReadsItsOwnDefinitions`,
   `e2e.TestReferenceObjects_AFieldBesideAPathItemRefIsReadWhereItIsWritten`,
-  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreReported`,
-  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`
-- Status: partly built: the fields beside a `$ref` the load phase's walk does not reach are not
-  lowered (#823).
+  `operation.TestPathItemRefSiblings_FieldsAnotherDocumentWritesAreModelled`,
+  `operation.TestPathItemRefSiblings_FieldsAtAnyLandingAreModelled`,
+  `operation.TestPathItemRefSiblings_AForeignReferentKeepsItsOwnPositions`,
+  `e2e.TestCompile_FieldsBesideAPathItemRefAtAnyLandingAreMounted`,
+  `e2e.TestCompile_ALongChainOfLandingsMountsEachOnesFields`,
+  `e2e.TestCompile_FieldsBesideAForeignPathItemRefAreMounted`,
+  `e2e.TestExternalContent_FieldsBesideAPathItemRefItWritesAreLowered`
 
 ### `tag-groups`
 
@@ -4878,9 +4955,21 @@ writes again once, at its first occurrence, comparing tags as the text written, 
 reported as an `openapi/repeated-entry` warning where it is written, naming the first. A blank tag
 is a tag like any other.
 
+
+A tag object's own keys are kept on its `TagDef`, its vendor extensions and undeclared keys unscoped
+and its `externalDocs` object's under `openapi:externalDocs/`. A group a declared tag forms takes the
+vendor extensions of the tag's first declaration in its own `Unmodeled`, as it takes its docs, and a
+stability tier they state fills the group's `Stability`, recorded in its `Inferred`
+([`extension-promotion`](#extension-promotion)). The tier is read through the group and nowhere
+else: an operation the tag files states none, and a mapped key on a tag that forms no group fills
+nothing and is reported as an info `openapi/unpromoted-extension` at the key. A deprecation a tag's
+keys state, and each member they write, fill nothing either, a group holding no `Deprecation`, so
+each key read into one is reported the same way, once, whether the tag forms a group or not.
+
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
-- Codes: `openapi/repeated-entry`
-- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+- Codes: `openapi/repeated-entry`, `openapi/unpromoted-extension`
+- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`, `operation.TestGroups_ARepeatedTagNameTakesItsFirstDeclaration`,
+  `operation.TestGroups_ADeprecationOnATagIsReported`, `lowering.TestUnheldDeprecation_ReportsEachKeyStatingOne`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
@@ -4894,7 +4983,10 @@ is a tag like any other.
 
 Under the `path-prefix` grouping strategy (`Options.Grouping`), each path operation is filed in one
 group, named by the first non-empty segment of its path's URI template, the key less any fragment
-([`path-keys`](#path-keys)), so `/users` and `/users/{id}` share `users`. A segment that is a
+and any query ([`path-keys`](#path-keys)), so `/users`, `/users/{id}` and `/users?role=admin` share
+`users`, and `/?probe=1` files under the empty segment. The query is found as
+[`path-keys`](#path-keys) finds it, so a `?` inside a template expression begins none, and
+`/{a?b}/users` files under `{a?b}`; `URITemplate` keeps the query. A segment that is a
 template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
 root path, whose segments are all empty, under the empty one. The group's ID is `g/path-prefix/`
 and the segment as one RFC 6901 token, the empty segment's `g/path-prefix`
@@ -4905,12 +4997,14 @@ no resource, so the reading is policy (invariant 6), never the default: an opera
 unmarked, and a callback's goes with the operation declaring it, marked as that one is
 ([`tag-groups`](#tag-groups)). Nothing is reported.
 
+- Cases: `path-prefix-query`
 - Tests: `operation.TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment`,
   `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
   `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
-  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`
-- Status: partly built: the segment is read up to the next `/` alone, so a key's query reaches its
-  group, `/users?role=admin` filing under `users?role=admin` (#1823).
+  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+  `operation.TestGroups_PathPrefixStopsAtTheQuery`,
+  `operation.TestGroups_PathPrefixKeepsTheQueryInTheTemplate`,
+  `operation.TestGroups_PathPrefixReadsAQuestionMarkInsideATemplateExpression`
 
 ### `extension-groups`
 
@@ -5012,8 +5106,10 @@ in any case, which OpenAPI forbids, keeps every occurrence, the ID of each repea
 ending in its occurrence number, so `x-trace` beside `X-Trace` keeps the ID each has alone, and is
 reported as an `openapi/duplicate-parameter` error at the repeat, naming the first entry's spelling
 where it differs. Every list the source writes is
-checked, whether or not it lowers, and a list another document writes where it lowers or where a
-path item that mounts no operation keeps it; the rule table
+checked, whether or not it lowers, a path item's a reference lands on where the source's grammar
+reads none, such as under an `x-` key, among them, beside its `$ref` or not, once however many paths
+mount it, and a list another document writes where it lowers or where a path item that mounts no
+operation keeps it; the rule table
 ([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
 no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
 included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under
@@ -5037,7 +5133,9 @@ references reach it.
   `operation.TestPathItem_WithNoOperationKeysAHeaderRepeatedInAnyCase`,
   `ids.TestSlotOf_ComparesAHeadersNameInAnyCase`,
   `e2e.TestCompile_AParameterListRepeatingAnEntryIsReportedWhereverItIsWritten`,
-  `e2e.TestCompile_ARepeatInAListTwoReferencesReachIsReportedOnce`
+  `e2e.TestCompile_ARepeatInAListTwoReferencesReachIsReportedOnce`,
+  `e2e.TestCompile_AListAtAPathItemLandingIsCheckedForRepeats`,
+  `e2e.TestCompile_AListAtAPathItemLandingInAnotherDocumentIsCheckedForRepeats`
 
 ### `content-parameters`
 
@@ -5047,13 +5145,23 @@ document declares more, so that no declaration order changes the type. Its schem
 lowered as the `schema` spelling's is with the same constraints and `xml` hints, hoisted at
 `<owner>/content/<key>/schema`, or the top type where the entry writes none, and the key as written
 is the media type that serializes the value: `HTTPParamBinding.ContentType` on a parameter,
-`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Every other entry
+`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling; a parameter's own
+`Parameter.Encoding` is written only by [`http-date-inference`](#http-date-inference). Every other entry
 lowers nothing and is kept whole on the Document under `openapi:<coordinate>`, its own pointer behind
 a document's qualifier where it is not the source (`degraded_lowering`), once however many references
 reach it: such an entry belongs to the declaration, which no node stands for, and a parameter or
 header lowers once per reference. Each is reported in one `openapi/degraded-construct` warning at the
 `content` map, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws,
-which names the lowest `annotation.MaxUnknownKeys` and counts the rest.
+which names the lowest `annotation.MaxUnknownKeys` and counts the rest. The media type serializes
+the value, so a parameter whose content entry is elected states no style: its binding's `Style` is
+the one it writes, and empty where it writes none, where the `schema` spelling takes its
+location's default. A `style`, `explode` or `allowReserved` written beside `content`, which OpenAPI
+applies to a value serialized through its schema (3.0.4: "For simpler scenarios, a `schema` and
+`style` can describe the structure and syntax of the parameter"), has no effect there: it lowers as
+declared and is an `openapi/inapplicable-location-keyword` warning at the key, a header's `style`
+and `explode` alike ([`header-style`](#header-style)), and `in: querystring`'s are
+[`querystring`](#querystring)'s alone, as 3.2 bars the three there. Where a location's own row also
+holds, as for `allowReserved` at `in: path`, both are reported, each a different statement.
 What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or
 header's own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the
 key escaped as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared
@@ -5066,15 +5174,17 @@ beside it stands, and the empty map is kept under `degraded_lowering` with an
 [`competing-keywords`](#competing-keywords)'.
 
 - Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
-- Codes: `openapi/degraded-construct`
-- Tests: `operation.TestParams_ContentStyleParameter`,
+- Codes: `openapi/degraded-construct`, `openapi/inapplicable-location-keyword`
+- Tests: `oas.TestCheck_SerializationKeywordsBesideContent`,
+  `operation.TestParameter_ContentStatesNoDefaultStyle`,
+  `e2e.TestContentParameters_SerializationKeywordsAreReported`,
+  `operation.TestParams_ContentStyleParameter`,
   `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
   `operation.TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest`,
   `operation.TestPassedOverEntries_KeepsOneCopyPerDeclaration`,
   `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
-- Status: partly built: a `style`, `explode` or `allowReserved` beside a parameter's `content` lowers
-  in silence (#887), and what a referenced parameter or header keeps is copied per reference (#1240).
+- Status: partly built: what a referenced parameter or header keeps is copied per reference (#1240).
 
 ### `allow-empty-value`
 
@@ -5097,11 +5207,18 @@ location but `query`, which OpenAPI forbids, it is an `openapi/validation` error
 
 A header parameter named `Accept`, `Content-Type` or `Authorization`, which OpenAPI says SHALL be
 ignored because the protocol layer owns the name, lowers as declared and is reported as an
-`openapi/reserved-header-name` warning at the parameter: dropping declared content is an emitter's
-call, not a compiler's, and the diagnostic lets an emitter suppress it.
+`openapi/reserved-header-name` warning at its `name`: dropping declared content is an emitter's
+call, not a compiler's, and the diagnostic lets an emitter suppress it. A `headers` map of a
+Response Object or an Encoding Object reserves `Content-Type`, which each states elsewhere, and an
+entry under it is reported the same way at the entry. Names compare in any case, as HTTP compares
+field names. The rule table reports both ([`validation`](#validation)), wherever the object is
+written, so a component nothing references is reported, and one many operations use is reported
+once.
 
 - Codes: `openapi/reserved-header-name`
-- Tests: `operation.TestParams_ReservedHeaderNamesAreReported`
+- Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,
+  `oas.TestCheck_ReservedHeaderParameter`, `oas.TestCheck_ReservedHeaderEntries`,
+  `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`, `e2e.TestUnknownKeys_ObjectsKeptWhole`
 
 ### `idempotency-inference`
 
@@ -5172,9 +5289,20 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 
 A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbatim in the parameter's
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
-`ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
-that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
-keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
+`ir.Parameter` has no field for either. Everything a parameter's or a header's schema writes that the
+carrier keeps is keyed beneath the schema's scope, `openapi:schema/<key>`, or
+`openapi:content/<mt>/schema/<key>` for the schema of an elected content entry, and the object's own
+keys stay unscoped, so a parameter and its schema can each write one key and both are kept
+([unmodeled](../ir/unmodeled.md#keys)). A model's property is its schema, and keeps its keys
+unscoped. An entry another entry of the carrier holds whole is kept once: an `xml` object kept whole
+holds its own extensions, and an `allOf` branch kept whole holds a `readOnly` read out of it, so
+neither inner key is kept again, compared by provenance and value, never by the key's spelling;
+a discriminator kept whole on a type holds its extensions the same way. A key the promotion policy
+reads is the exception, kept beside what holds it at any scope: a promotion reads the kept entries,
+and one read only inside another's value would fill no field, so a branch kept whole that writes
+`x-sensitive` still redacts its carrier ([unmodeled](../ir/unmodeled.md#promotion)). The `xml` of
+a schema that owns a node of its own stays on that node's `XMLHints` instead. A schema with no node
+of its own keeps there too what any carrier keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
 did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
 ([`unknown-keys`](#unknown-keys)).
 
@@ -5183,7 +5311,12 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
 - Tests: `operation.TestParams_SchemaVisibilityKeptUnderUnmodeled`,
   `operation.TestParams_KeepWhatAnyCarrierKeeps`,
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
-  `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
+  `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`,
+  `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
+  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `lowering.TestDropContained_KeepsWhatIsNotInside`,
+  `lowering.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
+  `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptWholeOnce`,
+  `schema.TestDiscriminator_KeptWholeOnce`
 
 ## 10. Request bodies and content
 
@@ -5207,16 +5340,20 @@ classified on a copy that is lowercased, since a media type's names are case-ins
 ([`multipart-encoding`](#multipart-encoding)), and a binary body is a file
 ([`file-bodies`](#file-bodies)); the streaming policy reads the same copy
 ([`streaming-media`](#streaming-media)). No other key is classified, so `application/*+json`,
-`text/*` and `*/*` are Contents like any other.
+`text/*` and `*/*` are Contents like any other. A key of the `content` map of a Request Body,
+Response, Parameter or Header Object is a media type or a media type range (RFC 9110 §8.3.1,
+§12.5.1): a type and a subtype, each a token, a wildcard either side and parameters after a `;`
+admitted. Load's rule table reports a key that is neither as an `openapi/validation` warning of the
+class `validation-invalid-syntax` at the key ([`validation`](#validation)), and the entry lowers as
+written.
 
 - Cases: `media-type-spelling`, `multi-content`, `component-media-types-32`
-- Tests: `operation.TestContent_AllMediaTypesKeptInOrder`,
+- Codes: `openapi/validation`
+- Tests: `oas.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
   `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
   `naming.TestAt_NamesASchemaAfterItsOwner`
-- Status: partly built: a malformed media-type key, a multipart body that is not an object, and a
-  body on a GET pass in silence (#649).
 
 ### `request-body`
 
@@ -5228,10 +5365,25 @@ schema admits and 3.2 says SHOULD hold an entry, lowers to a `Payload` with no C
 all three and its `x-*`, reported as an `openapi/empty-request-content` warning at the map; a
 `content` left out is [`minor-required-fields`](#minor-required-fields)'.
 
+A request body lowers on every method, the method compared as written, as HTTP compares one (RFC
+9110 §9.1). On `GET`, `HEAD` or `DELETE`, for which HTTP defines a body no semantics (RFC 9110
+§9.3.1, §9.3.2, §9.3.5), it is reported as an info `openapi/body-without-semantics` at the
+operation's `requestBody`: OpenAPI 3.0 has a consumer ignore it and later versions advise against
+it, but APIs do take one, the golden spec declaring `DELETE` bodies its API reads, so a warning
+would rate a working operation a likely mistake. On `TRACE` or `CONNECT`, the latter reachable only
+as a 3.2 `additionalOperations` key, HTTP has a client send no body (§9.3.8: "A client MUST NOT
+send content in a TRACE request"; §9.3.6: a CONNECT request "does not have content"), so the
+document likely says other than its author means: a warning `openapi/body-forbidden-by-method` at
+the `requestBody`. `OPTIONS` draws neither, as RFC 9110 leaves its content to the resource.
+
 - Cases: `empty-request-content`, `request-body-docs`
-- Codes: `openapi/empty-request-content`
+- Codes: `openapi/empty-request-content`, `openapi/body-without-semantics`,
+  `openapi/body-forbidden-by-method`
 - Tests: `operation.TestContent_NonRequiredRequestBody`,
-  `operation.TestLowerRequestBody_AnEmptyContentKeepsTheBody`
+  `operation.TestLowerRequestBody_AnEmptyContentKeepsTheBody`,
+  `operation.TestRequestBody_OnAMethodWithoutSemantics`,
+  `operation.TestRequestBody_OnAMethodThatForbidsOne`, `e2e.TestBodies_ThreeFindingsOfOneDocument`,
+  `e2e.TestBodies_AMethodThatForbidsOne`
 
 ### `file-bodies`
 
@@ -5261,7 +5413,7 @@ keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema 
 own, and one longer says the body is something else. Such a body is a declared file on
 `application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
 2046 defines that type as arbitrary octets, and a file the binary policy reads on a media type it
-names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-media-type`. Any other
+names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-inference`. Any other
 keyword, such as a `format` naming a text form, `contentEncoding`, `enum`, `allOf` or an object's,
 or a `false` schema, makes the content an ordinary Content whatever its media type, as is a body
 leaving its media type to say under one neither names. `Content.Type` stays what the schema lowered
@@ -5290,12 +5442,12 @@ its media type to say is a file ([`file-bodies`](#file-bodies),
 `application/vnd.tcpdump.pcap`, `application/wasm`, `application/zip`, `audio/*`, `font/*`,
 `image/*` and `video/*`, matched on the normalized key ([`media-types`](#media-types)) at every
 minor. OpenAPI says any binary media type marks binary content, but no registry says which media
-types are binary, so the reading is a guess and each file it makes carries `binary-media-type` in
+types are binary, so the reading is a guess and each file it makes carries `binary-inference` in
 its `Inferred`. An entry `type/*` matches each media type of that type whose subtype has no
 structured suffix, since a suffix names the syntax a body is written in: `image/*` matches
 `image/png`, not `image/svg+xml`. An entry starting with `+` names a structured suffix.
 `application/octet-stream` is no entry: a file it carries is declared, whatever the policy says. The
-policy is the Go option `Options.BinaryMedia`: `Disabled` turns the reading off, and `MediaTypes`
+policy is the Go option `Options.BinaryInference`: `Disabled` turns the reading off, and `MediaTypes`
 replaces the default list instead of extending it. The `binary-media` setting sets `MediaTypes`, its
 entries separated by commas, and refuses one that is neither a media type nor a suffix, and
 `binary-inference=false` sets `Disabled`.
@@ -5311,11 +5463,18 @@ each entry of its `examples` map in order, each an `Example` named by its key: `
 `description` as written, `value`, or 3.2's `dataValue`, as `Value` ([`values`](#values)), and
 `externalValue` as `ExternalURL`. 3.2's `serializedValue`, which `ir.Example` has no field for, is
 kept verbatim in the example's `Unmodeled` under `openapi:serializedValue` (`no_ir_home`), reported
-as an info `openapi/degraded-construct` at it. A schema's examples are
-[`schema-examples`](#schema-examples)'.
+as an info `openapi/degraded-construct` at it. An entry keyed by the empty string lowers unnamed,
+as `Example.Name` reads `""` as no name, so the key is kept on the example's own `Unmodeled` under
+`openapi:examples/key`, the value `""` (`degraded_lowering`), located at the entry, and reported there
+as an info `openapi/degraded-construct`. No key of the Example Object can spell that entry, a `/` in
+one being escaped, so an undeclared `name` it writes keeps `openapi:name` beside it
+([`unknown-keys`](#unknown-keys)). A schema's examples are [`schema-examples`](#schema-examples)'.
 
 - Cases: `examples-32`
 - Codes: `openapi/degraded-construct`
+- Tests: `operation.TestExamples_EmptyKeyIsKept`,
+  `operation.TestExamples_AnEmptyKeyAndAWrittenNameAreKeptApart`,
+  `e2e.TestExamples_AnEmptyKeyChangesTheDocument`
 
 ### `item-schema`
 
@@ -5355,7 +5514,7 @@ repeat a structure is no closed set, so nothing else draws one.
 A Content whose media type the streaming policy names — `application/json-seq`,
 `application/jsonl`, `application/x-ndjson`, `text/event-stream` and the `+json-seq` structured
 suffix by default, matched on the normalized key ([`media-types`](#media-types)) at every minor —
-sets `Content.Stream`, its `Inferred` the marker `streaming-media-type`, wherever it is written: a
+sets `Content.Stream`, its `Inferred` the marker `streaming-inference`, wherever it is written: a
 request body, a response, an error response, the default, a callback's or a webhook's. A Content
 declaring an `itemSchema` sets it with no marker ([`item-schema`](#item-schema)), and any other
 Content leaves it unset, so a response offering `application/json` beside `text/event-stream` marks
@@ -5376,14 +5535,30 @@ unset on a direction that still streams, every Content kept, reported as an info
 one element elect it, a list of a type agreeing with that type. Error responses and the default set
 no `StreamDetail`, their Contents marked all the same: whether the default answers a success is the
 plan's to decide ([`response-conditions`](#response-conditions)). The policy is the Go option
-`Options.StreamingMedia`: `Disabled` turns the media-type reading off, on the Contents and the
+`Options.StreamingInference`: `Disabled` turns the media-type reading off, on the Contents and the
 operation alike, leaving only what an `itemSchema` declares, and `MediaTypes` replaces the default
 list instead of extending it, an entry starting with `+` naming a structured suffix. The
 `streaming-media` setting sets `MediaTypes`, its entries separated by commas, and refuses one that
 is neither a media type nor a suffix, and `streaming-inference=false` sets `Disabled`.
 
-- Cases: `streaming-media-30`, `streaming-media-31`
-- Codes: `openapi/degraded-construct`
+Two promotion targets ([`extension-promotion`](#extension-promotion)) fill the rest of a
+`ResponseStream` once the document is whole, each key kept as written. `stream.terminator`, read by
+default from `x-speakeasy-sse-sentinel`, fills `Terminator` with the text a key states: on the
+operation, recorded in its `Provenance.Inferred`, or on a streaming Content of a success response,
+recorded in the Content's `Inferred`, where real documents write it. It is filled all or none: the
+operation's text, where no streaming Content states another, else the one text every streaming
+Content of the success responses states. A Content stating another, one stating none beside one
+that states it, or a key on an operation streaming no response fills nothing, and one info
+`openapi/unpromoted-extension` names the key, the later by pointer where Contents disagree. An empty
+text, or a value that is no text, states nothing and is reported at its key. `stream.condition`,
+with no default source, reads an expression of the request (`$request.body#/stream`, or the
+shorthand `$request.stream`, read as a pagination input's is) into `Condition`, the input asking for
+the stream when true, recorded in the operation's `Provenance.Inferred`: only where the input's
+type stands for the boolean primitive, the operation streams a response, and a success response
+offers a Content that does not stream beside one that does. Any other key is reported at itself.
+
+- Cases: `streaming-media-30`, `streaming-media-31`, `stream-terminator`
+- Codes: `openapi/degraded-construct`, `openapi/unpromoted-extension`
 - Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
   `operation.TestStreaming_ItemSchemaDeclaresTheStream`,
@@ -5395,9 +5570,11 @@ is neither a media type nor a suffix, and `streaming-inference=false` sets `Disa
   `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
   `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
-  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
-- Status: partly built: no promotion reads an extension stating a stream's `Terminator`, or the
-  input whose `Condition` selects it, into either field (#1668).
+  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `lowering.TestTextOf_ReadsTheFirstSourceStatingAText`,
+  `stream.TestPromote_FillsTheTerminator`, `stream.TestPromote_FillsTheTerminatorOfEveryStreamingContent`,
+  `stream.TestPromote_TerminatorIsAllOrNone`, `stream.TestPromote_OperationAndContentsMustAgree`,
+  `stream.TestPromote_FillsTheCondition`, `stream.TestPromote_AConditionNeedsAStream`,
+  `stream.TestPromote_ReadsPastAResponseWithNoBody`, `runtimeexpr.TestRequestValue_ResolvesEachSpelling`
 
 ### `multipart-encoding`
 
@@ -5429,15 +5606,21 @@ body schema, since a part reached only past it has no `Content.Encoding` key. A 
 bound of its own in the body's type is reported so too.
 
 Each entry that keys nothing is kept whole, as written, under the content's `Unmodeled` at
-`openapi:encoding/<key>` (the key escaped as a JSON Pointer token) with reason `no_ir_home`, located
-at the entry, and reported there as an info `openapi/degraded-construct` saying why:
+`openapi:encoding/<key>` (the key escaped as a JSON Pointer token), located at the entry, and
+reported there as an info `openapi/degraded-construct` saying why. Its reason follows its effect: an
+entry the walk decides names no property, every entry of a file body, which has no parts, and every
+entry under a media type that is neither multipart nor form has none where it is written and no node
+is coming for it, so it is kept under `out_of_scope`
+([boundaries](../ir/boundaries.md#deliberate-exclusions)); an entry the walk cannot decide, as a
+catch-all may take its key, and one of the second kind below, under `no_ir_home`:
 
 1. A key naming no part the walk reads: no property, a map's or a catch-all's entry, a part past a
    bound, or any entry of a body declaring no property, such as one with no schema, one whose schema
    `$ref` does not resolve, or a file body ([`file-bodies`](#file-bodies)). Nothing such an entry
-   declares is lowered or judged: its header schemas register no type, its `x-*`, unknown keys and
-   nested encodings have no record of their own, and neither an unknown key nor a reserved header
-   name in it is reported, though load still validates its fields. Where the walk reads every
+   declares is lowered: its header schemas register no type, and its `x-*`, unknown keys and nested
+   encodings have no record of their own, though load's rule table judges its fields, an unknown key
+   or a reserved header name in it among them ([`unknown-keys`](#unknown-keys),
+   [`reserved-header-names`](#reserved-header-names)). Where the walk reads every
    position of the body's schema that can declare a property, and no catch-all there admits a member
    the schema names no property for, the key names no property, which OpenAPI requires of every key
    (3.0.4 and 3.1.1: "The key, being the property name, MUST exist in the schema as a property"),
@@ -5462,8 +5645,26 @@ A key naming a catch-all's member has no typed home, `*` included, by decision. 
 encoding key a property name, so `*` names the one member called `*`, and gives an entry naming no
 declared property no effect; reading `*` as every member a catch-all admits is a convention no
 version states, which a typed field would take as a guess, and a field keyed by the key as written,
-beside the `PropID`s, would type a misspelt key alike. What OpenAPI does say of the parts a
-catch-all admits, their structural flags and default content type, has no home either.
+beside the `PropID`s, would type a misspelt key alike.
+
+What OpenAPI does say of the parts a catch-all admits, their structural flags and default content
+type, lowers to `Content.CatchAllEncoding` ([payloads](../ir/payloads.md#a-catch-alls-parts)), keyed
+by the type holding the catch-all: the body's type where it is a map, and otherwise each model the
+flattening of the body's type reads that holds a catch-all, a union body's variants each read so, as
+`ir.CatchAllHolders` lists them and `pass.Validate` holds them. `Value` is the encoding of a part no
+pattern matches, `additionalProperties`' or `unevaluatedProperties`', and `Patterns` one per
+`patternProperties` entry, each read as a declared part with no encoding entry is: `Multi` and
+`Filename` off the value's type, and its default content type below, `contentEncoding` read off
+every catch-all value schema the part walk meets. An encoding that says nothing is not written, and
+a holder whose parts say nothing gets no key. A body that is a map declares no part, so every form
+body stating a schema is settled, though the walk finds no part.
+
+A `multipart/form-data` or `application/x-www-form-urlencoded` body stating a schema that is no
+file body, and whose type, read through its unions, stands for no model, no map, no object value and
+not the top type, names no part to send, as an array of strings does, where an object `const` names
+its parts by its members: it is reported as a warning
+`openapi/partless-form-body` at the schema and lowers as declared. A union read past its bound is
+not judged, and nor is a type reaching no node, which load reports.
 
 `contentType` lowers to `ContentTypes`, split on `,` and trimmed with empty items dropped, and one
 naming no media type is an `openapi/validation` error ([`validation`](#validation)); and `headers`
@@ -5535,7 +5736,7 @@ after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an arr
 it writes, whose other branches are read as a body's union branches are: one declaring raw bytes;
 one leaving its media type to say, where its encoding entry's `contentType` names only
 `application/octet-stream` or media types the binary policy names ([`binary-media`](#binary-media)),
-`PartEncoding.Inferred` being `binary-media-type` where it names one of the latter; and, from
+`PartEncoding.Inferred` being `binary-inference` where it names one of the latter; and, from
 OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose default content type OpenAPI
 makes `application/octet-stream`, a union being read so only where each of its branches, an array's
 through its elements, writes no `type` or declares raw bytes, so that
@@ -5553,8 +5754,10 @@ or `itemEncoding` under one that is not multipart. A media type is read without 
 in any case.
 
 - Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`, `multipart-defaults-30`,
-  `multipart-defaults-31`, `multipart-defaults-32`, `encoding-union-branches`, `encoding-outside-form`
-- Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`
+  `multipart-defaults-31`, `multipart-defaults-32`, `encoding-union-branches`, `encoding-outside-form`,
+  `catch-all-encoding`
+- Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`,
+  `openapi/partless-form-body`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
@@ -5576,7 +5779,7 @@ in any case.
   `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
   `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
   `schema.TestListedTuple_ReadsADraftsEntriesAndRest`,
-  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`, `operation.TestKeepEntry_ReasonFollowsEffect`,
   `operation.TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares`,
   `operation.TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError`,
   `operation.TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced`,
@@ -5605,10 +5808,9 @@ in any case.
   `operation.TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder`,
   `operation.TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers`,
   `operation.TestShapeFlattenings_ReadsShapesWithinItsLimit`,
-  `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`
-- Status: partly built: a kept entry's unknown keys and reserved header names go unreported, as in
-  the other objects kept whole (#1662); which reason keeps an entry OpenAPI gives no effect is open
-  (#1791); and the parts a catch-all admits have no part encoding (#1805).
+  `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`,
+  `operation.TestPartKeys_KeysACatchAll`, `e2e.TestCatchAllEncoding_IsKeptAndVerifies`,
+  `operation.TestPartless_FormBodyWithNoObject`, `operation.TestPartless_JudgesWhatTheBodyNames`
 
 ### `encoding-allow-reserved`
 
@@ -5696,7 +5898,10 @@ A header of a response or an encoding lowers to a `Header` of its headers, and i
 `explode` to that header's `Style` and `Explode` ([responses](../ir/responses.md)), read from
 its declaration and each left unset where the header writes none. A `style` other than `simple`, the
 one OpenAPI allows a header, is an `openapi/validation` error of the class
-`validation-allowed-values` ([`validation`](#validation)). A `Content-Type` entry in either headers
+`validation-allowed-values` ([`validation`](#validation)). A `style` or `explode` beside the
+header's `content`, where neither has an effect, lowers as declared and is an
+`openapi/inapplicable-location-keyword` warning at the key
+([`content-parameters`](#content-parameters)). A `Content-Type` entry in either headers
 map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as an
 `openapi/reserved-header-name` warning at the entry, as a parameter is
 ([`reserved-header-names`](#reserved-header-names)).
@@ -5710,15 +5915,14 @@ compares in any case, both lower, and each but the one lowest in byte order is a
 reported follows the spellings and not the order the map writes them in.
 
 - Cases: `header-content-schema`, `header-name-case`, `header-name-syntax`
-- Codes: `openapi/reserved-header-name`, `openapi/validation`
+- Codes: `openapi/reserved-header-name`, `openapi/validation`,
+  `openapi/inapplicable-location-keyword`
 - Tests: `operation.TestHeaders_SerializationKeywordsLower`,
   `operation.TestHeaders_SerializationKeywordsAbsentRecordNothing`,
   `operation.TestHeaders_SerializationKeywordsFollowTheDeclaration`,
   `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
   `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`,
   `oas.TestCheck_HeaderNamesAreFieldNames`
-- Status: partly built: a `style` or `explode` beside a header's `content`, where they have no
-  effect, lowers in silence, as a parameter's does (#887).
 
 ### `http-date-inference`
 
@@ -5744,14 +5948,21 @@ MIME header no such definition covers, and is not read. On the golden spec one h
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 
+A header parameter is read the same way, under the name its binding places it at, the wire name or
+else its own, for the same fields, since `Expires` and `Last-Modified` are sent as well as returned:
+where the parameter writes no `Encoding` and its type reads as such an instant, it takes the
+`http-date` encoding on `Parameter.Encoding`, its own, so a `$ref`'d component it names, and every
+other use of that component, keep their text ([operations](../ir/operations.md)). Its
+`Provenance.Inferred` names `http-date-inference`, and an info `openapi/inferred-http-date` at the
+parameter reports it once, however many operations a path item's parameter is copied into. A query,
+path or cookie parameter is never read, whatever its name.
+
 - Cases: `http-date-inference`
 - Codes: `openapi/inferred-http-date`
 - Tests: `convention.TestHTTPDate_AFieldItsRFCDefinesAsADate`,
   `convention.TestHTTPDate_ReadsEveryResponseAndNoPart`,
-  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: a header parameter so declared, which an SDK writes, keeps RFC 3339's text,
-  as a parameter has no encoding of its own and a scalar hoisted to type it would sit at a pointer
-  a `$ref` can name (#1799).
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`,
+  `convention.TestHTTPDate_ReachesAHeaderParameter`, `convention.TestHTTPDate_ParameterRows`
 
 ### `links`
 
@@ -5775,7 +5986,9 @@ is not also kept on the document ([`unreferenced-components`](#unreferenced-comp
    parameter the operation answered binds there; `$response.header.<name>` to the one header the
    response declares under that name in any case; and a `body` reference to the body whole, or to
    the chain of members its pointer walks from the root of every content of that body, which every
-   content must walk alike.
+   content must walk alike. A root or a member typed as an alias of a model, as a schema that is a
+   `$ref` alone lowers, is read as that model, through a chain of at most 64 aliases, as every step
+   reading the finished document reads one.
 4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
    keys stay on it.
 
@@ -5794,7 +6007,7 @@ A link that does not lower whole is kept verbatim on its response under `openapi
    the expression keeps the grammar or not and whether the string is the value or sits within a
    list or an object the value holds, or a constant the IR has no value for.
 
-- Cases: `response-links`
+- Cases: `response-links`, `body-alias`
 - Codes: `openapi/invalid-link`, `openapi/untyped-link`
 - Tests: `operation.TestLinks_AFindingKeepsTheLinkWhole`, `operation.TestLinks_ResolvedFormsLower`,
   `operation.TestLinks_EveryValueKindLowers`, `operation.TestLinks_ErrorsAndDefaultsCarryLinks`,
@@ -5803,17 +6016,26 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
   `operation.TestLinks_AHeaderIsReadOffItsOwnResponse`,
   `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`,
+  `operation.TestLinks_ReadAMemberThroughAnAlias`,
   `operation.TestLinksResolve_AllocatesLinearInWhatItReads`,
   `runtimeexpr.TestParse_ReadsTheGrammar`,
   `runtimeexpr.TestEmbeds_FindsAnExpressionInBraces`,
   `runtimeexpr.TestEmbeds_AllocatesNothing`,
   `runtimeexpr.TestBodyPath_WalksEveryContentToTheSameMembers`,
-  `runtimeexpr.TestLookups_IndexEachListOnceWhenAValueFirstReadsIt`,
+  `whole.TestDocument_MemberAgreesWithMembers`,
+  `whole.TestDocument_WalkNamesEachMemberFromTheRoot`,
+  `whole.TestDocument_HeaderMatchesTheNameWithoutCase`,
+  `whole.TestDocument_ReadsOnceAndAllocatesNothingAfter`,
+  `whole.TestDocument_ABodyReadFlattensNoModel`,
+  `whole.TestDocument_MembersFlattensAModelOnceWhateverNamesIt`,
+  `e2e.TestBodyAlias_ReadsTheSameInEitherOrder`,
+  `e2e.TestBodyAlias_ReadsAnOperationInANestedGroup`,
+  `openapi.TestRun_ReadsTheFinishedDocumentOnce`, `openapi.TestRun_AppendsNothingAfterAFirstAsk`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
-  dropped with no record, as beside any other reference (#1321). A body whose media types hold
-  distinct models composing one wide model costs a link reading it their number times that width
-  (#1723).
+  dropped with no record, as beside any other reference (#1321). A body whose model composes `m`
+  models, read for `n` distinct members, costs `n` walks of the composition where a flattening
+  would cost one (#1955).
 
 ## 12. Webhooks and callbacks
 
@@ -5880,18 +6102,22 @@ spellings apart in `Service.Auth`.
 A requirement's key names an entry of the source's `securitySchemes`, whichever document holds the
 requirement, matched exactly, in the specification's order. A key that is the name of an entry is
 that name, at every minor. From 3.2, which lets a key be the URI of a Security Scheme Object, any
-other key is read as a reference is, against the document holding the requirement
-([`references`](#references)), and one naming the position of an entry of the source's
-`securitySchemes` names that entry, as its name would. Any other key is the name it spells; 3.0 and
-3.1 define no URI form, so there a key is a name alone. A name that reaches no mechanism lowers to a
+other key is a reference, read against the document holding the requirement
+([`references`](#references)), a bare word as a relative URI: one landing on an entry of the source's
+`securitySchemes`, or naming one that resolves to nothing, names that entry, as its name would, and
+one landing on a Security Scheme Object anywhere else, in the source or another document, names that
+object, lowered once where it is declared, under the ID its position there derives
+([identity](../ir/identity.md)), whichever requirement reaches it first. 3.0 and 3.1 define no URI
+form, so there a key is a name alone. A name that reaches no mechanism lowers to a
 scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is
 reported as an `openapi/unresolved-security-scheme` error at each requirement, quoting the key as
 written. Where a declared scheme that reaches a mechanism is a near miss of the name, the error
 names it, resolution staying exact: the first that holds of the same neutral name, the same letters
 and digits in any case, and, for a name of 4 to 64 bytes where at most 64 declared schemes reach a
 mechanism, a name one edit apart, an insertion, a deletion, a substitution or two adjacent runes
-swapped, the least in byte order where several do. In a 3.2 document the error then adds that a URI
-naming a Security Scheme Object outside the source's `securitySchemes` is not read. Nothing else
+swapped, the least in byte order where several do. A key read as a reference that lands on nothing adds why,
+in the words the reference's own report would use, and lowers to a scheme minted from the key and the
+document writing it, so one key in two documents is two schemes. Nothing else
 about the requirement changes: the option keeps its other schemes, its scopes and its place in the
 list, so an operation stating its own requirement does not read as inheriting, and an option whose
 name reaches no mechanism does not vanish from the options beside it. The error stands however the
@@ -5961,7 +6187,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_ARepeatedScopeIsKeptOnce`,
   `auth.TestSecurityRequirement_A32KeyMayNameItsSchemeByURI`,
   `auth.TestSecurityRequirement_A31KeyIsAName`,
-  `auth.TestSecurityRequirement_A32UnresolvedNameSaysWhatIsNotRead`,
+  `auth.TestSecurityRequirement_A32URIIsReadWhereverItLands`,
   `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
   `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
@@ -5972,9 +6198,8 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
-  `components/securitySchemes` lowers as unresolved (#1869), and so does one naming the source by
-  its `$self` (#863).
+- Status: partly built: a 3.2 requirement naming the source by its `$self` lowers as unresolved
+  (#863).
 
 ### `security-scheme-fields`
 
@@ -6026,7 +6251,8 @@ the first.
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
   `servers.TestServerVariables_AnEmptyDefaultIsNotNone`,
-  `e2e.TestCompile_AListInAnotherDocumentIsCheckedWhereItIsWritten`
+  `e2e.TestCompile_AListInAnotherDocumentIsCheckedWhereItIsWritten`,
+  `e2e.TestCompile_AServersListAtAPathItemLandingIsCheckedForRepeats`
 
 ## 15. Vendor extensions and policy
 
@@ -6038,11 +6264,11 @@ diagnostic. An object that lowers to a node with an `Unmodeled` map of its own k
 there, unscoped. One that lowers to no node of its own is keyed by the path from its carrier down to
 it, since several such objects reach one map and an unscoped key would leave the survivor to
 lowering order ([unmodeled](../ir/unmodeled.md#keys)): on the Document, `openapi:info/x-*`,
-`openapi:info/contact/x-*`, `openapi:info/license/x-*`, `openapi:externalDocs/x-*`,
-`openapi:components/x-*`, `openapi:tags/<i>/x-*` and `openapi:tags/<i>/externalDocs/x-*`; on the
-service, `openapi:paths/x-*`; on each operation, the path item's `openapi:pathItem/x-*`, and
-`openapi:responses/x-*` and `openapi:externalDocs/x-*`; on the HTTP binding,
-`openapi:callbacks/<name>/x-*`; on a content, `openapi:encoding/<part>/x-*` and
+`openapi:info/contact/x-*`, `openapi:info/license/x-*`, `openapi:externalDocs/x-*` and
+`openapi:components/x-*`; on a tag's `TagDef`, `openapi:externalDocs/x-*`
+([`tag-groups`](#tag-groups)); on the service, `openapi:paths/x-*`; on each operation, the path
+item's `openapi:pathItem/x-*`, and `openapi:responses/x-*` and `openapi:externalDocs/x-*`; on the
+HTTP binding, `openapi:callbacks/<name>/x-*`; on a content, `openapi:encoding/<part>/x-*` and
 `openapi:itemEncoding/x-*`; on a schema's node, `openapi:xml/x-*`, `openapi:discriminator/x-*` and
 `openapi:externalDocs/x-*`, a discriminator an `allOf` branch writes beside the union the position
 lowers keeping its own on the `Union` holding it, `openapi:allOf/<n>/discriminator/x-*` at the
@@ -6054,9 +6280,11 @@ escaped as RFC 6901 tokens, so a name the document chooses stays one segment
 kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)), as an encoding
 entry naming no part keeps its own inside its `openapi:encoding/<key>` entry
 ([`multipart-encoding`](#multipart-encoding)); a path item that mounts no operation keeps its own
-under `openapi:pathItem/<item pointer>/x-*` ([`path-item-servers`](#path-item-servers)). An
-extension whose value converts to no JSON reaches the IR in no form, reported as an
-`openapi/degraded-construct` warning at the object holding it.
+under `openapi:pathItem/<item pointer>/x-*` ([`path-item-servers`](#path-item-servers)). A key an
+extension's value writes twice is kept at the copy the model reads and warned of once
+([`verbatim-preservation`](#verbatim-preservation)). An extension whose value converts to no JSON
+reaches the IR in no form, reported as an `openapi/degraded-construct` warning at the object
+holding it.
 
 - Cases: `extensions-x`, `inline-annotations`
 - Codes: `openapi/degraded-construct`
@@ -6066,19 +6294,27 @@ extension whose value converts to no JSON reaches the IR in no form, reported as
 
 ### `unknown-keys`
 
-A key an OpenAPI object neither defines nor admits as an `x-` extension is kept verbatim under
-`openapi:<key>` in the `Unmodeled` of the node that carries the object (`out_of_scope`), reported as
-an `openapi/unknown-object-key` warning at the key, since the object's key set is closed and such a
-key is usually a misspelling of its neighbour; an object that lowers to no node of its own is keyed
-beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<key>`,
-[`vendor-extensions`](#vendor-extensions)). A path item's is judged like any other, a value carrying
-a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
+A key an OpenAPI object neither defines at any minor nor admits as an `x-` extension is reported by
+the rule table ([`validation`](#validation)) as an `openapi/unknown-object-key` warning at the key,
+since the object's key set is closed and such a key is usually a misspelling of its neighbour. The
+table walks every object the grammar reaches, lowered or not, so a key is reported once wherever its
+object is written: in a component nothing references, an encoding nested in another or kept by
+position, a kept link, a schema's `xml`, `externalDocs` or `discriminator`, a schema kept verbatim,
+and beside a Reference Object's `$ref`, which defines only `$ref`, `summary` and `description`. A
+key merged in through `<<` is placed where it is written, as the table places every field. A key a
+later minor defines draws the later version's warning instead
+([`later-version-construct`](#later-version-construct)), and a Schema Object's keywords are its
+dialect's, below. The lowering keeps the key verbatim under `openapi:<key>` in the `Unmodeled` of the
+node that carries the object (`out_of_scope`) and reports nothing; an object that lowers to no node
+of its own is keyed beneath the scope its extensions use (`openapi:info/<key>`,
+`openapi:pathItem/<key>`, [`vendor-extensions`](#vendor-extensions)). A path item's is judged like
+any other, a value carrying a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
 to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
 `$dynamicRef`, and 2019-09's `$recursiveAnchor` and `$recursiveRef` where the schema's dialect
 defines them, are decided elsewhere and left out. A keyword the model names and the dialect the
-schema is read in does not define, which only `nullable` is, with the nullable-widening policy off
+schema is read in does not define, which only `nullable` is, with the nullable-inference policy off
 ([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
@@ -6087,22 +6323,27 @@ Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
 `openapi/unknown-key-unreachable`, where the key is merged in through a `<<` chain deeper than the
-compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
-kept and reported as a written one is. An object a rule keeps whole without reading it, such as an
-encoding entry naming no part ([`multipart-encoding`](#multipart-encoding)), is not judged: its
-unknown keys ride inside its entry, unreported.
+compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read and
+kept as a written one is. An object a rule keeps whole without reading it, such as an encoding
+entry naming no part ([`multipart-encoding`](#multipart-encoding)), keeps its unknown keys inside
+its entry, and the table reports each.
 
 - Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
   `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
 - Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
   `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
+  `e2e.TestUnknownKeys_UnreferencedComponents`, `e2e.TestUnknownKeys_ObjectsKeptWhole`,
+  `e2e.TestUnknownKeys_InsideAKeptSchema`, `e2e.TestUnknownKeys_ReportedOnceInEveryObjectAndMinor`,
+  `e2e.TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten`,
+  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
+  `oas.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
-  `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
+  `e2e.TestNullableInference_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396); an object kept whole without being read reports none of its unknown keys (#1662).
+  (#396).
 
 ### `policies`
 
@@ -6140,12 +6381,15 @@ how operations are arranged rather than filling a fact a node holds.
    rule reads, is met where the document has not spoken, and which then declines to fill the fact,
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
-   the fact or for the convention, which imports only `ir`, the compiler's `diag` and `lowering`,
-   and `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks
-   that built the document. The compiler's run reads them in one block, in one order: links
-   ([`links`](#links)), then promotions, then inferences, so an inference sees what every promotion
-   filled. The audits of what the policies read come last, once the document's own keys are merged
-   in as well. A reading a node needs while it lowers, as nullable widening's
+   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `lowering` and
+   `whole`, the one reading of the finished document every such step shares, and `runtimeexpr`
+   where it reads an expression the document writes, and so nothing of the walks that built the
+   document. The compiler's run reads them in one block, in one order: links
+   ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
+   promotions, then inferences, so an inference sees what every promotion filled. Nothing after the
+   root follows a reference, as which components the root keeps turns on what was reached. The
+   audits of what the policies read come last, once the document's own keys are merged in as
+   well. A reading a node needs while it lowers, as nullable inference's
    ([`nullable`](#nullable)), or while the registry settles, as discriminator inference's, is made
    there instead.
 
@@ -6154,11 +6398,9 @@ how operations are arranged rather than filling a fact a node holds.
   `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
-  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: the streaming and binary policies mark `streaming-media-type` and
-  `binary-media-type`, which their options `streaming-inference` and `binary-inference` do not
-  spell, while nullable widening marks `nullable-widening`, a name for the reading rather than the
-  fact (#1847).
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`,
+  `openapi.TestSwitchOptions_EveryNameIsAMarker`, `openapi.TestDecodeOptions_RefusesARetiredName`,
+  `e2e.TestMarkers_NameTheirOptions`
 
 ### `extension-promotion`
 
@@ -6173,6 +6415,20 @@ member states nothing, and a key with no members to read is reported the same wa
 sources read it. The node keeping the extension is marked as [`policies`](#policies) marks a
 promotion, as is a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled`
 untouched.
+
+A carrier also reads the objects whose keys it keeps beneath a scope: an operation its path item
+(`openapi:pathItem/`), and a parameter or a header the content entry it elects (`content/<mt>/`) and
+the schema of its spelling (`schema/` or `content/<mt>/schema/`). It reads them two ways, as
+[annotations](../ir/annotations.md#what-a-reference-carries-down) reads a `$ref` target. A
+single-sided fact, a redaction or a deprecation, holds where the carrier or any object it carries
+states it, so a carrier's `x-sensitive: false` withdraws nothing its schema states, as it withdraws
+nothing a `$ref` target states, and a deprecation's members fill from the nearest object stating
+them. A valued fact, an operation's tier, a parameter's `allowReserved` or its pagination mark, is
+the nearest statement's, the carrier's own first. The entry keeps its own provenance, so a finding
+about a carried key sits at that key, and the carrier keeping it is the node marked. A misfit behind
+a nearer statement of its key, which no reading takes, is still reported once at its own key, for a
+redaction, a deprecation and an operation's tier; a parameter's `allowReserved` and its pagination
+mark report only the nearest.
 
 A source of a target stating that something is so, a deprecation, an open enum or union, a redaction
 or a part of a page walk, may list the values that state it. Each is compared with a string's text,
@@ -6323,9 +6579,18 @@ entity, or names the node itself, leaves the field unset and is reported as an i
 other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
 the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
 
-- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`
-- Codes: `openapi/degraded-construct`, `openapi/unread-extension`
+`stream.terminator` and `stream.condition` fill a stream's `Terminator` and `Condition`
+([`streaming-media`](#streaming-media)), and `operation.paramChoices` the choices among an
+operation's parameters ([`mutually-exclusive-parameters`](#mutually-exclusive-parameters)). A key
+any of them reads that states nothing it can fill, a value
+of another shape among them, is reported as an info `openapi/unpromoted-extension` at the key,
+saying why.
+
+- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`, `carried-keys`
+- Codes: `openapi/degraded-construct`, `openapi/unread-extension`, `openapi/unpromoted-extension`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestShadowed_ReturnsWhatCarriedPassesOver`,
+  `operation.TestPromotion_AMisfitBehindANearerKeyIsReported`,
   `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
   `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
   `lowering.TestPromoter_ACallersValuesAreCopied`,
@@ -6363,7 +6628,7 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
   `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
   `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
-  `lowering.TestPromoter_ReadsReplacementNames`, `lowering.TestParamIndex_NamedReadsALocationQualifiedName`,
+  `lowering.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
   `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
   `replacement.TestResolve_ANameNamingNothingFillsNothing`,
   `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
@@ -6374,24 +6639,64 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `e2e.TestPromotion_ALostRefLendsTheNodeItSpeaksOn`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
-  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`
+  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `lowering.TestCarried_ReturnsOwnWhereNothingIsCarried`,
+  `lowering.TestCarried_TheOwnKeyBeatsTheScopedOne`, `lowering.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
+  `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
 - Status: partly built: a redaction key beside an `allOf` over an
   object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
-  where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
-  content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
-  its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
+  where beside a `$ref` it lands on the carrier (#1220); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
   ([`union-beside-structure`](#union-beside-structure)), reaches no field.
 
 ### `mutually-exclusive-parameters`
 
-The groups an `x-mutually-exclusive-parameter-groups` extension declares are kept as any extension
-is ([`vendor-extensions`](#vendor-extensions)). Their promotion, which needs no node of its own, is
-to be a pass that synthesizes one logical `Parameter` typed by a `Union` of variant models, each
-field bound through `HTTPParamBinding.ParamPath`.
+The promotion target `operation.paramChoices` ([`extension-promotion`](#extension-promotion)),
+read by default from `x-mutually-exclusive-parameter-groups`, fills `Operation.ParamChoices`
+([choices among parameters](../ir/operations.md#choices-among-parameters)) once the document is
+whole. The key holds the convention's object, from a choice's name to
+`{optional: <boolean>, variants: {<variant's name>: [<parameter name>, …]}}`, read whole; `Required`
+is `!optional`. A parameter name is resolved as a link's `parameters` key is, `<in>.<name>` or a
+name one parameter carries, among the operation's parameters, a path item's included. Choices and
+variants come out sorted by name, whatever order the document writes them in, and a variant's
+parameters in its list's order. The operation's `Params`, its bindings and every reference to a
+parameter are untouched, and no parameter or type is made. The first source whose key the operation
+writes is read, whatever it holds; a later source's key writing the same value is silent, and one
+writing another is reported and not read. The key stays
+verbatim, `vendor_extension`, and the operation lists `extension-promotion` in its
+`Provenance.Inferred` where a choice is filled.
 
-- Status: not built: no pass promotes the groups yet (#988).
+Each choice is filled whole or not at all, and one written badly leaves the others standing. Each
+refusal is one info `openapi/unpromoted-extension`, at the most specific coordinate:
+
+| The document writes | Reported at |
+|---|---|
+| a key value that is no object, a list of lists among them | the key |
+| a choice that is no object | `<key>/<choice>` |
+| no `optional`, or one that is no boolean | `<key>/<choice>`, or `…/optional` |
+| no `variants`, one that is no object, or fewer than two variants | `<key>/<choice>`, or `…/variants` |
+| a variant that is no list of strings, or an empty one | `…/variants/<variant>` |
+| a name naming no parameter, or several | `…/variants/<variant>/<index>` |
+| a name twice in one variant | `…/variants/<variant>/<index>`, the later |
+| a parameter every request carries that some variant lacks | `<key>/<choice>` |
+
+The last is refused because the choice would be false: a request picking another variant carries
+the required parameter. Alternatives among a request body's members are out of scope: a schema
+states them with `oneOf`, and they lower as the body's type, so the convention's body key is not
+read.
+
+- Cases: `param-choices`
+- Codes: `openapi/unpromoted-extension`
+- Tests: `e2e.TestParamChoices_FillsChoices`, `e2e.TestParamChoices_ChangesNothingElse`,
+  `e2e.TestParamChoices_SourceOrderDecidesNothing`, `e2e.TestParamChoices_LeavesAChoiceItCannotRead`,
+  `e2e.TestParamChoices_ReadsNothingOfAKeyThatIsNoObject`, `e2e.TestParamChoices_FollowsThePolicy`,
+  `e2e.TestParamChoices_ResolvesAPathItemsParameter`,
+  `e2e.TestParamChoices_ConformanceReadsTheSameInEitherOrder`,
+  `paramchoice.TestPromote_ReadsEachChoiceWholeOrNotAtAll`,
+  `paramchoice.TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter`,
+  `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`,
+  `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
+  `lowering.TestStatementOf_ReadsTheFirstSourceWritten`
 
 ### `extension-pagination`
 
@@ -6401,7 +6706,9 @@ members of response bodies. Each field is a target of the policy: `pagination.cu
 `pagination.offset` and `pagination.page` the input continuing a walk of strategy `cursor`, `offset`
 or `page`, `pagination.limit` the page size, and `pagination.items`, `pagination.nextCursor`,
 `pagination.nextLink`, `pagination.totalCount` and `pagination.totalPages` the page values of the
-same names. A source listing no values holds, on the operation, an expression naming the value: an
+same names, and `pagination.hasMore` the flag a page states that another follows, which fills
+`HasMore` and ends the walk by it alone, `Stop: [no_more]`, and which no default source reads. A
+source listing no values holds, on the operation, an expression naming the value: an
 OpenAPI runtime expression, `$request.query.<name>`, `$request.path.<name>`,
 `$request.header.<name>` or `$request.body` and a pointer for an input, and `$response.body` and a
 pointer or `$response.header.<name>` for a page value, or the shorthand `$request.` or `$response.`
@@ -6422,10 +6729,11 @@ reads whichever arrives. A media type that streams
 not read, and a response every media type of which streams declares no page body, as one declaring
 no body does not. A value that a response or a media type holds at another member, or not at all, as
 a header two success responses each declare does, resolves to nothing, as does a value a mark finds
-at two members as near the root, or at a header and a member of one response. The fields fill a
-pagination whole or not at all: a value that resolves to nothing, two inputs continuing the walk, a
-cursor beside no next cursor or a next cursor beside no cursor, an offset or a page number beside no
-items, which a pager counts to advance an offset and to end either walk
+at two members as near the root, or at a header and a member of one response. A body or a member
+typed as an alias of a model is read as that model, as a link reads one ([`links`](#links)). The
+fields fill a pagination whole or not at all: a value that resolves to nothing, two inputs
+continuing the walk, a cursor beside no next cursor or a next cursor beside no cursor, an offset or
+a page number beside no items, which a pager counts to advance an offset and to end either walk
 ([pagination](../emitters/operations/pagination.md#what-a-pager-sends-next)), and a walk with
 neither an input nor a next link are each reported as an info `openapi/degraded-construct`, at the
 value or at the operation, and leave the field unset. The pagination sets its own `Inferred` and
@@ -6439,14 +6747,27 @@ way, as an expression or as a mark, and is one of three things. It states part o
 an object holding a member a source reads, or, for a source reading the value whole, that value: an
 expression, written as a string, or a word a source lists, each read as above. `false` states that
 no walk, or no value of one, is there: nothing is read from it and nothing is reported. Any other
-value states nothing a source can read: `true`, null, a string, a number or a list where the sources
-read a member; an object holding none of the members they read, such as `{}`; an expression that is
-no string or is empty; and a word none of the sources of its member lists. Each is reported as an
-info `openapi/degraded-construct` at the key, or at the member read, once however many sources read
-it, saying that the key, being written, keeps an inferred pagination off where it is read. A word
-one source lists is reported by none of the others, even where only a source reading the other side
-of the walk lists it. A convention may read an operation's `true` as the walk the document's root
-states; no source reads the root, so that `true` is reported as the others are.
+value states nothing a source can read: `true` beyond the operation, null, a string, a number or a
+list where the sources read a member; an object holding none of the members they read, such as
+`{}`; an expression that is no string or is empty; and a word none of the sources of its member
+lists. Each is reported as an info `openapi/degraded-construct` at the key, or at the member read,
+once however many sources read it, saying that the key, being written, keeps an inferred pagination
+off where it is read. A word one source lists is reported by none of the others, even where only a
+source reading the other side of the walk lists it.
+
+An operation writing a key `true`, where its sources read a member, reads the walk the document's
+root states under the same key, as though the operation had written the root's object; the
+operation keeps its `true` and lists the marker where a pagination is filled, and the root's entry
+stays kept, no field of the `Document` being filled from it. This is the rule of every
+member-reading pagination source, not a field of the source. A root writing no such key, or a value
+that is no object, a root `true` being followed no further, states no walk, and the operation is
+stated all the same: the former is reported as an info `openapi/unpromoted-extension` at the
+operation's key, the latter at the root's key, so every operation writing `true` shares one finding.
+A `true` beside the same key its path item writes, which the operation keeps as
+`openapi:pathItem/<key>`, reads the path item's statement before the root's: it is the nearer one,
+and the root's is not taken in its place, so a path item's value that is no object is reported at
+its own key. A statement is never carried otherwise: an operation writing nothing has not opted in,
+whatever its path item or the root states, and its inference is unchanged.
 
 A pagination is read in the precedence [`policies`](#policies) gives, so no inference
 ([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
@@ -6460,8 +6781,8 @@ step inferring a pagination reads in place of their extensions, and marks no nod
 it does not fill. A key written anywhere else, such as on an error response, in a media type that
 streams, or as a mark on the operation itself, is read by no source, so it speaks of nothing.
 
-- Cases: `extension-pagination`
-- Codes: `openapi/degraded-construct`
+- Cases: `extension-pagination`, `body-alias`, `extension-pagination-root`
+- Codes: `openapi/degraded-construct`, `openapi/unpromoted-extension`
 - Tests: `pagination.TestPromote_FillsWhatTheExtensionsDeclare`,
   `pagination.TestPromote_ReportsWhatFillsNone`,
   `pagination.TestPromote_ReadsEverySuccessResponse`,
@@ -6474,13 +6795,16 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `pagination.TestPromote_ReadsNoOperationHoldingOne`,
   `pagination.TestPromote_ReadsAHeaderOffItsOwnOperation`,
   `pagination.TestPromote_AllocatesLinearInWhatItReads`,
-  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `pagination.TestPromote_ReadsAPageThroughAnAlias`,
+  `whole.TestDocument_APromotionNoMemberMarksFlattensNoModel`,
+  `whole.TestDocument_ListsEveryOperationOnce`,
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
-  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`
-- Status: partly built: an operation's `true` that a convention reads as the walk the document's
-  root states is reported, not read (#1876).
+  `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
+  `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`,
+  `lowering.TestPageStatementOf_ReadsTheRootForTrue`, `pagination.TestPromote_TrueReadsThePathItemFirst`,
+  `pagination.TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot`
 
 ### `pagination-policy`
 
@@ -6493,20 +6817,46 @@ holding a `Pagination`, or one whose extensions speak of a pagination where
 [`extension-pagination`](#extension-pagination) reads them, is neither read nor reported, as the
 document has answered for it. Under a promotion policy mapping no pagination target,
 `extension-promotion=false` among them, no key is read, so no extension speaks and the policy reads
-every operation. A walk sends its operation again for each page, so it settles one only for a `GET`
-or a `QUERY`, the methods asking for no change on the server: a `POST` taking its path item's page
-parameters, as one creating a resource does, would create it once per page. A name is compared by
-its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
+every operation. A name is compared by its canonical words (`Naming.Canonical`), so `pageSize` and
+`page_size` are one name:
 
-1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
-   strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
-   `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
-   `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
-   its type, read through alias scalars, is a plain number of any kind or a plain string, the text a
-   number is sent as, and not an enum, a constant or an encoded string, whatever values it holds. A
-   `page` sent as a string is read only where its default or an example is a whole number, as some
-   APIs name an opaque page token `page` too. A name such as `after`, `marker` or `starting_after`,
-   which names a cursor in one API and a filter or an ID in another, is not read.
+1. **Where a walk continues** is a place named `page` or `page_number`, under the `page` strategy;
+   `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
+   `continuation_token`, under `token`. It is `InputCursor`, and a place named `per_page`,
+   `page_size` or `limit` beside it is `InputLimit`. A place is a query parameter; a member of an
+   object query parameter, one bound in the query or as the query string whose type stands for a
+   model, one level down, an `InputPath` naming the parameter and the member; or a member of the
+   request body's root that every content holds, an `InputPath` naming the member alone. An object
+   parameter is read through its members: where one of them names a continuation or the page size,
+   its own name gives it no role, so a JSON:API `page` holding `offset` and `limit` is one `offset`
+   walk, and a `page` or a `filter` holding only `limit` beside a `cursor` parameter is that
+   cursor's walk with the member its page size; where none does, its name is read as any
+   parameter's. Each place is a value a walk sends or counts
+   with: its type, read through alias scalars, is a plain number of any kind or a plain string, the
+   text a number is sent as, and not an enum, a constant or an encoded string, whatever values it
+   holds. A `page` sent as a string is read only where the default or an example of its parameter or
+   member is a whole number, as some APIs name an opaque page token `page` too. A name such as
+   `after`, `marker` or `starting_after`, which names a cursor in one API and a filter or an ID in
+   another, is not read. Two places naming a continuation, or two naming the page size, leave the
+   walk undecided, each named.
+
+   A walk sends its operation again for each page, so the method decides what is read. A `GET` or a
+   `QUERY`, which asks for no change on the server, is read from any place. A `POST` is read where a
+   member of its body names a `page`, `cursor` or `token` continuation, or a query parameter names
+   any, and settles only where all of these hold, each failing one reported with its own reason:
+   where the walk continues is a member of the request body, since a `POST` taking its path item's
+   page parameters, as one creating a resource does, would create it once per page; the strategy
+   is `page`, `cursor` or `token`, a body `offset` being no trigger and drawing nothing, as it is
+   often an identifier; a `page` walk names its page size in the body too; a `cursor` or `token`
+   walk's next cursor is named as the cursor with `next` before it, never as the cursor itself, as
+   a create answers with what it was sent; the items are the list named as items at the page's root,
+   or the page is a list, the fallbacks of a model holding them or of the one list being left out;
+   and every success response declaring a body is a `200`, as a `201` says a resource was created
+   (RFC 9110 §15.3.2). Any other method, whose body states what to store, change or remove, is read
+   as no walk, and one whose query parameters name a continuation is reported. Which declaration a
+   body member takes where two `allOf` entries declare it follows their order, so a body composing
+   `page` as an integer in one entry and a string in another is a walk in one order and undecided
+   in the other.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
    no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
@@ -6522,29 +6872,67 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
 3. **The next cursor** of a `cursor` or a `token` walk is `NextCursor`: the one member of the body,
    or of a model a member of it holds, of the cursor's own primitive, named as the cursor with
    `next` before it, or, where no member is so named, as the cursor itself, since a page naming
-   both echoes the cursor it was sent beside the next. Such a walk lists `no_next` in `Stop`, as an
-   empty next cursor names no page; a walk under `page` or `offset` lists none, a page holding no
+   both echoes the cursor it was sent beside the next, or, for a cursor that is no string, `next`.
+   A plain string `next` beside a string cursor may be the cursor or a link, so where it stands
+   alone the walk is undecided. Where the body names none, the next cursor is the response header
+   every success response declares once whose canonical name, a leading `x_` aside, is the
+   cursor's with `next` before it, or the cursor's own, a `NextCursor` whose `In` is `header`; a
+   next cursor the body and a header both name leaves the walk undecided. A `POST` reads no header
+   next cursor, as its next cursor is the page's member named as the cursor with `next` before it
+   (point 1). Such a walk lists
+   `no_next` in `Stop`, as an empty next cursor names no page; a walk under `page` or `offset` lists
+   none, a page holding no
    items ending it whatever `Stop` lists
-   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)). A boolean beside the
-   next cursor, in the model holding it, such as `has_more` or `is_truncated`, says whether another
-   page follows, which no `PageStop` states, and a page may keep handing back a cursor past its
-   last, so such a walk is not settled.
-4. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
+   ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
+4. **The flag** of a `cursor` or a `token` walk is `HasMore`: the one boolean member of the body, or
+   of a model a member of it holds, named `has_more`, `has_next`, `has_next_page` or
+   `is_truncated`. The walk then ends by it and lists `no_more` alone, the page's own statement of
+   where the walk ends, since a page may keep handing back a cursor past its last. Flags are counted
+   by member, so one name at two places is two, and two flags leave the walk undecided, as taking
+   the first met would end it at the wrong one and turn on declaration order. A boolean beside the
+   next cursor under another name, a bare `truncated` among them, leaves it undecided too: it may
+   say more follows or that a result was cut short for good, and a pager ending there would drop
+   pages. A flag further down, or in a header, is not read, and a walk under `page` or `offset`
+   reads none.
+5. **The totals** are `TotalCount`, the one member named `total_count`, and `TotalPages`, the one
    named `total_pages`, each of a type a walk counts with, in the body or in a model a member of it
    holds. A page naming none or several states no total, and the field is unset.
+6. **The links** are `NextLink`, the one member named `next_link` typed as a string or a `url`,
+   else the one named `next` typed as a `url`, and `PrevLink`, the one named `prev_link` or
+   `previous_link` typed as either, else the one named `prev` or `previous` typed as a `url`, in the
+   body or in a model a member of it holds. Beside a walk an input continues they are facts of the
+   page, which change neither its strategy nor what is reported; a link the contents hold at
+   different members, or none or several of, is left unset, and the walk stands. `FirstLink`,
+   `LastLink` and a flag for a link walk are not read.
+7. **A link walk** is read where no place names a continuation, on a `GET` or a `QUERY`, and the
+   response is the only evidence, so it must look like a page and nothing else: the root of each
+   content holds one list named as items or `value`, the name the next-link convention pairs with
+   `nextLink`; the links of point 6, at the root; and beyond those only whole-number counts named
+   `count`, `total`, `total_count` or `total_pages`. Any other member, a `title` or an `id`, makes
+   it a resource that links to its neighbour, and no walk; a link below the root, or a count that is
+   no whole number, the same. Such a page stating a next link is a `next_link` walk: `NextLink`,
+   `PrevLink` where stated, `Items`, the totals of point 5 and `Stop: [no_next]`. Such a page, or a
+   list, stating none, where every success response declaring a body declares a `Link` header of a
+   plain string type (RFC 8288), is a `link_header` walk, with `Items`, the totals and `Stop:
+   [no_next]`, the strategy reading the header's `next` link. A response that states a link and is
+   no page triggers nothing and draws no finding; beside an input that continues the walk, a `Link`
+   header changes nothing.
 
 What the policy fills is marked as [`policies`](#policies) marks an inference: `Pagination.Inferred`
 is set, and the operation's `Provenance.Inferred` names `pagination-inference`. An operation whose
 query parameters name where a walk continues and that the policy cannot settle gets no `Pagination`,
 never a guess, reported as an info `openapi/undecided-pagination` at the operation's declaration
-naming what stops it: a method other than `GET` and `QUERY`, two parameters naming a continuation or
-a page size, one of a type a walk does not send, a `page` string with no whole number for its
+naming what stops it: a method other than `GET`, `QUERY` and `POST`, a condition a `POST` fails,
+two places naming a continuation or a page size, one of a type a walk does not send, a `page` string
+with no whole number for its
 default or an example, no success response or none with a body, a body that is neither an object nor
-a list, items or a next cursor it names none or several of, a flag beside the next cursor, or bodies
-holding the page at different members. A path item mounted twice is reported once, at the
+a list, items or a next cursor it names none or several of, two flags, a boolean beside the next cursor
+named as none, a next cursor the body and a header both name, a plain string `next` beside a string
+cursor, a link walk's page stating a next link and a `Link` header, or bodies holding the page at
+different members. A path item mounted twice is reported once, at the
 declaration both mounts share.
 
-- Cases: `pagination-inferred`
+- Cases: `pagination-inferred`, `pagination-flag`, `pagination-body`, `pagination-links`
 - Codes: `openapi/undecided-pagination`
 - Tests: `pagination.TestInferWalks_ReadsEachStrategy`,
   `pagination.TestInferWalks_MarksWhatItFills`,
@@ -6557,13 +6945,26 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsTheSameInEitherOrder`,
   `pagination.TestInferWalks_ReportsTheSameWhateverTheResponseOrder`,
   `pagination.TestInferWalks_ReadsAMountedDeclarationForEachMount`,
-  `pagination.TestResolve_ReadsAtMostTheBound`,
-  `lowering.TestOperations_ReadsEveryGroupToTheCap`,
+  `pagination.TestInferWalks_EndsACursorWalkAtItsFlag`, `pagination.TestInferWalks_FlagNames`,
+  `pagination.TestInferWalks_ReadsNoFlagForAPageWalk`,
+  `pagination.TestInferWalks_ReadsAPostThatSearches`,
+  `pagination.TestInferWalks_LeavesAPostItCannotTellFromACreate`,
+  `pagination.TestInferWalks_ReadsNoBodyOfAMethodThatIsNoSearch`,
+  `pagination.TestInferWalks_ReadsAnObjectParameter`,
+  `pagination.TestInferWalks_ReadsAnObjectParameterNamedForARole`,
+  `pagination.TestInferWalks_ReadsAPageSizeAnObjectParameterHolds`,
+  `pagination.TestInferWalks_TwoPlacesAreUndecided`, `pagination.TestInferWalks_ReadsLinks`,
+  `pagination.TestInferWalks_ALinkHeldApartIsLeftUnset`, `pagination.TestInferWalks_NextNames`,
+  `pagination.TestInferWalks_ReadsAHeaderCursor`, `pagination.TestInferWalks_LinkWalks`,
+  `pagination.TestInferWalks_ReadsTheBodyMembersEveryContentHolds`,
+  `pagination.TestInferWalks_SaysWhyAPostIsNoWalk`, `pagination.TestInferWalks_ReadsALinkWalkOnlyOffAPage`,
+  `pagination.TestInferWalks_AllocatesLinearInTheBodiesItReads`,
+  `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
+  `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
-- Status: partly built: an input a request body or a parameter's members carry is not read (#1815),
-  nor a next link, a `Link` header or a continuation a response header carries (#1816), nor a flag
-  a page states where its walk ends (#1827).
+- Status: open: which declaration a request body member takes where two `allOf` entries declare it
+  follows their order (#1920).
 
 ## 16. Swagger 2.0
 

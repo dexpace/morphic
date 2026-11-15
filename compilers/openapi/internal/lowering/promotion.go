@@ -215,6 +215,13 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 			{Key: paginationProperty, Member: "purpose", Values: []string{"items"}},
 		},
 		TargetPaginationNextLink: {{Key: "x-fern-pagination", Member: "next_uri"}},
+		// A stream's terminator is written on the streaming media type it ends,
+		// and no convention names the input selecting a stream, so the condition
+		// has no default source.
+		TargetStreamTerminator: {{Key: "x-speakeasy-sse-sentinel"}},
+		// The one published convention naming alternatives among an
+		// operation's parameters, by name.
+		TargetParamChoices: {{Key: "x-mutually-exclusive-parameter-groups"}},
 	}
 }
 
@@ -466,6 +473,66 @@ func Stability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags
+}
+
+// GroupStability fills tier from the vendor extensions kept in unmodeled, as
+// Stability does, and records the heuristic in inferred: a group has no
+// Provenance to mark.
+func GroupStability(p Promoter, unmodeled ir.Unmodeled, tier *ir.Stability, inferred *ir.Inferred) []ir.Diagnostic {
+	var marked ir.Provenance
+	diags := Stability(p, unmodeled, tier, &marked)
+	if marked.Inferred != "" {
+		*inferred = ir.JoinInferred(*inferred, marked.Inferred)
+	}
+	return diags
+}
+
+// UnformedTier reports each key p reads a tier from that the tag named tag
+// keeps in unmodeled, where the tag forms no operation group: the tier is read
+// through the group alone, so it fills no stability.
+func UnformedTier(p Promoter, tag string, unmodeled ir.Unmodeled) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, src := range p.Sources(TargetStability) {
+		if entry, kept := unmodeled[extensionKeyPrefix+src.Key]; kept {
+			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
+				"extension %q states a tier on tag %q, which forms no operation group, so it fills no stability",
+				src.Key, tag))
+		}
+	}
+	return diags
+}
+
+// UnheldDeprecation reports each key p reads a deprecation or its members from
+// that the tag named tag keeps in unmodeled, where those keys state one: a tag
+// and the group it forms hold no deprecation, so it fills nothing. A source
+// listing values is reported where its value is one of them, as a tier the
+// same key states is the group's, and a key UnformedTier reports, where the
+// tag forms no group, is not reported again.
+func UnheldDeprecation(p Promoter, tag string, formed bool, unmodeled ir.Unmodeled) []ir.Diagnostic {
+	var dep *ir.Deprecation
+	var marked ir.Provenance
+	if p.Deprecation(unmodeled, Referent{}, &dep, &marked); dep == nil {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for _, target := range []ExtensionTarget{TargetDeprecation, TargetDeprecationMessage, TargetDeprecationSince,
+		TargetDeprecationRemovalVersion, TargetDeprecationRemovalDate} {
+		for _, src := range p.Sources(target) {
+			entry, kept := unmodeled[extensionKeyPrefix+src.Key]
+			if !kept || (len(src.Values) > 0 && !listsWord(src, entry.Value)) || (!formed && readsTier(p, src.Key)) {
+				continue
+			}
+			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.UnpromotedExtension, entry.Provenance,
+				"extension %q on tag %q is read into a deprecation, which neither a tag nor an operation group holds, so it fills nothing",
+				src.Key, tag))
+		}
+	}
+	return diags
+}
+
+// readsTier reports whether key is a source p reads a tier from.
+func readsTier(p Promoter, key string) bool {
+	return slices.ContainsFunc(p.Sources(TargetStability), func(src ExtensionSource) bool { return src.Key == key })
 }
 
 // Redaction sets redact from the vendor extensions kept in own, or what from

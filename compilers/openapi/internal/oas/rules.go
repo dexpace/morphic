@@ -29,10 +29,18 @@ const (
 )
 
 // test reports whether every term holds on the object's siblings. One term
-// that fails settles it; a term that cannot be read leaves it unknown.
+// that fails settles it; a term that cannot be read leaves it unknown. A
+// Written term fails where the object does not write its field, and holds
+// where it does, a mapping included, which no text reads.
 func (f frame) test(terms []Term) tri {
 	answer := yes
 	for _, t := range terms {
+		if t.Written {
+			if _, ok := f.byKey[t.Field]; !ok {
+				return no
+			}
+			continue
+		}
 		got, ok := f.text(t.Field)
 		switch {
 		case !ok:
@@ -109,6 +117,8 @@ func (r ruler) apply(rule Rule) {
 		r.misplaced(rule)
 	case RuleCode:
 		r.code(rule)
+	case RuleReserved:
+		reservedNames(r, rule)
 	}
 }
 
@@ -348,6 +358,49 @@ func (r ruler) inapplicable(rule Rule) {
 		r.f.obj.noun(), rule.Field, r.place(rule.When), r.w.minor, rule.Scope), ptr)
 }
 
+// reservedNames reports a name the rule reserves, where the conditions hold,
+// graded by the rule's level: the value of a string field, at the field, or a
+// key of a map field, at the key. OpenAPI says a definition under it SHALL be
+// ignored; it lowers as declared, for the emitter to suppress.
+func reservedNames(r ruler, rule Rule) {
+	node := nodeview.Deref(r.f.byKey[rule.Field])
+	if node == nil || r.f.test(rule.When) != yes {
+		return
+	}
+	ptr := r.f.at.ptr.AppendToken(rule.Field)
+	if name, ok := textOf(node); ok {
+		if reserved, is := reservedName(name, rule.Names); is {
+			place := newKeyPlacer(r.w, r.f.at.node, r.f.at.ptr).place(rule.Field)
+			r.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, place, "header %s %q is reserved: OpenAPI "+
+				"says a definition for %s SHALL be ignored, so it is lowered as declared and left for the emitter to "+
+				"suppress", r.f.obj.noun(), name, reserved), ptr)
+		}
+		return
+	}
+	if node.Kind != yaml.MappingNode {
+		return
+	}
+	places := newKeyPlacer(r.w, node, ptr)
+	for _, p := range r.w.view.MappingPairs(node) {
+		if reserved, is := reservedName(p.Key, rule.Names); is {
+			r.w.add(diag.Newf(severity(rule.Level), diag.ReservedHeaderName, places.place(p.Key), "header %q is "+
+				"reserved: OpenAPI says a %s entry in a headers map SHALL be ignored, so it is lowered as declared and "+
+				"left for the emitter to suppress", p.Key, reserved), ptr.AppendToken(p.Key))
+		}
+	}
+}
+
+// reservedName returns the one of names that name spells in any case, as HTTP
+// compares field names, and whether there is one.
+func reservedName(name string, names []string) (string, bool) {
+	for _, reserved := range names {
+		if strings.EqualFold(name, reserved) {
+			return reserved, true
+		}
+	}
+	return "", false
+}
+
 // misplaced warns of each field written where the conditions bar it.
 func (r ruler) misplaced(rule Rule) {
 	if r.f.test(rule.When) != yes {
@@ -370,6 +423,10 @@ func (o Object) noun() string { return strings.ToLower(strings.TrimSuffix(o.Name
 func (r ruler) place(terms []Term) string {
 	parts := make([]string, len(terms))
 	for i, t := range terms {
+		if t.Written {
+			parts[i] = "a " + r.f.obj.noun() + " that writes " + t.Field
+			continue
+		}
 		got, _ := r.f.text(t.Field)
 		parts[i] = describeTerm(t.Field, got)
 	}

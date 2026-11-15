@@ -354,7 +354,7 @@ func TestRegistry_DeclaredSecondReachLowersNothing(t *testing.T) {
 info: {title: T, version: "1"}
 paths:
   /a:
-    servers: [{url: https://a.example, bogus: 1}]
+    servers: [{url: https://a.example, x-n: .nan}]
     get: {responses: {"200": {description: ok}}}
 `, lowering.Policy{Grouping: lowering.GroupByTags})
 	item, ok := c.Doc.GetPaths().Get("/a")
@@ -364,7 +364,7 @@ paths:
 
 	reg := servers.NewRegistry()
 	first, diags := reg.Declared(c, list, "/paths/~1a")
-	require.Len(t, diags, 1, "the first reach lowers the server and reports its undeclared key")
+	require.Len(t, diags, 1, "the first reach lowers the server and reports the extension it cannot keep")
 	again, diags := reg.Declared(c, list, "/paths/~1a")
 	assert.Equal(t, first, again, "the second reach names the same server")
 	assert.Empty(t, diags, "and reports nothing, having lowered nothing")

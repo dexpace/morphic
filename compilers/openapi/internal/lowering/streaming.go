@@ -9,13 +9,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// StreamingMediaTypeHeuristic is the name Provenance.Inferred carries on an
+// StreamingInferenceHeuristic is the name Provenance.Inferred carries on an
 // operation whose streaming was read out of a media type rather than declared.
 // It is a constant because the marker is what an auditor greps for, and a
 // spelling written at the producing site and again at a reading test can drift.
-const StreamingMediaTypeHeuristic ir.Inferred = "streaming-media-type"
+const StreamingInferenceHeuristic ir.Inferred = "streaming-inference"
 
-// StreamingMedia is the media-type streaming policy: which media types mean
+// StreamingInference is the media-type streaming policy: which media types mean
 // "this body is a sequence of frames" in a document that declares nothing
 // saying so.
 //
@@ -25,7 +25,7 @@ const StreamingMediaTypeHeuristic ir.Inferred = "streaming-media-type"
 // media type, which is a content encoding, not a promise about framing. The
 // vocabulary is declared here, below both walks, and re-exported by the
 // compiler's public options, as GroupingStrategy is.
-type StreamingMedia struct {
+type StreamingInference struct {
 	// Disabled turns the inference off. Off means off: an operation then carries
 	// the streaming fields a 3.2 itemSchema declares and nothing else, which is
 	// what a caller who does not want guesses in their IR asked for.
@@ -67,7 +67,7 @@ func (c Ctx) MediaTypeStreams(mediaType string) bool {
 // streamingSet normalizes a policy into the set MediaTypeStreams answers from,
 // or nil when the inference is off — which reads the same as an empty set, so
 // no lowering has to ask whether the policy was disabled or merely empty.
-func streamingSet(p StreamingMedia) map[string]bool {
+func streamingSet(p StreamingInference) map[string]bool {
 	if p.Disabled {
 		return nil
 	}

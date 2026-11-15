@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -15,10 +16,10 @@ import (
 // to the same members, since an expression reads one value whichever media
 // type arrives. A member is one declaration, so contents reaching the same one
 // first walk the same chain from there, and only the first step tells them
-// apart: each other content's model is flattened for that step, once per lk
-// (#1723). It returns why, and false, where p holds no body or the tokens name
-// no such members.
-func BodyPath(lk *Lookups, p *ir.Payload, tokens []string, side string) (segments []ir.PropID, why string, ok bool) {
+// apart: each other content is asked for that member alone
+// (whole.Document.Member). It returns why, and false, where p holds no body or
+// the tokens name no such members.
+func BodyPath(w *whole.Document, p *ir.Payload, tokens []string, side string) (segments []ir.PropID, why string, ok bool) {
 	if p == nil || len(p.Contents) == 0 {
 		return nil, fmt.Sprintf("reads a %s body the document does not describe", side), false
 	}
@@ -26,13 +27,13 @@ func BodyPath(lk *Lookups, p *ir.Payload, tokens []string, side string) (segment
 		return nil, "", true
 	}
 	first := &p.Contents[0]
-	chain, walked := lk.Walk(first.Type.Target, tokens)
+	chain, walked := w.Walk(first.Type.Target, tokens)
 	if !walked {
 		return nil, noChain(tokens, side, first.MediaType), false
 	}
 	for i := 1; i < len(p.Contents); i++ {
 		ct := &p.Contents[i]
-		member, held := lk.Member(ct.Type.Target, tokens[0])
+		member, held := w.Member(ct.Type.Target, tokens[0])
 		if !held {
 			return nil, noChain(tokens, side, ct.MediaType), false
 		}

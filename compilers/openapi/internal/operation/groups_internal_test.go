@@ -20,7 +20,9 @@ func TestFirstPathSegment_Empty(t *testing.T) {
 func TestLowerTagDefs_NilEntrySkipped(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{Tags: []*soa.Tag{nil, {}}})
-	assert.Len(t, lowerTagDefs(l.ctx), 1, "nil tag entry skipped")
+	defs, diags := lowerTagDefs(l.ctx)
+	assert.Len(t, defs, 1, "nil tag entry skipped")
+	assert.Empty(t, diags)
 }
 
 // TestIndexTags_SkipsANilEntry pins the guard on the tag list: a nil entry

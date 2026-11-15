@@ -42,8 +42,11 @@ source's directory, as one segment, escaped as RFC 6901 escapes a token:
 declares. The location, not the entry's index, qualifies it, so an ID moves only when its document
 does. A document's label is its location from the directory its source lies in, whatever spelling
 names it, a relative path, an absolute one or a `file:` URI; an absolute reference changes no label,
-and a URL is labelled as it is spelled once normalized, one way for every spelling. Operations, parameters and security schemes are named by where the source mounts or names
-them, so they take the source's namespace whichever document declares them.
+and a URL is labelled as it is spelled once normalized, one way for every spelling. Operations,
+parameters and the security schemes the source's `securitySchemes` names are named by where the
+source mounts or names them, so they take the source's namespace whichever document declares them;
+a scheme an OpenAPI 3.2 requirement key reaches outside them is named where it is declared
+([unresolved schemes](#unresolved-schemes)).
 
 ## Across revisions
 
@@ -108,6 +111,17 @@ scheme lowered from such an entry records the entry's pointer, as any node does.
 declares records none: no position writes it, and a pointer under `components` would name something
 the document does not hold, so `irverify` has no pointer to compare its path with, as it has none
 for `server/default`.
+
+An OpenAPI 3.2 requirement key that is a URI names a scheme by position. One declared outside the
+source's `components/securitySchemes` takes the ID its pointer derives in its own document, the
+document's qualified space for another document's:
+`auth/openapi/x-schemes/extra`, `auth/openapi@schemes.yaml/components/securitySchemes/shared`. One
+landing on nothing, or on an object that names no mechanism, is minted in `unresolved` like any
+scheme of that kind, from the key and the document writing it: the path a declaration of that name
+has, behind the document's qualifier for another document's,
+`auth/unresolved/@schemes.yaml/components/securitySchemes/#~1x-missing`, which no pointer spells. So
+one key two documents write is two schemes, and the space stays the one below. Such a scheme is
+placed at the source's root, as one nothing declares is, so its path has no pointer to agree with.
 
 `unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since `irverify` holds the
 kind to it whichever format minted the scheme. A consumer reads the kind, an ID being opaque to it.

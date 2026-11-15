@@ -1171,10 +1171,16 @@ func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
 		}
 	}
 
-	for _, pair := range [][2]string{{"Z", "Y"}, {"Bare", "Twin"}} {
+	// Z and Y each lend the field their own description, which the field keeps
+	// one of and reports the other (docs/compilers/openapi.md#ref-use-site).
+	for _, tc := range []struct {
+		pair    [2]string
+		reports int
+	}{{[2]string{"Z", "Y"}, 1}, {[2]string{"Bare", "Twin"}, 0}} {
+		pair := tc.pair
 		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref(pair[0]), ref(pair[1]))))
 		openapitest.RequireNoErrorDiags(t, diags)
-		assert.Empty(t, diags, pair[0])
+		assert.Len(t, diags, tc.reports, pair[0])
 		assert.Equal(t, []ir.TypeRef{{Target: componentID(pair[0])}, {Target: componentID(pair[1])}},
 			composedField(t, doc, "T", "v").Mixins, pair[0])
 	}

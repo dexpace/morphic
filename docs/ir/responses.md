@@ -19,7 +19,8 @@ type Response struct {
 type Header struct {             // one entry of a Headers list; encodes flat
     Property                      // what the header is: name, type, presence, docs
     Style      string             // how the value is written into the field, in
-                                  // HTTPParamBinding.Style's vocabulary, as declared; "" = simple
+                                  // HTTPParamBinding.Style's vocabulary, as declared; "" = simple,
+                                  // or none where the media type Encoding names serializes it
     Explode    *bool              // as declared; nil = the style's default
     Prefix     *string            // set: a map of every field under the prefix, "" every field
                                   // (Smithy @httpPrefixHeaders); nil = the one field its wire

@@ -1008,7 +1008,7 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"request body unknown key (requestbody.go lowerRequestBody)", "openapi:rbBogus", 1},
 		{"encoding unknown key (encoding.go encodingUnmodeled)", "openapi:encoding/file/encBogus", 1},
 		{"parameter unknown key (params.go fillParamDetail)", "openapi:paramBogus", 1},
-		{"parameter schema extension (params.go fillParamSchemaAnnotations)", "openapi:x-ps", 1},
+		{"parameter schema extension (params.go fillParamSchemaAnnotations)", "openapi:schema/x-ps", 1},
 		{"security scheme extension (schemes.go applySchemeAnnotations)", "openapi:x-scheme", 1},
 		{"security scheme unknown key (schemes.go lowerSecurityScheme)", "openapi:schemeBogus", 1},
 		{"field the scheme's type leaves unread (schemes.go preserveUnreadFields)", "openapi:bearerFormat", 1},
@@ -1154,7 +1154,7 @@ actions:
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
 		"a component schema's kept modifier (declaration.go hoistDeclarationHome)")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum", WrittenBy: 1},
-		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
+		entryKeyed(t, entries, "openapi:schema/exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")
 
 	unkept := diagnosticsByCodeAndPointer(diags)[diagKey{diag.UnpreservableConstruct, "/components/schemas/Str/oneOf"}]

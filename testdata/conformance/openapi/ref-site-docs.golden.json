@@ -755,6 +755,17 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/body-without-semantics",
+      "message": "GET request declares a body, which HTTP defines no semantics for (RFC 9110 §9.3); OpenAPI 3.0 has a consumer ignore it and later versions advise against it; lowered as declared",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1widgets/get/requestBody"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.2",

@@ -129,7 +129,7 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"oneOf":      {"file": png, "url": partOf(textPlain, "")},
 		"anyOf":      {"file": png, "url": partOf(textPlain, ""), "id": partOf(textPlain, "")},
 		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, Filename: true}, "name": partOf(textPlain, "")},
-		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-media-type"}},
+		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-inference"}},
 		"narrowed":   {"file": png, "link": partOf(textPlain, ""), "note": partOf(textPlain, "")},
 	} {
 		parts, content := partsOf(t, doc, op)
@@ -151,7 +151,8 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 
 // assertEncodingOutsideForm pins each entry of an encoding under a media type
 // that is neither multipart nor form, a file body's too, to being kept whole
-// with one info, beside load's warning that the field has no effect there.
+// as out_of_scope with one info, beside load's warning that the field has no
+// effect there.
 func assertEncodingOutsideForm(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for op, media := range map[string]string{
 		"json":  "/paths/~1json/post/requestBody/content/application~1json",
@@ -160,7 +161,7 @@ func assertEncodingOutsideForm(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		parts, content := partsOf(t, doc, op)
 		assert.Empty(t, parts, op)
 		require.Contains(t, content.Unmodeled, "openapi:encoding/f", op)
-		assert.Equal(t, ir.ReasonNoIRHome, content.Unmodeled["openapi:encoding/f"].Reason, op)
+		assert.Equal(t, ir.ReasonOutOfScope, content.Unmodeled["openapi:encoding/f"].Reason, op)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, media+"/encoding/f"), op)
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/validation/validation-no-effect", media+"/encoding"), op)
 	}

@@ -8,13 +8,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // exchange is the request and response a link reads values from: a response
-// of from, at. lk indexes what the reads name.
+// of from, at, in the document w.
 type exchange struct {
-	lk   *runtimeexpr.Lookups
+	w    *whole.Document
 	from *ir.Operation
 	at   responseView
 }
@@ -100,13 +101,13 @@ func (ex exchange) read(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
 // a parameter of from.
 func (ex exchange) request(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
 	if e.Part == runtimeexpr.PartBody {
-		segments, why, ok := runtimeexpr.BodyPath(ex.lk, ex.from.Request, e.Tokens, "request")
+		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.from.Request, e.Tokens, "request")
 		if !ok {
 			return ir.LinkValue{}, untyped("%s", why)
 		}
 		return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: segments}}, nil
 	}
-	found := ex.lk.ParamIndex(ex.from).Bound(ir.HTTPLocation(e.Part), e.Name)
+	found := ex.w.Params(ex.from).Bound(ir.HTTPLocation(e.Part), e.Name)
 	if len(found) != 1 {
 		return ir.LinkValue{}, untyped("reads %s parameter %q, which operation %q does not declare once",
 			e.Part, e.Name, ex.from.ID)
@@ -120,13 +121,13 @@ func (ex exchange) request(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure
 func (ex exchange) response(e runtimeexpr.Expression) (ir.LinkValue, *linkFailure) {
 	switch e.Part {
 	case runtimeexpr.PartBody:
-		segments, why, ok := runtimeexpr.BodyPath(ex.lk, ex.at.payload, e.Tokens, "response")
+		segments, why, ok := runtimeexpr.BodyPath(ex.w, ex.at.payload, e.Tokens, "response")
 		if !ok {
 			return ir.LinkValue{}, untyped("%s", why)
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: segments}}, nil
 	case runtimeexpr.PartHeader:
-		found := ex.lk.Header(ex.at.key, ex.at.headers, e.Name)
+		found := ex.w.Header(ex.at.key, ex.at.headers, e.Name)
 		if len(found) != 1 {
 			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", e.Name)
 		}
@@ -137,9 +138,9 @@ func (ex exchange) response(e runtimeexpr.Expression) (ir.LinkValue, *linkFailur
 }
 
 // targetParam returns the parameter of op that a link's parameters key names
-// (lowering.ParamIndex.Named), which must name one parameter only.
-func targetParam(lk *runtimeexpr.Lookups, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
-	id, matched := lk.ParamIndex(op).Named(key)
+// (whole.ParamIndex.Named), which must name one parameter only.
+func targetParam(w *whole.Document, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
+	id, matched := w.Params(op).Named(key)
 	switch matched {
 	case 1:
 		return id, nil

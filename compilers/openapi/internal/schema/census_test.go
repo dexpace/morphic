@@ -279,7 +279,7 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	owners["/components/schemas/Holder/properties/p"] = holder.Properties[0].Unmodeled
 	op := doc.Services[0].Groups[0].Operations[0]
 	require.Len(t, op.Params, 1)
-	owners["/paths/~1p/get/parameters/0/schema"] = op.Params[0].Unmodeled
+	owners["/paths/~1p/get/parameters/0/schema"] = schemaKept(op.Params[0].Unmodeled)
 
 	for pointer, unmodeled := range owners {
 		assertKeptDiscriminator(t, unmodeled, pointer)
@@ -288,8 +288,9 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 				string(d.Provenance.Pointer) == pointer && strings.Contains(d.Message, "which has no home for discriminator")
 		}), "%s reports what it kept", pointer)
 	}
-	assert.Equal(t, len(owners), strings.Count(marshalForTest(t, doc), `"openapi:discriminator"`),
-		"one entry per position, none duplicated")
+	marshaled := marshalForTest(t, doc)
+	assert.Equal(t, len(owners), strings.Count(marshaled, `"openapi:discriminator"`)+
+		strings.Count(marshaled, `"openapi:schema/discriminator"`), "one entry per position, none duplicated")
 }
 
 // TestHeldDiscriminator_IsNotKeptTwice pins the census's control: a union or a

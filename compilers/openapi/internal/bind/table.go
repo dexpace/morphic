@@ -62,6 +62,15 @@ type Config struct {
 	// whichever document it is written, so the table reads every other value,
 	// and none of these, as a reference (Table.Mapping).
 	Components []string
+	// SecuritySchemes is the keys of the source's securitySchemes components.
+	// A Security Requirement key spelling one names that component, in
+	// whichever document it is written; where KeysByURI holds for the document
+	// writing it, the table reads any other as a reference to a Security
+	// Scheme Object, written where the key is (Table.Reference).
+	SecuritySchemes []string
+	// KeysByURI reports whether the document named name reads a requirement
+	// key as a URI, as OpenAPI 3.2 does. Nil reads none so.
+	KeysByURI func(name string) bool
 }
 
 // DialectRule is what the table reads otherwise in a dialect than in 2020-12.
@@ -412,7 +421,9 @@ func (b *binder) table(t *Table) *Table {
 	}
 	for k, c := range b.objs.chains {
 		if _, found := t.references[k]; !found {
-			t.references[k] = Reference{Site: k.at, Kind: k.kind, Hop: ofKind(b.objs.hops[k.at], k.kind), Chain: c}
+			_, key := b.docs.keyRefs[k.at]
+			t.references[k] = Reference{Site: k.at, Kind: k.kind, Hop: ofKind(b.objs.hops[k.at], k.kind), Chain: c,
+				Key: key}
 		}
 	}
 	t.entryList = slices.SortedFunc(maps.Values(t.entries), func(x, y Entry) int { return b.docs.compare(x.Site, y.Site) })

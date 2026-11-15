@@ -194,15 +194,18 @@ func TestCheck_OAuthFlowsNeedTheirUrls(t *testing.T) {
 }
 
 // TestCheck_HeadersLeaveWhatAParameterNamesToTheUnknownKeys pins that the
-// table states the Header Object's bans on what a parameter names and leaves
-// them to the unknown-key census, which reports each, since a Header Object
-// defines none of those keys; a Parameter Object's allowEmptyValue outside the
-// query, a field it does define, is the table's.
+// table states the Header Object's bans on what a parameter names and reports
+// each as an unknown key, once, since a Header Object defines none of those
+// keys; a Parameter Object's allowEmptyValue outside the query, a field it does
+// define, is a forbidden field.
 func TestCheck_HeadersLeaveWhatAParameterNamesToTheUnknownKeys(t *testing.T) {
 	verify(t, []scenario{
-		{"name and in", "3.1.0", oas.Header, `{name: n, in: header, schema: {}}`, nil},
-		{"allowEmptyValue and allowReserved in 3.1", "3.1.0", oas.Header, `{allowEmptyValue: true, allowReserved: true, schema: {}}`, nil},
-		{"allowEmptyValue in 3.2", "3.2.0", oas.Header, `{allowEmptyValue: true, schema: {}}`, nil},
+		{"name and in", "3.1.0", oas.Header, `{name: n, in: header, schema: {}}`,
+			[]finding{at(unknownKey, "/name"), at(unknownKey, "/in")}},
+		{"allowEmptyValue and allowReserved in 3.1", "3.1.0", oas.Header, `{allowEmptyValue: true, allowReserved: true, schema: {}}`,
+			[]finding{at(unknownKey, "/allowEmptyValue"), at(unknownKey, "/allowReserved")}},
+		{"allowEmptyValue in 3.2", "3.2.0", oas.Header, `{allowEmptyValue: true, schema: {}}`,
+			[]finding{at(unknownKey, "/allowEmptyValue")}},
 		{"allowEmptyValue outside the query", "3.1.0", oas.Parameter, `{name: a, in: header, allowEmptyValue: true, schema: {}}`,
 			[]finding{at(forbidden, "/allowEmptyValue")}},
 		{"allowEmptyValue in the query", "3.1.0", oas.Parameter, `{name: a, in: query, allowEmptyValue: true, schema: {}}`, nil},
@@ -360,4 +363,25 @@ func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, `Schema Object field "required" repeats "a" first written at /required/0 in OpenAPI 3.1 (Schema Object)`,
 		diags[0].Message)
+}
+
+// TestCheck_AFieldBesideContentNamesItsCarrier holds the warning a
+// serialization field written beside content draws to the object writing it:
+// a header's names a header serialized through its schema, as a parameter's
+// names a parameter.
+func TestCheck_AFieldBesideContentNamesItsCarrier(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		kind    oas.Kind
+		doc     string
+		carrier string
+	}{
+		{oas.Parameter, "{name: p, in: query, style: form, content: {application/json: {schema: {}}}}", "parameter"},
+		{oas.Header, "{style: simple, content: {application/json: {schema: {}}}}", "header"},
+	} {
+		diags := run(t, "3.2.0", tc.kind, tc.doc)
+		require.Len(t, diags, 1)
+		assert.Equal(t, noEffect, diags[0].Code)
+		assert.Contains(t, diags[0].Message, "which applies it to a "+tc.carrier+" serialized through its schema")
+	}
 }

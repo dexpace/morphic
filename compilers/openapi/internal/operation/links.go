@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
+	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,7 +37,7 @@ type pendingLink struct {
 // never reordered, so an index taken as a response is appended still names it
 // once the service is whole.
 type responseSlot struct {
-	list  runtimeexpr.ResponseList
+	list  whole.ResponseList
 	index int
 }
 
@@ -99,6 +99,9 @@ func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkD
 		}
 		d, draftDiags := draftLink(lc, l, lptr, name)
 		d.docs = resolve.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
+		beside, besideDiags := lowering.Beside[soa.Link](c, rl, use, true)
+		d.extra = annotation.MergeUnmodeled(d.extra, beside)
+		diags = append(diags, besideDiags...)
 		d.at, d.use = c, use
 		drafts = append(drafts, d)
 		diags = append(diags, draftDiags...)

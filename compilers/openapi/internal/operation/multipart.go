@@ -26,25 +26,29 @@ import (
 )
 
 // partEncodings builds a form body's per-part wire config, keyed by the PropID
-// of the body property each part names (docs/compilers/openapi.md#multipart-encoding).
-// A part is included when it carries an encoding entry or a default content
-// type or is a repeated or file part; keepUnkeyedEncodings keeps whole an
-// entry naming none. body is the TypeID the content's schema lowered to.
+// of the body property each part names (docs/compilers/openapi.md#multipart-encoding),
+// a part with an entry, a default content type or a flag; keepUnkeyedEncodings
+// keeps whole an entry naming none. body is the TypeID the schema lowered to.
 //
-// It returns the map with no keys yet, and the content's Unmodeled: keys,
-// flags and defaults read the type behind body, which a $ref may have promised
-// (compile.Types.Promise), so partKeys settles them, and each entry's records,
-// once every node exists.
-func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+// It returns the parts' and catch-alls' maps, empty, and the content's
+// Unmodeled: what they hold reads the type behind body, which a $ref may have
+// promised (compile.Types.Promise), so partKeys settles them and each entry's
+// records once every node exists, for every body stating a schema.
+func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
+	map[ir.PropID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
+) {
 	bodyWalk := walkBodyParts(c.Bindings(), media.GetSchema())
 	parts := bodyWalk.parts
 	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, bodyWalk, unkeyedFormEntry)
 	diags := append(diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema")), keptDiags...)
-	if len(parts) == 0 {
-		return nil, unmodeled, diags
+	if media.GetSchema() == nil {
+		return nil, nil, unmodeled, diags
 	}
 	encMap := media.GetEncoding()
-	keys := partKeys{c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: lowering.NormalizeMediaType(mt)}
+	keys := partKeys{
+		c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: lowering.NormalizeMediaType(mt),
+		catchAllValues: bodyWalk.catchAllValues,
+	}
 	for _, part := range parts {
 		kp, partDiags := lowerPart(c, w, part, encMap, mediaPtr, keys.mediaType)
 		diags = append(diags, partDiags...)
@@ -56,8 +60,9 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 	}
 	keys.kept = unmodeled
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
+	keys.catchAll = map[ir.TypeID]ir.CatchAllParts{}
 	w.types.Defer(keys)
-	return keys.out, unmodeled, diags
+	return keys.out, keys.catchAll, unmodeled, diags
 }
 
 // lowerPart lowers the entry of part, a part of a form body under mt, a
@@ -135,11 +140,12 @@ const (
 // keepUnkeyedEncodings keeps whole each entry of media's encoding map whose key
 // names none of the parts w found, under Unmodeled at
 // annotation.EntryKey("encoding", key), with one info each, which why completes
-// (docs/compilers/openapi.md#multipart-encoding). Where the walk read every
-// position of the body that can declare a property, and no catch-all admits
-// the key, the key names no property and draws a warning besides
-// (unknownEncodingKey). Nothing an entry kept declares is lowered or judged
-// (GitHub #1662). An entry that is no object is skipped, since load reports it.
+// (docs/compilers/openapi.md#multipart-encoding). Where the walk decides the
+// key names no property it also warns (unknownEncodingKey), save outside form
+// content, where load reports the whole field. Such an entry, and any of a body
+// with no parts, has no effect, so is out of scope; one the walk cannot
+// decide, as a catch-all may take it, has no IR home. An entry that is no
+// object, which load reports, is skipped.
 func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(w.parts))
 	for _, part := range w.parts {
@@ -152,7 +158,15 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 			continue
 		}
 		at := mediaPtr + ids.Ptr("encoding", name)
-		written, keepDiags := keepEntry(c, &kept, name, enc.GetRootNode(), at, why)
+		// An entry the walk decides keys nothing, every entry of a body with no
+		// parts among them, has no effect where it is written; one a catch-all
+		// may take has no IR home yet. Under a media type that is neither
+		// multipart nor form, load reports the whole field as having no effect.
+		reason := ir.ReasonNoIRHome
+		if w.decidesKeys() {
+			reason = ir.ReasonOutOfScope
+		}
+		written, keepDiags := keepEntry(c, &kept, name, enc.GetRootNode(), at, why, reason)
 		diags = append(diags, keepDiags...)
 		if written && w.decidesKeys() && why != unkeyedOtherEntry {
 			diags = append(diags, unknownEncodingKey(c, name, "body", at))
@@ -162,15 +176,16 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 }
 
 // keepEntry keeps entry, the encoding entry named name written at at, whole
-// under u at annotation.EntryKey("encoding", name), with one info saying, as
-// why completes it, why Content.Encoding has no key for it. The model reads an
-// entry that is no mapping as one with no node, so nothing is kept for it and
-// load's error is its one finding. written reports whether the entry was kept.
-func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string) (written bool, diags []ir.Diagnostic) {
-	// An entry OpenAPI gives no effect, as one whose key names no property,
-	// takes no_ir_home too until GitHub #1791 decides its reason.
+// under u at annotation.EntryKey("encoding", name) for reason, with one info
+// saying, as why completes it, why Content.Encoding has no key for it. The
+// model reads an entry that is no mapping as one with no node, so nothing is
+// kept for it and load's error is its one finding. written reports whether the
+// entry was kept.
+func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string,
+	reason ir.UnmodeledReason,
+) (written bool, diags []ir.Diagnostic) {
 	written, diags = annotation.PreserveNodeInto(u, annotation.EntryKey("encoding", name), entry,
-		ir.ReasonNoIRHome, c.Place().At(at))
+		reason, c.Place().At(at))
 	if !written {
 		return false, diags
 	}
@@ -189,20 +204,24 @@ func unknownEncodingKey(c lowering.Ctx, name, owner string, at jsontext.Pointer)
 }
 
 // partKeys keys a form body's part encodings once the registry is whole
-// (compile.Settlement): Settle fills out, the map the body's Content holds,
-// with an entry for each declaration the body's type holds of a part's name
-// (partMembers) that is left carrying something. kept is the content's
-// Unmodeled, which takes each entry's records where its part is keyed, and
-// the entry whole where it is not. c is the context the content lowered in,
-// schema where its schema is written, and mediaType its normalized media type.
+// (compile.Settlement): Settle fills out, the body's Content.Encoding, with an
+// entry for each declaration the body's type holds of a part's name
+// (partMembers) left carrying something, and catchAll, its CatchAllEncoding
+// (settleCatchAlls). kept is the content's Unmodeled, which takes each entry's
+// records where its part is keyed, and the entry whole where it is not. c is
+// the context the content lowered in, schema where its schema is written,
+// mediaType its normalized media type, and catchAllValues the catch-alls'
+// value schemas the part walk met.
 type partKeys struct {
-	c         lowering.Ctx
-	out       map[ir.PropID]ir.PartEncoding
-	kept      ir.Unmodeled
-	body      ir.TypeID
-	schema    jsontext.Pointer
-	mediaType string
-	parts     []keyedPart
+	c              lowering.Ctx
+	out            map[ir.PropID]ir.PartEncoding
+	catchAll       map[ir.TypeID]ir.CatchAllParts
+	kept           ir.Unmodeled
+	body           ir.TypeID
+	schema         jsontext.Pointer
+	mediaType      string
+	parts          []keyedPart
+	catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
 }
 
 // keyedPart is one part: the encoding its entry declares and what that entry
@@ -255,7 +274,41 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 			}
 		}
 	}
-	return diags
+	k.settleCatchAlls(reg, node)
+	return append(diags, k.partless(node)...)
+}
+
+// partless reports a multipart/form-data or url-encoded body whose type, read
+// through its unions, stands for no model, no map, no object value and not the
+// top type, so it names no part to send (docs/compilers/openapi.md#multipart-encoding). A
+// union read past its bound, or a type reaching no node, which load reports,
+// is not judged.
+func (k partKeys) partless(node func(ir.TypeID) (ir.TypeDef, bool)) []ir.Diagnostic {
+	if k.mediaType != "multipart/form-data" && k.mediaType != "application/x-www-form-urlencoded" {
+		return nil
+	}
+	holders, complete := memberHolders(node, k.body)
+	if !complete || slices.ContainsFunc(holders, func(h ir.TypeID) bool { return mayHoldParts(bodyNode(node, h)) }) {
+		return nil
+	}
+	return []ir.Diagnostic{k.c.DiagAt(ir.SeverityWarning, diag.PartlessFormBody, k.schema,
+		"form body's schema declares no object, so it names no part to send; lowered as declared")}
+}
+
+// mayHoldParts reports whether td, a form body's type or a variant of it, may
+// hold a part: a model, a map, an object value, whose members name its parts,
+// or the top type, or no node, which another finding reports.
+func mayHoldParts(td ir.TypeDef) bool {
+	switch t := td.(type) {
+	case *ir.Model, *ir.MapT, nil:
+		return true
+	case *ir.Literal:
+		return t.Value.Kind == ir.ValueObject
+	case *ir.Primitive:
+		return t.Prim == ir.PrimAny
+	default:
+		return false
+	}
 }
 
 // declared returns the encoding of p as d, one of the declarations the body's
@@ -266,12 +319,13 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart, part bodyPart, d *ir.Property) ir.PartEncoding {
 	one := []*ir.Property{d}
 	multipart := isMultipart(k.mediaType)
-	pe := partFlags(node, k.c.Bindings(), one, part, p.encoding, multipart)
+	unions := partUnionsOf(k.c)
+	pe := partFlags(unions, node, k.c.Bindings(), one, part, p.encoding, multipart)
 	pe = readPartFile(k.c, part, p.encoding.ContentTypes, multipart).apply(pe)
 	if !p.defaulted {
 		return pe
 	}
-	return withDefaultContentType(node, lowering.EncodingRules(k.c), one, readContentEncoding(k.c, part.schemas), pe)
+	return withDefaultContentType(unions, node, lowering.EncodingRules(k.c), d, readContentEncoding(k.c, part.schemas), pe)
 }
 
 // declarationSchemas returns, for each of decls, the declarations the body's
@@ -324,7 +378,7 @@ func (k partKeys) keepWhole(p keyedPart) []ir.Diagnostic {
 		return nil
 	}
 	kept := k.kept // the map partEncodings made, which the content holds
-	written, diags := keepEntry(k.c, &kept, p.part.name, p.entry, p.at, unkeyedPartEntry)
+	written, diags := keepEntry(k.c, &kept, p.part.name, p.entry, p.at, unkeyedPartEntry, ir.ReasonNoIRHome)
 	if !written {
 		maps.Copy(k.kept, p.unmodeled)
 	}
@@ -353,6 +407,10 @@ const maxPartRefHops = 16
 // it from deciding that a key names no property (decidesKeys).
 type partWalk struct {
 	parts []bodyPart
+	// catchAllValues are the value schemas of the catch-alls the walk met:
+	// each additionalProperties, unevaluatedProperties and patternProperties
+	// entry admitting a member, in walk order.
+	catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
 	// capped marks an inline branch nested past schema.MaxAllOfFlattenDepth
 	// whose own allOf entries no path entered.
 	capped bool
@@ -382,6 +440,8 @@ type partVisits struct {
 	// depth, which the walk did not follow.
 	capped map[*oas3.Schema]bool
 	open   *bool
+	// catchAllValues collects partWalk.catchAllValues.
+	catchAllValues *[]*oas3.JSONSchema[oas3.Referenceable]
 }
 
 // markCapped records the allOf entries of b, an inline branch past the
@@ -398,12 +458,14 @@ func (v partVisits) markCapped(b *oas3.Schema) {
 // and reports a bound only for a target that no path entered.
 func walkBodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
 	open := false
+	var catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
 	v := partVisits{
-		refs:    refs,
-		entered: map[*oas3.Schema]int{},
-		cut:     map[*oas3.Schema]bool{},
-		capped:  map[*oas3.Schema]bool{},
-		open:    &open,
+		refs:           refs,
+		entered:        map[*oas3.Schema]int{},
+		cut:            map[*oas3.Schema]bool{},
+		capped:         map[*oas3.Schema]bool{},
+		open:           &open,
+		catchAllValues: &catchAllValues,
 	}
 	w := bodyParts(js, 0, v)
 	for s := range v.cut {
@@ -416,7 +478,7 @@ func walkBodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]
 			w.capped = true
 		}
 	}
-	w.open = open
+	w.open, w.catchAllValues = open, catchAllValues
 	return w
 }
 
@@ -468,8 +530,10 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) 
 
 // note records in v.open that s, the schema js is entered as, leaves a key
 // undecided: it admits members it names no property for (admitsMembers), or js
-// or s declares properties where the walk reads none (declaresUnread).
+// or s declares properties where the walk reads none (declaresUnread). It
+// collects the value schemas of the catch-alls s holds in v.catchAllValues.
 func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) {
+	*v.catchAllValues = append(*v.catchAllValues, catchAllValues(s)...)
 	if s != nil && (admitsMembers(s) || declaresUnread(v.refs, js, s)) {
 		*v.open = true
 	}
@@ -480,11 +544,30 @@ func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema
 // false, or a patternProperties. A key such a member could have is not shown
 // to name nothing, though OpenAPI asks a key to name a declared property.
 func admitsMembers(s *oas3.Schema) bool {
-	catchAll := func(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return annotation.Written(js) && !annotation.IsFalseSchema(js)
-	}
-	return catchAll(s.GetAdditionalProperties()) || catchAll(s.GetUnevaluatedProperties()) ||
+	return admitting(s.GetAdditionalProperties()) || admitting(s.GetUnevaluatedProperties()) ||
 		s.GetPatternProperties().Len() > 0
+}
+
+// admitting reports whether js, a catch-all's schema, admits a member: it is
+// written, and is not the false schema.
+func admitting(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	return annotation.Written(js) && !annotation.IsFalseSchema(js)
+}
+
+// catchAllValues returns the value schemas of the catch-alls s, which may be
+// nil, holds that admit a member (admitting), additionalProperties,
+// unevaluatedProperties and each patternProperties entry, in that order.
+func catchAllValues(s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
+	var out []*oas3.JSONSchema[oas3.Referenceable]
+	for _, js := range []*oas3.JSONSchema[oas3.Referenceable]{s.GetAdditionalProperties(), s.GetUnevaluatedProperties()} {
+		if admitting(js) {
+			out = append(out, js)
+		}
+	}
+	for _, js := range s.GetPatternProperties().All() {
+		out = append(out, js)
+	}
+	return out
 }
 
 // declaresUnread reports whether a property can be declared, or a member
@@ -676,9 +759,10 @@ func memberHolders(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (hol
 // on (declarationFlags), multipart saying whether the body is multipart. Where
 // a type is a kind partTypeFlags cannot decide, Multi is read off every schema
 // of part, as refs resolves them (declaredMulti), a reading left until then
-// since it walks a union's branches.
-func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, part bodyPart, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
-	multi, file, decided := declarationFlags(node, decls, multipart)
+// since it walks a union's branches. unions is the run's reading of the unions
+// parts name.
+func partFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, part bodyPart, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
+	multi, file, decided := declarationFlags(unions, node, decls, multipart)
 	if !decided {
 		multi = declaredMulti(refs, part.schemas)
 	}
@@ -691,10 +775,10 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, de
 // multi where any is, and file where every one is, a type partTypeFlags cannot
 // decide being no file, as a union's member of such a kind is. decided is
 // false where partTypeFlags cannot decide one of them.
-func declarationFlags(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property, multipart bool) (multi, file, decided bool) {
+func declarationFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property, multipart bool) (multi, file, decided bool) {
 	file, decided = multipart && len(decls) > 0, true
 	for _, d := range decls {
-		declMulti, declFile, ok := partTypeFlags(node, d.Type, multipart)
+		declMulti, declFile, ok := partTypeFlags(unions, node, d.Type, multipart)
 		multi, file, decided = multi || declMulti, file && declFile, decided && ok
 	}
 	return multi, file, decided
@@ -706,23 +790,14 @@ func declarationFlags(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Prope
 // and, in a multipart body, file where every one is raw bytes (rawBytes) or a
 // list or tuple of them. A member memberFlags cannot answer for is neither.
 // decided is false where memberFlags cannot answer, or the union's members are
-// not read.
-func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
+// not read. A union's flags are read once a run (partUnions.flagsOf).
+func partTypeFlags(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	td, found := node(ref.Target)
 	union, isUnion := td.(*ir.Union)
 	if !found || !isUnion {
 		return memberFlags(node, ref, multipart)
 	}
-	members, ok := unionMembers(node, union)
-	if !ok {
-		return false, false, false
-	}
-	file = multipart && len(members) > 0
-	for _, member := range members {
-		memberMulti, memberFile, _ := memberFlags(node, member, multipart)
-		multi, file = multi || memberMulti, file && memberFile
-	}
-	return multi, file, true
+	return unions.flagsOf(node, union, multipart)
 }
 
 // maxPartUnions bounds the unions unionMembers and memberHolders read through
@@ -732,8 +807,8 @@ const maxPartUnions = 64
 
 // unionMembers returns the variants of union through the unions nested in it,
 // each read once, so a union naming itself ends. ok is false where a variant
-// names no node or more than maxPartUnions unions are read. Each part naming a
-// union reads it again (GitHub #1460).
+// names no node or more than maxPartUnions unions are read. A part reads it
+// through partUnions, once a run.
 func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (members []ir.TypeRef, ok bool) {
 	pending := []*ir.Union{union}
 	seen := map[ir.TypeID]bool{}

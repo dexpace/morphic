@@ -1,0 +1,366 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "T",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "T",
+        "canonical": "t"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Kept/$defs/Sub": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Kept/$defs/Sub",
+      "name": {
+        "hint": "sub"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kept/$defs/Sub"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Kept/$defs/Sub/properties/kept",
+          "name": {
+            "source": "kept",
+            "canonical": "kept"
+          },
+          "wireName": "kept",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kept/$defs/Sub/properties/kept"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Through/$defs/End": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Through/$defs/End",
+      "name": {
+        "hint": "end"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Through/$defs/End"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Through/$defs/Mid": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Through/$defs/Mid",
+      "name": {
+        "hint": "mid"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "mid"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Through/$defs/Mid"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Through/$defs/End",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Typed/$defs/Sub": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Typed/$defs/Sub",
+      "name": {
+        "hint": "sub"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Typed/$defs/Sub"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Typed/$defs/Sub/properties/typed",
+          "name": {
+            "source": "typed",
+            "canonical": "typed"
+          },
+          "wireName": "typed",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Typed/$defs/Sub/properties/typed"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Kept": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Kept",
+      "name": {
+        "source": "Kept",
+        "canonical": "kept"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:not": {
+          "reason": "validation_only",
+          "value": {
+            "$ref": "#/components/schemas/Kept/$defs/Sub"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kept/not"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kept"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Through": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Through",
+      "name": {
+        "source": "Through",
+        "canonical": "through"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:if-then-else": {
+          "reason": "validation_only",
+          "value": {
+            "if": {
+              "$ref": "#/components/schemas/Through/$defs/Mid"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Through"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Through"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Typed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Typed",
+      "name": {
+        "source": "Typed",
+        "canonical": "typed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Typed"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Typed/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/anon/components/schemas/Typed/$defs/Sub",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Typed/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kept"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"if/then/else\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Through"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "kept-ref-landings.yaml",
+      "hash": "4ae3f8198d1b117c3d37dd9445d310746e4def38f940f01fe1f97d29163d3b59"
+    }
+  ]
+}

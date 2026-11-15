@@ -45,7 +45,9 @@ One node covers the whole design space from the capability matrix: untagged `any
 Variant identity survives so emitters can generate named accessors, sealed interfaces, or wrapper
 types per their refiner strategy. Unions never degrade to optional-field merges in the IR — that
 includes GraphQL `@oneOf` input objects, which are spec-level tagged input unions and lower here,
-not to models.
+not to models. A statement of alternatives over parameters a source declares one by one is no sum it
+declares, and lowers to `Operation.ParamChoices` instead
+([choices among parameters](./operations.md#choices-among-parameters)).
 
 ## Tag modes
 

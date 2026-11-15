@@ -4,11 +4,14 @@
 package oas_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
@@ -301,7 +304,8 @@ func TestCheck_BooleanSchemasStartAtThreeOne(t *testing.T) {
 func TestCheck_ReferencesAreReferenceObjects(t *testing.T) {
 	verify(t, []scenario{
 		{"a parameter reference needs nothing else", "3.1.0", oas.Parameter, `{$ref: "#/components/parameters/p"}`, nil},
-		{"siblings are ignored", "3.0.3", oas.Parameter, `{$ref: "#/a", name: [x], in: 5, bogus: 1}`, nil},
+		{"siblings are judged as a Reference Object's", "3.0.3", oas.Parameter, `{$ref: "#/a", name: [x], in: 5, bogus: 1}`,
+			[]finding{at(unknownKey, "/name"), at(unknownKey, "/in"), at(unknownKey, "/bogus")}},
 		{"summary beside a 3.0 reference", "3.0.3", oas.Parameter, `{$ref: "#/a", summary: s}`, []finding{at(later, "/summary")}},
 		{"description beside a 3.1 reference", "3.1.0", oas.Parameter, `{$ref: "#/a", description: d}`, nil},
 		{"reference that is no string", "3.1.0", oas.Parameter, `{$ref: [a]}`, []finding{at(mismatch, "/$ref")}},
@@ -333,8 +337,62 @@ func TestCheck_PatternedKeysAreRead(t *testing.T) {
 		{"a response", "3.1.0", oas.Responses, `{"200": {}}`, []finding{at(required, "/200")}},
 		{"callback entries", "3.1.0", oas.Callback, `{"{$request.body#/u}": {get: {deprecated: 3}}, x-e: 1}`,
 			[]finding{at(mismatch, "/{$request.body#~1u}/get/deprecated")}},
-		{"an object with no patterned keys leaves others alone", "3.1.0", oas.Info, `{title: t, version: v, other: [1]}`, nil},
+		{"an object with no patterned keys reports others as unknown", "3.1.0", oas.Info, `{title: t, version: v, other: [1]}`,
+			[]finding{at(unknownKey, "/other")}},
 	})
+}
+
+// TestCheck_RepeatedKeysInRawValuesAreWarnedOf pins the warning for a key
+// written twice inside a value the table reads as no object, at every depth,
+// in a list and beside a $ref: the lowering keeps such a value, or reads it as
+// an ir.Value, at the copy the model reads, so the table is where the repeat is
+// said. A key a later minor's schema defines is read as its field, once.
+func TestCheck_RepeatedKeysInRawValuesAreWarnedOf(t *testing.T) {
+	const info = "title: a, version: v, "
+	verify(t, []scenario{
+		{"an extension's value", "3.1.0", oas.Info, `{` + info + `x-e: {k: 1, k: 2}}`, []finding{at(duplicate, "/x-e/k")}},
+		{"a mapping in a list, deeper", "3.1.0", oas.Info, `{` + info + `x-e: [{}, {o: {k: 1, k: 2}}]}`,
+			[]finding{at(duplicate, "/x-e/1/o/k")}},
+		{"an undefined key's value", "3.1.0", oas.Info, `{` + info + `bogus: {k: 1, k: 2}}`,
+			[]finding{at(unknownKey, "/bogus"), at(duplicate, "/bogus/k")}},
+		{"a field read as any value", "3.1.0", oas.Example, `{value: {k: 1, k: 2}}`, []finding{at(duplicate, "/value/k")}},
+		{"a schema's default", "3.1.0", oas.Schema, `{default: {k: 1, k: 2}}`, []finding{at(duplicate, "/default/k")}},
+		{"a schema's undefined keyword", "3.1.0", oas.Schema, `{bogus: {k: 1, k: 2}}`, []finding{at(duplicate, "/bogus/k")}},
+		{"a key beside a $ref", "3.1.0", oas.Parameter, `{$ref: '#/a', x-n: {k: 1, k: 2}}`,
+			[]finding{at(unknownKey, "/x-n"), at(duplicate, "/x-n/k")}},
+		{"a patterned object's extension", "3.1.0", oas.Responses, `{"200": {description: d}, x-e: {k: 1, k: 2}}`,
+			[]finding{at(duplicate, "/x-e/k")}},
+		{"a later keyword is read as its field", "3.0.3", oas.Schema, `{prefixItems: [{type: string, type: integer}]}`,
+			[]finding{at(later, "/prefixItems"), at(duplicate, "/prefixItems/0/type")}},
+		{"each key once", "3.1.0", oas.Info, `{` + info + `x-e: {k: 1, l: [{k: 1}, {k: 2}]}}`, nil},
+	})
+}
+
+// TestCheck_AnAliasedUnknownKeyIsPlacedAtItsKey pins where an undefined key
+// whose value is an alias sits: at the key, in the mapping writing it, not where
+// the alias's anchor is written, another key's coordinate, so the place does not
+// hang on which of two keys the anchor is written under. The locator places a
+// pointer as load does, at the node it reaches.
+func TestCheck_AnAliasedUnknownKeyIsPlacedAtItsKey(t *testing.T) {
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\nx-m: &m {k: 1}\ninfo: {title: t, version: v, bogus: *m}\n"+
+		"paths: {}\n"), &doc))
+	root, view := nodeview.DocumentRoot(&doc), nodeview.New()
+	diags := oas.NewChecker().Check(t.Context(), &doc, "3.1.0", oas.Options{
+		Locate: func(p jsontext.Pointer) ir.Provenance {
+			path, _ := view.DocumentPath(root, p)
+			n := path[len(path)-1]
+			return ir.Provenance{Pointer: p, Position: ir.Position{Line: n.Line, Column: n.Column}}
+		},
+	})
+	var places []ir.Provenance
+	for _, d := range diags {
+		if d.Code == unknownKey {
+			places = append(places, d.Provenance)
+		}
+	}
+	assert.Equal(t, []ir.Provenance{{Pointer: "/info/bogus", Position: ir.Position{Line: 3, Column: 37}}}, places,
+		"at the key's own line, not the anchor's")
 }
 
 // TestCheck_RequestsAreHeldToTheirMinor pins that an unsupported version is

@@ -202,12 +202,11 @@ func TestExternalContent_WhatAReferenceItWritesReachesIsValidated(t *testing.T) 
 	}
 }
 
-// TestExternalContent_FieldsBesideAPathItemRefItWritesAreReported pins a path
+// TestExternalContent_FieldsBesideAPathItemRefItWritesAreLowered pins a path
 // item $ref another document writes with fields beside it (GitHub #751): the
-// $ref resolves, and the fields, which the load phase models only in the
-// source, draw the warning that keeps them from being dropped in silence, at
-// the $ref in that document (GitHub #823).
-func TestExternalContent_FieldsBesideAPathItemRefItWritesAreReported(t *testing.T) {
+// $ref resolves, and the fields are modelled where that document writes them,
+// so the operation beside it is lowered there, with no finding.
+func TestExternalContent_FieldsBesideAPathItemRefItWritesAreLowered(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	layout(t, dir, map[string]string{"a.yaml": `openapi: 3.1.0
@@ -232,22 +231,18 @@ paths:
 `, false)
 
 	openapitest.RequireNoErrorDiags(t, diags)
-	var degraded []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct {
-			degraded = append(degraded, d)
-		}
+		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "%+v", d)
 	}
-	require.Len(t, degraded, 1, "%+v", diags)
-	assert.Equal(t, ir.SeverityWarning, degraded[0].Severity)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/callbacks/cb/{$request.query.u}"},
-		degraded[0].Provenance)
-	assert.Contains(t, degraded[0].Message, "not lowered")
 	op := operationAt(t, doc, "GET", "/p")
 	require.Len(t, op.Bindings.HTTP, 1)
 	require.Len(t, op.Bindings.HTTP[0].Callbacks, 1)
-	assert.Equal(t, []ir.OpID{"op/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/get"},
-		op.Bindings.HTTP[0].Callbacks[0].Operations, "the $ref resolves, and the field beside it is not lowered")
+	const cb = "op/openapi/paths/~1p/get/callbacks/cb/{$request.query.u}/"
+	assert.Equal(t, []ir.OpID{cb + "get", cb + "post"}, op.Bindings.HTTP[0].Callbacks[0].Operations,
+		"the $ref resolves, and the field beside it is lowered")
+	post := opWithID(t, doc, cb+"post")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1x/get/callbacks/cb/{$request.query.u}/post"},
+		post.Provenance, "declared where the other document writes it")
 }
 
 // TestConstraints_ANamedTypeIsReadInItsOwnDocument pins that the type a bound's

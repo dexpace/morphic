@@ -118,7 +118,7 @@ func TestGrammar_ReadsAnExtensionWhereTheModelDoes(t *testing.T) {
 // class is what a state means to a reading: a value and an object other than
 // the model's kinds are alike, since neither holds a schema or raw YAML.
 func class(s state) state {
-	if s == sObject {
+	if s == sObject || s == sSecurityList {
 		return sValue
 	}
 	return s

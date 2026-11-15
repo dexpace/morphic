@@ -19,14 +19,14 @@ const maxValueDepth = 128
 
 // FromNode converts a YAML node into an ir.Value. Numeric literals are kept as
 // their exact source text (the no-float64 escape), object members are in the
-// order the parser's model holds them, and aliases are followed.
+// order the parser's model holds them, a key written twice at the copy it reads
+// (docs/parser-library.md#duplicate-key), and aliases are followed.
 //
 // The error reports a spec-level problem: a value nested past the depth cap, a
-// scalar Classify refuses or no ir.Value holds (`!acme`), or a mapping that
-// writes a key twice or merges past nodeview.MergeDepthLimit. The caller
-// decides what one means — a bad numeric bound is an error, an example or
-// default that will not convert a warning — and holds the provenance (GitHub
-// #169).
+// scalar Classify refuses or no ir.Value holds (`!acme`), or a mapping merging
+// past nodeview.MergeDepthLimit. The caller decides what one means, a bad
+// bound an error, an example that will not convert a warning, and holds the
+// provenance (GitHub #169).
 func FromNode(node *yaml.Node) (ir.Value, error) {
 	c := converter{view: nodeview.New()}
 	return c.value(node, 0)
@@ -108,14 +108,10 @@ func (c converter) sequence(node *yaml.Node, depth int) (ir.Value, error) {
 var errMergedPastBound = fmt.Errorf("openapi: mapping merges through `<<` deeper than %d levels", nodeview.MergeDepthLimit)
 
 // mapping converts a YAML mapping into a ValueObject holding the members the
-// parser reads (nodeview.View.MappingPairs). A key written twice, by the
-// mapping or a mapping it merges, is refused rather than read at either copy:
-// an object's members are a set, yaml.v3 refuses such a mapping when it
-// decodes one, and so does a payload kept verbatim (GitHub #1072).
+// parser reads (nodeview.View.MappingPairs), so a key written twice is read at
+// the copy the model reads, as a payload kept verbatim is, and load's rule
+// table reports the repeat (GitHub #1663).
 func (c converter) mapping(node *yaml.Node, depth int) (ir.Value, error) {
-	if key, _, repeated := c.view.Repeat(node); repeated {
-		return ir.Value{}, fmt.Errorf("openapi: mapping key %q is written more than once", key)
-	}
 	pairs := c.view.MappingPairs(node)
 	if c.view.Exhausted() {
 		return ir.Value{}, errMergedPastBound

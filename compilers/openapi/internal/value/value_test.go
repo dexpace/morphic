@@ -216,19 +216,23 @@ func TestValueFromNode_ReadsAMappingAsTheParserDoes(t *testing.T) {
 	}
 }
 
-// TestValueFromNode_RefusesWhatNoObjectHolds pins the two mappings an object
-// cannot hold faithfully: one writing a key twice, plainly, through an alias
-// (GitHub #1072) or in a mapping it merges, and one merging past
-// nodeview.MergeDepthLimit, whose deepest members would be missing.
+// TestValueFromNode_RefusesWhatNoObjectHolds pins the mapping an object cannot
+// hold faithfully, one merging past nodeview.MergeDepthLimit, whose deepest
+// members would be missing, and that a key written twice is no such mapping:
+// it is read at the copy the model reads, the mapping's own last, plainly or
+// through an alias (GitHub #1072), and a merge source's first (GitHub #1663).
 func TestValueFromNode_RefusesWhatNoObjectHolds(t *testing.T) {
 	t.Parallel()
-	for name, src := range map[string]string{
-		"a key written twice":        "{a: 1, a: 2}",
-		"a key repeated as an alias": "{&k rate: 1, *k : 2}",
-		"a key a merge writes twice": "{<<: {a: 1, a: 2}}",
+	for _, tc := range []struct{ name, src, want string }{
+		{"a key written twice", "{a: 1, a: 2}", "2"},
+		{"a key repeated as an alias", "{&k a: 1, *k : 2}", "2"},
+		{"a key a merge writes twice", "{<<: {a: 1, a: 2}}", "1"},
 	} {
-		_, err := value.FromNode(openapitest.YAMLNode(t, src))
-		assert.ErrorContains(t, err, "written more than once", name)
+		got, err := value.FromNode(openapitest.YAMLNode(t, tc.src))
+		if assert.NoError(t, err, tc.name) && assert.Len(t, got.Object, 1, tc.name) {
+			assert.Equal(t, "a", got.Object[0].Name, tc.name)
+			assert.Equal(t, ir.BigVal(tc.want), got.Object[0].Value.Num, tc.name)
+		}
 	}
 	_, err := value.FromNode(ynode.MergeChain(nodeview.MergeDepthLimit + 1))
 	assert.ErrorIs(t, err, value.ErrMergedPastBound)

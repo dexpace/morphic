@@ -97,7 +97,7 @@ would not say which bit was guessed. The marker is set only where the heuristic 
 source's own reading does not, so `Nullable && Inferred == ""` is the bit that reading sets.
 `irverify` reports a marker on a reference that admits no null
 (`ir/type-ref-inferred-not-nullable`). The OpenAPI compiler's one such heuristic is its
-nullable-widening policy ([`nullable`](../compilers/openapi.md#nullable)).
+nullable-inference policy ([`nullable`](../compilers/openapi.md#nullable)).
 
 Protobuf field *presence* is **not** nullability — protobuf has no null. Presence disciplines
 lower to `Property.Presence` ([properties](./properties.md)), keeping `Nullable` strictly about

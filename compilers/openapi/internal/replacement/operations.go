@@ -7,15 +7,14 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
-// service fills the replacements of every operation svc holds, nested groups
-// included to ir.MaxGroupDepth, of its parameters, and of the headers its
-// responses and its bodies' encodings declare.
-func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
-	ops := lowering.Operations(svc)
+// service fills the replacements of every operation of the document, of its
+// parameters, and of the headers its responses and its bodies' encodings
+// declare.
+func (r *resolver) service() []ir.Diagnostic {
+	ops := r.w.Ops
 	byName := map[string][]ir.OpID{}
 	for _, op := range ops {
 		if name := op.Name.Source; name != "" {
@@ -76,7 +75,7 @@ func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
 
 // params fills each parameter's replacements, among op's parameters.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
-	param := paramFinder(op)
+	param := r.paramFinder(op)
 	diags := make([]ir.Diagnostic, 0, len(op.Params))
 	for i := range op.Params {
 		p := &op.Params[i]
@@ -86,15 +85,10 @@ func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
 }
 
 // paramFinder returns what finds a parameter of op by name, as a link's key
-// names one (lowering.ParamIndex.Named). op's parameters are indexed once,
-// where a name is first looked for.
-func paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
-	var ix *lowering.ParamIndex
+// names one (whole.ParamIndex.Named).
+func (r *resolver) paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
-		if ix == nil {
-			ix = new(lowering.IndexParams(op))
-		}
-		id, matched := ix.Named(name)
+		id, matched := r.w.Params(op).Named(name)
 		return ir.EntityRef{Param: id}, matched
 	}
 }

@@ -25,10 +25,10 @@ func retainedSections() []string {
 // retainUnreferencedComponents keeps every entry of a retainedSections section
 // that no lowering resolved a reference to verbatim on the document, under
 // openapi:components/<section>/<name> with ReasonNoIRHome and no diagnostic
-// (GitHub #616). It must run after every other lowering: only they know what
-// they followed (lowering.Ctx.Reached), and a $ref string they never follow,
-// in an x- extension or an example's value, carries nothing of its target into
-// the IR. A section is read as the parser reads it, through `<<` merge keys,
+// (GitHub #616). It must run after every lowering that follows a reference:
+// only they know what they followed (lowering.Ctx.Reached), and a $ref string
+// they never follow, in an x- extension or an example's value, carries nothing
+// of its target into the IR. A section is read as the parser reads it, through `<<` merge keys,
 // so a merged-in entry is kept under its own name. One whose $ref names
 // nothing is kept too, as written.
 func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {

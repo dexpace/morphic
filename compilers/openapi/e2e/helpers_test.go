@@ -22,9 +22,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 // goldenPetstore is the larger real-ish spec seeded alongside the conformance
@@ -59,6 +61,28 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	return doc, diags
 }
 
+// compileVerified runs src through the engine as `morphic compile --verify`
+// runs a spec, with opts and the default passes: each stage's document and
+// findings are held to irverify's invariants, and a violation fails the test.
+// What src's references name is read from disk beside it. It returns the
+// document, nil for a refusal, and every finding of the run, the passes'
+// included.
+func compileVerified(t *testing.T, src compilers.Source, opts openapi.Options) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	e, err := engine.New()
+	require.NoError(t, err)
+	res, err := e.RunSpec(t.Context(), src, engine.RunOptions{FormatOptions: opts, Verify: true})
+	require.NoError(t, err, "a compiled document breaks no invariant")
+	return res.Document, res.Diagnostics
+}
+
+// parseVerified is compileVerified over src, held as spec.yaml, with the
+// default options.
+func parseVerified(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	return compileVerified(t, openapitest.SourceOf(src), openapi.Options{})
+}
+
 // compileAnnotationSpec compiles one in-memory annotation-retention spec.
 // Every spec in this suite is well-formed by construction, so compilation is
 // required to succeed with no Go error; the caller checks diagnostics
@@ -68,8 +92,19 @@ func compileAnnotationSpec(t *testing.T, name, spec string) (*ir.Document, []ir.
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: name + ".yaml", Data: []byte(spec)}}, compilers.Options{})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
+}
+
+// requireVerifies fails t where doc is nil or breaks one of irverify's
+// invariants, or a finding of diags does, as compileVerified's run holds each
+// stage: a helper returning what the compiler made, findings and all, calls it
+// so a test of a lowering cannot pass on a document that does not verify.
+func requireVerifies(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the compiled document breaks no invariant")
+	require.Empty(t, irverify.VerifyFindings(diags, doc.Sources), "no finding breaks an invariant")
 }
 
 // compileBesideExpectingErrors compiles root, written beside ext, with
@@ -94,7 +129,7 @@ func compileOnDisk(t *testing.T, path, source string, allow bool) (*ir.Document,
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(source)}},
 		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	return doc, diags
 }
 
@@ -401,7 +436,7 @@ func compileClean(t *testing.T, src string, opts openapi.Options) *ir.Document {
 		[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}},
 		compilers.Options{FormatOptions: opts})
 	require.NoError(t, err)
-	require.NotNil(t, doc)
+	requireVerifies(t, doc, diags)
 	assertNoErrorDiags(t, diags)
 	return doc
 }

@@ -118,11 +118,10 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGrou
 		// Judged before its item resolves: a key is a path or not, whatever
 		// the item turns out to be.
 		diags = append(diags, pathKeyDiags(c, path)...)
-		layers, found := pathItemLayers(c, rp, ids.Ptr("paths", path))
+		layers := pathItemLayers(c, rp, ids.Ptr("paths", path))
 		if layers == nil {
 			continue
 		}
-		diags = append(diags, found...)
 		diags = append(diags, lowerPathItem(c, w, groups, svc, path, layers)...)
 	}
 	return diags
@@ -237,6 +236,7 @@ func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mou
 			op.Servers = slices.Clone(named)
 		}
 		diags = append(diags, keepOn(&op, kept, docs)...)
+		diags = append(diags, promoteOperation(l.in.Promoter(), &op)...)
 		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels, remounts: filed.remounts})
 		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what

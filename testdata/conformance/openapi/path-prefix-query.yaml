@@ -1,0 +1,13 @@
+# Under path-prefix grouping a Paths key's query is no part of the path that
+# names the group: a key carrying one files with the key that has none, and one
+# whose path is the root files under the group of the root. The query stays in
+# the URI template, and the keys are reported as the invalid path keys they are.
+openapi: 3.1.0
+info: {title: PathPrefixQuery, version: "1"}
+paths:
+  /users:
+    get: {operationId: listUsers, responses: {"200": {description: ok}}}
+  /users?role=admin:
+    get: {operationId: listAdmins, responses: {"200": {description: ok}}}
+  /?probe=1:
+    get: {operationId: probe, responses: {"200": {description: ok}}}

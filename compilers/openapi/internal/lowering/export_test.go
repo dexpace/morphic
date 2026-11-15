@@ -21,7 +21,9 @@ type Expansion = expansion
 func NewExpansion(l budget.Limit) *Expansion { return newExpansion(l) }
 
 // Admit exposes admit.
-func (e *expansion) Admit(at bind.Reading, roots ...*yaml.Node) bool { return e.admit(at, roots...) }
+func (e *expansion) Admit(at bind.Reading, end *yaml.Node, hops ...*yaml.Node) bool {
+	return e.admit(at, end, hops...)
+}
 
 // Refusal exposes refusal.
 func (e *expansion) Refusal(srcIndex int) (ir.Diagnostic, bool) { return e.refusal(srcIndex) }

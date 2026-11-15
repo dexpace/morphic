@@ -44,8 +44,9 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 		{"license", "openapi:info/license/x-mark", `"XLICENSE"`, "doc.Unmodeled"},
 		{"externalDocs", "openapi:externalDocs/x-mark", `"XEXTERNALDOCS"`, "doc.Unmodeled"},
 		{"components", "openapi:components/x-mark", `"XCOMPONENTS"`, "doc.Unmodeled"},
-		{"tag", "openapi:tags/0/x-mark", `"XTAG"`, "doc.Unmodeled"},
-		{"tag externalDocs", "openapi:tags/0/externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "doc.Unmodeled"},
+		{"tag", "openapi:x-mark", `"XTAG"`, "doc.TagDefs[0].Unmodeled"},
+		{"tag externalDocs", "openapi:externalDocs/x-mark", `"XTAGEXTERNALDOCS"`, "doc.TagDefs[0].Unmodeled"},
+		{"the group a tag forms", "openapi:x-mark", `"XTAG"`, "doc.Services[0].Groups[0].Unmodeled"},
 		{"server", "openapi:x-mark", `"XSERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
 		{"server variable", "openapi:x-mark", `"XSERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
 		{"paths", "openapi:paths/x-mark", `"XPATHS"`, "doc.Services[0].Unmodeled"},
@@ -75,7 +76,10 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 		{"oauth flow", "openapi:x-mark", `"XOAUTHFLOW"`,
 			"doc.Auth[auth/openapi/components/securitySchemes/o].Flows[0].Unmodeled"},
 	} {
-		site, found := findUnmodeled(sites, tc.key, tc.want)
+		site, found := findUnmodeled(sitesOn(sites, tc.carrier), tc.key, tc.want)
+		if !found {
+			site, found = findUnmodeled(sites, tc.key, tc.want)
+		}
 		if !assert.True(t, found, "%s extension is dropped: no %s = %s anywhere in the document",
 			tc.object, tc.key, tc.want) {
 			continue
@@ -86,6 +90,18 @@ func assertEveryObjectKeepsItsExtensions(t *testing.T, doc *ir.Document) {
 				"about where the entry landed", tc.object, tc.carrier)
 		assert.Contains(t, site.path, tc.carrier, "%s extension lands on the wrong carrier", tc.object)
 	}
+}
+
+// sitesOn returns the sites on carrier, so a row finds its own copy of a key
+// that another carrier also keeps, as the group a tag forms keeps the tag's.
+func sitesOn(sites []unmodeledSite, carrier string) []unmodeledSite {
+	var out []unmodeledSite
+	for _, site := range sites {
+		if strings.Contains(site.path, carrier) {
+			out = append(out, site)
+		}
+	}
+	return out
 }
 
 // carrierNarrows reports whether carrier picks out fewer than all of the

@@ -8,7 +8,6 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -63,51 +62,28 @@ func (r *Registry) Schemes() map[ir.AuthID]ir.AuthScheme {
 	return maps.Clone(r.byID)
 }
 
-// named returns the name of the securitySchemes entry key denotes in a
-// requirement c lowers. A key naming an entry the source declares is that
-// name, at every minor. Where c's rows let a key be a URI
-// (lowering.SecurityRules), one naming an entry of the source's
-// securitySchemes, read as a reference against the document holding the
-// requirement, is that entry's name, declared or not. Any other key is the name
-// it spells: a URI naming a scheme elsewhere is not followed (#1869). The
-// answer depends on key and the document alone, not on what the registry holds.
-func (r *Registry) named(c lowering.Ctx, key string) string {
-	if r.entries[key] || !lowering.SecurityRules(c).NamesByURI() {
-		return key
-	}
-	pointer, ok := c.RefScope().InternalPointer(key)
-	if !ok {
-		return key
-	}
-	if kind, name, ok := ids.ComponentEntry(pointer); ok && kind == "securitySchemes" {
-		return name
-	}
-	return key
-}
-
 // unresolvedClauses returns what an unresolved scheme's error adds about the key
-// a requirement c lowers writes: the declared scheme near names, if any, and
-// from the minor that lets a key be a URI, that a URI naming a scheme anywhere
-// but the source's securitySchemes is not read.
-func unresolvedClauses(c lowering.Ctx, near string) string {
-	var why strings.Builder
+// a requirement writes: the declared scheme near names, if any, and why, where
+// the key is a reference, it lands on no Security Scheme Object.
+func unresolvedClauses(near, why string) string {
+	var clauses strings.Builder
 	if near != "" {
-		fmt.Fprintf(&why, "; a scheme named %q is declared", near)
+		fmt.Fprintf(&clauses, "; a scheme named %q is declared", near)
 	}
-	if lowering.SecurityRules(c).NamesByURI() {
-		why.WriteString("; a URI naming a Security Scheme Object outside the source's components/securitySchemes is not read")
+	if why != "" {
+		clauses.WriteString("; " + why)
 	}
-	return why.String()
+	return clauses.String()
 }
 
-// unresolved returns the ID of the scheme name lowers to, minting it when no
-// entry did, and the declared name a minted one is a near miss of, or "". The
-// scheme and the near miss are functions of the name and the source, so which
-// requirement reaches it first decides nothing (docs/ir/identity.md).
-func (r *Registry) unresolved(name string) (ir.AuthID, string) {
-	id := ids.UnresolvedAuth(name)
+// unresolved returns id, the scheme name lowers to where it reaches no
+// mechanism, minting it when no entry did, and the declared name a minted one
+// is a near miss of, or "". The scheme and the near miss are functions of the
+// name and the document writing it, so which requirement reaches it first
+// decides nothing (docs/ir/identity.md).
+func (r *Registry) unresolved(id ir.AuthID, name string) (ir.AuthID, string) {
 	if _, held := r.byID[id]; !held {
-		r.byID[id] = unresolvedScheme(name, r.root)
+		r.byID[id] = unresolvedScheme(id, name, r.root)
 		if near, ok := r.near.nearest(name); ok {
 			r.missed[name] = near
 		}
@@ -115,10 +91,11 @@ func (r *Registry) unresolved(name string) (ir.AuthID, string) {
 	return id, r.missed[name]
 }
 
-// unresolvedScheme returns the scheme of no mechanism for name, placed at prov.
-func unresolvedScheme(name string, prov ir.Provenance) ir.AuthScheme {
+// unresolvedScheme returns the scheme id of no mechanism for name, placed at
+// prov.
+func unresolvedScheme(id ir.AuthID, name string, prov ir.Provenance) ir.AuthScheme {
 	return ir.AuthScheme{
-		ID:         ids.UnresolvedAuth(name),
+		ID:         id,
 		Name:       ir.NamingFor(name),
 		Kind:       ir.AuthKindUnresolved,
 		Provenance: prov,
