@@ -5,6 +5,7 @@ package reader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,8 +27,9 @@ const MaxRedirects = 10
 
 // fetchTimeout bounds one read through the default client, which sets none
 // of its own: a server that accepts and never answers fails the read once it
-// passes, where it would stall the compile. A caller's own Client keeps its
-// own Timeout.
+// passes, body included, where it would stall the compile. A caller's own
+// Client keeps its own Timeout, and no deadline bounds a compile's reads
+// together (GitHub #1036).
 const fetchTimeout = 30 * time.Second
 
 // dialTimeout and dialKeepAlive are what http.DefaultTransport dials with.
@@ -40,17 +42,21 @@ const (
 // judged at the address the kernel is about to connect to, so a name that
 // resolves anew at each dial gains nothing, and the space of the address that
 // answered is noted. Through a proxy the dial is the proxy's, so the host the
-// URL writes is judged instead (hostSpace).
+// URL writes is ranked instead (proxiedRanks).
 type guard struct {
 	reach    compilers.AddressSpace
 	classify func(netip.AddrPort) compilers.AddressSpace
 	resolver *net.Resolver
-	// space is the space of the last address dialled, or of the last host
-	// sent through a proxy.
-	space atomic.Uint32
+	// space and bound are what the last hop states (compilers.DocumentRead):
+	// the space of the address it dialled, both; or, through a proxy, what
+	// proxiedRanks gives its host.
+	space, bound atomic.Uint32
 	// proxied says the request being sent goes through a proxy, whose dial is
 	// not the request's address.
 	proxied atomic.Bool
+	// refused is the first address a dial was refused, which a read failing
+	// at another address of the same name failed beside.
+	refused atomic.Pointer[compilers.AddressSpaceError]
 }
 
 // admits reports the refusal of a request bounded by g's reach to an address
@@ -69,15 +75,37 @@ func (g *guard) control(_ context.Context, _, address string, _ syscall.RawConn)
 	if g.proxied.Load() {
 		return nil
 	}
-	ap, err := netip.ParseAddrPort(address)
-	if err != nil {
-		return g.admits(address, compilers.SpaceLocal)
+	space := compilers.SpaceLocal
+	if ap, err := netip.ParseAddrPort(address); err == nil {
+		space = g.classify(ap)
 	}
-	return g.admits(address, g.classify(ap))
+	err := g.admits(address, space)
+	if past, ok := errors.AsType[*compilers.AddressSpaceError](err); ok {
+		g.refused.CompareAndSwap(nil, past)
+	}
+	return err
+}
+
+// failed returns err, the failure of a read g judged, with the refusal of an
+// address it would have dialled joined to it: a name resolving to several
+// addresses fails with the first error the dialler met, which may be another
+// address's, and a read that was refused an address is the asker's failure
+// alone, never one a wider read would meet.
+func (g *guard) failed(err error) error {
+	if g == nil || errors.Is(err, compilers.ErrAddressSpace) {
+		return err
+	}
+	if past := g.refused.Load(); past != nil {
+		return errors.Join(err, past)
+	}
+	return err
 }
 
 // dial connects as a dialer under control does, and notes the space of the
-// address that answered.
+// address that answered. A name resolving to addresses in several spaces is
+// read where the dialler connects first, the ones a bounded read refuses
+// passed over, so what an unbounded and a bounded read of it state, and the
+// bytes each gets, can differ.
 func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, error) {
 	d := &net.Dialer{Timeout: dialTimeout, KeepAlive: dialKeepAlive, ControlContext: g.control, Resolver: g.resolver}
 	conn, err := d.DialContext(ctx, network, address)
@@ -88,17 +116,18 @@ func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, er
 		return conn, nil
 	}
 	if tcp, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-		g.space.Store(uint32(g.classify(tcp.AddrPort())))
+		space := uint32(g.classify(tcp.AddrPort()))
+		g.space.Store(space)
+		g.bound.Store(space)
 	}
 	return conn, nil
 }
 
 // proxy wraps a transport's proxy choice, which it never changes: a request
 // keeps the route the caller's transport chose. Through a proxy the dial is
-// the proxy's, out of the guard's sight, so a read bounded by a reach has its
-// host judged instead (proxiedSpace), and one past the reach is refused
-// before anything is dialled. An unbounded read states the space its host's
-// text ranks as (hostSpace).
+// the proxy's, out of the guard's sight, so the host the URL writes is ranked
+// instead (proxiedRanks), and a read bounded by a reach whose host lies past
+// it is refused before anything is dialled.
 func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		via, err := choose(req)
@@ -106,20 +135,36 @@ func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.R
 			g.proxied.Store(false)
 			return via, err
 		}
-		host := req.URL.Hostname()
-		space := hostSpace(host)
-		if g.reach != compilers.SpaceUnstated {
-			if space, err = g.proxiedSpace(req.Context(), host); err != nil {
-				return nil, err
-			}
-			if err := g.admits(host, space); err != nil {
-				return nil, err
-			}
+		space, bound, err := g.proxiedRanks(req.Context(), req.URL.Hostname())
+		if err != nil {
+			return nil, err
 		}
 		g.proxied.Store(true)
 		g.space.Store(uint32(space))
+		g.bound.Store(uint32(bound))
 		return via, nil
 	}
+}
+
+// proxiedRanks returns what a read a proxy dials states of host, or the
+// refusal of a read bounded by a reach. An address netip reads is what the
+// proxy dials, so its space is both. Of any other host the dialled address is
+// out of sight, so no space is stated, the rank of a referrer whose host's
+// owner could make this machine's resolver lie; a bounded read states the
+// bound proxiedSpace judges, and an unbounded one, which resolves nothing,
+// none.
+func (g *guard) proxiedRanks(ctx context.Context, host string) (space, bound compilers.AddressSpace, err error) {
+	if addr, err := netip.ParseAddr(strings.ToLower(strings.TrimRight(host, "."))); err == nil {
+		space := spaceOf(addr)
+		return space, space, g.admits(host, space)
+	}
+	if g.reach == compilers.SpaceUnstated {
+		return compilers.SpaceUnstated, compilers.SpaceUnstated, nil
+	}
+	if bound, err = g.proxiedSpace(ctx, host); err != nil {
+		return compilers.SpaceUnstated, compilers.SpaceUnstated, err
+	}
+	return compilers.SpaceUnstated, bound, g.admits(host, bound)
 }
 
 // proxiedSpace is the space a bounded read sent through a proxy is judged
@@ -170,8 +215,9 @@ func isLDH(label string) bool {
 // resolvedSpace is the most private space among the addresses the guard's
 // resolver gives the name host, which a read through a proxy is judged by. A
 // name that resolves to none cannot be judged, so a bounded read of it fails
-// with ErrUnboundedRead. The proxy resolves the name again, and may be given
-// another answer, which the guard cannot see.
+// with ErrUnboundedRead. The proxy resolves the name again, and what it then
+// dials is the proxy's to restrict: an address this machine's resolver did
+// not give is out of the guard's sight (GitHub #1947).
 func (g *guard) resolvedSpace(ctx context.Context, host string) (compilers.AddressSpace, error) {
 	addrs, err := g.resolver.LookupNetIP(ctx, "ip", host)
 	if err != nil || len(addrs) == 0 {
@@ -215,14 +261,15 @@ func guardedClient(client *http.Client, reach compilers.AddressSpace,
 
 // hookable returns the transport a guard can hook for rt: for nil,
 // http.DefaultTransport's, whose dialer is net/http's own and is replaced
-// with one judging the same connections; else rt, where it is an
-// *http.Transport dialling through no function of the caller's. net/http
-// dials https through DialTLSContext in preference to DialContext, and a
-// caller's own dialer cannot be replaced without changing where it connects.
+// with one judging the same connections, where the process set it no TLS
+// dialer; else rt, where it is an *http.Transport dialling through no
+// function of the caller's. net/http dials https through DialTLSContext in
+// preference to DialContext, and a caller's own dialer cannot be replaced
+// without changing where it connects.
 func hookable(rt http.RoundTripper) (*http.Transport, bool) {
 	if rt == nil {
 		tr, ok := http.DefaultTransport.(*http.Transport)
-		return tr, ok
+		return tr, ok && tr.DialTLSContext == nil && tr.DialTLS == nil
 	}
 	tr, ok := rt.(*http.Transport)
 	if !ok || tr.DialContext != nil || tr.DialTLSContext != nil {

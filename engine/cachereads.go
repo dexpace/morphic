@@ -14,21 +14,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// documentRead is one read a compile made, the bytes it got and the address
-// space they came from, which bounds what the document's references may dial.
+// documentRead is one read a compile made, the bytes it got, the address
+// space they came from, which bounds what the document's references may dial,
+// and the most private one the read can have dialled, by which a reference to
+// it is judged (compilers.DocumentRead).
 type documentRead struct {
 	Request compilers.DocumentRequest `json:"request"`
 	Hash    string                    `json:"hash"`
 	Space   compilers.AddressSpace    `json:"space,omitzero"`
+	Bound   compilers.AddressSpace    `json:"bound,omitzero"`
 }
 
 // readsUnchanged reports whether each read returns what the compile got from it,
-// from the same address space. A read that fails, ctx's end among the ways,
+// stating the same space and bound. A read that fails, ctx's end among the ways,
 // answers no: the compile it sends the run to reports that as it should.
 func readsUnchanged(ctx context.Context, docs compilers.DocumentReader, reads []documentRead) bool {
 	for _, read := range reads {
 		got, err := docs.ReadDocument(ctx, read.Request)
-		if err != nil || ir.SourceHash(got.Data) != read.Hash || got.Space != read.Space {
+		if err != nil || ir.SourceHash(got.Data) != read.Hash || got.Space != read.Space || got.Bound != read.Bound {
 			return false
 		}
 	}
@@ -72,7 +75,7 @@ type recorder struct {
 
 	mu sync.Mutex
 	// reads holds what each request answered: its bytes as ir.SourceHash
-	// spells them, and its space.
+	// spells them, its space and its bound.
 	reads map[compilers.DocumentRequest]answered
 	// dirs holds where docs placed each directory asked of it.
 	dirs map[string]string
@@ -84,8 +87,8 @@ type recorder struct {
 
 // answered is what one request was answered with.
 type answered struct {
-	hash  string
-	space compilers.AddressSpace
+	hash         string
+	space, bound compilers.AddressSpace
 }
 
 // newRecorder returns a recorder reading through docs, with nothing read yet.
@@ -120,7 +123,7 @@ func (r *recorder) ReadDocument(ctx context.Context, req compilers.DocumentReque
 	got, err := r.docs.ReadDocument(ctx, req)
 	var now answered
 	if err == nil {
-		now = answered{hash: ir.SourceHash(got.Data), space: got.Space}
+		now = answered{hash: ir.SourceHash(got.Data), space: got.Space, bound: got.Bound}
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -138,7 +141,7 @@ func (r *recorder) settled() ([]documentRead, bool) {
 	defer r.mu.Unlock()
 	reads := make([]documentRead, 0, len(r.reads))
 	for req, got := range r.reads {
-		reads = append(reads, documentRead{Request: req, Hash: got.hash, Space: got.space})
+		reads = append(reads, documentRead{Request: req, Hash: got.hash, Space: got.space, Bound: got.bound})
 	}
 	slices.SortFunc(reads, func(a, b documentRead) int {
 		return cmp.Or(strings.Compare(a.Request.Location, b.Request.Location),

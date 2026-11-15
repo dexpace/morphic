@@ -52,9 +52,17 @@ const (
 type DocumentRead struct {
 	// Data is the document's bytes.
 	Data []byte
-	// Space is where the address that answered lies, or SpaceUnstated where
-	// the read dialled none, as a file's, or the reader cannot say.
+	// Space is where the address that answered lies, where the reader dialled
+	// it itself, or SpaceUnstated: a file, a read a proxy dialled, a reader
+	// that cannot say. It ranks the document as a referrer, bounding what its
+	// own references may dial, so it is never more private than that address.
 	Space AddressSpace
+	// Bound is the most private space the read can have dialled, by the
+	// reader's own judgement: Space where that is stated, what a proxied
+	// read's host was judged as where it was judged, else SpaceUnstated. It
+	// ranks the document as a target, so it is never less private than the
+	// address that answered.
+	Bound AddressSpace
 }
 
 // DirectoryLocator is what a DocumentReader that reads files may also offer:

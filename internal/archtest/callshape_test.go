@@ -58,9 +58,10 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and
-		// overlays name: I/O at a designed seam.
-		"engine":        2,
-		"engine/reader": 6,
+		// overlays name, and judges a document read before for an asker its
+		// first read stated no bound for: I/O at a designed seam.
+		"engine":        3,
+		"engine/reader": 9,
 	},
 	"compilers/openapi/internal/lowering": {
 		// Promoter.Referent, Remembered and Settled each call the function they

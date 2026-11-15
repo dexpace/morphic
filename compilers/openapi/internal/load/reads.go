@@ -45,13 +45,21 @@ func newExternalReads(self sourceDocument, documents budget.Limit) *externalRead
 }
 
 // answer is how a read was answered: the error it failed with, or the body
-// read, the spelling the document was prepared under and the address space it
-// was read from.
+// read, the spelling the document was prepared under, the address space it
+// was read from and the most private one it can have dialled
+// (compilers.DocumentRead), which a judgement at another reach can state where
+// the read stated none (externalReads.verdict).
 type answer struct {
 	body     []byte
 	err      error
 	prepared string
 	space    compilers.AddressSpace
+	bound    compilers.AddressSpace
+	// reach is the reach the read was asked under, where read says one was
+	// made: an answer no read gave, such as the document budget's refusal,
+	// is every asker's.
+	reach compilers.AddressSpace
+	read  bool
 }
 
 // reading is one document's read: the answer it got, set once, or, while it
@@ -64,6 +72,9 @@ type reading struct {
 	barred  error
 	// barredAt is the widest reach barred was given under.
 	barredAt compilers.AddressSpace
+	// verdicts holds, once it is read with no bound stated, the judgement of
+	// it at each reach an asker was judged at (verdict).
+	verdicts map[compilers.AddressSpace]error
 }
 
 // once returns the answer the document under key got when it was read, as an
@@ -74,13 +85,7 @@ type reading struct {
 // alone (bind.BarredError) is no answer: an asker the refusal covers, bounded
 // no wider, is refused again unread, and a wider one reads.
 func (r *externalReads) once(key string, reach compilers.AddressSpace, read func() answer) answer {
-	r.mu.Lock()
-	rd, ok := r.answers[key]
-	if !ok {
-		rd = &reading{}
-		r.answers[key] = rd
-	}
-	r.mu.Unlock()
+	rd := r.reading(key)
 	rd.mu.Lock()
 	defer rd.mu.Unlock()
 	switch {
@@ -106,6 +111,47 @@ func (r *externalReads) once(key string, reach compilers.AddressSpace, read func
 	}
 	rd.answer = a
 	return a
+}
+
+// reading returns the read of the document under key, made or not.
+func (r *externalReads) reading(key string) *reading {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	rd, ok := r.answers[key]
+	if !ok {
+		rd = &reading{}
+		r.answers[key] = rd
+	}
+	return rd
+}
+
+// verdict returns the refusal of the document under key, read with no bound
+// stated, to an asker bounded by reach, or nil, by judge, a read of it at
+// reach: at most once per reach, a refusal kept for every asker at it. A
+// judgement that passes states the document's bound, by which every later
+// asker is judged unread (external.admits).
+func (r *externalReads) verdict(key string, reach compilers.AddressSpace,
+	judge func() (compilers.AddressSpace, error),
+) error {
+	rd := r.reading(key)
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+	if rd.answer.bound != compilers.SpaceUnstated {
+		return beyond(key, rd.answer.bound, reach)
+	}
+	if err, judged := rd.verdicts[reach]; judged {
+		return err
+	}
+	bound, err := judge()
+	if err == nil {
+		rd.answer.bound = bound
+		return nil
+	}
+	if rd.verdicts == nil {
+		rd.verdicts = map[compilers.AddressSpace]error{}
+	}
+	rd.verdicts[reach] = err
+	return err
 }
 
 // wider reports whether a read bounded by reach may dial further than one

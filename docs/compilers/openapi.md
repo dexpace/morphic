@@ -871,12 +871,16 @@ only from an http(s) URL: one naming another location, by a `file:` URI, a drive
 the rest of the document is read. Nor does such a reference reach an address more private than the
 one its document was read from, a public address ranking below a private one and a private one below
 loopback: the reader bounds the read to that space (`compilers.DocumentRequest.Reach`), judging each
-address it dials, redirects included, and a document read before is judged by the space its read
-stated. A document read over http(s) whose reader stated no space, or a read the reader cannot
-bound, is refused to such a reference too. Each refusal is that reference's alone: another naming
+address it dials, redirects included. A document read before is judged by the most private address
+its read can have dialled (`compilers.DocumentRead.Bound`), and where that read stated none, by a
+read of the reference's own at its reach, made once per reach, which reads nothing into the compile
+and charges nothing to the document budget. A read whose reader states no bound, or one the reader
+cannot bound, is refused to such a reference too. What the document's own references reach is the
+space its first read stated (`compilers.DocumentRead.Space`), public where it stated none. Each refusal is that reference's alone: another naming
 the document, from a file or the source, reads it. A source located at a URL is bounded as a public
 document. Through an HTTP proxy the host is judged instead, and the proxy resolves a name again,
-which the compile cannot see. The read stays inside the directory the source lies in, symbolic
+which the compile cannot see: a document read through one by a name states no space, so its own
+references reach as a public document's do. The read stays inside the directory the source lies in, symbolic
 links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
 reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
 or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged

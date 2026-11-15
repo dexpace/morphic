@@ -222,11 +222,12 @@ func TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites(t *testing.T) {
 	got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://name.example/x", Reach: compilers.SpacePublic})
 	require.NoError(t, err)
 	assert.Equal(t, "proxied", string(got.Data))
-	assert.Equal(t, compilers.SpacePublic, got.Space, "a name resolving to public addresses alone is public")
+	assert.Equal(t, compilers.SpaceUnstated, got.Space, "the address the proxy dialled is out of sight")
+	assert.Equal(t, compilers.SpacePublic, got.Bound, "a name resolving to public addresses alone is bounded there")
 }
 
-// TestHostSpace_ReadsEverySpellingOfAnAddressAURLParserTakes pins the table the
-// proxy path judges by.
+// TestHostSpace_ReadsEverySpellingOfAnAddressAURLParserTakes pins the table a
+// document Memory holds at a URL is ranked by.
 func TestHostSpace_ReadsEverySpellingOfAnAddressAURLParserTakes(t *testing.T) {
 	t.Parallel()
 	tests := map[string]compilers.AddressSpace{
@@ -305,5 +306,68 @@ func TestDisk_AReadThroughATransportItCannotHookFailsBeforeDialling(t *testing.T
 		assert.Equal(t, "document", string(got.Data), name)
 		assert.Equal(t, compilers.SpaceUnstated, got.Space, "%s: an unbounded read through it states no space", name)
 		assert.Positive(t, calls.Load(), "%s: the caller's own transport was used", name)
+	}
+}
+
+// TestDisk_ADefaultTransportWithATLSDialerOfItsOwnIsNotHooked pins that a
+// process-wide default transport carrying a TLS dialer of the process's own,
+// which net/http dials https through in preference to the guard's, is one the
+// guard cannot judge: a bounded read through the default client fails with
+// ErrUnboundedRead, and the dialer and the server are not reached. It runs
+// alone, as it swaps http.DefaultTransport.
+func TestDisk_ADefaultTransportWithATLSDialerOfItsOwnIsNotHooked(t *testing.T) {
+	srv := newProbeServer(t, true, nil)
+	base, ok := srv.Client().Transport.(*http.Transport)
+	require.True(t, ok, "the test server's client trusts its certificate through an *http.Transport")
+	var calls atomic.Int64
+	tr := &http.Transport{TLSClientConfig: base.TLSClientConfig,
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			calls.Add(1)
+			return (&tls.Dialer{Config: base.TLSClientConfig}).DialContext(ctx, network, addr)
+		}}
+	old := http.DefaultTransport
+	http.DefaultTransport = tr
+	t.Cleanup(func() { http.DefaultTransport = old })
+
+	d := guarded(nil, map[uint16]compilers.AddressSpace{srv.port(t): compilers.SpacePrivate})
+	_, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL, Reach: compilers.SpacePublic})
+
+	require.ErrorIs(t, err, compilers.ErrUnboundedRead)
+	assert.Zero(t, calls.Load(), "the process's TLS dialer was not called")
+	assert.Zero(t, srv.requests.Load(), "the server was asked nothing")
+}
+
+// TestDisk_AProxiedReadStatesNoSpaceItCannotSee pins what a read through a
+// proxy states: a name's dialled address is out of sight, so no space, the
+// rank of the document as a referrer; a bounded read the bound it judged the
+// name at; an unbounded one, which asks the resolver nothing, no bound; and a
+// literal address, which the proxy dials as written, its space as both.
+func TestDisk_AProxiedReadStatesNoSpaceItCannotSee(t *testing.T) {
+	t.Parallel()
+	d, _ := proxied(t)
+	d.resolver = (&fakeDNS{answers: map[string][][]netip.Addr{
+		"private.example": {{netip.MustParseAddr("10.0.0.5")}},
+	}}).resolver()
+	read := func(location string, reach compilers.AddressSpace) compilers.DocumentRead {
+		got, err := d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: reach})
+		require.NoError(t, err, location)
+		return got
+	}
+	unasked := Disk{Client: d.Client, resolver: &net.Resolver{PreferGo: true,
+		Dial: func(context.Context, string, string) (net.Conn, error) {
+			t.Error("an unbounded read asked the resolver")
+			return nil, errors.New("not to be asked")
+		}}}
+	got, err := unasked.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://private.example/x"})
+	require.NoError(t, err)
+	assert.Equal(t, compilers.DocumentRead{Data: []byte("proxied")}, got, "a name read unbounded states nothing")
+
+	got = read("http://private.example/x", compilers.SpacePrivate)
+	assert.Equal(t, compilers.SpaceUnstated, got.Space)
+	assert.Equal(t, compilers.SpacePrivate, got.Bound)
+	for _, reach := range []compilers.AddressSpace{compilers.SpaceUnstated, compilers.SpacePrivate} {
+		got = read("http://10.0.0.5/x", reach)
+		assert.Equal(t, compilers.SpacePrivate, got.Space, "a literal is dialled as written")
+		assert.Equal(t, compilers.SpacePrivate, got.Bound)
 	}
 }

@@ -123,6 +123,9 @@ type Engine struct {
 	// locate places a spec's Path (Engine.located): reader.SpecLocation
 	// outside a test.
 	locate func(path string) (string, error)
+	// under reads every document but the spec a run holds: nil, which reads
+	// through reader.Disk, outside a test.
+	under compilers.DocumentReader
 }
 
 // Compilers returns the built-in compilers, fresh values in registration order:
@@ -256,7 +259,7 @@ func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOpt
 	if err != nil {
 		return nil, err
 	}
-	res, err := e.compileCached(ctx, spec, opts, reader.Layered{Held: specMemory(spec)}, p)
+	res, err := e.compileCached(ctx, spec, opts, reader.Layered{Held: specMemory(spec), Under: e.under}, p)
 	if err != nil {
 		return nil, err
 	}

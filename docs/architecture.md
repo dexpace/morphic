@@ -67,13 +67,17 @@ budgets: decoding options reads nothing. The compiler says how far a read may go
 must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
 every read inside the spec's directory, following relative references alone, unless
 `allow-external-refs` lifts that. A read over http(s) also names the most private address it may
-dial (`compilers.DocumentRequest.Reach`), and the reader states where the address that answered lies
-(`compilers.DocumentRead.Space`), refusing a dial past the reach with `compilers.ErrAddressSpace`,
-and a bounded read it cannot judge with `compilers.ErrUnboundedRead`, so a document read from the
-network makes the compile dial no address more private than its own. A read keeps the route its
+dial (`compilers.DocumentRequest.Reach`), and the reader states two things: where the address that
+answered lies, where it dialled it itself (`compilers.DocumentRead.Space`), which bounds what the
+document's own references may dial, and the most private address the read can have dialled
+(`compilers.DocumentRead.Bound`), by which a bounded reference to the document read before is
+judged. It refuses a dial past the reach with `compilers.ErrAddressSpace`, and a bounded read it
+cannot judge with `compilers.ErrUnboundedRead`, so a document read from the network makes the
+compile dial no address more private than its own. A read keeps the route its
 transport chose; through a proxy a bounded read is judged by the host the URL writes and every
 address the reader's own resolver gives a name, and the proxy resolves the name again and may get
-another answer, which the compile cannot see. A reader of files may also
+another answer, which the compile cannot see. So a read a proxy dialled by a name states no space,
+and a bounded one states the bound it judged. A reader of files may also
 say where a directory lies, its links resolved (`compilers.DirectoryLocator`), so a compile names
 one file reached through two spellings of its directory as one document.
 
