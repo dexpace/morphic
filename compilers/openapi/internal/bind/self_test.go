@@ -160,3 +160,28 @@ func TestBind_AMappedURLUnderABaseIsJudgedWhereItLands(t *testing.T) {
 	assert.Equal(t, bind.Unresolved, f.Chain.Status, "a fetched document is mapped onto no file")
 	assert.Equal(t, []string{"/files/b.yaml", "https://n.test/net.yaml"}, opened)
 }
+
+// TestBind_AMappedNameIsOpenedWhereMapPutsIt holds a reference to a URL that
+// Config.Map puts at a location of the caller's to being read there: the
+// document is opened under the mapped location, never the URL, and the
+// reference lands in it.
+func TestBind_AMappedNameIsOpenedWhereMapPutsIt(t *testing.T) {
+	t.Parallel()
+	var opened []string
+	table := bound(t, "openapi: 3.1.0\ncomponents:\n  schemas:\n    A: {$ref: 'https://e.test/b.yaml#/B'}\n",
+		bind.Config{Self: "spec.yaml",
+			Map: func(name string) string {
+				if name == "https://e.test/b.yaml" {
+					return "/local/b.yaml"
+				}
+				return name
+			},
+			Open: func(name, _ string) (*yaml.Node, error) {
+				opened = append(opened, name)
+				return openapitest.YAMLDocument(t, "B: {type: string}\n"), nil
+			}})
+
+	a := entryAt(t, table, "/components/schemas/A")
+	assert.Equal(t, bind.Resolved, a.Chain.Status)
+	assert.Equal(t, []string{"/local/b.yaml"}, opened)
+}
