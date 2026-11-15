@@ -310,7 +310,7 @@ func TestSelect_SpendsNoStepPastItsBudget(t *testing.T) {
 }
 
 // TestSelect_AsksItsContext pins that an evaluation stops once its context is
-// done, within the steps between two asks.
+// done, at the first ask: the step that is the nodeview.AskEvery-th.
 func TestSelect_AsksItsContext(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -322,6 +322,7 @@ func TestSelect_AsksItsContext(t *testing.T) {
 	_, err = q.Select(ctx, nodeview.New(), chain(nodeview.AskEvery*2), &b)
 
 	assert.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, nodeview.AskEvery, b.Spent(), "the context is asked once every nodeview.AskEvery steps")
 }
 
 // TestSelect_HoldsANodelistToItsBound pins ErrResults: the root's list and

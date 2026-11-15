@@ -404,6 +404,8 @@ func TestSelect_ComparesByEachRuleOfRFC9535(t *testing.T) {
 		{"integers past a float's precision, ordered", "9007199254740992", "<", "9007199254740993", true},
 		{"strings by code point, not UTF-16 unit", `""`, "<", `"\U00010000"`, true},
 		{"strings by case", "A", "==", "a", false},
+		{"strings ordered by case, upper before lower", "A", "<", "a", true},
+		{"strings ordered by case, lower after upper", "a", "<", "B", false},
 		{"null and its tilde", "null", "==", "~", true},
 		{"booleans by value", "true", "==", "false", false},
 		{"an object with a member more", "{x: 1}", "==", "{x: 1, y: 2}", false},

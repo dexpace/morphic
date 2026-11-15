@@ -114,8 +114,8 @@ func TestCompliance(t *testing.T) {
 	}
 
 	for _, tc := range suite.Tests {
-		run++
 		t.Run(tc.Name, func(t *testing.T) {
+			run++
 			failure := checkCase(t, tc)
 			reason, skip := skipped[tc.Name]
 			switch {
