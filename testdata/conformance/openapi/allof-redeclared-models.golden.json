@@ -3677,7 +3677,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the merge cannot show that the type the declarations of field \"data\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"data\" merge to admits the default the declaration at /components/schemas/KeptDefault/allOf/0/properties/data gives; not adopted, and that declaration is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"

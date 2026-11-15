@@ -775,6 +775,14 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		"t/list":        &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/other"}},
 		"t/tuple":       &ir.Tuple{ID: "t/tuple"},
 		"t/union":       &ir.Union{ID: "t/union"},
+		"t/holds":       &ir.Union{ID: "t/holds", Variants: variantsOf("t/list", "t/model")},
+		"t/one-holds":   &ir.Union{ID: "t/one-holds", Exclusive: true, Variants: variantsOf("t/list", "t/model")},
+		"t/two-hold":    &ir.Union{ID: "t/two-hold", Exclusive: true, Variants: variantsOf("t/model", "t/bare")},
+		"t/may-hold":    &ir.Union{ID: "t/may-hold", Exclusive: true, Variants: variantsOf("t/model", "t/other")},
+		"t/routes":      &ir.Union{ID: "t/routes", Variants: variantsOf("t/model"), Discriminator: &ir.Discriminator{PropertyName: "k"}},
+		"t/keyed":       &ir.Union{ID: "t/keyed", Variants: variantsOf("t/model"), WireTagged: true},
+		"t/of-models":   &ir.Union{ID: "t/of-models", Variants: variantsOf("t/model", "t/derived")},
+		"t/routed":      &ir.Union{ID: "t/routed", Variants: variantsOf("t/model", "t/derived"), Discriminator: &ir.Discriminator{PropertyName: "k"}},
 		"t/external":    &ir.External{ID: "t/external"},
 		"t/opaque":      &ir.Scalar{ID: "t/opaque"},
 		"t/literal":     &ir.Literal{ID: "t/literal", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
@@ -798,6 +806,18 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a model and a list", "t/model", "t/list", relDisjoint},
 		{"a map and a tuple", "t/map", "t/tuple", relDisjoint},
 		{"a model and a union that may hold it", "t/model", "t/union", relUnrelated},
+		{"a model and an inclusive union one variant of which holds it", "t/model", "t/holds", relANarrower},
+		{"a model and an exclusive union one variant of which alone holds it", "t/model", "t/one-holds", relANarrower},
+		{"a model and an exclusive union two variants of which hold it", "t/model", "t/two-hold", relUnrelated},
+		{"a model and an exclusive union another variant of which may hold it", "t/model", "t/may-hold", relUnrelated},
+		{"a model and a discriminated union holding it", "t/model", "t/routes", relUnrelated},
+		{"a model and a key-tagged union holding it", "t/model", "t/keyed", relUnrelated},
+		{"a list and a union holding it", "t/list", "t/holds", relANarrower},
+		{"two unions", "t/holds", "t/one-holds", relUnrelated},
+		{"a union every variant of which is within a bare object", "t/of-models", "t/bare", relANarrower},
+		{"a union some variant of which is not", "t/holds", "t/bare", relUnrelated},
+		{"a discriminated union every variant of which is", "t/routed", "t/bare", relUnrelated},
+		{"a union of no variant", "t/union", "t/bare", relUnrelated},
 		{"a list and a union", "t/list", "t/union", relUnrelated},
 		{"a model and an external", "t/model", "t/external", relUnrelated},
 		{"a model and an opaque scalar", "t/model", "t/opaque", relUnrelated},
@@ -1048,4 +1068,35 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-abs1"), ref("t/lit-a-abs2")), "copies keeping an absolute one")
 	assert.Equal(t, relANarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
 		"a node declared apart still wins over a hoisted copy")
+}
+
+// variantsOf returns one variant naming each of targets, in order.
+func variantsOf(targets ...ir.TypeID) []ir.Variant {
+	vs := make([]ir.Variant, 0, len(targets))
+	for _, t := range targets {
+		vs = append(vs, ir.Variant{Type: ir.TypeRef{Target: t}})
+	}
+	return vs
+}
+
+// TestTypeJudge_UnionVariantsStopAtTheirBudget pins maxVariantReads from both
+// sides: a type a union's last variant holds is within it where the union lists
+// that many variants, and unrelated to it past them.
+func TestTypeJudge_UnionVariantsStopAtTheirBudget(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{maxVariantReads, maxVariantReads + 1} {
+		reg := ir.TypeRegistry{"t/model": declaring("t/model"), "t/list": &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/model"}}}
+		targets := make([]ir.TypeID, n)
+		for i := range targets {
+			targets[i] = "t/list"
+		}
+		targets[n-1] = "t/model"
+		reg["t/u"] = &ir.Union{ID: "t/u", Variants: variantsOf(targets...)}
+		g, _ := stubMerger(reg)
+		want := relANarrower
+		if n > maxVariantReads {
+			want = relUnrelated
+		}
+		assert.Equal(t, want, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/u"}), "%d variants", n)
+	}
 }

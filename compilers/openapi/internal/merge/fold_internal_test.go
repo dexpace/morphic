@@ -107,19 +107,20 @@ func TestFold_TheSetDecidesWhateverTheOrder(t *testing.T) {
 	}
 }
 
-// TestFold_ATieGoesToTheFirstAndIsReported pins the one choice declaration
+// TestFold_ATieGoesToTheLaterAndIsReported pins the one choice declaration
 // order makes: where two types each lose as many declarations as the other,
-// the first declared wins, and the other is reported and kept.
-func TestFold_ATieGoesToTheFirstAndIsReported(t *testing.T) {
+// the later declared wins, where a spec writes the specialization, and the
+// other is reported and kept.
+func TestFold_ATieGoesToTheLaterAndIsReported(t *testing.T) {
 	t.Parallel()
 	for _, order := range [][2]ir.PrimKind{{ir.PrimInt32, ir.PrimUint32}, {ir.PrimUint32, ir.PrimInt32}} {
 		g, recorded := stubMerger(narrowingRegistry())
 		got := g.fold([]declaration{kindDecl(order[0], nil), kindDecl(order[1], nil)})
 
-		assert.Equal(t, primRef(order[0]), got.Type)
+		assert.Equal(t, primRef(order[1]), got.Type)
 		require.Len(t, *recorded, 1)
 		assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "an overlap is an info")
-		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/k/"+string(order[1]))
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/k/"+string(order[0]))
 	}
 }
 
@@ -143,7 +144,7 @@ func TestFold_ADroppedFirstDeclarationIsKept(t *testing.T) {
 
 // TestFold_AConstraintConflictNamesTheDeclarationKeptFrom pins where a
 // constraint conflict points: at the declaration that wrote the value kept,
-// which is not the first declaration where that one sets none.
+// which is not the last declaration where that one sets none.
 func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
@@ -155,31 +156,31 @@ func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 		}
 	}
 
-	got := g.fold([]declaration{d("/a", nil), d("/b", pattern("^x$")), d("/c", pattern("^x$")), d("/d", pattern("^y$"))})
+	got := g.fold([]declaration{d("/a", pattern("^y$")), d("/b", pattern("^x$")), d("/c", pattern("^x$")), d("/d", nil)})
 
 	require.NotNil(t, got.Constraints)
 	assert.Equal(t, "^x$", got.Constraints.Pattern)
 	require.Len(t, *recorded, 1, "an agreeing declaration is no conflict")
-	assert.Equal(t, jsontext.Pointer("/d"), (*recorded)[0].Provenance.Pointer)
-	assert.Contains(t, (*recorded)[0].Message, "kept what the declaration at /b says over the one at /d",
-		"the first to write the kept value is named, not one agreeing with it")
+	assert.Equal(t, jsontext.Pointer("/a"), (*recorded)[0].Provenance.Pointer)
+	assert.Contains(t, (*recorded)[0].Message, "kept what the declaration at /c says over the one at /a",
+		"the last to write the kept value is named, not one agreeing with it")
 }
 
 // TestFold_ADroppedDeclarationStillSaysWhatIsNotShape pins what a declaration
 // whose type the field drops still contributes: whether the field is required
-// or secret, and its docs where no declaration before it gave any. None of
+// or secret, and its docs where no declaration after it gives any. None of
 // them describes the shape that lost.
 func TestFold_ADroppedDeclarationStillSaysWhatIsNotShape(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
-	first := kindDecl(ir.PrimString, nil)
 	dropped := kindDecl(ir.PrimInteger, nil)
 	dropped.prop.Required, dropped.prop.Secret = true, true
 	dropped.prop.Docs.Description = "a count"
+	later := kindDecl(ir.PrimString, nil)
 
-	got := g.fold([]declaration{first, dropped})
+	got := g.fold([]declaration{dropped, later})
 
-	assert.Equal(t, primRef(ir.PrimString), got.Type, "the tie goes to the first")
+	assert.Equal(t, primRef(ir.PrimString), got.Type, "the tie goes to the later")
 	assert.True(t, got.Required)
 	assert.True(t, got.Secret)
 	assert.Equal(t, "a count", got.Docs.Description)
@@ -197,29 +198,35 @@ func stringAt(pointer, raw string) declaration {
 	}
 }
 
-// TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother pins what the field
+// TestFold_UnmodeledKeepsTheLastOfAKeyAndReportsAnother pins what the field
 // keeps of every declaration's Unmodeled. Each entry lands, since the keys are
 // namespaced, and one two declarations give alike lands once, unreported. A
-// key a later declaration gives another value is the first one's; the later
-// one is reported and kept verbatim, as a detail given differently is, so the
-// field does not follow branch order and nothing goes without a word.
-func TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother(t *testing.T) {
+// key a later declaration gives another value is the later one's; the earlier
+// one is reported and kept verbatim, as a detail given differently is, so
+// nothing goes without a word. Of two alike, the one written at the pointer
+// sorting first is kept, so no order decides where it was written.
+func TestFold_UnmodeledKeepsTheLastOfAKeyAndReportsAnother(t *testing.T) {
 	t.Parallel()
 	entry := func(v string) ir.UnmodeledEntry { return ir.UnmodeledEntry{Value: ir.RawValue(v)} }
 	first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
-	first.prop.Unmodeled = ir.Unmodeled{"x-a": entry(`1`), "x-alike": entry(`"s"`), "x-shared": entry(`"first"`)}
-	second.prop.Unmodeled = ir.Unmodeled{"x-b": entry(`2`), "x-alike": entry(`"s"`), "x-shared": entry(`"second"`)}
+	alike := func(at jsontext.Pointer) ir.UnmodeledEntry {
+		return ir.UnmodeledEntry{Value: ir.RawValue(`"s"`), Provenance: ptrAt(at)}
+	}
+	first.prop.Unmodeled = ir.Unmodeled{"x-a": entry(`1`), "x-alike": alike("/allOf/0/x-alike"), "x-shared": entry(`"first"`)}
+	second.prop.Unmodeled = ir.Unmodeled{"x-b": entry(`2`), "x-alike": alike("/allOf/1/x-alike"), "x-shared": entry(`"second"`)}
 
 	for _, order := range [][]declaration{{first, second}, {second, first}} {
 		g, recorded := stubMerger(narrowingRegistry())
-		kept, other := order[0], order[1]
+		kept, other := order[1], order[0]
 
 		got := g.fold(order)
 
-		assert.Equal(t, kept.prop.Unmodeled["x-shared"], got.Unmodeled["x-shared"], "the first declaration's value stands")
+		assert.Equal(t, kept.prop.Unmodeled["x-shared"], got.Unmodeled["x-shared"], "the later declaration's value stands")
 		for _, key := range []string{"x-a", "x-b", "x-alike"} {
 			assert.Contains(t, got.Unmodeled, key)
 		}
+		assert.Equal(t, jsontext.Pointer("/allOf/0/x-alike"), got.Unmodeled["x-alike"].Provenance.Pointer,
+			"of two alike, the one written at the pointer sorting first, in either order")
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(other.prop.Provenance.Pointer), "the other is kept verbatim")
 		require.Len(t, *recorded, 1, "only the key given differently is reported")
 		assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
@@ -322,7 +329,8 @@ func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
 // TestFold_ThePromotionMarkerFollowsTheDeprecationKept pins that the field
 // names the heuristic that promoted its deprecation whichever declaration gave
 // it: a deprecation promoted from an extension is marked on that declaration's
-// provenance, and the field keeps the first declaration's provenance.
+// provenance, and the field keeps the first declaration's provenance, while the
+// last deprecation written is the one kept.
 func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
 	t.Parallel()
 	const marker ir.Inferred = "extension-promotion"
@@ -342,8 +350,8 @@ func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
 	}
 
 	g, recorded := stubMerger(narrowingRegistry())
-	got := g.fold([]declaration{plain, declared, promoted})
-	assert.Equal(t, &ir.Deprecation{Message: "gone"}, got.Deprecation, "the first deprecation written is kept")
+	got := g.fold([]declaration{plain, promoted, declared})
+	assert.Equal(t, &ir.Deprecation{Message: "gone"}, got.Deprecation, "the last deprecation written is kept")
 	assert.Empty(t, got.Provenance.Inferred, "a declared deprecation kept carries no heuristic's name")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, promoted.prop.Provenance.Pointer, (*recorded)[0].Provenance.Pointer)
@@ -465,7 +473,7 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		}
 		assert.Nil(t, got.Examples, "%s: refused whole", tc.name)
 		require.Len(t, *recorded, 1, tc.name)
-		assert.Contains(t, (*recorded)[0].Message, "admits the examples this declaration gives", tc.name)
+		assert.Contains(t, (*recorded)[0].Message, "admits the examples the declaration at /b gives", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
 	}
 }
@@ -489,7 +497,7 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	d := (*recorded)[0]
 	assert.Equal(t, diag.ConflictingRedecl, d.Code)
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the field that disagrees")
-	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the property already merged keeps its type")
+	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the later declaration keeps its type")
 }
 
 func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
@@ -510,7 +518,7 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 // TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
 // declarations write alike, writing a reference, is one only where Walk.Alike
 // says they read it against one base: elsewhere the same text may name another
-// schema, so the later one is reported and kept as one given differently is.
+// schema, so the earlier one is reported and kept as one given differently is.
 // An entry writing no reference is one under any base.
 func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 	t.Parallel()
@@ -519,7 +527,7 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 		wantKeys []string
 		reports  int
 	}{
-		{`{"$ref":"n.json"}`, []string{"openapi:not", losingDeclarationKey + "/allOf/1/properties/p"}, 1},
+		{`{"$ref":"n.json"}`, []string{"openapi:not", losingDeclarationKey + "/allOf/0/properties/p"}, 1},
 		{`{"const":"n.json"}`, []string{"openapi:not"}, 0},
 		{`{"$ref":"https://ex.test/n.json"}`, []string{"openapi:not"}, 0},
 	} {

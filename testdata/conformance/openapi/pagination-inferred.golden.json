@@ -171,7 +171,7 @@
                 },
                 "items": {
                   "segments": [
-                    "p/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"
+                    "p/composed/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/properties/result"
                   ]
                 },
                 "totalCount": {
@@ -1029,7 +1029,7 @@
       },
       "properties": [
         {
-          "id": "p/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result",
+          "id": "p/composed/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/properties/result",
           "name": {
             "source": "result",
             "canonical": "result"
@@ -1052,7 +1052,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"
+            "pointer": "/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/properties/result"
           }
         }
       ],

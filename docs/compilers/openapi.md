@@ -2503,7 +2503,12 @@ instance types meet; an overlap where their kinds share values or a `const` meet
 in a kind, but for the `time` node above, or a `const` of its value; and unrelated where nothing says
 what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
-and a kind, or a union or an external and anything else. A structure whose source states no
+and a kind, a union and a type neither holds, or an external and anything else. A type within a
+variant of an untagged union is narrower than the union, as is an untagged union every variant of
+which is within a type than that type; of a `oneOf`, the type must be within one variant alone and
+disjoint from every other, since a `oneOf` refuses a value two variants share. A tagged union holds
+neither: a discriminator routes by a tag a variant's values need not agree with. One judgment reads
+at most 64 variants, past which the two are unrelated. A structure whose source states no
 instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read as
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
 every value of another instance type, as `properties` alone constrains objects and admits a string.
@@ -2523,11 +2528,16 @@ stating its type. A pair gets the same verdict as a field's types and as two con
 but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
-most declarations' types, the first of them on a tie. A declaration's type within every other's
-is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
-the same as or narrower than, or meets, folds into the field, which adopts its shape detail; every
-other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in
-every order, while `int32` and `uint32` alone keep the first declared and report the other.
+most declarations' types. Of those holding as many, the later wins, where a spec writes the
+specialization, as the flattening reads it ([models](../ir/models.md#the-flattening)): a failure
+response composing a success envelope and then a failure schema takes the failure's `success`. Of
+declarations of one type at distinct nodes, as copies of one schema are, the node whose ID sorts
+first stands for the rest, so no order decides which the field names. A declaration's type within
+every other's is the intersection, and it wins whatever the order. Each declaration whose type the
+winner's is the same as or narrower than, or meets, folds into the field, which adopts its shape
+detail; every other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing
+dropped, in every order, while `int32` and `uint32` alone keep the later declared and report the
+other.
 
 Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
 takes a node the merge mints: all the winner's node holds, with what each declaration meeting it
@@ -2545,7 +2555,7 @@ list of `int32` holding the description, `[a, b]` beside `[b, c]` the enum `[b]`
 models a list of a model composing both, each in either order. Every node it mints is anonymous, in
 the `composed` namespace, an enum's members too, and derives from its position: the declaration
 naming the field, as a composed model does below, or a position beneath it. Where two declarations
-meeting the winner give one detail differently, the first's is kept and the later one reported and
+meeting the winner give one detail differently, the later's is kept and the earlier reported and
 kept, as a property's detail is. Where no node holds every declaration meeting the winner, as when
 three meet in pairs but no member holds all of theirs, or no value is in every enum, the field keeps
 the winner's node, and each declaration meeting it is dropped and reported as an overlap. Where the
@@ -2619,30 +2629,31 @@ judges a value against a model, and no declaration's type is a composed field's 
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
-first written is kept, and a declaration giving another is reported and kept; two values are one
+last written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
-written before it.
+written after it.
 
 Constraint keywords fold over the declarations folded into the field, each taking the value that
 says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`,
 `minItems` and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`,
 `maxLength`, `maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways
-keeping the first spelling; `uniqueItems` holds where any declaration sets it. A bound and its
+keeping the last spelling; `uniqueItems` holds where any declaration sets it. A bound and its
 exclusive form are two keywords, each folding alone, and both apply. `multipleOf` takes whichever
 value is a multiple of the other, and otherwise their least common multiple, a number no
 declaration wrote, whose multiples are exactly those both admit. `pattern`, `patternMessage`,
-`precision` and `scale` have no order and no one value saying two of them, so the first declaration
+`precision` and `scale` have no order and no one value saying two of them, so the last declaration
 to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
-hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
-declaration giving one differently is reported and kept. An entry two declarations write alike is
+hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
+declaration giving one differently is reported and kept; of two keeping one `Unmodeled` entry alike,
+the one written at the pointer sorting first is the field's. An entry two declarations write alike is
 one where it writes no relative `$ref`, or both read it against one base: under an `$id` naming
 another URI, a `$ref` spelled alike names another schema.
 
-A field keeping the first declaration's identity keeps that declaration's provenance, and either way
-it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
-the one it keeps came from. So a field names one source. `Provenance` holds one pointer, and what a
+A field keeping the first declaration's identity keeps that declaration's pointer, and either way it
+names the heuristic that promoted its deprecation or its redaction from an extension, wherever the
+one it keeps came from, and no other. So a field names one source. `Provenance` holds one pointer, and what a
 folded declaration adds lands on the field with no record of which wrote it, so writing a keyword on
 one branch or on another compiles to the same `types`. A list of the declarations on `Property` was
 weighed and declined: it would say which declarations contributed and not which wrote each keyword,
@@ -2708,6 +2719,28 @@ a form part's flags read the merged field. A fold judges every pair of declarati
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
+A member a model's composition declares more than once folds the same way, wherever the
+declarations are written, so a `$ref` entry and the schema it names written inline in its place
+fold alike. The flattening ([models](../ir/models.md#the-flattening)) would otherwise take the
+model's own declaration over an entry's, and of two entries the later, and judge none. Once every
+lowering has returned, one settlement folds, on each model, every member its own declarations or
+its `allOf` entries decide more than once, an entry's counting only where no other entry's owner
+composes it. Each model settles after the models it composes, by ID, so the order components are
+declared in decides nothing, and a cycle of compositions reads the model it returns to as it stands.
+The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
+written and the schema's own `properties` after its `allOf`; a union branch distributed into a
+variant reads before the body. A declaration an entry brings stays declared on its own model, so it
+is not kept verbatim, and a report about it sits at the entry bringing it. Where an entry brings a
+declaration, the model declares the folded member in the `composed` namespace at
+`<model>/allOf/properties/<name>`, in place of its own declaration where it has one, and each report
+names that property in its `Provenance.Node`; the member is required where the model's `required`
+names it, which the name then leaves, and a discriminator naming the model's own declaration names
+it. The registry does not record which heuristic made a brought declaration secret, so a secret
+one's `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the
+fold composes for a member lists its parts as the entries bringing them are written, and settles in
+turn, through 8 rounds; one nested deeper is left as its entries declare it, with an
+`openapi/budget-exceeded` error.
+
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
@@ -2716,7 +2749,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
-  `merge.TestFold_ADroppedTargetKeepsTheFirstNullAdmission`,
+  `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
   `merge.TestFold_RedeclaredModelsCompose`,
   `merge.TestFold_OnlyTwoOrMoreModelsCompose`,
@@ -2749,6 +2782,21 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth`,
   `schema.TestAllOf_ModelsAlikeAreOneType`,
   `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
+  `merge.TestTypeJudge_UnionVariantsStopAtTheirBudget`,
+  `merge.TestPropIndex_PlacesADeclarationAtTheEntryBringingIt`,
+  `merge.TestPropIndex_SettlesAMemberItsEntriesDeclareApart`,
+  `merge.TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt`,
+  `merge.TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName`,
+  `merge.TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite`,
+  `merge.TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder`,
+  `schema.TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition`,
+  `schema.TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike`,
+  `schema.TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember`,
+  `schema.TestMembers_AModelIsSettledAfterWhatItComposes`,
+  `schema.TestMembers_ACycleSettlesTheSameInEitherOrder`,
+  `schema.TestMembers_AModelAFoldComposesIsSettledInTheNextRound`,
+  `schema.TestMembers_CompositionsNestedPastTheRoundsAreReported`,
+  `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
   `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,
   `merge.TestFold_EnumsListingSharedValuesApartKeepTheWinner`,
@@ -2830,7 +2878,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_IdenticalNodesAreOneType`,
   `merge.TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole`,
   `merge.TestFold_TheSetDecidesWhateverTheOrder`,
-  `merge.TestFold_ATieGoesToTheFirstAndIsReported`,
+  `merge.TestFold_ATieGoesToTheLaterAndIsReported`,
   `merge.TestFold_ADroppedFirstDeclarationIsKept`,
   `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
   `merge.TestFold_ABoundTakesItsTightestValueInEveryOrder`,
@@ -2857,7 +2905,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
   `merge.TestFold_ADroppedDeclarationStillSaysWhatIsNotShape`,
-  `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
+  `merge.TestFold_UnmodeledKeepsTheLastOfAKeyAndReportsAnother`,
   `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
   `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
   `merge.TestFold_ThePromotionMarkerFollowsTheSecretTaken`,
@@ -4385,7 +4433,7 @@ binding the rest is kept, the smallest maximum or the largest minimum, compared 
 large, the first of one value written twice, with one report. Two declarations of one field are
 not such writers: each keeps its own on the property, and their fold compares the two entries as it
 does any kept under `Unmodeled` ([`allof-redeclared-property`](#allof-redeclared-property)), so
-of two such counts the first declaration's is kept and the other is reported and kept with its
+of two such counts the later declaration's is kept and the other is reported and kept with its
 declaration. A count literal that is no non-negative integer is the rule table's to report
 ([`validation`](#validation)) and reaches no field, nor is it kept. A number carried as text holds
 no bound ([`string-formats`](#string-formats)).
@@ -5820,7 +5868,7 @@ in any case.
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
-  `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,
+  `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `operation.TestPartEncoding_FlagsComeFromTheMergedType`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration`,
@@ -7020,8 +7068,6 @@ declaration both mounts share.
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
-- Status: open: which declaration a request body member takes where two `allOf` entries declare it
-  follows their order (#1920).
 
 ## 16. Swagger 2.0
 

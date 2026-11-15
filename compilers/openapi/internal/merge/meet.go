@@ -4,6 +4,7 @@
 package merge
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"fmt"
 	"reflect"
@@ -24,12 +25,13 @@ type builder struct {
 	failed bool
 }
 
-// mint registers node at pointer, or in a dry run names nothing.
-func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+// mint registers node at pointer, its parts brought where brought says
+// (Walk.Mint), or in a dry run names nothing.
+func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
 	if b.dry {
 		return ""
 	}
-	return b.f.g.Walk.Mint(pointer, node)
+	return b.f.g.Walk.Mint(pointer, node, brought)
 }
 
 // meetNode returns the node base and partners, members that meet it, stand on:
@@ -68,7 +70,7 @@ func (b *builder) meetNode(base member, partners []member, pointer jsontext.Poin
 	if reflect.DeepEqual(built, nodes[0]) {
 		return all[0].ref.Target
 	}
-	return b.mint(pointer, built)
+	return b.mint(pointer, built, nil)
 }
 
 // build returns nodes[0] holding what each of nodes[1:] adds: its members built
@@ -191,8 +193,10 @@ func heldByAll(indexes []memberIndex, v ir.Value) bool {
 // members ms: the model they compose, or the node they meet in built a level
 // down, at pointer, admitting null as position.null reads them. A member
 // outside the winner's cone fails the build, since no node holds it beside the
-// rest.
+// rest. ms are judged in declaration order, as a field's own types are, so a
+// tie goes to the later and what they compose is listed as they are written.
 func (b *builder) settle(ms []member, pointer jsontext.Pointer, depth int) ir.TypeRef {
+	ms = slices.SortedStableFunc(slices.Values(ms), func(x, y member) int { return cmp.Compare(x.decl, y.decl) })
 	p := b.f.g.judgePosition(b.f.decls, ms, depth+1)
 	all := func(int) bool { return true }
 	var target ir.TypeID
@@ -271,6 +275,6 @@ func (b *builder) differ(decl int, field string) {
 	}
 	b.f.lost[decl] = true
 	b.f.note(decl, ir.SeverityInfo, diag.DegradedConstruct,
-		"declarations of field %q give the %s of a type it holds differently; kept the first given over the "+
-			"one at %s, which is kept verbatim under Unmodeled", b.f.merged.WireName, field, b.f.at(decl))
+		"declarations of field %q give the %s of a type it holds differently; kept the one a later "+
+			"declaration gives over the one at %s, which %s", b.f.merged.WireName, field, b.f.at(decl), b.f.decls[decl].keptAs())
 }

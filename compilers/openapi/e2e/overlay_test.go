@@ -291,13 +291,13 @@ components:
   schemas:
     X:
       allOf:
-        - properties: {p: {type: string}}
         - properties: {q: {type: string}}
+        - properties: {p: {type: string}}
 `
 	const patch = `overlay: 1.0.0
 info: {title: O, version: "1"}
 actions:
-  - target: $.components.schemas.X.allOf[1].properties
+  - target: $.components.schemas.X.allOf[0].properties
     update: {p: {type: integer}}
 `
 	_, diags, err := openapi.New().Compile(t.Context(),
@@ -311,7 +311,7 @@ actions:
 			got = append(got, d.Provenance)
 		}
 	}
-	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/1/properties/p", WrittenBy: 1}}, got,
+	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/0/properties/p", WrittenBy: 1}}, got,
 		"the conflict is reported at the declaration the overlay wrote")
 }
 

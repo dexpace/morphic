@@ -328,15 +328,16 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
 			continue
 		}
-		diags = append(diags, fillRefBranch(c, ts, m, e, hasBase && i == base)...)
+		diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
 	}
 	return diags
 }
 
-// fillRefBranch lowers one $ref allOf branch and adds it to m as its Base, when
-// isBase, or as a Mixin. A $ref it cannot resolve adds nothing, and is reported
+// fillRefBranch lowers one $ref allOf branch and adds it to the model fields
+// builds as its Base, when isBase, or as a Mixin, recording the entry
+// (modelFields.compose). A $ref it cannot resolve adds nothing, and is reported
 // unless it lies on a loop of $refs, which load reports once (onLoop).
-func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch, isBase bool) []ir.Diagnostic {
+func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	b := e.schema
 	id, ok := resolveSchemaRef(c, ts, b)
@@ -358,10 +359,11 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, bs, e.pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
 	}
 	if isBase {
-		m.Base = &ref
+		fields.m.Base = &ref
 	} else {
-		m.Mixins = append(m.Mixins, ref)
+		fields.m.Mixins = append(fields.m.Mixins, ref)
 	}
+	fields.compose(ref.Target, e.pointer)
 	return diags
 }
 

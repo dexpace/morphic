@@ -860,5 +860,16 @@ it sees. Changes made together in one bump are listed together under it.
   ([`string-const-union`](../compilers/openapi.md#string-const-union)). A property or parameter
   whose schema lowers to an `Enum`, a `Literal` or a number written as text no longer holds or keeps
   the bounds written beside it, which that node keeps verbatim
-  ([`constraints`](../compilers/openapi.md#constraints)). A consumer pinned to 0.68.0 refuses the
-  document; one reading such a carrier finds the bound on its node.
+  ([`constraints`](../compilers/openapi.md#constraints)). Every declaration of a member a model's
+  composition decides more than once, its own and those its `allOf` entries bring, is folded in
+  the order the source writes them
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A tie goes to
+  the later declaration, as the flattening's override does, where the fold of two inline
+  declarations kept the first, and so does each detail and bound two declarations give differently.
+  A member an entry brings a declaration of is the model's own property in the `composed` namespace,
+  which the flattening takes: a name it carries as `Required` leaves `Model.Requires`, a
+  discriminator naming the model's own declaration names it, and a report on it names it in
+  `Provenance.Node`. The fold relates a type to an untagged union through its variants. A consumer
+  pinned to 0.68.0 refuses the document; one reading such a carrier finds the bound on its node, one
+  reading such a member took the declaration the flattening reached last, and one reading a tie
+  between two inline declarations took the first's.

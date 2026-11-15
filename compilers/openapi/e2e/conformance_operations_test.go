@@ -245,7 +245,7 @@ func assertPaginationInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	for op, want := range map[*ir.Operation]*ir.Pagination{
 		&zones: {Strategy: ir.PageStrategyPage, Inferred: true, InputCursor: input(zones, "page"),
 			InputLimit: input(zones, "per_page"),
-			Items:      paths("p/openapi/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/1/properties/result"),
+			Items:      paths("p/composed/paths/~1zones/get/responses/200/content/application~1json/schema/allOf/properties/result"),
 			TotalCount: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_count")),
 			TotalPages: paths(componentProp("Collection/properties/result_info"), componentProp("ResultInfo/properties/total_pages"))},
 		&logs: {Strategy: ir.PageStrategyOffset, Inferred: true, InputCursor: input(logs, "offset"),

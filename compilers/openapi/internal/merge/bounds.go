@@ -109,13 +109,14 @@ func withBounds(td ir.TypeDef, c *ir.Constraints) ir.TypeDef {
 
 // meetConstraints returns what sets say together, each keyword taking the value
 // saying what they all do (Constraints), whatever their order; a nil set says
-// nothing. A keyword no one value states keeps the first set's value, and disagree
-// hears of each later set pinning it otherwise: that set's index, the index the
-// value was kept from, and the difference. No set is written to.
+// nothing. A keyword no one value states keeps the last set's value, where a
+// spec writes the specialization, and disagree hears of each earlier set
+// pinning it otherwise: that set's index, the index the value was kept from,
+// and the difference. No set is written to.
 func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail string)) *ir.Constraints {
 	setBy := make([]int, len(constraintKeywords))
 	var kept *ir.Constraints
-	for i, c := range sets {
+	for i, c := range slices.Backward(sets) {
 		if c == nil {
 			continue
 		}

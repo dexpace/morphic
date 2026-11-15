@@ -1027,8 +1027,8 @@ func TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart(t *testing.T
 		"paths: {}\ncomponents:\n  schemas:\n    A: {type: string, maxLength: 1}\n    E: "+x+"\n"), 0o600))
 	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
 		"    A: {type: string, minLength: 5}\n    E: {type: integer}\n    S:\n      allOf:\n" +
-		"        - {type: object, properties: {x: {$ref: './other.yaml#/components/schemas/E'}}}\n" +
-		"        - {type: object, properties: {x: " + x + "}}\n"
+		"        - {type: object, properties: {x: " + x + "}}\n" +
+		"        - {type: object, properties: {x: {$ref: './other.yaml#/components/schemas/E'}}}\n"
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 
@@ -1041,7 +1041,7 @@ func TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart(t *testing.T
 	require.True(t, ok)
 	got := openapitest.PropsByWire(m.Properties)["x"]
 	assert.Equal(t, ir.TypeID("t/openapi@other.yaml/components/schemas/E"), got.Type.Target)
-	assert.Contains(t, got.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x")
+	assert.Contains(t, got.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x")
 }
 
 // TestExternalContent_ACopyInAnotherDocumentIsJudgedThere pins that the copy

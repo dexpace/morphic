@@ -57,13 +57,13 @@ const (
 	// ComposedSpace holds what no schema or declaration in the source occupies:
 	// distributed union variants and the Union a routed subtype composes
 	// (docs/ir/models.md#composition-beside-a-union), the node a field's
-	// declarations compose or meet to, and the identity of a field whose first
-	// declaration another model carries
-	// (docs/compilers/openapi.md#allof-redeclared-property). A $ref naming the
-	// pointer keeps resolving to what is written there. A variant's path ends in
-	// oneOf or anyOf and an index, a minted union's in that keyword, and a
-	// field's in properties and a name, so none meet. ForPointer yields only the
-	// openapi and anon spaces, so no reference resolves to a composed ID.
+	// declarations compose or meet to, the identity of a field another model
+	// declares first, and a member its composition settles, at allOf,
+	// properties and its name
+	// (docs/compilers/openapi.md#allof-redeclared-property). A variant's path
+	// ends in oneOf or anyOf and an index, a minted union's in that keyword, and
+	// a field's in properties and a name, so none meet. ForPointer yields only
+	// the openapi and anon spaces: no $ref resolves to a composed ID.
 	ComposedSpace compile.Space = "composed"
 )
 

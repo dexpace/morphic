@@ -19,7 +19,7 @@ import (
 
 // TestFold_AKeywordNoOneValueStatesIsKeptAndReported pins the second of the two
 // conflict routes. Two declarations that agree on type but pin a keyword with no
-// order to different values fold to the first one's, so the other, which may be
+// order to different values fold to the later one's, so the other, which may be
 // the stricter, is discarded and must be announced.
 func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 	t.Parallel()
@@ -38,10 +38,10 @@ func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 	dst = foldTwo(g, dst, src, written(`{"pattern":"^b$"}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, "^a$", dst.Constraints.Pattern, "the first pattern is kept")
+	assert.Equal(t, "^b$", dst.Constraints.Pattern, "the later pattern is kept")
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
-	assert.Contains(t, (*recorded)[0].Message, `conflicting pattern ("^a$" and "^b$")`)
+	assert.Contains(t, (*recorded)[0].Message, `conflicting pattern ("^b$" and "^a$")`)
 	assert.Contains(t, (*recorded)[0].Message, "/components/schemas/A/properties/age",
 		"the kept declaration is named")
 	assert.Contains(t, (*recorded)[0].Message, "/components/schemas/B/properties/age",
@@ -74,13 +74,13 @@ func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 }
 
 // TestFold_ALosingDetailIsKeptAndReported sweeps the fold's
-// adopt-if-absent fields. Each of them took the first declaration's value and
-// dropped a present, different value from the redeclaration with nothing said
-// and nothing kept — a consumer diffing two revisions that change the second
-// branch's default saw no change. Now the merge says which detail disagreed
-// and keeps the losing declaration verbatim, under the same key a losing type
-// is kept under, since it is the same event: a redeclaration the merge could
-// not fold whole.
+// adopt-if-absent fields. Each of them once took one declaration's value and
+// dropped a present, different value from the other with nothing said and
+// nothing kept — a consumer diffing two revisions that change the losing
+// branch's default saw no change. Now the merge keeps the later declaration's
+// value, says which detail disagreed, and keeps the losing declaration
+// verbatim, under the same key a losing type is kept under, since it is the
+// same event: a declaration the merge could not fold whole.
 func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	one, two := &ir.Value{Kind: ir.ValueNumber, Num: "1"}, &ir.Value{Kind: ir.ValueNumber, Num: "2"}
@@ -104,12 +104,13 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 			dst, src := tc.dst, tc.src
 			dst.WireName, src.WireName = "id", "id"
 			dst.Type, src.Type = ir.TypeRef{Target: "t/int"}, ir.TypeRef{Target: "t/int"}
+			dst.Provenance = ir.Provenance{Source: 1, Pointer: "/allOf/0/properties/id"}
 			src.Provenance = ir.Provenance{Source: 1, Pointer: "/allOf/1/properties/id"}
-			want := tc.dst
+			want := tc.src
 
-			dst = foldTwo(g, dst, src, written(`{"type":"integer","x":2}`))
+			dst = foldTwo(g, dst, src, unread(t))
 
-			assert.Equal(t, want.Default, dst.Default, "the first declaration keeps its default")
+			assert.Equal(t, want.Default, dst.Default, "the later declaration keeps its default")
 			assert.Equal(t, want.Examples, dst.Examples, "and its examples")
 			assert.Equal(t, want.Deprecation, dst.Deprecation, "and its deprecation")
 			assert.Equal(t, want.XML, dst.XML, "and its xml hints")
@@ -117,14 +118,14 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 			d := (*recorded)[0]
 			assert.Equal(t, ir.SeverityInfo, d.Severity)
 			assert.Equal(t, diag.DegradedConstruct, d.Code)
-			assert.Equal(t, jsontext.Pointer("/allOf/1/properties/id"), d.Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/allOf/0/properties/id"), d.Provenance.Pointer)
 			assert.Contains(t, d.Message, `"id"`)
 			assert.Contains(t, d.Message, tc.detail, "the message names the detail that disagreed")
 			assert.Equal(t, ir.Unmodeled{
-				losingDeclarationKey + "/allOf/1/properties/id": {
+				losingDeclarationKey + "/allOf/0/properties/id": {
 					Reason:     ir.ReasonDegradedLowering,
-					Value:      ir.RawValue(`{"type":"integer","x":2}`),
-					Provenance: ir.Provenance{Source: 1, Pointer: "/allOf/1/properties/id"},
+					Value:      ir.RawValue(firstSource),
+					Provenance: ir.Provenance{Source: 1, Pointer: "/allOf/0/properties/id"},
 				},
 			}, dst.Unmodeled)
 		})
@@ -168,10 +169,13 @@ func TestFold_AnUnrenderableLoserIsAnError(t *testing.T) {
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
-	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
-	src := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}
+	loser := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}
+	winner := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}
 
-	dst = foldTwo(g, dst, src, func() (ir.RawValue, error) { return nil, errors.New("no such node") })
+	dst := g.fold([]declaration{
+		{prop: loser, source: func() (ir.RawValue, error) { return nil, errors.New("no such node") }},
+		{prop: winner, source: unread(t)},
+	})
 
 	require.Len(t, *recorded, 2, "the conflict, and then the failure to keep it; got %v", *recorded)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
@@ -555,9 +559,10 @@ func TestFold_ADeclarationWithNoSourceIsReportedUnkeepable(t *testing.T) {
 	g, recorded := stubMerger(narrowingRegistry())
 	half := num("1.5")
 
-	got := foldTwo(g,
-		ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Default: &half, Provenance: ptrAt("/a")},
-		ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, unread(t))
+	got := g.fold([]declaration{
+		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimNumber), Default: &half, Provenance: ptrAt("/a")}},
+		{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimInteger), Provenance: ptrAt("/b")}, source: unread(t)},
+	})
 
 	require.Len(t, *recorded, 2)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)

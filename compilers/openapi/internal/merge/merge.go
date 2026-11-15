@@ -4,6 +4,8 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
+
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,27 +25,39 @@ func WireNameIndex(props []ir.Property) map[string]int {
 	return idx
 }
 
-// PropIndex is the properties of one Model as the walk declares them. The
-// first declaration of a wire name lands on the model at once, so the walk can
-// read its ID and mark it required; every later one is recorded, and the
-// model's fields fold once the registry is whole (Fold). Which type a field
-// folds to compares the nodes its declarations name, which the walk may not
-// have built yet, so a fold mid-walk would follow declaration order (GitHub
-// #898).
+// PropIndex is one Model's composition as the walk reads it: each property it
+// declares and each entry it composes, in the order the walk meets them, which
+// is the order the source writes them, a schema's own properties after its
+// allOf. The first declaration of a wire name lands on the model at once, so
+// the walk can read its ID and mark it required. The model's members settle
+// once the registry is whole (Settle): which type a field folds to compares
+// nodes the walk may not have built yet, so a fold mid-walk would follow
+// declaration order (GitHub #898).
 type PropIndex struct {
 	m      *ir.Model
 	byWire map[string]*field
-	// redeclared lists the fields declared more than once, in the order of
-	// their first redeclaration.
-	redeclared []*field
+	// entries are the types the model composes, as Compose records them.
+	entries []composedEntry
+	// read counts what the walk has met, declarations and entries alike.
+	read int
+	// redeclared reports whether a wire name has been declared twice.
+	redeclared bool
 }
 
-// field is one wire name of the model: where its property sits, how to render
-// the declaration that put it there, and each declaration after that one.
+// field is one wire name the model declares: where its property sits, and
+// every declaration of it, the first one's property read off the model when
+// the field settles.
 type field struct {
 	pos   int
-	first Source
-	rest  []declaration
+	decls []declaration
+}
+
+// composedEntry is a type the model composes, where the model writes it, and when the
+// walk met it among the model's declarations.
+type composedEntry struct {
+	target ir.TypeID
+	at     jsontext.Pointer
+	order  int
 }
 
 // NewPropIndex returns an empty index of m's properties; m holds none yet, so
@@ -62,40 +76,30 @@ func NewPropIndex(m *ir.Model) *PropIndex {
 // p.Provenance alone locates the declaration, so no second copy can disagree.
 // secretBy names the heuristics that set p.Secret, empty where a keyword
 // declared it (folding.foldUse). It reports whether p is the model's first
-// redeclaration, where the walk queues the model's folds (Fold).
+// redeclaration, from which the model has members to settle.
 func (idx *PropIndex) MergeProperty(p ir.Property, source Source, secretBy ir.Inferred) (firstRedeclaration bool) {
+	d := declaration{prop: p, source: source, secretBy: secretBy, order: idx.next()}
 	f, ok := idx.byWire[p.WireName]
 	if !ok {
-		idx.byWire[p.WireName] = &field{pos: len(idx.m.Properties), first: source}
+		idx.byWire[p.WireName] = &field{pos: len(idx.m.Properties), decls: []declaration{d}}
 		idx.m.Properties = append(idx.m.Properties, p)
 		return false
 	}
-	first := len(idx.redeclared) == 0
-	if len(f.rest) == 0 {
-		idx.redeclared = append(idx.redeclared, f)
-	}
-	f.rest = append(f.rest, declaration{prop: p, source: source, secretBy: secretBy})
+	first := !idx.redeclared
+	idx.redeclared = true
+	f.decls = append(f.decls, d)
 	return first
 }
 
-// Fold folds each field declared more than once through g, in the order of
-// its first redeclaration, and returns what the folds report. A field's first
-// declaration is read off the model as the walk left it, required flag
-// included. A fold reads only nodes the walk built and writes only its own
-// field, and two folds mint under one pointer only where they fold one set of
-// declarations (fieldSpan), so no fold reads another's result. The model's
-// discriminator read the field's ID off the walk, so it follows the field to
-// any identity of its own.
-func (idx *PropIndex) Fold(g Merger) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, f := range idx.redeclared {
-		first := idx.m.Properties[f.pos]
-		merged, found := g.fold(append([]declaration{{prop: first, source: f.first}}, f.rest...))
-		diags = append(diags, found...)
-		idx.m.Properties[f.pos] = merged
-		if d := idx.m.Discriminator; d != nil && d.Property == first.ID {
-			d.Property = merged.ID
-		}
-	}
-	return diags
+// Compose records that the model composes target, written at at, after what
+// the walk has met so far. The caller adds target to the model's Base or
+// Mixins; the index reads it for the declarations it brings (Settle).
+func (idx *PropIndex) Compose(target ir.TypeID, at jsontext.Pointer) {
+	idx.entries = append(idx.entries, composedEntry{target: target, at: at, order: idx.next()})
+}
+
+// next returns the place of what the walk meets next.
+func (idx *PropIndex) next() int {
+	idx.read++
+	return idx.read
 }

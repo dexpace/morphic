@@ -1447,7 +1447,7 @@
             "none": false
           },
           "constraints": {
-            "pattern": "^a",
+            "pattern": "^b",
             "uniqueItems": false
           },
           "flatten": false,
@@ -1456,15 +1456,15 @@
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:conflicting-redeclaration/components/schemas/PatternsAThenB/allOf/1/properties/p": {
+            "openapi:conflicting-redeclaration/components/schemas/PatternsAThenB/allOf/0/properties/p": {
               "reason": "degraded_lowering",
               "value": {
-                "pattern": "^b",
+                "pattern": "^a",
                 "type": "string"
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/PatternsAThenB/allOf/1/properties/p"
+                "pointer": "/components/schemas/PatternsAThenB/allOf/0/properties/p"
               }
             }
           },
@@ -1511,7 +1511,7 @@
             "none": false
           },
           "constraints": {
-            "pattern": "^b",
+            "pattern": "^a",
             "uniqueItems": false
           },
           "flatten": false,
@@ -1520,15 +1520,15 @@
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:conflicting-redeclaration/components/schemas/PatternsBThenA/allOf/1/properties/p": {
+            "openapi:conflicting-redeclaration/components/schemas/PatternsBThenA/allOf/0/properties/p": {
               "reason": "degraded_lowering",
               "value": {
-                "pattern": "^a",
+                "pattern": "^b",
                 "type": "string"
               },
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/PatternsBThenA/allOf/1/properties/p"
+                "pointer": "/components/schemas/PatternsBThenA/allOf/0/properties/p"
               }
             }
           },
@@ -1800,39 +1800,39 @@
   },
   "diagnostics": [
     {
-      "severity": "warning",
-      "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"p\" disagree: conflicting pattern (\"^a\" and \"^b\"); kept what the declaration at /components/schemas/PatternsAThenB/allOf/0/properties/p says over the one at /components/schemas/PatternsAThenB/allOf/1/properties/p, which is kept verbatim under Unmodeled",
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default the declaration at /components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/1/properties/p gives; not adopted, and that declaration is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/PatternsAThenB/allOf/1/properties/p"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/conflicting-redeclaration",
-      "message": "declarations of field \"p\" disagree: conflicting pattern (\"^b\" and \"^a\"); kept what the declaration at /components/schemas/PatternsBThenA/allOf/0/properties/p says over the one at /components/schemas/PatternsBThenA/allOf/1/properties/p, which is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/PatternsBThenA/allOf/1/properties/p"
+        "pointer": "/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/1/properties/p"
       }
     },
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default the declaration at /components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p gives; not adopted, and that declaration is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p"
       }
     },
     {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "severity": "warning",
+      "code": "openapi/conflicting-redeclaration",
+      "message": "declarations of field \"p\" disagree: conflicting pattern (\"^b\" and \"^a\"); kept what the declaration at /components/schemas/PatternsAThenB/allOf/1/properties/p says over the one at /components/schemas/PatternsAThenB/allOf/0/properties/p, which is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/1/properties/p"
+        "pointer": "/components/schemas/PatternsAThenB/allOf/0/properties/p"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/conflicting-redeclaration",
+      "message": "declarations of field \"p\" disagree: conflicting pattern (\"^a\" and \"^b\"); kept what the declaration at /components/schemas/PatternsBThenA/allOf/1/properties/p says over the one at /components/schemas/PatternsBThenA/allOf/0/properties/p, which is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PatternsBThenA/allOf/0/properties/p"
       }
     }
   ],
@@ -1840,7 +1840,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-bounds.yaml",
-      "hash": "310e6e80d9710a1ad8022930f0e5af050b85050b03febe1425824b2c86236fe7"
+      "hash": "11b5f9c1fa8d0162f61be8c57e0caff205d1d835642906d1e1cc6eb94aaffd95"
     }
   ]
 }

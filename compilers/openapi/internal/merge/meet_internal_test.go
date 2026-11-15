@@ -110,7 +110,7 @@ func TestFold_EnumsAreJudgedByTheValuesTheyShare(t *testing.T) {
 	assert.Len(t, reg["t/ab"].(*ir.Enum).Members, 2, "the declared enum is as it was written")
 
 	got, _, recorded = foldOf("t/ab", "t/c")
-	assert.Equal(t, ir.TypeID("t/ab"), got.Type.Target)
+	assert.Equal(t, ir.TypeID("t/c"), got.Type.Target, "a tie goes to the later")
 	require.Len(t, recorded, 1)
 	assert.Equal(t, diag.ConflictingRedecl, recorded[0].Code)
 }
@@ -167,10 +167,10 @@ func TestFold_ANarrowerListAdoptsTheBroadersEncoding(t *testing.T) {
 
 	l, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, &ir.Encoding{Name: "csv"}, l.Encoding, "the first encoding given is kept")
+	assert.Equal(t, &ir.Encoding{Name: "tsv"}, l.Encoding, "the last encoding given is kept")
 	require.Len(t, *recorded, 1, "and the other reported")
-	assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
-	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
+	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
+	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(1)))
 }
 
 // TestFold_ContainersOfModelsComposeTheirMembers pins GitHub #1180 in both
@@ -236,7 +236,7 @@ func TestFold_AMeetingNoNodeHoldsKeepsTheWinner(t *testing.T) {
 
 // TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept pins a detail two
 // declarations meeting the winner each add, differently: the minted node takes
-// the first's, and the second is reported, naming the detail as a document
+// the later's, and the earlier is reported, naming the detail as a document
 // spells it, and kept, its narrower element still adopted.
 func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	t.Parallel()
@@ -249,19 +249,19 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 
 	l, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, "one", l.Docs.Description)
+	assert.Equal(t, "other", l.Docs.Description)
 	assert.Equal(t, primRef(ir.PrimInt32), l.Elem)
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
+	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
 	assert.Contains(t, (*recorded)[0].Message, "give the docs of a type", "the detail is named as a document spells it")
-	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
+	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(1)))
 }
 
 // TestFold_EnumsListingSharedValuesApartKeepTheWinner pins two enums listing
 // the values they share in different orders, in either branch order: an enum of
 // both would take one declaration's order, so the two overlap, and the field
-// keeps the first, reports the other and mints nothing, whether each holds a
+// keeps the later, reports the other and mints nothing, whether each holds a
 // value the other lacks or one holds only the other's values beside less
 // detail. Two listing them in one order meet in an enum of those in that order.
 func TestFold_EnumsListingSharedValuesApartKeepTheWinner(t *testing.T) {
@@ -270,7 +270,7 @@ func TestFold_EnumsListingSharedValuesApartKeepTheWinner(t *testing.T) {
 		for _, order := range [][2]ir.TypeID{pair, {pair[1], pair[0]}} {
 			got, reg, recorded := foldOf(order[:]...)
 
-			assert.Equal(t, order[0], got.Type.Target, "%v", order)
+			assert.Equal(t, order[1], got.Type.Target, "%v", order)
 			assert.Len(t, reg, len(meetRegistry()), "nothing is minted: %v", order)
 			require.Len(t, recorded, 1, "%v", order)
 			assert.Equal(t, diag.DegradedConstruct, recorded[0].Code, "%v", order)
@@ -290,12 +290,12 @@ func TestFold_EnumsListingSharedValuesApartKeepTheWinner(t *testing.T) {
 
 // TestFold_EnumsSharingNoValueTogetherKeepTheWinner pins three enums each
 // meeting the others in a value no third holds: no value is in all three, so no
-// enum holds them, and the field keeps the first, each other reported and kept.
+// enum holds them, and the field keeps the last, each other reported and kept.
 func TestFold_EnumsSharingNoValueTogetherKeepTheWinner(t *testing.T) {
 	t.Parallel()
 	got, reg, recorded := foldOf("t/ab", "t/ac", "t/bc2")
 
-	assert.Equal(t, ir.TypeID("t/ab"), got.Type.Target)
+	assert.Equal(t, ir.TypeID("t/bc2"), got.Type.Target)
 	assert.Len(t, reg, len(meetRegistry()), "nothing is minted")
 	assert.Len(t, recorded, 2)
 }
@@ -392,9 +392,9 @@ func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
 
 	l, ok := reg[got.Type.Target].(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, kept("1"), l.Unmodeled)
+	assert.Equal(t, kept("2"), l.Unmodeled)
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
+	assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
 }
 
 // TestFold_TuplesBuildWhatFollowsTheirPositions pins a tuple's rest: two tuples

@@ -143,7 +143,7 @@ func TestAllOf_ANodesBoundsReachTheFieldInEitherOrder(t *testing.T) {
 // says all the other does, so the field takes a node built of both, holding
 // every bound and the fact whichever declaration writes it, with nothing kept
 // or reported. Two that give one fact differently say what no node holds at
-// once, so the second is still reported and kept.
+// once, so the field takes the later's and the earlier is reported and kept.
 func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	list := func(extra string) string { return "{type: array, items: {type: string}" + extra + "}" }
@@ -177,8 +177,8 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 	}
 
 	p, _, diags := redeclared(t, list(", minItems: 1, description: one"), list(", maxItems: 5, description: other"))
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/0/properties/v"), p.Type.Target)
-	assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+	assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 }

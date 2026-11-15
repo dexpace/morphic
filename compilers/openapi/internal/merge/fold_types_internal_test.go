@@ -28,19 +28,19 @@ func TestFold_AConflictingTypeTakesNothingWithIt(t *testing.T) {
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
-	dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
-	src := ir.Property{
+	dst := ir.Property{
 		WireName:    "id",
 		Type:        ir.TypeRef{Target: "t/str"},
 		Default:     &ir.Value{Kind: ir.ValueString, Str: "abc"},
 		Constraints: &ir.Constraints{MaxLength: new(int64(10))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueString, Str: "abc"}}},
 	}
+	src := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}}
 
-	dst = foldTwo(g, dst, src, written(`{"type":"string"}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
 
 	require.Len(t, *recorded, 1, "the conflict is diagnosed")
-	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the first declaration wins the shape")
+	assert.Equal(t, ir.TypeID("t/int"), dst.Type.Target, "the later declaration wins the shape")
 	assert.Nil(t, dst.Default, "a string default does not belong to an integer field")
 	assert.Nil(t, dst.Constraints, "maxLength constrains the string that was discarded")
 	assert.Empty(t, dst.Examples, "the examples are of the discarded shape")
@@ -85,11 +85,12 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 // TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict pins the
 // gap between what the merge drops and what it calls a conflict. The judgment
 // does not guess about two composites of one kind or an opaque scalar, but the
-// fold keeps the winner's type regardless, so the redeclaration once vanished
-// with neither a diagnostic nor an entry: #424's own failure, a consumer diffing
-// two versions seeing no change. It is kept, and reported as a pair the merge
-// does not compare, an info rather than a conflict: which type the field keeps
-// then follows declaration order, and only the report says so.
+// fold keeps the winner's type regardless, so the losing declaration once
+// vanished with neither a diagnostic nor an entry: #424's own failure, a
+// consumer diffing two versions seeing no change. It is kept, and reported as a
+// pair the merge does not compare, an info rather than a conflict: the field
+// keeps the later declaration's type, which follows declaration order, and only
+// the report says so.
 func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
@@ -110,7 +111,8 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			g, recorded := stubMerger(reg)
-			dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: tc.dstTarget}}
+			dst := ir.Property{WireName: "id", Type: ir.TypeRef{Target: tc.dstTarget},
+				Provenance: ir.Provenance{Source: 1, Pointer: "/p/allOf/0/properties/id"}}
 			src := ir.Property{
 				WireName:   "id",
 				Type:       ir.TypeRef{Target: tc.srcTarget},
@@ -119,12 +121,12 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 
 			dst = foldTwo(g, dst, src, written(`{"type":"object"}`))
 
-			assert.Equal(t, tc.dstTarget, dst.Type.Target, "the first declaration still wins")
+			assert.Equal(t, tc.srcTarget, dst.Type.Target, "the later declaration wins")
 			require.Len(t, *recorded, 1)
 			assert.Equal(t, ir.SeverityInfo, (*recorded)[0].Severity, "a drop not called a conflict is no warning")
 			assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
 			assert.Contains(t, (*recorded)[0].Message, "that the merge does not compare")
-			entry, ok := dst.Unmodeled[losingDeclarationKey+"/p/allOf/1/properties/id"]
+			entry, ok := dst.Unmodeled[losingDeclarationKey+"/p/allOf/0/properties/id"]
 			require.True(t, ok, "the dropped declaration is kept; got %v", dst.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 		})
@@ -144,24 +146,24 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 		"t/A":   declaring("t/A"),
 		"t/opq": &ir.Scalar{ID: "t/opq"},
 	})
-	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
-	src := ir.Property{
+	dst := ir.Property{
 		WireName:    "x",
 		Type:        ir.TypeRef{Target: "t/opq"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
 		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
-		Provenance:  ptrAt("/allOf/1/properties/x"),
+		Provenance:  ptrAt("/allOf/0/properties/x"),
 	}
+	src := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}, Provenance: ptrAt("/allOf/1/properties/x")}
 
-	dst = foldTwo(g, dst, src, written(`{"type":"object","default":{},"minProperties":1}`))
+	dst = foldTwo(g, dst, src, written(`{"type":"object"}`))
 
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and an opaque scalar are not called a conflict")
 	assert.Nil(t, dst.Default, "the default describes the shape that was dropped")
 	assert.Nil(t, dst.Constraints, "so does minProperties")
 	assert.Empty(t, dst.Examples, "and so do the examples")
-	assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x", "the whole declaration is kept instead")
+	assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/0/properties/x", "the whole declaration is kept instead")
 }
 
 // TestFold_TheJudgmentsVerdictIsWhatIsReported pins the three
@@ -199,8 +201,8 @@ func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 				require.Len(t, *recorded, 1, "%s (order %d)", tc.name, i)
 				assert.Equal(t, tc.severity, (*recorded)[0].Severity, "%s (order %d)", tc.name, i)
 				assert.Equal(t, tc.code, (*recorded)[0].Code, "%s (order %d)", tc.name, i)
-				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
-					"%s (order %d)", tc.name, i)
+				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/0/properties/x",
+					"the earlier declaration is kept: %s (order %d)", tc.name, i)
 				continue
 			}
 			assert.Empty(t, *recorded, "%s (order %d)", tc.name, i)
@@ -227,8 +229,8 @@ func reconcileBothOrders(t *testing.T, a, b ir.PrimKind) (dsts [2]ir.Property, d
 }
 
 // TestFold_OverlappingKindsAreKeptAndReportedAsInfo pins that
-// kinds sharing values with neither holding the other keep the first
-// declaration's kind, draw an info, and keep the redeclaration, in both orders.
+// kinds sharing values with neither holding the other keep the later
+// declaration's kind, draw an info, and keep the earlier one, in both orders.
 func TestFold_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -243,13 +245,13 @@ func TestFold_OverlappingKindsAreKeptAndReportedAsInfo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			dsts, diags := reconcileBothOrders(t, tc.a, tc.b)
-			for i, first := range []ir.PrimKind{tc.a, tc.b} {
-				assert.Equal(t, primRef(first).Target, dsts[i].Type.Target, "the first declaration's kind stays (order %d)", i)
+			for i, later := range []ir.PrimKind{tc.b, tc.a} {
+				assert.Equal(t, primRef(later).Target, dsts[i].Type.Target, "the later declaration's kind stays (order %d)", i)
 				require.Len(t, diags[i], 1, "exactly one diagnostic (order %d)", i)
 				assert.Equal(t, diag.DegradedConstruct, diags[i][0].Code, "order %d", i)
 				assert.Equal(t, ir.SeverityInfo, diags[i][0].Severity, "order %d", i)
-				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
-					"the redeclaration is kept (order %d)", i)
+				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/0/properties/x",
+					"the earlier declaration is kept (order %d)", i)
 			}
 		})
 	}
@@ -271,12 +273,12 @@ func TestFold_DisjointKindsStillWarn(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			dsts, diags := reconcileBothOrders(t, tc.a, tc.b)
-			for i, first := range []ir.PrimKind{tc.a, tc.b} {
-				assert.Equal(t, primRef(first).Target, dsts[i].Type.Target, "the first declaration still wins (order %d)", i)
+			for i, later := range []ir.PrimKind{tc.b, tc.a} {
+				assert.Equal(t, primRef(later).Target, dsts[i].Type.Target, "the later declaration wins (order %d)", i)
 				require.Len(t, diags[i], 1, "exactly one diagnostic (order %d)", i)
 				assert.Equal(t, diag.ConflictingRedecl, diags[i][0].Code, "order %d", i)
 				assert.Equal(t, ir.SeverityWarning, diags[i][0].Severity, "order %d", i)
-				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/1/properties/x", "order %d", i)
+				assert.Contains(t, dsts[i].Unmodeled, losingDeclarationKey+"/allOf/0/properties/x", "order %d", i)
 			}
 		})
 	}
@@ -300,7 +302,7 @@ func enumRegistry() map[ir.TypeID]ir.TypeDef {
 // TestFold_EnumPairsAreJudgedByKind pins, in both orders, what an
 // enum side draws: an enum over a bare kind or a Scalar node it equals or
 // narrows wins; a bare kind or a Scalar node that admits one of its members
-// overlaps it, which is info and keeps the first declaration, as does a kind
+// overlaps it, which is info and keeps the later declaration, as does a kind
 // with no judge; a kind that admits none of them warns, as does another
 // family, and another enum sharing none of them.
 func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
@@ -310,7 +312,7 @@ func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 		name   string
 		a, b   ir.TypeRef
 		want   ir.Severity // "" = none
-		winner ir.TypeID   // "" = the first declaration's
+		winner ir.TypeID   // "" = the later declaration's
 	}{
 		{"enum of string and uuid", enum("t/enum/a"), primRef(ir.PrimUUID), ir.SeverityWarning, ""},
 		{"enum of integer and int32", enum("t/enum/big"), primRef(ir.PrimInt32), ir.SeverityWarning, ""},
@@ -333,7 +335,7 @@ func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 
 				dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
 
-				wantTarget := order[0].Target
+				wantTarget := order[1].Target
 				if tc.winner != "" {
 					wantTarget = tc.winner
 				}
@@ -344,8 +346,8 @@ func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 				}
 				require.Len(t, *recorded, 1, "exactly one diagnostic (order %d)", i)
 				assert.Equal(t, tc.want, (*recorded)[0].Severity, "order %d", i)
-				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/1/properties/x",
-					"the redeclaration is kept (order %d)", i)
+				assert.Contains(t, dst.Unmodeled, losingDeclarationKey+"/allOf/0/properties/x",
+					"the earlier declaration is kept (order %d)", i)
 			}
 		})
 	}
@@ -408,16 +410,17 @@ func twinRegistry() map[ir.TypeID]ir.TypeDef {
 
 // TestFold_IdenticalNodesAreOneType pins, in both orders, that two
 // hoisted Enum, Literal or Scalar nodes equal but for what names their site are
-// one type: no diagnostic and nothing kept aside. A named node wins over a
-// hoisted copy of itself, and two named ones, or a pair that differs in a
-// field, member order included, are an overlap reported as info.
+// one type, the one whose ID sorts first standing for both: no diagnostic and
+// nothing kept aside. A named node wins over a hoisted copy of itself, and two
+// named ones, or a pair that differs in a field, member order included, are an
+// overlap reported as info, the later kept.
 func TestFold_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		a, b ir.TypeID
 		same bool
-		win  ir.TypeID // the type that stands in both orders, or "" for the first
+		win  ir.TypeID // the type that stands in both orders, or "" for the rule's
 	}{
 		{"two identical enums", "t/enum/x1", "t/enum/x2", true, ""},
 		{"two identical literals", "t/lit/1", "t/lit/2", true, ""},
@@ -446,8 +449,12 @@ func TestFold_IdenticalNodesAreOneType(t *testing.T) {
 				dst = foldTwo(g, dst, src, written(`{"type":"x"}`))
 
 				want := tc.win
-				if want == "" {
-					want = order[0]
+				switch {
+				case want != "":
+				case tc.same:
+					want = min(tc.a, tc.b)
+				default:
+					want = order[1]
 				}
 				assert.Equal(t, want, dst.Type.Target, "the type that stands (order %d)", i)
 				if tc.same {

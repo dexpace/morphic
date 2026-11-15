@@ -1216,14 +1216,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Styled/properties/type",
+          "id": "p/composed/components/schemas/Styled/oneOf/0/allOf/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/anon/components/schemas/JsonFormat/properties/type",
             "nullable": false
           },
           "required": true,
@@ -1239,7 +1239,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Styled/properties/type"
+            "pointer": "/components/schemas/Styled/oneOf/0/allOf/properties/type"
           }
         },
         {
@@ -1293,14 +1293,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Styled/properties/type",
+          "id": "p/composed/components/schemas/Styled/oneOf/1/allOf/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
           },
           "wireName": "type",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/anon/components/schemas/TextFormat/properties/type",
             "nullable": false
           },
           "required": true,
@@ -1316,7 +1316,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Styled/properties/type"
+            "pointer": "/components/schemas/Styled/oneOf/1/allOf/properties/type"
           }
         },
         {
@@ -1424,7 +1424,7 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/kind",
+          "id": "p/composed/components/schemas/Circle/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
@@ -1434,7 +1434,7 @@
             "target": "t/anon/components/schemas/Circle/allOf/1/properties/kind",
             "nullable": false
           },
-          "required": false,
+          "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
@@ -1447,7 +1447,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Circle/allOf/1/properties/kind"
+            "pointer": "/components/schemas/Circle/allOf/properties/kind"
           }
         },
         {
@@ -1945,7 +1945,7 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Square/allOf/1/properties/kind",
+          "id": "p/composed/components/schemas/Square/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
@@ -1955,7 +1955,7 @@
             "target": "t/anon/components/schemas/Square/allOf/1/properties/kind",
             "nullable": false
           },
-          "required": false,
+          "required": true,
           "clientOptional": false,
           "defaultAdded": false,
           "visibility": {
@@ -1968,7 +1968,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Square/allOf/1/properties/kind"
+            "pointer": "/components/schemas/Square/allOf/properties/kind"
           }
         }
       ],

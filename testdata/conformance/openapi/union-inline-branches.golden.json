@@ -364,14 +364,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Check/properties/transferable",
+          "id": "p/composed/components/schemas/Check/oneOf/0/allOf/properties/transferable",
           "name": {
             "source": "transferable",
             "canonical": "transferable"
           },
           "wireName": "transferable",
           "type": {
-            "target": "t/prim/bool",
+            "target": "t/anon/components/schemas/Check/oneOf/0/properties/transferable",
             "nullable": false
           },
           "required": true,
@@ -387,7 +387,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Check/properties/transferable"
+            "pointer": "/components/schemas/Check/oneOf/0/allOf/properties/transferable"
           }
         }
       ],
@@ -414,14 +414,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/Check/properties/transferable",
+          "id": "p/composed/components/schemas/Check/oneOf/1/allOf/properties/transferable",
           "name": {
             "source": "transferable",
             "canonical": "transferable"
           },
           "wireName": "transferable",
           "type": {
-            "target": "t/prim/bool",
+            "target": "t/anon/components/schemas/Check/oneOf/1/properties/transferable",
             "nullable": false
           },
           "required": true,
@@ -437,7 +437,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Check/properties/transferable"
+            "pointer": "/components/schemas/Check/oneOf/1/allOf/properties/transferable"
           }
         }
       ],

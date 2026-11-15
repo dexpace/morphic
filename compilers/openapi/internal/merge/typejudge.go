@@ -68,6 +68,9 @@ type typeJudge struct {
 	// (maxModelPairs), shared by its every depth; relate starts it, and nil
 	// compares none.
 	modelPairs *budget.Budget
+	// variants is what remains of the union variants a judgment reads
+	// (maxVariantReads), started and shared as modelPairs is.
+	variants *budget.Budget
 	// sites is where the declarations a and b were written.
 	sites declarationSites
 }
@@ -96,15 +99,17 @@ type declarationSites struct {
 }
 
 // relateFrom compares a with b, two types at depth: a field's own at 0, a
-// container's members a level down, with a budget of model pairs of its own.
-// The winner never depends on which is which: swapping the arguments, and
-// written's two pointers with them, flips a narrowing and leaves any other
-// verdict as it was. The arms, in order: the same target; a degraded Any node,
-// unrelated to every type; the top type, or an alias read as it (topAt), losing
-// to anything but another; then arms, or classify where arms finds nothing,
-// read for null (heldNull).
+// container's members a level down, with budgets of its own. The winner never
+// depends on which is which: swapping the arguments, and written's two pointers
+// with them, flips a narrowing and leaves any other verdict as it was. The arms,
+// in order: the same target; a degraded Any node, unrelated to every type; the
+// top type, or an alias read as it (topAt), losing to anything but another;
+// then arms, a union's variants (unionArms) and classify, each where those
+// before find nothing, read for null (heldNull).
 func (j typeJudge) relateFrom(a, b ir.TypeRef, depth int) relation {
 	j.modelPairs = modelPairs()
+	variants := budget.New(budget.AtMost(maxVariantReads))
+	j.variants = &variants
 	return j.relateAt(a, b, depth)
 }
 
@@ -134,6 +139,9 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 		return relANarrower
 	}
 	rel := j.arms(a, at, b, bt, depth)
+	if rel == relUnrelated {
+		rel = unionArms(j, a, at, b, bt, depth)
+	}
 	if rel == relUnrelated {
 		rel = j.classify(a, at, b, bt, depth)
 	}
@@ -254,7 +262,7 @@ func (r registry) composes(id, target ir.TypeID) bool {
 		if !ok {
 			continue
 		}
-		for _, part := range composedOf(td) {
+		for _, part := range ComposedOf(td) {
 			if part == target {
 				return true
 			}
@@ -267,8 +275,9 @@ func (r registry) composes(id, target ir.TypeID) bool {
 	return false
 }
 
-// composedOf returns the types td says its values are also values of.
-func composedOf(td ir.TypeDef) []ir.TypeID {
+// ComposedOf returns the types td says its values are also values of: an
+// alias scalar's Base, and a model's Base and Mixins.
+func ComposedOf(td ir.TypeDef) []ir.TypeID {
 	var parts []ir.TypeID
 	switch t := td.(type) {
 	case *ir.Scalar:

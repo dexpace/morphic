@@ -1,0 +1,217 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package schema_test
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
+)
+
+// composedDoc compiles schemas, components of a 3.1 document, and requires the
+// result to verify.
+func composedDoc(t *testing.T, schemas string) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", schemas))
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Empty(t, irverify.Verify(doc))
+	return doc, diags
+}
+
+// diagsUnder returns the diagnostics of diags at or beneath prefix.
+func diagsUnder(diags []ir.Diagnostic, prefix string) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	for _, d := range diags {
+		if strings.HasPrefix(string(d.Provenance.Pointer), prefix) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition pins a
+// member two allOf entries declare apart: the composing model declares it, in
+// the composed namespace under one identity in either entry order, and a pair
+// no value satisfies keeps the entry written later, the specialization, with a
+// report at the entry that lost naming the property it decided (GitHub #1920).
+func TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition(t *testing.T) {
+	t.Parallel()
+	const parts = "    A: {type: object, properties: {p: {type: string}}}\n" +
+		"    B: {type: object, properties: {p: {type: integer}}}\n"
+	const id = "p/composed/components/schemas/AB/allOf/properties/p"
+	for entries, later := range map[string]ir.TypeID{
+		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": "t/prim/integer",
+		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": "t/prim/string",
+	} {
+		doc, diags := composedDoc(t, parts+"    AB: {allOf: "+entries+"}\n")
+
+		p := propertyOf(t, doc, "AB", "p")
+		assert.Equal(t, ir.PropID(id), p.ID, entries)
+		assert.Equal(t, later, p.Type.Target, "the entry written later: %s", entries)
+		assert.Empty(t, p.Unmodeled, "the declaration that lost stays on its model: %s", entries)
+		flat := ir.FlattenedProperties(doc.Types, componentID("AB"))
+		require.Len(t, flat.Properties, 1)
+		assert.Equal(t, p.ID, flat.Properties[0].Property.ID, "the flattening takes the composition's own")
+		require.Len(t, diags, 1, "%+v", diags)
+		found := diagsAtPointer(diags, diag.ConflictingRedecl, "/components/schemas/AB/allOf/0")
+		require.Len(t, found, 1, entries)
+		assert.Equal(t, id, found[0].Provenance.Node, entries)
+	}
+}
+
+// TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike pins a member a
+// model declares itself beside one a $ref entry brings (GitHub #1951): in
+// either entry order, the field takes the type, docs and bounds it takes where
+// the named schema's declaration is written inline in the entry's place, the
+// narrower type wherever it is written and, of a pair no value satisfies, the
+// later. The report sits at the entry, and the property is the model's own in
+// the composed namespace.
+func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
+	t.Parallel()
+	const base = "{type: integer, description: from base}"
+	for _, own := range []string{"{type: number}", "{type: string}", "{type: integer, minimum: 1}", "{description: own}"} {
+		for _, refFirst := range []bool{true, false} {
+			ref, inline := "{$ref: '#/components/schemas/Base'}", "{type: object, properties: {id: "+base+"}}"
+			mine := "{type: object, properties: {id: " + own + "}}"
+			entries := func(brought string) string {
+				if refFirst {
+					return "[" + brought + ", " + mine + "]"
+				}
+				return "[" + mine + ", " + brought + "]"
+			}
+			name := fmt.Sprintf("%s, base first %v", own, refFirst)
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, properties: {id: "+base+"}}\n"+
+				"    Ref: {allOf: "+entries(ref)+"}\n    Inline: {allOf: "+entries(inline)+"}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			require.Empty(t, irverify.Verify(doc))
+
+			byRef, written := propertyOf(t, doc, "Ref", "id"), propertyOf(t, doc, "Inline", "id")
+			assert.Equal(t, ir.PropID("p/composed/components/schemas/Ref/allOf/properties/id"), byRef.ID, name)
+			assert.Equal(t, written.Type, byRef.Type, name)
+			assert.Equal(t, written.Docs, byRef.Docs, name)
+			assert.Equal(t, written.Constraints, byRef.Constraints, name)
+			atRef, atInline := len(diagsUnder(diags, "/components/schemas/Ref/")), len(diagsUnder(diags, "/components/schemas/Inline/"))
+			assert.Equal(t, atInline, atRef, "%s: as many reports: %+v", name, diags)
+		}
+	}
+}
+
+// TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember pins what
+// names a member a composition settles: a composition requiring one it does not declare
+// requires the member it declares, its name leaving Requires, and a
+// discriminator naming the model's own declaration names the member that
+// replaces it.
+func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T) {
+	t.Parallel()
+	doc, _ := composedDoc(t, `    A: {type: object, properties: {kind: {type: string}}}
+    B: {type: object, properties: {kind: {type: string, maxLength: 9}}}
+    Required:
+      allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+      required: [kind]
+    Tagged:
+      allOf: [{$ref: '#/components/schemas/B'}]
+      properties: {kind: {type: string}}
+      discriminator: {propertyName: kind}
+`)
+	required, ok := typeByName(doc, "Required").(*ir.Model)
+	require.True(t, ok)
+	assert.True(t, propertyOf(t, doc, "Required", "kind").Required)
+	assert.Empty(t, required.Requires)
+
+	tagged, ok := typeByName(doc, "Tagged").(*ir.Model)
+	require.True(t, ok)
+	kind := propertyOf(t, doc, "Tagged", "kind")
+	assert.Equal(t, ir.PropID("p/composed/components/schemas/Tagged/allOf/properties/kind"), kind.ID,
+		"B's bounded kind is narrower")
+	require.NotNil(t, tagged.Discriminator)
+	assert.Equal(t, kind.ID, tagged.Discriminator.Property)
+}
+
+// TestMembers_AModelIsSettledAfterWhatItComposes pins a model composing one
+// whose member a fold settles: it reads that member settled, through an
+// alias entry too, whichever is declared first, so Mid's integer, not its own
+// number, is what Top's string meets.
+func TestMembers_AModelIsSettledAfterWhatItComposes(t *testing.T) {
+	t.Parallel()
+	const base = "    Base: {type: object, properties: {id: {type: integer}}}\n"
+	const mid = "    Mid:\n      allOf: [{$ref: '#/components/schemas/Base'}, {type: object, properties: {id: {type: number}}}]\n"
+	const tops = "    Top:\n      allOf: [{$ref: '#/components/schemas/Mid'}, {type: object, properties: {id: {type: string}}}]\n" +
+		"    Aliased:\n      allOf: [{$ref: '#/components/schemas/Mid', description: d}, {type: object, properties: {id: {type: string}}}]\n"
+	for _, order := range []string{base + mid + tops, tops + mid + base} {
+		_, diags := composedDoc(t, order)
+		for _, at := range []string{"/components/schemas/Top/allOf/0", "/components/schemas/Aliased/allOf/0"} {
+			found := diagsAtPointer(diags, diag.ConflictingRedecl, at)
+			require.Len(t, found, 1, "%s: %+v", at, diags)
+			assert.Contains(t, found[0].Message, "t/prim/integer", at)
+		}
+	}
+}
+
+// TestMembers_ACycleSettlesTheSameInEitherOrder pins two models composing
+// each other, each declaring a member the other does: one IR whichever is
+// declared first.
+func TestMembers_ACycleSettlesTheSameInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const a = "    A:\n      allOf: [{$ref: '#/components/schemas/B'}, {type: object, properties: {x: {type: string}}}]\n"
+	const b = "    B:\n      allOf: [{$ref: '#/components/schemas/A'}, {type: object, properties: {x: {type: integer}}}]\n"
+	first, firstDiags := composedDoc(t, a+b)
+	later, laterDiags := composedDoc(t, b+a)
+	assert.Empty(t, cmp.Diff(first.Types, later.Types, orderInvariantIR()...))
+	assert.Equal(t, reportedAt(firstDiags), reportedAt(laterDiags))
+}
+
+// TestMembers_AModelAFoldComposesIsSettledInTheNextRound pins a fold
+// whose member two unrelated models declare: the fold composes them, as the
+// entries are written, into a model of its own, whose member they declare apart
+// is settled in turn, the later entry's again, with the report at the entry
+// bringing the one that lost.
+func TestMembers_AModelAFoldComposesIsSettledInTheNextRound(t *testing.T) {
+	t.Parallel()
+	const parts = `    A1: {type: object, properties: {r: {type: string}}}
+    B1: {type: object, properties: {r: {type: integer}}}
+    A: {type: object, properties: {q: {$ref: '#/components/schemas/A1'}}}
+    B: {type: object, properties: {q: {$ref: '#/components/schemas/B1'}}}
+`
+	for entries, later := range map[string]ir.TypeID{
+		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": "t/prim/integer",
+		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": "t/prim/string",
+	} {
+		doc, diags := composedDoc(t, parts+"    M: {allOf: "+entries+"}\n")
+
+		q := propertyOf(t, doc, "M", "q")
+		composed, ok := doc.Types[q.Type.Target].(*ir.Model)
+		require.True(t, ok, "got %T", doc.Types[q.Type.Target])
+		require.Len(t, composed.Properties, 1, "its own r")
+		assert.Equal(t, later, composed.Properties[0].Type.Target, entries)
+		assert.Len(t, diagsAtPointer(diags, diag.ConflictingRedecl, "/components/schemas/M/allOf/0"), 1, "%s: %+v", entries, diags)
+	}
+}
+
+// TestMembers_CompositionsNestedPastTheRoundsAreReported pins a chain of
+// folds each composing a model whose member is folded again, deeper
+// than the rounds settled: what the rounds reach is settled, and the rest is
+// reported once.
+func TestMembers_CompositionsNestedPastTheRoundsAreReported(t *testing.T) {
+	t.Parallel()
+	var spec strings.Builder
+	for i := 1; i <= 10; i++ {
+		fmt.Fprintf(&spec, "    A%d: {type: object, properties: {q: {$ref: '#/components/schemas/A%d'}}}\n", i, i+1)
+		fmt.Fprintf(&spec, "    B%d: {type: object, properties: {q: {$ref: '#/components/schemas/B%d'}}}\n", i, i+1)
+	}
+	spec.WriteString("    A11: {type: object, properties: {r: {type: string}}}\n")
+	spec.WriteString("    B11: {type: object, properties: {r: {type: integer}}}\n")
+	spec.WriteString("    M:\n      allOf: [{$ref: '#/components/schemas/A1'}, {$ref: '#/components/schemas/B1'}]\n")
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
+	require.Empty(t, irverify.Verify(doc))
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
+}

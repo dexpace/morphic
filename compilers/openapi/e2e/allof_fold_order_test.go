@@ -16,26 +16,25 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAllOfFold_AModelReportsWhereItsFirstRedeclarationIsWritten pins when a
-// model's folds are queued: at its first redeclared field, as the walk meets
-// it. A model holding another, each redeclaring a field, reports before or
-// after the one it holds as the two are written, whichever order that is, and
-// both orders report the same findings. Queued once a model's lowering
-// returned instead, the model it holds would report first in both orders.
-func TestAllOfFold_AModelReportsWhereItsFirstRedeclarationIsWritten(t *testing.T) {
+// TestAllOfFold_ModelsReportInTheOrderTheirIDsSort pins the order a run's
+// members settle in: by model ID, each after the models it composes, so a
+// model holding another, each redeclaring a field, reports in one order
+// whichever of the two is written first, and both orders report the same
+// findings.
+func TestAllOfFold_ModelsReportInTheOrderTheirIDsSort(t *testing.T) {
 	t.Parallel()
 	const (
 		field  = "p: {type: integer}"
 		nested = "q: {allOf: [{properties: {r: {type: string}}}, {properties: {r: {type: integer}}}]}"
-		p      = jsontext.Pointer("/components/schemas/X/allOf/1/properties/p")
-		r      = jsontext.Pointer("/components/schemas/X/allOf/1/properties/q/allOf/1/properties/r")
+		p      = jsontext.Pointer("/components/schemas/X/allOf/0/properties/p")
+		r      = jsontext.Pointer("/components/schemas/X/allOf/1/properties/q/allOf/0/properties/r")
 	)
 	reported := map[string][]jsontext.Pointer{}
 	for name, tc := range map[string]struct {
 		props string
 		want  []jsontext.Pointer
 	}{
-		"the field first":      {props: "{" + field + ", " + nested + "}", want: []jsontext.Pointer{p, r}},
+		"the field first":      {props: "{" + field + ", " + nested + "}", want: []jsontext.Pointer{r, p}},
 		"the held model first": {props: "{" + nested + ", " + field + "}", want: []jsontext.Pointer{r, p}},
 	} {
 		_, diags := parseFull(t, openapitest.ComponentSpec(
@@ -59,7 +58,7 @@ func TestAllOfFold_AModelReportsWhereItsFirstRedeclarationIsWritten(t *testing.T
 // encoded scalar wins over the bare primitive it is of, and no other pair
 // folds two texts into one without a report
 // (docs/compilers/openapi.md#allof-redeclared-property). An overlap or a
-// conflict keeps the first declaration in either order and reports the other.
+// conflict keeps the later declaration in either order and reports the other.
 func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 	t.Parallel()
 	const (
@@ -100,9 +99,9 @@ func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 					assert.Equal(t, tc.winner, field, "%v: the field takes the narrower type", order)
 					continue
 				}
-				assert.Equal(t, []string{tc.code}, codes, "%v: the second declaration is reported", order)
-				first, _ := foldedField(t, order[0], order[0])
-				assert.Equal(t, first, field, "%v: the field keeps the first declaration", order)
+				assert.Equal(t, []string{tc.code}, codes, "%v: the first declaration is reported", order)
+				later, _ := foldedField(t, order[1], order[1])
+				assert.Equal(t, later, field, "%v: the field keeps the later declaration", order)
 			}
 		})
 	}
@@ -111,7 +110,7 @@ func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 // foldedField compiles a model whose two inline allOf branches declare its
 // field b as first and second, and returns what the field's type is, as its
 // primitive or a Scalar's base, encoding and wire type, and the codes reported
-// at the second declaration.
+// at the first declaration.
 func foldedField(t *testing.T, first, second string) (string, []string) {
 	t.Helper()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    Sub:\n      allOf:\n"+
@@ -124,7 +123,7 @@ func foldedField(t *testing.T, first, second string) (string, []string) {
 	require.True(t, ok, "the field folds into one property")
 	var codes []string
 	for _, d := range diags {
-		if d.Provenance.Pointer == "/components/schemas/Sub/allOf/1/properties/b" {
+		if d.Provenance.Pointer == "/components/schemas/Sub/allOf/0/properties/b" {
 			codes = append(codes, d.Code)
 		}
 	}

@@ -57,14 +57,14 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			name: "two enums refining one property",
 			src: schemas("AB: {allOf: [{properties: {p: {type: string, enum: [a, b, c]}}}, " +
 				"{properties: {p: {type: string, enum: [c, b, d]}}}]}"),
-			codes: map[string]string{"openapi/degraded-construct": s + "/AB/allOf/1/properties/p"},
+			codes: map[string]string{"openapi/degraded-construct": s + "/AB/allOf/0/properties/p"},
 			want:  passed(OracleSequenceOrder),
 		},
 		{
 			name: "a redeclared property whose types disagree",
 			src: schemas("AB: {allOf: [{properties: {p: {type: string}, q: {type: object, properties: {x: {type: string}}}}}, " +
 				"{properties: {p: {type: integer}, q: {type: object, properties: {y: {type: string}}}}}]}"),
-			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/AB/allOf/1/properties/p"},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/AB/allOf/0/properties/p"},
 			want:  passed(OracleSequenceOrder),
 		},
 		{

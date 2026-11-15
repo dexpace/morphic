@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"errors"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -51,16 +52,17 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 // shape, each read in the coordinates of its own source. A pair of diagnostics
 // equal but for which element of a reversed sequence their pointers name is a
 // report that moves with the order, a tie the lowering states, so nothing the
-// documents hold at or beneath its pointer is compared. Every difference is
-// reported, one after another. It declines a document read from more than one
-// file, and what compareForms declines.
+// documents hold at or beneath its pointer, or at the node it names, is
+// compared. Every difference is reported. It declines a document read from more
+// than one file, and what compareForms declines.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
 	}
 	var found []string
-	ties, unpaired := movedReports(firstDiags, secondDiags, perm)
-	if unpaired != "" {
+	ties, left, right := movedReports(firstDiags, secondDiags, perm)
+	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
+	if unpaired := renderUnpaired(untied(left, ties, perm.written), untied(right, ties, perm.written)); unpaired != "" {
 		found = append(found, "diagnostics depend on sequence order (-as-written +reversed):\n"+unpaired)
 	}
 	switch refused := oneRefusal(first, second); {
@@ -80,7 +82,7 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 // in its own source's coordinates, line by line, and their flattened shapes,
 // or declines where either form nests past its bound or meets a cycle of
 // digests.
-func compareForms(first, second *ir.Document, perm permutation, ties []string) ([]string, Decline) {
+func compareForms(first, second *ir.Document, perm permutation, ties tieSites) ([]string, Decline) {
 	a, err := canonicalForm(first, perm.written, ties)
 	if why := formDecline(err); why != "" {
 		return nil, why
@@ -119,8 +121,17 @@ func formDecline(err error) Decline {
 
 // report is one diagnostic as the comparison reads it, in the coordinates of
 // the source as written: as diagnosticKey renders it, the same with every
-// index of a reversed sequence erased, and its pointer.
-type report struct{ key, erased, pointer string }
+// index of a reversed sequence erased, and with no pointer where it names a
+// node, its pointer and its node. A report naming the node it decided is told
+// apart by that node: it sits at the declaration the order made lose, which a
+// nested allOf can place at another depth.
+type report struct{ key, erased, pointer, node string }
+
+// tieSites is what the reports a reversal moved decided: the erased pointer of
+// each, at or beneath which nothing is compared, the erased node of each naming
+// one (ir.Provenance's Node), which is not compared wherever it sits, and the
+// models holding a member a tie decided (settledFrom), whose reports follow it.
+type tieSites struct{ pointers, nodes, holders []string }
 
 // reportsOf reads diags, rebasing each pointer and node from the coordinates
 // of from, when given, to those of the source as written, where written lists
@@ -133,41 +144,155 @@ func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 		e := d
 		e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
 		e.Provenance.Node = erase(d.Provenance.Node, written)
-		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer)})
+		if e.Provenance.Node != "" {
+			e.Provenance.Pointer = ""
+		}
+		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer),
+			node: d.Provenance.Node})
 	}
 	return out
 }
 
 // movedReports pairs what one compile reports and the other does not, a
-// report of each equal once indices are erased and differing in their
+// report of each equal as report.erased reads them and differing in their
 // pointers, which is a report the reversal moved: its erased pointer is a tie
-// site. Pairs match greedily, in key order; what stays unpaired is rendered a
-// quoted key per line, '-' as written and '+' reversed, empty when nothing does.
-func movedReports(firstDiags, secondDiags []ir.Diagnostic, perm permutation) (ties []string, unpaired string) {
+// site, and its erased node, where it names one, a tied node. Pairs match
+// greedily, in key order; it returns what stays unpaired as written and
+// reversed.
+func movedReports(firstDiags, secondDiags []ir.Diagnostic, perm permutation) (ties tieSites, left, right []report) {
 	onlyFirst, onlySecond := difference(reportsOf(firstDiags, nil, perm.written), reportsOf(secondDiags, perm.moved, perm.written))
 	candidates := map[string][]report{}
 	for _, b := range onlySecond {
 		candidates[b.erased] = append(candidates[b.erased], b)
 	}
-	var left []string
 	for _, a := range onlyFirst {
 		i := slices.IndexFunc(candidates[a.erased], func(b report) bool { return b.pointer != a.pointer })
 		if i < 0 {
-			left = append(left, "-"+strconv.Quote(a.key))
+			left = append(left, a)
 			continue
 		}
 		candidates[a.erased] = slices.Delete(candidates[a.erased], i, i+1)
-		ties = append(ties, erase(a.pointer, perm.written))
-	}
-	var leftSecond []string
-	for _, rest := range candidates {
-		for _, b := range rest {
-			leftSecond = append(leftSecond, "+"+strconv.Quote(b.key))
+		ties.pointers = append(ties.pointers, erase(a.pointer, perm.written))
+		if a.node != "" {
+			ties.nodes = append(ties.nodes, erase(a.node, perm.written))
 		}
 	}
-	slices.Sort(leftSecond)
-	slices.Sort(ties)
-	return slices.Compact(ties), strings.Join(append(left, leftSecond...), "\n")
+	for _, rest := range candidates {
+		right = append(right, rest...)
+	}
+	slices.Sort(ties.pointers)
+	slices.Sort(ties.nodes)
+	ties.pointers, ties.nodes = slices.Compact(ties.pointers), slices.Compact(ties.nodes)
+	return ties, left, right
+}
+
+// untied returns the reports of rs no tie decided: one naming a tied node or a
+// model holding one, or sitting at or beneath a tie site, says what a tie
+// decided, in the one order it decided it.
+func untied(rs []report, ties tieSites, written sequences) []report {
+	return slices.DeleteFunc(rs, func(r report) bool {
+		node := erase(r.node, written)
+		_, tied := slices.BinarySearch(ties.nodes, node)
+		_, holds := slices.BinarySearch(ties.holders, node)
+		return r.node != "" && (tied || holds) || atSite(ties.pointers, erase(r.pointer, written))
+	})
+}
+
+// atSite reports whether erased, an erased pointer, is at or beneath one of
+// sites.
+func atSite(sites []string, erased string) bool {
+	return slices.ContainsFunc(sites, func(site string) bool {
+		return erased == site || strings.HasPrefix(erased, site) && strings.HasPrefix(erased[len(site):], "/")
+	})
+}
+
+// renderUnpaired renders left and right, the reports only one order makes, a
+// quoted key per line, '-' as written and '+' reversed, each side sorted, and
+// empty when there are none.
+func renderUnpaired(left, right []report) string {
+	lines := make([]string, 0, len(left)+len(right))
+	for _, r := range left {
+		lines = append(lines, "-"+strconv.Quote(r.key))
+	}
+	reversed := make([]string, 0, len(right))
+	for _, r := range right {
+		reversed = append(reversed, "+"+strconv.Quote(r.key))
+	}
+	slices.Sort(reversed)
+	return strings.Join(append(lines, reversed...), "\n")
+}
+
+// settledFrom returns ties with every member doc settles from a tied one: a
+// model's own member whose flattening overrides a tied declaration
+// (ir.FlatProperty.Overridden) reads what that tie decided, so it is tied too,
+// to a fixpoint each pass of which ties one more member at least. Each tied
+// member's pointer is a tie site, as its fold mints there. IDs are erased in
+// seqs, doc's coordinates; a nil doc, as a refused compile leaves, adds none.
+func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
+	if len(ties.nodes) == 0 || doc == nil {
+		return ties
+	}
+	tied := map[string]bool{}
+	for _, n := range ties.nodes {
+		tied[n] = true
+	}
+	models := slices.Sorted(maps.Keys(doc.Types))
+	sites, holders := map[string]bool{}, map[string]bool{}
+	for range len(models) + 1 {
+		if !tieSettled(doc, models, seqs, tied, sites, holders) {
+			break
+		}
+	}
+	ties.nodes = slices.Sorted(maps.Keys(tied))
+	ties.pointers = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.pointers, slices.Collect(maps.Keys(sites))))))
+	ties.holders = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.holders, slices.Collect(maps.Keys(holders))))))
+	return ties
+}
+
+// tieSettled ties each own member of models that overrides a tied declaration,
+// and each union whose inferred discriminator reads a tied member
+// (inferenceTied), adds each tied member's pointer to sites and its model to
+// holders, and reports whether it tied any.
+func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, tied, sites, holders map[string]bool) bool {
+	grew := false
+	isTied := func(d ir.PropertyDecl) bool { return tied[erase(string(d.Property.ID), seqs)] }
+	for _, id := range models {
+		if u, isUnion := doc.Types[id].(*ir.Union); isUnion && !tied[erase(string(id), seqs)] && inferenceTied(doc, u, isTied) {
+			tied[erase(string(id), seqs)], grew = true, true
+		}
+		if _, isModel := doc.Types[id].(*ir.Model); !isModel {
+			continue
+		}
+		for _, p := range ir.FlattenedProperties(doc.Types, id).Properties {
+			own := erase(string(p.Property.ID), seqs)
+			if p.Owner == id && !tied[own] && slices.ContainsFunc(p.Overridden, isTied) {
+				tied[own], grew = true, true
+			}
+			if p.Owner == id && tied[own] {
+				sites[erase(string(p.Property.Provenance.Pointer), seqs)] = true
+				holders[erase(string(id), seqs)] = true
+			}
+		}
+	}
+	return grew
+}
+
+// inferenceTied reports whether u's discriminator was inferred from a member a
+// tie decided: the inference reads each variant's member the discriminator
+// names, so what it finds follows the tie.
+func inferenceTied(doc *ir.Document, u *ir.Union, isTied func(ir.PropertyDecl) bool) bool {
+	d := u.Discriminator
+	if d == nil || !d.Inferred {
+		return false
+	}
+	for _, v := range u.Variants {
+		for _, p := range ir.FlattenedProperties(doc.Types, v.Type.Target).Properties {
+			if p.Property.WireName == d.PropertyName && isTied(p.PropertyDecl) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // difference returns the reports of a that b does not hold and those of b

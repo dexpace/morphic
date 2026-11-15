@@ -344,18 +344,17 @@ components:
 	assert.Equal(t, []string{"text/plain"}, pe.ContentTypes)
 }
 
-// TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes holds a part two
-// composed models declare to the declaration the body's flattening takes
-// (docs/ir/models.md#the-flattening): the later conjunct's, whichever the allOf
-// lists last, with the flags read off that declaration's type. The declarations
-// differ, a file and a list of files, so a key or a flag read off the other one
-// shows. Both are files, so Filename shows nothing either way.
-func TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes(t *testing.T) {
+// TestPartEncodings_KeyedOnTheMemberTheBodyDeclares holds a part two composed
+// models declare apart, a file and a list of files, to the member the body
+// declares for it (docs/compilers/openapi.md#allof-redeclared-property): one
+// key whichever the allOf lists last, with the flags read off the type the
+// member keeps, the later entry's, as no value is both, which is reported at
+// the entry that lost. Both are files, so Filename shows nothing either way.
+func TestPartEncodings_KeyedOnTheMemberTheBodyDeclares(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name          string
-		first, second string
-		multi         bool
+		name, first, second string
+		multi               bool
 	}{
 		{"the list last", "One", "Many", true},
 		{"the list first", "Many", "One", false},
@@ -388,13 +387,16 @@ components:
 			openapitest.RequireNoErrorDiags(t, diags)
 			enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
 
-			want := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", tc.second, "properties", "file"))
+			body := ids.Ptr("paths", "/upload", "post", "requestBody", "content", "multipart/form-data", "schema")
+			want := ir.PropID("p/composed" + body + ids.Ptr("allOf", "properties", "file"))
 			require.Len(t, enc, 1, "one part is one entry: %v", enc)
 			pe, ok := enc[want]
-			require.True(t, ok, "the part is keyed on the later conjunct's declaration; got %v", enc)
+			require.True(t, ok, "the part is keyed on the member the body declares; got %v", enc)
 			assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
-			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the declaration the key names")
+			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the type the member keeps")
 			assert.True(t, pe.Filename, "a file and a list of files are both files")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.ConflictingRedecl, string(body+ids.Ptr("allOf", "0"))),
+				"no value is both, which is reported at the entry that lost")
 		})
 	}
 }
@@ -593,8 +595,8 @@ func TestPartEncoding_ADecidedTypeNeverFallsBack(t *testing.T) {
       requestBody:
         content:
           multipart/form-data:
-            schema: {allOf: [{type: object, properties: {file: {type: integer}}}, ` +
-		`{type: object, properties: {file: {type: string, format: binary}}}]}
+            schema: {allOf: [{type: object, properties: {file: {type: string, format: binary}}}, ` +
+		`{type: object, properties: {file: {type: integer}}}]}
       responses: {"200": {description: ok}}
 `)
 	_, svc, diags := compileService(t, spec)

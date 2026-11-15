@@ -1085,6 +1085,9 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, positionTypes(c, body.schema, body.comp.pointer))
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
+	// The branch is distributed into the body, whose own declarations are read
+	// after it, as a model's own declarations follow what it composes.
+	fields.compose(branch, m.Provenance.Pointer)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(body.schema.GetRequired(), body.comp))

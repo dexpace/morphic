@@ -46,10 +46,10 @@ func (p position) composition(reg registry) []conjunct {
 }
 
 // heldByAnother reports whether some other member's type already says all
-// member i's does: one narrower, or the same one written first.
+// member i's does: one narrower, or the same one standing for it (stands).
 func (p position) heldByAnother(i int) bool {
 	for j := range p.members {
-		if p.rel[j][i] == relANarrower || (p.rel[j][i] == relSame && j < i) {
+		if p.rel[j][i] == relANarrower || (p.rel[j][i] == relSame && p.stands(j, i)) {
 			return true
 		}
 	}
@@ -58,9 +58,9 @@ func (p position) heldByAnother(i int) bool {
 
 // compose returns the model that composes cs, minted at pointer, as a written
 // allOf of them composes: SelectBase picks its Base among those written as a
-// $ref, and the rest are Mixins in declaration order. Only the target is
-// carried. A conjunct says nothing of null, which the reference to the model
-// says (position.null).
+// $ref, and the rest are Mixins in declaration order, so the model's own
+// members settle in that order too. Only the target is carried. A conjunct says
+// nothing of null, which the reference to the model says (position.null).
 func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int
 	for k, c := range cs {
@@ -70,15 +70,18 @@ func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	}
 	base, hasBase := SelectBase(refs, func(k int) bool { return inHierarchy(b.f.g.Reg, cs[k].node) })
 	composed := &ir.Model{}
+	var brought []jsontext.Pointer
 	for k, c := range cs {
 		ref := ir.TypeRef{Target: c.ref.Target}
 		if hasBase && k == base {
 			composed.Base = &ref
+			brought = append([]jsontext.Pointer{b.f.decls[c.decl].reportAt()}, brought...)
 			continue
 		}
 		composed.Mixins = append(composed.Mixins, ref)
+		brought = append(brought, b.f.decls[c.decl].reportAt())
 	}
-	return b.mint(pointer, composed)
+	return b.mint(pointer, composed, brought)
 }
 
 // SelectBase returns which entry of a composition becomes Model.Base, given

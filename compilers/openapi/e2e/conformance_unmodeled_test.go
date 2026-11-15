@@ -323,53 +323,53 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
 // the document. A field one allOf branch types `uri` and another `integer` has
-// no IR combinator, so the merge keeps the first declaration and, under
+// no IR combinator, so the merge keeps the later declaration and, under
 // docs/compilers/openapi.md#allof-redeclared-property, the loser verbatim
 // (GitHub #424). The entry holds the declaration as written, not the dropped IR
 // value, because docs/ir/unmodeled.md defines an Unmodeled value as the source
 // construct; that keeps the nullable bit a target ID would lose (GitHub #445).
 //
 // Described is the same event where the types agree but both branches fill the
-// fold's one default slot: the second declaration is kept whole and the
+// fold's one default slot: the first declaration is kept whole and the
 // disagreement named.
 func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	repo, ok := doc.Types[componentID("Repository")].(*ir.Model)
 	require.True(t, ok)
 	clone, ok := propByWire(repo, "clone_url")
 	require.True(t, ok, "the two declarations still reconcile to one property")
-	assert.Equal(t, ir.TypeID("t/prim/url"), clone.Type.Target, "the first declaration wins the shape")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), clone.Type.Target, "the later declaration wins the shape")
 
-	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/1/properties/clone_url"
-	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"integer"}`)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Repository/allOf/1/properties/clone_url"),
+	const cloneKey = "openapi:conflicting-redeclaration/components/schemas/Repository/allOf/0/properties/clone_url"
+	assertKeptRaw(t, clone.Unmodeled, cloneKey, `{"type":"string","format":"uri"}`)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Repository/allOf/0/properties/clone_url"),
 		unmodeledEntry(t, clone.Unmodeled, cloneKey).Provenance.Pointer,
 		"the entry locates the losing declaration, not the merged property")
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/conflicting-redeclaration",
-			"/components/schemas/Repository/allOf/1/properties/clone_url"),
+			"/components/schemas/Repository/allOf/0/properties/clone_url"),
 		"and the conflict is still reported")
 
 	identified, ok := doc.Types[componentID("Identified")].(*ir.Model)
 	require.True(t, ok)
 	id, ok := propByWire(identified, "id")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/integer"), id.Type.Target)
+	assert.Equal(t, ir.TypeID("t/prim/string"), id.Type.Target)
 	// Held to the same check as the first: the Reason assertion above was not
 	// repeated here, so two cases in one fixture were not equally pinned.
 	assertKeptRaw(t, id.Unmodeled,
-		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/1/properties/id",
-		`{"type":["string","null"]}`)
+		"openapi:conflicting-redeclaration/components/schemas/Identified/allOf/0/properties/id",
+		`{"type":"integer"}`)
 
 	described, ok := doc.Types[componentID("Described")].(*ir.Model)
 	require.True(t, ok)
 	did, ok := propByWire(described, "id")
 	require.True(t, ok)
-	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Num: "1"}, did.Default, "the first declaration's default stands")
-	assert.Equal(t, "first", did.Docs.Description)
-	const describedPtr = "/components/schemas/Described/allOf/1/properties/id"
+	assert.Equal(t, &ir.Value{Kind: ir.ValueNumber, Num: "2"}, did.Default, "the later declaration's default stands")
+	assert.Equal(t, "second", did.Docs.Description)
+	const describedPtr = "/components/schemas/Described/allOf/0/properties/id"
 	assertKeptRaw(t, did.Unmodeled, "openapi:conflicting-redeclaration"+describedPtr,
-		`{"type":"integer","default":2,"title":"second title","description":"second",`+
-			`"externalDocs":{"url":"https://example.com/second"},"example":2}`)
+		`{"type":"integer","default":1,"title":"first title","description":"first",`+
+			`"externalDocs":{"url":"https://example.com/first"},"example":1}`)
 	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", describedPtr),
 		"agreeing types are not a conflict")
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo, ir.SeverityInfo},
@@ -380,9 +380,9 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	require.True(t, ok)
 	n, ok := propByWire(overlapping, "n")
 	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/prim/int32"), n.Type.Target, "the first declaration stands")
-	const overlapPtr = "/components/schemas/Overlapping/allOf/1/properties/n"
-	assertKeptRaw(t, n.Unmodeled, "openapi:conflicting-redeclaration"+overlapPtr, `{"type":"integer","format":"uint32"}`)
+	assert.Equal(t, ir.TypeID("t/prim/uint32"), n.Type.Target, "the later declaration stands")
+	const overlapPtr = "/components/schemas/Overlapping/allOf/0/properties/n"
+	assertKeptRaw(t, n.Unmodeled, "openapi:conflicting-redeclaration"+overlapPtr, `{"type":"integer","format":"int32"}`)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", overlapPtr),
 		"overlapping widths are reported as info")
 	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", overlapPtr), "and are no conflict")
@@ -692,12 +692,12 @@ func assertAllOfRedeclaredBounds(t *testing.T, doc *ir.Document, diags []ir.Diag
 	}
 
 	for _, tc := range []struct{ model, pattern, lost string }{
-		{"PatternsAThenB", "^a", "allOf/1"},
-		{"PatternsBThenA", "^b", "allOf/1"},
+		{"PatternsAThenB", "^b", "allOf/0"},
+		{"PatternsBThenA", "^a", "allOf/0"},
 	} {
 		p := narrowedProp(t, doc, tc.model)
 		lost := "/components/schemas/" + tc.model + "/" + tc.lost + "/properties/p"
-		assert.Equal(t, tc.pattern, p.Constraints.Pattern, "%s: the first stands", tc.model)
+		assert.Equal(t, tc.pattern, p.Constraints.Pattern, "%s: the later stands", tc.model)
 		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+lost, tc.model)
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/conflicting-redeclaration", lost), tc.model)
 	}

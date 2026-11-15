@@ -141,7 +141,7 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 // field to the redaction the declarations ask for. One a key asks for marks the
 // field in either order. A declared one does not, though its declaration lists
 // the marker for a promoted date the field drops with its deprecation, the
-// first declaration's being kept.
+// later declaration's being kept.
 func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 	t.Parallel()
 	const marker ir.Inferred = "extension-promotion"
@@ -156,7 +156,7 @@ func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 	}{
 		{"a key's redaction second", bare, keyed, marker},
 		{"a key's redaction first", keyed, bare, marker},
-		{"a declared redaction beside a dropped promoted date", deprecated, dated, ""},
+		{"a declared redaction beside a dropped promoted date", dated, deprecated, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -174,8 +174,8 @@ func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 
 func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Two branches describe the same field differently. The first declaration in
-	// source order wins the shape, but the dropped description is surfaced as an
+	// Two branches describe the same field differently. The later declaration in
+	// source order wins the description, and the dropped one is surfaced as an
 	// info diagnostic rather than vanishing silently.
 	spec := openapitest.ComponentSpec(`    Clashish:
       allOf:
@@ -191,8 +191,8 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	m, ok := doc.Types[componentID("Clashish")].(*ir.Model)
 	require.True(t, ok, "Clashish should be a model")
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
-	assert.Equal(t, "the first meaning", m.Properties[0].Docs.Description,
-		"the first declaration in source order wins the description")
+	assert.Equal(t, "a different meaning", m.Properties[0].Docs.Description,
+		"the later declaration in source order wins the description")
 	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a differing redeclared description is surfaced, not dropped silently")
 }
@@ -201,9 +201,9 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	t.Parallel()
 	// allOf is an intersection, so a field one branch types `string` and another
 	// types `integer` describes an unsatisfiable schema. Reconciliation keeps the
-	// first declaration's shape (as before) but must no longer swallow the
-	// conflict — it names the field and both branch sites so the author can find
-	// and fix them.
+	// later declaration's shape, where a spec writes the specialization, but must
+	// not swallow the conflict — it names the field and both branch sites so the
+	// author can find and fix them.
 	spec := openapitest.ComponentSpec(`    Conflictish:
       allOf:
         - type: object
@@ -218,8 +218,8 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	m, ok := doc.Types[componentID("Conflictish")].(*ir.Model)
 	require.True(t, ok, "Conflictish should be a model")
 	require.Len(t, m.Properties, 1, "id still reconciles to one property")
-	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target,
-		"the first declaration in source order still wins the shape")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target,
+		"the later declaration in source order wins the shape")
 
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the incompatible type redeclaration is diagnosed exactly once")
@@ -232,22 +232,22 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	// A diagnostic is not part of the document, so the losing declaration is
 	// also kept where a consumer reading the IR will reach it (GitHub #424).
 	lost, ok := m.Properties[0].Unmodeled["openapi:conflicting-redeclaration"+
-		"/components/schemas/Conflictish/allOf/1/properties/id"]
+		"/components/schemas/Conflictish/allOf/0/properties/id"]
 	require.True(t, ok,
 		"the discarded type is kept beside the winner; got %v", m.Properties[0].Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, lost.Reason)
-	assert.JSONEq(t, `{"type":"integer"}`, string(lost.Value),
-		"and it is the declaration the second branch wrote, not the one that won")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Conflictish/allOf/1/properties/id"), lost.Provenance.Pointer)
+	assert.JSONEq(t, `{"type":"string"}`, string(lost.Value),
+		"and it is the declaration the first branch wrote, not the one that won")
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Conflictish/allOf/0/properties/id"), lost.Provenance.Pointer)
 }
 
 // TestAllOf_OverlappingPrimitivesAreReportedNotConflicting pins that two
-// formats whose kinds share values draw one info at the redeclaration, instead
-// of the unsatisfiable-type warning, keep the first declaration's kind and keep
-// the redeclaration, in either branch order.
+// formats whose kinds share values draw one info at the declaration that loses,
+// instead of the unsatisfiable-type warning, keep the later declaration's kind
+// and keep the earlier one, in either branch order.
 func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 	t.Parallel()
-	const at = "/components/schemas/Overlapish/allOf/1/properties/n"
+	const at = "/components/schemas/Overlapish/allOf/0/properties/n"
 	for _, order := range [][2]string{{"int32", "uint32"}, {"uint32", "int32"}} {
 		t.Run(order[0]+" first", func(t *testing.T) {
 			t.Parallel()
@@ -269,11 +269,11 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 			m, ok := doc.Types[componentID("Overlapish")].(*ir.Model)
 			require.True(t, ok, "Overlapish should be a model")
 			require.Len(t, m.Properties, 1)
-			assert.Equal(t, ir.TypeID("t/prim/"+order[0]), m.Properties[0].Type.Target, "the first declaration's kind stays")
+			assert.Equal(t, ir.TypeID("t/prim/"+order[1]), m.Properties[0].Type.Target, "the later declaration's kind stays")
 
 			assert.Empty(t, conflictDiags(diags), "overlapping kinds are not an unsatisfiable type")
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
-				"overlap", "the overlap is reported at the redeclaration, as an info")
+				"overlap", "the overlap is reported at the declaration that lost, as an info")
 			var atProperty []ir.Diagnostic
 			for _, d := range diags {
 				if d.Provenance.Pointer == at {
@@ -282,7 +282,7 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 			}
 			assert.Len(t, atProperty, 1, "exactly one diagnostic at the property; got %v", atProperty)
 			assert.Contains(t, m.Properties[0].Unmodeled,
-				"openapi:conflicting-redeclaration"+at, "and the redeclaration is kept")
+				"openapi:conflicting-redeclaration"+at, "and that declaration is kept")
 		})
 	}
 }
@@ -343,18 +343,18 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
       allOf:
         - type: object
           properties:
-            id: {type: integer}
+            id: {$ref: '#/components/schemas/Str'}
         - type: object
           properties:
-            id: {$ref: '#/components/schemas/Str'}
+            id: {type: integer}
     Nothing:
       allOf:
         - type: object
           properties:
-            id: {type: integer}
+            id: false
         - type: object
           properties:
-            id: false
+            id: {type: integer}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -366,7 +366,7 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
 		m, ok := doc.Types[componentID(tc.model)].(*ir.Model)
 		require.True(t, ok, "%s should be a model", tc.model)
 		require.Len(t, m.Properties, 1)
-		key := "openapi:conflicting-redeclaration/components/schemas/" + tc.model + "/allOf/1/properties/id"
+		key := "openapi:conflicting-redeclaration/components/schemas/" + tc.model + "/allOf/0/properties/id"
 		lost, ok := m.Properties[0].Unmodeled[key]
 		require.True(t, ok, "%s keeps its losing declaration; got %v", tc.model, m.Properties[0].Unmodeled)
 		assert.JSONEq(t, tc.want, string(lost.Value))
@@ -392,9 +392,9 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 	m, ok := doc.Types[componentID("Boundish")].(*ir.Model)
 	require.True(t, ok, "Boundish should be a model")
 	require.Len(t, m.Properties, 1, "code reconciles to one property")
-	require.NotNil(t, m.Properties[0].Constraints, "the first declaration's constraints are kept")
-	assert.Equal(t, "^a$", m.Properties[0].Constraints.Pattern,
-		"the first declaration in source order still wins the constraint")
+	require.NotNil(t, m.Properties[0].Constraints, "the later declaration's constraints are kept")
+	assert.Equal(t, "^b$", m.Properties[0].Constraints.Pattern,
+		"the later declaration in source order wins the constraint")
 
 	conflicts := conflictDiags(diags)
 	require.Len(t, conflicts, 1, "the incompatible constraint redeclaration is diagnosed exactly once")
@@ -634,7 +634,7 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 			name:       "pattern",
 			a:          "{type: string, pattern: '^a$'}",
 			b:          "{type: string, pattern: '^b$'}",
-			wantDetail: `conflicting pattern ("^a$" and "^b$")`,
+			wantDetail: `conflicting pattern ("^b$" and "^a$")`,
 		},
 		{
 			name: "uuid vs date-time",
@@ -867,11 +867,11 @@ func TestAllOf_TypeConflictMessageNamesBothTypes(t *testing.T) {
 func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	t.Parallel()
 	// A property declared directly on the schema alongside allOf redeclares a
-	// field the inline branch also declares. The redeclaration's provenance
-	// pointer here is a plain "properties/id" path, never an "allOf/N" branch,
-	// so the message must not claim "allOf branches redeclare" — it must read
-	// correctly for a co-declared sibling property too (merge.PropIndex's
-	// MergeProperty folds both cases the same way; see its doc comment).
+	// field the inline branch also declares. The co-declared property is read
+	// after the allOf, as a schema's own properties are, so it wins the tie and
+	// the branch is reported, and the message must not claim "allOf branches
+	// redeclare" — it must read correctly for a co-declared sibling property too
+	// (merge.PropIndex's MergeProperty folds both cases the same way).
 	spec := openapitest.ComponentSpec(`    Along:
       type: object
       properties:
@@ -889,8 +889,9 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	assert.Contains(t, d.Message, `"id"`, "the diagnostic names the conflicting field")
 	assert.NotContains(t, d.Message, "allOf branches",
 		"the redeclaration site is a co-declared property, not an allOf branch")
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/properties/id"), d.Provenance.Pointer,
-		"the diagnostic's own site is the co-declared property, not an allOf branch")
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/allOf/0/properties/id"), d.Provenance.Pointer,
+		"the diagnostic sits at the branch the co-declared property overrides")
+	assert.Contains(t, d.Message, "/components/schemas/Along/properties/id", "and names the property kept")
 }
 
 // redeclaredModelsSpec declares Meeting, then T and U, which compose it with an
@@ -1274,7 +1275,7 @@ func TestAllOf_RelatedStructuresAreNotCalledAConflict(t *testing.T) {
 		require.Len(t, merged, 1, tc.name)
 		assert.Contains(t, merged[0].Message, "that the merge does not compare", tc.name)
 		assert.Contains(t, propertyOf(t, doc, "T", "v").Unmodeled,
-			"openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v", tc.name)
+			"openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v", tc.name)
 	}
 }
 
@@ -1304,9 +1305,9 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
 			require.True(t, ok)
 			x, ok := openapitest.PropsByWire(m.Properties)["x"]
 			require.True(t, ok)
-			assert.Contains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x",
-				"the second declaration is kept")
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+			assert.Contains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x",
+				"the earlier declaration is kept")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/0/properties/x"),
 				"%+v", diags)
 		})
 	}
@@ -1323,19 +1324,19 @@ func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
 	const copyUnderAnID = `    E: %[1]s
     S:
       allOf:
-        - {type: object, properties: {x: {$ref: '#/components/schemas/E'}}}
         - $id: 'https://ex.test/b/w.json'
           $defs: {b: {$anchor: n, type: string, minLength: 5}}
           type: object
           properties: {x: %[1]s}
+        - {type: object, properties: {x: {$ref: '#/components/schemas/E'}}}
 `
 	const namedInAnotherResource = `    C:
       $id: 'https://ex.test/b/c.json'
       $defs: {b: {$anchor: n, type: string, minLength: 5}, e: %[1]s}
     S:
       allOf:
-        - {type: object, properties: {x: {$ref: 'https://ex.test/b/c.json#/$defs/e'}}}
         - {type: object, properties: {x: %[1]s}}
+        - {type: object, properties: {x: {$ref: 'https://ex.test/b/c.json#/$defs/e'}}}
 `
 	for _, tc := range []struct {
 		name, schemas, not string
@@ -1355,10 +1356,10 @@ func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
 		got, ok := openapitest.PropsByWire(m.Properties)["x"]
 		require.True(t, ok, tc.name)
 		assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", tc.name, tc.not)
-		_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x"]
+		_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/x"]
 		assert.Equal(t, tc.kept, kept, "%s %s", tc.name, tc.not)
 		assert.Equal(t, tc.kept,
-			openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+			openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/0/properties/x"),
 			"%s %s", tc.name, tc.not)
 	}
 }
@@ -1435,7 +1436,7 @@ func TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, m, n, "{$ref: '#/components/schemas/Sampled'}")))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Len(t, diags, 2, "an alias holding examples keeps the models apart, each drop reported")
-	assert.Equal(t, componentID("M"), propertyOf(t, doc, "T", "f").Type.Target)
+	assert.Equal(t, componentID("Sampled"), propertyOf(t, doc, "T", "f").Type.Target, "a tie goes to the later")
 }
 
 // TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind pins GitHub #1391 in
@@ -1495,7 +1496,7 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 		{ref("Loop"), diag.ConflictingRedecl},
 		{ref("Sampled"), diag.DegradedConstruct},
 	} {
-		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref("Int"), tc.other)))
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, tc.other, ref("Int"))))
 		openapitest.RequireNoErrorDiags(t, diags)
 		require.Len(t, withCode(diags, tc.code), 1, tc.other)
 		assert.Equal(t, componentID("Int"), propertyOf(t, doc, "T", "f").Type.Target, tc.other)
@@ -1525,8 +1526,8 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
     Anchored: {$dynamicAnchor: dyn, properties: {a: {type: string}}}
     T:
       allOf:
-        - {properties: {f: {type: string}}}
         - {properties: {f: {allOf: [%s], properties: {b: {type: string}}}}}
+        - {properties: {f: {type: string}}}
 `
 	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
 	compile := func(entry string) (ir.Property, []ir.Diagnostic) {
@@ -1599,7 +1600,7 @@ func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
 			p, diags := compile(order[0], order[1])
 			require.Len(t, diags, 1, "%v", order)
 			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
-			want := []ir.TypeID{"t/prim/string", "t/anon/components/schemas/T/allOf/0/properties/f"}[i]
+			want := []ir.TypeID{"t/anon/components/schemas/T/allOf/1/properties/f", "t/prim/string"}[i]
 			assert.Equal(t, want, p.Type.Target, "%v", order)
 			assert.Len(t, p.Unmodeled, 1, "the other is kept: %v", order)
 		}
@@ -1625,12 +1626,12 @@ components:
     Props: {properties: {a: {type: string}}}
     T:
       allOf:
-        - {properties: {f: {type: integer}}}
         - {properties: {f: {$ref: 'other.yaml#/components/schemas/Props'}}}
+        - {properties: {f: {type: integer}}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Len(t, withCode(diags, diag.ConflictingRedecl), 1, "the other document's object conflicts with an integer")
-	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "T", "f").Type.Target)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "T", "f").Type.Target, "the later declaration wins")
 }
 
 // TestAllOf_ModelsAlikeAreOneType pins GitHub #1083: a field declared as a

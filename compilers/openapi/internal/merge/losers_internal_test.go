@@ -27,29 +27,29 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/int": &ir.Primitive{ID: "t/int", Prim: ir.PrimInt32},
 	})
-	dst := ir.Property{
-		WireName:   "id",
-		Type:       ir.TypeRef{Target: "t/str"},
-		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/0/properties/id"},
-	}
-	src := ir.Property{
+	loser := ir.Property{
 		WireName:   "id",
 		Type:       ir.TypeRef{Target: "t/int", Nullable: true},
+		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/0/properties/id"},
+	}
+	winner := ir.Property{
+		WireName:   "id",
+		Type:       ir.TypeRef{Target: "t/str"},
 		Provenance: ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
 	}
 
-	dst = foldTwo(g, dst, src, written(`{"type":"integer","nullable":true}`))
+	dst := g.fold([]declaration{{prop: loser, source: written(`{"type":"integer","nullable":true}`)}, {prop: winner, source: unread(t)}})
 
 	require.Len(t, *recorded, 1, "the conflict is still diagnosed")
-	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the first declaration still wins the shape")
+	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the later declaration wins the shape")
 
-	key := "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/id"
+	key := "openapi:conflicting-redeclaration/components/schemas/S/allOf/0/properties/id"
 	entry, ok := dst.Unmodeled[key]
 	require.True(t, ok, "the losing declaration is kept under a pointer-namespaced key; got %v", dst.Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"integer","nullable":true}`, string(entry.Value),
 		"the declaration is kept as the document wrote it, nullability included")
-	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/1/properties/id"},
+	assert.Equal(t, ir.Provenance{Source: 2, Pointer: "/components/schemas/S/allOf/0/properties/id"},
 		entry.Provenance, "the entry locates the losing declaration, not the merged property")
 }
 
@@ -68,22 +68,22 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	m := &ir.Model{}
 	idx, settle := indexOver(m, g)
 
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, unread(t), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, written(`{"type":"string"}`), "")
 	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`), "")
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, written(`{"type":"boolean"}`), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, unread(t), "")
 	settle()
 
 	require.Len(t, m.Properties, 1, "three declarations still reconcile to one property")
 	assert.Equal(t, ir.Unmodeled{
+		"openapi:conflicting-redeclaration/a": {
+			Reason:     ir.ReasonDegradedLowering,
+			Value:      ir.RawValue(`{"type":"string"}`),
+			Provenance: ir.Provenance{Pointer: "/a"},
+		},
 		"openapi:conflicting-redeclaration/b": {
 			Reason:     ir.ReasonDegradedLowering,
 			Value:      ir.RawValue(`{"type":"integer"}`),
 			Provenance: ir.Provenance{Pointer: "/b"},
-		},
-		"openapi:conflicting-redeclaration/c": {
-			Reason:     ir.ReasonDegradedLowering,
-			Value:      ir.RawValue(`{"type":"boolean"}`),
-			Provenance: ir.Provenance{Pointer: "/c"},
 		},
 	}, m.Properties[0].Unmodeled)
 }
@@ -91,7 +91,7 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 // TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing pins the side the
 // entry must not appear on: agreeing declarations discard nothing, so an entry
 // would be noise. A keyword no one value states is the other side: the merge
-// keeps the first declaration's and drops the redeclaration's, which is a loss
+// keeps the later declaration's and drops the earlier one's, which is a loss
 // like any other, and the entry records what the merge dropped rather than
 // deciding what it should have kept.
 func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
@@ -106,23 +106,21 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	assert.Empty(t, *recorded, "agreeing declarations are not a conflict")
 	assert.Empty(t, agreeing.Unmodeled, "and nothing was discarded to keep")
 
-	bounded := ir.Property{
-		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
-		Constraints: &ir.Constraints{Pattern: "^a$"},
-	}
-	bounded = foldTwo(g, bounded, ir.Property{
-		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
-		Constraints: &ir.Constraints{Pattern: "^b$"},
-		Provenance:  ptrAt("/b"),
-	}, written(`{"type":"string","pattern":"^b$"}`))
+	bounded := g.fold([]declaration{
+		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "t/str"}, Constraints: &ir.Constraints{Pattern: "^a$"},
+			Provenance: ptrAt("/a")}, source: written(`{"type":"string","pattern":"^a$"}`)},
+		{prop: ir.Property{WireName: "code", Type: ir.TypeRef{Target: "t/str"}, Constraints: &ir.Constraints{Pattern: "^b$"},
+			Provenance: ptrAt("/b")}, source: unread(t)},
+	})
 
 	require.Len(t, *recorded, 1, "the constraint conflict is still diagnosed")
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
+	assert.Equal(t, "^b$", bounded.Constraints.Pattern)
 	assert.Equal(t, ir.Unmodeled{
-		"openapi:conflicting-redeclaration/b": {
+		"openapi:conflicting-redeclaration/a": {
 			Reason:     ir.ReasonDegradedLowering,
-			Value:      ir.RawValue(`{"type":"string","pattern":"^b$"}`),
-			Provenance: ir.Provenance{Pointer: "/b"},
+			Value:      ir.RawValue(`{"type":"string","pattern":"^a$"}`),
+			Provenance: ir.Provenance{Pointer: "/a"},
 		},
 	}, bounded.Unmodeled, "the keyword the merge dropped is kept with the declaration that wrote it")
 }

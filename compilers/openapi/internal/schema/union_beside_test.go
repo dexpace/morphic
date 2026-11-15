@@ -100,8 +100,8 @@ func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T)
 // (docs/compilers/openapi.md#union-beside-structure): the branch lowers at its
 // own pointer, which an outside $ref to it finds too, and each variant composes
 // the body with that node, carried as written, a branch admitting no object and
-// one redeclaring a property of the body among them. A bare null branch still
-// declines.
+// one redeclaring a property of the body among them, whose variant takes the
+// narrower declaration. A bare null branch still declines.
 func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Shape:
@@ -130,8 +130,17 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 		v, ok := doc.Types[shape.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d is a composed model", i)
 		require.Len(t, v.Properties, 2, "the body rides on variant %d", i)
-		assert.Equal(t, ir.PropID("p/openapi/components/schemas/Shape/properties/kind"), v.Properties[1].ID,
-			"under the one identity the body declares it with")
+		kind := v.Properties[1]
+		if i == 1 {
+			// The branch pins kind, narrower than the body's string, so the
+			// variant declares the member as its branch does, under an identity
+			// of its own (docs/compilers/openapi.md#allof-redeclared-property).
+			assert.Equal(t, ir.PropID("p/composed/components/schemas/Shape/oneOf/1/allOf/properties/kind"), kind.ID)
+			assert.Equal(t, ir.TypeID("t/anon/components/schemas/Shape/oneOf/1/properties/kind"), kind.Type.Target)
+		} else {
+			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Shape/properties/kind"), kind.ID,
+				"under the one identity the body declares it with")
+		}
 		require.NotNil(t, v.Base)
 		assert.Equal(t, branch, v.Base.Target, "variant %d conjoins its branch", i)
 	}
