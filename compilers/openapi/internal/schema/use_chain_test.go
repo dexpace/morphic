@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"strings"
@@ -357,4 +358,38 @@ func findingsOf(diags []ir.Diagnostic, code string) []string {
 // countCode counts the diagnostics of code at pointer.
 func countCode(diags []ir.Diagnostic, code, pointer string) int {
 	return len(diagsAtPointer(diags, code, pointer))
+}
+
+// TestUseDefault_ADeclarationsUnheldDefaultReachesNoCarrier holds the info a
+// declaration's default draws to what its carriers take: one no ir.Value holds
+// is kept and applied to no carrier, as the warning at the same default says,
+// and one that converts reaches each referencing carrier.
+func TestUseDefault_ADeclarationsUnheldDefaultReachesNoCarrier(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    K: {type: string, default: !acme x}
+    G: {type: string, default: g}
+    H:
+      type: object
+      properties:
+        k: {$ref: '#/components/schemas/K'}
+        g: {$ref: '#/components/schemas/G'}
+`)
+	for _, tc := range []struct{ name, reach string }{
+		{"K", "applied to no carrier, as no IR value holds it"},
+		{"G", "applied to a referencing property, header or parameter wherever that carrier has a field for it"},
+	} {
+		at := jsontext.Pointer("/components/schemas/" + tc.name + "/default")
+		i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
+			return d.Code == diag.DegradedConstruct && d.Provenance.Pointer == at
+		})
+		require.GreaterOrEqual(t, i, 0, "%s keeps its default with an info", tc.name)
+		assert.True(t, strings.HasSuffix(diags[i].Message, tc.reach), "%s: %s", tc.name, diags[i].Message)
+	}
+	assert.Nil(t, propertyOf(t, doc, "H", "k").Default)
+	assert.NotNil(t, propertyOf(t, doc, "H", "g").Default)
 }

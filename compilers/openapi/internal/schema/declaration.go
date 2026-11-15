@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -285,7 +286,8 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 // it: `default` at every carrier, readOnly/writeOnly at a property or header
 // but not at a parameter, which has no Visibility field. So a $ref'd
 // declaration's readOnly reaches a referencing parameter only here, on the
-// declaration's own node.
+// declaration's own node. A default no ir.Value holds reaches no carrier
+// (residueReach).
 func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
@@ -296,8 +298,19 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointe
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
 			"%s on a type declaration binds a use of the type, not the type; it is kept "+
-				"verbatim under Unmodeled and applied to a referencing property, header or "+
-				"parameter wherever that carrier has a field for it", keyword))
+				"verbatim under Unmodeled and %s", keyword, residueReach(s, keyword)))
 	}
 	return diags
+}
+
+// residueReach says where the residue keyword s writes reaches: each
+// referencing carrier with a field for it, but for a default no ir.Value
+// holds, which no carrier takes (Use.Default, which reports it).
+func residueReach(s *oas3.Schema, keyword string) string {
+	if keyword == "default" {
+		if _, err := value.FromNode(s.GetDefault()); err != nil {
+			return "applied to no carrier, as no IR value holds it"
+		}
+	}
+	return "applied to a referencing property, header or parameter wherever that carrier has a field for it"
 }
