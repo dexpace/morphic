@@ -322,8 +322,9 @@ func barredFor(key string, err error, reach compilers.AddressSpace) error {
 	case errors.As(err, &past):
 		return barred(key, beyondReach(past.Space, reach))
 	case errors.Is(err, compilers.ErrAddressSpace):
-		// A reader naming no space refused one past reach: the next.
-		return barred(key, beyondReach(reach+1, reach))
+		// A reader naming no space refused one past reach, which says no more.
+		return barred(key, fmt.Sprintf("it is at an address more private than a reference in a document "+
+			"read from a %s one reaches", spaceNamed(reach)))
 	case errors.Is(err, compilers.ErrUnboundedRead):
 		return barred(key, "the reader cannot bound the addresses its read dials, "+
 			"which a reference in a document read over http or https needs")

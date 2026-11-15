@@ -127,7 +127,7 @@ func TestExternal_AFetchedDocumentReadsNoMorePrivateAddressThanItsOwn(t *testing
 	require.NoError(t, err, "a private document reaches a public one read before")
 
 	_, err = e.document(t.Context(), reachLocal, reachPriv)
-	barredWith(t, err, "it is at a loopback address, which a reference in a document read from a private one does not reach")
+	barredWith(t, err, "it is at an address more private than a reference in a document read from a private one reaches")
 	_, err = e.document(t.Context(), reachUnhook, reachPub)
 	barredWith(t, err, "the reader cannot bound the addresses its read dials")
 	_, err = e.document(t.Context(), reachUnhook, "spec.yaml")

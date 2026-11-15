@@ -35,7 +35,8 @@ type fetchedRead struct {
 
 // fetchedReader is a DocumentReader that serves URLs from a map, as a
 // network would, with no network: it fails a request whose Reach is stated
-// and lies below a document's space with compilers.ErrAddressSpace, and
+// and lies below a document's space with a compilers.AddressSpaceError
+// naming that space, as the engine's reader does, and
 // records every request it serves and every one it refuses. This file is the
 // one place the test reader meets the reader contract.
 type fetchedReader struct {
@@ -73,7 +74,7 @@ func (f *fetchedReader) ReadDocument(ctx context.Context, req compilers.Document
 		return compilers.DocumentRead{}, compilers.ErrUnboundedRead
 	case req.Reach != compilers.SpaceUnstated && doc.space > req.Reach:
 		f.refused = append(f.refused, read)
-		return compilers.DocumentRead{}, compilers.ErrAddressSpace
+		return compilers.DocumentRead{}, &compilers.AddressSpaceError{Address: req.Location, Space: doc.space}
 	}
 	f.served = append(f.served, read)
 	switch {
