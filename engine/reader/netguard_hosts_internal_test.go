@@ -321,7 +321,7 @@ func TestDisk_AReadThroughAProxyRanksWhatTheProxyWouldDial(t *testing.T) {
 
 	got, err = d.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://gone.example/x"})
 	require.NoError(t, err, "an unbounded read needs no answer of the resolver")
-	assert.Equal(t, compilers.SpacePublic, got.Space)
+	assert.Equal(t, compilers.DocumentRead{Data: []byte("proxied")}, got, "and states neither space nor bound")
 }
 
 // TestDisk_AHostNetHTTPMapsIsJudgedWhereItIsDialled pins the direct path for

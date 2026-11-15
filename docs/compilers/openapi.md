@@ -879,7 +879,8 @@ cannot bound, is refused to such a reference too. What the document's own refere
 space its first read stated (`compilers.DocumentRead.Space`), public where it stated none. Each refusal is that reference's alone: another naming
 the document, from a file or the source, reads it. A source located at a URL is bounded as a public
 document. Through an HTTP proxy the host is judged instead, and the proxy resolves a name again,
-which the compile cannot see. The read stays inside the directory the source lies in, symbolic
+which the compile cannot see: a document read through one by a name states no space, so its own
+references reach as a public document's do. The read stays inside the directory the source lies in, symbolic
 links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
 reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
 or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged

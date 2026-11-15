@@ -76,7 +76,8 @@ cannot judge with `compilers.ErrUnboundedRead`, so a document read from the netw
 compile dial no address more private than its own. A read keeps the route its
 transport chose; through a proxy a bounded read is judged by the host the URL writes and every
 address the reader's own resolver gives a name, and the proxy resolves the name again and may get
-another answer, which the compile cannot see. A reader of files may also
+another answer, which the compile cannot see. So a read a proxy dialled by a name states no space,
+and a bounded one states the bound it judged. A reader of files may also
 say where a directory lies, its links resolved (`compilers.DirectoryLocator`), so a compile names
 one file reached through two spellings of its directory as one document.
 

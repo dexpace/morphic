@@ -41,14 +41,15 @@ const (
 // judged at the address the kernel is about to connect to, so a name that
 // resolves anew at each dial gains nothing, and the space of the address that
 // answered is noted. Through a proxy the dial is the proxy's, so the host the
-// URL writes is judged instead (hostSpace).
+// URL writes is ranked instead (proxiedRanks).
 type guard struct {
 	reach    compilers.AddressSpace
 	classify func(netip.AddrPort) compilers.AddressSpace
 	resolver *net.Resolver
-	// space is the space of the last address dialled, or of the last host
-	// sent through a proxy.
-	space atomic.Uint32
+	// space and bound are what the last hop states (compilers.DocumentRead):
+	// the space of the address it dialled, both; or, through a proxy, what
+	// proxiedRanks gives its host.
+	space, bound atomic.Uint32
 	// proxied says the request being sent goes through a proxy, whose dial is
 	// not the request's address.
 	proxied atomic.Bool
@@ -111,17 +112,18 @@ func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, er
 		return conn, nil
 	}
 	if tcp, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-		g.space.Store(uint32(g.classify(tcp.AddrPort())))
+		space := uint32(g.classify(tcp.AddrPort()))
+		g.space.Store(space)
+		g.bound.Store(space)
 	}
 	return conn, nil
 }
 
 // proxy wraps a transport's proxy choice, which it never changes: a request
 // keeps the route the caller's transport chose. Through a proxy the dial is
-// the proxy's, out of the guard's sight, so a read bounded by a reach has its
-// host judged instead (proxiedSpace), and one past the reach is refused
-// before anything is dialled. An unbounded read states the space its host's
-// text ranks as (hostSpace).
+// the proxy's, out of the guard's sight, so the host the URL writes is ranked
+// instead (proxiedRanks), and a read bounded by a reach whose host lies past
+// it is refused before anything is dialled.
 func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		via, err := choose(req)
@@ -129,20 +131,36 @@ func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.R
 			g.proxied.Store(false)
 			return via, err
 		}
-		host := req.URL.Hostname()
-		space := hostSpace(host)
-		if g.reach != compilers.SpaceUnstated {
-			if space, err = g.proxiedSpace(req.Context(), host); err != nil {
-				return nil, err
-			}
-			if err := g.admits(host, space); err != nil {
-				return nil, err
-			}
+		space, bound, err := g.proxiedRanks(req.Context(), req.URL.Hostname())
+		if err != nil {
+			return nil, err
 		}
 		g.proxied.Store(true)
 		g.space.Store(uint32(space))
+		g.bound.Store(uint32(bound))
 		return via, nil
 	}
+}
+
+// proxiedRanks returns what a read a proxy dials states of host, or the
+// refusal of a read bounded by a reach. An address netip reads is what the
+// proxy dials, so its space is both. Of any other host the dialled address is
+// out of sight, so no space is stated, the rank of a referrer whose host's
+// owner could make this machine's resolver lie; a bounded read states the
+// bound proxiedSpace judges, and an unbounded one, which resolves nothing,
+// none.
+func (g *guard) proxiedRanks(ctx context.Context, host string) (space, bound compilers.AddressSpace, err error) {
+	if addr, err := netip.ParseAddr(strings.ToLower(strings.TrimRight(host, "."))); err == nil {
+		space := spaceOf(addr)
+		return space, space, g.admits(host, space)
+	}
+	if g.reach == compilers.SpaceUnstated {
+		return compilers.SpaceUnstated, compilers.SpaceUnstated, nil
+	}
+	if bound, err = g.proxiedSpace(ctx, host); err != nil {
+		return compilers.SpaceUnstated, compilers.SpaceUnstated, err
+	}
+	return compilers.SpaceUnstated, bound, g.admits(host, bound)
 }
 
 // proxiedSpace is the space a bounded read sent through a proxy is judged
