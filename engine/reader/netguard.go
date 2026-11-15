@@ -27,8 +27,9 @@ const MaxRedirects = 10
 
 // fetchTimeout bounds one read through the default client, which sets none
 // of its own: a server that accepts and never answers fails the read once it
-// passes, where it would stall the compile. A caller's own Client keeps its
-// own Timeout.
+// passes, body included, where it would stall the compile. A caller's own
+// Client keeps its own Timeout, and no deadline bounds a compile's reads
+// together (GitHub #1036).
 const fetchTimeout = 30 * time.Second
 
 // dialTimeout and dialKeepAlive are what http.DefaultTransport dials with.
@@ -101,7 +102,10 @@ func (g *guard) failed(err error) error {
 }
 
 // dial connects as a dialer under control does, and notes the space of the
-// address that answered.
+// address that answered. A name resolving to addresses in several spaces is
+// read where the dialler connects first, the ones a bounded read refuses
+// passed over, so what an unbounded and a bounded read of it state, and the
+// bytes each gets, can differ.
 func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, error) {
 	d := &net.Dialer{Timeout: dialTimeout, KeepAlive: dialKeepAlive, ControlContext: g.control, Resolver: g.resolver}
 	conn, err := d.DialContext(ctx, network, address)
@@ -211,8 +215,9 @@ func isLDH(label string) bool {
 // resolvedSpace is the most private space among the addresses the guard's
 // resolver gives the name host, which a read through a proxy is judged by. A
 // name that resolves to none cannot be judged, so a bounded read of it fails
-// with ErrUnboundedRead. The proxy resolves the name again, and may be given
-// another answer, which the guard cannot see.
+// with ErrUnboundedRead. The proxy resolves the name again, and what it then
+// dials is the proxy's to restrict: an address this machine's resolver did
+// not give is out of the guard's sight (GitHub #1947).
 func (g *guard) resolvedSpace(ctx context.Context, host string) (compilers.AddressSpace, error) {
 	addrs, err := g.resolver.LookupNetIP(ctx, "ip", host)
 	if err != nil || len(addrs) == 0 {

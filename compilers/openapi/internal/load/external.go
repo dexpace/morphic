@@ -206,7 +206,9 @@ func (e external) documentID(key string) string {
 // confined to Options.Within, held to the byte budget and dialling no
 // address more private than reach, and prepares it under key, the spelling
 // that asked for it. A refusal names the document by id, which no spelling
-// asking first changes.
+// asking first changes. A redirected document's references resolve against
+// location while its space is the address that answered, which bounds what
+// they reach, so none reaches further (GitHub #1943).
 func (e external) fetch(ctx context.Context, id, key, location string, reach compilers.AddressSpace) answer {
 	got, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
 		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes), Reach: reach,
