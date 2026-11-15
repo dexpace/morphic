@@ -142,10 +142,9 @@ const (
 // annotation.EntryKey("encoding", key), with one info each, which why completes
 // (docs/compilers/openapi.md#multipart-encoding). Where the walk decides the
 // key names no property it draws a warning besides (unknownEncodingKey). Such
-// an entry, a file body's and one under a media type that is neither multipart
-// nor form have no effect, so they are out of scope; one the walk cannot
-// decide, as a catch-all may take its key, has no IR home. An entry that is no
-// object is skipped, since load reports it.
+// an entry, and every entry of a body with no parts, has no effect, so it is
+// out of scope; one the walk cannot decide, as a catch-all may take its key,
+// has no IR home. An entry that is no object is skipped, since load reports it.
 func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(w.parts))
 	for _, part := range w.parts {
