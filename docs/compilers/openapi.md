@@ -967,8 +967,8 @@ document part names a document as a schema `$ref`'s does, against the document w
 `$id` rebases. Its fragment is empty, naming that document's root, or a JSON pointer read from the
 root as RFC 6901 reads one, a token holding any character: a pointer ending in `/` names a member
 whose key is empty, and a plain name, or a fragment holding a second `#`, names no object. A mapping
-at a reference object's position is a reference where it holds a string `$ref`, as the document's
-JSON spells it, so a `$ref` a `<<` merges in makes one. Nothing written beside its `$ref` is read, a
+at a reference object's position is a reference where it holds a `$ref` that names something
+(below), as the document's JSON spells it, so a `$ref` a `<<` merges in makes one. Nothing written beside its `$ref` is read, a
 path item's fields aside ([`path-item-ref-fields`](#path-item-ref-fields)), as OpenAPI says "any
 properties added SHALL be ignored": a `$ref` there is no reference and draws no finding. It lands on
 an object of its own kind: a position the source's grammar reads as another kind, a schema, a map of
@@ -1109,17 +1109,19 @@ reports worded with the keyword it is written under. A chain of references that 
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
   `openapi/validation`
 
-A Reference Object whose `$ref` is no string, a null, a list, a mapping or a scalar tagged outside
-YAML 1.2's JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names
-nothing: the entry it stands in is read as left out, its
-other keys with it, and the rule table's error at the `$ref` is the one report of it; a component
-kept verbatim shows it as written ([`unreferenced-components`](#unreferenced-components)). The parser's
+A Reference Object whose `$ref` is a null, a list, a mapping or a scalar tagged outside YAML 1.2's
+JSON schema ruleset, written by the mapping or merged into it by a `<<` key, names nothing: the
+entry it stands in is read as left out, its other keys with it, and the rule table's error at the
+`$ref` is the one report of it; a component kept verbatim shows it as written
+([`unreferenced-components`](#unreferenced-components)). A `$ref` written as a number or a boolean
+is read as the text it spells, as such a value is wherever a string belongs, beside the rule table's
+warning ([`validation`](#validation)), so `$ref: 5` names the file `5`. The parser's
 model faults building such an object, and a 3.2 `additionalOperations` entry that is no mapping
 ([`nil-populate-panic`](../parser-library.md#nil-populate-panic)), so the load phase sets each
 aside for the model's builds and puts it back before anything else reads the tree, in the source
 and in what a reference reaches outside its model alike. A Path Item's
-`$ref` is the item's own field: one that is no string is read as left out, and the item as what
-else it writes.
+`$ref` is the item's own field, read the same way: one that names nothing is read as left out, and
+the item as what else it writes.
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestCompile_AFetchedDocumentMayNotReachAMorePrivateAddress`,
   `e2e.TestCompile_AnAddressOneDocumentCannotReachIsStillReadForAnother`,
@@ -1442,11 +1444,11 @@ at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) rea
 parser does not model; `components/schemas` and `components/securitySchemes` are lowered
 unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
 entry is kept under its own name, and an entry whose key is no scalar is left out
-([`validation`](#validation) reports the key). An entry whose `$ref` is no string, which every
-reader takes for the entry left out ([`references`](#references)), is kept as the source wrote it,
-beside the rule table's error at the `$ref`. A key an entry writes that its object does not define
-is reported all the same, by the rule table ([`unknown-keys`](#unknown-keys)), and rides inside the
-kept entry. Where the components merge
+([`validation`](#validation) reports the key). An entry whose `$ref` names nothing, a null or a
+list among them, which every reader takes for the entry left out ([`references`](#references)), is
+kept as the source wrote it, beside the rule table's error at the `$ref`. A key an entry writes that
+its object does not define is reported all the same, by the rule table
+([`unknown-keys`](#unknown-keys)), and rides inside the kept entry. Where the components merge
 through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
 an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
 kept.
@@ -6177,8 +6179,9 @@ requirement names it, recording its pointer and keeping what it wrote: its `desc
 verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
 `openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
 A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error, but a
-`$ref` that is no string names nothing, and the entry is read as left out. An entry written as no
-object holds no field to keep. A `security` entry written as no object names
+`$ref` that names nothing, a null or a list among them ([`references`](#references)), leaves the
+entry read as left out. An entry written as no object holds no field to keep. A `security` entry
+written as no object names
 nothing, and so does one with no member whose `<<`, or a `<<` of a mapping it merges at any depth,
 names no mapping, which merges nothing ([`merge-keys`](../parser-library.md#merge-keys)): each
 lowers to no option, never the empty one, which would grant access the document never wrote. A list
