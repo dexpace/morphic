@@ -351,22 +351,30 @@ func TestMemory_ConcurrentReadsAreSafe(t *testing.T) {
 }
 
 // TestMemory_AHeldURLStatesTheSpaceItsHostNames pins what a held document's
-// read states: the space its URL's host names, as what the caller hands for
-// that URL, and none for a path, which no address is dialled for.
+// read states: the space its URL's host says as the guard reads it, a name
+// public, as what the caller hands for that URL, at every reach, as Memory
+// dials nothing, and none for a path, which no address is dialled for.
 func TestMemory_AHeldURLStatesTheSpaceItsHostNames(t *testing.T) {
 	t.Parallel()
 	m := newMemory(t, []compilers.Source{
 		{Path: "https://pub.example/a.yaml", Data: []byte("a")},
 		{Path: "http://10.0.0.5/b.yaml", Data: []byte("b")},
 		{Path: "specs/c.yaml", Data: []byte("c")},
+		{Path: "http://1.1/d.yaml", Data: []byte("d")},
+		{Path: "http://a_b.example/e.yaml", Data: []byte("e")},
+		{Path: "http://intranet.invalid/f.yaml", Data: []byte("f")},
 	})
 	for location, want := range map[string]compilers.AddressSpace{
-		"https://pub.example/a.yaml": compilers.SpacePublic,
-		"http://10.0.0.5/b.yaml":     compilers.SpacePrivate,
-		"specs/c.yaml":               compilers.SpaceUnstated,
+		"https://pub.example/a.yaml":     compilers.SpacePublic,
+		"http://10.0.0.5/b.yaml":         compilers.SpacePrivate,
+		"specs/c.yaml":                   compilers.SpaceUnstated,
+		"http://1.1/d.yaml":              compilers.SpaceLocal,
+		"http://a_b.example/e.yaml":      compilers.SpaceLocal,
+		"http://intranet.invalid/f.yaml": compilers.SpacePublic,
 	} {
-		got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location})
+		got, err := m.ReadDocument(t.Context(), compilers.DocumentRequest{Location: location, Reach: compilers.SpacePublic})
 		require.NoError(t, err, location)
 		assert.Equal(t, want, got.Space, location)
+		assert.Equal(t, want, got.Bound, location)
 	}
 }

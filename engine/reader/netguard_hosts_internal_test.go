@@ -253,17 +253,19 @@ func TestDisk_AStalledReadEndsAtItsDeadline(t *testing.T) {
 	assert.Less(t, time.Since(start), 10*time.Second)
 }
 
-// TestHostSpace_ReadsANumberNoAddressSpellsAsLocal pins the spellings a URL
-// parser takes for an IPv4 address and reads as none, and the IPv4 address
-// NAT64's local-use prefix carries.
-func TestHostSpace_ReadsANumberNoAddressSpellsAsLocal(t *testing.T) {
+// TestTextSpace_ReadsANumberNoAddressSpellsAsLocal pins the spellings a URL
+// parser takes for an IPv4 address and reads as none, a label that only looks
+// hexadecimal, which a DNS name holds, and the IPv4 address NAT64's local-use
+// prefix carries.
+func TestTextSpace_ReadsANumberNoAddressSpellsAsLocal(t *testing.T) {
 	t.Parallel()
 	for _, host := range []string{"0x", "1.2.3.4.5", "1.2.3.256", "1.09", "a.0x1g"} {
 		want := compilers.SpaceLocal
 		if host == "a.0x1g" {
-			want = compilers.SpacePublic
+			want = compilers.SpaceUnstated
 		}
-		assert.Equal(t, want, hostSpace(host), host)
+		got, _ := textSpace(host)
+		assert.Equal(t, want, got, host)
 	}
 	assert.Equal(t, compilers.SpaceLocal, spaceOf(netip.MustParseAddr("64:ff9b:1:7f00:0:100::")))
 	assert.Equal(t, compilers.SpacePrivate, spaceOf(netip.MustParseAddr("::7f00:1")), "IETF-reserved space")

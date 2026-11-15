@@ -226,19 +226,24 @@ func TestDisk_AReadThroughAProxyIsJudgedByTheHostTheURLWrites(t *testing.T) {
 	assert.Equal(t, compilers.SpacePublic, got.Bound, "a name resolving to public addresses alone is bounded there")
 }
 
-// TestHostSpace_ReadsEverySpellingOfAnAddressAURLParserTakes pins the table a
-// document Memory holds at a URL is ranked by.
-func TestHostSpace_ReadsEverySpellingOfAnAddressAURLParserTakes(t *testing.T) {
+// TestTextSpace_ReadsAHostAsTheGuardDoes pins the guard's reading of a
+// host's text, which a proxied read and a document Memory holds at a URL are
+// both ranked by: an address as that address, a number spelled as no
+// canonical literal in any base, a host no DNS name spells and localhost as
+// local, and a DNS name as saying nothing.
+func TestTextSpace_ReadsAHostAsTheGuardDoes(t *testing.T) {
 	t.Parallel()
 	tests := map[string]compilers.AddressSpace{
 		"10.0.0.5": compilers.SpacePrivate, "localhost": compilers.SpaceLocal, "LOCALHOST.": compilers.SpaceLocal,
 		"a.localhost": compilers.SpaceLocal, "127.1": compilers.SpaceLocal, "0177.0.0.1": compilers.SpaceLocal,
 		"2130706433": compilers.SpaceLocal, "0x7f.1": compilers.SpaceLocal, "::ffff:10.0.0.1": compilers.SpacePrivate,
-		"name.example": compilers.SpacePublic, "1.1.1.1": compilers.SpacePublic, "1.1": compilers.SpacePublic,
-		"999.1": compilers.SpaceLocal,
+		"1.1.1.1": compilers.SpacePublic, "1.1": compilers.SpaceLocal, "999.1": compilers.SpaceLocal,
+		"a_b.example": compilers.SpaceLocal, "Name.Example.": compilers.SpaceUnstated,
 	}
 	for host, want := range tests {
-		assert.Equal(t, want, hostSpace(host), host)
+		got, said := textSpace(host)
+		assert.Equal(t, want, got, host)
+		assert.Equal(t, want != compilers.SpaceUnstated, said, host)
 	}
 }
 

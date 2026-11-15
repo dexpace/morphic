@@ -11,12 +11,10 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
-	"unicode/utf8"
 
 	"github.com/dexpace/morphic/compilers"
 )
@@ -168,23 +166,30 @@ func (g *guard) proxiedRanks(ctx context.Context, host string) (space, bound com
 }
 
 // proxiedSpace is the space a bounded read sent through a proxy is judged
-// at, where the guard and the proxy must read one address: a literal netip
-// reads, as that address; a DNS name (isDNSName), local for localhost and the
-// names under it, else by every address the guard's resolver gives it. Any
-// other host, a number spelled as no canonical literal among them, which the
-// proxy may read otherwise, is local: refused to every reach below it.
+// at, where the guard and the proxy must read one address: what host's text
+// says (textSpace), else, for a DNS name, by every address the guard's
+// resolver gives it.
 func (g *guard) proxiedSpace(ctx context.Context, host string) (compilers.AddressSpace, error) {
+	if space, said := textSpace(host); said {
+		return space, nil
+	}
+	return g.resolvedSpace(ctx, strings.ToLower(strings.TrimRight(host, ".")))
+}
+
+// textSpace is the space the text of host says, the guard's one reading of a
+// host it does not resolve: a literal netip reads, as that address; localhost
+// and the names under it, local; any other host but a DNS name (isDNSName), a
+// number spelled as no canonical literal among them, which a reader may read
+// otherwise, local, refused to every reach below it. A DNS name says none.
+func textSpace(host string) (compilers.AddressSpace, bool) {
 	host = strings.ToLower(strings.TrimRight(host, "."))
 	if addr, err := netip.ParseAddr(host); err == nil {
-		return spaceOf(addr), nil
+		return spaceOf(addr), true
 	}
-	switch {
-	case !isDNSName(host):
-		return compilers.SpaceLocal, nil
-	case host == "localhost" || strings.HasSuffix(host, ".localhost"):
-		return compilers.SpaceLocal, nil
+	if !isDNSName(host) || host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return compilers.SpaceLocal, true
 	}
-	return g.resolvedSpace(ctx, host)
+	return compilers.SpaceUnstated, false
 }
 
 // isDNSName reports whether host, lower-cased, is a DNS name every reader
@@ -353,45 +358,6 @@ var (
 	sixToFour  = netip.MustParsePrefix("2002::/16")
 )
 
-// hostSpace ranks the host a URL writes by its text: an address netip reads,
-// by spaceOf; a host ending in a number, read as a URL parser reads an IPv4
-// address (decimal, 0x hexadecimal, leading-zero octal, one to four parts),
-// and local where those rules read none; localhost and a name under it,
-// local; any other name public. net/http maps a host that is not ASCII by
-// IDNA before it uses it, which this reader cannot repeat, so such a host,
-// and one with an empty label, ranks local: what it would be dialled as is
-// not known.
-func hostSpace(host string) compilers.AddressSpace {
-	host = strings.ToLower(strings.TrimRight(host, "."))
-	if !isASCII(host) || host == "" || strings.Contains(host, "..") {
-		return compilers.SpaceLocal
-	}
-	if addr, err := netip.ParseAddr(host); err == nil {
-		return spaceOf(addr)
-	}
-	if numeric(host[strings.LastIndexByte(host, '.')+1:]) {
-		addr, ok := parseIPv4Host(host)
-		if !ok {
-			return compilers.SpaceLocal
-		}
-		return spaceOf(addr)
-	}
-	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
-		return compilers.SpaceLocal
-	}
-	return compilers.SpacePublic
-}
-
-// isASCII reports whether s holds ASCII alone.
-func isASCII(s string) bool {
-	for i := range len(s) {
-		if s[i] >= utf8.RuneSelf {
-			return false
-		}
-	}
-	return true
-}
-
 // numeric reports whether label is a number a URL parser or inet_aton reads:
 // decimal digits, or 0x and hexadecimal ones.
 func numeric(label string) bool {
@@ -399,54 +365,4 @@ func numeric(label string) bool {
 		return strings.Trim(hex, "0123456789abcdef") == ""
 	}
 	return label != "" && strings.Trim(label, "0123456789") == ""
-}
-
-// parseIPv4Host reads host as the IPv4 address a URL parser reads it as: one
-// to four parts, each decimal, 0x hexadecimal or leading-zero octal, the last
-// filling the bytes the others leave.
-func parseIPv4Host(host string) (netip.Addr, bool) {
-	parts := strings.Split(host, ".")
-	if len(parts) > 4 {
-		return netip.Addr{}, false
-	}
-	var out [4]byte
-	for i, part := range parts {
-		n, ok := ipv4Number(part)
-		if !ok {
-			return netip.Addr{}, false
-		}
-		if i < len(parts)-1 {
-			if n > 255 {
-				return netip.Addr{}, false
-			}
-			out[i] = byte(n)
-			continue
-		}
-		rest := 4 - i
-		if n >= 1<<(8*rest) {
-			return netip.Addr{}, false
-		}
-		for j := 3; j >= i; j-- {
-			out[j] = byte(n)
-			n >>= 8
-		}
-	}
-	return netip.AddrFrom4(out), true
-}
-
-// ipv4Number reads one part of an IPv4 host: 0x hexadecimal, leading-zero
-// octal or decimal.
-func ipv4Number(part string) (uint64, bool) {
-	base := 10
-	switch {
-	case strings.HasPrefix(part, "0x"):
-		part, base = part[2:], 16
-		if part == "" {
-			return 0, true
-		}
-	case len(part) > 1 && part[0] == '0':
-		part, base = part[1:], 8
-	}
-	n, err := strconv.ParseUint(part, base, 32)
-	return n, err == nil
 }
