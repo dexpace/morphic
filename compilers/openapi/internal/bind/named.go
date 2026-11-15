@@ -16,14 +16,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// NamedPointerBytes totals the JSON pointers of the nodes a compile of root
-// names one by one (docs/compilers/openapi.md#source-budgets): a value the
-// grammar keeps raw adds its root alone, and a raw value a reference of the
-// document lands in is named as the kind that reference expects, once. It
-// reads a schema by the minor's own grammar, so its caller answers for a
-// document naming a dialect. complete is false where the total cannot be
-// taken: a reference leaves the document, names nothing its pointer finds, or
-// is read under an `$id`; a fragment is no JSON pointer; or past maxSteps.
+// NamedPointerBytes totals the JSON pointers, keys as written, of the nodes a
+// compile of root names one by one (docs/compilers/openapi.md#source-budgets):
+// a value the grammar keeps raw adds its root alone, and a raw value a
+// reference lands in is named as the kind it expects, once. It reads a schema
+// by the minor's grammar, so its caller answers for a document naming a
+// dialect. complete is false where the total cannot be taken: a reference
+// leaves the document, names nothing its pointer finds, or is read under an
+// `$id`; a fragment is no JSON pointer; or past maxSteps.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
 	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}

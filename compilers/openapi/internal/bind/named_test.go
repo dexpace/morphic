@@ -149,6 +149,21 @@ func TestNamedPointerBytes_ADynamicRefLandsAsARefDoes(t *testing.T) {
 	assert.False(t, named, "a plain name is no JSON pointer")
 }
 
+// TestNamedPointerBytes_CountsAKeyAsItIsWritten holds a key holding a `/` and
+// a `~`, which a JSON pointer escapes as two bytes each, to the total of a key
+// of its length that holds neither, as the grammar-free total it is compared
+// beside counts one (sourceindex.Index.PointerBytes).
+func TestNamedPointerBytes_CountsAKeyAsItIsWritten(t *testing.T) {
+	t.Parallel()
+	const schema = namedHead + "components:\n  schemas:\n    A: {type: object, properties: {%q: {type: string}}}\n"
+	escaped, c1 := namedTotal(t, fmt.Sprintf(schema, "/a~b"))
+	plain, c2 := namedTotal(t, fmt.Sprintf(schema, "xaxb"))
+
+	require.True(t, c1)
+	require.True(t, c2)
+	assert.Equal(t, plain, escaped)
+}
+
 // TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce holds a $ref whose
 // target the walk already names where it is written to adding nothing past the
 // $ref itself: the same total as a key of the same length the grammar keeps

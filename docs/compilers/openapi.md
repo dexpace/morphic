@@ -232,7 +232,9 @@ passes the bound; one with more nodes than the scan indexes, as an `openapi/sour
 error; one whose aliases expand it past a fixed multiple of its own size, with a floor for a small
 document, as an `openapi/alias-amplification` error at the least pointer of the smallest structures
 past the ratio; and one whose nesting and aliases the scan admits, but whose nodes' JSON pointers,
-its aliases expanded, total past a fixed multiple of the bytes it writes, with a floor for a small
+its aliases expanded, each counted as the keys and indexes it holds are written, a `/` or `~` in a
+key once where the pointer's escape spells two bytes, total past a fixed multiple of the bytes it
+writes, with a floor for a small
 document, as an `openapi/pointer-amplification` error at the document, since the compile spells a
 pointer for each node it reads and the IR's IDs embed them. An overlay is held to the same refusals
 before it is applied, and so is a document an external reference names, which fails the reference
