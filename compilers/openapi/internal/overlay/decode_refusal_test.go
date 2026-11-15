@@ -25,7 +25,7 @@ func TestApply_RefusesATreeOfTheWrongShape(t *testing.T) {
 	}{
 		"a version that is no string": {`{"overlay": ["1.0.0"], "info": 3, "actions": {"target": "$"}}`, []string{"/overlay"}},
 		"an info and actions of another shape": {`{"overlay": "1.0.0", "info": 3, "actions": {"target": "$"}}`,
-			[]string{"/info", "/actions", ""}},
+			[]string{"/info", "/actions"}},
 		"fields of the info and of each action": {
 			`{"overlay": "1.1.0", "info": {"title": 1, "version": []}, "actions": [1, {"target": 2}]}`,
 			[]string{"/info/title", "/info/version", "/actions/0", "/actions/1/target"}},
