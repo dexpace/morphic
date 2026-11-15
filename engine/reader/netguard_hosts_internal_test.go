@@ -8,6 +8,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -482,4 +483,25 @@ func TestSpaceOf_RanksEveryPrivatePrefixPrivate(t *testing.T) {
 	}
 	assert.Equal(t, compilers.SpacePrivate, spaceOf(netip.MustParseAddr("239.1.1.1")), "multicast")
 	assert.Equal(t, compilers.SpacePublic, spaceOf(netip.MustParseAddr("192.0.3.1")), "past 192.0.2.0/24")
+}
+
+// TestGuard_AFailureAfterARefusedAddressCarriesTheRefusal pins what a read
+// whose name resolves to several addresses fails with when the guard refused
+// one and the dialler then failed on another: the other address's failure,
+// joined to the refusal, so the read is the asker's failure alone; a failure
+// that is a refusal already, or one with none before it, passes as it is.
+func TestGuard_AFailureAfterARefusedAddressCarriesTheRefusal(t *testing.T) {
+	t.Parallel()
+	refused := errors.New("connect: connection refused")
+	g := &guard{}
+	assert.Same(t, refused, g.failed(refused), "no address was refused")
+	past := &compilers.AddressSpaceError{Address: "10.0.0.5:80", Space: compilers.SpacePrivate}
+	g.refused.Store(past)
+	got := g.failed(refused)
+	require.ErrorIs(t, got, refused)
+	refusal, ok := errors.AsType[*compilers.AddressSpaceError](got)
+	require.True(t, ok)
+	assert.Same(t, past, refusal, "the refusal names the address refused")
+	assert.Same(t, past, g.failed(past), "a refusal passes as it is")
+	assert.Same(t, refused, (*guard)(nil).failed(refused), "an unjudged read's failure passes as it is")
 }
