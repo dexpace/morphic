@@ -47,8 +47,8 @@ type resources struct {
 }
 
 // document is the resource of document id's own content.
-// A document whose $self names a URI is named and based by it (D14 of
-// docs/compilers/openapi.md#self-uri).
+// A document whose $self names a URI is named and based by it
+// (docs/compilers/openapi.md#self-uri).
 func (r resources) document(id DocID) resource {
 	d := r.docs.list[id]
 	if d.self == "" {
