@@ -1394,6 +1394,8 @@ for it, as [`ref-use-site`](#ref-use-site) merges them: a `default` with use-sit
 `readOnly` and `writeOnly` in force where either side sets them, and the declaration keeps its
 own copy verbatim under `no_ir_home`, reported with an info `openapi/degraded-construct` at the
 keyword. That copy is what a component nothing references would otherwise lose in silence. A
+`default` no `ir.Value` holds is pushed down to no carrier, as [`values`](#values) reports where it
+is written, and its info says so. A
 position a property, parameter or header carries keeps them on its carrier whichever reaches it
 first, the carrier or a `$ref` naming the position: a `$ref` leaves lowering a position to the
 declaration that owns it.
