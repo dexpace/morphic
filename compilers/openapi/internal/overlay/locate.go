@@ -213,11 +213,12 @@ func (l *locator) index(ctx context.Context, holder *yaml.Node) (memberIndex, er
 	}
 	index := memberIndex{slots: make(map[string]int, len(holder.Content)/2)}
 	for i := 0; i+1 < len(holder.Content); i += 2 {
-		if key, own := nodeview.KeyOf(holder.Content[i]); own {
+		switch key, own := nodeview.KeyOf(holder.Content[i]); {
+		case own:
 			index.slots[key] = i + 1
-			continue
+		case nodeview.IsMergeKey(holder.Content[i]):
+			index.merges = true
 		}
-		index.merges = true
 	}
 	l.indexes[holder] = index
 	return index, nil

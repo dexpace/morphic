@@ -71,9 +71,14 @@ func (g *grafter) flatten(ctx context.Context, m *yaml.Node) error {
 	written, keys := map[string]bool{}, mergedKeys(m)
 	var own, brought []*yaml.Node
 	for i := 0; i+1 < len(m.Content); i += 2 {
-		if key, mine := nodeview.KeyOf(m.Content[i]); mine {
+		if nodeview.IsMergeKey(m.Content[i]) {
+			continue
+		}
+		// A key that is no scalar names no member, and stays for the
+		// reading that refuses it.
+		own = append(own, m.Content[i], m.Content[i+1])
+		if key, scalar := nodeview.KeyOf(m.Content[i]); scalar {
 			written[key] = true
-			own = append(own, m.Content[i], m.Content[i+1])
 		}
 	}
 	for _, p := range pairs {

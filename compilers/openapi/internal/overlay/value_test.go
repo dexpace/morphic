@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -142,6 +143,37 @@ func TestApply_WritesAMergedMemberAsTheMappingsOwn(t *testing.T) {
 
 			require.True(t, origin.Applied(), "%+v", diags)
 			sameValue(t, head+"components:\n  schemas:\n    A: "+plainA+"\n    C: "+tc.c+"\n", root)
+		})
+	}
+}
+
+// TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge pins a write into a
+// mapping that merges members and writes a key that is no scalar: making the
+// mapping's members its own keeps that key, which names no member, for the
+// reading that refuses it, by an update and by a remove alike.
+func TestApply_KeepsAKeyThatIsNoScalarWhereItFlattensAMerge(t *testing.T) {
+	t.Parallel()
+	const src = head + "x-b: &b {p: 1, q: 2}\nx-m: {<<: *b, ? [k] : v, r: 3}\n"
+	for name, action := range map[string]string{
+		"an update of a merged member": "  - target: $['x-m'].p\n    update: 9\n",
+		"a remove of a merged member":  "  - target: $['x-m'].q\n    remove: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			origin, root, diags := applied(t, src, v11+action, false)
+
+			require.True(t, origin.Applied(), "%+v", diags)
+			doc := nodeview.DocumentRoot(root)
+			require.Equal(t, "x-m", doc.Content[8].Value)
+			m := doc.Content[9]
+			var sequences int
+			for i := 0; i+1 < len(m.Content); i += 2 {
+				if m.Content[i].Kind == yaml.SequenceNode {
+					sequences++
+					assert.Equal(t, "v", m.Content[i+1].Value)
+				}
+			}
+			assert.Equal(t, 1, sequences, "the key that is no scalar stays in x-m")
 		})
 	}
 }
