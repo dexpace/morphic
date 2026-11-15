@@ -880,7 +880,8 @@ one its document was read from, a public address ranking below a private one and
 loopback: the reader bounds the read to that space (`compilers.DocumentRequest.Reach`), judging each
 address it dials, redirects included. Each read states two spaces: where the address that answered
 lies (`compilers.DocumentRead.Space`), which ranks the document as a referrer, and the most private
-it can have dialled (`compilers.DocumentRead.MostPrivate`), which ranks it as a target. A document
+it can have dialled, every hop of a redirect included (`compilers.DocumentRead.MostPrivate`), which
+ranks it as a target. A document
 read before is judged by the second, and where that read stated none, by a read of the reference's
 own at its reach, made once per reach, which reads nothing into the compile and charges nothing to
 the document budget. A read whose reader states no bound, or one the reader cannot bound, is refused
@@ -889,7 +890,8 @@ stated, public where it stated none. Each refusal is that reference's alone, wor
 another naming the document, from a file or the source, reads it. A source located at a URL is
 bounded as a public document. Through an HTTP proxy the host is judged instead: an address literal
 as the address the proxy dials, a name by every address this machine resolves it to, and a document
-read through one by a name states no space, so its own references reach as a public document's do.
+read through one by a name, or redirected through one, states no space, so its own references reach
+as a public document's do.
 The rule leaves four things unbounded, each in the Status below: what a proxy dials after resolving
 a name again; the base a redirected document's references resolve against, which stays the location
 asked while its space is the address that answered; the time a compile's reads take together, which

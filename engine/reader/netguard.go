@@ -38,10 +38,12 @@ type guard struct {
 	reach    compilers.AddressSpace
 	classify func(netip.AddrPort) compilers.AddressSpace
 	resolver *net.Resolver
-	// space and bound are what the last hop states (compilers.DocumentRead):
-	// the space of the address it dialled, both; or, through a proxy, what
-	// proxiedRanks gives its host.
+	// space and bound are what the read states (note): the space the last
+	// hop states, and the most private bound any hop states.
 	space, bound atomic.Uint32
+	// blind is set by a hop that states no bound, which no other hop's bound
+	// covers.
+	blind atomic.Bool
 	// proxied says the request being sent goes through a proxy, whose dial is
 	// not the request's address.
 	proxied atomic.Bool
@@ -121,11 +123,39 @@ func (g *guard) dial(ctx context.Context, network, address string) (net.Conn, er
 		return conn, nil
 	}
 	if tcp, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
-		space := uint32(g.classify(tcp.AddrPort()))
-		g.space.Store(space)
-		g.bound.Store(space)
+		space := g.classify(tcp.AddrPort())
+		g.note(space, space)
 	}
 	return conn, nil
+}
+
+// note records what one hop of the read states, its space and its bound. The
+// read's space is the last hop's, where the answer came from; its bound is
+// the most private of every hop's, as a hop that redirects is dialled too, so
+// a read is never ranked by its last address alone. A hop stating no bound,
+// a proxy's unjudged dial, leaves the read stating neither (stated).
+func (g *guard) note(space, bound compilers.AddressSpace) {
+	g.space.Store(uint32(space))
+	if bound == compilers.SpaceUnstated {
+		g.blind.Store(true)
+	}
+	for {
+		was := g.bound.Load()
+		if g.bound.CompareAndSwap(was, max(was, uint32(bound))) {
+			return
+		}
+	}
+}
+
+// stated returns the space and the bound the read states
+// (compilers.DocumentRead): none of either once a hop stated no bound, as its
+// dial is out of sight and the read is then judged by a read of its asker's
+// own.
+func (g *guard) stated() (space, bound compilers.AddressSpace) {
+	if g.blind.Load() {
+		return compilers.SpaceUnstated, compilers.SpaceUnstated
+	}
+	return compilers.AddressSpace(g.space.Load()), compilers.AddressSpace(g.bound.Load())
 }
 
 // proxy wraps a transport's proxy choice, which it never changes: a request
@@ -145,8 +175,7 @@ func (g *guard) proxy(choose func(*http.Request) (*url.URL, error)) func(*http.R
 			return nil, err
 		}
 		g.proxied.Store(true)
-		g.space.Store(uint32(space))
-		g.bound.Store(uint32(bound))
+		g.note(space, bound)
 		return via, nil
 	}
 }

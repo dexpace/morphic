@@ -118,7 +118,8 @@ func TestDisk_ABoundedReadIsJudgedBeforeAnythingIsRequested(t *testing.T) {
 // TestDisk_ARedirectIsADialJudgedAtItsOwnAddress pins that each hop is judged:
 // a public server redirecting to a private one is refused at the second hop
 // with the second server asked nothing, and a private one redirecting to a
-// public one, read as far as private, answers from the address that answered.
+// public one, read as far as private, states the space of the address that
+// answered and the private one as its bound.
 func TestDisk_ARedirectIsADialJudgedAtItsOwnAddress(t *testing.T) {
 	t.Parallel()
 	var target atomic.Pointer[string]
@@ -148,6 +149,45 @@ func TestDisk_ARedirectIsADialJudgedAtItsOwnAddress(t *testing.T) {
 		compilers.DocumentRequest{Location: back.URL, Reach: compilers.SpacePrivate})
 	require.NoError(t, err)
 	assert.Equal(t, compilers.SpacePublic, got.Space, "the address that answered, not the one asked first")
+	assert.Equal(t, compilers.SpacePrivate, got.Bound, "the most private address a hop dialled")
+}
+
+// TestDisk_ARedirectedReadIsBoundedByEveryHop pins what a read redirected
+// from a more private address states: the space of the address that answered,
+// and as its bound the most private address any hop dialled, so a document a
+// loopback server redirects to a public one is never ranked as a public
+// target. A hop a proxy dialled by a name, unjudged, leaves the read stating
+// neither, as its bound is then out of sight.
+func TestDisk_ARedirectedReadIsBoundedByEveryHop(t *testing.T) {
+	t.Parallel()
+	public := newProbeServer(t, false, nil)
+	local := newProbeServer(t, false, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, public.URL, http.StatusFound)
+	})
+	spaces := map[uint16]compilers.AddressSpace{public.port(t): compilers.SpacePublic, local.port(t): compilers.SpaceLocal}
+	got, err := guarded(nil, spaces).ReadDocument(t.Context(), compilers.DocumentRequest{Location: local.URL})
+	require.NoError(t, err)
+	assert.Equal(t, compilers.SpacePublic, got.Space, "the address that answered")
+	assert.Equal(t, compilers.SpaceLocal, got.Bound, "the loopback hop bounds the read")
+
+	proxy := newProbeServer(t, false, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, public.URL, http.StatusFound)
+	})
+	proxyURL, err := url.Parse(proxy.URL)
+	require.NoError(t, err)
+	tr := &http.Transport{Proxy: func(r *http.Request) (*url.URL, error) {
+		if r.URL.Hostname() == "name.example" {
+			return proxyURL, nil
+		}
+		return nil, nil
+	}}
+	t.Cleanup(tr.CloseIdleConnections)
+	got, err = guarded(&http.Client{Transport: tr}, spaces).ReadDocument(t.Context(),
+		compilers.DocumentRequest{Location: "http://name.example/x"})
+	require.NoError(t, err)
+	assert.Equal(t, "document", string(got.Data), "the proxy's redirect was followed directly")
+	assert.Equal(t, compilers.SpaceUnstated, got.Space, "a hop out of sight leaves the read unranked")
+	assert.Equal(t, compilers.SpaceUnstated, got.Bound, "a hop out of sight leaves the read unbounded")
 }
 
 // TestDisk_NoConnectionIsKeptBetweenReads pins that the guard judges every
