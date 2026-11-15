@@ -158,6 +158,7 @@ type binder struct {
 	hops      map[Position]Hop
 	chains    map[Position]Chain
 	objs      *objects
+	dyn       *dynamicRefs
 	loops     []Loop
 	committed bool
 	stale     bool
@@ -197,7 +198,7 @@ func newBinder(cfg Config, d *docs, w *work, ids *identifiers, asked *reads) *bi
 	clear(asked.held)
 	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
 		find: newFinder(d, w, ids), ids: ids, reads: asked, wait: newWaits(), hops: map[Position]Hop{},
-		chains: map[Position]Chain{}}
+		chains: map[Position]Chain{}, dyn: newDynamicRefs()}
 	b.objs = &objects{b: b, hops: map[Position]objectHop{}, chains: map[objectKey]Chain{}}
 	return b
 }
@@ -322,6 +323,7 @@ func rootOf(id DocID, s state) root {
 // was noted first. Each is sorted once, in the round that noted it, and costs a
 // step, so a round that answered one again would show in the work.
 func (b *binder) settle(t *Table) {
+	staticSites(b)
 	sites, keys, objects := b.find.fresh, b.find.freshMappings, b.find.freshObjects
 	b.find.fresh, b.find.freshMappings, b.find.freshObjects = nil, nil, nil
 	b.work.spend(len(sites) + len(keys) + len(objects))
@@ -330,10 +332,13 @@ func (b *binder) settle(t *Table) {
 		if b.work.cancelled() {
 			return
 		}
+		if resettle(b, site) {
+			continue
+		}
 		if c, waits := b.chain(site); waits {
 			b.wait.sites[site] = true
 		} else {
-			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
+			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c, Keyword: keywordAt(b, site)}
 		}
 	}
 	slices.SortFunc(keys, mappingOrder(b.docs))
@@ -352,23 +357,28 @@ func (b *binder) settle(t *Table) {
 }
 
 // landDynamic lands on what each dynamic reference noted since the table last
-// settled names, as the $ref it spells would, for the schema an expansion takes
-// to be built and read where the model holds none: the one schema declaring a
-// $dynamicRef's anchor, reached as a $ref naming that anchor in its resource
-// is, and the root of a $recursiveRef's resource, which a $ref of "#" written
-// there resolves to. A hop the resolution leaves unresolved lands nowhere. A
-// name is only asked of a document open, whose identifiers are read whole.
+// settled names, as the $ref naming its anchor would, for the schema an
+// expansion takes to be built and read where the model holds none: the one
+// schema declaring a $dynamicRef's anchor, reached as a $ref naming that anchor
+// in its resource is, and the root of a $recursiveRef's resource, which a $ref
+// of "#" written there resolves to. A hop the resolution leaves unresolved
+// lands nowhere. A name is only asked of a document open, whose identifiers are
+// read whole.
 func landDynamic(b *binder) {
 	dynamic, recursive := b.find.freshDynamic, b.find.freshRecursive
 	b.find.freshDynamic, b.find.freshRecursive = nil, nil
 	for _, d := range dynamic {
-		b.find.identify(d.key.doc)
-		at := b.ids.dynamic[d.key]
+		name, _, ok := DynamicFragment(d.value)
+		if !ok {
+			continue
+		}
+		b.find.identify(d.at.Doc)
+		at := b.ids.dynamic[dynamicKey{doc: d.at.Doc, name: name}]
 		if len(at) != 1 {
 			continue
 		}
 		path, _ := b.docs.path(d.at)
-		if h := b.resolve(d.at, path, "#"+url.PathEscape(d.key.name), true); h.Status == Resolved && h.Target == at[0] {
+		if h := b.resolve(d.at, path, "#"+url.PathEscape(name), true); h.Status == Resolved && h.Target == at[0] {
 			b.find.landOn(d.at, h)
 		}
 	}
@@ -397,7 +407,7 @@ func mappingOrder(d *docs) func(x, y mappingKey) int {
 func (b *binder) table(t *Table) *Table {
 	for p, c := range b.chains {
 		if _, found := t.entries[p]; !found {
-			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c}
+			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c, Keyword: keywordAt(b, p)}
 		}
 	}
 	for k, c := range b.objs.chains {
@@ -530,8 +540,11 @@ type Table struct {
 
 // Entry returns the entry of the $ref written at site, and false for a
 // position the table read no $ref at: one writing none, or one the budget
-// left unread.
+// left unread. A nil table read none.
 func (t *Table) Entry(site Position) (Entry, bool) {
+	if t == nil {
+		return Entry{}, false
+	}
 	e, ok := t.entries[site]
 	return e, ok
 }

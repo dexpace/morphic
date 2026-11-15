@@ -149,10 +149,12 @@ func TestCompile_ADynamicRefNamingAnotherDocumentReadsAsARef(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/anon@other.yaml/X"), sc.Base.Target)
 	assert.Empty(t, sc.Unmodeled)
 
+	// Outside the source's directory, which a read leaves only where external
+	// references are allowed.
 	refused := t.TempDir()
-	layout(t, refused, map[string]string{"other.yaml": other})
-	_, diags = compileOnDisk(t, filepath.Join(refused, "spec.yaml"),
-		dynHead+"    Ext: {$dynamicRef: 'other.yaml#/X'}\n    ExtRef: {$ref: 'other.yaml#/X'}\n", false)
+	layout(t, refused, map[string]string{"other.yaml": other, "in/keep.yaml": "{}\n"})
+	_, diags = compileOnDisk(t, filepath.Join(refused, "in", "spec.yaml"),
+		dynHead+"    Ext: {$dynamicRef: '../other.yaml#/X'}\n    ExtRef: {$ref: '../other.yaml#/X'}\n", false)
 	var ref, dyn []ir.Diagnostic
 	for _, d := range byCode(diags, "openapi/unresolved-ref") {
 		switch d.Provenance.Pointer {
@@ -267,8 +269,9 @@ func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 }
 
 // TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds pins that a $ref
-// onto a $dynamicRef that reads as a $ref, and a property that is one, land
-// on the schema the chain ends on, as the $ref twins do.
+// onto a $dynamicRef that reads as a $ref names that component, as one onto a
+// $ref alias does, the component landing on the schema the chain ends on, and
+// that a property that is one lands there too, as its $ref twin does.
 func TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileText(t, "spec.yaml", dynHead+dynPet+
@@ -282,8 +285,12 @@ func TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds(t *testing.T) {
 
 	s, twin := dynScalar(t, doc, "S"), dynScalar(t, doc, "STwin")
 	require.NotNil(t, s.Base)
-	assert.Equal(t, componentID("Pet"), s.Base.Target, "the chain ends on Pet, not on the alias")
-	assert.Empty(t, cmp.Diff(twin.Base, s.Base))
+	require.NotNil(t, twin.Base)
+	assert.Equal(t, componentID("ByPointer"), s.Base.Target, "a $ref names the component, as one onto a $ref alias does")
+	assert.Equal(t, componentID("Pet"), twin.Base.Target)
+	byPointer := dynScalar(t, doc, "ByPointer")
+	require.NotNil(t, byPointer.Base)
+	assert.Equal(t, componentID("Pet"), byPointer.Base.Target, "and that component lands on Pet")
 
 	obj, ok := doc.Types[componentID("Obj")].(*ir.Model)
 	require.True(t, ok)

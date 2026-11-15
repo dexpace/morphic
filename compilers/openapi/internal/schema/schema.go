@@ -234,7 +234,13 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		// irverify.
 		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
+		if _, static, _ := staticTarget(c, c.Position(pointer)); static {
+			return ref, nullDiags // the $ref it spells, which reports nothing
+		}
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
+	}
+	if staticUnresolved(c, schema, pointer) {
+		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
 		if hasUnionSiblings(c, schema) {

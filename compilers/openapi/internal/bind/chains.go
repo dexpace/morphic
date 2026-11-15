@@ -153,10 +153,22 @@ func (w *waits) release(f *finder) bool {
 }
 
 // holdsRef reports whether p writes a $ref of its own, which a chain landing
-// there follows on.
+// there follows on, or a $dynamicRef that is the $ref it spells, or may be
+// once the document its hop waits for is read (namesDynamic).
 func (b *binder) holdsRef(p Position) bool {
-	_, ok := b.docs.refOf(p.Doc, b.docs.node(p))
-	return ok
+	// Only a hop's target is asked, a position its document holds, so the path
+	// reaches it.
+	path, _ := b.docs.path(p)
+	n := path[len(path)-1]
+	if _, ok := b.docs.refOf(p.Doc, n); ok {
+		return true
+	}
+	value, ok := dynamicRefValue(b.docs, p.Doc, n)
+	if !ok {
+		return false
+	}
+	named, _ := namesDynamic(b, p, path, value)
+	return !named
 }
 
 // closeLoop records members as a loop, each settled as its member.

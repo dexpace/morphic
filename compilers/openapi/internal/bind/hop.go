@@ -272,14 +272,19 @@ func (b *binder) anchored(to resource, name string) (reading, Reason) {
 }
 
 // hop is the hop of the $ref written at p, read once and remembered. Only a
-// position writing a $ref is asked: a site, or a hop's target that writes one.
+// position writing a $ref is asked, a site or a hop's target that writes one,
+// or a $dynamicRef that is the $ref it spells (holdsRef).
 func (b *binder) hop(p Position) Hop {
 	if h, ok := b.hops[p]; ok {
 		return h
 	}
 	// Only a position its document holds writes a $ref, so the path reaches it.
 	path, _ := b.docs.path(p)
-	ref, _ := b.docs.refOf(p.Doc, path[len(path)-1])
+	ref, written := b.docs.refOf(p.Doc, path[len(path)-1])
+	if !written {
+		ref, _ = dynamicRefValue(b.docs, p.Doc, path[len(path)-1])
+		b.dyn.spelled[p] = true
+	}
 	h := b.resolve(p, path, ref, true)
 	if b.work.over() {
 		h = Hop{Ref: ref, Status: OverBudget}
@@ -294,17 +299,19 @@ func (b *binder) hop(p Position) Hop {
 	return h
 }
 
-// DynamicFragment returns the anchor name a $dynamicRef written as ref addresses,
-// or the reason it addresses none. Only the same-document `#name` spelling
-// resolves; a URI part or a `#/…` pointer addresses no anchor.
+// DynamicFragment returns the anchor name a $dynamicRef written as ref
+// addresses, or the reason it addresses none: its fragment, after any URI
+// part, unless that is empty or holds a '/', as a JSON pointer does. A
+// $dynamicRef the table reads as dynamic names a $dynamicAnchor by a plain
+// name, so only one written past what the table read meets the refusal.
 //
 // The name is the fragment percent-decoded once (RFC 3986): `#my%2Danchor` and
 // `#my-anchor` name one anchor. PathUnescape keeps `+` literal, as a fragment
 // needs, and a fragment it cannot decode is refused, not matched raw.
 func DynamicFragment(ref string) (name, why string, ok bool) {
-	spelled, found := strings.CutPrefix(ref, "#")
+	_, spelled, found := strings.Cut(ref, "#")
 	if !found || spelled == "" || strings.Contains(spelled, "/") {
-		return "", fmt.Sprintf("%q is not a plain same-document fragment", ref), false
+		return "", fmt.Sprintf("%q names no anchor by a plain-name fragment", ref), false
 	}
 	name, err := url.PathUnescape(spelled)
 	if err != nil {

@@ -878,22 +878,31 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 // TestConstraints_AnInlineBranchIsReadAtItsOwnPointer pins that an inline
 // branch is read where it is written: its dynamic reference expands in its own
 // schema resource, so one under an identifier of its own names no anchor of the
-// document's and excludes nothing, while one beside it expands to the array.
+// document's, which makes it the $ref it spells, resolving nowhere, and
+// excludes nothing, while one beside it expands to the array.
 func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, branch string
 		held         *ir.Constraints
+		errs         []string
 	}{
 		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}"},
 		{name: "in a resource of its own", branch: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
-			held: &ir.Constraints{MinLength: new(int64(1))}},
+			held: &ir.Constraints{MinLength: new(int64(1))},
+			errs: []string{"openapi/unresolved-ref at /components/schemas/S/allOf/0"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.branch+"], minLength: 1}\n"+
 				"    List: {$dynamicAnchor: list, type: array, items: {type: string}}\n"))
-			openapitest.RequireNoErrorDiags(t, diags)
+			var errs []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					errs = append(errs, d.Code+" at "+string(d.Provenance.Pointer))
+				}
+			}
+			assert.Equal(t, tc.errs, errs, "%+v", diags)
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok, "got %T", typeByName(doc, "S"))
 			assert.Equal(t, tc.held, m.Constraints)

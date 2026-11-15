@@ -175,7 +175,8 @@ func (s sourceDocument) nameOf(name string) string {
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a
 // Reference Object's and then a schema's, at the $ref, in whichever document,
-// so a chain failing past its first hop is reported once, where it fails; each loop
+// worded with the keyword it is written under (bind.Entry.Keyword), so a chain
+// failing past its first hop is reported once, where it fails; each loop
 // of $refs once, where the table places it; and the budget or the merge
 // bound, if either stopped the reading.
 func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
@@ -189,7 +190,7 @@ func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 	for _, e := range table.Entries() {
 		if e.Hop.Status == bind.Unresolved {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(e.Site),
-				"unresolved $ref %q: %s", e.Hop.Ref, e.Hop.Why()))
+				"unresolved %s %q: %s", e.Keyword, e.Hop.Ref, e.Hop.Why()))
 		}
 	}
 	for _, l := range table.Loops() {

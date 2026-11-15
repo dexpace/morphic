@@ -69,14 +69,6 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:$dynamicRef": {
-          "reason": "degraded_lowering",
-          "value": "#T",
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas//$dynamicRef"
-          }
-        },
         "openapi:$id": {
           "reason": "out_of_scope",
           "value": "https://example.com/empty",
@@ -91,7 +83,7 @@
         "pointer": "/components/schemas/"
       },
       "base": {
-        "target": "t/prim/any",
+        "target": "t/prim/string",
         "nullable": false
       }
     },
@@ -477,7 +469,7 @@
           "unmodeled": {
             "openapi:$dynamicRef": {
               "reason": "degraded_lowering",
-              "value": "#Missing",
+              "value": "#twice",
               "provenance": {
                 "source": 0,
                 "pointer": "/components/schemas/Tree/properties/ghost/$dynamicRef"
@@ -487,6 +479,70 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Tree/properties/ghost"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tree/properties/static",
+          "name": {
+            "source": "static",
+            "canonical": "static"
+          },
+          "wireName": "static",
+          "type": {
+            "target": "t/openapi/components/schemas/Leaf",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tree/properties/static"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tree/properties/boundary",
+          "name": {
+            "source": "boundary",
+            "canonical": "boundary"
+          },
+          "wireName": "boundary",
+          "type": {
+            "target": "t/prim/any",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:$dynamicRef": {
+              "reason": "degraded_lowering",
+              "value": "https://example.com/empty#edge",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Tree/properties/boundary/$dynamicRef"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tree/properties/boundary"
           }
         },
         {
@@ -521,6 +577,44 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Twice": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Twice",
+      "name": {
+        "source": "Twice",
+        "canonical": "twice"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twice"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/TwiceAgain": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/TwiceAgain",
+      "name": {
+        "source": "TwiceAgain",
+        "canonical": "twice_again"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwiceAgain"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
     "t/prim/any": {
       "kind": "primitive",
       "id": "t/prim/any",
@@ -532,6 +626,18 @@
         "source": -1
       },
       "prim": "any"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -568,7 +674,7 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 58,
+          "line": 71,
           "column": 7
         }
       }
@@ -594,10 +700,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$dynamicRef was not expanded because no $dynamicAnchor \"Missing\" is declared in this document; it is kept verbatim under Unmodeled",
+      "message": "$dynamicRef was not expanded because $dynamicAnchor \"twice\" is declared 2 times, so the target depends on the evaluation path; it is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Tree/properties/ghost/$dynamicRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$dynamicRef was not expanded because an identifier between it and \"/components/schemas/\" puts the two in different schema resources, and a dynamic reference names an anchor of its own resource; it is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tree/properties/boundary/$dynamicRef"
       }
     },
     {
@@ -662,22 +777,13 @@
         "source": 0,
         "pointer": "/components/schemas//$id"
       }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "$dynamicRef was not expanded because an identifier between it and \"/components/schemas/Node\" puts the two in different schema resources, and a dynamic reference names an anchor of its own resource; it is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas//$dynamicRef"
-      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "dynamic-ref.yaml",
-      "hash": "f011b5098990de72b586c68e4d0f1c9d810e3f0e6f1e6c09471c2f040d831fa9"
+      "hash": "25dc9972ce62526e8cde8961351172a765be624e0f01384720faef7c4f1eb95f"
     }
   ]
 }

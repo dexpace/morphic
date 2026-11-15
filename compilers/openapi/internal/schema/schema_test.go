@@ -159,7 +159,8 @@ func vocabularyCore() []vocabCase {
 			write: "$ref: '#/components/schemas/B'", alt: "$ref: '#/components/schemas/C'",
 		},
 		{
-			keyword: "$dynamicRef", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n",
+			keyword: "$dynamicRef", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n" +
+				"    C: {$dynamicAnchor: n, type: integer}\n",
 			write: "$dynamicRef: '#m'", alt: "$dynamicRef: '#n'",
 		},
 		{

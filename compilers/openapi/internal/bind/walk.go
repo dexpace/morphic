@@ -211,10 +211,12 @@ func (w *finder) tupleOf(n *yaml.Node, f frame) {
 	}
 }
 
-// dynamicSite is a $dynamicRef of another document and the anchor it names.
+// dynamicSite is a $dynamicRef: where it is written, its value, and whether a
+// $ref is written beside it, which is then the schema's reference.
 type dynamicSite struct {
-	at  Position
-	key dynamicKey
+	at     Position
+	value  string
+	beside bool
 }
 
 // expansion is a dynamic reference written at from and the schema at to it
@@ -225,17 +227,17 @@ type expansion struct {
 }
 
 // dynamicOf notes the dynamic reference the schema at f, holding n and read in
-// f's dialect, writes: a $dynamicRef naming an anchor, and a $recursiveRef of
-// "#" where the dialect defines one (DialectRule.Recursive). Nothing but a
-// reference builds a schema the model does not hold, another document's or
-// raw YAML's (landed), and an expansion is one, so settle lands on what each
-// names (landDynamic).
+// f's dialect, writes: a $dynamicRef, which settle reads as the $ref it spells
+// or as dynamic (staticSites), and a $recursiveRef of "#" where the dialect
+// defines one (DialectRule.Recursive). Nothing but a reference builds a schema
+// the model does not hold, another document's or raw YAML's (landed), and an
+// expansion is one, so settle lands on what each dynamic one names
+// (landDynamic).
 func (w *finder) dynamicOf(n *yaml.Node, f frame) {
 	view := w.docs.list[f.at.Doc].view
-	if ref, ok := scalarOf(view.ChildByToken(n, "$dynamicRef")); ok {
-		if name, _, ok := DynamicFragment(ref); ok {
-			w.freshDynamic = append(w.freshDynamic, dynamicSite{at: f.at, key: dynamicKey{doc: f.at.Doc, name: name}})
-		}
+	if ref, ok := dynamicRefValue(w.docs, f.at.Doc, n); ok {
+		_, beside := w.docs.refOf(f.at.Doc, n)
+		w.freshDynamic = append(w.freshDynamic, dynamicSite{at: f.at, value: ref, beside: beside})
 		return
 	}
 	ref, ok := scalarOf(view.ChildByToken(n, "$recursiveRef"))

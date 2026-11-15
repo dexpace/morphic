@@ -391,9 +391,9 @@ func TestBind_DeclarationOrderReachesNoAnswer(t *testing.T) {
 // TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames pins that an expansion
 // reads as a reference does: a schema another document holds is built only where
 // something lands on it, so one nothing but a $dynamicRef reaches is landed on,
-// and what it holds is read. Two declarations name no target, so neither is, and
-// a spelling that names no anchor, or a $dynamicRef that is no string, lands
-// nowhere.
+// and what it holds is read. Two declarations name no target, so neither is, a
+// name declared nowhere, or a $dynamicRef that is no string, lands nowhere, and
+// a pointer is the $ref it spells, landing as one.
 func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	t.Parallel()
 	const entry = "    E: {$ref: 'o.yaml#/E'}\n"
@@ -428,12 +428,15 @@ func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 	for name, other := range map[string]string{
 		"declared twice":   "E: {$dynamicRef: '#n'}\nT: {$dynamicAnchor: n}\nU: {$dynamicAnchor: n}\n",
 		"declared nowhere": "E: {$dynamicRef: '#n'}\n",
-		"a pointer":        "E: {$dynamicRef: '#/T'}\nT: {$dynamicAnchor: n}\n",
 		"no string":        "E: {$dynamicRef: [n]}\nT: {$dynamicAnchor: n}\n",
 	} {
 		_, _, at := landed(t, other)
 		assert.Empty(t, at, name)
 	}
+
+	// A pointer names no anchor, so it is the $ref it spells, and lands as one.
+	_, _, at = landed(t, "E: {$dynamicRef: '#/T'}\nT: {$dynamicAnchor: n}\n")
+	assert.Equal(t, []jsontext.Pointer{"/T"}, at, "a pointer")
 }
 
 // TestDynamicAnchor_CountsWhatADocumentDeclares pins the count an expansion
@@ -607,15 +610,17 @@ func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	assert.True(t, known, "within it")
 }
 
-// TestDynamicFragment_ReadsAPlainFragment pins what a $dynamicRef can spell.
+// TestDynamicFragment_ReadsAPlainFragment pins what a $dynamicRef can spell:
+// a plain-name fragment, after any URI part, which a dynamic one names its
+// anchor by.
 func TestDynamicFragment_ReadsAPlainFragment(t *testing.T) {
 	t.Parallel()
-	for ref, want := range map[string]string{"#a": "a", "#my%2Danchor": "my-anchor", "#a+b": "a+b"} {
+	for ref, want := range map[string]string{"#a": "a", "#my%2Danchor": "my-anchor", "#a+b": "a+b", "o.yaml#a": "a"} {
 		name, _, ok := bind.DynamicFragment(ref)
 		assert.True(t, ok, ref)
 		assert.Equal(t, want, name, ref)
 	}
-	for _, ref := range []string{"a", "#", "#/a", "o.yaml#a", "#%zz"} {
+	for _, ref := range []string{"a", "#", "#/a", "o.yaml#/a", "#%zz"} {
 		_, why, ok := bind.DynamicFragment(ref)
 		assert.False(t, ok, ref)
 		assert.NotEmpty(t, why, ref)

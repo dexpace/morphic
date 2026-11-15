@@ -1058,8 +1058,10 @@ and a `$ref` past it is left unresolved, as is one that reads a key past it: a k
 names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
 definition the rule reads before the one that would answer. So is a plain name no schema declares
 where a schema merging past the bound may; a URI is read as a location all the same, and a
-`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A chain of
-references that closes on itself is [`reference-cycles`](#reference-cycles)'.
+`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A `$dynamicRef`
+naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every respect here, its
+reports worded with the keyword it is written under. A chain of references that closes on itself is
+[`reference-cycles`](#reference-cycles)'.
 
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
@@ -4401,16 +4403,25 @@ holding an inert keyword naming it and the keyword that leaves it inert.
 A dynamic reference is resolved per reference site by compiler expansion, to a reference to the type
 it names, reported as an info `openapi/dynamic-ref-expanded` at the keyword, since what the source
 wrote as dynamic is now a fixed target. A `$dynamicRef` is first resolved against the base of the
-schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2), so the anchor it
-names dynamically is one its own resource declares. What makes the expansion possible is that a
+schema resource it is written in, as a `$ref` is (JSON Schema 2020-12 §8.2.3.2), and is dynamic only
+where that lands on a fragment a `$dynamicAnchor` created, so the anchor it names dynamically is one
+the resource it names declares. Anywhere else it is the `$ref` it spells: a pointer, a plain name an
+`$anchor` declares, another document, a name declared nowhere in the resource it names. It then
+lowers and binds as that `$ref` does, through [`references`](#references), reporting nothing where
+it resolves and `openapi/unresolved-ref` where it does not, worded with its own keyword, a loop
+through it being an `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)); one resolving
+nowhere lowers the top type, keeping nothing. A name declared more than once in the resource it
+names, one of the declarations a `$dynamicAnchor` of the reference's document, and one a merge past
+[`references`](#references)' bound may hide the declaration of, are not shown to be `$ref`s, and
+are read as dynamic. What makes the expansion possible is that a
 document's set of `$dynamicAnchor` declarations is fixed before evaluation: a name declared exactly
 once, in the reference's own resource, is the only match any dynamic scope containing a match can
 hold, so it *is* the outermost matching anchor whatever path evaluation took. The anchor may stand at
 any position a `$ref` can name: a component, a `$defs` entry, a property, an `items` schema, a
 response's inline schema, the component keyed `""`, or a draft's `definitions` entry, which the
 reference lands on as a `$ref` naming the anchor would, so the schema there is built and validated
-as one a `$ref` reaches. An `$id` between the reference and the anchor puts the two in different
-resources, and the reference is irreducible.
+as one a `$ref` reaches. A reference naming the anchor by a URI that puts it in another resource,
+an `$id` between the two, is irreducible.
 
 JSON Schema 2019-09's `$recursiveRef` is read the same way in a schema whose dialect defines it
 ([`dialect-keywords`](#dialect-keywords)), as the reference to the unnamed anchor of a resource.
@@ -4436,8 +4447,8 @@ what the keywords beside the reference admit, as beside a `$ref`.
 A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef` or
 `openapi:$recursiveRef` (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming
 which case it was — when a `$dynamicRef`'s name is declared more than once in its document (the
-target is back under the evaluation path's control), is declared nowhere, names another document, or
-is not a plain fragment; when a `$recursiveRef`'s value is not `#`, or `$recursiveAnchor: true` is
+target is back under the evaluation path's control), or is declared in another document alone; when
+a `$recursiveRef`'s value is not `#`, or `$recursiveAnchor: true` is
 declared in more than one resource of its document; when its value is not a string at all; when a
 resource boundary stands between it and its anchor as above; when no schema could be built where it
 names; when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
@@ -4463,8 +4474,18 @@ written beside a reference that expands is read as one beside a `$ref` is
 ([`shape-applicator`](#shape-applicator)).
 
 - Cases: `dynamic-ref`, `keywords-at-every-outcome`
-- Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
+- Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
+  `openapi/cyclic-ref`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
+  `schema.TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells`,
+  `schema.TestDynamicRef_AnAnchorOnlyAnotherDocumentDeclaresIsKept`,
+  `bind.TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor`,
+  `bind.TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead`,
+  `bind.TestBind_ReadsADynamicRefAMergeMayHideTheAnchorOfAsDynamic`,
+  `e2e.TestCompile_ADynamicRefNamingNoDynamicAnchorReadsAsTheRefItSpells`,
+  `e2e.TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef`,
+  `e2e.TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef`,
+  `e2e.TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference`,
   `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
   `schema.TestDynamicRef_ExpandsToAnyPositionARefNames`, `schema.TestDynamicRef_ExpandsWithinOneResource`,
   `schema.TestDynamicRef_ExpandsToAnAnchorOnlyADraftPlaces`, `schema.TestResolvesAt_AnswersAsResolvePointerDoes`,
@@ -4480,8 +4501,7 @@ written beside a reference that expands is read as one beside a `$ref` is
   `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
 - Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
-  `$recursiveAnchor: true`, even where neither can reach the other (#1884); and a `$dynamicRef` whose
-  value names no `$dynamicAnchor` is kept, though JSON Schema reads it as the `$ref` it spells (#1860).
+  `$recursiveAnchor: true`, even where neither can reach the other (#1884).
 
 ### `content-vocabulary`
 
