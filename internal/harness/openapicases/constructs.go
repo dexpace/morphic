@@ -133,7 +133,9 @@ func sharedConstructs() []construct {
 		{keyword: "additionalProperties", targets: objectTargets(), values: fixed("additionalProperties",
 			`{"type": "integer"}`, `{"type": "boolean"}`)},
 		{keyword: "description", values: fixed("description", `"D"`, `"Z"`)},
-		{keyword: "format", targets: []string{stringTarget, formattedTarget}, values: fixed("format", `"date"`, `"date-time"`)},
+		// Not of the formatted target: its body writes format already, so there
+		// the construct would write the string target's documents again.
+		{keyword: "format", targets: []string{stringTarget}, values: fixed("format", `"date"`, `"date-time"`)},
 		{keyword: "default", values: instances("default", "%s")},
 		{keyword: "readOnly", values: fixed("readOnly", "true", "false")},
 		{keyword: "writeOnly", values: fixed("writeOnly", "true", "false")},

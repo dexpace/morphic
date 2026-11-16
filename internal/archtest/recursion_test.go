@@ -123,15 +123,10 @@ var schemaRecursion = []string{
 var loweringPackages = []string{
 	"compilers/openapi",
 	"compilers/openapi/internal/auth",
-	"compilers/openapi/internal/convention",
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
-	"compilers/openapi/internal/pagination",
-	"compilers/openapi/internal/paramchoice",
-	"compilers/openapi/internal/replacement",
 	"compilers/openapi/internal/schema",
 	"compilers/openapi/internal/servers",
-	"compilers/openapi/internal/stream",
 }
 
 // TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are

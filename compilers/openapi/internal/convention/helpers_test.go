@@ -6,17 +6,14 @@ package convention_test
 import (
 	"maps"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
-// under is a context over an empty document under p, which the conventions
-// read only for their policies and the promotion mapping.
-func under(p lowering.Policy) lowering.Ctx {
-	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, p)
+// defaults is the promoter of the default policy, whose keys the conventions
+// defer to.
+func defaults() promotion.Promoter {
+	return promotion.New(promotion.ExtensionPromotions{})
 }
 
 // registry is a type registry holding the primitives a test types a use by.

@@ -117,7 +117,7 @@ func TestMessage_ReadsOnlyIntroducedNames(t *testing.T) {
 			t.Parallel()
 			doc, op, member := phraseDocument(tc.message)
 
-			assert.Empty(t, replacement.Infer(inferring(), whole.New(doc)),
+			assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)),
 				"a name no phrase introduces is not reported")
 
 			wantOps, wantMembers := entities(tc.want)
@@ -161,7 +161,7 @@ func TestMessage_ReadsEachCueAndNoNearMiss(t *testing.T) {
 				tc.read: {"a"}, tc.negated: nil, tc.longer: nil, tc.nameless: nil,
 			} {
 				doc, _, member := phraseDocument(message)
-				assert.Empty(t, replacement.Infer(inferring(), whole.New(doc)), message)
+				assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), message)
 				_, wantMembers := entities(want)
 				assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, message)
 			}
@@ -188,7 +188,7 @@ func TestMessage_CostsItsLength(t *testing.T) {
 			own := append([]ir.Property{{ID: "p/old", WireName: "old", Deprecation: says(message)}}, props...)
 			doc := routes()
 			doc.Types = ir.TypeRegistry{"t/m": &ir.Model{ID: "t/m", Properties: own}}
-			replacement.Infer(inferring(), whole.New(doc))
+			replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc))
 		})
 	}
 	small, double, quad := cost(64), cost(128), cost(256)

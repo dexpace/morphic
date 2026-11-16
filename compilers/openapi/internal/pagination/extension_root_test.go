@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -154,7 +154,7 @@ func TestPromote_TrueWithNoRootStatement(t *testing.T) {
 				NextCursor:  propPath(bodyProps("things", "get") + "/next_page_token"),
 				Stop:        []ir.PageStop{ir.PageStopNoNext},
 			}, op.Pagination)
-			assert.Equal(t, lowering.PaginationInferenceHeuristic, op.Provenance.Inferred)
+			assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
 			assert.Contains(t, doc.Unmodeled, "openapi:x-fern-pagination")
 		}
 	})

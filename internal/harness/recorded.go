@@ -88,7 +88,9 @@ func (r Recorded) Explains(f Finding, as string) bool {
 
 // Write renders found as a record ReadRecorded reads back: header as comment
 // lines, then a line per finding, by name, keeping the reason r gives its
-// name, and "unclassified" for a name r does not list.
+// name, and "unclassified" for a name r does not list. A What that is empty
+// or holds a tab writes a line ReadRecorded refuses, so an oracle's signature
+// line is neither.
 func (r Recorded) Write(header string, found []Finding) []byte {
 	var b strings.Builder
 	for line := range strings.Lines(header) {
@@ -125,13 +127,13 @@ func findingOf(r Result, v Verdict) Finding {
 }
 
 // Unexplained returns, of results, those records does not explain: a result a
-// fault ended, and one with a finding its oracle's record does not list at the
-// core case the result projects to (Result.Like), which holds the verdicts of
-// such findings alone, the first its outcome.
+// fault ended (Result.Faulted), whole, and one with a finding its oracle's
+// record does not list at the core case the result projects to (Result.Like),
+// which holds the verdicts of such findings alone, the first its outcome.
 func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 	var out []Result
 	for _, r := range results {
-		if r.Outcome != OutcomeOK && !slices.ContainsFunc(r.Verdicts, Verdict.Found) {
+		if r.Faulted() {
 			out = append(out, r)
 			continue
 		}

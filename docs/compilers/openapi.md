@@ -1069,13 +1069,14 @@ any chain that fails does, though the schema writing it keeps what it declares b
 alias or merge key is a copy written where it is placed, so what it holds is read at that position,
 as the document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in
 another document, is read as a schema, as is a schema beneath an Encoding Object that another nests
-through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. A reference
-written beneath such a nested Encoding Object is bound and reported as one anywhere else is, though
-the object itself is kept verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). A
-schema position of the model holds the schema the parser
-built there, whatever its YAML, so a `$ref` to a component written as a string names that component,
-as it lowers. A key written twice in one mapping is read as its last occurrence, raw YAML included,
-as the parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
+through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. A `$ref`
+written beneath such a nested Encoding Object, a schema's or a Reference Object's, is bound and
+reported as one anywhere else is, though the object itself is kept verbatim
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). A schema position of the model holds the
+schema the parser built there, whatever its YAML, so a `$ref` to a component written as a string
+names that component, as it lowers. A key written twice in one mapping is read as its last
+occurrence, raw YAML included, as the parser's model reads one
+([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
 component its section does not hold, another document the compile may not read, a plain name or a
@@ -1436,10 +1437,10 @@ entry, whose carrier has no docs for the one media type it names. The load phase
 neither a section nor a reference, and the reference is followed as any other is
 ([`references`](#references)); each entry no reference reaches is kept
 ([`unreferenced-components`](#unreferenced-components)). Nothing models the nested Encoding fields.
-The binder places every field of the live set where the specification defines one, whatever the
-parser's model holds, so a reference written beneath any of them is bound and reported as any other
-is, and a schema it lands on beneath a nested Encoding Object is built from the raw YAML, as one an
-extension holds is.
+The binder places each field the rule table gives an object outside a schema that can hold a schema
+or a Reference Object, at every minor and whatever the parser's model holds, so a `$ref` written
+beneath a nested Encoding Object is bound and reported as any other is, and a schema one lands on
+there is built from the raw YAML, as one an extension holds is.
 
 - Cases: `response-summary-32`, `xml-nodetype-32`, `nested-encoding-32`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`, `openapi/unknown-key-unreachable`
@@ -1526,8 +1527,9 @@ holds is named for that object even where the object is kept under an extension 
 `$ref`, and a document a `$ref` reads whole as a schema is named for the document (`./Cat.yaml`
 names its root `cat_yaml`). A `components/mediaTypes` entry is named by its key, `""` minted as a
 component schema's is, and a header of an Encoding Object that another nests through 3.2's
-`encoding`, `prefixEncoding` or `itemEncoding` by its key, as any other header is. Every such name is a function of the documents and the position alone, read
-where the position is written, so no lowering order changes it: a union variant, or a composition
+`encoding`, `prefixEncoding` or `itemEncoding` by its key, as any other header is. Every such name
+is a function of the documents and the position alone, read where the position is written, so no
+lowering order changes it: a union variant, or a composition
 branch holding a `$ref`, is named as the position the `$ref` lands on, in whichever document, and
 keeps its own name where that names nothing. An inline `allOf` branch is a conjunct of the schema
 holding it, so a node built there ([`allof-refinement`](#allof-refinement)) is named as that schema
@@ -4277,7 +4279,7 @@ apart (spec @86556f6f).
 - Cases: `secret-inference`
 - Tests: `convention.TestRedact_ReadsTheNamesTail`, `convention.TestRedact_ReadsTheValuesType`,
   `convention.TestRedact_LeavesWhatTheDocumentSays`, `convention.TestRedact_ReachesEveryUse`,
-  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `promotion.TestPromoter_WritesSeesAKeyWhateverItSays`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `whole-schema-fallbacks`
@@ -5144,7 +5146,7 @@ each key read into one is reported the same way, once, whether the tag forms a g
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
 - Codes: `openapi/repeated-entry`, `openapi/unpromoted-extension`
 - Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`, `operation.TestGroups_ARepeatedTagNameTakesItsFirstDeclaration`,
-  `operation.TestGroups_ADeprecationOnATagIsReported`, `lowering.TestUnheldDeprecation_ReportsEachKeyStatingOne`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
+  `operation.TestGroups_ADeprecationOnATagIsReported`, `promotion.TestUnheldDeprecation_ReportsEachKeyStatingOne`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
@@ -5486,8 +5488,8 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`,
   `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
-  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `lowering.TestDropContained_KeepsWhatIsNotInside`,
-  `lowering.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
+  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `promotion.TestDropContained_KeepsWhatIsNotInside`,
+  `promotion.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
   `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptWholeOnce`,
   `schema.TestDiscriminator_KeptWholeOnce`
 
@@ -5743,7 +5745,7 @@ offers a Content that does not stream beside one that does. Any other key is rep
   `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
   `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
-  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `lowering.TestTextOf_ReadsTheFirstSourceStatingAText`,
+  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `promotion.TestTextOf_ReadsTheFirstSourceStatingAText`,
   `stream.TestPromote_FillsTheTerminator`, `stream.TestPromote_FillsTheTerminatorOfEveryStreamingContent`,
   `stream.TestPromote_TerminatorIsAllOrNone`, `stream.TestPromote_OperationAndContentsMustAgree`,
   `stream.TestPromote_FillsTheCondition`, `stream.TestPromote_AConditionNeedsAStream`,
@@ -6566,8 +6568,8 @@ how operations are arranged rather than filling a fact a node holds.
    there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
-  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`, `lowering.TestPromoter_WritesKnowsEveryTarget`,
-  `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
+  `promotion.TestPromoter_WritesSeesAKeyWhateverItSays`, `promotion.TestPromoter_WritesKnowsEveryTarget`,
+  `promotion.TestPromoter_WritesSeesEveryDefaultKey`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`,
@@ -6760,47 +6762,47 @@ saying why.
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`, `carried-keys`
 - Codes: `openapi/degraded-construct`, `openapi/unread-extension`, `openapi/unpromoted-extension`
-- Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
-  `lowering.TestShadowed_ReturnsWhatCarriedPassesOver`,
+- Tests: `promotion.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `promotion.TestShadowed_ReturnsWhatCarriedPassesOver`,
   `operation.TestPromotion_AMisfitBehindANearerKeyIsReported`,
-  `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
-  `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
-  `lowering.TestPromoter_ACallersValuesAreCopied`,
-  `lowering.TestPromoter_AReferentsKeyDeprecatesTheUse`,
-  `lowering.TestPromoter_ADeprecatedBaseHomesTheNodesMembers`,
-  `lowering.TestTargets_ListsEveryDeclaredTarget`,
-  `lowering.TestExtensionPromotionsCheck_Refusals`,
-  `lowering.TestExtensionPromotionsCheck_AcceptsWhatReadsAsWritten`,
-  `lowering.TestListsValues_NamesTheTargetsStatingAFact`,
-  `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
-  `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
-  `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
-  `lowering.TestUnreadExtensions_TheAliasesKeyIsRead`,
+  `promotion.TestPromoter_ValuesNameWhatStatesTheFact`,
+  `promotion.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
+  `promotion.TestPromoter_ACallersValuesAreCopied`,
+  `promotion.TestPromoter_AReferentsKeyDeprecatesTheUse`,
+  `promotion.TestPromoter_ADeprecatedBaseHomesTheNodesMembers`,
+  `promotion.TestTargets_ListsEveryDeclaredTarget`,
+  `promotion.TestExtensionPromotionsCheck_Refusals`,
+  `promotion.TestExtensionPromotionsCheck_AcceptsWhatReadsAsWritten`,
+  `promotion.TestListsValues_NamesTheTargetsStatingAFact`,
+  `promotion.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
+  `promotion.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
+  `promotion.TestUnreadExtensions_TheGroupingKeyIsRead`,
+  `promotion.TestUnreadExtensions_TheAliasesKeyIsRead`,
   `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
-  `lowering.TestServerName_ReadsTheDefaultKey`,
-  `lowering.TestTokenEndpointAuthMethods_ReadsASet`,
-  `lowering.TestAllowReserved_OnlyTrueAsksForIt`,
+  `promotion.TestServerName_ReadsTheDefaultKey`,
+  `promotion.TestTokenEndpointAuthMethods_ReadsASet`,
+  `promotion.TestAllowReserved_OnlyTrueAsksForIt`,
   `operation.TestLowerParameter_AKeyAsksForReservedExpansion`,
   `servers.TestLowerServer_AKeyNamesAServerTheDocumentNamesNot`,
   `auth.TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication`,
   `schema.TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers`,
   `openapi.TestCompile_RefusesAPromotionPolicyItCannotRead`,
   `openapi.TestDecodeOptions_TextReachesEveryField`,
-  `lowering.TestPromoterDeprecation_KeyStatesIt`,
-  `lowering.TestStability_ReadsEachWord`,
-  `lowering.TestPromoterRedaction_OnlyTrueWrites`,
-  `lowering.TestEnumOpenness_WritesNothing`,
-  `lowering.TestUnionOpenness_OpensOnAMappedKey`,
+  `promotion.TestPromoterDeprecation_KeyStatesIt`,
+  `promotion.TestStability_ReadsEachWord`,
+  `promotion.TestPromoterRedaction_OnlyTrueWrites`,
+  `promotion.TestEnumOpenness_WritesNothing`,
+  `promotion.TestUnionOpenness_OpensOnAMappedKey`,
   `e2e.TestPromotion_AMappedKeyOpensAUnion`,
   `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
-  `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
-  `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
-  `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
-  `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
-  `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
-  `lowering.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
+  `promotion.TestPromoter_ReadsSourcesInPolicyOrder`,
+  `promotion.TestPromoter_MemberReadsOneFactOfAnObject`,
+  `promotion.TestPromoter_ReferentLendsBeneathOwnKeys`,
+  `promotion.TestPromoter_ReferentReadsWhatASchemaLends`,
+  `promotion.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
+  `promotion.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
   `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
   `replacement.TestResolve_ANameNamingNothingFillsNothing`,
   `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
@@ -6811,8 +6813,8 @@ saying why.
   `e2e.TestPromotion_ALostRefLendsTheNodeItSpeaksOn`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
-  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `lowering.TestCarried_ReturnsOwnWhereNothingIsCarried`,
-  `lowering.TestCarried_TheOwnKeyBeatsTheScopedOne`, `lowering.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
+  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
+  `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`, `promotion.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
 - Status: partly built: a redaction key beside an `allOf` over an
   object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
@@ -6868,7 +6870,7 @@ read.
   `paramchoice.TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter`,
   `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`,
   `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
-  `lowering.TestStatementOf_ReadsTheFirstSourceWritten`
+  `promotion.TestStatementOf_ReadsTheFirstSourceWritten`
 
 ### `extension-pagination`
 
@@ -6971,11 +6973,11 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `whole.TestDocument_APromotionNoMemberMarksFlattensNoModel`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
-  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
-  `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
+  `promotion.TestPageStatementOf_ReadsAnExpressionOrAMark`,
+  `promotion.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
   `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`,
-  `lowering.TestPageStatementOf_ReadsTheRootForTrue`, `pagination.TestPromote_TrueReadsThePathItemFirst`,
+  `promotion.TestPageStatementOf_ReadsTheRootForTrue`, `pagination.TestPromote_TrueReadsThePathItemFirst`,
   `pagination.TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot`
 
 ### `pagination-policy`
@@ -7133,7 +7135,7 @@ declaration both mounts share.
   `pagination.TestInferWalks_AllocatesLinearInTheBodiesItReads`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
-  `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
+  `pagination.TestInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ## 16. Swagger 2.0

@@ -42,10 +42,11 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 // emptyRecord is a format's record of no finding.
 func emptyRecord(harness.Oracle) (harness.Recorded, error) { return harness.Recorded{}, nil }
 
-func runArgs(t *testing.T, args ...string) (code int, stdout, stderr string) {
+// runArgs runs the command over fmts with args.
+func runArgs(t *testing.T, fmts []format, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	var out, errb bytes.Buffer
-	code = run(context.Background(), args, &out, &errb)
+	code = run(context.Background(), fmts, args, &out, &errb)
 	return code, out.String(), errb.String()
 }
 
@@ -65,7 +66,7 @@ func TestRun_ArgumentsTheCasesRefuse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			code, stdout, stderr := runArgs(t, tc.args...)
+			code, stdout, stderr := runArgs(t, nil, tc.args...)
 			assert.Equal(t, 2, code)
 			assert.Empty(t, stdout)
 			assert.Contains(t, stderr, "morphic-harness: "+tc.want)
@@ -74,23 +75,23 @@ func TestRun_ArgumentsTheCasesRefuse(t *testing.T) {
 	}
 }
 
-// TestRun_TheCasesOfEachFormat runs both modes over the formats the command
-// lists: with no oracle finding anything, the report is empty, and the
-// summary counts what each case oracle declined.
+// TestRun_TheCasesOfEachFormat pins which cases each mode runs, over a fake
+// format: core, its core case alone, which writes calmly, the report empty and
+// the summary counting it; full, every case, among them one whose Write
+// panics.
 func TestRun_TheCasesOfEachFormat(t *testing.T) {
 	t.Parallel()
-	c := openapicases.New()
-	for mode, pick := range map[string]func([]int) bool{"core": harness.Core(c), "full": func([]int) bool { return true }} {
-		t.Run(mode, func(t *testing.T) {
-			t.Parallel()
-			code, stdout, stderr := runArgs(t, "-cases", mode)
-			require.Equal(t, 0, code, stderr)
+	fmts := []format{{cases{}, emptyRecord}}
+	code, stdout, stderr := runArgs(t, fmts, "-cases", "core")
+	require.Equal(t, 0, code, stderr)
+	results, err := harness.CheckCases(context.Background(), cases{}, harness.Core(cases{}))
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "\n"+harness.CaseSummary(results), stdout)
 
-			results, err := harness.CheckCases(context.Background(), c, pick)
-			require.NoError(t, err)
-			assert.Equal(t, "\n"+harness.CaseSummary(results), stdout)
-		})
-	}
+	code, stdout, _ = runArgs(t, fmts, "-cases", "full")
+	assert.Equal(t, 1, code)
+	assert.Contains(t, stdout, "the writer exploded")
 }
 
 // TestRun_AtWritesOneCase pins -at: a case's name, its sources and each
@@ -102,7 +103,7 @@ func TestRun_AtWritesOneCase(t *testing.T) {
 	n, err := harness.CaseCount(c)
 	require.NoError(t, err)
 
-	code, stdout, stderr := runArgs(t, "-cases", "full", "-at", "0")
+	code, stdout, stderr := runArgs(t, formats(), "-cases", "full", "-at", "0")
 	require.Equal(t, 0, code, stderr)
 	name, rest, _ := strings.Cut(stdout, "\n")
 	assert.Equal(t, "3.0.3/object/none/none/component/inline", name)
@@ -112,7 +113,7 @@ func TestRun_AtWritesOneCase(t *testing.T) {
 		"spelling declined: no partner\npresence declined: no construct\ninstance declined: no instance\n", rest)
 
 	for _, at := range []int{n, -1} {
-		code, stdout, stderr = runArgs(t, "-cases", "core", "-at", fmt.Sprint(at))
+		code, stdout, stderr = runArgs(t, formats(), "-cases", "core", "-at", fmt.Sprint(at))
 		assert.Equal(t, 2, code, "%d", at)
 		assert.Empty(t, stdout)
 		assert.Contains(t, stderr, fmt.Sprintf("-at %d names none of the %d cases", at, n))

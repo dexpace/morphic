@@ -387,7 +387,8 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			t.Parallel()
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
-			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), compile.NewTypes(), whole.New)
+			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), inferences{},
+				compile.NewTypes(), whole.New)
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
@@ -422,7 +423,8 @@ components:
 		loaded, _, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: live}
-		_, diags, err := run(ctx, loweringCtx(loaded, Options{}.withDefaults()), compile.NewTypes(), whole.New)
+		_, diags, err := run(ctx, loweringCtx(loaded, Options{}.withDefaults()), inferencesOf(Options{}.withDefaults()),
+			compile.NewTypes(), whole.New)
 		return ctx.Calls, diags, err
 	}
 	moved := func(diags []ir.Diagnostic) bool {
