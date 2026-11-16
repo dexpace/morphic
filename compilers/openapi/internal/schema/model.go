@@ -32,14 +32,13 @@ import (
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
 func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool, takes kindSet) (ir.TypeID, []ir.Diagnostic) {
-	sM := statement.Parsed(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer, takes)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
-		requireMembers(m, sM.GetRequired())
+		requireMembers(m, objectIn(s).Required)
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
 			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
@@ -199,31 +198,27 @@ func membersBeneath(ms []ir.EnumMember, from ir.TypeID, idAt func(tail string) i
 func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields modelFields, s *statement.Schema,
 	pointer jsontext.Pointer,
 ) []ir.Diagnostic {
-	m := statement.Parsed(s)
-	props := m.GetProperties()
-	if props == nil {
-		return nil
-	}
 	var diags []ir.Diagnostic
-	for name, js := range props.All() {
-		ppointer := pointer + ids.Ptr("properties", name)
-		ref, refDiags := CarriedRef(c, ts, depth, c.Statements().Of(js), ppointer)
+	for _, prop := range objectIn(s).Properties {
+		js := c.Statements().Sub(prop)
+		ppointer := pointer + ids.Ptr("properties", prop.Name)
+		ref, refDiags := CarriedRef(c, ts, depth, js, ppointer)
 		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         c.IDs().Prop(ppointer),
-			Name:       ir.NamingFor(name),
-			WireName:   name,
+			Name:       ir.NamingFor(prop.Name),
+			WireName:   prop.Name,
 			Type:       ref,
 			Provenance: c.Place().At(ppointer),
 		}
-		diags = append(diags, FillPropertyDetail(c, ts, &p, c.Statements().Of(js), ppointer)...)
+		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
 		declared := p.Secret
-		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, c.Statements().Of(js), p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 		var secretBy ir.Inferred
 		if p.Secret && !declared {
 			secretBy = promotion.ExtensionPromotionHeuristic
 		}
-		fields.merge(p, redeclarationSource(c.Statements().Of(js)), secretBy)
+		fields.merge(p, redeclarationSource(js), secretBy)
 	}
 	return diags
 }
@@ -281,16 +276,15 @@ func requireMembers(m *ir.Model, required []string) {
 // which this sets only for `false` and for an `unevaluatedProperties: false`
 // no additionalProperties leaves inert (annotation.ClosesAfterComposition).
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	sM := statement.Parsed(s)
 	var diags []ir.Diagnostic
-	ap := sM.GetAdditionalProperties()
+	ap := c.Statements().Sub(objectIn(s).AdditionalProperties)
 	switch {
-	case !annotation.Written(ap):
+	case ap.Truth == statement.Unwritten:
 		// Left out, or a null, which states nothing: no catch-all is written.
-	case annotation.IsFalseSchema(ap):
+	case ap.Truth.ReadsFalse():
 		m.Additional = ir.AdditionalClosed
 	default:
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Of(ap), pointer+ids.Ptr("additionalProperties"))
+		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
@@ -336,17 +330,25 @@ func forbidRest(m *ir.Model) {
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
 func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProps, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	pp := m.GetPatternProperties()
-	if pp == nil || pp.Len() == 0 {
+	pp := objectIn(s).PatternProperties
+	if len(pp) == 0 {
 		return nil, nil
 	}
 	var diags []ir.Diagnostic
-	out := make([]ir.PatternProps, 0, pp.Len())
-	for pattern, js := range pp.All() {
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Of(js), pointer+ids.Ptr("patternProperties", pattern))
+	out := make([]ir.PatternProps, 0, len(pp))
+	for _, p := range pp {
+		ref, refDiags := Ref(c, ts, depth, c.Statements().Sub(p), pointer+ids.Ptr("patternProperties", p.Name))
 		diags = append(diags, refDiags...)
-		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
+		out = append(out, ir.PatternProps{Pattern: p.Name, Value: ref})
 	}
 	return out, diags
+}
+
+// objectIn returns what s's object keywords say, the zero Object where it
+// writes none.
+func objectIn(s *statement.Schema) statement.Object {
+	if s == nil || s.Object == nil {
+		return statement.Object{}
+	}
+	return *s.Object
 }
