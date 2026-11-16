@@ -2249,6 +2249,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_ACappedBranchStaysAComposition`,
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
   `schema.TestRefinement_AUnionBranchIsAConjunct`, `schema.TestRefinement_AUnionBesideTheAllOfIsAConjunct`,
+  `schema.TestRefinement_AUnionThePrincipalSaysIsConsumed`,
   `schema.TestRefinement_TheKeywordsBesideWithAUnionLowerAsWithNoAllOf`,
   `schema.TestRefinement_AShapelessUnionBesideIsValidationLogic`,
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
