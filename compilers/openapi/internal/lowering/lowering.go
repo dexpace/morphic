@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
@@ -154,13 +155,12 @@ type loadResult struct {
 	names *naming.Namer
 	// others is every document a reference read beside the source, rows what
 	// the table says at the source's minor in its dialect (load.Document.Rows),
-	// and dialects the rows each schema resource root naming its dialect
-	// governs: the load phase read them all off the one table it built, so no
-	// context builds another. Copies share them on purpose: nothing writes any
+	// and dialects the rows each schema is read with: the load phase read them
+	// all off the one table it built, so no context builds another. Copies share them on purpose: nothing writes any
 	// after the load, so no lowering changes what another reads.
 	others   load.Others
 	rows     load.Rows
-	dialects load.Dialects
+	dialects dialect.Table
 	// reads holds those readings in the scope fields they fill: SelfPath, and
 	// Bindings over every $ref.
 	reads resolve.Scope
@@ -389,10 +389,15 @@ func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 
 // SchemaRules returns the Schema Object's rows of the document whose content c
-// reads (rowsOf). A reading only a minor decides, such as a required `items` or
-// the effect `nullable` has, asks these rather than the version; a keyword's
-// shape, which a schema's dialect decides, asks SchemaRulesAt.
-func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
+// reads, where no root names a dialect (dialect.Table.In). A reading only a
+// minor decides, such as a required `items` or the effect `nullable` has, asks
+// these rather than the version; a keyword's shape, which a schema's dialect
+// decides, asks Rules.
+func (c Ctx) SchemaRules() oas.SchemaRules { return c.Rules().In(c.homeDoc) }
+
+// Rules returns the rows each schema of the compile is read with, which the
+// load phase read off the one table it judged the documents against.
+func (c Ctx) Rules() dialect.Table { return c.loaded.dialects }
 
 // EncodingRules returns the Encoding Object's rows an encoding c lowers is read
 // with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
@@ -407,39 +412,6 @@ func rowsOf(c Ctx) load.Rows {
 		return o.Rows
 	}
 	return c.loaded.rows
-}
-
-// SchemaRulesAt returns the rows the schema at pointer of c's document is read
-// with: those of the dialect the innermost schema resource root at or above it
-// names, where one does (load.Dialects.At), and c's otherwise (SchemaRules).
-func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
-	if r, ok := c.loaded.dialects.At(c.Position(pointer)); ok {
-		return r
-	}
-	return c.SchemaRules()
-}
-
-// SchemaRulesOf is SchemaRulesAt for a reading that has the schema's node n
-// and not where it is: the rows load.Dialects.Of gives it, and the source's
-// own for a node it gives none, whatever document c reads, so a reading that
-// follows a $ref into another document still reads its schemas in their own
-// dialect. An aliased node reads one dialect wherever it is placed.
-func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
-	if r, ok := c.loaded.dialects.Of(n); ok {
-		return r
-	}
-	return c.loaded.rows.Schema
-}
-
-// SchemaRulesIn returns the rows the schemas document id of the bindings'
-// table declares are read with, for a reading that crosses a $ref without a
-// context of that document: the source's own for the source, and for one the
-// compile did not read beside it.
-func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
-	if _, o, ok := otherIn(c, id); ok {
-		return o.Rows.Schema
-	}
-	return c.loaded.rows.Schema
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
@@ -544,12 +516,9 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 }
 
 // otherIn returns the name document id of the bindings' table is read by, and
-// the document the compile read beside the source under it, and false for the
-// source and for a document the compile did not read beside the source.
+// the document the compile read beside the source under it, and false for a
+// document the compile did not read beside the source. id is not the source's.
 func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
-	if id == bind.Source {
-		return "", load.Other{}, false
-	}
 	name := c.Bindings().Table().Document(id).Name
 	o, ok := c.loaded.others.Named(name)
 	return name, o, ok

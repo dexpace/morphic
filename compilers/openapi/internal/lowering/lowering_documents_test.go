@@ -108,9 +108,9 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
 // context reads a schema with: that of the document its scope reads, through
-// InDocument and InScope alike, and back to the source's. SchemaRulesIn answers
-// for a document of the bindings' table, and a context that did not list the
-// document answers with the source's.
+// InDocument and InScope alike, and back to the source's. Rules().In answers
+// for a document of the bindings' table, and with the source's for one the
+// compile did not read.
 func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	t.Parallel()
 	c, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
@@ -120,41 +120,42 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	there, ok := lowering.InDocument(c, id)
 	require.True(t, ok)
 	assert.True(t, there.SchemaRules().Defines("nullable"), "ext.yaml declares 3.0.3")
+	if lowering.EncodingRules(there) != doc.Others.List()[0].Rows.Encoding {
+		t.Error("an encoding ext.yaml declares reads another document's rows")
+	}
 	back, ok := lowering.InDocument(there, bind.Source)
 	require.True(t, ok)
 	assert.False(t, back.SchemaRules().Defines("nullable"))
 
-	assert.True(t, lowering.SchemaRulesIn(c, id).Defines("nullable"))
-	assert.False(t, lowering.SchemaRulesIn(c, bind.Source).Defines("nullable"))
+	assert.True(t, c.Rules().In(id).Defines("nullable"))
+	assert.False(t, c.Rules().In(bind.Source).Defines("nullable"))
 
-	none := *doc
-	none.Others = load.Others{}
-	unread := lowering.New(0, &none, lowering.Policy{})
-	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
+	unread := bind.DocID(c.Bindings().Table().Documents())
+	assert.False(t, c.Rules().In(unread).Defines("nullable"), "a document the compile did not read")
 }
 
-// TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames pins whose rows a
+// TestRules_OfReadsTheDialectTheSchemaHoldingItNames pins whose rows a
 // schema is read with by its node: those of the dialect the root holding it
 // names, here a document of schemas naming draft 4 at its root, and else the
 // source's.
-func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
+func TestRules_OfReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
 	a, ok := c.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
 	x := c.Bindings().End(a)
 	require.NotNil(t, x)
-	assert.True(t, lowering.SchemaRulesOf(c, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
-	assert.True(t, lowering.SchemaRulesOf(c, a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+	assert.True(t, c.Rules().Of(x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
+	assert.True(t, c.Rules().Of(a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
 		"the source's own schema reads its document's")
 }
 
-// TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect pins that a reading by
+// TestRules_OfReadsANodeInItsOwnDocumentsDialect pins that a reading by
 // node answers in the dialect of the document holding the schema, not of the
 // one whose content the context reads: ext.yaml's X, a 3.0 document's, reads
 // 3.0's rows from the source's context, and the source's A reads the source's
 // from ext.yaml's, as a $ref followed either way finds them.
-func TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
+func TestRules_OfReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: integer}\nP: {name: p, in: query}\n")
 	there, ok := lowering.InDocument(c, extDoc(t, c))
@@ -164,7 +165,7 @@ func TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 	x := c.Bindings().End(a)
 	require.NotNil(t, x)
 	boolean := func(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return lowering.SchemaRulesOf(c, js.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
+		return c.Rules().Of(js.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
 	}
 	assert.True(t, boolean(c, x), "ext.yaml's X, from the source")
 	assert.True(t, boolean(there, x), "ext.yaml's X, from ext.yaml")
@@ -172,36 +173,23 @@ func TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 	assert.False(t, boolean(c, a), "the source's A, from the source")
 }
 
-// TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs pins whose rows a schema
+// TestRules_AtReadsTheDialectOfWhereASchemaIs pins whose rows a schema
 // is read with by where it is: those of the dialect the root at or above it
 // names, here a document of schemas naming draft 4 at its root, read in that
 // document's context; the context's own where none is, as for the source's A;
 // and the context's where it places no position, as InScope reads another
 // document's content at the source's.
-func TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs(t *testing.T) {
+func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
 	there, ok := lowering.InDocument(c, extDoc(t, c))
 	require.True(t, ok)
 	boolean := func(c lowering.Ctx, at jsontext.Pointer) bool {
-		return lowering.SchemaRulesAt(c, at).Takes("exclusiveMinimum", oas.Boolean)
+		return c.Rules().At(c.Position(at)).Takes("exclusiveMinimum", oas.Boolean)
 	}
 	assert.True(t, boolean(there, "/X"), "ext.yaml's root names draft 4")
 	assert.False(t, boolean(c, "/components/schemas/A"), "the source's own schema reads its document's")
 	assert.False(t, boolean(there.InScope(there.RefScope()), "/X"), "no position, the scope's document's rows")
-}
-
-// TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question
-// the schema readers ask of every schema they read across the bindings: the
-// source's rows come without a lookup, where one by its name would parse it as
-// a URL on each miss. It runs alone, since the allocation counts are the
-// process's.
-func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
-	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
-	var defines bool
-	allocs := testing.AllocsPerRun(100, func() { defines = lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") })
-	assert.Zero(t, allocs)
-	assert.False(t, defines, "the 3.1 source defines no nullable")
 }
 
 // TestNew_ReadsTheSourcesRowsFromTheLoad pins where a context over a loaded

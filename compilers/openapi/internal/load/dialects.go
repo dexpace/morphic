@@ -7,11 +7,9 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 
-	yaml "go.yaml.in/yaml/v3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
@@ -45,14 +43,15 @@ type dialectRows struct {
 }
 
 // of returns the version a document declaring declared is held to, its minor,
-// and what the table says at that minor in dialect, its jsonSchemaDialect,
-// which its schemas are read with where none names a dialect of its own.
-func (d *dialects) of(declared, dialect string) (version, minor string, rows Rows) {
+// and what the table says at that minor in the dialect uri, its
+// jsonSchemaDialect, names, which its schemas are read with where none names a
+// dialect of its own.
+func (d *dialects) of(declared, uri string) (version, minor string, rows Rows) {
 	version, minor = d.version, d.minor
 	if m, ok := supportedMinor(declared); ok {
 		version, minor = declared, m
 	}
-	return version, minor, d.at(version, dialect).rows
+	return version, minor, d.at(version, uri).rows
 }
 
 // own returns what the table says at the source's minor, in the dialect its
@@ -61,94 +60,19 @@ func (d *dialects) own() Rows {
 	return d.at(d.version, d.dialect).rows
 }
 
-// at returns dialect's rows at the minor version names.
-func (d *dialects) at(version, dialect string) dialectRows {
+// at returns the rows of the dialect uri names at the minor version names.
+func (d *dialects) at(version, uri string) dialectRows {
 	minor, _ := supportedMinor(version)
-	k := dialectKey{minor: minor, dialect: dialect}
+	k := dialectKey{minor: minor, dialect: uri}
 	if r, built := d.rows[k]; built {
 		return r
 	}
 	if d.rows == nil {
 		d.rows = map[dialectKey]dialectRows{}
 	}
-	rows, unread := rowsAt(d.spec, version, dialect)
+	rows, unread := rowsAt(d.spec, version, uri)
 	d.rows[k] = dialectRows{rows: rows, unread: unread}
 	return d.rows[k]
-}
-
-// Dialects is the rows the schemas a resource root naming its dialect holds
-// (bind.Document.Dialects) are read with: by where each is (At), and by each
-// node of that root's tree (Of), a root it holds governing its own. A schema
-// no such root holds reads its document's rows. Nothing writes it once the
-// load phase returns it, so every context copying it may read it at once.
-type Dialects struct {
-	byRoot map[bind.Position]oas.SchemaRules
-	byNode map[*yaml.Node]oas.SchemaRules
-	// byDoc is the rows each document's schemas no root governs are read
-	// with, and byName each document by its name, for the load phase's own
-	// judgement of a schema (judgeSchemas, reached.check).
-	byDoc  map[bind.DocID]oas.SchemaRules
-	byName map[string]bind.DocID
-}
-
-// At returns the rows the schema at p is read with where a root at or above
-// it names its dialect, the innermost such root's, and false where none does.
-func (d Dialects) At(p bind.Position) (oas.SchemaRules, bool) {
-	return bind.DialectAt(d.byRoot, p)
-}
-
-// root returns the rows of the dialect root at p, and false where none is
-// there, a root above p not counted.
-func (d Dialects) root(p bind.Position) (oas.SchemaRules, bool) {
-	r, ok := d.byRoot[p]
-	return r, ok
-}
-
-// rowsAt returns the rows the schema at p is read with: the innermost dialect
-// root's at or above it (At), else its document's, else the source's, as for a
-// document the compile did not read beside it.
-func (d Dialects) rowsAt(p bind.Position) oas.SchemaRules {
-	if r, ok := d.At(p); ok {
-		return r
-	}
-	if r, ok := d.byDoc[p.Doc]; ok {
-		return r
-	}
-	return d.byDoc[bind.Source]
-}
-
-// Of is At for a reading that has the schema's node and not where it is, and
-// is false for a node that reads the source's own rows. A node an alias places
-// at several positions reads at all of them the rows of the root last in
-// pointer order among those whose trees hold it, as readDialects governs them,
-// so a reading asks it of a schema typed.Bindings.SiteOf does not place: one
-// the bindings place nowhere, or, where no schema names a dialect, one writing
-// no list of items, as each node then reads one.
-func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
-	r, ok := d.byNode[nodeview.Deref(n)]
-	return r, ok
-}
-
-// govern notes that every mapping and list of the tree under root, which
-// aliases place there included, reads rules, but those a root governed before
-// it holds. Roots are governed innermost first, so a nested root keeps its own.
-// No scalar is noted, since the only schema one can be is a boolean, which
-// writes no keyword. Each mapping and list is walked once, so the walk reads
-// each entry the document writes once.
-func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
-	stack := []*yaml.Node{root}
-	for len(stack) > 0 {
-		n := nodeview.Deref(stack[len(stack)-1])
-		stack = stack[:len(stack)-1]
-		if n == nil || n.Kind == yaml.ScalarNode {
-			continue
-		}
-		if _, governed := d.byNode[n]; governed {
-			continue
-		}
-		d.byNode[n] = rules
-		stack = append(stack, n.Content...)
-	}
 }
 
 // readDialects returns the rows of each dialect a schema of the documents
@@ -159,12 +83,12 @@ func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 // chooses nothing and draws none: validation reports it where it judges it,
 // which in a document a reference reaches is only what the reference reaches.
 // Each document is read under one name (resolve.Locate), so warned of once.
-func readDialects(table *bind.Table, others Others, d *dialects, sites places) (Dialects, []ir.Diagnostic) {
+func readDialects(table *bind.Table, others Others, d *dialects, sites places) (dialect.Table, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	unread := func(at ir.Provenance, keyword, dialect string) {
+	unread := func(at ir.Provenance, keyword, uri string) {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.UnreadDialect, at,
 			"%s names %q, a JSON Schema dialect the compiler has no rows for, so the schemas it governs are "+
-				"read in the dialect their OpenAPI version names", keyword, dialect))
+				"read in the dialect their OpenAPI version names", keyword, uri))
 	}
 	at := jsontext.Pointer("").AppendToken("jsonSchemaDialect")
 	if d.at(d.version, d.dialect).unread {
@@ -175,16 +99,17 @@ func readDialects(table *bind.Table, others Others, d *dialects, sites places) (
 			unread(provenance.Doc{Source: o.Index}.At(at), "jsonSchemaDialect", o.dialect)
 		}
 	}
-	out := Dialects{byRoot: map[bind.Position]oas.SchemaRules{}, byNode: map[*yaml.Node]oas.SchemaRules{},
-		byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: d.at(d.version, d.dialect).rows.Schema}, byName: map[string]bind.DocID{}}
+	source := d.at(d.version, d.dialect).rows.Schema
+	b := dialect.NewBuilder(source)
 	for id := range bind.DocID(table.Documents()) {
-		out.byName[table.Document(id).Name] = id
 		version, ok := versionOf(table, others, d, id)
 		if !ok {
 			continue
 		}
+		own := source
 		if o, listed := others.Named(table.Document(id).Name); listed && id != bind.Source {
-			out.byDoc[id] = d.at(o.version, o.dialect).rows.Schema
+			own = d.at(o.version, o.dialect).rows.Schema
+			b.Document(id, own)
 		}
 		// Innermost first: a root's pointer extends that of a root holding it,
 		// so it sorts after, and the list is in pointer order.
@@ -194,17 +119,16 @@ func readDialects(table *bind.Table, others Others, d *dialects, sites places) (
 				unread(sites.position(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema",
 					root.URI)
 			}
-			out.byRoot[root.At] = r.rows.Schema
-			out.govern(root.Node, r.rows.Schema)
+			b.Root(root.At, root.Node, r.rows.Schema)
 		}
 		// Outermost last: a node no root holds reads its document's own rows,
-		// noted only where they are not the source's, which Of's readers take
-		// for a node it notes nothing of.
-		if rows, own := out.byDoc[id]; own && id != bind.Source && rows != out.byDoc[bind.Source] {
-			out.govern(table.Document(id).Root, rows)
+		// noted only where they are not the source's, which Table.Of gives a
+		// node it notes nothing of.
+		if own != source {
+			b.Govern(table.Document(id).Root, own)
 		}
 	}
-	return out, diags
+	return b.Table(), diags
 }
 
 // versionOf returns the version the schemas of document id of table are read
@@ -217,20 +141,20 @@ func versionOf(table *bind.Table, others Others, d *dialects, id bind.DocID) (st
 	return o.version, ok
 }
 
-// dialectRuleOf returns what the binder reads otherwise in dialect, whose rows
-// rules are, than in 2020-12 (bind.DialectRule): the identifier, `$id`, or
+// dialectRuleOf returns what the binder reads otherwise in uri's dialect, whose
+// rows rules are, than in 2020-12 (bind.DialectRule): the identifier, `$id`, or
 // draft 4's `id` where the rows define it alone; one naming a fragment alone as
 // an anchor where they define no `$anchor`, by the plain-name grammar where
 // they give the identifier it; that grammar for `$anchor` where they give it;
 // `definitions`, `dependencies`'s schemas and `$recursiveAnchor` where they
 // define them; an `items` list as a tuple where they take one; no identifier
-// beside a `$ref` where they ignore what is there; and whether dialect names
-// one at all (oas.NamesDialect).
-func dialectRuleOf(rules oas.SchemaRules, dialect string) bind.DialectRule {
+// beside a `$ref` where they ignore what is there; and whether uri names one at
+// all (oas.NamesDialect).
+func dialectRuleOf(rules oas.SchemaRules, uri string) bind.DialectRule {
 	rule := bind.DialectRule{Keyword: rules.Identifier(), Definitions: rules.Takes("definitions", oas.Map),
 		Dependencies: rules.Defines("dependencies"), Tuples: rules.Takes("items", oas.List),
 		Recursive: rules.Defines("$recursiveRef"), IgnoresRefFields: rules.IgnoresRefFields(),
-		NamesNone: !oas.NamesDialect(dialect)}
+		NamesNone: !oas.NamesDialect(uri)}
 	rule.Fragments = rule.Keyword != "" && !rules.Defines("$anchor")
 	rule.PlainFragments = rules.Formatted(rule.Keyword, oas.PlainNameURI)
 	rule.PlainNames = rules.Formatted("$anchor", oas.PlainName)

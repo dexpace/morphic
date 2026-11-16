@@ -209,6 +209,14 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "go.yaml.in/yaml/v3"},
+	// The rows each schema of a compile is read with, by where it is, by its
+	// node and by its document: one table the load phase fills and every
+	// reader asks. It reaches bind for where a schema is and the roots naming
+	// a dialect, nodeview for the node an alias stands for, oas for the rows,
+	// and yaml for the trees a root governs, and nothing that judges or lowers.
+	"compilers/openapi/internal/dialect": {module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas", "go.yaml.in/yaml/v3"},
 	// One reader of bytes: the source, an overlay and each document a reference
 	// names become the parser's tree of their first document, read as JSON when
 	// they are one JSON text (docs/parser-library.md#json-as-yaml) and else as a
@@ -248,6 +256,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/dialect",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/doctree",
 		module + "/compilers/openapi/internal/nodeview",
@@ -327,8 +336,9 @@ var rules = map[string][]string{
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the schema bindings the load phase built, which its
-	// scope reads, and for the rows a document's schemas are read with, which oas
-	// states: the dialect question is asked of the table, never of the version.
+	// scope reads, and for the rows a document's Encoding Objects are read with,
+	// and dialect for those each schema is read with, which oas states: the
+	// dialect question is asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, and provenance for where a position of its document is placed.
 	// It reaches nodeview and yaml to weigh the declaration a $ref names, which a
@@ -342,6 +352,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/dialect",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",

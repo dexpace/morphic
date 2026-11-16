@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -166,9 +167,9 @@ type Document struct {
 	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay, and
-	// Dialects the rows each schema resource root naming its dialect governs.
+	// Dialects the rows each schema of them is read with.
 	Others   Others
-	Dialects Dialects
+	Dialects dialect.Table
 	// Rows is what the table says at the minor the source declares, in the
 	// dialect its jsonSchemaDialect names, which its Encoding Objects and its
 	// schemas where none names its own (Dialects) are read with, from the table
@@ -416,11 +417,11 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// rowsAt returns what spec says at the minor version names, in dialect, and
-// whether dialect is one spec has no Schema Object rows for
+// rowsAt returns what spec says at the minor version names, in the dialect uri
+// names, and whether that is one spec has no Schema Object rows for
 // (oas.Spec.SchemaRules).
-func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
-	schema, unread := spec.SchemaRules(version, dialect)
+func rowsAt(spec oas.Spec, version, uri string) (rows Rows, unread bool) {
+	schema, unread := spec.SchemaRules(version, uri)
 	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 
