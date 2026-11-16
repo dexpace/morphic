@@ -195,8 +195,10 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 	}
 	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
-	assert.True(t, DeclaresAny(standaloneSchema(s), slices.Collect(DialectKeywords())),
-		"and the hoist gate agrees a node is needed to hold them")
+	assert.True(t, slices.ContainsFunc(slices.Collect(DialectKeywords()), func(keyword string) bool {
+		_, read := standaloneSchema(s).Key(keyword)
+		return read
+	}), "and the keys the hoist gate reads agree a node is needed to hold them")
 }
 
 // TestDialectAt_SaysWhatEachKeywordIsReadFor pins what the info at each kept

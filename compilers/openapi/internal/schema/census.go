@@ -332,7 +332,7 @@ func unhomedKeywords(s *statement.Schema, td ir.TypeDef, handled []string) []str
 func unhomedAcross(s *statement.Schema, nodes []ir.TypeDef, handled []string) []string {
 	out := make([]string, 0, len(censusKeywords))
 	for _, keyword := range censusKeywords {
-		if annotation.RawPropertyNode(s, keyword) == nil || slices.Contains(handled, keyword) {
+		if !hasKey(s, keyword) || slices.Contains(handled, keyword) {
 			continue
 		}
 		if !slices.ContainsFunc(nodes, func(td ir.TypeDef) bool { return keywordHome(td, s, keyword) }) {
@@ -395,7 +395,7 @@ const (
 // lowered to, naming the keyword it expanded through: a $dynamicRef wherever s
 // writes one, as dynamicRefOf reads it, else its $recursiveRef.
 func expandedShapeOf(s *statement.Schema) string {
-	if annotation.RawPropertyNode(s, "$dynamicRef") != nil {
+	if hasKey(s, "$dynamicRef") {
 		return expandedShape
 	}
 	return "a reference to the type its $recursiveRef expands to"

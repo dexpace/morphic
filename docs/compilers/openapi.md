@@ -1418,7 +1418,7 @@ extension that converts to no JSON is [`vendor-extensions`](#vendor-extensions)'
   `annotation.TestScalarRenderers_AgreeOnKind`, `e2e.TestCompile_ARepeatedKeyIsKeptAsItsLastCopy`,
   `e2e.TestCompile_ARepeatedDefaultIsKeptAsItsLastCopy`,
   `e2e.TestCompile_ARepeatedKeyIsReadAsItsLastCopyInEverySpelling`,
-  `annotation.TestRawPropertyNode_ReadsAKeywordAsTheParserDoes`
+  `statement.TestSchema_KeyReadsAKeywordAsTheParserDoes`
 
 ### `unmodeled-dialect-fields`
 
@@ -4427,7 +4427,7 @@ of its own, since reading it so loses nothing.
 - Codes: `openapi/invalid-numeric-literal`
 - Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
-  `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
+  `statement.TestSchema_KeyReadsANullKeywordAsLeftOut`,
   `bind.TestDynamicAnchor_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
   `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`

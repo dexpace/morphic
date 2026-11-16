@@ -35,11 +35,11 @@ func newAgreement(c lowering.Ctx) *agreement {
 // write records what conjunct writes for the position and returns its entries,
 // rendering each once: the first writer's is compared with every later one's.
 func (a *agreement) write(conjunct *statement.Schema) []string {
-	m := statement.Parsed(conjunct)
 	var entries []string
 	var cons *ir.Constraints
 	read := false
-	for _, keyword := range rawMappingKeys(m.GetRootNode()) {
+	for _, k := range conjunct.Keys {
+		keyword := k.Name
 		entry, fold := foldEntry(a.c, conjunct, keyword)
 		if !fold || annotation.WritesKeywordLeftOut(conjunct, keyword) {
 			continue

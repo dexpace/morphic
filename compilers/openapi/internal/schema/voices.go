@@ -77,7 +77,7 @@ func foldValue(s *statement.Schema, entry string) foldRendering {
 	case "contains":
 		r.raw, _, r.err = annotation.ContainsRaw(s)
 	default:
-		r.raw, r.err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
+		r.raw, r.err = annotation.RawFromNode(keyNode(s, entry))
 	}
 	return r
 }
@@ -219,15 +219,14 @@ func underID(e allOfBranch, bs *statement.Schema, wrappers map[jsontext.Pointer]
 // spelling of it. Either may name a resource, and the base a lookup returns
 // says whether it does, so one that names none costs that lookup alone.
 func writesIdentifier(s *statement.Schema) bool {
-	return annotation.RawPropertyNode(s, "$id") != nil || annotation.RawPropertyNode(s, "id") != nil
+	return hasKey(s, "$id") || hasKey(s, "id")
 }
 
 // foldsReference reports whether what bs folds writes a relative $ref, the one
 // text a base changes: a branch writing none in it says the same at any base.
 func foldsReference(c lowering.Ctx, bs *statement.Schema) bool {
-	m := statement.Parsed(bs)
-	return slices.ContainsFunc(rawMappingKeys(m.GetRootNode()), func(keyword string) bool {
-		entry, fold := foldEntry(c, bs, keyword)
+	return slices.ContainsFunc(bs.Keys, func(k statement.Key) bool {
+		entry, fold := foldEntry(c, bs, k.Name)
 		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
 	})
 }
@@ -310,7 +309,7 @@ type boundHomes struct {
 // composition: a branch writing properties declares a shape of its own, which
 // its `nullable` reads as describing, so it stays conjoined with the rest.
 func foldsNullable(bs *statement.Schema) bool {
-	return annotation.RawPropertyNode(bs, "properties") == nil
+	return !hasKey(bs, "properties")
 }
 
 // positionVoices returns the voices of s, written at pointer, as a reader of

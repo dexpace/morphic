@@ -115,12 +115,12 @@ func WritesUnknownKeyword(s *statement.Schema) bool {
 }
 
 // WritesKeywordLeftOut reports whether s writes key as a null that reads as the
-// keyword left out (RawPropertyNode), for a reader that lists the keys s writes
-// rather than asking for one. A null is a value in an extension, and in a key
-// the census keeps.
+// keyword left out (statement.Schema.Key), for a reader that lists the keys s
+// writes rather than asking for one. A null is a value in an extension, and in
+// a key the census keeps.
 func WritesKeywordLeftOut(s *statement.Schema, key string) bool {
-	m := statement.Parsed(s)
-	if !IsNullNode(nodeview.Child(m.GetRootNode(), key)) || holdsInstance(key) || strings.HasPrefix(key, "x-") {
+	k, read := s.Key(key)
+	if !k.Null || read || strings.HasPrefix(key, "x-") {
 		return false
 	}
 	keys, _ := unknownSchemaKeys(s)
@@ -130,15 +130,19 @@ func WritesKeywordLeftOut(s *statement.Schema, key string) bool {
 // unknownSchemaKeys returns the keys s writes that UnknownKeywordsIn answers
 // for, and the mapping holding them: those the model names no field for, but
 // the ones decided about (DecidedKeyword) and a null for a keyword the dialect
-// defines, which reads as left out (RawPropertyNode). A key of no vocabulary
-// has no type a null could break, so it is kept with the null it wrote.
+// defines, which reads as left out (statement.Schema.Key). A key of no
+// vocabulary has no type a null could break, so it is kept with the null it
+// wrote. The keys are the model's census, which names a key merged past
+// nodeview.MergeDepthLimit too, so the census reports it unreachable.
 func unknownSchemaKeys(s *statement.Schema) ([]string, *yaml.Node) {
-	m := statement.Parsed(s)
-	keys, root := undeclaredKeys(m)
+	if s == nil {
+		return nil, nil
+	}
+	keys, _ := undeclaredKeys(statement.Parsed(s))
 	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
-		return DecidedKeyword(key) ||
-			slices.Contains(modellessKeywords, key) && IsNullNode(nodeview.Child(root, key))
-	}), root
+		k, _ := s.Key(key)
+		return DecidedKeyword(key) || slices.Contains(modellessKeywords, key) && k.Null
+	}), s.Node
 }
 
 // UndefinedKeywordsIn records on p each of keys, keywords s writes that the
@@ -147,12 +151,10 @@ func unknownSchemaKeys(s *statement.Schema) ([]string, *yaml.Node) {
 // does not name: JSON Schema 2020-12 ignores the two alike. The caller says
 // which keywords those are, since only it knows the dialect and the policies.
 func UndefinedKeywordsIn(p *ir.Unmodeled, s *statement.Schema, keys []string, pointer jsontext.Pointer, doc provenance.Doc) []ir.Diagnostic {
-	m := statement.Parsed(s)
 	if len(keys) == 0 {
 		return nil
 	}
-	_, root := undeclaredKeys(m)
-	return census(p, keys, root, doc, pointer, "", keyClass{
+	return census(p, keys, s.Node, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		message: "keyword %q is not defined by the dialect this schema is read in, and no policy reads it " +

@@ -90,9 +90,9 @@ func nullBranchKeeps(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 	var out []keptNullBranch
 	for _, b := range liftedNulls(c, s, pointer) {
 		var written []string
-		for _, key := range rawMappingKeys(statement.Parsed(b.schema).GetRootNode()) {
-			if !saysTheNull(c, b.at, key) && !annotation.WritesKeywordLeftOut(b.schema, key) {
-				written = append(written, key)
+		for _, k := range b.schema.Keys {
+			if !saysTheNull(c, b.at, k.Name) && !annotation.WritesKeywordLeftOut(b.schema, k.Name) {
+				written = append(written, k.Name)
 			}
 		}
 		if len(written) > 0 {
@@ -109,7 +109,7 @@ func nullBranchKeeps(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range kept {
-		stored, keptDiags := annotation.PreserveNodeInto(p, b.key, statement.Parsed(b.schema).GetRootNode(), ir.ReasonNoIRHome, c.Place().At(b.at))
+		stored, keptDiags := annotation.PreserveNodeInto(p, b.key, b.schema.Node, ir.ReasonNoIRHome, c.Place().At(b.at))
 		diags = append(diags, keptDiags...)
 		if stored {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.at,

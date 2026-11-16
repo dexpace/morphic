@@ -238,15 +238,13 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 // A boolean schema has no node of its own to render, so its value is spelled
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
 func redeclarationSource(js *statement.Statement) merge.Source {
-	m := statement.ParsedAt(js)
 	return func() (ir.RawValue, error) {
-		if annotation.IsNoSchema(m) {
-			return annotation.RawFromNode(m.GetCore().GetRootNode())
+		switch js.Truth {
+		case statement.Anything, statement.Nothing, statement.Unread:
+			return ir.RawValue(strconv.FormatBool(js.Truth == statement.Anything)), nil
+		default:
+			return annotation.RawFromNode(js.Node)
 		}
-		if b := m.GetBool(); b != nil {
-			return ir.RawValue(strconv.FormatBool(*b)), nil
-		}
-		return annotation.RawFromNode(m.GetSchema().GetRootNode())
 	}
 }
 

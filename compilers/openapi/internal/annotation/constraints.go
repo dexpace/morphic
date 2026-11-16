@@ -89,7 +89,7 @@ func Constraints(s *statement.Schema, take Bounds, exclusiveBoolean bool, pointe
 // which reads 010 as 8, holds an integer past int64 as 0 and cuts a fraction to
 // an integer. A negative one is the load phase's to report.
 func ExactCount(s *statement.Schema, keyword string, count *int64) *int64 {
-	node := RawPropertyNode(s, keyword)
+	node := keyNode(s, keyword)
 	if count == nil || node == nil || (node.ShortTag() != "!!int" && node.ShortTag() != "!!float") {
 		return nil
 	}
@@ -161,7 +161,7 @@ func numericBounds(c *ir.Constraints, s *statement.Schema) {
 		{"multipleOf", &c.MultipleOf},
 	}
 	for _, b := range bounds {
-		node := RawPropertyNode(s, b.prop)
+		node := keyNode(s, b.prop)
 		if node == nil {
 			continue
 		}
@@ -186,7 +186,7 @@ func applyExclusive(c *ir.Constraints, s *statement.Schema, side boundSide, resi
 		ev = m.GetExclusiveMinimum()
 	}
 	_, prop := boundProps(side)
-	node := RawPropertyNode(s, prop)
+	node := keyNode(s, prop)
 	if ev == nil || node == nil {
 		return nil
 	}
@@ -218,7 +218,7 @@ func applyExclusiveFlag(c *ir.Constraints, s *statement.Schema, side boundSide, 
 		return nil
 	}
 	inclProp, exclProp := boundProps(side)
-	if RawPropertyNode(s, inclProp) == nil {
+	if keyNode(s, inclProp) == nil {
 		return []ir.Diagnostic{residue.keepUnmodifiable(inclProp, exclProp)}
 	}
 	incl := inclusiveBound(c, side)

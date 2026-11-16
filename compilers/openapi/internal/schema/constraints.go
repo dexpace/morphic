@@ -170,7 +170,7 @@ func keptLiteral(s *statement.Schema, keyword string) (string, bool) {
 	if !keptCount(s, keyword, countOf(s, keyword)) {
 		return "", false
 	}
-	node := nodeview.Deref(annotation.RawPropertyNode(s, keyword))
+	node := nodeview.Deref(keyNode(s, keyword))
 	if count, err := value.NumericLiteral(node); err == nil {
 		return string(count), true
 	}
@@ -248,14 +248,14 @@ func plus(n string, offset int64) string {
 // does not one past int64 (annotation.CountIsExact). Any other literal the model
 // misreads is the load phase's to report, and reaches no field.
 func keptCount(s *statement.Schema, keyword string, model *int64) bool {
-	node := annotation.RawPropertyNode(s, keyword)
+	node := keyNode(s, keyword)
 	return node != nil && oas.Natural.Admits(node) && !annotation.CountIsExact(s, keyword, model)
 }
 
 // refusedCount reports whether keyword is a count s writes that is no
 // non-negative integer, which the load phase reports and no reader holds.
 func refusedCount(s *statement.Schema, keyword string) bool {
-	node := annotation.RawPropertyNode(s, keyword)
+	node := keyNode(s, keyword)
 	return isCount(keyword) && node != nil && !oas.Natural.Admits(node)
 }
 
@@ -419,7 +419,7 @@ var collectionBoundKeywords = []string{"maxItems", "minItems", "uniqueItems"}
 // magnitude beyond float64 leaves the model field nil while the keyword is
 // plainly written.
 func declaresValueConstraints(s *statement.Schema) bool {
-	return annotation.DeclaresAny(s, valueConstraintKeywords)
+	return hasAnyKey(s, valueConstraintKeywords)
 }
 
 // declaredConstraints returns the value-constraint keywords s writes, in
@@ -427,7 +427,7 @@ func declaresValueConstraints(s *statement.Schema) bool {
 func declaredConstraints(s *statement.Schema) []string {
 	out := make([]string, 0, len(valueConstraintKeywords))
 	for _, keyword := range valueConstraintKeywords {
-		if annotation.RawPropertyNode(s, keyword) != nil {
+		if hasKey(s, keyword) {
 			out = append(out, keyword)
 		}
 	}

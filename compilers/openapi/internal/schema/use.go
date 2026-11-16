@@ -82,7 +82,7 @@ func dialectIn(rules oas.SchemaRules, s *statement.Schema) annotation.Dialect {
 // writesRef reports whether s writes a $ref the binder reads as one: a string,
 // empty or not. A null, a mapping or a list writes none.
 func writesRef(s *statement.Schema) bool {
-	n := nodeview.Deref(annotation.RawPropertyNode(s, "$ref"))
+	n := nodeview.Deref(keyNode(s, "$ref"))
 	return n != nil && n.Kind == yaml.ScalarNode
 }
 
@@ -227,7 +227,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		return c.Statements().Of(refs[0])
 	}
-	if !allOfMayRefine(s) || annotation.DeclaresAny(s, objectKeywords) || !refinableBranches(c, allOfBranches(c, s, "")) {
+	if !allOfMayRefine(s) || hasAnyKey(s, objectKeywords) || !refinableBranches(c, allOfBranches(c, s, "")) {
 		return nil
 	}
 	if declaresUnion(s) && allOfComposes(c, s) {
@@ -406,9 +406,8 @@ func (u *Use) lendBranches(c lowering.Ctx, s *statement.Schema, at referentPlace
 // writesMoreThanRef reports whether s, a schema writing a $ref, writes anything
 // else, which a use reads; one writing its $ref alone lends nothing.
 func writesMoreThanRef(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	n := nodeview.Deref(m.GetRootNode())
-	return n == nil || n.Kind != yaml.MappingNode || len(n.Content) > 2
+	n := s.Node
+	return s.Truth != statement.Stated || n == nil || n.Kind != yaml.MappingNode || len(n.Content) > 2
 }
 
 // referentPlace is where a referent is written: the document placing it and the

@@ -602,7 +602,7 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		}
 		var out []string
 		for _, key := range restatableKeywords {
-			if annotation.RawPropertyNode(s, key) == nil {
+			if !hasKey(s, key) {
 				continue
 			}
 			if !slices.ContainsFunc(reads, func(r admitted) bool { return !branchSays(&w, r, s, key) }) {

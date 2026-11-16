@@ -122,8 +122,8 @@ func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 		}
 		return ""
 	}
-	if items := RawPropertyNode(s, "items"); items != nil && items.Kind == yaml.SequenceNode {
-		if dialect.ListedTuple && RawPropertyNode(s, "additionalItems") != nil {
+	if items := keyNode(s, "items"); items != nil && items.Kind == yaml.SequenceNode {
+		if dialect.ListedTuple && keyNode(s, "additionalItems") != nil {
 			return "additionalItems"
 		}
 		return ""
@@ -189,7 +189,7 @@ func presentMembers(s *statement.Schema, keys ...string) ([]rawMember, []string,
 	var present []string
 	var failed error
 	for _, k := range keys {
-		node := RawPropertyNode(s, k)
+		node := keyNode(s, k)
 		if node == nil {
 			continue
 		}

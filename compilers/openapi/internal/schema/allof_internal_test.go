@@ -11,54 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
-
-// TestRawMappingKeys_OnlyEnumeratesAMapping pins the shape guards on the branch
-// residue's key reader. It is handed whatever the source wrote at a branch, so a
-// sequence or a bare scalar reaches it as readily as a mapping, and the residue
-// derivation depends on it reporting no keys rather than guessing at some.
-//
-// The alias and `<<` rows are the same guard read the other way: a node written
-// by reference stands for keys, so answering "none" there would report a branch
-// that declares plenty as one the merge consumed entirely.
-func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
-	t.Parallel()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2\n"), &doc))
-	require.Equal(t, yaml.DocumentNode, doc.Kind)
-
-	cases := []struct {
-		name string
-		node *yaml.Node
-		want []string
-	}{
-		{"a nil node has no keys", nil, nil},
-		{"a sequence is not a mapping", openapitest.YAMLNode(t, "- a\n- b\n"), nil},
-		{"a bare scalar is not a mapping", openapitest.YAMLNode(t, "plain"), nil},
-		{"a mapping yields its keys in source order", openapitest.YAMLNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
-		{"a document unwraps to the mapping inside it", &doc, []string{"a", "b"}},
-		{"an alias yields the anchored mapping's keys",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: *a\n"), []string{"b", "c"}},
-		{"an alias to a scalar is still not a mapping",
-			useValue(t, "anchor: &a plain\nuse: *a\n"), nil},
-		{"a merge key yields the keys it merges in",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {<<: *a}\n"), []string{"b", "c"}},
-		{"an explicit key beats the one it merges over, merged keys first",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {c: 9, <<: *a}\n"), []string{"b", "c"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, rawMappingKeys(tc.node))
-		})
-	}
-}
 
 // TestAllOfBranches_DepthCapKeepsWrapperVerbatim pins the bound on flattening: a
 // chain of wrappers as deep as the cap is flattened whole, and one level more

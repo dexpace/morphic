@@ -11,7 +11,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -153,13 +152,11 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*oas3.JSONS
 // no key judged against the body, `required` alone the commonest, leaves it
 // unread.
 func branchDeclaresShape(body func() *bodyReading, b *statement.Statement) bool {
-	m := statement.ParsedAt(b)
-	s := m.GetSchema()
-	if s == nil {
+	if b.Truth != statement.Stated {
 		return false
 	}
-	writesJudged := slices.ContainsFunc(nodeview.Pairs(s.GetRootNode()), func(kv nodeview.Pair) bool {
-		return judged(b.Schema, kv.Key)
+	writesJudged := slices.ContainsFunc(b.Keys, func(k statement.Key) bool {
+		return judged(b.Schema, k.Name)
 	})
 	if !writesJudged {
 		return false
@@ -228,8 +225,8 @@ func (r *bodyReading) restates(top claim) bool {
 // properties and element it writes, for restates to judge. A key declares none
 // where it is not judged, a `$ref` landing where c's declarations compose, or a
 // `type`, `format`, `enum` or `const` every value c.held admits holds to. A
-// boolean conjunct says nothing or only forbids. Keys are read off the raw
-// node, which holds the keywords the model has no field for
+// boolean conjunct says nothing or only forbids. Keys are the statement's,
+// which hold the keywords the model has no field for
 // (docs/parser-library.md#unmodeled-keywords).
 func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceable], []nested, bool) {
 	s := statement.ParsedAt(c.written).GetSchema()
@@ -238,27 +235,27 @@ func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceabl
 	}
 	var inner []nested
 	var conjuncts []*oas3.JSONSchema[oas3.Referenceable]
-	for _, kv := range nodeview.Pairs(s.GetRootNode()) {
+	for _, k := range c.written.Keys {
 		switch {
-		case !judged(c.written.Schema, kv.Key):
-		case kv.Key == "allOf":
+		case !judged(c.written.Schema, k.Name):
+		case k.Name == "allOf":
 			conjuncts = s.GetAllOf()
-		case kv.Key == "properties":
+		case k.Name == "properties":
 			decls := r.declarationsAt(c)
 			for name, p := range s.GetProperties().All() {
 				inner = append(inner, nested{written: r.w.c.Statements().Of(p), at: decls.property(name)})
 			}
-		case kv.Key == "items":
+		case k.Name == "items":
 			if _, listed := listedItems(c.written.Schema); listed {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
 			inner = append(inner, nested{written: r.w.c.Statements().Of(s.GetItems()), at: r.declarationsAt(c).items})
-		case kv.Key == r.w.c.Bindings().RefKeyword(statement.ParsedAt(c.written)):
+		case k.Name == r.w.c.Bindings().RefKeyword(statement.ParsedAt(c.written)):
 			if !r.lands(c) {
 				return nil, nil, false
 			}
-		case !r.w.holds(c.held, c.written.Schema, kv.Key):
+		case !r.w.holds(c.held, c.written.Schema, k.Name):
 			return nil, nil, false
 		}
 	}

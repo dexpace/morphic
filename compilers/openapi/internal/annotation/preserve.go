@@ -74,7 +74,7 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 func PreserveSchemaKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {
-	node := RawPropertyNode(s, keyword)
+	node := keyNode(s, keyword)
 	if node == nil {
 		return false, nil
 	}
