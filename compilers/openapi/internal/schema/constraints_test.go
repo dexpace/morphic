@@ -1131,21 +1131,19 @@ func TestConstraints_ACountAVariantKeepsIsKeptOnce(t *testing.T) {
 // TestConstraints_AModifierBoundingNothingIsReportedOnce pins the census to what
 // the reader of a node's bounds kept: a 3.0 exclusive modifier with no bound
 // beside it, on a node whose Constraints it leaves empty, is kept and warned of
-// by that reader, and not kept again and reported as having no home. A type
-// that takes no numeric bound reads none: the census keeps it, with its info and
-// no warning (TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus).
+// by that reader, and not kept again and reported as having no home. A schema
+// that is an object by its properties takes no numeric bound and reads none:
+// the census keeps it, with its info and no warning, as it keeps one beside any
+// type that takes none (TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus).
 func TestConstraints_AModifierBoundingNothingIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
 		"    M: {properties: {a: {type: string}}, exclusiveMinimum: true}\n"+
 			"    S: {type: number, format: x-f, exclusiveMinimum: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, name := range []string{"M", "S"} {
+	for name, severity := range map[string]ir.Severity{"M": ir.SeverityInfo, "S": ir.SeverityWarning} {
 		assert.Equal(t, []string{"openapi:exclusiveMinimum"}, unmodeledKeys(typeByName(doc, name).Common().Unmodeled), name)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name), name)
+		assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, severity, "/components/schemas/"+name), name)
 	}
-	require.Len(t, diags, 2, "%+v", diags)
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityWarning, d.Severity, "the reader's warning alone")
-	}
+	require.Len(t, diags, 2, "one report each: %+v", diags)
 }

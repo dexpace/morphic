@@ -1787,27 +1787,58 @@ func TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor(t *testing.T) {
 	}
 }
 
-// TestAllOf_ANullNotLeavesAStructureStatingAType pins a `not` the parser's
-// model holds a value for, written as no schema, against a redeclaration: a
-// property redeclared as an integer and as a structure writing nothing of its
-// instance type but such a `not`, in either order, disagrees, as a `not` is
-// read as one that could refuse a value of some instance type; the same
-// structure writing no `not` admits the integer, and draws nothing.
-func TestAllOf_ANullNotLeavesAStructureStatingAType(t *testing.T) {
+// TestAllOf_ANullNotOrIfIsTheKeywordLeftOut pins a `not` or an `if` the
+// parser's model holds a value for, written as no schema, against a
+// redeclaration: it is the keyword left out (docs/compilers/openapi.md#null-schema),
+// so a property redeclared as an integer and as a structure writing nothing of
+// its instance type but such a keyword, in either order, takes the integer and
+// draws no conflict, as the same structure writing none does (GitHub #2036).
+func TestAllOf_ANullNotOrIfIsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, p string }{
-		{"beside the structure", "{properties: {x: {type: string}}, not: null}"},
-		{"in its allOf", "{allOf: [{properties: {x: {type: string}}, not: null}]}"},
+		{"a not beside the structure", "{properties: {x: {type: string}}, not: null}"},
+		{"a not in its allOf", "{allOf: [{properties: {x: {type: string}}, not: null}]}"},
+		{"an if beside the structure", "{properties: {x: {type: string}}, if: null}"},
+		{"an if in its allOf", "{allOf: [{properties: {x: {type: string}}, if: null}]}"},
 	} {
 		for _, order := range [][2]string{{"A", "B"}, {"B", "A"}} {
-			_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {p: {type: integer}}}
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {p: {type: integer}}}
     B: {type: object, properties: {p: `+tc.p+`}}
     Plain: {type: object, properties: {p: {properties: {x: {type: string}}}}}
     M: {allOf: [{$ref: '#/components/schemas/`+order[0]+`'}, {$ref: '#/components/schemas/`+order[1]+`'}]}
     N: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Plain'}]}
 `))
-			assert.Equal(t, []string{"warning " + diag.ConflictingRedecl + " /components/schemas/M/allOf/0"},
-				findingsOf(diags, diag.ConflictingRedecl), "%s, %s first", tc.name, order[0])
+			assert.Empty(t, findingsOf(diags, diag.ConflictingRedecl), "%s, %s first", tc.name, order[0])
+			for _, name := range []string{"M", "N"} {
+				m, ok := typeByName(doc, name).(*ir.Model)
+				require.True(t, ok, name)
+				require.Len(t, m.Properties, 1, name)
+				assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target, "%s: %s, %s first", name, tc.name, order[0])
+			}
 		}
+	}
+}
+
+// TestAllOf_ADistributedVariantIsReadWithItsUnion pins what the source of a
+// variant a union beside `type: object` distributes admits: its branch and the
+// object beside it together, so the variant built from an array branch admits
+// no array, and a redeclaration as a nullable list is not read as narrower than
+// it, which would drop the list's null. The two stay unrelated, in either
+// order, as they were before the source was read.
+func TestAllOf_ADistributedVariantIsReadWithItsUnion(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"    Common: {type: object, properties: {r: {type: object, anyOf: [{type: object}, {items: {}, type: array}, {type: string}]}}}\n",
+		"    Coll: {allOf: [{$ref: '#/components/schemas/Common'}, {properties: {r: {type: array, items: {}, nullable: true}}}]}\n",
+	}
+	for _, order := range [][]string{schemas, {schemas[1], schemas[0]}} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", order[0]+order[1]))
+		m, ok := typeByName(doc, "Coll").(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		assert.True(t, m.Properties[0].Type.Nullable, "the list's null stands")
+		assert.Empty(t, findingsOf(diags, diag.ConflictingRedecl))
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Coll/allOf/0"), "that the merge does not compare")
 	}
 }

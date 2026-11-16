@@ -78,9 +78,9 @@ func componentSchema(t *testing.T, l *Lowerer, name string) *oas3.Schema {
 }
 
 // TestRefinementOf_ReadsAPositionOnce pins that a position's decision is read once
-// a run, however many of its readers ask: its target changes after the first read,
-// which no lowering does, so only a remembered answer stays. Where it is read from
-// is part of the answer, so a pointer not yet asked reads afresh.
+// a run, however many of its readers ask: its own type changes after the first
+// read, which no lowering does, so only a remembered answer stays. Where it is
+// read from is part of the answer, so a pointer not yet asked reads afresh.
 func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
@@ -91,7 +91,7 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 	_, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
 	require.True(t, refined)
 
-	StatedIn(l, componentSchema(t, l, "Port")).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
+	StatedIn(l, s).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
 	_, refined = refinementOf(l.Ctx, StatedIn(l, s), at)
 	assert.True(t, refined, "the second ask reads what the first read")
 

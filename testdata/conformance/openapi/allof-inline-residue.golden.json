@@ -304,10 +304,6 @@
         "target": "t/openapi/components/schemas/Untyped",
         "nullable": false
       },
-      "constraints": {
-        "maxLength": 3,
-        "uniqueItems": false
-      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -716,7 +712,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type, maxLength) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Contradicted/allOf/1"

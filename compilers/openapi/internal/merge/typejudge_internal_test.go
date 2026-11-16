@@ -1139,3 +1139,39 @@ func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
 		assert.Equal(t, want, judge(g).relate(ir.TypeRef{Target: "t/u"}, ir.TypeRef{Target: "t/bare"}), "%d variants", n)
 	}
 }
+
+// TestInstance_NamesTheKindOfAValue pins the kind of JSON instance the other
+// side of a judgment is asked of a structure's source as (Walk.Admits): a
+// primitive by its JSON spelling, an integer apart from a number with a
+// fraction, and a literal or a structure by its value.
+func TestInstance_NamesTheKindOfAValue(t *testing.T) {
+	t.Parallel()
+	for p, want := range map[ir.PrimKind]Instance{
+		ir.PrimBool: InstanceBoolean, ir.PrimInt32: InstanceInteger, ir.PrimInteger: InstanceInteger,
+		ir.PrimUint64: InstanceInteger, ir.PrimFloat64: InstanceNumber, ir.PrimNumber: InstanceNumber,
+		ir.PrimDecimal: InstanceNumber, ir.PrimString: InstanceString, ir.PrimBytes: InstanceString,
+		ir.PrimDatetime: InstanceString,
+	} {
+		assert.Equal(t, want, primInstance(p), p)
+	}
+	for _, tc := range []struct {
+		td   ir.TypeDef
+		want Instance
+	}{
+		{&ir.Model{}, InstanceObject},
+		{&ir.MapT{}, InstanceObject},
+		{&ir.List{}, InstanceArray},
+		{&ir.Tuple{}, InstanceArray},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueObject}}, InstanceObject},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueList}}, InstanceArray},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueBool}}, InstanceBoolean},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueNull}}, InstanceNull},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueNumber, Num: "2"}}, InstanceInteger},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueNumber, Num: "2.5"}}, InstanceNumber},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueNumber, Num: "1e3"}}, InstanceNumber},
+		{&ir.Literal{Value: ir.Value{Kind: ir.ValueString, Str: "a"}}, InstanceString},
+		{&ir.Enum{}, 0},
+	} {
+		assert.Equal(t, tc.want, nodeInstance(tc.td), "%T %+v", tc.td, tc.td)
+	}
+}

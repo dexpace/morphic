@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -128,23 +127,74 @@ func (f modelFields) Alike(a, b ir.Provenance) bool {
 	return okA && okB && ua == ub
 }
 
-// Untyped is merge.Walk.Untyped: the schema written at p states no instance
-// type, its own `type` and its allOf's read as allof-disjoint-conjuncts reads a
-// conjunct (conjunctTypes). A site place does not place, one holding no schema
-// object, and a read that runs out of its budget or passes over what could
-// refuse a value of some instance type, state one, which keeps the verdict a
-// structure had before its source was read.
-func (f modelFields) Untyped(p ir.Provenance) bool {
+// Admits is merge.Walk.Admits: the schema written at p admits every instance
+// of kind, as the run reads what its statement admits (admissionOf), its value
+// sets, unions and the keywords beside a $ref among them. A site place does
+// not place, one holding no schema object, and a read cut short or meeting a
+// keyword it does not follow that could refuse a kind (looseIn) are not exact,
+// which keeps the verdict a structure had before its source was read.
+func (f modelFields) Admits(p ir.Provenance, kind merge.Instance) (admits, exact bool) {
 	at, placed := f.place(p)
 	if !placed {
-		return false
+		return false, false
 	}
 	st := f.c.Statements().At(at)
 	if st.Truth != statement.Stated {
-		return false
+		return false, false
 	}
-	r := conjunctTypes{c: f.c, steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
-	return r.schema(st.Schema, refKeyword(st)) == anyInstance && !r.steps.Exhausted() && !r.passedOver
+	r := admissionOf(f.c, st)
+	kinds, inexact := r.admits, r.cut || r.loose
+	if union, ok := unionHolding(f.c, at, st); ok {
+		u := admissionOf(f.c, union)
+		kinds, inexact = kinds&u.admits, inexact || u.cut || u.loose
+	}
+	if inexact {
+		return false, false
+	}
+	want := instanceKinds(kind)
+	return want != 0 && kinds&want == want, true
+}
+
+// unionHolding returns the statement writing the oneOf or anyOf whose branch
+// st, at at, is, and false where st is no such branch. A node written at a
+// branch is a variant of that union, a distributed one composing what the
+// statement writes beside it, so what it admits is what both admit.
+func unionHolding(c lowering.Ctx, at bind.Position, st *statement.Statement) (*statement.Statement, bool) {
+	index, err := strconv.Atoi(at.Pointer.LastToken())
+	keyword := at.Pointer.Parent().LastToken()
+	if err != nil || keyword != "oneOf" && keyword != "anyOf" {
+		return nil, false
+	}
+	holder := c.Statements().At(bind.Position{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()})
+	branches := choiceIn(holder.Schema).OneOf
+	if keyword == "anyOf" {
+		branches = choiceIn(holder.Schema).AnyOf
+	}
+	if index < 0 || index >= len(branches) || c.Statements().Sub(branches[index]) != st {
+		return nil, false
+	}
+	return holder, true
+}
+
+// instanceKinds returns the kinds an instance of kind may be, none for the
+// null, which a reader of what a schema admits leaves to nulls.
+func instanceKinds(kind merge.Instance) kindSet {
+	switch kind {
+	case merge.InstanceString:
+		return kindString
+	case merge.InstanceInteger:
+		return kindInteger
+	case merge.InstanceNumber:
+		return kindNumber
+	case merge.InstanceBoolean:
+		return kindBoolean
+	case merge.InstanceArray:
+		return kindArray
+	case merge.InstanceObject:
+		return kindObject
+	default:
+		return 0
+	}
 }
 
 // Mint registers node, the type of the field the declaration at pointer names

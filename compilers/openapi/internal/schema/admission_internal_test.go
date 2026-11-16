@@ -34,6 +34,6 @@ func TestAdmission_ASchemaNoBindingPlacesIsReadInTheContextsDialect(t *testing.T
 	} {
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(tc.version, "    A: {type: string}\n"))
 		w := newAdmission(l.Ctx)
-		assert.Equal(t, tc.kinds, w.whole(Standalone(js)).kinds, tc.version)
+		assert.Equal(t, tc.kinds, w.of(Standalone(js)).kinds, tc.version)
 	}
 }

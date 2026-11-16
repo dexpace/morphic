@@ -382,9 +382,9 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	if len(objectIn(s).Properties) > 0 {
-		// The node asserts an object, but the source declares no type, so every
-		// bound is read as it would be at a position lowering to the top type.
-		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredInstanceTypes(s))
+		// The node asserts an object, as the bounds beside it read it
+		// (boundKinds): one an object does not take is kept.
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s))
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }

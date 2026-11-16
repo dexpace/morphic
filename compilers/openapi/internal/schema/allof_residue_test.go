@@ -117,8 +117,8 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 		name, wantKeys string
 		sev            ir.Severity
 	}{
-		{"Aliased", "additionalProperties, type", ir.SeverityWarning},
-		{"Merged", "additionalProperties, type", ir.SeverityWarning},
+		{"Aliased", "additionalProperties, type, maxLength", ir.SeverityWarning},
+		{"Merged", "additionalProperties, type, maxLength", ir.SeverityWarning},
 		{"Overridden", "additionalProperties, maxLength", ir.SeverityInfo},
 	}
 	for _, tc := range cases {

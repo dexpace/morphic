@@ -39,14 +39,6 @@ var loweringRecursions = [][]string{
 	// records this as the reason schema, compose and resolve cannot be separated
 	// into packages.
 	schemaRecursion,
-	// The instance types a bound beside a named schema is read by. An allOf's
-	// entries, a union's branches and what a $ref or a dynamic reference lands
-	// on are schemas read the same way, and one may name its own schema.
-	// Bounded by the budget maxBoundTypeReads, which a cycle exhausts.
-	{
-		"boundTypes.at", "boundTypes.branch", "boundTypes.conjuncts", "boundTypes.entry", "boundTypes.names",
-		"boundTypes.ref", "boundTypes.schema", "boundTypes.unions",
-	},
 	// The nullability predicate. JSON Schema conjoins keywords, so whether a
 	// schema admits null is decided by its allOf conjuncts as much as by its own
 	// type set, and a conjunct or a $ref lands on a schema asked the same
@@ -74,15 +66,6 @@ var loweringRecursions = [][]string{
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
-	// What a schema admits. A union's branches and an allOf's conjuncts, and what
-	// a $ref lands on, are schemas read the same way, and one may name its own
-	// schema. Bounded by the budget maxAdmissionReads, which a cycle exhausts.
-	{"admission.union", "admission.whole"},
-	// The instance types a schema states. Like nullability it is a predicate over
-	// allOf conjuncts and what a $ref lands on, not a lowering, and it is bounded
-	// the same way, by a budget of its own (maxConjunctTypeReads), which is what
-	// stops a self-referential allOf.
-	{"conjunctTypes.branch", "conjunctTypes.schema"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.

@@ -32,7 +32,7 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, positionTypes(c, s, pointer))
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
@@ -100,7 +100,7 @@ type allOfComposition struct {
 	// and empty where no branch's is.
 	conjoins jsontext.Pointer
 	// bounds is the kinds whose value bounds the node composing the branches
-	// reads, those of the types the position admits (positionTypes), so a
+	// reads, those of the types the position admits (boundKinds), so a
 	// branch's bound folds where they take it.
 	bounds kindSet
 }
@@ -131,7 +131,7 @@ func allOfBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(c, s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
-	comp.bounds = positionTypes(c, s, pointer)
+	comp.bounds = boundKinds(c, s)
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
@@ -250,7 +250,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 		}
 		return diags
 	}
-	unhomed := refSiteUnhomedKeywords(c, b.Schema, e.pointer, compositionCensusHandled)
+	unhomed := refSiteUnhomedKeywords(c, b.Schema, compositionCensusHandled)
 	hasUnion := declaresUnion(b.Schema)
 	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
 	diags = append(diags, homeDiags...)

@@ -311,7 +311,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 	}
 	var takes kindSet
 	if stated(s) && !lowersTypeArray(c, s, pointer) {
-		takes = positionTypes(c, s, pointer)
+		takes = boundKinds(c, s)
 	}
 	return ConstraintsOf(c, p, s, voices, pointer, takes)
 }
@@ -322,14 +322,14 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // join its value bounds on the alias or carrier it owns
 // (docs/compilers/openapi.md#constraints), with those its voices write where
 // the position holds them (homesAt). Every bound is read by the types the
-// position admits, those of the schemas it names among them (positionTypes),
+// position admits, those of the schemas it names among them (boundKinds),
 // so a collection bound is held only where they admit an array, and the census
 // keeps one they do not (referenceUnhomed).
 func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(s) {
 		return nil, nil
 	}
-	takes := positionTypes(c, s, pointer)
+	takes := boundKinds(c, s)
 	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
 	if takes&kindArray == 0 {
 		return cons, diags

@@ -50,7 +50,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 				return ref
 			})
 		diags = append(diags, unionDiags...)
-		cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, positionTypes(c, s, pointer))
+		cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
 		def.Constraints = cons
 		diags = append(diags, consDiags...)
 		return def
@@ -470,11 +470,11 @@ type typeArray struct {
 // type (docs/compilers/openapi.md#type-arrays). An object variant holds no
 // discriminator, as no $ref or mapping can name its position: the census keeps
 // it on the union. A variant reads the value bounds of the kinds of st the
-// position admits (positionTypes), as the census does, so a bound is held or
+// position admits (boundKinds), as the census does, so a bound is held or
 // kept, never both. A scalar one, holding them, the format or the content
 // vocabulary, is a Scalar of its own, else the shared primitive.
 func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind, list typeArray) (ir.TypeID, []ir.Diagnostic) {
-	takes := typeKinds(st) & positionTypes(c, s, pointer)
+	takes := typeKinds(st) & boundKinds(c, s)
 	switch st {
 	case statement.KindObject:
 		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes)
@@ -589,7 +589,7 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		w := newAdmission(c)
 		reads := make([]admitted, len(branches))
 		for i, b := range branches {
-			reads[i] = w.whole(c.Statements().Sub(b))
+			reads[i] = w.of(c.Statements().Sub(b))
 		}
 		if w.incomplete() {
 			return nil
@@ -764,7 +764,7 @@ func branchesAdmitOnlyObjects(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	w := newAdmission(c)
 	objectsOnly := !slices.ContainsFunc(branches, func(b statement.Sub) bool {
-		return w.whole(c.Statements().Sub(b)).kinds&^(kindObject|kindNull) != 0
+		return w.of(c.Statements().Sub(b)).kinds&^(kindObject|kindNull) != 0
 	})
 	return objectsOnly && !w.incomplete()
 }
@@ -1097,7 +1097,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, br
 // read by what the whole position admits, so a variant holds a bound its own
 // branch cannot take (GitHub #1936).
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, positionTypes(c, body.schema, body.comp.pointer))
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, boundKinds(c, body.schema))
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	// The branch is distributed into the body, whose own declarations are read
