@@ -2731,11 +2731,13 @@ returned, one settlement folds, on each model, every member its own declarations
 entries decide more than once. Each entry brings the declaration the flattening of what it names
 takes, which a model settled first holds folded from every other its composition gives the member,
 and one another entry's composition holds stands within that entry's, so it brings nothing. Each
-model settles after every model it composes, however deep a hierarchy nests, so neither the order
-components are declared in nor their names decide anything, and a cycle of compositions reads the
-model it returns to as it stands. The declarations are read in the order the source writes them, a
-`$ref` entry's where the entry is written and the schema's own `properties` after its `allOf`; a
-union branch distributed into a variant reads before the body. A declaration an entry brings stays
+model settles after every model it composes, however deep a hierarchy nests, so the order components
+are declared in decides nothing, nor, off a cycle, their names. A cycle of compositions reads the
+model it returns to as it stands, and the models' IDs pick which one that is, so where two
+declarations on a cycle admit no value together, the names decide which its models keep, reported.
+The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
+written and the schema's own `properties` after its `allOf`; a union branch distributed into a
+variant reads before the body. A declaration an entry brings stays
 declared on its own model, so it is not kept verbatim, and a report about it sits at the entry
 bringing it, naming the member in its `Provenance.Node`, and names a declaration another document
 holds with that document's name. A member the model declares itself keeps the identity of the first

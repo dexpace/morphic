@@ -34,8 +34,9 @@ type Rule struct {
 	// spec, the run's first source. The empty pointer places nothing, and a
 	// finding in another source has no place a rule names (#1804).
 	Pointer jsontext.Pointer `json:"pointer,omitempty"`
-	// Node places the rule at the findings an IR pass located at this node
-	// (ir.Provenance.Node).
+	// Node places the rule at the findings located at this node
+	// (ir.Provenance.Node): an IR pass's about the document, or a compiler's
+	// naming what it decided, as the member a fold settled.
 	Node string `json:"node,omitempty"`
 	// Severity is what the findings the rule matches are rated at, empty for a
 	// rule that accepts them.
