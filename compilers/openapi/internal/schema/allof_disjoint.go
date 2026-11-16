@@ -63,14 +63,13 @@ func instanceWords(t kindSet) string {
 // constrains objects and admits a string. A word no dialect defines says
 // nothing either: load reports it, so it is no conjunct's to contradict another.
 func declaredInstanceTypes(s *statement.Schema) kindSet {
-	m := statement.Parsed(s)
-	declared := m.GetType()
+	declared := kindsIn(s)
 	if len(declared) == 0 {
 		return anyInstance
 	}
 	var out kindSet
 	for _, st := range declared {
-		kinds := kindOfType(statement.Kind(st))
+		kinds := kindOfType(st)
 		if kinds == 0 {
 			kinds = anyInstance
 		}

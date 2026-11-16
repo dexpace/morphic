@@ -91,7 +91,7 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 	_, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
 	require.True(t, refined)
 
-	declared(t, l, "Port").Type = oas3.NewTypeFromString(oas3.SchemaTypeObject)
+	StatedIn(l, declared(t, l, "Port")).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
 	_, refined = refinementOf(l.Ctx, StatedIn(l, s), at)
 	assert.True(t, refined, "the second ask reads what the first read")
 

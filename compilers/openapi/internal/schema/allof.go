@@ -542,16 +542,14 @@ func conjoinedKeyword(keyword string) bool {
 // nothing by reading it. A set — `[object, "null"]` included — says more than
 // that, and the more is what the merge would drop.
 func declaresObjectOnly(bs *statement.Schema) bool {
-	m := statement.Parsed(bs)
-	types := m.GetType()
-	return len(types) == 1 && types[0] == oas3.SchemaTypeObject
+	types := kindsIn(bs)
+	return len(types) == 1 && types[0] == statement.KindObject
 }
 
 // branchExcludesObject reports whether the branch declares a type set with no
 // `object` in it. An undeclared type set excludes nothing.
 func branchExcludesObject(bs *statement.Schema) bool {
-	m := statement.Parsed(bs)
-	return writesType(bs) && !slices.Contains(m.GetType(), oas3.SchemaTypeObject)
+	return writesType(bs) && !slices.Contains(kindsIn(bs), statement.KindObject)
 }
 
 // selectAllOfBase returns the index into branches of the one that becomes

@@ -555,6 +555,13 @@ func kindsIn(s *statement.Schema) []statement.Kind {
 	return s.Kinds.Types
 }
 
+// nullableTrue reports whether s's `nullable` reads true, as the parser's
+// model holds it whatever the dialect defines: a policy reads a 3.0 keyword in
+// a 3.1 schema (docs/compilers/openapi.md#nullable).
+func nullableTrue(s *statement.Schema) bool {
+	return s != nil && s.Kinds != nil && s.Kinds.Nullable != nil && *s.Kinds.Nullable
+}
+
 // siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
 // leaves something for the position to carry, with how a schema writes it.
 type siblingKeyword struct {

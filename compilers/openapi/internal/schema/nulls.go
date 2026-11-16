@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
@@ -376,8 +375,7 @@ func valueNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
 // keywords say, and r what s says in all. A keyword that admits null only so
 // is noted at site, with why its version does not.
 func (n *nulls) widen(s *statement.Schema, own, r nullReading, site nullSite) nullReading {
-	m := statement.Parsed(s)
-	if m.Nullable == nil || !*m.Nullable {
+	if !nullableTrue(s) {
 		return r
 	}
 	if r.declared != nullAdmitted && site.ok {
@@ -418,9 +416,8 @@ func (n *nulls) why(s *statement.Schema, own nullReading) string {
 // anywhere, as `type: [T, "null"]` spells it from 3.1, so the result then
 // conjoins like any type. Where it does not, nullable says nothing.
 func (n *nulls) declaredTypeVerdict(s *statement.Schema) nullVerdict {
-	m := statement.Parsed(s)
 	v := typeNullVerdict(s)
-	if v == nullForbidden && n.nullable && m.Nullable != nil && *m.Nullable {
+	if v == nullForbidden && n.nullable && nullableTrue(s) {
 		return nullAdmitted
 	}
 	return v
@@ -446,11 +443,10 @@ func foldNullVerdicts(verdicts ...nullVerdict) nullVerdict {
 // typeNullVerdict reads the `type` keyword. A schema writing none constrains no
 // instance kind at all, so it is silent rather than forbidding.
 func typeNullVerdict(s *statement.Schema) nullVerdict {
-	m := statement.Parsed(s)
 	if !writesType(s) {
 		return nullSilent
 	}
-	if slices.Contains(m.GetType(), oas3.SchemaTypeNull) {
+	if slices.Contains(kindsIn(s), statement.KindNull) {
 		return nullAdmitted
 	}
 	return nullForbidden
@@ -647,7 +643,7 @@ func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 		var out []allOfBranch
 		for i, speaks := range voicesAmong(c, s) {
 			e := comp.branches[i]
-			if bs := statement.ParsedAt(e.schema).GetSchema(); speaks && bs.Nullable != nil && *bs.Nullable && foldsNullable(e.schema.Schema) {
+			if speaks && nullableTrue(e.schema.Schema) && foldsNullable(e.schema.Schema) {
 				out = append(out, e)
 			}
 		}

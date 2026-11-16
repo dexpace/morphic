@@ -506,19 +506,17 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 // the dialect defines the keyword, as nullable says. A null `type` writes none
 // (writesType).
 func writtenKinds(s *statement.Schema, nullable bool) kindSet {
-	m := statement.Parsed(s)
-	types := m.GetType()
 	if !writesType(s) {
-		if props := m.GetProperties(); props != nil && props.Len() > 0 {
+		if props := statement.Parsed(s).GetProperties(); props != nil && props.Len() > 0 {
 			return kindObject
 		}
 		return kindAny
 	}
 	var out kindSet
-	for _, t := range types {
-		out |= kindOfType(statement.Kind(t))
+	for _, t := range kindsIn(s) {
+		out |= kindOfType(t)
 	}
-	if nullable && m.Nullable != nil && *m.Nullable {
+	if nullable && nullableTrue(s) {
 		out |= kindNull
 	}
 	return out
