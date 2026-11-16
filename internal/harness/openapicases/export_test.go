@@ -16,9 +16,8 @@ func Reasons() map[string]string {
 			"which excludes the instances of other kinds the schema admits",
 		"inferred-kind": "#1987: a schema writing properties, required or additionalProperties and no type " +
 			"lowers to a model, whose kind excludes the instances of other kinds the keywords admit",
-		"property-count": "#1988: a property count on a position owning a model or a map is restated on its carrier",
-		"kept-key":       "#1989: a keyword on an inline allOf branch kept whole loses its own key, reason and report",
-		"nested-title":   "#1997: a title on an allOf entry nested in another names no union variant",
+		"kept-key":     "#1989: a keyword on an inline allOf branch kept whole loses its own key, reason and report",
+		"nested-title": "#1997: a title on an allOf entry nested in another names no union variant",
 		"entry-closure": "#1998: a closure keyword on an inline allOf entry is kept where beside the allOf it " +
 			"closes the model",
 		"carrier-or-model": "#1999: a use of an object keeps what it writes on its carrier beside a $ref and on a " +
