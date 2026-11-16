@@ -117,15 +117,15 @@ func TestNullableTrue_PastTheMergeBoundTheModelsReadingStands(t *testing.T) {
 		"    Outranks: {<<: ["+past+", {nullable: false}], type: string}\n"+
 		"    Within: {<<: {nullable: true}, type: string}\n    Yes: {type: string, nullable: 'yes'}\n"))
 
-	s := StatedIn(l, declared(t, l, "Past"))
+	s := StatedIn(l, componentSchema(t, l, "Past"))
 	_, written := s.Key("nullable")
 	require.False(t, written, "the keyword lies past the bound")
 	assert.True(t, nullableTrue(s))
-	assert.True(t, nullableTrue(StatedIn(l, declared(t, l, "PastWord"))), "no key tells the word from a boolean")
-	outranks := StatedIn(l, declared(t, l, "Outranks"))
+	assert.True(t, nullableTrue(StatedIn(l, componentSchema(t, l, "PastWord"))), "no key tells the word from a boolean")
+	outranks := StatedIn(l, componentSchema(t, l, "Outranks"))
 	listed, _ := outranks.Key("nullable")
 	require.Equal(t, "false", listed.Node.Value, "the key listed is the one written within the bound")
 	assert.True(t, nullableTrue(outranks), "the merge past the bound comes first, so its true is the schema's")
-	assert.True(t, nullableTrue(StatedIn(l, declared(t, l, "Within"))))
-	assert.False(t, nullableTrue(StatedIn(l, declared(t, l, "Yes"))))
+	assert.True(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Within"))))
+	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Yes"))))
 }

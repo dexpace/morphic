@@ -139,12 +139,12 @@ func (f modelFields) Untyped(p ir.Provenance) bool {
 	if !placed {
 		return false
 	}
-	js := f.c.Bindings().At(at)
-	if js == nil || js.GetSchema() == nil {
+	st := f.c.Statements().At(at)
+	if st.Truth != statement.Stated {
 		return false
 	}
 	r := conjunctTypes{c: f.c, steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
-	return r.schema(f.c.Statements().Of(js).Schema, f.c.Bindings().RefKeyword(js)) == anyInstance && !r.steps.Exhausted() && !r.passedOver
+	return r.schema(st.Schema, refKeyword(st)) == anyInstance && !r.steps.Exhausted() && !r.passedOver
 }
 
 // Mint registers node, the type of the field the declaration at pointer names

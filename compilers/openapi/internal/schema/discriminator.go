@@ -10,8 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
@@ -145,22 +143,21 @@ type listedBy struct {
 // narrows that union, each instance carrying its variant's tag, and composes
 // it as written (docs/ir/models.md#a-union-a-composition-names).
 func routesByName(c lowering.Ctx, a, s *statement.Schema) bool {
-	sM := statement.Parsed(s)
 	holder := standingUnion(c, a)
-	if statement.Parsed(holder) == nil {
+	if !stated(holder) {
 		return true
 	}
 	branches, _, _ := unionBranches(holder)
-	listed := lowering.Remembered(c, listedBy{a}, func() map[*oas3.Schema]bool {
-		set := make(map[*oas3.Schema]bool, len(branches))
+	listed := lowering.Remembered(c, listedBy{a}, func() map[*statement.Schema]bool {
+		set := make(map[*statement.Schema]bool, len(branches))
 		for _, b := range branches {
-			if target := refBranchTarget(c, c.Statements().Sub(b)); statement.Parsed(target) != nil {
-				set[statement.Parsed(target)] = true
+			if target := refBranchTarget(c, c.Statements().Sub(b)); stated(target) {
+				set[target] = true
 			}
 		}
 		return set
 	})
-	return listed[sM]
+	return listed[s]
 }
 
 // standingUnion returns the schema writing the union the discriminator a

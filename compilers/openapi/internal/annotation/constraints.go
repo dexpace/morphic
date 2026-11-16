@@ -179,26 +179,35 @@ func numericBounds(c *ir.Constraints, s *statement.Schema) {
 // wrong form for the dialect, or a literal no decimal spells, is dropped, and
 // the rule table's check reports it (Constraints).
 func applyExclusive(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
-	m := statement.Parsed(s)
-	ev := m.GetExclusiveMaximum()
-	if side == minBound {
-		ev = m.GetExclusiveMinimum()
-	}
+	form := exclusiveForm(s, side)
 	_, prop := boundProps(side)
 	node := keyNode(s, prop)
-	if ev == nil || node == nil {
+	if form == statement.NoExclusive || node == nil {
 		return nil
 	}
-	if ev.IsLeft() != exclusiveBoolean {
+	flag := form != statement.ExclusiveBound
+	if flag != exclusiveBoolean {
 		return nil
 	}
-	if ev.IsLeft() {
-		return applyExclusiveFlag(c, s, side, residue, ev.GetLeft())
+	if flag {
+		return applyExclusiveFlag(c, s, side, residue, form == statement.ExclusiveTrue)
 	}
 	if v, err := value.NumericLiteral(node); err == nil {
 		setExclusiveBound(c, side, &v)
 	}
 	return nil
+}
+
+// exclusiveForm returns the arm s's exclusive bound on side was read as, none
+// for a nil s.
+func exclusiveForm(s *statement.Schema, side boundSide) statement.Exclusive {
+	if s == nil || s.Number == nil {
+		return statement.NoExclusive
+	}
+	if side == minBound {
+		return s.Number.ExclusiveMinimumForm
+	}
+	return s.Number.ExclusiveMaximumForm
 }
 
 // applyExclusiveFlag reads the 3.0 boolean arm, where exclusiveMinimum modifies
@@ -212,8 +221,8 @@ func applyExclusive(c *ir.Constraints, s *statement.Schema, side boundSide, resi
 // Absence is read off the raw node, because the parsed slot is also nil for a
 // bound numericBounds could not read. That bound has drawn its own error, and
 // its modifier is dropped silently.
-func applyExclusiveFlag(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, flag *bool) []ir.Diagnostic {
-	if flag == nil || !*flag {
+func applyExclusiveFlag(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, flag bool) []ir.Diagnostic {
+	if !flag {
 		return nil
 	}
 	inclProp, exclProp := boundProps(side)

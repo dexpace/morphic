@@ -643,7 +643,7 @@ func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 // conjunct reads one allOf branch, or what a $ref lands on. A `false` schema
 // admits no instance whatever, null included; a `true` one constrains nothing,
 // nor does a `null` written for one, which is no `false`
-// (annotation.IsFalseSchema).
+// (statement.Truth.ReadsFalse).
 func (n *nulls) conjunct(b *statement.Statement, site nullSite) nullReading {
 	switch {
 	case b == nil:

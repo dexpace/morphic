@@ -1786,3 +1786,28 @@ func TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor(t *testing.T) {
 		}
 	}
 }
+
+// TestAllOf_ANullNotLeavesAStructureStatingAType pins a `not` the parser's
+// model holds a value for, written as no schema, against a redeclaration: a
+// property redeclared as an integer and as a structure writing nothing of its
+// instance type but such a `not`, in either order, disagrees, as a `not` is
+// read as one that could refuse a value of some instance type; the same
+// structure writing no `not` admits the integer, and draws nothing.
+func TestAllOf_ANullNotLeavesAStructureStatingAType(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, p string }{
+		{"beside the structure", "{properties: {x: {type: string}}, not: null}"},
+		{"in its allOf", "{allOf: [{properties: {x: {type: string}}, not: null}]}"},
+	} {
+		for _, order := range [][2]string{{"A", "B"}, {"B", "A"}} {
+			_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {p: {type: integer}}}
+    B: {type: object, properties: {p: `+tc.p+`}}
+    Plain: {type: object, properties: {p: {properties: {x: {type: string}}}}}
+    M: {allOf: [{$ref: '#/components/schemas/`+order[0]+`'}, {$ref: '#/components/schemas/`+order[1]+`'}]}
+    N: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Plain'}]}
+`))
+			assert.Equal(t, []string{"warning " + diag.ConflictingRedecl + " /components/schemas/M/allOf/0"},
+				findingsOf(diags, diag.ConflictingRedecl), "%s, %s first", tc.name, order[0])
+		}
+	}
+}

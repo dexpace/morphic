@@ -118,14 +118,14 @@ func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
         - {type: object}
         - {$ref: '#/components/schemas/B'}
 `))
-	s := StatedIn(l, declared(t, l, "M"))
+	s := StatedIn(l, componentSchema(t, l, "M"))
 	var all []*statement.Statement
 	for b := range allOfRefBranches(l.Ctx, s) {
 		all = append(all, b)
 	}
 	require.Len(t, all, 2, "the nested $ref and the one beside it")
-	assert.Equal(t, StatedIn(l, declared(t, l, "A")), refBranchTarget(l.Ctx, all[0]))
-	assert.Equal(t, StatedIn(l, declared(t, l, "B")), refBranchTarget(l.Ctx, all[1]))
+	assert.Equal(t, StatedIn(l, componentSchema(t, l, "A")), refBranchTarget(l.Ctx, all[0]))
+	assert.Equal(t, StatedIn(l, componentSchema(t, l, "B")), refBranchTarget(l.Ctx, all[1]))
 
 	var seen int
 	for range allOfRefBranches(l.Ctx, s) {

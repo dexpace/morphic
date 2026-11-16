@@ -32,8 +32,10 @@ type Table struct {
 	src        Source
 	schemas    map[*model]*Schema
 	statements map[*model]*Statement
-	// reads counts the schema objects read, which the tests hold to one each.
-	reads int
+	// reads counts the schema objects read, which the tests hold to one each,
+	// and lookups the statements Of looks up, which they hold Read to none of
+	// for a schema Of has built the statement of.
+	reads, lookups int
 }
 
 // NewTable returns a table reading from src, which has read nothing yet. The
@@ -54,10 +56,15 @@ func (t *Table) Sub(s Sub) *Statement {
 }
 
 // Read returns the statement of the schema object s, for a caller lowering
-// an entry as a position of its own. A nil s reads as Unwritten.
+// an entry as a position of its own: the one Of built over s, which s keeps,
+// so that a schema read once more costs no lookup. A nil s reads as
+// Unwritten.
 func (t *Table) Read(s *Schema) *Statement {
 	if s == nil {
 		return t.Of(nil)
+	}
+	if s.of != nil {
+		return s.of
 	}
 	return t.Of(s.m)
 }

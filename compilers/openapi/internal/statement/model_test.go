@@ -17,10 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -437,4 +439,214 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	assert.Equal(t, oas.SlotUnknown, k.Slot, "no rows place a key")
 	require.NotNil(t, unruled.Object, "its value is read all the same")
 	assert.Equal(t, "a", unruled.Object.Discriminator.PropertyName)
+}
+
+// extensionNames returns the names list holds, in its order.
+func extensionNames(list []statement.Extension) []string {
+	out := make([]string, len(list))
+	for i, e := range list {
+		out[i] = e.Name
+	}
+	return out
+}
+
+// TestRead_ListsExtensionsAsTheModelHoldsThem holds a schema's extensions, and
+// those of its xml, discriminator and externalDocs objects, to the parser's
+// model: in the order they are written, and one merged in through `<<` from
+// past nodeview.MergeDepthLimit, whose pair the schema's keys, and the xml
+// object's node as the compiler reads it, do not reach.
+func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
+	t.Parallel()
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
+		"x-c0: &c0 {x-a: 1}\nx-d0: &d0 {x-x: 2}\n")
+	for i := 1; i <= nodeview.MergeDepthLimit; i++ {
+		fmt.Fprintf(&spec, "x-c%d: &c%d {<<: *c%d}\nx-d%d: &d%d {<<: *d%d}\n", i, i, i-1, i, i, i-1)
+	}
+	fmt.Fprintf(&spec, "components:\n  schemas:\n    P: {<<: *c%d, title: P, xml: {<<: *d%d, name: n}}\n",
+		nodeview.MergeDepthLimit, nodeview.MergeDepthLimit)
+	spec.WriteString("    O: {x-b: 1, x-a: 2, type: object, xml: {x-y: 1, x-w: 2}, discriminator: {propertyName: k, x-d: 1}, " +
+		"externalDocs: {url: 'https://d.example', x-e: 1}}\n")
+	table, c := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
+
+	p := table.At(component(c, "P"))
+	require.Equal(t, statement.Stated, p.Truth)
+	assert.Equal(t, []string{"x-a"}, extensionNames(p.Extensions), "the model's, past the bound")
+	_, read := p.Key("x-a")
+	assert.False(t, read, "the keys do not reach it")
+	require.NotNil(t, p.Notes.XML)
+	assert.Equal(t, []string{"x-x"}, extensionNames(p.Notes.XML.Extensions), "an xml object's, past the bound")
+	assert.Nil(t, nodeview.Child(p.Notes.XML.Node, "x-x"), "which its node does not reach")
+
+	o := table.At(component(c, "O"))
+	assert.Equal(t, []string{"x-b", "x-a"}, extensionNames(o.Extensions), "in source order")
+	assert.Equal(t, "2", text(o.Extensions[1].Node))
+	assert.Equal(t, []string{"x-y", "x-w"}, extensionNames(o.Notes.XML.Extensions))
+	assert.Equal(t, []string{"x-d"}, extensionNames(o.Object.Discriminator.Extensions))
+	assert.Equal(t, []string{"x-e"}, extensionNames(o.Notes.ExternalDocs.Extensions))
+	assert.Nil(t, table.At(component(c, "Absent")).Extensions)
+}
+
+// TestSub_TruthTellsNoSchemaFromFalse pins what a value written where a schema
+// belongs states, read from its Sub and from its statement alike. The parser
+// decodes a null, a string, a number or a list as the `false` schema
+// (docs/parser-library.md#null-schema-is-false), which admits no value where
+// these state nothing, so only the node tells them apart, through an alias
+// too; and it decodes a mapping it fails beneath as a boolean
+// (docs/parser-library.md#failure-beneath-itself). Only a written `false`, and
+// such a mapping, read as the false schema, and the model holds every value
+// written, so Held tells any of them from a keyword left out.
+func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name, value string
+		want        statement.Truth
+	}{
+		{"the word null", "null", statement.Unwritten},
+		{"a tilde", "~", statement.Unwritten},
+		{"an empty value", "", statement.Unwritten},
+		{"a null that is anchored", "&n null", statement.Unwritten},
+		{"an alias to an anchored null", "*n", statement.Unwritten},
+		{"false", "false", statement.Nothing},
+		{"a false that is anchored", "&f false", statement.Nothing},
+		{"an alias to an anchored false", "*f", statement.Nothing},
+		{"true", "true", statement.Anything},
+		{"an object", "{type: string}", statement.Stated},
+		{"an empty object", "{}", statement.Stated},
+		{"a string", "hello", statement.Unwritten},
+		{"a quoted false", `"false"`, statement.Unwritten},
+		{"a number", "7", statement.Unwritten},
+		{"a list", "[a]", statement.Unwritten},
+		{"a string tagged as one", "!!str true", statement.Unwritten},
+		{"a boolean tagged outside the ruleset", "!local true", statement.Unwritten},
+		{"a list that is anchored", "&l [a]", statement.Unwritten},
+		{"an alias to an anchored list", "*l", statement.Unwritten},
+		{"a tagged boolean", "!!bool false", statement.Nothing},
+	}
+	var props strings.Builder
+	for i, row := range rows {
+		fmt.Fprintf(&props, "        p%d: %s\n", i, row.value)
+	}
+	depth := typed.MaxMends + 2
+	chain := strings.Repeat("{type: array, items: ", depth) + "[{}]" + strings.Repeat("}", depth)
+	table, c := tableOver(t, openapitest.ComponentSpecVer("3.1.0",
+		"    A:\n      properties:\n"+props.String()+"    Chain: "+chain+"\n"), rulesAt(t, "3.1.0", ""))
+
+	a := table.At(component(c, "A"))
+	require.Len(t, a.Object.Properties, len(rows))
+	for i, row := range rows {
+		sub := a.Object.Properties[i]
+		require.Equal(t, fmt.Sprintf("p%d", i), sub.Name)
+		assert.Equal(t, row.want, sub.Truth(), "%s: the Sub", row.name)
+		assert.Equal(t, row.want, table.Sub(sub).Truth, "%s: its statement", row.name)
+		assert.Equal(t, row.want == statement.Nothing, sub.Truth().ReadsFalse(), "%s: read as false", row.name)
+		assert.True(t, sub.Held(), "%s: the model holds a value", row.name)
+		assert.True(t, table.Sub(sub).Held(), "%s: and its statement says so", row.name)
+	}
+	assert.False(t, table.At(component(c, "Absent")).Held(), "none is held where nothing is written")
+	assert.False(t, (*statement.Schema)(nil).Held())
+
+	above := table.At(c.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", depth-2))))
+	require.Equal(t, statement.Stated, above.Truth)
+	items := above.Array.Items
+	assert.Equal(t, statement.Unread, items.Truth(), "a mapping read as a boolean")
+	assert.Equal(t, statement.Unread, table.Sub(items).Truth)
+	assert.True(t, items.Truth().ReadsFalse(), "the parser reads it as false")
+
+	assert.Equal(t, statement.Unwritten, statement.Sub{}.Truth(), "no value at all")
+	assert.False(t, statement.Sub{}.Held(), "which the model holds none of")
+	built := statement.NewTable(statement.Source{}).Of(oas3.NewJSONSchemaFromBool(false))
+	assert.Equal(t, statement.Nothing, built.Truth, "a false schema built in memory, which has no node")
+}
+
+// TestRead_AReferenceHoldsTheModelsText pins Reference.Text to the $ref the
+// parser's model holds, which the bindings' entry does not say: empty for an
+// empty $ref and for a $dynamicRef the bindings read as a $ref, so that
+// annotation.At reads either as a declaration, and the $ref itself for one
+// naming a schema.
+func TestRead_AReferenceHoldsTheModelsText(t *testing.T) {
+	t.Parallel()
+	table, c := tableOver(t, document("3.1.0",
+		`E: {$ref: ''}`, `D: {$dynamicRef: '#a'}`, `R: {$ref: '#/components/schemas/E'}`,
+	), rulesAt(t, "3.1.0", ""))
+	for _, tc := range []struct {
+		name, keyword, text string
+		kind                annotation.Kind
+	}{
+		{"E", "$ref", "", annotation.Declaration},
+		{"D", "$dynamicRef", "", annotation.Declaration},
+		{"R", "$ref", "#/components/schemas/E", annotation.Reference},
+	} {
+		st := table.At(component(c, tc.name))
+		require.NotNil(t, st.Ref, tc.name)
+		assert.Equal(t, tc.keyword, st.Ref.Keyword, tc.name)
+		assert.True(t, st.Ref.Bound, "%s: the bindings read it", tc.name)
+		assert.Equal(t, tc.text, st.Ref.Text, tc.name)
+		assert.Equal(t, tc.kind, annotation.At(st).Kind, tc.name)
+	}
+}
+
+// TestRead_AnExclusiveBoundHoldsTheArmTheModelRead pins Number's forms to the
+// arm the parser's model read each exclusive bound as: a flag, true where the
+// model reads a string such as `yes` as true, or a bound.
+func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
+	t.Parallel()
+	flags, fc := tableOver(t, document("3.0.3",
+		`F: {type: number, minimum: 5, exclusiveMinimum: yes, maximum: 9, exclusiveMaximum: false}`,
+		`M: {type: number, minimum: 5}`,
+	), rulesAt(t, "3.0.3", ""))
+	f := flags.At(component(fc, "F"))
+	require.NotNil(t, f.Number)
+	assert.Equal(t, statement.ExclusiveTrue, f.Number.ExclusiveMinimumForm)
+	assert.Equal(t, statement.ExclusiveFalse, f.Number.ExclusiveMaximumForm)
+	assert.Equal(t, "5", text(f.Number.Minimum))
+	m := flags.At(component(fc, "M"))
+	require.NotNil(t, m.Number, "a key opens the slot")
+	assert.Equal(t, statement.NoExclusive, m.Number.ExclusiveMinimumForm)
+
+	bounds, bc := tableOver(t, document("3.1.0", `B: {exclusiveMinimum: 5}`), rulesAt(t, "3.1.0", ""))
+	b := bounds.At(component(bc, "B"))
+	require.NotNil(t, b.Number)
+	assert.Equal(t, statement.ExclusiveBound, b.Number.ExclusiveMinimumForm)
+	assert.Equal(t, statement.NoExclusive, b.Number.ExclusiveMaximumForm)
+	assert.Equal(t, "5", text(b.Number.ExclusiveMinimum))
+}
+
+// TestSchema_PropertyIsTheSubPropertiesLists pins Property to the parser's
+// model: on a schema writing forty properties, one of them written twice, once
+// through a merge, each name finds the Sub Object.Properties lists under it,
+// and a name the schema does not write, or any name on no schema object,
+// finds none.
+func TestSchema_PropertyIsTheSubPropertiesLists(t *testing.T) {
+	t.Parallel()
+	var props strings.Builder
+	for i := range 40 {
+		fmt.Fprintf(&props, ", p%d: {title: t%d}", i, i)
+	}
+	table, c := tableOver(t, document("3.1.0",
+		"W: {properties: {<<: {p7: {title: merged}}"+props.String()+"}}",
+		"B: true",
+	), rulesAt(t, "3.1.0", ""))
+	w := table.At(component(c, "W"))
+	require.Len(t, w.Object.Properties, 40)
+	for i, listed := range w.Object.Properties {
+		name := fmt.Sprintf("p%d", i)
+		got, ok := w.Property(name)
+		require.True(t, ok, name)
+		assert.Equal(t, name, got.Name)
+		assert.Same(t, table.Sub(listed), table.Sub(got), "%s: the Sub the list holds", name)
+	}
+	p7, _ := w.Property("p7")
+	assert.Equal(t, "t7", table.Sub(p7).Notes.Title, "a key written beside a merge is its own")
+
+	_, ok := w.Property("q")
+	assert.False(t, ok, "a name not written")
+	for name, s := range map[string]*statement.Schema{
+		"a boolean schema": table.At(component(c, "B")).Schema,
+		"no schema":        table.At(component(c, "Absent")).Schema,
+		"a nil schema":     nil,
+	} {
+		_, ok := s.Property("p0")
+		assert.False(t, ok, name)
+	}
 }

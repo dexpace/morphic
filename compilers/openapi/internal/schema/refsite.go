@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -104,10 +103,14 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, poin
 // load phase reports one landing nowhere: the table's entry's, else the
 // model's $ref, which the budget left unread.
 func refSpelling(js *statement.Statement) (keyword, value string) {
-	if js.Ref != nil && js.Ref.Bound {
+	switch {
+	case js.Ref == nil:
+		return "$ref", ""
+	case js.Ref.Bound:
 		return js.Ref.Entry.Keyword, js.Ref.Entry.Hop.Ref
+	default:
+		return "$ref", js.Ref.Text
 	}
-	return "$ref", statement.ParsedAt(js).GetRef().String()
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
@@ -143,7 +146,7 @@ func hopWhy(h bind.Hop) string {
 
 // resolveSchemaRef resolves a schema-position $ref to the TypeID of what it
 // names, in whichever document (resolveAt). It returns ok=false for a $ref that
-// lands on no schema (resolve.Scope.Target) and for a reference to an
+// lands on no schema (landsAt) and for a reference to an
 // undeclared component.
 func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement) (ir.TypeID, bool) {
 	at, ok := landsAt(js)
@@ -167,8 +170,8 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *statem
 // PromiseLandings promises a node at each position a schema $ref of the
 // bindings' table lands on, hop by hop, so a position only a keyword kept
 // verbatim names, a `not` or an `if`, or only an alias a chain passes, is
-// lowered as one a lowered keyword names is, where resolve.Scope.Target places
-// it: a member of a loop of $refs lands nowhere. A position a lowering already
+// lowered as one a lowered keyword names is, where its hop lands
+// (bind.Entry.Lands): a member of a loop of $refs lands nowhere. A position a lowering already
 // reached keeps the node built there (compile.Types.Promise). It reports
 // nothing itself: a promise reports when it is kept.
 func PromiseLandings(c lowering.Ctx, ts *compile.Types) {
@@ -177,7 +180,7 @@ func PromiseLandings(c lowering.Ctx, ts *compile.Types) {
 		if !e.Lands() {
 			continue
 		}
-		resolveAt(c, ts, e.Hop.Target, c.Statements().Of(b.At(e.Hop.Target)))
+		resolveAt(c, ts, e.Hop.Target, c.Statements().At(e.Hop.Target))
 	}
 }
 
@@ -204,7 +207,6 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer,
 // hoisted where a reference reaches it, which a reference promises a node. It
 // reads no registry, so no answer turns on which schema lowered first.
 func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statement) (id ir.TypeID, hoisted, ok bool) {
-	m := statement.ParsedAt(decl)
 	// The source's components alone are lowered whole and named by name;
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
@@ -213,7 +215,10 @@ func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statem
 			return named, false, state == ids.NamedComponent
 		}
 	}
-	if !resolve.Hoistable(m) {
+	// Any value the model holds is hoisted: a body, a boolean one (GitHub
+	// #861), and one written as no schema, which a $ref names as it names `{}`
+	// (docs/compilers/openapi.md#null-schema).
+	if decl == nil || !decl.Held() {
 		return "", false, false
 	}
 	return c.IDs().ForPointer(pointer), true, true
@@ -223,8 +228,15 @@ func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statem
 // table, resolves, as resolveAt resolves one, without promising its node
 // (declaredAt).
 func resolvesAt(c lowering.Ctx, at bind.Position) bool {
-	_, ok := declaredAt(c, at, c.Statements().Of(c.Bindings().At(at)))
+	_, ok := declaredAt(c, at, c.Statements().At(at))
 	return ok
+}
+
+// namesReferent reports whether the reference st writes resolves, as
+// resolveSchemaRef resolves it, without promising its node.
+func namesReferent(c lowering.Ctx, st *statement.Statement) bool {
+	at, ok := landsAt(st)
+	return ok && resolvesAt(c, at)
 }
 
 // hoistSubSchema builds the node at pointer from decl, the schema written there,

@@ -28,6 +28,6 @@ func TestTwinKeyword_SpellsADraftsKeywordAs2020Does(t *testing.T) {
 		{"D19", "$recursiveAnchor", "$dynamicAnchor"}, {"D7", "$recursiveAnchor", "$recursiveAnchor"},
 		{"D4", "type", "type"},
 	} {
-		assert.Equal(t, tc.want, TwinKeyword(l.Ctx, StatedIn(l, declared(t, l, tc.schema)), tc.key), "%s in %s", tc.key, tc.schema)
+		assert.Equal(t, tc.want, TwinKeyword(l.Ctx, StatedIn(l, componentSchema(t, l, tc.schema)), tc.key), "%s in %s", tc.key, tc.schema)
 	}
 }

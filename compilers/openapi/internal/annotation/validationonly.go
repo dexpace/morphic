@@ -47,8 +47,7 @@ func ExamplesRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 // an applicator kept verbatim that evaluates a member leaves the closure typed
 // (GitHub #1904).
 func ClosesAfterComposition(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return IsFalseSchema(m.GetUnevaluatedProperties()) && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
+	return objectIn(s).UnevaluatedProperties.Truth().ReadsFalse() && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
 }
 
 // unevaluatedRaw renders the entry holding kept, each inert keyword beside the
@@ -78,18 +77,17 @@ type keptUnevaluated struct {
 // unevaluatedKept returns the unevaluated keywords s writes that an entry
 // keeps, in keyword order. closure says the node took `unevaluatedProperties:
 // false` as its openness, so that form is left out, and dialect says where s's
-// dialect reads the elements past a prefix. It asks the model first, so a
-// schema writing neither, nearly every one, costs no read of its node.
+// dialect reads the elements past a prefix. It asks the typed values first,
+// so a schema writing neither, nearly every one, costs no read of its node.
 func unevaluatedKept(s *statement.Schema, closure bool, dialect Dialect) []keptUnevaluated {
-	m := statement.Parsed(s)
 	var out []keptUnevaluated
 	keep := func(keyword string) {
 		out = append(out, keptUnevaluated{keyword: keyword, inertBy: inertBeside(s, keyword, dialect)})
 	}
-	if up := m.GetUnevaluatedProperties(); Written(up) && (!closure || !IsFalseSchema(up)) {
+	if up := objectIn(s).UnevaluatedProperties.Truth(); up != statement.Unwritten && (!closure || !up.ReadsFalse()) {
 		keep("unevaluatedProperties")
 	}
-	if Written(m.GetUnevaluatedItems()) {
+	if arrayIn(s).UnevaluatedItems.Truth() != statement.Unwritten {
 		keep("unevaluatedItems")
 	}
 	return out
@@ -117,9 +115,8 @@ func unevaluatedMembers(kept []keptUnevaluated) []string {
 // tuple, the additionalItems written beside it (2019-09 §9.3.1.2). An `items`
 // list any other dialect reads is no schema, and evaluates nothing.
 func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
-	m := statement.Parsed(s)
 	if keyword == "unevaluatedProperties" {
-		if Written(m.GetAdditionalProperties()) {
+		if objectIn(s).AdditionalProperties.Truth() != statement.Unwritten {
 			return "additionalProperties"
 		}
 		return ""
@@ -130,7 +127,7 @@ func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 		}
 		return ""
 	}
-	if Written(m.GetItems()) {
+	if arrayIn(s).Items.Truth() != statement.Unwritten {
 		return "items"
 	}
 	return ""
@@ -248,7 +245,6 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 //
 // Site-only: these constrain the value at the position that wrote them.
 func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -279,7 +275,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), note)...)
 	}
 
-	if Written(m.GetNot()) {
+	if logicIn(s).Not.Truth() != statement.Unwritten {
 		keepKeyword("not")
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
@@ -299,7 +295,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")
 	}
-	if Written(m.GetPropertyNames()) {
+	if objectIn(s).PropertyNames.Truth() != statement.Unwritten {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)

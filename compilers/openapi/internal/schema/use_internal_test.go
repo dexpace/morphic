@@ -21,6 +21,6 @@ func TestWritesRef_ReadsARefAsTheBinderDoes(t *testing.T) {
 		"    S: {$ref: '#/components/schemas/N'}\n    E: {$ref: ''}\n    A: {$ref: *r}\n"+
 		"    Null: {$ref: null}\n    M: {$ref: {a: b}}\n    L: {$ref: [x]}\n    None: {type: string}\n")
 	for name, want := range map[string]bool{"S": true, "E": true, "A": true, "Null": false, "M": false, "L": false, "None": false} {
-		assert.Equal(t, want, writesRef(StatedIn(l, declared(t, l, name))), name)
+		assert.Equal(t, want, writesRef(StatedIn(l, componentSchema(t, l, name))), name)
 	}
 }

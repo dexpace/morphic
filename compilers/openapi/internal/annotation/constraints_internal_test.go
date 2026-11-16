@@ -183,6 +183,11 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 			wantExclMin: new(ir.BigVal("1")), wantExclMax: new(ir.BigVal("9")),
 		},
 		{
+			name: "3.0 flag the model reads from a string, as it reads yes", exclusiveBoolean: true,
+			body:        "minimum: 5\nexclusiveMinimum: yes\n",
+			wantExclMin: new(ir.BigVal("5")),
+		},
+		{
 			name: "3.0 false leaves the bound inclusive", exclusiveBoolean: true,
 			body:    "minimum: 1\nexclusiveMinimum: false\n",
 			wantMin: new(ir.BigVal("1")),

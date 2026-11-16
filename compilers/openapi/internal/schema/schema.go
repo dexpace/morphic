@@ -220,7 +220,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		// would drop the reference unrecorded, as recordUnexpandedDynamicRef
 		// keeps only one that does not expand, where an empty target fails
 		// irverify.
-		target, _ := resolveAt(c, ts, at, c.Statements().Of(c.Bindings().At(at)))
+		target, _ := resolveAt(c, ts, at, c.Statements().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
 	}
@@ -607,7 +607,7 @@ var shapeKeywords = []siblingKeyword{
 	{"enum", enumWritten},
 	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }},
 	{"additionalProperties", func(s *statement.Schema) bool {
-		return annotation.Written(statement.Parsed(s).GetAdditionalProperties())
+		return written(objectIn(s).AdditionalProperties)
 	}},
 	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }},
 	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }},
@@ -625,7 +625,7 @@ var narrowingKeywords = []siblingKeyword{
 	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }},
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
-		return listed || annotation.Written(statement.Parsed(s).GetItems())
+		return listed || written(arrayIn(s).Items)
 	}},
 	{"prefixItems", func(s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }},
 }
