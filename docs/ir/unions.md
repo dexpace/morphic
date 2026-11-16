@@ -13,6 +13,8 @@ type Union struct {
     WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
                                  // a single key (Smithy union, protobuf oneof); false = untagged
     Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
+    Constraints   *Constraints   // the bounds written beside the union, each of the values of its
+                                 // kind (below); nil = none
     Closed        bool           // false = open: a payload may hold a variant this does not list
     InputOnly     bool           // only a request carries it (GraphQL @oneOf input objects)
 }
@@ -104,6 +106,27 @@ keeps both variants, as it keeps every branch, and `pass.Validate` reports the l
 the source seems to say, and as an info `pass/inclusive-union-redundant-variant` where it is not.
 Each case has a code of its own, so a consumer selecting findings by code can take the redundant
 repeat without the one that narrows what the union admits.
+
+## Bounds beside a union
+
+`Constraints` holds the bounds a source writes beside the union itself, as JSON Schema writes
+`{oneOf: [{type: string}, {type: integer}], minLength: 1}`. Each bounds a value of the kind it
+applies to, whichever variant holds the value, and admits every value of another kind, as it does
+beside any type ([constraints](./constraints.md#constraints)): there `minLength` bounds the strings
+the union admits and lets every integer through. A variant cannot hold it, since its node is its
+branch's, which every other use of that branch shares, or a primitive every string shares. A
+`Property` or `Parameter` whose schema lowered to the union restates it, as it restates a scalar's,
+but a reference naming the union reads the node alone, so the node is the bound's home. Where the
+union's position builds its variants itself, a type list's or a distributed composition's, the
+variants hold the bounds and the union holds none.
+
+Two other homes were weighed. The carrier alone loses the bound for every reference naming the
+position, and `Unmodeled` alone leaves a bound a check reads untyped. An `Enum` and a `Literal` have
+no such field: every value a closed one admits is one the source lists, so a bound beside one only
+says which of those values it admits, which its members would say themselves. A compiler keeps such
+a bound verbatim ([degraded constructs](./boundaries.md#degraded-constructs)), an open enum's too,
+though it bounds the values that one does not list (#2004). A union whose variants are such value
+sets holds a bound beside it all the same, as it holds every bound written there.
 
 ## Open unions
 

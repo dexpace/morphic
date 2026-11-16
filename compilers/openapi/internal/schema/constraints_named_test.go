@@ -335,7 +335,8 @@ func TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead(t *testing.T) {
 
 // TestConstraints_AUnionIsReadByWhatItsBranchesAdmit pins a bound beside a union
 // that does not collapse: a type is admitted if any branch admits it, so a
-// bound no branch takes is not held by the property, and one a branch takes is.
+// bound no branch takes is held by neither the union nor the property, and one
+// a branch takes is held by both.
 func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 	t.Parallel()
 	const union = "t/anon/components/schemas/Holder/properties/p"
@@ -356,6 +357,7 @@ func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 			assert.Empty(t, p.Unmodeled)
 			u, ok := doc.Types[p.Type.Target].(*ir.Union)
 			require.True(t, ok, "got %T", doc.Types[p.Type.Target])
+			assert.Nil(t, u.Constraints)
 			entry, ok := u.Unmodeled["openapi:minLength"]
 			require.True(t, ok, "got %v", unmodeledKeys(u.Unmodeled))
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
@@ -367,7 +369,15 @@ func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 		t.Parallel()
 		doc, diags := parseFull(t, namedSpec("3.1.0", "{anyOf: ["+refTo("Str")+", "+refTo("Obj")+"], minLength: 1}", "", false))
 		openapitest.RequireNoErrorDiags(t, diags)
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, propertyOf(t, doc, "Holder", "p").Constraints)
+		want := &ir.Constraints{MinLength: new(int64(1))}
+		p := propertyOf(t, doc, "Holder", "p")
+		assert.Equal(t, want, p.Constraints)
+		for _, id := range []ir.TypeID{p.Type.Target, componentID("S")} {
+			u, ok := doc.Types[id].(*ir.Union)
+			require.True(t, ok, "%s: got %T", id, doc.Types[id])
+			assert.Equal(t, want, u.Constraints, id)
+			assert.Empty(t, u.Unmodeled, id)
+		}
 	})
 }
 
@@ -711,6 +721,41 @@ func TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder(t *testing.T) {
 			assert.Equal(t, reportedAt(afterDiags), reportedAt(beforeDiags))
 			assert.NotEmpty(t, afterDiags, "a row that reports nothing compares nothing")
 		})
+	}
+}
+
+// TestConstraints_AReferenceLandingOnAPropertyReadsItsNode pins a $ref naming a
+// property's own schema, a union's or an enum's with a bound beside it: the
+// bound is on the node the property owns, in the Union's Constraints or the
+// Enum's Unmodeled, which the landing reaches through its reference and reads
+// no copy of, whichever of the two is declared first (GitHub #1924).
+func TestConstraints_AReferenceLandingOnAPropertyReadsItsNode(t *testing.T) {
+	t.Parallel()
+	const holder = "    H: {type: object, properties: {u: {oneOf: [{type: string}, {type: integer}], minLength: 1}, " +
+		"e: {type: string, enum: [a, bb], minLength: 1}}}\n"
+	const landing = "    A: {type: object, properties: {qu: {$ref: '#/components/schemas/H/properties/u'}, " +
+		"qe: {$ref: '#/components/schemas/H/properties/e'}}}\n"
+	first, firstDiags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", holder+landing))
+	later, laterDiags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", landing+holder))
+	openapitest.RequireNoErrorDiags(t, firstDiags)
+	assert.Empty(t, cmp.Diff(first.Types, later.Types, orderInvariantIR()...))
+	assert.Equal(t, reportedAt(firstDiags), reportedAt(laterDiags))
+
+	want := &ir.Constraints{MinLength: new(int64(1))}
+	for _, doc := range []*ir.Document{first, later} {
+		u, ok := doc.Types["t/anon/components/schemas/H/properties/u"].(*ir.Union)
+		require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/H/properties/u"])
+		assert.Equal(t, want, u.Constraints)
+		assert.Equal(t, want, propertyOf(t, doc, "H", "u").Constraints)
+		e, ok := doc.Types["t/anon/components/schemas/H/properties/e"].(*ir.Enum)
+		require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/H/properties/e"])
+		assert.Contains(t, e.Unmodeled, "openapi:minLength")
+		assert.Nil(t, propertyOf(t, doc, "H", "e").Constraints)
+		for _, name := range []string{"qu", "qe"} {
+			q := propertyOf(t, doc, "A", name)
+			assert.Nil(t, q.Constraints, name)
+			assert.Empty(t, q.Unmodeled, name)
+		}
 	}
 }
 

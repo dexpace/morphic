@@ -114,10 +114,11 @@ func found(t *testing.T, doc *ir.Document, code string) []finding {
 const boundsCode = "pass/bounds-admit-no-value"
 
 // TestValidate_BoundsThatAdmitNoValueAreReported holds each shape of value to
-// the bounds it is judged by, with the nearest bounds that admit one value
-// beside each that admit none: an exclusive bound only the other side meets
-// exactly, a minimum compared as a number and not as text, a gap between two
-// integers the check does not judge, and a multiple it does not look for.
+// the bounds it is judged by, a union's kind by kind, with the nearest bounds
+// that admit one value beside each that admit none: an exclusive bound only the
+// other side meets exactly, a minimum compared as a number and not as text, a
+// gap between two integers the check does not judge, and a multiple it does
+// not look for.
 func TestValidate_BoundsThatAdmitNoValueAreReported(t *testing.T) {
 	t.Parallel()
 	typed := func(id string, td func(c *ir.Constraints) ir.TypeDef, c *ir.Constraints) *ir.Document {
@@ -130,6 +131,21 @@ func TestValidate_BoundsThatAdmitNoValueAreReported(t *testing.T) {
 	}
 	object := func(c *ir.Constraints) ir.TypeDef {
 		return &ir.Model{ID: "t/o", Constraints: c, Provenance: provAt("t/o")}
+	}
+	union := func(c *ir.Constraints) ir.TypeDef {
+		return &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: strT}, {Type: intT}}, Constraints: c, Provenance: provAt("t/u")}
+	}
+	// eachKind is bounds of every kind that admit one value apiece, which set
+	// spoils for one kind.
+	eachKind := func(set func(*ir.Constraints)) *ir.Constraints {
+		c := numeric("5", "", "5", "")
+		c.MinLength, c.MaxLength = new(int64(6)), new(int64(6))
+		c.MinItems, c.MaxItems = new(int64(2)), new(int64(2))
+		c.MinProps, c.MaxProps = new(int64(1)), new(int64(1))
+		if set != nil {
+			set(c)
+		}
+		return c
 	}
 	number := func(c *ir.Constraints) *ir.Document { return modelOf(prop("p/a/n", intT, bounded(c))) }
 	atMost := func(msg string) []finding {
@@ -172,6 +188,15 @@ func TestValidate_BoundsThatAdmitNoValueAreReported(t *testing.T) {
 		{"an object with a minimum above its maximum", typed("t/o", object, &ir.Constraints{MinProps: new(int64(2)), MaxProps: new(int64(1))}),
 			[]finding{{"t/o", "bounds admit no object: none has at least 2 members and at most 1"}}},
 		{"an object with a maximum that meets its minimum", typed("t/o", object, &ir.Constraints{MinProps: new(int64(2)), MaxProps: new(int64(2))}), nil},
+		{"a union whose bounds of each kind admit a value", typed("t/u", union, eachKind(nil)), nil},
+		{"a union whose numbers admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.Min = big("6") })),
+			[]finding{{"t/u", "bounds admit no number: none is at least 6 and at most 5"}}},
+		{"a union whose strings admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.MinLength = new(int64(7)) })),
+			[]finding{{"t/u", "bounds admit no string: none has at least 7 characters and at most 6"}}},
+		{"a union whose lists admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.MinItems = new(int64(3)) })),
+			[]finding{{"t/u", "bounds admit no list: none has at least 3 items and at most 2"}}},
+		{"a union whose objects admit none", typed("t/u", union, eachKind(func(c *ir.Constraints) { c.MinProps = new(int64(2)) })),
+			[]finding{{"t/u", "bounds admit no object: none has at least 2 members and at most 1"}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

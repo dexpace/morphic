@@ -57,14 +57,23 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			name: "two enums refining one property",
 			src: schemas("AB: {allOf: [{properties: {p: {type: string, enum: [a, b, c]}}}, " +
 				"{properties: {p: {type: string, enum: [c, b, d]}}}]}"),
-			codes: map[string]string{"openapi/degraded-construct": s + "/AB/allOf/1/properties/p"},
+			codes: map[string]string{"openapi/degraded-construct": s + "/AB/allOf/0/properties/p"},
 			want:  passed(OracleSequenceOrder),
 		},
 		{
 			name: "a redeclared property whose types disagree",
 			src: schemas("AB: {allOf: [{properties: {p: {type: string}, q: {type: object, properties: {x: {type: string}}}}}, " +
 				"{properties: {p: {type: integer}, q: {type: object, properties: {y: {type: string}}}}}]}"),
-			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/AB/allOf/1/properties/p"},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/AB/allOf/0/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// The base's tie flips its member with the order, and the member a
+			// model composing it declares again folds with what the tie kept.
+			name: "a tie among inline declarations decides what overrides it",
+			src: schemas("Base: {allOf: [{type: object, properties: {x: {type: integer}}}, {type: object, properties: {x: {type: string}}}]}",
+				"Sub: {allOf: [{$ref: '#/components/schemas/Base'}, {type: object, properties: {x: {type: string, description: d}}}]}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Base/allOf/0/properties/x"},
 			want:  passed(OracleSequenceOrder),
 		},
 		{

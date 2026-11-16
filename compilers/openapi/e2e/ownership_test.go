@@ -58,7 +58,7 @@ var ownershipCases = []struct {
 			"        - properties: {m: {$ref: '#/components/schemas/A'}}\n" +
 			"    A: {type: object, properties: {x: {type: string}}}\n",
 		check: func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
-			assert.Equal(t, 1, countAt(diags, "openapi/conflicting-redeclaration", "/components/schemas/B/allOf/1/properties/m"),
+			assert.Equal(t, 1, countAt(diags, "openapi/conflicting-redeclaration", "/components/schemas/B/allOf/0/properties/m"),
 				"an array against an object is reported whichever lowers first")
 		}},
 	{name: "a $ref to a property's schema before the model declaring it (GitHub #750)",

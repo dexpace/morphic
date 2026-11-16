@@ -144,7 +144,7 @@ components:
         - type: object
           properties:
             p: {type: array, prefixItems: [{type: string}], maxItems: 5}
-    # Two patterns have no one form, so the first stands, whichever it is, and the
+    # Two patterns have no one form, so the later stands, whichever it is, and the
     # other's declaration is reported and kept whole.
     PatternsAThenB:
       allOf:

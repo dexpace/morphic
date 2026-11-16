@@ -185,10 +185,6 @@ func knownInvalid() map[string]bool {
 // oracle on that fixture.
 func knownFindings() map[string][]harness.Outcome {
 	return map[string][]harness.Outcome{
-		// A flattened member takes the declaration of the conjunct written
-		// later, so swapping two allOf entries changes the member's type and
-		// the encoding keyed by its declaration (#1920).
-		filepath.FromSlash("../../testdata/conformance/openapi/multipart-encoding.yaml"): {harness.OutcomeSequenceOrderDependent},
 		// A model composed from a field's declarations takes the last one's
 		// name hint, so swapping allOf branches renames it (#1921).
 		filepath.FromSlash("../../testdata/conformance/openapi/allof-redeclared-models.yaml"): {harness.OutcomeSequenceOrderDependent},

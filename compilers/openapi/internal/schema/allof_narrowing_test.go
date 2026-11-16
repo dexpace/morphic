@@ -294,7 +294,7 @@ func TestAllOf_TwoEqualListsRefuseANullTheMergeDoesNotAdmit(t *testing.T) {
 // same enum, const or format, in either order. Two inline copies are one type,
 // and a component wins over an inline copy of itself: no diagnostic and nothing
 // kept. Two components declared alike are two types the source named apart: an
-// info, with the first kept and the second's $ref kept verbatim.
+// info, with the later kept and the earlier's $ref kept verbatim.
 func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 	t.Parallel()
 	for _, body := range []string{
@@ -317,8 +317,8 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 				{[2]string{body, body}, "t/anon/components/schemas/T/allOf/0/properties/v", true},
 				{[2]string{p, body}, componentID("P"), true},
 				{[2]string{body, p}, componentID("P"), true},
-				{[2]string{p, q}, componentID("P"), false},
-				{[2]string{q, p}, componentID("Q"), false},
+				{[2]string{p, q}, componentID("Q"), false},
+				{[2]string{q, p}, componentID("P"), false},
 			} {
 				doc, diags := schema.LowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
 				m, ok := doc.Types[componentID("T")].(*ir.Model)
@@ -332,7 +332,7 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 				} else {
 					require.Len(t, diags, 1, "order %d", i)
 					assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
-					assert.Len(t, prop.Unmodeled, 1, "the second $ref is kept (order %d)", i)
+					assert.Len(t, prop.Unmodeled, 1, "the earlier $ref is kept (order %d)", i)
 				}
 				for _, name := range []string{"P", "Q"} {
 					td, ok := doc.Types[componentID(name)]
@@ -351,7 +351,7 @@ func TestAllOf_IdenticalNodesAreOneType(t *testing.T) {
 // a $ref to a node written inline elsewhere (X/properties/c), in either order.
 // That node was declared apart from the field, as a component is: it wins over
 // an inline copy of itself, and against a $ref to its twin (X/properties/d) the
-// pair is an info, with the first kept and the second's $ref kept verbatim.
+// pair is an info, with the later kept and the earlier's $ref kept verbatim.
 func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 	t.Parallel()
 	const enum = "{type: string, enum: [a, b]}"
@@ -365,8 +365,8 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 	}{
 		{[2]string{c, enum}, at("c"), true},
 		{[2]string{enum, c}, at("c"), true},
-		{[2]string{c, d}, at("c"), false},
-		{[2]string{d, c}, at("d"), false},
+		{[2]string{c, d}, at("d"), false},
+		{[2]string{d, c}, at("c"), false},
 	} {
 		doc, diags := schema.LowerSpec(t, nonBareSpec(extra, tc.order[0], tc.order[1]))
 		m, ok := doc.Types[componentID("T")].(*ir.Model)
@@ -381,7 +381,7 @@ func TestAllOf_ARefToAnInlineNodeIsDeclaredApart(t *testing.T) {
 		}
 		require.Len(t, diags, 1, "order %d", i)
 		assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "order %d", i)
-		assert.Len(t, prop.Unmodeled, 1, "the second $ref is kept (order %d)", i)
+		assert.Len(t, prop.Unmodeled, 1, "the earlier $ref is kept (order %d)", i)
 	}
 }
 
@@ -582,7 +582,7 @@ func TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered(t *testing.T) 
 // TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree compiles a field whose two
 // declarations give an extension differently, alike in another, one promoting
 // a deprecation from an extension, and one default spelled two ways. In either
-// branch order the field keeps the first value of the extension and reports
+// branch order the field keeps the later value of the extension and reports
 // the other, names the heuristic behind its deprecation, and takes the default
 // as the one value it is.
 func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
@@ -595,15 +595,15 @@ func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
 		require.True(t, ok)
 		require.Len(t, m.Properties, 1)
 		p := m.Properties[0]
-		first := "1"
-		if order[0] == b {
-			first = "2"
+		later := "2"
+		if order[1] == a {
+			later = "1"
 		}
 
 		require.Contains(t, p.Unmodeled, "openapi:x-foo", "order %v", order)
-		assert.Equal(t, ir.RawValue(first), p.Unmodeled["openapi:x-foo"].Value, "the first value stands")
+		assert.Equal(t, ir.RawValue(later), p.Unmodeled["openapi:x-foo"].Value, "the later value stands")
 		assert.Contains(t, p.Unmodeled, "openapi:x-same")
-		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v",
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/0/properties/v",
 			"the other declaration is kept verbatim")
 		require.NotNil(t, p.Deprecation)
 		assert.Equal(t, "use q", p.Deprecation.Message)
@@ -795,6 +795,25 @@ func TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 	}
 }
 
+// TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies pins a
+// default written against its own declaration's type, where the field's node
+// is one the fold built: two lists of one enum, each holding a bound, meet in
+// a list whose element is the copy one declaration hoisted. The default lists
+// a value the enum lacks, which its own declaration answers for, so the field
+// keeps it with nothing reported, whichever declaration wrote it and whichever
+// the built list's element copies.
+func TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies(t *testing.T) {
+	t.Parallel()
+	const items = "items: {type: string, enum: [x, y]}"
+	valued, bare := "{type: array, maxItems: 5, default: [q, q, q], "+items+"}", "{type: array, minItems: 3, "+items+"}"
+	for _, order := range [][2]string{{valued, bare}, {bare, valued}} {
+		p, _, diags := redeclared(t, order[0], order[1])
+		assert.Empty(t, diags, "%v", order)
+		require.NotNil(t, p.Default, "%v", order)
+		assert.Len(t, p.Default.List, 3, "%v", order)
+	}
+}
+
 // TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues pins GitHub #1654
 // in both branch orders: an enum of integer within an enum of number is the
 // field's type, and two each holding a value the other lacks meet in an enum of
@@ -906,7 +925,7 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 		// want is the field's type, "" for a node the merge mints.
 		want ir.TypeID
 		docs ir.Docs
-		// kept is whether the second declaration is reported and kept.
+		// kept is whether the earlier declaration is reported and kept.
 		kept bool
 		// reports counts the findings past the one a kept declaration draws.
 		reports int
@@ -925,11 +944,11 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 			doc, diags := settledSpec(t, components, order[0], order[1])
 			openapitest.RequireNoErrorDiags(t, diags)
 			p := propertyOf(t, doc, "T", "v")
-			first := componentID(strings.TrimSuffix(strings.TrimPrefix(order[0], "{$ref: '#/components/schemas/"), "'}"))
+			later := componentID(strings.TrimSuffix(strings.TrimPrefix(order[1], "{$ref: '#/components/schemas/"), "'}"))
 			if tc.kept {
 				assert.Len(t, diags, 1+tc.reports, "%v: the declaration the field refuses is reported", order)
 				assert.Len(t, p.Unmodeled, 1, "%v: and kept", order)
-				assert.Equal(t, first, p.Type.Target, "%v: the field keeps the first", order)
+				assert.Equal(t, later, p.Type.Target, "%v: the field keeps the later", order)
 				continue
 			}
 			assert.Empty(t, diags, "%v", order)

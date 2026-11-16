@@ -28,11 +28,12 @@ func atEverySite(version, schema string) string {
 }
 
 // boundSite is one position atEverySite writes a schema at: where it is
-// written, the node the position owns, nil where it owns none, and the
-// Constraints and Unmodeled of its carrier, where it has one.
+// written, the node the position owns, nil where it owns none, and whether it
+// has a carrier, with the Constraints and Unmodeled of the carrier.
 type boundSite struct {
 	pointer string
 	node    ir.TypeDef
+	carrier bool
 	held    *ir.Constraints
 	kept    ir.Unmodeled
 }
@@ -51,10 +52,10 @@ func sitesOf(t *testing.T, doc *ir.Document) []boundSite {
 	}
 	return []boundSite{
 		{pointer: "/components/schemas/C", node: typeByName(doc, "C")},
-		{pointer: "/components/schemas/Holder/properties/p", held: p.Constraints, kept: p.Unmodeled,
+		{pointer: "/components/schemas/Holder/properties/p", carrier: true, held: p.Constraints, kept: p.Unmodeled,
 			node: owned("t/anon/components/schemas/Holder/properties/p", p.Type)},
 		{pointer: "/components/schemas/Items/items", node: doc.Types["t/anon/components/schemas/Items/items"]},
-		{pointer: "/paths/~1a/get/parameters/0/schema", held: q.Constraints, kept: schemaKept(q.Unmodeled),
+		{pointer: "/paths/~1a/get/parameters/0/schema", carrier: true, held: q.Constraints, kept: schemaKept(q.Unmodeled),
 			node: owned("t/anon/paths/~1a/get/parameters/0/schema", q.Type)},
 	}
 }
@@ -345,17 +346,20 @@ func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 
 // TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes pins the carrier of a
 // position owning its node: a property and a parameter restate the value bounds
-// the node's type takes, a Scalar hoisted for its format, a Model and the
-// literals of an enum beside a type list alike, and hold none where the type list
-// lowers to its variants, which hold each (docs/compilers/openapi.md#type-arrays).
+// the node's type takes, a Scalar hoisted for its format, a Model and a union
+// alike, and hold none where the type list lowers to its variants, which hold
+// each (docs/compilers/openapi.md#type-arrays), nor beside the literals of an
+// enum, which keep them.
 func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
 	t.Parallel()
 	for schema, want := range map[string]*ir.Constraints{
-		"{type: string, format: x-mine, maxLength: 3, minimum: 1}": {MaxLength: new(int64(3))},
-		"{type: object, minProperties: 1, maxLength: 3}":           {MinProps: new(int64(1))},
-		"{type: [string, integer], maxLength: 3, minimum: 1}":      nil,
-		"{type: [string, integer], format: x-mine, maxLength: 3}":  nil,
-		"{type: [string, integer], enum: [a, 1], maxLength: 3}":    {MaxLength: new(int64(3))},
+		"{type: string, format: x-mine, maxLength: 3, minimum: 1}":     {MaxLength: new(int64(3))},
+		"{type: object, minProperties: 1, maxLength: 3}":               {MinProps: new(int64(1))},
+		"{oneOf: [{type: string}, {type: integer}], maxLength: 3}":     {MaxLength: new(int64(3))},
+		"{type: [string, integer], maxLength: 3, minimum: 1}":          nil,
+		"{type: [string, integer], format: x-mine, maxLength: 3}":      nil,
+		"{type: [string, integer], enum: [a, 1], maxLength: 3}":        nil,
+		"{oneOf: [{type: string}, {type: integer}], minProperties: 1}": nil,
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", schema))
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -364,6 +368,62 @@ func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
 		q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
 		require.True(t, ok)
 		assert.Equal(t, want, q.Constraints, "parameter %s", schema)
+	}
+}
+
+// TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome pins a value bound
+// written beside a union, a value set or a branch folding into either, at every
+// site atEverySite writes: a oneOf or anyOf holds it in its Union's
+// Constraints, which its carrier restates, whether or not its branches list
+// values, and an Enum, a Literal or the Union of literals a mixed enum lowers to
+// keeps it verbatim, once, with one report, its carrier holding none (GitHub
+// #1924).
+func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		schema string
+		held   *ir.Constraints
+		// kept is the key the node keeps the bound under where it holds none,
+		// reported once at the site's pointer and under, naming bound.
+		kept, under, bound string
+	}{
+		{schema: "{oneOf: [{type: string}, {type: integer}], minLength: 1}", held: &ir.Constraints{MinLength: new(int64(1))}},
+		{schema: "{anyOf: [{type: string}, {type: 'null'}, {type: integer}], minLength: 1}", held: &ir.Constraints{MinLength: new(int64(1))}},
+		{schema: "{oneOf: [{type: string}, {type: integer}], allOf: [{maxLength: 9}], minLength: 1}",
+			held: &ir.Constraints{MinLength: new(int64(1)), MaxLength: new(int64(9))}},
+		{schema: "{oneOf: [{enum: [a, bb]}, {type: integer}], maxLength: 1}", held: &ir.Constraints{MaxLength: new(int64(1))}},
+		{schema: "{oneOf: [{const: a}, {const: bb}], maxLength: 1}", held: &ir.Constraints{MaxLength: new(int64(1))}},
+		{schema: "{anyOf: [{const: 1}, {enum: [2, 3]}], maximum: 1}", held: &ir.Constraints{Max: new(ir.BigVal("1"))}},
+		{schema: "{type: string, enum: [a, bb], minLength: 1}", kept: "minLength", bound: "minLength"},
+		{schema: "{type: [string, 'null'], enum: [a, null], minLength: 1}", kept: "minLength", bound: "minLength"},
+		{schema: "{const: abc, minLength: 1}", kept: "minLength", bound: "minLength"},
+		{schema: "{enum: [a, 1], minLength: 1}", kept: "minLength", bound: "minLength"},
+		{schema: "{type: string, enum: [a, bb], allOf: [{maxLength: 9}]}", kept: "allOf/0", under: "/allOf/0", bound: "maxLength"},
+	} {
+		doc, diags := parseFull(t, atEverySite("3.1.0", tc.schema))
+		openapitest.RequireNoErrorDiags(t, diags)
+		for _, site := range sitesOf(t, doc) {
+			require.NotNil(t, site.node, "%s: %s owns its node", tc.schema, site.pointer)
+			if tc.held != nil {
+				assert.Equal(t, tc.held, heldBounds(site.node), "%s: %s", tc.schema, site.pointer)
+				assert.Empty(t, site.node.Common().Unmodeled, "%s: %s", tc.schema, site.pointer)
+				if site.carrier {
+					assert.Equal(t, tc.held, site.held, "%s: the carrier at %s", tc.schema, site.pointer)
+				}
+				assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, site.pointer), "%s: %s", tc.schema, site.pointer)
+				continue
+			}
+			assert.Nil(t, site.held, "%s: the carrier at %s", tc.schema, site.pointer)
+			assert.Nil(t, heldBounds(site.node), "%s: %s", tc.schema, site.pointer)
+			assert.Equal(t, 1, site.keeps(tc.kept), "%s: %s", tc.schema, site.pointer)
+			var reports int
+			for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, site.pointer+tc.under) {
+				if strings.Contains(d.Message, tc.bound) {
+					reports++
+				}
+			}
+			assert.Equal(t, 1, reports, "%s: %s", tc.schema, site.pointer)
+		}
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -291,13 +292,13 @@ components:
   schemas:
     X:
       allOf:
-        - properties: {p: {type: string}}
         - properties: {q: {type: string}}
+        - properties: {p: {type: string}}
 `
 	const patch = `overlay: 1.0.0
 info: {title: O, version: "1"}
 actions:
-  - target: $.components.schemas.X.allOf[1].properties
+  - target: $.components.schemas.X.allOf[0].properties
     update: {p: {type: integer}}
 `
 	_, diags, err := openapi.New().Compile(t.Context(),
@@ -311,8 +312,51 @@ actions:
 			got = append(got, d.Provenance)
 		}
 	}
-	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/1/properties/p", WrittenBy: 1}}, got,
+	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/0/properties/p", WrittenBy: 1}}, got,
 		"the conflict is reported at the declaration the overlay wrote")
+}
+
+// TestCompile_OverlayIsCreditedWithAMemberOnlyItsEntriesDeclare pins where a
+// member a composition settles from its entries is placed: no schema is written
+// at its pointer, so it, and a node its fold mints beneath it, name the overlay
+// that wrote every entry bringing a declaration, and the document where the
+// overlay wrote only some (provenance.Attribution.WriterOf).
+func TestCompile_OverlayIsCreditedWithAMemberOnlyItsEntriesDeclare(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    X: {type: object, properties: {a: {type: string}}}
+    Y: {type: object, properties: {b: {type: string}}}
+    A: {type: object, properties: {o: {$ref: '#/components/schemas/X'}}}
+    B: {type: object, properties: {o: {$ref: '#/components/schemas/Y'}}}
+    Whole: {type: object}
+    Part: {allOf: [{$ref: '#/components/schemas/A'}]}
+`
+	const patch = `overlay: 1.0.0
+info: {title: O, version: "1"}
+actions:
+  - target: $.components.schemas.Whole
+    update: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+  - target: $.components.schemas.Part.allOf
+    update: [{$ref: '#/components/schemas/B'}]
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)}}})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for schema, writer := range map[string]int{"Whole": 1, "Part": 0} {
+		member := "/components/schemas/" + schema + "/allOf/properties/o"
+		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(member), WrittenBy: writer},
+			propertyProvenance(t, doc, schema, "o"), "%s's member", schema)
+		minted, ok := doc.Types[ir.TypeID("t/composed"+member)]
+		require.True(t, ok, "%s's member composes X and Y", schema)
+		assert.Equal(t, writer, minted.Common().Provenance.WrittenBy, "%s's minted model", schema)
+	}
 }
 
 // TestCompile_OverlayIsRecordedAsASource pins the third acceptance criterion.

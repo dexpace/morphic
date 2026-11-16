@@ -2303,7 +2303,7 @@ it states nothing a `true` elsewhere does not ([`ref-use-site`](#ref-use-site)).
 bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
-to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
+to `12`, whatever their order; a number written two ways keeps its first spelling here. Two `pattern`s
 have no one value, so each disagrees with another written differently. A writer stating no value
 parts no other: a 3.0 `exclusiveMinimum` of `false`, or of `true` with no bound beside it, which
 fills no field, and a bound the rule table refuses ([`validation`](#validation)) say nothing a value
@@ -2503,8 +2503,16 @@ instance types meet; an overlap where their kinds share values or a `const` meet
 in a kind, but for the `time` node above, or a `const` of its value; and unrelated where nothing says
 what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
-and a kind, or a union or an external and anything else. A structure whose source states no
-instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read as
+and a kind, a union and a type neither holds, or an external and anything else. A type within a
+variant of an untagged union is narrower than the union, as is a closed untagged union every
+variant of which is within a type than that type, since an open one admits a variant it does not
+list; of a `oneOf`, the type must be within one variant alone and disjoint from every other, since
+a `oneOf` refuses a value two variants share. A tagged union holds neither: a discriminator routes
+by a tag a variant's values need not agree with. Nor is a type within a union holding bounds of its
+own, or reached through an alias that holds some, since each bounds the values of its kind
+whichever variant holds them, which the variants do not say. One judgment reads at most 64
+variants, past which the two are unrelated. A structure whose source states no instance type is the
+exception to the disjoint pairs: its own `type` and its `allOf`, read as
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
 every value of another instance type, as `properties` alone constrains objects and admits a string.
 That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
@@ -2523,11 +2531,16 @@ stating its type. A pair gets the same verdict as a field's types and as two con
 but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
-most declarations' types, the first of them on a tie. A declaration's type within every other's
-is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
-the same as or narrower than, or meets, folds into the field, which adopts its shape detail; every
-other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in
-every order, while `int32` and `uint32` alone keep the first declared and report the other.
+most declarations' types. Of those holding as many, the later wins, where a spec writes the
+specialization, as the flattening reads it ([models](../ir/models.md#the-flattening)): a failure
+response composing a success envelope and then a failure schema takes the failure's `success`. Of
+declarations of one type at distinct nodes, as copies of one schema are, the node whose ID sorts
+first stands for the rest, so no order decides which the field names. A declaration's type within
+every other's is the intersection, and it wins whatever the order. Each declaration whose type the
+winner's is the same as or narrower than, or meets, folds into the field, which adopts its shape
+detail; every other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing
+dropped, in every order, while `int32` and `uint32` alone keep the later declared and report the
+other.
 
 Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
 takes a node the merge mints: all the winner's node holds, with what each declaration meeting it
@@ -2545,7 +2558,7 @@ list of `int32` holding the description, `[a, b]` beside `[b, c]` the enum `[b]`
 models a list of a model composing both, each in either order. Every node it mints is anonymous, in
 the `composed` namespace, an enum's members too, and derives from its position: the declaration
 naming the field, as a composed model does below, or a position beneath it. Where two declarations
-meeting the winner give one detail differently, the first's is kept and the later one reported and
+meeting the winner give one detail differently, the later's is kept and the earlier reported and
 kept, as a property's detail is. Where no node holds every declaration meeting the winner, as when
 three meet in pairs but no member holds all of theirs, or no value is in every enum, the field keeps
 the winner's node, and each declaration meeting it is dropped and reported as an overlap. Where the
@@ -2619,30 +2632,32 @@ judges a value against a model, and no declaration's type is a composed field's 
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
-first written is kept, and a declaration giving another is reported and kept; two values are one
+last written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
-written before it.
+written after it.
 
 Constraint keywords fold over the declarations folded into the field, each taking the value that
 says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`,
 `minItems` and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`,
 `maxLength`, `maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways
-keeping the first spelling; `uniqueItems` holds where any declaration sets it. A bound and its
+keeping the last spelling; `uniqueItems` holds where any declaration sets it. A bound and its
 exclusive form are two keywords, each folding alone, and both apply. `multipleOf` takes whichever
 value is a multiple of the other, and otherwise their least common multiple, a number no
 declaration wrote, whose multiples are exactly those both admit. `pattern`, `patternMessage`,
-`precision` and `scale` have no order and no one value saying two of them, so the first declaration
+`precision` and `scale` have no order and no one value saying two of them, so the last declaration
 to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
-hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
-declaration giving one differently is reported and kept. An entry two declarations write alike is
-one where it writes no relative `$ref`, or both read it against one base: under an `$id` naming
-another URI, a `$ref` spelled alike names another schema.
+hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
+declaration giving one differently is reported and kept; of two keeping one `Unmodeled` entry alike,
+the one written first is the field's, in the document listed first and then at the pointer sorting
+first, since two files each holding one schema write the same pointers. An entry two declarations
+write alike is one where it writes no relative `$ref`, or both read it against one base: under an
+`$id` naming another URI, a `$ref` spelled alike names another schema.
 
-A field keeping the first declaration's identity keeps that declaration's provenance, and either way
-it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
-the one it keeps came from. So a field names one source. `Provenance` holds one pointer, and what a
+A field keeping the first declaration's identity keeps that declaration's pointer, and either way it
+names the heuristic that promoted its deprecation or its redaction from an extension, wherever the
+one it keeps came from, and no other. So a field names one source. `Provenance` holds one pointer, and what a
 folded declaration adds lands on the field with no record of which wrote it, so writing a keyword on
 one branch or on another compiles to the same `types`. A list of the declarations on `Property` was
 weighed and declined: it would say which declarations contributed and not which wrote each keyword,
@@ -2708,6 +2723,60 @@ a form part's flags read the merged field. A fold judges every pair of declarati
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
+A member a model's composition declares more than once folds the same way, wherever the declarations
+are written, so a `$ref` entry and the schema it names written inline in its place fold alike, but
+for a tie inside the entry: an entry brings its member already folded, so a declaration that lost a
+tie there no longer counts toward the type holding the most declarations, as it does where the
+entry's schema is written inline. The flattening ([models](../ir/models.md#the-flattening)) would
+otherwise take the model's own declaration over an entry's, and of two entries the later, and judge
+none. Once every lowering has returned, one settlement folds, on each model, every member its own
+declarations or its `allOf` entries decide more than once, asking the run's context before each
+model. Each entry brings the declaration the flattening of what it names takes, which a model
+settled first holds folded from every other its composition gives the member, and one another
+entry's composition holds, however deep, stands within that entry's, so it brings nothing. A
+declaration an entry brings is judged where its type is written, as an inline one is: a member a
+part settled keeps its first declaration's identity whichever declaration gave its type, so the part
+records where the nodes of that type are written: at the declaration whose node the member keeps,
+or, for a node the fold built, where it stands and at the declaration writing each node it holds, of
+which it reads 128 at most. A node written at none of them reads as a schema a `$ref` reached. A
+value a declaration gives is read against the field's type the same way, at each place the type's
+nodes are written, which for a node the fold built is not the winning declaration's alone. Each
+model settles after every model it composes, however deep a hierarchy nests, so the order components
+are declared in decides nothing, nor, off a cycle, their names. A cycle of compositions reads the
+model it returns to as it stands, and the models' IDs pick which one that is, so where two
+declarations on a cycle admit no value together, the names decide which its models keep, and the tie
+is reported.
+The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
+written and the schema's own `properties` after its `allOf`; a union branch distributed into a
+variant reads before the body. A declaration an entry brings stays declared on its own model, so it
+is not kept verbatim, and a report about it sits at the entry bringing it, naming the member in its
+`Provenance.Node`, and names a declaration another document holds with that document's name, a
+member a part settled by the one place its type is written, or by its first declaration where its
+type is written at several places or none, and one that would so be named where nothing is written,
+as a member only a part's entries declare, by the entry bringing it. A member the model declares
+itself keeps the identity of the first of its own declarations, unless another model holds that
+declaration too, as a node interned at the `allOf` branch writing it does, or as the variants of a
+distributed union share their body's; that one, and one only entries declare, the model declares in
+the `composed` namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it,
+and a node its fold mints, name an overlay that wrote every entry and declaration it is assembled
+from. A model the merge composes, a distributed variant or a field's composition, shares its pointer
+with the schema written there, which may settle a member of that name too, so it declares one an
+`allOf` deeper, at `<model>/allOf/allOf/properties/<name>`, and no two models name one member. The
+member is required where the model's `required` names it, which the name then leaves, and a
+discriminator naming the model's own declaration, or by its name a member only entries declare,
+names the member ([`discriminator`](#discriminator)).
+The registry does not record which heuristic made a brought declaration secret, so a secret one's
+`Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
+composes for a member lists its parts as the entries bringing them are written, and settles in turn,
+through 8 rounds; one nested deeper is left as its entries declare it, with an
+`openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than one
+model declares, so a hierarchy costs its depth again at each level only where every level adds such
+a name, or composes a model redeclaring one it holds, which telling whether that declaration stands
+within the hierarchy reads to its base. A run reads at most 16,777,216 of their declarations, a read
+of a model not settled yet, as a cycle's are, counting each type and entry its flattening walks too,
+as does telling whether one part's declaration stands within another's; past that each model left
+folds its own declarations alone, with an `openapi/budget-exceeded` error at the first.
+
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
@@ -2716,7 +2785,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,
   `merge.TestFold_ANarrowingIntersectsNullability`,
-  `merge.TestFold_ADroppedTargetKeepsTheFirstNullAdmission`,
+  `merge.TestFold_ADroppedTargetKeepsTheWinnersNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
   `merge.TestFold_RedeclaredModelsCompose`,
   `merge.TestFold_OnlyTwoOrMoreModelsCompose`,
@@ -2749,6 +2818,60 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth`,
   `schema.TestAllOf_ModelsAlikeAreOneType`,
   `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
+  `merge.TestTypeJudge_UnionVariantsStopAtTheirBudget`,
+  `schema.TestMembers_AUnionBoundedBesideItIsNotTakenForAVariant`,
+  `merge.TestPropIndex_PlacesADeclarationAtTheEntryBringingIt`,
+  `merge.TestPropIndex_SettlesAMemberItsEntriesDeclareApart`,
+  `merge.TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt`,
+  `merge.TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName`,
+  `merge.TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite`,
+  `merge.TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder`,
+  `merge.TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone`,
+  `merge.TestFold_NamesADeclarationAnotherDocumentHolds`,
+  `merge.TestTakenOutside_LeavesOutTheComposingModelsOwn`,
+  `e2e.TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt`,
+  `schema.TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition`,
+  `schema.TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike`,
+  `schema.TestMembers_ATieAnEntrySettledIsNotCountedAgain`,
+  `schema.TestMembers_AMemberAPartSettledIsJudgedWhereItsTypeIsWritten`,
+  `schema.TestMembers_AMemberAPartMeetsIsJudgedAtEachDeclarationItHolds`,
+  `schema.TestMembers_AMemberOnlyEntriesDeclareIsJudgedWhereItsTypeIsWritten`,
+  `schema.TestMembers_ABroughtMembersDefaultIsItsOwnTypesWhereThatIsWritten`,
+  `schema.TestMembers_ASettledMembersInlineTypeIsNoBaseOfWhatComposesIt`,
+  `schema.TestMembers_AReportNamesABroughtMemberWhereItSaysWhatItDoes`,
+  `schema.TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten`,
+  `schema.TestMembers_TheSettlementAsksItsContextBeforeEachModel`,
+  `schema.TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies`,
+  `merge.TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten`,
+  `merge.TestBuiltSites_ReadsNoMoreNodesThanItsBound`,
+  `merge.TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType`,
+  `merge.TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes`,
+  `schema.TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember`,
+  `schema.TestMembers_AModelIsSettledAfterWhatItComposes`,
+  `schema.TestMembers_ACycleSettlesTheSameInEitherOrder`,
+  `schema.TestMembers_AModelAFoldComposesIsSettledInTheNextRound`,
+  `schema.TestMembers_AModelTheMergeComposesNamesItsMembersApart`,
+  `schema.TestMembers_CompositionsNestedPastTheRoundsAreReported`,
+  `schema.TestMembers_AModelSettlesOnceHoweverManyRoundsReachIt`,
+  `schema.TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed`,
+  `schema.TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared`,
+  `schema.TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone`,
+  `schema.TestMembers_ReadsAPartThroughItsAliasesAndNothingElse`,
+  `schema.TestMembers_ReadingAModelNotSettledChargesItsComposition`,
+  `schema.TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk`,
+  `merge.TestOwnership_ReadsEachModelsCompositionOnce`,
+  `merge.TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth`,
+  `merge.TestOwnership_StopsOnceItReachesEveryOtherModel`,
+  `merge.TestOwnership_AWalkReturningToItsModelReadsOnToTheOthers`,
+  `merge.TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses`,
+  `schema.TestMembers_ABaseComposedBesideItsHierarchyBringsNothingAtAnyDepth`,
+  `schema.TestMembers_ACutTellingDeclarationsApartIsReported`,
+  `schema.TestMembers_ACutTellingDeclarationsApartFallsAlikeInEveryRun`,
+  `merge.TestOwnership_ReadsPastAPartNamingNoType`,
+  `merge.TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID`,
+  `e2e.TestCompile_OverlayIsCreditedWithAMemberOnlyItsEntriesDeclare`,
+  `merge.TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder`,
+  `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
   `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,
   `merge.TestFold_EnumsListingSharedValuesApartKeepTheWinner`,
@@ -2830,7 +2953,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_IdenticalNodesAreOneType`,
   `merge.TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole`,
   `merge.TestFold_TheSetDecidesWhateverTheOrder`,
-  `merge.TestFold_ATieGoesToTheFirstAndIsReported`,
+  `merge.TestFold_ATieGoesToTheLaterAndIsReported`,
   `merge.TestFold_ADroppedFirstDeclarationIsKept`,
   `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
   `merge.TestFold_ABoundTakesItsTightestValueInEveryOrder`,
@@ -2857,7 +2980,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
   `merge.TestFold_ADroppedDeclarationStillSaysWhatIsNotShape`,
-  `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
+  `merge.TestFold_UnmodeledKeepsTheLastOfAKeyAndReportsAnother`,
   `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
   `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
   `merge.TestFold_ThePromotionMarkerFollowsTheSecretTaken`,
@@ -2882,15 +3005,25 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: a structure stating no instance type that refuses some kinds only through
-  a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
+- Status: partly built: a structure stating no instance type that refuses some kinds only through a
+  `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
   (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
-  keeping the first, though they share values, since the IR has no value type for what both admit;
+  keeping the later, though they share values, since the IR has no value type for what both admit;
   an alias adding docs to the null it adds is not read as adding null alone, though a reference
   carries an alias's docs to its use, since a use site whose `$ref` chain runs on past the alias
-  takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold different sets only because the model stops at the
-  flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
-  names both.
+  takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold
+  different sets only because the model stops at the flattening depth are refused as
+  `compile/registry-refused`, not told apart, since one declaration names both; a member declared at
+  two depths keeps the identity of the one written first, so swapping the branches moves it (#1931);
+  a hierarchy composing at every level a model redeclaring a name it holds reads its depth again at
+  each level, until the run's reads run out (#1993); the names of the models on a cycle of
+  compositions decide which declaration they keep where two admit no value together (#1995); a part
+  reached through more than 64 alias scalars brings nothing, its member left as the flattening takes
+  it, as the type judge, a tag's reading and a multipart body read such a chain no further (#1994);
+  and a model the fold composes for a member is minted at the declaration last to widen the field,
+  so swapping two branches renames it, and moves a report on a member it settles (#1921, #1992); and
+  a type within a variant of a union holding a bound is unrelated to it whatever kind the bound
+  applies to, so the later of the two declarations stands, reported (#2005).
 
 ### `allof-required`
 
@@ -3730,11 +3863,13 @@ branches hold, which a `oneOf` rejects and whose two branches may say two things
 by two primitives; a nullable branch; a construct a branch keeps verbatim for any reason but being a
 vendor extension, such as a constraint its `Literal` has no home for, which narrows the branch and
 would not narrow a member; a branch whose `Provenance.Inferred` names a heuristic, whose mark no
-member could carry; and one fact two places say of one value. A union of numbers, or of values of
-several kinds, is outside this rule and stays a union.
+member could carry; one fact two places say of one value; and a bound written beside the union,
+which its `Constraints` hold ([`constraints`](#constraints)) and an `Enum` has no field for. A union
+of numbers, or of values of several kinds, is outside this rule and stays a union.
 
 - Cases: `string-const-union`
-- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
+- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`,
+  `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`
 
 ### `enum-const`
 
@@ -4062,12 +4197,13 @@ not a number's:
 written beside it, but for a number carried as text, whose `Constraints` speak of the number
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
-`openapi:<keyword>` (`no_ir_home`) with an info `openapi/degraded-construct` at it, one an inline
-`allOf` branch writes keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)), and
-neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at
-every minor, and a pairing of `format` with another `type` is
-[`numeric-formats`](#numeric-formats)'. Beside a type array, a format the table pairs with `string`,
-`byte` and `http-date` among them, is the `string` variant's alone ([`type-arrays`](#type-arrays)).
+`openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
+at it, one an inline `allOf` branch writes keeps its branch whole
+([`allof-inline-residue`](#allof-inline-residue)), and neither the `Scalar` nor a property or
+parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
+table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
+([`type-arrays`](#type-arrays)).
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
@@ -4312,12 +4448,12 @@ wherever it stands.
 
 `minimum`, `maximum` and `multipleOf` lower to `Min`, `Max` and `MultipleOf`, and `minLength`,
 `maxLength` and `pattern` to `MinLength`, `MaxLength` and `Pattern` as written, in the `Constraints`
-of the node or carrier the position owns (a `Scalar`, a `Property` or a `Parameter`); `minItems`,
-`maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
-carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
-union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns where the
-types the position admits include `array`, as does one on an inline `allOf` branch
-([`allof-inline-residue`](#allof-inline-residue)); and
+of the node or carrier the position owns (a `Scalar`, the `Union` a `oneOf` or `anyOf` lowers to, a
+`Property` or a `Parameter`); `minItems`, `maxItems` and `uniqueItems` to the `List`'s, and a
+`Tuple`'s per [`tuples`](#tuples), which its carrier does not restate, or, where the position lowers
+to a reference (a `$ref` site, a collapsed union or an expanded `$dynamicRef`), to the `Constraints`
+of the alias or carrier it owns where the types the position admits include `array`, as does one on
+an inline `allOf` branch ([`allof-inline-residue`](#allof-inline-residue)); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read only where a type the position admits takes it, since JSON Schema applies each to
 instances of one kind and lets any other through (JSON Schema Validation 2020-12 §6.2 to §6.5):
@@ -4357,13 +4493,19 @@ when both are declared, a field apiece and no `Unmodeled` entry
 errors are the rule table's, made with the rows of each schema's dialect, at every schema its
 [`validation`](#validation) check reads, which judges these keywords as the lowering reads them
 rather than by their shape: one under `not`, `if` or `propertyNames`, or beside an `enum`, is
-reported as one the lowering reads, and an aliased value once. A bound beside a
-node with no `Constraints` field to take it (an `Enum`, a `Literal`, a `List` for a value bound) is
-kept verbatim under `openapi:<keyword>`
-(`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
-[`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
-beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A count,
+reported as one the lowering reads, and an aliased value once. A bound beside a `oneOf` or an
+`anyOf` lowering to a `Union` of its branches ([`union`](#union)), or on an `allOf` branch folding
+there, is that `Union`'s: no variant can hold it, each being its branch's node, which every use of
+the branch shares. A carrier restates the value bounds the node its position owns holds, or a
+distributed union's variants do, but for a type list's ([`type-arrays`](#type-arrays)), and holds
+none beside a node with no `Constraints` field to take them (an `Enum`, a `Literal`, the `Union` of
+literals a mixed `enum` lowers to, a `List` for a value bound): such a bound is kept verbatim on the
+node under `openapi:<keyword>` (`degraded_lowering`), once, with an info
+`openapi/degraded-construct` naming the node it lowered to, as
+[`shape-applicator`](#shape-applicator) keeps a collection bound on an object
+([unions](../ir/unions.md#bounds-beside-a-union)). A collection bound beside a reference that
+`Constraints` cannot state is kept the same way: a `uniqueItems` of `false`, which a bool cannot
+tell from one never written, and a count that does not fit in 64 bits. A count,
 `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
 non-negative integer with no upper limit, and its field holds one up to 2^63−1: one past that, at
 any node, carrier or `allOf` branch, reaches no field and is kept verbatim under `openapi:<keyword>`
@@ -4376,7 +4518,7 @@ binding the rest is kept, the smallest maximum or the largest minimum, compared 
 large, the first of one value written twice, with one report. Two declarations of one field are
 not such writers: each keeps its own on the property, and their fold compares the two entries as it
 does any kept under `Unmodeled` ([`allof-redeclared-property`](#allof-redeclared-property)), so
-of two such counts the first declaration's is kept and the other is reported and kept with its
+of two such counts the later declaration's is kept and the other is reported and kept with its
 declaration. A count literal that is no non-negative integer is the rule table's to report
 ([`validation`](#validation)) and reaches no field, nor is it kept. A number carried as text holds
 no bound ([`string-formats`](#string-formats)).
@@ -4414,6 +4556,9 @@ no bound ([`string-formats`](#string-formats)).
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
   `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
+  `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
+  `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
+  `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`,
   `schema.TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus`,
   `schema.TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus`,
   `schema.TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary`,
@@ -4445,17 +4590,18 @@ no bound ([`string-formats`](#string-formats)).
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
 - Status: partly built: the types a schema admits are read off `type` alone, a union's branch of
-  null alone aside, so a value set declaring none (an `enum` or a `const`) reads every bound (#1919);
-  a `type` written beside a `$ref` inside a named schema is not read (#1390); and a read of more
-  than 256 named schemas reads every bound, as one through a cycle of `allOf` entries or of dynamic
-  references always does. A distributed union's variant holds each bound the whole position takes,
-  one its own branch cannot take included (#1936). A bound beside an `enum`, a `const` or a union at
-  a property that a type the position admits takes is held by the property and also kept on its node
-  (#1924). Two declarations of one field that each keep a bound meet the fold of
+  null alone aside, so a value set declaring none (an `enum` or a `const`), the position's own or a
+  union's branch, reads every bound, and a `Union` of such branches holds one of a kind none of
+  their members is (#1919); a `type` written beside a `$ref` inside a named schema is not read
+  (#1390); and a read of more than 256 named schemas reads every bound, as one through a cycle of
+  `allOf` entries or of dynamic references always does. A distributed union's variant holds each
+  bound the whole position takes, one its own branch cannot take included (#1936). Two declarations
+  of one field that each keep a bound meet the fold of
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
   at its position, with the census's other keywords, not at the keyword. A read counts schemas, not
   their keys, so positions naming a schema of very many keys cost their number times the schemas
-  read times those keys (#1939).
+  read times those keys (#1939). A bound beside an enum a promotion opens, which bounds the values
+  it does not list, is kept verbatim as a closed one's is (#2004).
 
 ### `validation-only`
 
@@ -5808,7 +5954,7 @@ in any case.
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
-  `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,
+  `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `operation.TestPartEncoding_FlagsComeFromTheMergedType`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration`,
@@ -7008,8 +7154,6 @@ declaration both mounts share.
   `whole.TestDocument_ListsEveryOperationOnce`,
   `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
-- Status: open: which declaration a request body member takes where two `allOf` entries declare it
-  follows their order (#1920).
 
 ## 16. Swagger 2.0
 

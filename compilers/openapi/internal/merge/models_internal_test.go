@@ -123,7 +123,7 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 	} {
 		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
 			j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
-				walk: &stubWalk{}, written: [2]ir.Provenance{ptrAt(declaredAt(i)), ptrAt(declaredAt(1 - i))}}}
+				walk: &stubWalk{}, written: [2][]ir.Provenance{sitesAt(declaredAt(i)), sitesAt(declaredAt(1 - i))}}}
 			want := tc.want
 			if i == 1 {
 				want = want.flipped()
@@ -148,7 +148,7 @@ func TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase(t *testing.T) {
 		{true, relUnrelated},
 	} {
 		j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
-			walk: &stubWalk{apart: tc.apart}, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
+			walk: &stubWalk{apart: tc.apart}, written: [2][]ir.Provenance{sitesAt(declaredAt(0)), sitesAt(declaredAt(1))}}}
 		assert.Equal(t, tc.want, j.relate(ref("t/copy0-ref"), ref("t/copy1-ref")))
 	}
 }
@@ -204,7 +204,7 @@ func TestTypeJudge_ModelPairsStopAtTheirBudget(t *testing.T) {
 			reg[outer.ID] = outer
 		}
 		j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
-			walk: &stubWalk{}, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
+			walk: &stubWalk{}, written: [2][]ir.Provenance{sitesAt(declaredAt(0)), sitesAt(declaredAt(1))}}}
 
 		want := relSame
 		if nested == maxModelPairs {
@@ -242,7 +242,7 @@ func TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth(t *testing
 			td, ok := reg[id]
 			return td, ok
 		},
-		sites: declarationSites{written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}, walk: &stubWalk{}},
+		sites: declarationSites{written: [2][]ir.Provenance{sitesAt(declaredAt(0)), sitesAt(declaredAt(1))}, walk: &stubWalk{}},
 	}
 
 	rel := j.relate(ref("t/0/0"), ref("t/1/0"))

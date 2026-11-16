@@ -14,7 +14,7 @@ components:
     Node:
       $dynamicAnchor: node
       type: object
-    # A Union has neither an Encoding nor Constraints.
+    # A Union holds the bound beside it, and has no Encoding for the format.
     Bare:
       oneOf:
         - type: string

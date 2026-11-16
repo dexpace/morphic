@@ -946,6 +946,7 @@ type TypeRegistry map[TypeID]TypeDef
 type Union struct
 	embed TypeCommon
 	"closed" bool
+	"constraints" *Constraints omitzero
 	"discriminator" *Discriminator omitzero
 	"exclusive" bool
 	"inputOnly" bool

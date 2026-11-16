@@ -1097,6 +1097,8 @@ func heldBounds(td ir.TypeDef) *ir.Constraints {
 		return n.Constraints
 	case *ir.Tuple:
 		return n.Constraints
+	case *ir.Union:
+		return n.Constraints
 	default:
 		return nil
 	}

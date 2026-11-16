@@ -15,25 +15,26 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestFold_DifferingDescriptionsKeepTheFirst pins a merge outcome
+// TestFold_DifferingDescriptionsKeepTheLater pins a merge outcome
 // that is reported without being a conflict: two branches describing the same
-// field differently cannot both be kept, so the first wins, the loss is
+// field differently cannot both be kept, so the later wins, the loss is
 // announced rather than silent, and the losing declaration is kept whole.
-func TestFold_DifferingDescriptionsKeepTheFirst(t *testing.T) {
+func TestFold_DifferingDescriptionsKeepTheLater(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
-	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "first"}}
+	dst := ir.Property{WireName: "id", Docs: ir.Docs{Description: "first"}, Provenance: ptrAt("/first")}
 
 	dst = foldTwo(g, dst, ir.Property{WireName: "id", Docs: ir.Docs{Description: "second"}, Provenance: ptrAt("/other")},
-		written(`{"description":"second"}`))
+		unread(t))
 
-	assert.Equal(t, "first", dst.Docs.Description)
+	assert.Equal(t, "second", dst.Docs.Description)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, ir.SeverityInfo, (*recorded)[0].Severity)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
+	assert.Equal(t, jsontext.Pointer("/first"), (*recorded)[0].Provenance.Pointer, "at the declaration that lost")
 	assert.Contains(t, (*recorded)[0].Message, `"id"`)
 	assert.Contains(t, (*recorded)[0].Message, "description")
-	assert.Equal(t, ir.RawValue(`{"description":"second"}`), dst.Unmodeled[losingDeclarationKey+"/other"].Value)
+	assert.Equal(t, ir.RawValue(firstSource), dst.Unmodeled[losingDeclarationKey+"/first"].Value)
 }
 
 // TestFold_AnIdenticalDescriptionIsNotADisagreement pins the other
@@ -53,7 +54,8 @@ func TestFold_AnIdenticalDescriptionIsNotADisagreement(t *testing.T) {
 // TestFold_TitleAndExternalDocsFoldLikeDescription pins that a
 // summary and external links fold as a description does: an empty side adopts
 // the other, equal sides are one construct written twice, and differing sides
-// keep the first and the redeclaration whole, in either declaration order.
+// keep the later and the earlier declaration whole, in either declaration
+// order.
 func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 	t.Parallel()
 	linkA := []ir.Link{{URL: "https://a.example"}}
@@ -70,26 +72,22 @@ func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 		{"summary, dst empty", summary(""), summary("B"), summary("B"), ""},
 		{"summary, src empty", summary("A"), summary(""), summary("A"), ""},
 		{"summary, equal", summary("A"), summary("A"), summary("A"), ""},
-		{"summary, different", summary("A"), summary("B"), summary("A"), "title"},
-		{"summary, different swapped", summary("B"), summary("A"), summary("B"), "title"},
+		{"summary, different", summary("A"), summary("B"), summary("B"), "title"},
+		{"summary, different swapped", summary("B"), summary("A"), summary("A"), "title"},
 		{"external docs, dst empty", links(nil), links(linkB), links(linkB), ""},
 		{"external docs, src empty", links(linkA), links(nil), links(linkA), ""},
 		{"external docs, equal", links(linkA), links(linkA), links(linkA), ""},
-		{"external docs, different", links(linkA), links(linkB), links(linkA), "external docs"},
-		{"external docs, different swapped", links(linkB), links(linkA), links(linkB), "external docs"},
+		{"external docs, different", links(linkA), links(linkB), links(linkB), "external docs"},
+		{"external docs, different swapped", links(linkB), links(linkA), links(linkA), "external docs"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			g, recorded := stubMerger(nil)
-			dst := ir.Property{WireName: "id", Docs: tt.dst}
+			dst := ir.Property{WireName: "id", Docs: tt.dst, Provenance: ptrAt("/first")}
 			src := ir.Property{WireName: "id", Docs: tt.src, Provenance: ptrAt("/other")}
-			source := unread(t)
-			if tt.detail != "" {
-				source = written(`{"x":1}`)
-			}
 
-			dst = foldTwo(g, dst, src, source)
+			dst = foldTwo(g, dst, src, unread(t))
 
 			assert.Empty(t, cmp.Diff(tt.want, dst.Docs))
 			if tt.detail == "" {
@@ -100,14 +98,14 @@ func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 			require.Len(t, *recorded, 1)
 			assert.Equal(t, ir.SeverityInfo, (*recorded)[0].Severity)
 			assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
-			assert.Equal(t, jsontext.Pointer("/other"), (*recorded)[0].Provenance.Pointer)
+			assert.Equal(t, jsontext.Pointer("/first"), (*recorded)[0].Provenance.Pointer)
 			assert.Contains(t, (*recorded)[0].Message, `"id"`)
 			assert.Contains(t, (*recorded)[0].Message, tt.detail)
 			require.Len(t, dst.Unmodeled, 1)
-			entry, ok := dst.Unmodeled[losingDeclarationKey+"/other"]
+			entry, ok := dst.Unmodeled[losingDeclarationKey+"/first"]
 			require.True(t, ok)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.Equal(t, ir.RawValue(`{"x":1}`), entry.Value)
+			assert.Equal(t, ir.RawValue(firstSource), entry.Value)
 		})
 	}
 }
@@ -119,18 +117,18 @@ func TestFold_TitleAndExternalDocsFoldLikeDescription(t *testing.T) {
 func TestFold_EveryDocsDisagreementIsReported(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
-	first := ir.Docs{Summary: "A", Description: "dA", ExternalDocs: []ir.Link{{URL: "https://a.example"}}}
-	dst := ir.Property{WireName: "id", Docs: first}
-	src := ir.Property{WireName: "id", Provenance: ptrAt("/other"),
-		Docs: ir.Docs{Summary: "B", Description: "dB", ExternalDocs: []ir.Link{{URL: "https://b.example"}}}}
+	later := ir.Docs{Summary: "B", Description: "dB", ExternalDocs: []ir.Link{{URL: "https://b.example"}}}
+	dst := ir.Property{WireName: "id", Provenance: ptrAt("/first"),
+		Docs: ir.Docs{Summary: "A", Description: "dA", ExternalDocs: []ir.Link{{URL: "https://a.example"}}}}
+	src := ir.Property{WireName: "id", Provenance: ptrAt("/other"), Docs: later}
 
-	dst = foldTwo(g, dst, src, written(`{"x":1}`))
+	dst = foldTwo(g, dst, src, unread(t))
 
-	assert.Empty(t, cmp.Diff(first, dst.Docs))
+	assert.Empty(t, cmp.Diff(later, dst.Docs))
 	require.Len(t, *recorded, 3)
 	for i, detail := range []string{"title", "description", "external docs"} {
 		assert.Contains(t, (*recorded)[i].Message, detail)
 	}
 	require.Len(t, dst.Unmodeled, 1)
-	assert.Equal(t, ir.RawValue(`{"x":1}`), dst.Unmodeled[losingDeclarationKey+"/other"].Value)
+	assert.Equal(t, ir.RawValue(firstSource), dst.Unmodeled[losingDeclarationKey+"/first"].Value)
 }

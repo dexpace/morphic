@@ -20,11 +20,11 @@ import (
 // the declaration's annotations, secrecy among them. Annotations present at a
 // $ref use-site override the target's (docs/compilers/openapi.md#ref-use-site).
 //
-// Value constraints stay unconditional: ir.Property is the only home every
-// property has, while its schema may lower to a node of a kind with no
-// Constraints field or to no node of its own at all. Restating them where the
-// node also carries them is the safe half of that trade. Collection bounds are
-// not restated (CarrierConstraintsOf).
+// The property holds the value constraints where its schema lowered to no node
+// of its own, and restates those its node holds, so a reader of the property
+// finds them either way. Beside a node keeping them verbatim, such as an Enum
+// or a Literal, it holds none, and it restates no collection bound
+// (CarrierConstraintsOf).
 func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	ref := js.GetSchema()
 	if ref == nil {

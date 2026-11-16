@@ -84,7 +84,7 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/U/allOf/0/allOf/1/properties/a",
+          "id": "p/composed/components/schemas/U/oneOf/0/allOf/allOf/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
@@ -107,7 +107,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/U/allOf/0/allOf/1/properties/a"
+            "pointer": "/components/schemas/U/oneOf/0/allOf/allOf/properties/a"
           }
         }
       ],
@@ -151,7 +151,7 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/U/allOf/0/allOf/1/properties/a",
+          "id": "p/composed/components/schemas/U/oneOf/1/allOf/allOf/properties/a",
           "name": {
             "source": "a",
             "canonical": "a"
@@ -174,7 +174,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/U/allOf/0/allOf/1/properties/a"
+            "pointer": "/components/schemas/U/oneOf/1/allOf/allOf/properties/a"
           }
         }
       ],

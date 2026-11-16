@@ -797,16 +797,16 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 	t.Run("a property redeclared as a null keeps the losing declaration as a null", func(t *testing.T) {
 		t.Parallel()
 		l, _ := schema.LoweredFor(t, openapitest.ComponentSpec("    A:\n      allOf:\n"+
-			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"+
-			"        - {type: object, properties: {p: null}}\n"))
+			"        - {type: object, properties: {p: null}}\n"+
+			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"))
 		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
 		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
 
 		m := asKind[*ir.Model](t, typeByName(l.Document(t), "A"))
 		require.Len(t, m.Properties, 1)
-		assert.Equal(t, ir.TypeID("t/anon/components/schemas/A/allOf/0/properties/p"), m.Properties[0].Type.Target,
-			"the first declaration stands")
-		const loser = "openapi:conflicting-redeclaration/components/schemas/A/allOf/1/properties/p"
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/A/allOf/1/properties/p"), m.Properties[0].Type.Target,
+			"the later declaration stands")
+		const loser = "openapi:conflicting-redeclaration/components/schemas/A/allOf/0/properties/p"
 		assert.Equal(t, []string{loser}, unmodeledKeys(m.Properties[0].Unmodeled))
 		kept := m.Properties[0].Unmodeled[loser]
 		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason)

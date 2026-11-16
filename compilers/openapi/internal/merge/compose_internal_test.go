@@ -55,6 +55,7 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 		"t/any":    &ir.Any{ID: "t/any"},
 		"t/map":    &ir.MapT{ID: "t/map"},
 		"t/union":  &ir.Union{ID: "t/union", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/A"}}, {Type: ir.TypeRef{Target: "t/B"}}}},
+		"t/apart":  &ir.Union{ID: "t/apart", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/B"}}, {Type: ir.TypeRef{Target: "t/map"}}}},
 		"t/list":   &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
 		"t/topDoc": &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, ID: "t/topDoc", Docs: ir.Docs{Description: "d"}},
 		"t/topEx":  &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, ID: "t/topEx", Examples: []ir.Example{{}}},
@@ -110,7 +111,7 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "a union holding a declared discriminator is", targets: []ir.TypeID{"t/A", "t/tagged"}, base: "t/tagged", mixins: []ir.TypeID{"t/A"}},
 		{name: "a model under one is", targets: []ir.TypeID{"t/A", "t/byTag"}, base: "t/byTag", mixins: []ir.TypeID{"t/A"}},
 		{name: "a union holding an inferred one is not", targets: []ir.TypeID{"t/A", "t/guessed"}, mixins: []ir.TypeID{"t/A", "t/guessed"}},
-		{name: "one type declared twice composes once", targets: []ir.TypeID{"t/A", "t/B", "t/A"}, mixins: []ir.TypeID{"t/A", "t/B"}},
+		{name: "one type declared twice composes once, where the later is", targets: []ir.TypeID{"t/A", "t/B", "t/A"}, mixins: []ir.TypeID{"t/B", "t/A"}},
 		{name: "`{}` adds no conjunct", targets: []ir.TypeID{"t/top", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
 		{name: "an alias of `{}` saying nothing of its values adds none", targets: []ir.TypeID{"t/A", "t/B", "t/topDoc"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "a bare object adds no conjunct", targets: []ir.TypeID{"t/bare", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
@@ -119,7 +120,7 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "a node under its declaration is inline", targets: []ir.TypeID{"t/in0", "t/nested"}, mixins: []ir.TypeID{"t/in0", "t/nested"}},
 		{name: "a model and a map", targets: []ir.TypeID{"t/A", "t/map"}, mixins: []ir.TypeID{"t/A", "t/map"}},
 		{name: "a map and an inline model", targets: []ir.TypeID{"t/map", "t/in1"}, base: "t/map", mixins: []ir.TypeID{"t/in1"}},
-		{name: "a model and a union", targets: []ir.TypeID{"t/union", "t/A"}, mixins: []ir.TypeID{"t/union", "t/A"}},
+		{name: "a model and a union no variant of which holds it", targets: []ir.TypeID{"t/apart", "t/A"}, mixins: []ir.TypeID{"t/apart", "t/A"}},
 		{name: "a map beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/map"}, mixins: []ir.TypeID{"t/A", "t/B", "t/map"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,7 +158,8 @@ func targetsOf(refs []ir.TypeRef) []ir.TypeID {
 
 // TestFold_OnlyTwoOrMoreModelsCompose pins where the type stays the winner's:
 // one type holds every other, a declaration that remains is no model, map or
-// union, or none is a model, so the fold keeps what it did and mints nothing.
+// union, or none is a model, so the fold keeps the type it would keep without
+// composing, of a tie the later's, and mints nothing.
 func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -174,11 +176,12 @@ func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 		{name: "a model and a bare object", targets: []ir.TypeID{"t/A", "t/bare1"}, want: "t/A"},
 		{name: "two bare objects written inline", targets: []ir.TypeID{"t/bare", "t/bare1"}, want: "t/bare"},
 		{name: "`{}` loses to one model", targets: []ir.TypeID{"t/top", "t/A"}, want: "t/A"},
-		{name: "a kind beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/str"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
-		{name: "a degraded node beside two models", targets: []ir.TypeID{"t/any", "t/A", "t/B"}, want: "t/any", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
-		{name: "a list beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/list"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
-		{name: "a map and a union with no model", targets: []ir.TypeID{"t/map", "t/union"}, want: "t/map", dropped: []jsontext.Pointer{declaredAt(1)}},
-		{name: "an alias of `{}` holding examples beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/topEx"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
+		{name: "a kind beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/str"}, want: "t/str", dropped: []jsontext.Pointer{declaredAt(0), declaredAt(1)}},
+		{name: "a degraded node beside two models", targets: []ir.TypeID{"t/any", "t/A", "t/B"}, want: "t/B", dropped: []jsontext.Pointer{declaredAt(0), declaredAt(1)}},
+		{name: "a list beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/list"}, want: "t/list", dropped: []jsontext.Pointer{declaredAt(0), declaredAt(1)}},
+		{name: "a map and a union with no model", targets: []ir.TypeID{"t/map", "t/union"}, want: "t/union", dropped: []jsontext.Pointer{declaredAt(0)}},
+		{name: "a union a variant of which holds a model, then the model", targets: []ir.TypeID{"t/union", "t/A"}, want: "t/A"},
+		{name: "an alias of `{}` holding examples beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/topEx"}, want: "t/topEx", dropped: []jsontext.Pointer{declaredAt(0), declaredAt(1)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -246,10 +249,10 @@ func TestFold_AComposedFieldKeepsEveryDeclarationsDetail(t *testing.T) {
 	require.NotNil(t, got.Constraints)
 	assert.Equal(t, int64(2), *got.Constraints.MinProps, "a bound takes its tightest value")
 	assert.Equal(t, int64(4), *got.Constraints.MaxProps, "a later declaration's keyword reaches the field")
-	assert.Equal(t, "^a$", got.Constraints.Pattern, "the first to set a keyword with no order keeps it")
+	assert.Equal(t, "^b$", got.Constraints.Pattern, "the last to set a keyword with no order keeps it")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
-	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
+	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(0)))
 }
 
 // TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet pins which node a field
@@ -310,7 +313,7 @@ func TestFold_AComposedFieldAdoptsOnlyANull(t *testing.T) {
 			assert.Nil(t, got.Default)
 			require.Len(t, *recorded, 1)
 			assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
-			assert.Contains(t, (*recorded)[0].Message, "admits the default this declaration gives")
+			assert.Contains(t, (*recorded)[0].Message, "admits the default the declaration at "+string(declaredAt(tc.at))+" gives")
 			assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(tc.at)))
 		})
 	}
@@ -333,7 +336,8 @@ func TestFold_ComposesOnlyTheDeclarationsItJudges(t *testing.T) {
 
 	m, ok := reg[got.Type.Target].(*ir.Model)
 	require.True(t, ok)
-	assert.Empty(t, cmp.Diff([]ir.TypeID{"t/A", "t/B"}, targetsOf(m.Mixins)), "the declaration past the bound composes nothing")
+	assert.Empty(t, cmp.Diff([]ir.TypeID{"t/B", "t/A"}, targetsOf(m.Mixins)),
+		"the declaration past the bound composes nothing, and the last of one type stands for it")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))

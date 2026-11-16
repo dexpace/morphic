@@ -4,7 +4,7 @@ paths: {}
 components:
   schemas:
     # A format-narrowed string against an integer: disjoint kinds, so the pair
-    # is genuinely unsatisfiable. The first declaration wins; the second is kept
+    # is genuinely unsatisfiable. The later declaration wins; the first is kept
     # beside it. (A format over its bare type is a refinement, not a conflict:
     # see allof-narrowing-redeclaration.)
     Repository:
@@ -26,7 +26,7 @@ components:
           properties:
             id: {type: [string, "null"]}
     # Agreeing types and a disagreeing default: not a conflict, and the merged
-    # field is whole, but the second declaration's default has nowhere to go
+    # field is whole, but the first declaration's default has nowhere to go
     # and is kept the same way, beside a diagnostic naming what differed. The
     # title and the external link differ too, so five details are named.
     Described:
@@ -38,8 +38,8 @@ components:
           properties:
             id: {type: integer, default: 2, title: second title, description: second, externalDocs: {url: "https://example.com/second"}, example: 2}
     # Two fixed widths neither of which holds the other: int32 holds negatives
-    # uint32 lacks, uint32 holds values past int32. They overlap, so the first
-    # stands and the second is kept beside an info, not a warning.
+    # uint32 lacks, uint32 holds values past int32. They overlap, so the later
+    # stands and the first is kept beside an info, not a warning.
     Overlapping:
       allOf:
         - type: object

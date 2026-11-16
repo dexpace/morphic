@@ -110,11 +110,11 @@ func TestFold_ANarrowingIntersectsNullability(t *testing.T) {
 	}
 }
 
-// TestFold_ADroppedTargetKeepsTheFirstNullAdmission pins a drop:
-// an unrelated redeclaration's type is lost whole, so
-// the merged field keeps the first declaration's null admission, not the
-// conjunction a same-referent or narrowing pair takes.
-func TestFold_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T) {
+// TestFold_ADroppedTargetKeepsTheWinnersNullAdmission pins a drop:
+// an unrelated declaration's type is lost whole, so the merged field keeps the
+// winner's null admission, not the conjunction a same-referent or narrowing
+// pair takes.
+func TestFold_ADroppedTargetKeepsTheWinnersNullAdmission(t *testing.T) {
 	t.Parallel()
 	for _, firstNull := range []bool{true, false} {
 		t.Run(fmt.Sprintf("firstNullable=%v", firstNull), func(t *testing.T) {
@@ -127,8 +127,8 @@ func TestFold_ADroppedTargetKeepsTheFirstNullAdmission(t *testing.T) {
 
 			dst = foldTwo(g, dst, src, written(`{"type":"integer"}`))
 
-			assert.Equal(t, primRef(ir.PrimString).Target, dst.Type.Target, "the first declaration keeps the shape")
-			assert.Equal(t, firstNull, dst.Type.Nullable, "a dropped type takes its null admission with it")
+			assert.Equal(t, primRef(ir.PrimInteger).Target, dst.Type.Target, "the later declaration keeps the shape")
+			assert.Equal(t, !firstNull, dst.Type.Nullable, "a dropped type takes its null admission with it")
 			require.Len(t, *recorded, 1)
 			assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
 		})

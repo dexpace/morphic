@@ -53,7 +53,8 @@ type Provenance struct {
 	Position Position `json:"position,omitzero"`
 	// Node locates a finding in the IR rather than in a source: a stable ID, or a
 	// path through the document's own fields, for what an IR pass reports about
-	// the document it was handed. Spelling is the producer's; nothing parses it.
+	// the document it was handed, or the property a compiler's report decided.
+	// Spelling is the producer's; nothing parses it.
 	Node string `json:"node,omitempty"`
 	// Inferred is empty for a declared fact; otherwise it lists the heuristics
 	// that produced this node or read a fact out of its Unmodeled, or out of the

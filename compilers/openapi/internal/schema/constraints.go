@@ -49,26 +49,20 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []ann
 // its text (scalarTypeID), whose Constraints would speak of the number
 // (docs/ir/constraints.md#constraints). Every value bound written beside it
 // bounds something else, the text's length or pattern or an instance of
-// another kind than the string JSON Schema applies it to, so neither it nor a
-// carrier of it holds one (textBounds).
+// another kind than the string JSON Schema applies it to, so it holds none
+// (keepTextBounds), and so neither does a carrier of it (CarrierConstraintsOf).
 func carriesNumberAsText(td ir.TypeDef) bool {
 	sc, ok := td.(*ir.Scalar)
 	return ok && sc != nil && sc.Encoding != nil && sc.Encoding.Name == numberTextEncoding &&
 		sc.Encoding.WireType != nil
 }
 
-// textBounds is cons for a position carrying a number as text: none, s's own
-// bounds kept verbatim on p (keepTextBounds), and a voice's left to keep its
-// branch whole, as a bound with no home does.
-func textBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, diags []ir.Diagnostic) (*ir.Constraints, []ir.Diagnostic) {
-	return nil, append(diags, keepTextBounds(c, p, s, pointer)...)
-}
-
 // keepTextBounds keeps each value bound s writes verbatim on p, under
 // openapi:<keyword> with no_ir_home, for a position carrying a number as text,
-// whose Constraints hold none (carriesNumberAsText), with an info at each.
-// The node and a carrier of it each keep them, as each held them in
-// Constraints.
+// whose Constraints hold none (carriesNumberAsText), with an info at each. A
+// voice's is left to keep its branch whole, as a bound with no home does. The
+// node keeps them, and a carrier of it, restating only what its node holds,
+// keeps none.
 func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range declaredConstraints(s) {
@@ -305,24 +299,25 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 
 // CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type t.
 // A position owning its node leaves the collection bounds to it, one home per
-// declaration, so the carrier reads the value bounds alone, and none where the
-// node is the Union of a type array, each of whose bounds is the variant's it
-// applies to (lowersTypeArray). One owning none holds those a reference does
-// (referenceConstraintsOf), since the census hoists an alias to keep any other.
-// PreserveRefSiteKeywords draws the same line.
+// declaration, so the carrier restates the value bounds alone, and only where
+// the node or a variant of it holds them (constraintsHome): none beside an Enum
+// or a Literal, which keeps them, nor beside a type array's Union, whose
+// variants hold each (lowersTypeArray). One owning none holds those a reference
+// does (referenceConstraintsOf), since the census hoists an alias to keep any
+// other. PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !LoweredToOwnNode(c, ts, pointer, t) {
 		return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
+	}
+	td, built := ts.Node(t.Target)
+	if built && !slices.ContainsFunc(withVariants(ts, td), constraintsHome) {
+		return nil, nil
 	}
 	var takes kindSet
 	if s != nil && !lowersTypeArray(c, s, pointer) {
 		takes = positionTypes(c, s, pointer)
 	}
-	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
-	if td, built := ts.Node(t.Target); built && carriesNumberAsText(td) {
-		return textBounds(c, p, s, pointer, diags)
-	}
-	return cons, diags
+	return ConstraintsOf(c, p, s, voices, pointer, takes)
 }
 
 // referenceConstraintsOf is ConstraintsOf for a position that lowered to target,

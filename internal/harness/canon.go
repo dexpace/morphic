@@ -49,30 +49,37 @@ func markedArray(elems [][]byte) []byte {
 	return append(append([]byte(`{"\u0000unordered":`), array(elems)...), '}')
 }
 
-// canonical is a document's canonical form: its lines, and its shape's.
-type canonical struct{ document, shape []string }
+// canonical is a document's canonical form: its lines, its shape's, and how it
+// writes an ID (rewriter.identify).
+type canonical struct {
+	document, shape []string
+	identify        func(id string) (string, bool)
+}
 
 // canonicalForm is doc as the sequence-order oracle compares it, where seqs
-// are the sequences reversed, in doc's source's coordinates, and ties the
-// erased pointers of the reports that moved. It forgives an index of a
-// reversed sequence a string names, an ID beneath one being told apart by its
-// owners' digest; the order of what orderFree lists, mixins, requires and an
-// array kept verbatim at a reversed sequence's pointer; and every node at or
-// beneath a tie. An unmodeled member's name is relative, so an index after
-// allOf or required in it is erased, reversed or not.
-func canonicalForm(doc *ir.Document, seqs sequences, ties []string) (canonical, error) {
+// are the sequences reversed, in doc's source's coordinates, and ties what the
+// reports that moved decided. It forgives an index of a reversed sequence a
+// string names, an ID beneath one told apart by its owners' digest; the order
+// of what orderFree lists, mixins, requires and an array kept verbatim at a
+// reversed sequence's pointer; and each node a tie decided (tied), with what is
+// keyed by its ID (untie). An unmodeled member's name is relative, so an index
+// after allOf or required in it is always erased.
+func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, error) {
 	encoded, err := encodeComparable(doc, markedArray)
 	if err != nil {
 		return canonical{}, err
 	}
-	r := rewriter{seqs: seqs, ties: ties, owners: map[string][]map[string]any{},
+	r := rewriter{seqs: seqs, ties: ties.pointers, nodes: map[string]bool{}, owners: map[string][]map[string]any{},
 		digests: map[string]string{}, visiting: map[string]bool{}}
+	for _, node := range ties.nodes {
+		r.nodes[node] = true
+	}
 	tree := r.decode(encoded)
 	r.index(tree, 0)
 	out := jsontext.Value(r.rewrite(tree, place{}, 0))
 	r.fail(out.Indent(jsontext.WithIndent("  ")))
 	shape := r.shape(doc)
-	return canonical{document: lines(out), shape: shape}, r.err
+	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -113,13 +120,14 @@ type place struct {
 	how placement
 }
 
-// rewriter is the state of one canonicalForm: the sequences and tie sites it
-// reads, the owners of each ID erasing changes, the digests computed so far,
-// the IDs whose digest is being computed and the innermost of them, and the
-// first error met.
+// rewriter is the state of one canonicalForm: the sequences, tie sites and
+// tied nodes it reads, the owners of each ID erasing changes, the digests
+// computed so far, the IDs whose digest is being computed and the innermost of
+// them, and the first error met.
 type rewriter struct {
 	seqs      sequences
 	ties      []string
+	nodes     map[string]bool
 	owners    map[string][]map[string]any
 	digests   map[string]string
 	visiting  map[string]bool
@@ -184,23 +192,24 @@ func (r *rewriter) rewrite(v any, p place, depth int) []byte {
 	}
 }
 
-// object rewrites an object: a marked collection as a sorted array, one at or
-// beneath a tie site as the tie, and any other member by member, sorted by
-// name and then by value, since erased names can collide. An id is erased
-// alone.
+// object rewrites an object: a marked collection as a sorted array, a tied one
+// (tied) as the tie, and any other member by member but those it leaves out
+// (leftOut), sorted by name and then by value, since erased names can collide.
+// An id is erased alone.
 func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	if elems, ok := o[unorderedMark].([]any); ok && len(o) == 1 {
 		return r.array(elems, place{how: p.how&noIdentity | sortElements}, depth)
 	}
+	o = r.untie(o)
 	own := provenancePointer(o)
-	if erased, tied := r.tiedAt(own); tied && p.how&noIdentity == 0 {
+	if erased, tied := r.tied(o); tied && p.how&noIdentity == 0 {
 		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), []byte("}"))
 	}
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
 	for _, name := range slices.Sorted(maps.Keys(o)) {
 		v := o[name]
-		if p.how&noIdentity != 0 && (name == "id" || name == "provenance") {
+		if r.leftOut(name, v, p) {
 			continue
 		}
 		key := r.text(name, depth)
@@ -280,6 +289,19 @@ func (r *rewriter) text(s string, depth int) string {
 	return erased + "#" + r.digest(s, depth)
 }
 
+// identify is id as the form writes a reference to it (text), for a report
+// naming the node, compared once the form is written. It is false where no
+// node the form holds is id, whose erased ID alone tells two nodes apart by
+// nothing they hold, and where the digest fails as a form does (errTooDeep,
+// errCycle).
+func (r *rewriter) identify(id string) (string, bool) {
+	if len(r.owners[id]) == 0 {
+		return "", false
+	}
+	text := r.text(id, 0)
+	return text, r.err == nil
+}
+
 // digest is the first six bytes, in hex, of the SHA-256 of the canonical
 // encodings of id's owners, sorted and joined by newlines. An ID met while its
 // own digest is computed is written erased alone, which ends a self-reference.
@@ -317,9 +339,61 @@ func (r *rewriter) quote(s string) []byte {
 // beneath a tie site.
 func (r *rewriter) tiedAt(pointer string) (string, bool) {
 	erased := erase(pointer, r.seqs)
-	return erased, slices.ContainsFunc(r.ties, func(site string) bool {
-		return erased == site || strings.HasPrefix(erased, site) && strings.HasPrefix(erased[len(site):], "/")
-	})
+	return erased, atSite(r.ties, erased)
+}
+
+// leftOut reports whether an object at p leaves its member name, holding v, out
+// of its form: an identity a place reads without, or a node it keys by its ID
+// that a tie decided, as a registry does, since a tie decides whether a fold
+// mints it.
+func (r *rewriter) leftOut(name string, v any, p place) bool {
+	if p.how&noIdentity != 0 {
+		return name == "id" || name == "provenance"
+	}
+	node, isObject := v.(map[string]any)
+	if !isObject || node["id"] != name {
+		return false
+	}
+	_, tied := r.tied(node)
+	return tied
+}
+
+// tied returns how a tie reads o, and whether one decided it: o's pointer
+// erased where it is at or beneath a tie site, or its ID erased where a moved
+// report names it.
+func (r *rewriter) tied(o map[string]any) (string, bool) {
+	if erased, tied := r.tiedAt(provenancePointer(o)); tied {
+		return erased, true
+	}
+	id, ok := o["id"].(string)
+	if ok && r.nodes[erase(id, r.seqs)] {
+		return erase(id, r.seqs), true
+	}
+	return "", false
+}
+
+// tiedNode reports whether a tie decided the node td, identified by id: it sits
+// at or beneath a tie site, or a moved report names it.
+func (r *rewriter) tiedNode(id ir.TypeID, td ir.TypeDef) bool {
+	_, atSite := r.tiedAt(string(td.Common().Provenance.Pointer))
+	return atSite || r.nodes[erase(string(id), r.seqs)]
+}
+
+// untie returns o without each member keyed by a tied node's ID, as a part's
+// encoding is keyed by its property's: what it holds follows that node. o is
+// copied before a member is dropped.
+func (r *rewriter) untie(o map[string]any) map[string]any {
+	out := o
+	for name := range o {
+		if !r.nodes[erase(name, r.seqs)] {
+			continue
+		}
+		if len(out) == len(o) {
+			out = maps.Clone(o)
+		}
+		delete(out, name)
+	}
+	return out
 }
 
 // provenancePointer reads the pointer of an object's provenance member. It is
@@ -352,7 +426,7 @@ func eraseRelative(name string) string {
 func (r *rewriter) shape(doc *ir.Document) []string {
 	var out []string
 	for id, t := range doc.Types {
-		if _, ok := t.(*ir.Model); !ok {
+		if _, ok := t.(*ir.Model); !ok || r.tiedNode(id, t) {
 			continue
 		}
 		f := ir.FlattenedProperties(doc.Types, id)
@@ -381,6 +455,9 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
 	if erased, tied := r.tiedAt(string(prov.Pointer)); tied {
 		return "reported tie at " + erased
+	}
+	if id := erase(string(p.Property.ID), r.seqs); r.nodes[id] {
+		return "reported tie " + id
 	}
 	encoded, err := json.Marshal(struct {
 		Declaration *ir.Property    `json:"declaration"`

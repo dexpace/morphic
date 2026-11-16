@@ -47,10 +47,19 @@ func declaring(id ir.TypeID) *ir.Model {
 	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: string(id)}}}
 }
 
+// sitesAt is the one place a declaration written at pointer holds its type.
+func sitesAt(pointer jsontext.Pointer) []ir.Provenance { return []ir.Provenance{ptrAt(pointer)} }
+
+// atRoot is the sites of two declarations each written at its document's
+// root, which every node of the document is written under, read by walk.
+func atRoot(walk Walk) declarationSites {
+	return declarationSites{walk: walk, written: [2][]ir.Provenance{sitesAt(""), sitesAt("")}}
+}
+
 // judge is the type judgment over the registry g reads, its declarations read
 // against one base.
 func judge(g *stubbed) typeJudge {
-	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.walk}}
+	return typeJudge{resolve: g.resolve, sites: atRoot(g.walk)}
 }
 
 // untypedAt is Walk.Untyped for a registry whose nodes written under /untyped
@@ -89,14 +98,19 @@ type stubWalk struct {
 	interned []jsontext.Pointer
 	apart    bool
 	minted   int
+	brought  map[ir.TypeID][]jsontext.Pointer
 }
 
 // Mint is Walk.Mint.
-func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, _ []jsontext.Pointer) ir.TypeID {
 	common := node.Common()
 	common.ID = composedAt(pointer)
 	w.reg[common.ID] = node
 	w.minted++
+	if w.brought == nil {
+		w.brought = map[ir.TypeID][]jsontext.Pointer{}
+	}
+	w.brought[common.ID] = brought
 	return common.ID
 }
 
@@ -119,11 +133,15 @@ func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.T
 // another model carries its first declaration (identify).
 func mintedProp(pointer jsontext.Pointer) ir.PropID { return ids.Document{}.ComposedProp(pointer) }
 
-// foldTwo folds src, rendered by source, into dst, a first declaration with
-// no source recorded: the pair the walk hands over for one redeclared field.
+// foldTwo folds src, rendered by source, into dst, a first declaration
+// rendered as firstSource: the pair the walk hands over for one redeclared
+// field.
 func foldTwo(g *stubbed, dst, src ir.Property, source Source) ir.Property {
-	return g.fold([]declaration{{prop: dst}, {prop: src, source: source}})
+	return g.fold([]declaration{{prop: dst, source: written(firstSource)}, {prop: src, source: source}})
 }
+
+// firstSource is how foldTwo renders its first declaration.
+const firstSource = `{"declared":"first"}`
 
 // indexOver returns an index filling m, and settle, which folds what the index
 // queued through g, recording what they report, as Finish takes the compiler's
@@ -131,7 +149,7 @@ func foldTwo(g *stubbed, dst, src ir.Property, source Source) ir.Property {
 func indexOver(m *ir.Model, g *stubbed) (idx *PropIndex, settle func()) {
 	idx = NewPropIndex(m)
 	return idx, func() {
-		*g.recorded = append(*g.recorded, idx.Fold(g.Merger)...)
+		*g.recorded = append(*g.recorded, settleFlat(g, idx, g.Reg)...)
 	}
 }
 
@@ -170,7 +188,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
 	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
 	g, _ := stubMerger(reg)
-	settled := idx.Fold(g.Merger)
+	settled := settleFlat(g, idx, reg)
 
 	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")

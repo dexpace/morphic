@@ -370,6 +370,11 @@ type Union struct {
 	// position; nil for an untagged or key-tagged union. A union carrying one
 	// is WireTagged.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
+	// Constraints are the bounds a source writes beside the union, each bounding
+	// a value of the kind it applies to, whichever variant holds the value, and
+	// admitting every value of another kind
+	// (docs/ir/unions.md#bounds-beside-a-union); nil = none written.
+	Constraints *Constraints `json:"constraints,omitzero"`
 	// Closed is false for an open union, whose payload may hold a variant the
 	// union does not list, which a consumer must be able to represent (Smithy
 	// unions, protobuf oneofs, GraphQL output unions). It defaults per source

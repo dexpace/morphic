@@ -4,6 +4,8 @@
 package merge
 
 import (
+	"slices"
+
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,9 +39,13 @@ func (g *Merger) judgePosition(decls []declaration, ms []member, depth int) posi
 		p.rel[i] = make([]relation, n)
 		p.rel[i][i] = relSame
 	}
+	sites := make([][]ir.Provenance, len(decls))
+	for _, m := range ms {
+		sites[m.decl] = decls[m.decl].sites()
+	}
 	for i := range n {
 		for j := i + 1; j < n; j++ {
-			judge := g.judgeAt(decls[ms[i].decl].prop.Provenance, decls[ms[j].decl].prop.Provenance)
+			judge := g.judgeAt(sites[ms[i].decl], sites[ms[j].decl])
 			rel := judge.relateFrom(ms[i].ref, ms[j].ref, depth)
 			p.rel[i][j], p.rel[j][i] = rel, rel.flipped()
 		}
@@ -56,12 +62,13 @@ func (p position) holds(i, j int) bool {
 	return p.rel[i][j] == relSame || p.rel[i][j] == relANarrower || p.rel[i][j] == relMeet
 }
 
-// widestCone returns the member whose type holds the most members' types, the
-// first of them on a tie. Where one type is within every other, it is the
-// intersection and wins whatever the order; where types meet, each holds the
-// other, and the winner's node takes what each it meets adds (builder). Otherwise
-// the position keeps the type that loses the fewest members, and each it loses
-// is reported.
+// widestCone returns the member whose type holds the most members' types: of
+// those holding as many, the one standing for its type (stands), and of
+// different types the last, where a spec writes the specialization. Where one
+// type is within every other, it is the intersection and wins whatever the
+// order; where types meet, each holds the other, and the winner's node takes
+// what each it meets adds (builder). Otherwise the position keeps the type that
+// loses the fewest members, and each it loses is reported.
 func (p position) widestCone() int {
 	best, widest := 0, 0
 	for i := range p.members {
@@ -71,18 +78,29 @@ func (p position) widestCone() int {
 				width++
 			}
 		}
-		if width > widest {
+		if width > widest || (width == widest && (p.rel[i][best] != relSame || p.stands(i, best))) {
 			best, widest = i, width
 		}
 	}
 	return best
 }
 
+// stands reports whether member i stands for member j, the two of one type: the
+// one whose target sorts first, so no declaration order decides which node the
+// field names, else the later.
+func (p position) stands(i, j int) bool {
+	if a, b := p.members[i].ref.Target, p.members[j].ref.Target; a != b {
+		return a < b
+	}
+	return i > j
+}
+
 // meeting returns the winner and each other member of the cone whose type
-// meets its (relMeet), the members a node holding them all is built of.
+// meets its (relMeet), the members a node holding them all is built of, the
+// later first: what two give differently is the first's (builder.adoptInto).
 func (p position) meeting(cone func(k int) bool) (member, []member) {
 	var partners []member
-	for k, m := range p.members {
+	for k, m := range slices.Backward(p.members) {
 		if k != p.winner && cone(k) && p.rel[p.winner][k] == relMeet {
 			partners = append(partners, m)
 		}

@@ -849,3 +849,30 @@ it sees. Changes made together in one bump are listed together under it.
   writing it, another document's qualifier in its ID ([identity](./identity.md#unresolved-schemes)). A consumer pinned to 0.67.0 refuses the document;
   one reading `Stop` with no arm for `no_more` would not end such a walk, and one matching a marker
   by its old name no longer finds it.
+- **0.69.0** — `Union.Constraints`, the bounds a source writes beside a union, each bounding a value
+  of the kind it applies to whichever variant holds it
+  ([unions](./unions.md#bounds-beside-a-union)); `pass.Validate` judges them kind by kind under
+  `pass/bounds-admit-no-value`. The OpenAPI compiler fills it from a value bound written beside a
+  `oneOf` or an `anyOf` lowering to a `Union` of its branches, or on an `allOf` branch folding
+  there, which it kept under `openapi:<keyword>` (`degraded_lowering`) with an info while a property
+  or parameter carrying the union held it too. A union of string `const`s holding a bound is no
+  longer made an `Enum` by the `const-unions` pass, since an `Enum` has no field for it
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A property or parameter
+  whose schema lowers to an `Enum`, a `Literal` or a number written as text no longer holds or keeps
+  the bounds written beside it, which that node keeps verbatim
+  ([`constraints`](../compilers/openapi.md#constraints)). Every declaration of a member a model's
+  composition decides more than once, its own and those its `allOf` entries bring, is folded in
+  the order the source writes them
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A tie goes to
+  the later declaration, as the flattening's override does, where the fold of two inline
+  declarations kept the first, and so does each detail and bound two declarations give differently.
+  A member an entry brings a declaration of is the model's own property, which the flattening takes:
+  one it declares itself keeps that declaration's identity, and one only entries declare, or whose
+  declaration another model holds too, takes one in the `composed` namespace; a name it carries as
+  `Required` leaves `Model.Requires`, a discriminator naming the model's own declaration, or by its
+  name a member only entries declare, names it by `Property`, and a report on an entry's declaration
+  names it in `Provenance.Node`. The fold relates a type to an untagged union holding no bounds of
+  its own through its variants. A consumer pinned to 0.68.0 refuses the document; one reading such a
+  carrier finds the bound on its node, one reading such a member took the declaration the flattening
+  reached last, one reading such a discriminator found it by `PropertyName`, and one reading a tie
+  between two inline declarations took the first's.

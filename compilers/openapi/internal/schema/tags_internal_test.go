@@ -32,7 +32,7 @@ func TestUnionTags_ReportsWhatItCannotSettle(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u", pointer: "/components/schemas/U"}
-			diags := tags.Settle(reg)
+			diags := tags.Settle(t.Context(), reg)
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -77,7 +77,7 @@ func TestUnionTags_ReadsOnlyWhatItWasDeferredFor(t *testing.T) {
 			}
 			tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u",
 				pointer: "/components/schemas/U", at: tc.at, implicit: tc.implicit}
-			diags := tags.Settle(reg)
+			diags := tags.Settle(t.Context(), reg)
 			if tc.bug {
 				require.Len(t, diags, 1)
 				assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -162,7 +162,7 @@ func settleAllocs(t *testing.T, width, pinned int) float64 {
 		pointer: "/components/schemas/U"}
 	fewest := math.Inf(1)
 	for range 20 {
-		fewest = min(fewest, testing.AllocsPerRun(1, func() { tags.Settle(reg) }))
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { tags.Settle(t.Context(), reg) }))
 	}
 	return fewest
 }

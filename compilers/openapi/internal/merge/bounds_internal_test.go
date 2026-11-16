@@ -344,7 +344,7 @@ func TestFold_ANodeHoldingEveryBoundIsNotMinted(t *testing.T) {
 }
 
 // TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner pins two nodes
-// that cannot meet on one keyword. The first's pattern stands and the other's
+// that cannot meet on one keyword. The later's pattern stands and the other's
 // declaration is reported and kept, as on a property, and one warning stands for
 // a keyword a Scalar's position writes on both its node and its property.
 func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T) {
@@ -369,11 +369,11 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 
 		got := g.fold(decls)
 
-		assert.Equal(t, decls[0].prop.Type.Target, got.Type.Target, "the first stands")
+		assert.Equal(t, decls[1].prop.Type.Target, got.Type.Target, "the later stands")
 		assert.Len(t, reg, nodes, "and nothing is minted for it")
 		require.Len(t, *recorded, 1, "the keyword is reported once")
 		assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
-		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(1)))
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(0)))
 	})
 
 	t.Run("one more declaration sets it on the property alone", func(t *testing.T) {
@@ -381,13 +381,13 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 		reg := narrowingRegistry()
 		nodes := mirrored(t, reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
 		bare := nthDecl(2, primRef(ir.PrimInt32).Target)
-		bare.prop.Constraints = &ir.Constraints{Pattern: "^a$"}
+		bare.prop.Constraints = &ir.Constraints{Pattern: "^b$"}
 		g, recorded := stubMerger(reg)
 
-		g.fold([]declaration{bare, nodes[0], nodes[1]})
+		g.fold([]declaration{nodes[0], nodes[1], bare})
 
 		require.Len(t, *recorded, 1, "the node and the property each meet the one disagreement, whoever each kept it from")
-		assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
+		assert.Equal(t, declaredAt(0), (*recorded)[0].Provenance.Pointer)
 	})
 
 	t.Run("a bound meets beside it", func(t *testing.T) {
@@ -400,10 +400,10 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 
 		got := g.fold(decls)
 
-		assert.Equal(t, &ir.Constraints{Pattern: "^a$", MaxLength: new(int64(3))}, boundsOf(reg[got.Type.Target]))
-		assert.Equal(t, &ir.Constraints{Pattern: "^a$", MaxLength: new(int64(3))}, got.Constraints)
+		assert.Equal(t, &ir.Constraints{Pattern: "^b$", MaxLength: new(int64(3))}, boundsOf(reg[got.Type.Target]))
+		assert.Equal(t, &ir.Constraints{Pattern: "^b$", MaxLength: new(int64(3))}, got.Constraints)
 		require.Len(t, *recorded, 1, "the keyword is reported once")
-		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(1)))
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(0)))
 	})
 }
 
@@ -577,7 +577,7 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 			td, ok := reg[id]
 			return td, ok
 		},
-		sites: declarationSites{written: [2]ir.Provenance{ptrAt("/a"), ptrAt("/b")}, walk: &stubWalk{}},
+		sites: declarationSites{written: [2][]ir.Provenance{sitesAt("/a"), sitesAt("/b")}, walk: &stubWalk{}},
 	}
 
 	rel := j.relate(ref("t/a/0"), ref("t/b/0"))
@@ -594,7 +594,7 @@ func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
 	reg := judgeRegistry()
 	reg["t/held-min"] = &ir.List{ID: "t/held-min", Elem: ref("t/tuple-min")}
 	reg["t/held-bare"] = &ir.List{ID: "t/held-bare", Elem: ref("t/tuple")}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 
 	assert.Equal(t, relANarrower, j.relate(ref("t/tuple-min"), ref("t/tuple")), "as a field's own type")
 	assert.Equal(t, relUnrelated, j.relate(ref("t/held-min"), ref("t/held-bare")), "as what a list holds")

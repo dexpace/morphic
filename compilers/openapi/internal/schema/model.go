@@ -15,7 +15,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -65,17 +64,17 @@ func objectNode(m *ir.Model) ir.TypeDef {
 }
 
 // modelFields is how the walk fills one model's properties: the context the
-// model is lowered in, the types its nodes are registered with, and the index of
-// the properties it declares (merge.PropIndex). A field declared more than once
-// folds once every lowering has returned, as a completion
-// (compile.Types.Complete), queued at the model's first redeclaration: a
-// settlement that reads the merged field, such as a form part's flags, finds it
-// folded, and a fold mid-walk would follow the order the declarations lower in
-// (GitHub #898). It is the walk the fold asks (merge.Walk). pointer is where
-// the model is written.
+// model is lowered in, the types its nodes are registered with, the model, and
+// the index of what it declares and composes (merge.PropIndex). A member more
+// than one declaration decides settles once every lowering has returned
+// (settleMembers), so a settlement reading the merged field, such as a form
+// part's flags, finds it folded, and a fold mid-walk would follow the order the
+// declarations lower in (GitHub #898). It is the walk the fold asks
+// (merge.Walk). pointer is where the model is written.
 type modelFields struct {
 	c       lowering.Ctx
 	ts      *compile.Types
+	m       *ir.Model
 	idx     *merge.PropIndex
 	pointer jsontext.Pointer
 }
@@ -83,32 +82,23 @@ type modelFields struct {
 // newModelFields returns the fields of m, which holds no property yet, lowered
 // in c and registered with ts.
 func newModelFields(c lowering.Ctx, ts *compile.Types, m *ir.Model) modelFields {
-	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m), pointer: m.Provenance.Pointer}
+	return modelFields{c: c, ts: ts, m: m, idx: merge.NewPropIndex(m), pointer: m.Provenance.Pointer}
 }
 
 // merge lands p on the model, or records it as one more declaration of the
-// field its wire name names (merge.PropIndex.MergeProperty), queueing the
-// model's folds at its first redeclaration.
+// field its wire name names (merge.PropIndex.MergeProperty), noting the model
+// at its first redeclaration.
 func (f modelFields) merge(p ir.Property, source merge.Source, secretBy ir.Inferred) {
 	if f.idx.MergeProperty(p, source, secretBy) {
-		f.ts.Complete(f)
+		membersOf(f.c).note(f)
 	}
 }
 
-// Settle folds the model's redeclared fields against reg, the registry every
-// lowering left, and returns what the folds report (compile.Settlement). A
-// fold rewrites the model's property, and adds a node only through Mint. A tag
-// reading reads that property (tagReadings), so a fold, a completion, runs
-// before every one; one following a stored reading, which may have read the
-// property unfolded, is a compiler bug, reported.
-func (f modelFields) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	diags := f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
-	if readingsOf(f.c).stored() {
-		diags = append(diags, f.c.DiagAt(ir.SeverityError, diag.InternalInvariant, f.pointer,
-			"internal: the model's redeclared fields fold after a discriminator-inference reading is stored, "+
-				"which may have read them unfolded"))
-	}
-	return diags
+// compose records that the model composes target, written at at, where the
+// walk meets it (merge.PropIndex.Compose), and notes the model.
+func (f modelFields) compose(target ir.TypeID, at jsontext.Pointer) {
+	f.idx.Compose(target, at)
+	membersOf(f.c).note(f)
 }
 
 // Interned reports whether a node stands at pointer of the model's document
@@ -162,10 +152,13 @@ func (f modelFields) Untyped(p ir.Provenance) bool {
 // takes the ID of a node no schema occupies (ids.ComposedType) and points back
 // at it, as a distributed variant points at its branch. The variants of one
 // distributed union fold the same declarations, so each mints this one node,
-// alike.
-func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+// alike. A model composes each part where brought says, and is noted so its
+// members settle (Members). A node minted where no schema is written is placed
+// by the positions it is assembled from (assembled).
+func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, assembled []jsontext.Pointer) ir.TypeID {
 	id := f.c.IDs().ComposedType(pointer)
 	site, common := commonFor(f.c, id, pointer), node.Common()
+	site.Provenance = f.c.Place().At(pointer, assembled...)
 	from := common.ID
 	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
 	if e, ok := node.(*ir.Enum); ok {
@@ -174,6 +167,12 @@ func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 		})
 	}
 	f.ts.Register(id, node)
+	if m, ok := node.(*ir.Model); ok {
+		minted := newModelFields(f.c, f.ts, m)
+		for i, part := range merge.ComposedOf(m) {
+			minted.compose(part, brought[i])
+		}
+	}
 	return id
 }
 

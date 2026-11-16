@@ -231,7 +231,11 @@ lists that no member declares and the composition entries that name no model. It
   deprecated — type, `Presence`, visibility, default, docs — from the declaration it takes, and
   lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
   reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
-  about their types, which the flattening does not ask.
+  about their types, which the flattening does not ask. A compiler may ask it: the OpenAPI compiler
+  folds every declaration of a member a model's composition decides more than once, its own and
+  its entries' alike, a tie going to the later as here, and declares the result on the model
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)), so in a
+  document it compiles the member is the model's own and this clause decides only what it reported.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model
   the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
   requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is

@@ -261,7 +261,7 @@ func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateFrom(a, b, 
 
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: atRoot(&stubWalk{})}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 
 	for _, tc := range []struct {
@@ -496,7 +496,7 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 // kind, holds none.
 func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: atRoot(&stubWalk{})}
 	for _, tc := range []struct {
 		id   ir.TypeID
 		want valueKind
@@ -561,7 +561,7 @@ func encodedRegistry() map[ir.TypeID]ir.TypeDef {
 // A WireType or base that is no primitive leaves the base read as it is.
 func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: atRoot(&stubWalk{})}
 	for id, want := range map[ir.TypeID]valueKind{
 		"t/unixtime-int":       {prim: ir.PrimInteger},
 		"t/alias-unixtime-int": {prim: ir.PrimInteger},
@@ -593,7 +593,7 @@ func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
 // would refuse the text, while a bare datetime_offset still refuses it.
 func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: atRoot(&stubWalk{})}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 	for _, tc := range []struct {
 		a, b ir.TypeID
@@ -656,7 +656,7 @@ func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
 	reg["t/alias-num-text"] = &ir.Scalar{ID: "t/alias-num-text", Base: &ir.TypeRef{Target: "t/num-text"}}
 	reg["t/num"] = &ir.Scalar{ID: "t/num", Base: &i64, Encoding: &ir.Encoding{Name: "string"}}
 	reg["t/bytes-b64"] = &ir.Scalar{ID: "t/bytes-b64", Base: &b, Encoding: wire()}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 	for id, want := range map[ir.TypeID]valueKind{
 		"t/num-text": {prim: ir.PrimString}, "t/alias-num-text": {prim: ir.PrimString}, "t/num": {prim: ir.PrimInt64},
 		"t/bytes-b64": {prim: ir.PrimBytes, unjudged: true},
@@ -684,7 +684,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Constraints: &ir.Constraints{MaxLength: &short}}
 	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
 	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
@@ -735,7 +735,7 @@ func TestRelation_Flipped(t *testing.T) {
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	j := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: atRoot(&stubWalk{})}
 	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
 	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
@@ -774,7 +774,22 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		"t/map":         &ir.MapT{ID: "t/map"},
 		"t/list":        &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/other"}},
 		"t/tuple":       &ir.Tuple{ID: "t/tuple"},
-		"t/union":       &ir.Union{ID: "t/union"},
+		"t/union":       &ir.Union{ID: "t/union", Closed: true},
+		"t/holds":       &ir.Union{ID: "t/holds", Variants: variantsOf("t/list", "t/model")},
+		"t/one-holds":   &ir.Union{ID: "t/one-holds", Exclusive: true, Variants: variantsOf("t/list", "t/model")},
+		"t/two-hold":    &ir.Union{ID: "t/two-hold", Exclusive: true, Variants: variantsOf("t/model", "t/bare")},
+		"t/may-hold":    &ir.Union{ID: "t/may-hold", Exclusive: true, Variants: variantsOf("t/model", "t/other")},
+		"t/routes":      &ir.Union{ID: "t/routes", Variants: variantsOf("t/model"), Discriminator: &ir.Discriminator{PropertyName: "k"}},
+		"t/keyed":       &ir.Union{ID: "t/keyed", Variants: variantsOf("t/model"), WireTagged: true},
+		"t/of-models":   &ir.Union{ID: "t/of-models", Closed: true, Variants: variantsOf("t/model", "t/derived")},
+		"t/closed-mix":  &ir.Union{ID: "t/closed-mix", Closed: true, Variants: variantsOf("t/model", "t/list")},
+		"t/open-models": &ir.Union{ID: "t/open-models", Variants: variantsOf("t/model", "t/derived")},
+		"t/routed":      &ir.Union{ID: "t/routed", Closed: true, Variants: variantsOf("t/model", "t/derived"), Discriminator: &ir.Discriminator{PropertyName: "k"}},
+		"t/bounded":     &ir.Union{ID: "t/bounded", Variants: variantsOf("t/list", "t/model"), Constraints: &ir.Constraints{MinProps: new(int64(1))}},
+		"t/bounded-of-models": &ir.Union{ID: "t/bounded-of-models", Closed: true, Variants: variantsOf("t/model", "t/derived"),
+			Constraints: &ir.Constraints{MinProps: new(int64(1))}},
+		"t/holds-alias": &ir.Scalar{ID: "t/holds-alias", Base: &ir.TypeRef{Target: "t/holds"}, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
+		"t/plain-alias": &ir.Scalar{ID: "t/plain-alias", Base: &ir.TypeRef{Target: "t/holds"}},
 		"t/external":    &ir.External{ID: "t/external"},
 		"t/opaque":      &ir.Scalar{ID: "t/opaque"},
 		"t/literal":     &ir.Literal{ID: "t/literal", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
@@ -798,6 +813,25 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a model and a list", "t/model", "t/list", relDisjoint},
 		{"a map and a tuple", "t/map", "t/tuple", relDisjoint},
 		{"a model and a union that may hold it", "t/model", "t/union", relUnrelated},
+		{"a model and an inclusive union one variant of which holds it", "t/model", "t/holds", relANarrower},
+		{"a model and an exclusive union one variant of which alone holds it", "t/model", "t/one-holds", relANarrower},
+		{"a model and an exclusive union two variants of which hold it", "t/model", "t/two-hold", relUnrelated},
+		{"a model and an exclusive union another variant of which may hold it", "t/model", "t/may-hold", relUnrelated},
+		{"a model and a discriminated union holding it", "t/model", "t/routes", relUnrelated},
+		{"a model and a key-tagged union holding it", "t/model", "t/keyed", relUnrelated},
+		{"a list and a union holding it", "t/list", "t/holds", relANarrower},
+		{"two unions", "t/holds", "t/one-holds", relUnrelated},
+		{"a union every variant of which is within a bare object", "t/of-models", "t/bare", relANarrower},
+		{"an open union every variant it lists of which is", "t/open-models", "t/bare", relUnrelated},
+		{"a model and an open union one variant of which holds it", "t/model", "t/open-models", relANarrower},
+		{"a union some variant of which is not", "t/holds", "t/bare", relUnrelated},
+		{"a closed union some variant of which is not", "t/closed-mix", "t/bare", relUnrelated},
+		{"a discriminated union every variant of which is", "t/routed", "t/bare", relUnrelated},
+		{"a union of no variant", "t/union", "t/bare", relUnrelated},
+		{"a model and a union one variant of which holds it, bounded beside", "t/model", "t/bounded", relUnrelated},
+		{"a model and a bounded alias of a union holding it", "t/model", "t/holds-alias", relUnrelated},
+		{"a model and an alias of a union holding it", "t/model", "t/plain-alias", relANarrower},
+		{"a bounded union every variant of which is within a bare object", "t/bounded-of-models", "t/bare", relANarrower},
 		{"a list and a union", "t/list", "t/union", relUnrelated},
 		{"a model and an external", "t/model", "t/external", relUnrelated},
 		{"a model and an opaque scalar", "t/model", "t/opaque", relUnrelated},
@@ -1041,11 +1075,67 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	for _, id := range []ir.TypeID{"t/lit-a-abs1", "t/lit-a-abs2"} {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
 	}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{apart: true}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{apart: true})}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-abs1"), ref("t/lit-a-abs2")), "copies keeping an absolute one")
 	assert.Equal(t, relANarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
 		"a node declared apart still wins over a hoisted copy")
+}
+
+// variantsOf returns one variant naming each of targets, in order.
+func variantsOf(targets ...ir.TypeID) []ir.Variant {
+	vs := make([]ir.Variant, 0, len(targets))
+	for _, t := range targets {
+		vs = append(vs, ir.Variant{Type: ir.TypeRef{Target: t}})
+	}
+	return vs
+}
+
+// TestTypeJudge_UnionVariantsStopAtTheirBudget pins maxVariantReads from both
+// sides: a type a union's last variant holds is within it where the union lists
+// that many variants, and unrelated to it past them.
+func TestTypeJudge_UnionVariantsStopAtTheirBudget(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{maxVariantReads, maxVariantReads + 1} {
+		reg := ir.TypeRegistry{"t/model": declaring("t/model"), "t/list": &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/model"}}}
+		targets := make([]ir.TypeID, n)
+		for i := range targets {
+			targets[i] = "t/list"
+		}
+		targets[n-1] = "t/model"
+		reg["t/u"] = &ir.Union{ID: "t/u", Variants: variantsOf(targets...)}
+		g, _ := stubMerger(reg)
+		want := relANarrower
+		if n > maxVariantReads {
+			want = relUnrelated
+		}
+		assert.Equal(t, want, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/u"}), "%d variants", n)
+	}
+}
+
+// TestTypeJudge_AUnionWithinATypeStopsAtTheBudget pins maxVariantReads for a
+// closed union every variant of which is within a type: one judgment reads
+// each variant once to ask whether the type is within it, and again to ask
+// whether it is within the type, so a union of half the budget's variants is
+// narrower and one more is unrelated.
+func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{maxVariantReads / 2, maxVariantReads/2 + 1} {
+		targets := make([]ir.TypeID, n)
+		for i := range targets {
+			targets[i] = "t/model"
+		}
+		g, _ := stubMerger(ir.TypeRegistry{
+			"t/model": declaring("t/model"),
+			"t/bare":  &ir.Model{ID: "t/bare"},
+			"t/u":     &ir.Union{ID: "t/u", Closed: true, Variants: variantsOf(targets...)},
+		})
+		want := relANarrower
+		if n > maxVariantReads/2 {
+			want = relUnrelated
+		}
+		assert.Equal(t, want, judge(g).relate(ir.TypeRef{Target: "t/u"}, ir.TypeRef{Target: "t/bare"}), "%d variants", n)
+	}
 }

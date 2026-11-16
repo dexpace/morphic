@@ -297,14 +297,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderTagged/properties/kind",
+          "id": "p/composed/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind",
             "nullable": false
           },
           "required": false,
@@ -320,7 +320,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RenderTagged/properties/kind"
+            "pointer": "/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind"
           }
         }
       ],
@@ -347,14 +347,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RenderTagged/properties/kind",
+          "id": "p/composed/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
           },
           "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind",
             "nullable": false
           },
           "required": false,
@@ -370,7 +370,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RenderTagged/properties/kind"
+            "pointer": "/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind"
           }
         }
       ],
