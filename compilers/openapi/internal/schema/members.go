@@ -20,9 +20,9 @@ import (
 type members struct {
 	byID    map[ir.TypeID]modelFields
 	settled map[ir.TypeID]bool
-	// tables holds the Members of each model settled, and of each model a part
+	// tables holds the Table of each model settled, and of each model a part
 	// names that the walks did not note, which composes nothing.
-	tables map[ir.TypeID]merge.Members
+	tables map[ir.TypeID]merge.Table
 	// shared is the wire names more than one model declares (sharedNames).
 	shared map[string]bool
 	// reads is what remains of the declarations settleMembers reads
@@ -35,7 +35,7 @@ type members struct {
 func membersOf(c lowering.Ctx) *members {
 	return lowering.Settled(c, func() *members {
 		return &members{byID: map[ir.TypeID]modelFields{}, settled: map[ir.TypeID]bool{},
-			tables: map[ir.TypeID]merge.Members{}, reads: budget.New(budget.AtMost(maxMemberReads))}
+			tables: map[ir.TypeID]merge.Table{}, reads: budget.New(budget.AtMost(maxMemberReads))}
 	})
 }
 
@@ -71,7 +71,7 @@ const maxMemberRounds = 8
 const maxMemberAliasHops = 64
 
 // maxMemberReads bounds the declarations the settlement reads of what the
-// models a model composes say (merge.Members), summed over the run
+// models a model composes say (merge.Table), summed over the run
 // (styleguide bounded-everything rule). A table holds only the names more than
 // one model declares, so a hierarchy costs its depth again at each level only
 // where every level adds such a name; past the bound each model left settles
@@ -200,10 +200,10 @@ func (rec *members) composed(reg ir.TypeRegistry, id ir.TypeID) []ir.TypeID {
 	return slices.Compact(out)
 }
 
-// partTables returns the Members of each type m composes (merge.ComposedOf),
+// partTables returns the Table of each type m composes (merge.ComposedOf),
 // read for m (tableOf).
-func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]merge.Members {
-	out := map[ir.TypeID]merge.Members{}
+func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]merge.Table {
+	out := map[ir.TypeID]merge.Table{}
 	for _, target := range merge.ComposedOf(m) {
 		out[target] = rec.tableOf(reg, target, m.ID)
 	}
@@ -216,7 +216,7 @@ func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]m
 // flattening takes as it stands but from's (asItStands). A model the walks did
 // not note composes nothing, so its table is kept. It returns none once the
 // reads run out, and none for a type naming no model.
-func (rec *members) tableOf(reg ir.TypeRegistry, target, from ir.TypeID) merge.Members {
+func (rec *members) tableOf(reg ir.TypeRegistry, target, from ir.TypeID) merge.Table {
 	id, isModel := modelOf(reg, target)
 	if !isModel || rec.reads.Exhausted() {
 		rec.cutAt(from)
@@ -265,12 +265,12 @@ func modelOf(reg ir.TypeRegistry, target ir.TypeID) (ir.TypeID, bool) {
 
 // asItStands returns the table of the model id as reg holds it: for each name
 // more than one model declares, the declaration its flattening takes but
-// from's (merge.TakenBy), charging what the flattening reads.
-func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Members {
-	table := merge.Members{}
+// from's (merge.TakenOutside), charging what the flattening reads.
+func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Table {
+	table := merge.Table{}
 	for _, member := range ir.FlattenedProperties(reg, id).Properties {
 		rec.reads.Spend(1 + len(member.Overridden))
-		if d, ok := merge.TakenBy(member, from); ok && rec.shared[member.Property.WireName] {
+		if d, ok := merge.TakenOutside(member, from); ok && rec.shared[member.Property.WireName] {
 			table[member.Property.WireName] = d
 		}
 	}

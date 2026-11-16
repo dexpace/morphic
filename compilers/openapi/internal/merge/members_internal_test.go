@@ -56,11 +56,11 @@ func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *PropIndex)) (
 // flattening stands and every name as shared, as a run reads a part it has
 // not settled.
 func settleFlat(g *stubbed, idx *PropIndex, reg ir.TypeRegistry) []ir.Diagnostic {
-	parts, shared := map[ir.TypeID]Members{}, map[string]bool{}
+	parts, shared := map[ir.TypeID]Table{}, map[string]bool{}
 	for _, target := range ComposedOf(idx.m) {
-		parts[target] = Members{}
+		parts[target] = Table{}
 		for _, member := range ir.FlattenedProperties(reg, target).Properties {
-			if d, ok := TakenBy(member, idx.m.ID); ok {
+			if d, ok := TakenOutside(member, idx.m.ID); ok {
 				parts[target][member.Property.WireName] = d
 			}
 		}
@@ -356,11 +356,11 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 		"kept what the declaration at /M/allOf/1/properties/p says over the one at /B/p in other.yaml,")
 }
 
-// TestTakenBy_LeavesOutTheComposingModelsOwn pins the declaration a part's
+// TestTakenOutside_LeavesOutTheComposingModelsOwn pins the declaration a part's
 // flattening stands for: the one it takes, or, where that is the composing
 // model's own, as a cycle reaches it, the last other it reads, and none where
 // every declaration is the model's.
-func TestTakenBy_LeavesOutTheComposingModelsOwn(t *testing.T) {
+func TestTakenOutside_LeavesOutTheComposingModelsOwn(t *testing.T) {
 	t.Parallel()
 	decl := func(owner ir.TypeID) ir.PropertyDecl {
 		p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
@@ -375,14 +375,14 @@ func TestTakenBy_LeavesOutTheComposingModelsOwn(t *testing.T) {
 		"the last other":   {ir.FlatProperty{PropertyDecl: decl("t/M"), Overridden: []ir.PropertyDecl{decl("t/A"), decl("t/B"), decl("t/M")}}, "t/B", true},
 		"only the model's": {ir.FlatProperty{PropertyDecl: decl("t/M"), Overridden: []ir.PropertyDecl{decl("t/M")}}, "", false},
 	} {
-		got, ok := TakenBy(tc.member, "t/M")
+		got, ok := TakenOutside(tc.member, "t/M")
 		assert.Equal(t, tc.ok, ok, name)
 		assert.Equal(t, tc.want, got.Owner, name)
 	}
 }
 
 // TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
-// whose Members hold the model's own declaration: it is the model's, so the
+// whose Table holds the model's own declaration: it is the model's, so the
 // model brings nothing from that part, folds nothing, and keeps the member's
 // identity, which a fold would move to the composed namespace, as an interned
 // branch writes the declaration.
@@ -396,7 +396,7 @@ func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	idx.MergeProperty(declared("p", "t/prim/integer", "/M/allOf/1/properties/p"), written(`{}`), "")
 	g, _ := stubMerger(reg)
 	g.walk.interned = []jsontext.Pointer{"/M/allOf/1"}
-	parts := map[ir.TypeID]Members{"t/A": {"p": ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]}}}
+	parts := map[ir.TypeID]Table{"t/A": {"p": ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]}}}
 
 	diags, table := idx.Settle(g.Merger, parts, map[string]bool{"p": true})
 

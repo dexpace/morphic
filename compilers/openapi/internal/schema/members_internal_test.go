@@ -111,7 +111,7 @@ func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 		"t/u":     &ir.Union{ID: "t/u"},
 	}
 	rec := &members{byID: map[ir.TypeID]modelFields{"t/N": {}}, settled: map[ir.TypeID]bool{},
-		tables: map[ir.TypeID]merge.Members{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
+		tables: map[ir.TypeID]merge.Table{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
 
 	got := rec.tableOf(reg, "t/alias", "t/X")
 	require.Len(t, got, 1, "q is declared once")

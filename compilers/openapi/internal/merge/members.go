@@ -12,24 +12,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Members is what a model's composition says of the wire names more than one
+// Table is what a model's composition says of the wire names more than one
 // model declares: for each, the declaration its flattening takes
 // (ir.FlattenedProperties), which a model settled before holds folded from
 // every other its composition gives the name. A name one model alone declares
 // never decides a member twice, so a settlement reads none.
-type Members map[string]ir.PropertyDecl
+type Table map[string]ir.PropertyDecl
 
 // Settle folds each member of the model more than one declaration decides,
 // its own and those its entries bring
 // (docs/compilers/openapi.md#allof-redeclared-property), which the flattening
 // would take one of by where it reads it, judging none. Each fold reads them in
 // the order the walk met them, an entry's where it met the entry, so a $ref
-// and the schema it names written inline fold alike. parts holds the Members
+// and the schema it names written inline fold alike. tables holds the Table
 // of each type the model composes (ComposedOf), so the caller settles those
 // first, and shared the names more than one model declares. It returns the
-// model's Members.
-func (idx *PropIndex) Settle(g Merger, parts map[ir.TypeID]Members, shared map[string]bool) ([]ir.Diagnostic, Members) {
-	brought, inherited := idx.brought(g, parts)
+// model's Table.
+func (idx *PropIndex) Settle(g Merger, tables map[ir.TypeID]Table, shared map[string]bool) ([]ir.Diagnostic, Table) {
+	brought, inherited := idx.brought(g, tables)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
 	for _, f := range slices.SortedFunc(maps.Values(idx.byWire), func(a, b *field) int { return cmp.Compare(a.pos, b.pos) }) {
 		decls := slices.Clone(f.decls)
@@ -45,11 +45,11 @@ func (idx *PropIndex) Settle(g Merger, parts map[ir.TypeID]Members, shared map[s
 	return diags, idx.members(shared, inherited)
 }
 
-// members returns the model's Members once settled: each name its parts leave
+// members returns the model's Table once settled: each name its parts leave
 // one declaration of, and each shared one it declares itself, which stands
 // over theirs.
-func (idx *PropIndex) members(shared map[string]bool, inherited Members) Members {
-	out := make(Members, len(inherited))
+func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
+	out := make(Table, len(inherited))
 	maps.Copy(out, inherited)
 	for i := range idx.m.Properties {
 		if p := &idx.m.Properties[i]; shared[p.WireName] {
@@ -149,7 +149,7 @@ type candidate struct {
 // another's composition is left out: the model composing it narrows it there
 // already, with what its own declaration says. A part on a cycle may hold the
 // model's own declaration, which the model reads as its own, not brought.
-func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Members) (map[string][]declaration, Members) {
+func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string][]declaration, Table) {
 	parts := idx.parts()
 	byWire := map[string][]candidate{}
 	for i, part := range parts {
@@ -160,7 +160,7 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Members) (map[strin
 		}
 	}
 	r := registry{g.resolve}
-	out, inherited := map[string][]declaration{}, Members{}
+	out, inherited := map[string][]declaration{}, Table{}
 	for wire, cs := range byWire {
 		left := slices.DeleteFunc(slices.Clone(cs), func(cd candidate) bool { return r.standsWithin(cs, cd) })
 		for _, cd := range left {
@@ -203,11 +203,11 @@ func (idx *PropIndex) parts() []composedEntry {
 	return out
 }
 
-// TakenBy returns the declaration of member a flattening takes but those of
+// TakenOutside returns the declaration of member a flattening takes but those of
 // from: a composition on a cycle reaches from in turn, whose declarations from
 // holds already, so the one taken before them stands in. It is false where
 // every declaration is from's.
-func TakenBy(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool) {
+func TakenOutside(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool) {
 	if member.Owner != from {
 		return member.PropertyDecl, true
 	}
