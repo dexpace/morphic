@@ -23,9 +23,12 @@ import (
 	oas3core "github.com/speakeasy-api/openapi/jsonschema/oas3/core"
 	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
 // decoded is what unmarshal reports for a document it decodes, whatever its
@@ -624,9 +627,12 @@ func nullTypeIsEmpty(t *testing.T) {
 
 // mergeKeys pins merge-keys: a mapping's merged pairs come first, an earlier
 // source winning and none overriding the mapping's own key; a source writing a
-// key twice gives its first copy; and a `<<` naming no mapping merges nothing,
-// with no finding.
+// key twice gives its first copy; a `<<` naming no mapping merges nothing,
+// with no finding; and only a scalar `<<` tagged `!!merge` is a merge key,
+// which nodeview.IsMergeKey writes out.
 func mergeKeys(t *testing.T) {
+	t.Run("predicate", mergeKeyPredicate)
+	t.Run("spellings", mergeKeySpellings)
 	doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(head+
 		"x-base: &base {k: {type: string}, z: {type: string}}\n"+
 		"x-other: &other {z: {type: integer}, y: {type: string}}\n"+
@@ -655,6 +661,61 @@ func mergeKeys(t *testing.T) {
 	dd, _ := d.GetSchema().GetProperties().Get("d")
 	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, dd.GetSchema().GetType(),
 		"a source's repeated key gives its first copy: %s", revisit(t, result{}))
+}
+
+// mergeKeyPredicate holds nodeview.IsMergeKey to the library's over every
+// kind, tag, value and style a key node carries, and requires the grid to
+// reach a true row so that agreement on false alone cannot pass.
+func mergeKeyPredicate(t *testing.T) {
+	kinds := []yaml.Kind{0, yaml.DocumentNode, yaml.SequenceNode, yaml.MappingNode, yaml.ScalarNode, yaml.AliasNode}
+	tags := []string{"", "!!merge", "!!str", "!!null"}
+	values := []string{"", "<", "<<", "<<<"}
+	styles := []yaml.Style{0, yaml.DoubleQuotedStyle}
+
+	assert.Equal(t, yml.IsMergeKey(nil), nodeview.IsMergeKey(nil), "nil: %s", revisit(t, result{}))
+	merging := 0
+	for _, kind := range kinds {
+		for _, tag := range tags {
+			for _, value := range values {
+				for _, style := range styles {
+					n := &yaml.Node{Kind: kind, Tag: tag, Value: value, Style: style}
+					want := yml.IsMergeKey(n)
+					assert.Equal(t, want, nodeview.IsMergeKey(n),
+						"kind %d tag %q value %q style %d: %s", kind, tag, value, style, revisit(t, result{}))
+					if want {
+						merging++
+						assert.True(t, kind == yaml.ScalarNode && tag == "!!merge" && value == "<<",
+							"the library merges kind %d tag %q value %q style %d: %s", kind, tag, value, style, revisit(t, result{}))
+					}
+				}
+			}
+		}
+	}
+	assert.Equal(t, len(styles), merging, "the scalar `!!merge` `<<` rows, one per style: %s", revisit(t, result{}))
+}
+
+// mergeKeySpellings decodes a `<<` written four ways: a quoted `<<` and an
+// alias standing for one name a property, and a plain one and a `!!merge`
+// tagged one merge their source. It skips validation, which reports a quoted
+// `<<` key's schema, so the properties are read as decoded.
+func mergeKeySpellings(t *testing.T) {
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(head+
+		"x-key: &key \"<<\"\n"+
+		"x-merged: &base {k: {type: string}}\n"+
+		"components:\n  schemas:\n"+
+		"    Quoted: {properties: {\"<<\": {type: string}, a: {type: integer}}}\n"+
+		"    Aliased: {properties: {*key : {type: boolean}, a: {type: integer}}}\n"+
+		"    Plain: {properties: {<<: *base, a: {type: integer}}}\n"+
+		"    Tagged: {properties: {!!merge \"<<\": *base, a: {type: integer}}}\n"), soa.WithSkipValidation())
+	require.NoError(t, err)
+
+	for name, want := range map[string][]string{
+		"Quoted": {"<<", "a"}, "Aliased": {"<<", "a"}, "Plain": {"k", "a"}, "Tagged": {"k", "a"},
+	} {
+		s, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		assert.Equal(t, want, slices.Collect(s.GetSchema().GetProperties().Keys()), "%s: %s", name, revisit(t, result{}))
+	}
 }
 
 // scalarResolution pins scalar-resolution: a plain scalar's tag, and the number

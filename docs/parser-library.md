@@ -560,7 +560,8 @@ pairs merged in come first, in the order their sources are written, an earlier s
 two share and none overriding a key the mapping writes itself; the mapping's own pairs follow. A
 source that writes a key twice gives its first copy, where the mapping itself gives its last
 ([`duplicate-key`](#duplicate-key)). A `<<` naming anything but a mapping or a list of mappings
-merges nothing, and nothing reports it.
+merges nothing, and nothing reports it. A key merges when it is a scalar `<<` the YAML reader tags
+`!!merge`, so a quoted `"<<"` and an alias standing for `<<` name an ordinary key.
 
 ```yaml
 x-base: &base {k: {type: string}, z: {type: string}}
@@ -575,6 +576,7 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/merge-keys`
 - Code:
+  - `nodeview.IsMergeKey` writes that predicate out, so the tree readers need no parser library.
   - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
   - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
   - `nodeview.Child` looks one key up through the merges by the same order and copies.
