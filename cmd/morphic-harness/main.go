@@ -159,9 +159,10 @@ func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Write
 }
 
 // writeCase applies the case oracles to c's case at and writes its name, its
-// sources and each verdict, and returns 1 when the case holds a finding. A
-// case a fault such as a panic ended is written as the fault alone: writing
-// the case again would raise it again.
+// sources and each verdict, and returns 1 when the case holds a finding or a
+// fault. A case a fault such as a panic ended is written with the fault in
+// place of its sources: the fault may lie in Write, which writing the case
+// again would raise again.
 func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer) int {
 	res, written := harness.CheckCase(ctx, c, at)
 	if !written {
@@ -169,13 +170,13 @@ func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer)
 		return 0
 	}
 	emitf(stdout, "%s\n", res.Spec)
-	if res.Outcome != harness.OutcomeOK && !slices.ContainsFunc(res.Verdicts, harness.Verdict.Found) {
+	if res.Faulted() {
 		emitf(stdout, "%s %s\n", res.Outcome, res.Detail)
-		return 1
-	}
-	doc, _ := c.Write(at)
-	for _, s := range doc.Sources {
-		emitf(stdout, "--- %s\n%s\n", s.Path, s.Data)
+	} else {
+		doc, _ := c.Write(at)
+		for _, s := range doc.Sources {
+			emitf(stdout, "--- %s\n%s\n", s.Path, s.Data)
+		}
 	}
 	for _, v := range res.Verdicts {
 		answer := string(v.Outcome)

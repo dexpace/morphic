@@ -125,13 +125,13 @@ func findingOf(r Result, v Verdict) Finding {
 }
 
 // Unexplained returns, of results, those records does not explain: a result a
-// fault ended, and one with a finding its oracle's record does not list at the
-// core case the result projects to (Result.Like), which holds the verdicts of
-// such findings alone, the first its outcome.
+// fault ended (Result.Faulted), whole, and one with a finding its oracle's
+// record does not list at the core case the result projects to (Result.Like),
+// which holds the verdicts of such findings alone, the first its outcome.
 func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 	var out []Result
 	for _, r := range results {
-		if r.Outcome != OutcomeOK && !slices.ContainsFunc(r.Verdicts, Verdict.Found) {
+		if r.Faulted() {
 			out = append(out, r)
 			continue
 		}
