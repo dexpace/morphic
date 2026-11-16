@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -62,7 +62,7 @@ func TestChainOf_EndsWhereTheValueNames(t *testing.T) {
 		_, ok := chainOf(l.Ctx, d, value)
 		assert.False(t, ok, "%s resolves to no schema", value)
 	}
-	_, ok := chainOf(l.Ctx, &oas3.Discriminator{}, "#/components/schemas/Cat")
+	_, ok := chainOf(l.Ctx, &statement.Discriminator{}, "#/components/schemas/Cat")
 	assert.False(t, ok, "a discriminator the document does not hold maps nothing")
 }
 
@@ -86,8 +86,9 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	c := service.New(0, &unlisted, service.Policy{})
 	js, ok := c.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
-	d := js.GetSchema().GetDiscriminator()
-	at, decl, ok := c.RefScope().MappingTarget(d, "./ext.yaml#/X")
+	d := discriminatorIn(c.Statements().Of(js).Schema)
+	require.NotNil(t, d)
+	at, decl, ok := c.RefScope().MappingTarget(d.At, "./ext.yaml#/X")
 	require.True(t, ok, "the bindings read ext.yaml")
 
 	_, ok = declaredAt(c.Ctx, at, Standalone(decl))
@@ -103,7 +104,7 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(openapitest.DocDeclaring("Cat"))
-	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
+	d := &statement.Discriminator{PropertyName: "kind", DefaultMapping: "Cat"}
 
 	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
@@ -115,7 +116,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	l := NewRawLowerer(&soa.OpenAPI{})
 	// "Missing" is neither a declared component nor a reference the bindings
 	// read, so the defaultMapping does not resolve and is dropped with one error.
-	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
+	d := &statement.Discriminator{PropertyName: "kind", DefaultMapping: "Missing"}
 
 	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
@@ -126,7 +127,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	id, diags := discriminatorDefault(l.Ctx, l.Types, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.Ctx, l.Types, &statement.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
 	assert.Empty(t, id)
 	assert.Empty(t, diags)
 }
@@ -280,12 +281,12 @@ func TestMappingWhy_SaysBothReadingsOfAValueWithNoHash(t *testing.T) {
 	require.True(t, l.Ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
 	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
-	d := p.GetSchema().GetDiscriminator()
+	d := discriminatorIn(l.Ctx.Statements().Of(p).Schema)
 	require.NotNil(t, d)
 	assert.Equal(t, ": the entry document declares no schema component of that name, and as a URI reference "+
 		"it names another document, and external references are not read", mappingWhy(l.Ctx, d, "Undeclared"))
 	assert.Equal(t, ": the entry document declares no schema component of that name, and as a URI reference "+
-		"it names no schema", mappingWhy(NewRawLowerer(&soa.OpenAPI{}).Ctx, &oas3.Discriminator{}, "Undeclared"))
+		"it names no schema", mappingWhy(NewRawLowerer(&soa.OpenAPI{}).Ctx, &statement.Discriminator{}, "Undeclared"))
 }
 
 // TestMappingWhy_GivesAnUnreadReferenceTheTablesReason pins that a mapping
@@ -306,7 +307,7 @@ func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 	l, _ := LoweredFor(t, deep.String())
 	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
-	d := p.GetSchema().GetDiscriminator()
+	d := discriminatorIn(l.Ctx.Statements().Of(p).Schema)
 	require.NotNil(t, d, "the parser expands the whole chain")
 	const unread = "it is past a `<<` merge chain deeper than the 64 levels the compiler expands"
 	assert.Equal(t, ": "+unread, mappingWhy(l.Ctx, d, "#/components/schemas/T"))

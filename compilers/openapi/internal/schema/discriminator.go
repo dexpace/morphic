@@ -33,16 +33,16 @@ import (
 // union's branches, nil for a model: a union routes to its variants
 // (branchIndex.route), a model to the type each value's chain ends on
 // (hierarchyRoute).
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer, m *ir.Model, x *branchIndex) (*ir.Discriminator, []ir.Diagnostic) {
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *statement.Discriminator, pointer jsontext.Pointer, m *ir.Model, x *branchIndex) (*ir.Discriminator, []ir.Diagnostic) {
 	if d == nil || !tagLocated(d, m) {
 		return nil, nil
 	}
 	mapping, diags := discriminatorMapping(c, ts, d, x, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
-	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
+	if pid, ok := propIDByName(m, d.PropertyName); ok {
 		disc.Property = pid
 	} else {
-		disc.PropertyName = d.GetPropertyName()
+		disc.PropertyName = d.PropertyName
 	}
 	defaultID, defaultDiags := discriminatorDefault(c, ts, d, x, pointer)
 	disc.Default = defaultID
@@ -54,8 +54,8 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator
 // cannot spell, and by that one only as the PropID of a property m declares
 // itself (docs/compilers/openapi.md#discriminator). One it cannot locate is no
 // node's, and the census keeps it verbatim.
-func tagLocated(d *oas3.Discriminator, m *ir.Model) bool {
-	if d.GetPropertyName() != "" {
+func tagLocated(d *statement.Discriminator, m *ir.Model) bool {
+	if d.PropertyName != "" {
 		return true
 	}
 	_, ok := propIDByName(m, "")
@@ -87,7 +87,7 @@ type subtypeTag struct {
 	routed bool
 	// byName is the discriminator routing it by its component name, OpenAPI's
 	// implicit mapping, nil where a mapping key tags it or none routes to it.
-	byName *oas3.Discriminator
+	byName *statement.Discriminator
 }
 
 // subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
@@ -103,7 +103,7 @@ type subtypeTag struct {
 func subtypeDiscriminatorValue(c lowering.Ctx, s *statement.Schema, id ir.TypeID, pointer jsontext.Pointer) (subtypeTag, []ir.Diagnostic) {
 	ancestors := discriminatedAncestors(c, s)
 	for _, a := range ancestors {
-		tags := mappingTagsFor(c, statement.Parsed(a).GetDiscriminator(), id)
+		tags := mappingTagsFor(c, discriminatorIn(a), id)
 		if len(tags) == 0 {
 			continue
 		}
@@ -124,7 +124,7 @@ func subtypeDiscriminatorValue(c lowering.Ctx, s *statement.Schema, id ir.TypeID
 	}
 	for _, a := range ancestors {
 		if routesByName(c, a, s) {
-			return subtypeTag{value: name, routed: true, byName: statement.Parsed(a).GetDiscriminator()}, nil
+			return subtypeTag{value: name, routed: true, byName: discriminatorIn(a)}, nil
 		}
 	}
 	return subtypeTag{}, nil
@@ -209,7 +209,7 @@ func discriminatedAncestors(c lowering.Ctx, s *statement.Schema) []*statement.Sc
 			next = append(next, unvisitedRefTargets(c, cur, visited)...)
 		}
 		for _, target := range next {
-			if statement.Parsed(target).GetDiscriminator() != nil {
+			if discriminatorIn(target) != nil {
 				out = append(out, target)
 			}
 		}
@@ -233,8 +233,7 @@ type composedByOf struct {
 // one, it is the one standing with u (findBranchUnion). Every reader of the
 // position asks, so it is read once a run.
 func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
-	m := statement.Parsed(s)
-	d := m.GetDiscriminator()
+	d := discriminatorIn(s)
 	if d == nil {
 		return false
 	}
@@ -246,7 +245,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 				target = refBranchTarget(c, c.Statements().Of(b))
 			}
 			return statement.Parsed(target) != nil && slices.ContainsFunc(discriminatedAncestors(c, target),
-				func(a *statement.Schema) bool { return statement.Parsed(a).GetDiscriminator() == d })
+				func(a *statement.Schema) bool { return discriminatorIn(a) == d })
 		})
 	})
 }
@@ -487,4 +486,12 @@ func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool 
 		}
 	}
 	return true
+}
+
+// discriminatorIn returns the discriminator s writes, nil for none.
+func discriminatorIn(s *statement.Schema) *statement.Discriminator {
+	if s == nil || s.Object == nil {
+		return nil
+	}
+	return s.Object.Discriminator
 }

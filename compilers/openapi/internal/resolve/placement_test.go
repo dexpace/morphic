@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -110,8 +109,8 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
           bare: Cat
 `
 	b := loadBound(t, externalDocument(t), openapitest.ComponentSpec(schemas), load.Options{Reader: reader.Disk{}})
-	d := b.component(t, "Pet").GetSchema().GetDiscriminator()
-	require.NotNil(t, d)
+	require.NotNil(t, b.component(t, "Pet").GetSchema().GetDiscriminator())
+	d := bind.Position{Pointer: "/components/schemas/Pet/discriminator"}
 
 	for value, want := range map[string]string{
 		"#/components/schemas/Cat": "/components/schemas/Cat",
@@ -140,10 +139,8 @@ func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
 		assert.Nil(t, decl, value)
 	}
 
-	_, _, ok = b.scope.MappingTarget(nil, "#/components/schemas/Cat")
-	assert.False(t, ok, "no discriminator to read a position from")
-	_, _, ok = b.scope.MappingTarget(&oas3.Discriminator{}, "#/components/schemas/Cat")
-	assert.False(t, ok, "a discriminator the bindings do not know")
+	_, _, ok = b.scope.MappingTarget(bind.Position{}, "#/components/schemas/Cat")
+	assert.False(t, ok, "the position of a schema the bindings do not know")
 	_, _, ok = resolve.Scope{}.MappingTarget(d, "#/components/schemas/Cat")
 	assert.False(t, ok, "no bindings, no target")
 }

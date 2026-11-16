@@ -521,8 +521,7 @@ func positionShape(td ir.TypeDef, s *statement.Schema) string {
 // holds none: then it says so, as shape alone would deny a node of that kind
 // the field.
 func taglessShape(m *ir.Model, s *statement.Schema, shape string) string {
-	sM := statement.Parsed(s)
-	d := sM.GetDiscriminator()
+	d := discriminatorIn(s)
 	if d == nil || tagLocated(d, m) {
 		return shape
 	}

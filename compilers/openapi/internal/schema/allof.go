@@ -51,7 +51,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, sM.GetDiscriminator(), pointer, m, nil)
+			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -610,8 +610,7 @@ type inHierarchyOf struct {
 // reads the source, so no lowering order decides it, and every composition
 // naming s asks, so it is read once a run.
 func inHierarchy(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
 	return lowering.Remembered(c, inHierarchyOf{s}, func() bool {
-		return m.GetDiscriminator() != nil || len(discriminatedAncestors(c, s)) > 0
+		return discriminatorIn(s) != nil || len(discriminatedAncestors(c, s)) > 0
 	})
 }

@@ -35,7 +35,7 @@ func deferUnionTags(c lowering.Ctx, ts *compile.Types, u unionAt, n *ir.Union, p
 	if !c.DiscriminatorInference.Honours() {
 		return
 	}
-	if u.disc.GetMapping().Len() > 0 || u.disc != nil && n.Discriminator == nil {
+	if u.disc != nil && (len(u.disc.Mapping) > 0 || n.Discriminator == nil) {
 		return
 	}
 	tags := unionTags{c: c, id: n.ID, pointer: pointer}

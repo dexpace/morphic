@@ -112,9 +112,9 @@ func FillCarrierDocs(d *ir.Docs, chain []*statement.Schema) {
 }
 
 // XMLHints maps an OpenAPI XML object onto ir.XMLHints; an attribute flag
-// becomes the "attribute" node type. Fields are read directly rather than via
-// the library getters, which dereference unset (nil) field pointers.
-func XMLHints(x *oas3.XML) *ir.XMLHints {
+// becomes the "attribute" node type. A field x leaves unset stays unset, so a
+// declared false can override a type's true field by field.
+func XMLHints(x *statement.XML) *ir.XMLHints {
 	if x == nil {
 		return nil
 	}
@@ -373,7 +373,7 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
 	m := statement.Parsed(s)
 	var out Set
-	out.XML = XMLHints(m.GetXML())
+	out.XML = XMLHints(xmlIn(s))
 
 	examples, exDiags := schemaExamplesAt(s, pointer, doc)
 	out.Examples = examples
@@ -402,7 +402,7 @@ func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	m := statement.Parsed(s)
 	var out ir.Unmodeled
-	xmlTaken, diags := applyNodeType(&out, hints, m.GetXML(), doc, pointer+ids.Ptr("xml"))
+	xmlTaken, diags := applyNodeType(&out, hints, xmlIn(s), doc, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
 		obj     any
@@ -434,11 +434,11 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 // may fill XMLHints.NodeType. An attribute flag the nodeType contradicts, which
 // 3.2 forbids writing beside it, is kept verbatim on p rather than placed, so
 // the hints never name two kinds of node.
-func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, doc provenance.Doc, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
+func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *statement.XML, doc provenance.Doc, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	if x == nil {
 		return nil, nil
 	}
-	nodeType, read, diags := TakeString(p, x.GetRootNode(), "nodeType", definedNodeType, doc, owner, "xml")
+	nodeType, read, diags := TakeString(p, x.Node, "nodeType", definedNodeType, doc, owner, "xml")
 	if !read {
 		return nil, diags
 	}
@@ -613,4 +613,12 @@ func (k Kind) String() string {
 	default:
 		return fmt.Sprintf("Kind(%d)", int(k))
 	}
+}
+
+// xmlIn returns the xml object s writes, nil for none.
+func xmlIn(s *statement.Schema) *statement.XML {
+	if s == nil || s.Notes == nil {
+		return nil
+	}
+	return s.Notes.XML
 }

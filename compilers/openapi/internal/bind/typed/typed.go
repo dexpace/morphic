@@ -27,10 +27,8 @@ type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 // built once (Builder) and never written after, and a nil one knows nothing.
 type Bindings struct {
 	table *bind.Table
-	// at is where each schema, and each discriminator, the lowering can hold
-	// was read.
-	at    map[*schemaRef]bind.Position
-	discs map[*oas3.Discriminator]bind.Position
+	// at is where each schema the lowering can hold was read.
+	at map[*schemaRef]bind.Position
 	// of is where each schema at knows was read, by the model it holds, which
 	// decoding builds afresh for every path to a node (SiteOf): each where a
 	// schema names a dialect, else each writing a list of items (index).
@@ -153,15 +151,11 @@ func (b *Bindings) At(p bind.Position) *schemaRef {
 	return b.held[p]
 }
 
-// Mapping returns where value, a mapping value of the discriminator d, lands,
-// and false for a discriminator b does not know or a value the table did not
-// read as a reference.
-func (b *Bindings) Mapping(d *oas3.Discriminator, value string) (bind.Mapping, bool) {
-	if b == nil || d == nil {
-		return bind.Mapping{}, false
-	}
-	at, ok := b.discs[d]
-	if !ok {
+// Mapping returns where value, a mapping value of the discriminator read at
+// at, lands, and false for a value the table did not read as a reference
+// there.
+func (b *Bindings) Mapping(at bind.Position, value string) (bind.Mapping, bool) {
+	if b == nil {
 		return bind.Mapping{}, false
 	}
 	return b.table.Mapping(at, value)
@@ -228,7 +222,7 @@ const MaxMends = 8
 // NewBuilder returns a Builder over table, knowing no schema yet.
 func NewBuilder(table *bind.Table) *Builder {
 	return &Builder{decode: decodeSchema, view: nodeview.New(), b: &Bindings{table: table, at: map[*schemaRef]bind.Position{},
-		discs: map[*oas3.Discriminator]bind.Position{}, held: map[bind.Position]*schemaRef{},
+		held:        map[bind.Position]*schemaRef{},
 		objectSites: map[any]objectSite{}, objects: map[objectSite]any{}}}
 }
 
@@ -297,13 +291,6 @@ func (bd *Builder) mend(ctx context.Context) {
 	}
 }
 
-// Discriminator records that d was read at p.
-func (bd *Builder) Discriminator(d *oas3.Discriminator, p bind.Position) {
-	if d != nil {
-		bd.b.discs[d] = p
-	}
-}
-
 // Object records that model, a reference-or-inline wrapper of kind, was read
 // at p. The first recorded of a kind at a position is the one held there.
 func (bd *Builder) Object(model any, kind bind.RefKind, p bind.Position) {
@@ -323,8 +310,8 @@ func (bd *Builder) HoldsObject(p bind.Position, kind bind.RefKind) bool {
 	return held
 }
 
-// Walk records js, read at p, and every schema and discriminator below it, at
-// the position each is read at, until ctx is done: the library's walk reads no
+// Walk records js, read at p, and every schema below it, at the position each
+// is read at, until ctx is done: the library's walk reads no
 // context (docs/parser-library.md#context-unread), so Walk asks it before each
 // item.
 func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p bind.Position) {
@@ -335,8 +322,7 @@ func (bd *Builder) Walk(ctx context.Context, js *schemaRef, p bind.Position) {
 		at := bind.Position{Doc: p.Doc, Pointer: p.Pointer + PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(oas3.SchemaMatcher{
-			Schema:        func(s *schemaRef) error { bd.Schema(s, at); return nil },
-			Discriminator: func(d *oas3.Discriminator) error { bd.Discriminator(d, at); return nil },
+			Schema: func(s *schemaRef) error { bd.Schema(s, at); return nil },
 		})
 	}
 }

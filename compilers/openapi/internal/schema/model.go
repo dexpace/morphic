@@ -42,7 +42,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		requireMembers(m, sM.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, sM.GetDiscriminator(), pointer, m, nil)
+			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}

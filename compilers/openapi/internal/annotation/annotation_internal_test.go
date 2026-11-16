@@ -680,26 +680,25 @@ func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
 }
 
 // TestXMLHints_ReadsEveryFieldDirectly pins the fields read off the XML object
-// and the nil guard. The fields are read directly rather than through getters
-// that dereference unset pointers, so a schema writing only some of them must
-// not crash or invent the rest.
+// and the nil guard: a schema writing only some of them must not crash or
+// invent the rest.
 func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
 	t.Parallel()
 	assert.Nil(t, XMLHints(nil))
 
 	s := schemaFromYAML(t, "type: string\nxml: {name: n, namespace: ns, prefix: p, wrapped: true, attribute: true}\n")
 	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: new(true), Attribute: new(true)},
-		XMLHints(s.GetXML()))
+		XMLHints(xmlIn(standaloneSchema(s))))
 
 	bare := schemaFromYAML(t, "type: string\nxml: {}\n")
-	assert.Equal(t, &ir.XMLHints{}, XMLHints(bare.GetXML()), "an empty xml object invents nothing")
+	assert.Equal(t, &ir.XMLHints{}, XMLHints(xmlIn(standaloneSchema(bare))), "an empty xml object invents nothing")
 
 	unwrapped := schemaFromYAML(t, "type: array\nxml: {wrapped: false}\n")
-	assert.Equal(t, &ir.XMLHints{Wrapped: new(false)}, XMLHints(unwrapped.GetXML()),
+	assert.Equal(t, &ir.XMLHints{Wrapped: new(false)}, XMLHints(xmlIn(standaloneSchema(unwrapped))),
 		"a declared false is kept, so it can override a type's true field by field")
 
 	notAttr := schemaFromYAML(t, "type: string\nxml: {attribute: false}\n")
-	assert.Equal(t, &ir.XMLHints{Attribute: new(false)}, XMLHints(notAttr.GetXML()),
+	assert.Equal(t, &ir.XMLHints{Attribute: new(false)}, XMLHints(xmlIn(standaloneSchema(notAttr))),
 		"a declared false is kept, so it can override a type's true field by field")
 }
 

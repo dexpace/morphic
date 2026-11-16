@@ -27,7 +27,7 @@ func deferSubtypeTag(c lowering.Ctx, ts *compile.Types, tag subtypeTag, id ir.Ty
 	if tag.byName == nil || !c.DiscriminatorInference.Honours() {
 		return
 	}
-	ts.Defer(subtypeTagReading{c: c, id: id, pointer: pointer, property: tag.byName.GetPropertyName(), name: tag.value})
+	ts.Defer(subtypeTagReading{c: c, id: id, pointer: pointer, property: tag.byName.PropertyName, name: tag.value})
 }
 
 // subtypeTagReading settles the tag of the subtype id under the
