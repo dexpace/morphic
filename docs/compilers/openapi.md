@@ -2751,19 +2751,20 @@ written and the schema's own `properties` after its `allOf`; a union branch dist
 variant reads before the body. A declaration an entry brings stays declared on its own model, so it
 is not kept verbatim, and a report about it sits at the entry bringing it, naming the member in its
 `Provenance.Node`, and names a declaration another document holds with that document's name, a
-member a part settled by the one place its type is written, and one written nowhere, as a member
-only a part's entries declare, by the entry bringing it. A member the model declares itself keeps
-the identity of the first of its own declarations, unless another model holds that declaration too,
-as a node interned at the `allOf` branch writing it does, or as the variants of a distributed union
-share their body's; that one, and one only entries declare, the model declares in the `composed`
-namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it, and a node its
-fold mints, name an overlay that wrote every entry and declaration it is assembled from. A model the
-merge composes, a distributed variant or a field's composition, shares its pointer with the schema
-written there, which may settle a member of that name too, so it declares one an `allOf` deeper, at
-`<model>/allOf/allOf/properties/<name>`, and no two models name one member. The member is required
-where the model's `required` names it, which the name then leaves, and a discriminator naming the
-model's own declaration, or by its name a member only entries declare, names the member
-([`discriminator`](#discriminator)).
+member a part settled by the one place its type is written, or by its first declaration where its
+type is written at several places or none, and one that would so be named where nothing is written,
+as a member only a part's entries declare, by the entry bringing it. A member the model declares
+itself keeps the identity of the first of its own declarations, unless another model holds that
+declaration too, as a node interned at the `allOf` branch writing it does, or as the variants of a
+distributed union share their body's; that one, and one only entries declare, the model declares in
+the `composed` namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it,
+and a node its fold mints, name an overlay that wrote every entry and declaration it is assembled
+from. A model the merge composes, a distributed variant or a field's composition, shares its pointer
+with the schema written there, which may settle a member of that name too, so it declares one an
+`allOf` deeper, at `<model>/allOf/allOf/properties/<name>`, and no two models name one member. The
+member is required where the model's `required` names it, which the name then leaves, and a
+discriminator naming the model's own declaration, or by its name a member only entries declare,
+names the member ([`discriminator`](#discriminator)).
 The registry does not record which heuristic made a brought declaration secret, so a secret one's
 `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
 composes for a member lists its parts as the entries bringing them are written, and settles in turn,
