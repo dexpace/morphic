@@ -145,16 +145,16 @@ func readTree(dec *jsontext.Decoder, relocate func(string) string, depth int) (a
 	case '{':
 		return readObject(dec, relocate, depth)
 	case '[':
-		array := []any{}
+		elements := []any{}
 		for dec.PeekKind() != ']' {
 			element, err := readTree(dec, relocate, depth+1)
 			if err != nil {
 				return nil, err
 			}
-			array = append(array, element)
+			elements = append(elements, element)
 		}
 		_, err := dec.ReadToken()
-		return array, err
+		return elements, err
 	case '"':
 		return relocate(tok.String()), nil
 	case '0':

@@ -370,11 +370,11 @@ type shard struct {
 	cases Cases
 	axes  []Axis
 	key   []int
-	kept  map[int]compiled
+	kept  map[int]compilation
 }
 
-// compiled is what a case's document compiled to.
-type compiled struct {
+// compilation is what a case's document compiled to.
+type compilation struct {
 	doc   *ir.Document
 	diags []ir.Diagnostic
 	err   error
@@ -382,14 +382,14 @@ type compiled struct {
 
 // uncompiled reports whether c is a refusal and not what its case says: the
 // compile drew an error diagnostic, or returned no document.
-func (c compiled) uncompiled() bool {
+func (c compilation) uncompiled() bool {
 	_, failed := ir.FirstError(c.diags)
 	return failed || c.doc == nil
 }
 
 // newShard returns the empty shard holding the case at.
 func newShard(c Cases, axes []Axis, at []int) *shard {
-	return &shard{cases: c, axes: axes, key: slices.Clone(at[:min(shardAxes, len(at))]), kept: map[int]compiled{}}
+	return &shard{cases: c, axes: axes, key: slices.Clone(at[:min(shardAxes, len(at))]), kept: map[int]compilation{}}
 }
 
 // holds reports whether the case at belongs to s.
@@ -398,9 +398,9 @@ func (s *shard) holds(at []int) bool { return slices.Equal(s.key, at[:len(s.key)
 // compile returns what the case at compiles to, compiling it the first time s
 // is asked, and false where the case writes nothing. A case outside the
 // product compiles to an error.
-func (s *shard) compile(ctx context.Context, at []int) (compiled, bool) {
+func (s *shard) compile(ctx context.Context, at []int) (compilation, bool) {
 	if !inProduct(s.axes, at) {
-		return compiled{err: fmt.Errorf("harness: case %v is outside the product", at)}, true
+		return compilation{err: fmt.Errorf("harness: case %v is outside the product", at)}, true
 	}
 	i := indexOf(s.axes, at)
 	if got, ok := s.kept[i]; ok {
@@ -408,9 +408,9 @@ func (s *shard) compile(ctx context.Context, at []int) (compiled, bool) {
 	}
 	doc, ok := s.cases.Write(slices.Clone(at))
 	if !ok {
-		return compiled{}, false
+		return compilation{}, false
 	}
-	var got compiled
+	var got compilation
 	got.doc, got.diags, got.err = compileSources(ctx, doc.Sources, doc.Options, passes())
 	s.kept[i] = got
 	return got, true

@@ -86,7 +86,11 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 }
 
 // TestGroups_NamesEachCarriersNode pins the node each position's carriers
-// compile to, in the order of the group's valid instances.
+// compile to, in the order of the group's valid instances, and holds each to
+// the compiler: the instance oracle asks the case, where it declines one
+// naming an instance at a node no carrier compiles to. The core runs the
+// property position alone, so nothing else in the gate holds the other two
+// positions' nodes to the compiler.
 func TestGroups_NamesEachCarriersNode(t *testing.T) {
 	c := openapicases.Groups()
 	for position, want := range map[string][]string{
@@ -96,11 +100,19 @@ func TestGroups_NamesEachCarriersNode(t *testing.T) {
 		"header": {"p/openapi/paths/~1c/get/responses/200/headers/H0",
 			"p/openapi/paths/~1c/get/responses/200/headers/H1"},
 	} {
-		doc, ok := c.Write(groupAt(t, c, "required.json%2Frequired properties whose names are Javascript object "+
-			"property names", position))
+		at := groupAt(t, c, "required.json%2Frequired properties whose names are Javascript object "+
+			"property names", position)
+		doc, ok := c.Write(at)
 		require.True(t, ok)
 		require.Len(t, doc.Instances, 3, position)
 		assert.Equal(t, want, []string{doc.Instances[0].Node, doc.Instances[1].Node}, position)
 		assert.Equal(t, "ignores arrays", doc.Instances[0].Name)
+
+		res, ok := harness.CheckCase(t.Context(), c, at)
+		require.True(t, ok)
+		require.False(t, res.Faulted(), "%s: %s: %s", position, res.Outcome, res.Detail)
+		i := slices.IndexFunc(res.Verdicts, func(v harness.Verdict) bool { return v.Oracle == harness.OracleInstance })
+		require.GreaterOrEqual(t, i, 0, position)
+		assert.True(t, res.Verdicts[i].Asked(), "%s: %s", position, res.Verdicts[i].Declined)
 	}
 }

@@ -198,7 +198,7 @@ func carryParameters(uses []object) (object, object, []string) {
 		params[i] = object{{"name", name}, {"in", "query"}, {"schema", u}}
 		nodes[i] = "param/openapi/paths/" + pointerToken(casePath) + "/get/parameters/" + name + "/query"
 	}
-	paths, schemas := at(object{{"get", object{{"parameters", params}, {"responses", ok}}}})
+	paths, schemas := atCasePath(object{{"get", object{{"parameters", params}, {"responses", okResponses}}}})
 	return paths, schemas, nodes
 }
 
@@ -212,7 +212,7 @@ func carryHeaders(uses []object) (object, object, []string) {
 		headers[i] = member{name, object{{"schema", u}}}
 		nodes[i] = "p/openapi/paths/" + pointerToken(casePath) + "/get/responses/200/headers/" + name
 	}
-	paths, schemas := at(response(member{"headers", headers}))
+	paths, schemas := atCasePath(response(member{"headers", headers}))
 	return paths, schemas, nodes
 }
 

@@ -4,8 +4,10 @@
 package openapicases_test
 
 import (
+	"maps"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,4 +49,38 @@ func TestCore_SpellingsHoldTheRecord(t *testing.T) {
 	assert.Empty(t, changed)
 	assert.Empty(t, stale, "a line whose finding is gone: delete it (-update)")
 	assert.Empty(t, unreasoned)
+}
+
+// colliding are the groups whose own schema keeps two entries of an allOf
+// whole, as "openapi:allOf/<index>" each. The relocation erases the index of
+// every kept name, the group's own among them, so the two read as one name and
+// the spelling oracle compares no spelling of the group.
+var colliding = []string{
+	"if-then-else.json%2Fnon-interference across combined schemas",
+	"unevaluatedItems.json%2FunevaluatedItems depends on multiple nested contains",
+	"unevaluatedItems.json%2FunevaluatedItems with nested unevaluatedItems (prefixItems)",
+	"unevaluatedProperties.json%2Fcousin unevaluatedProperties, true and false, false with properties",
+}
+
+// TestCore_ARelocationCollidesAtTheListedGroupsAlone holds the core cases the
+// spelling oracle declines for a relocation that collides to colliding. No
+// record lists that decline, so a case starting to draw it would otherwise go
+// uncompared unseen. A case outside the core drawing it where the core case it
+// is like does not is held by nothing.
+func TestCore_ARelocationCollidesAtTheListedGroupsAlone(t *testing.T) {
+	collides := func(r harness.Result) bool {
+		return slices.ContainsFunc(r.Verdicts, func(v harness.Verdict) bool {
+			return v.Declined == harness.DeclineRelocationCollides
+		})
+	}
+	for _, r := range coreResults(t) {
+		assert.False(t, collides(r), r.Spec)
+	}
+	groups := map[string]bool{}
+	for _, r := range groupResults(t) {
+		if collides(r) {
+			groups[strings.Split(r.Spec, "/")[1]] = true
+		}
+	}
+	assert.Equal(t, colliding, slices.Sorted(maps.Keys(groups)))
 }

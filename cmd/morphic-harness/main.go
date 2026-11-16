@@ -145,8 +145,8 @@ func checkCases(ctx context.Context, fmts []format, core bool, stdout, stderr io
 
 // checkOne applies the case oracles to the case at index n of the formats'
 // cases, counted one format after another, and writes its name, its sources
-// and each verdict. It returns 2 for an index naming no case, and 1 when the
-// case holds a finding.
+// and each verdict. It returns 2 for an index naming no case, and otherwise
+// what writeCase returns for the case.
 func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Writer) int {
 	first := 0
 	for _, f := range fmts {
@@ -208,8 +208,8 @@ func exitCode(results []harness.Result) int {
 
 // emitf writes a formatted message to w; write errors on a human-facing stream
 // are unactionable and deliberately discarded.
-func emitf(w io.Writer, format string, args ...any) {
-	_, _ = fmt.Fprintf(w, format, args...)
+func emitf(w io.Writer, layout string, args ...any) {
+	_, _ = fmt.Fprintf(w, layout, args...)
 }
 
 const usage = `usage:
@@ -238,5 +238,6 @@ its sources and each verdict are written. N counts the cases of one product
 after another: the OpenAPI schema cases, then the JSON Schema Test Suite's
 groups, each written as defaults. A case is written to compile, so an oracle
 declining one for an error diagnostic is reported as a finding is. Exit status
-is 0 when nothing is left to report, 1 when anything is (with -at, any finding
-the case holds, listed or not), 2 on a usage error or an index naming no case.`
+is 0 when nothing is left to report, 1 when anything is, 2 on a usage error or
+an index naming no case. -at reads no record: it exits 1 on any finding the
+case holds, and its output does not say whether a record lists one.`

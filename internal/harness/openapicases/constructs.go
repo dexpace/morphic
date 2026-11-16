@@ -27,9 +27,9 @@ type construct struct {
 	components object
 	// reason says why nothing carries the keyword; empty for one carried.
 	reason string
-	// stays is where the spellings write a keyword none moves, unmoved why.
-	stays   stays
-	unmoved string
+	// stays is where the spellings write a keyword none moves; the comment on
+	// each such row of the table says why.
+	stays stays
 }
 
 // stays is which spellings write a keyword: every one, moving it as one unit
@@ -46,17 +46,6 @@ const (
 	// inlineAlone is inline: written beside the use, the keyword changes what
 	// the use names.
 	inlineAlone
-)
-
-// The reasons a keyword stays where inline writes it.
-const (
-	// identity is a keyword naming or configuring the schema resource it is
-	// written in.
-	identity = "identifies or configures the schema resource it is written in, so it is no conjunct of " +
-		"the use, beside it or on an entry (docs/compilers/openapi.md#dialect-keywords)"
-	// unevaluated is a keyword reading what the schema object holding it does not evaluate.
-	unevaluated = "applies to what no keyword beside it evaluates, so on an entry it reads that entry " +
-		"alone (docs/compilers/openapi.md#allof-inline-residue)"
 )
 
 // span is the versions a construct is written at.
@@ -162,10 +151,11 @@ func constructs() []construct {
 // sharedConstructs are the keywords every version takes from JSON Schema.
 func sharedConstructs() []construct {
 	return []construct{
+		// The use's own keyword: a second $ref beside it or on an entry is a second
+		// use, not a keyword said of the target (docs/compilers/openapi.md#ref-use-site).
 		{keyword: "$ref", values: fixed("$ref", `"#/components/schemas/RefString"`, `"#/components/schemas/RefInteger"`),
 			components: object{{"RefString", raw(`{"type": "string"}`)}, {"RefInteger", raw(`{"type": "integer"}`)}},
-			stays:      inlineAlone, unmoved: "the use's own keyword: a second $ref beside it or on an entry is a " +
-				"second use, not a keyword said of the target (docs/compilers/openapi.md#ref-use-site)"},
+			stays:      inlineAlone},
 		{keyword: "title", values: fixed("title", `"T"`, `"Z"`)},
 		{keyword: "multipleOf", targets: numberTargets(), values: fixed("multipleOf", "2", "3")},
 		{keyword: "maximum", targets: numberTargets(), values: fixed("maximum", "9", "8")},
@@ -209,9 +199,9 @@ func sharedConstructs() []construct {
 func openAPIConstructs() []construct {
 	return []construct{
 		{keyword: "nullable", span: only30, values: fixed("nullable", "true", "false")},
+		// It routes the union written beside it (docs/compilers/openapi.md#allof-inline-residue).
 		{keyword: "discriminator", targets: []string{objectTarget}, values: fixed("discriminator",
-			`{"propertyName": "a"}`, `{"propertyName": "b"}`), stays: besideToo,
-			unmoved: "routes the union written beside it (docs/compilers/openapi.md#allof-inline-residue)"},
+			`{"propertyName": "a"}`, `{"propertyName": "b"}`), stays: besideToo},
 		{keyword: "xml", values: fixed("xml", `{"name": "n"}`, `{"name": "z"}`)},
 		{keyword: "externalDocs", values: fixed("externalDocs",
 			`{"url": "https://example.com/a"}`, `{"url": "https://example.com/z"}`)},
@@ -236,10 +226,12 @@ func dialectConstructs() []construct {
 		{keyword: "if", span: from31, values: fixed("if", `{"const": "a"}`, `{"const": "z"}`)},
 		{keyword: "then", span: from31, values: fixed("then", `{"const": "a"}`, `{"const": "z"}`)},
 		{keyword: "else", span: from31, values: fixed("else", `{"const": "a"}`, `{"const": "z"}`)},
+		// Each of the two applies to what no keyword beside it evaluates, so on an
+		// entry it reads that entry alone (docs/compilers/openapi.md#allof-inline-residue).
 		{keyword: "unevaluatedItems", span: from31, targets: arrayTargets(), values: fixed("unevaluatedItems",
-			`{"type": "string"}`, `{"type": "boolean"}`), stays: besideToo, unmoved: unevaluated},
+			`{"type": "string"}`, `{"type": "boolean"}`), stays: besideToo},
 		{keyword: "unevaluatedProperties", span: from31, targets: append(objectTargets(), stringTarget),
-			values: fixed("unevaluatedProperties", "false", `{"type": "string"}`), stays: besideToo, unmoved: unevaluated},
+			values: fixed("unevaluatedProperties", "false", `{"type": "string"}`), stays: besideToo},
 		{keyword: "contentSchema", span: from31, targets: []string{stringTarget}, values: fixed("contentSchema",
 			`{"type": "object"}`, `{"type": "array"}`)},
 		{keyword: "const", span: from31, values: instances("const", "%s")},
@@ -256,16 +248,18 @@ func dialectConstructs() []construct {
 }
 
 // dialectCore are the core vocabulary's keywords 2020-12 adds, among them the
-// four nothing carries.
+// four nothing carries. Each that stays beside the use identifies or configures
+// the schema resource it is written in, so it is no conjunct of the use, beside
+// it or on an entry (docs/compilers/openapi.md#dialect-keywords).
 func dialectCore() []construct {
 	return []construct{
-		{keyword: "$id", span: from31, values: fixed("$id", `"urn:example:a"`, `"urn:example:z"`), stays: inlineAlone,
-			unmoved: "beside the use's $ref it is the base that $ref resolves against, so the use names another " +
-				"schema (docs/compilers/openapi.md#references)"},
+		// Beside the use's $ref it is the base that $ref resolves against, so the
+		// use names another schema (docs/compilers/openapi.md#references).
+		{keyword: "$id", span: from31, values: fixed("$id", `"urn:example:a"`, `"urn:example:z"`), stays: inlineAlone},
 		{keyword: "$schema", span: from31, values: fixed("$schema",
 			`"https://json-schema.org/draft/2020-12/schema"`, `"https://json-schema.org/draft/2019-09/schema"`),
-			stays: besideToo, unmoved: identity},
-		{keyword: "$anchor", span: from31, values: fixed("$anchor", `"a"`, `"z"`), stays: besideToo, unmoved: identity,
+			stays: besideToo},
+		{keyword: "$anchor", span: from31, values: fixed("$anchor", `"a"`, `"z"`), stays: besideToo,
 			reason: "read as a reference target: the binder resolves $ref: '#a' to the schema " +
 				"declaring it (docs/compilers/openapi.md#references), so the reference carries it; " +
 				"declaring one says nothing about the shape"},
@@ -275,17 +269,15 @@ func dialectCore() []construct {
 				{"AnchorN", raw(`{"$dynamicAnchor": "n", "type": "integer"}`)},
 			}},
 		{keyword: "$dynamicAnchor", span: from31, values: fixed("$dynamicAnchor", `"m"`, `"n"`), stays: besideToo,
-			unmoved: identity,
 			reason: "read as a reference target by the binder, which is what lets a " +
 				"$dynamicRef expand (docs/compilers/openapi.md#dynamic-ref); declaring one says nothing about the shape"},
 		{keyword: "$vocabulary", span: from31, values: fixed("$vocabulary",
 			`{"https://json-schema.org/draft/2020-12/vocab/core": true}`,
 			`{"https://json-schema.org/draft/2020-12/vocab/validation": true}`)},
 		{keyword: "$comment", span: from31, values: fixed("$comment", `"note"`, `"other"`), stays: besideToo,
-			unmoved: identity,
-			reason:  "2020-12 §8.3 forbids presenting it to end users, so an SDK emitter must never see it"},
+			reason: "2020-12 §8.3 forbids presenting it to end users, so an SDK emitter must never see it"},
 		{keyword: "$defs", span: from31, values: fixed("$defs", `{"D": {"type": "string"}}`, `{"D": {"type": "integer"}}`),
-			stays: besideToo, unmoved: identity,
+			stays: besideToo,
 			reason: "declares nothing about the enclosing shape; a member is lowered on demand " +
 				"when a $ref names it (resolveSchemaRef -> hoistSubSchema)"},
 	}

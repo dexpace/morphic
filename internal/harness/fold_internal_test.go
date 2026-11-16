@@ -319,9 +319,9 @@ func TestDecoratorUses_FollowsAChainAndLeavesACycle(t *testing.T) {
 	assert.Equal(t, "outer", uses[outerID].notes.deprecation.Message)
 	assert.Equal(t, []ir.Example{{Name: "outer"}}, uses[outerID].notes.examples)
 	assert.Len(t, uses[outerID].notes.unmodeled["openapi:x"], 2)
-	listed, ok := uses[outerID].notes.unmodeledMember()["openapi:x"].([]ir.UnmodeledEntry)
+	repeated, ok := uses[outerID].notes.unmodeledMember()["openapi:x"].([]ir.UnmodeledEntry)
 	require.True(t, ok, "a name the chain repeats is written as a list")
-	assert.Len(t, listed, 2)
+	assert.Len(t, repeated, 2)
 	assert.Equal(t, ir.TypeID("t/x/gone"), uses["t/x/d"].target)
 	assert.Zero(t, uses["t/x/d"].lent, "a type the registry does not hold lends nothing")
 

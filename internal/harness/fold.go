@@ -20,10 +20,11 @@ import (
 // the marshalers that write each reference to one as a reference to the type
 // it stands for, what the chain holds beside it, and at a carrier what
 // carried.write merges. Two spellings of one use then encode alike. An ID
-// naming a decorator is written as the type's alone, so what a decorator holds
-// is compared only where a reference names it. It is a second implementation
-// of the emitter's collapse (docs/emitters/refine/decorators.md), until
-// emitters/refine holds that one, which replaces it.
+// naming a decorator is written as the type's alone and a decorator nothing
+// names is left out, so what one holds is compared only where a reference
+// names it. It is a second implementation of the emitter's collapse
+// (docs/emitters/refine/decorators.md), until emitters/refine holds that one,
+// which replaces it.
 func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 	uses := decoratorUses(doc.Types)
 	if len(uses) == 0 {
@@ -47,23 +48,23 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
 			c := carried[plainProperty]{Carrier: plainProperty(p)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, true})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
 			c := carried[plainHeader]{Carrier: plainHeader(h)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, true})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
 			c := carried[plainParameter]{Carrier: plainParameter(p)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, true})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
 			c := carried[plainVariant]{Carrier: plainVariant(v)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, false})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: false})
 		}),
 	)
 }
@@ -152,7 +153,9 @@ type annotations struct {
 	unmodeled    map[string][]ir.UnmodeledEntry
 }
 
-// notesOf returns the annotations a decorator's c holds.
+// notesOf returns the annotations a decorator's c holds. Its Name and its
+// Provenance go with the node the fold leaves out, so which spelling marks a
+// decorator Inferred is not compared.
 func notesOf(c *ir.TypeCommon) annotations {
 	return annotations{docs: c.Docs, deprecation: c.Deprecation, examples: c.Examples, availability: c.Availability,
 		unmodeled: entryLists(c.Unmodeled)}

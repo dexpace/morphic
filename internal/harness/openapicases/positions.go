@@ -23,8 +23,8 @@ const (
 	casePath   = "/c"
 )
 
-// ok is the responses of an operation whose response writes no schema.
-const ok = raw(`{"200": {"description": "ok"}}`)
+// okResponses is the responses of an operation whose response writes no schema.
+const okResponses = raw(`{"200": {"description": "ok"}}`)
 
 // positions returns the positions, in the order the position axis lists them.
 // The component position also writes a property of a second component naming
@@ -48,23 +48,23 @@ func positions() []position {
 		}, nil, "/components/schemas/C/oneOf/0"},
 		{"parameter", func(s object) (object, object) {
 			param := object{{"name", "q"}, {"in", "query"}, {"schema", s}}
-			return at(object{{"get", object{{"parameters", []any{param}}, {"responses", ok}}}})
+			return atCasePath(object{{"get", object{{"parameters", []any{param}}, {"responses", okResponses}}}})
 		}, carryParameters, "/paths/~1c/get/parameters/0/schema"},
 		{"requestBody", func(s object) (object, object) {
 			body := object{{"content", object{{"application/json", object{{"schema", s}}}}}}
-			return at(object{{"post", object{{"requestBody", body}, {"responses", ok}}}})
+			return atCasePath(object{{"post", object{{"requestBody", body}, {"responses", okResponses}}}})
 		}, nil, "/paths/~1c/post/requestBody/content/application~1json/schema"},
 		{"responseBody", func(s object) (object, object) {
-			return at(response(member{"content", object{{"application/json", object{{"schema", s}}}}}))
+			return atCasePath(response(member{"content", object{{"application/json", object{{"schema", s}}}}}))
 		}, nil, "/paths/~1c/get/responses/200/content/application~1json/schema"},
 		{"header", func(s object) (object, object) {
-			return at(response(member{"headers", object{{"H", object{{"schema", s}}}}}))
+			return atCasePath(response(member{"headers", object{{"H", object{{"schema", s}}}}}))
 		}, carryHeaders, "/paths/~1c/get/responses/200/headers/H/schema"},
 	}
 }
 
-// at returns the paths holding op at the case's path, and no component.
-func at(op object) (object, object) { return object{{casePath, op}}, nil }
+// atCasePath returns the paths holding op at the case's path, and no component.
+func atCasePath(op object) (object, object) { return object{{casePath, op}}, nil }
 
 // response returns the operation whose response 200 writes of.
 func response(of member) object {

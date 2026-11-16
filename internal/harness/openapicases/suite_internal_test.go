@@ -12,7 +12,9 @@ import (
 )
 
 // TestCompatible_TheReadmesExamples holds compatible to the seven examples of
-// the suite's README, at a release on each side of every bound they name.
+// the suite's README, at a release on each side of every bound they name, and
+// to its algorithm where the examples do not tell it from a union of ranges:
+// two terms in a row naming a release each.
 func TestCompatible_TheReadmesExamples(t *testing.T) {
 	releases := []int{3, 4, 6, 7, 2019, 2020, 9999}
 	for _, tc := range []struct {
@@ -27,6 +29,7 @@ func TestCompatible_TheReadmesExamples(t *testing.T) {
 		{"<=3,7", []int{3, 7, 2019, 2020, 9999}},
 		{"9999", []int{9999}},
 		{"", releases},
+		{"3,7", []int{3, 7, 2019, 2020, 9999}},
 	} {
 		var got []int
 		for _, r := range releases {
@@ -41,7 +44,7 @@ func TestCompatible_TheReadmesExamples(t *testing.T) {
 }
 
 func TestCompatible_RefusesATermNamingNoRelease(t *testing.T) {
-	for _, expr := range []string{"x", "<=", "=a", "-3", "6,,7", "<=-1"} {
+	for _, expr := range []string{"x", "<=", "=a", "-3", "6,,7", "<=-1", "=2020,x"} {
 		_, err := compatible(expr, release2020)
 		require.Error(t, err, "%q", expr)
 		assert.Contains(t, err.Error(), "a term naming no release", "%q", expr)

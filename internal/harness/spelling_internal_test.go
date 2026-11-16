@@ -44,8 +44,8 @@ func eraseAllOf(s string) string {
 }
 
 // spellingSpec is a document at version writing T, a string, Obj, an object,
-// and C, the use, as the YAML flow mapping use.
-func spellingSpec(version, use string) []byte {
+// and C, the use, as the YAML flow mapping schema.
+func spellingSpec(version, schema string) []byte {
 	return fmt.Appendf(nil, `openapi: %s
 info: {title: t, version: "1"}
 paths: {}
@@ -54,7 +54,7 @@ components:
     T: {type: string}
     Obj: {type: object, properties: {a: {type: string}}}
     C: %s
-`, version, use)
+`, version, schema)
 }
 
 // spellingPair is a product of two cases: the partner, writing partner, and
@@ -172,9 +172,9 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 			strings.SplitN(v.Detail, "\n", 2)[0], "a report stated at another pointer or severity is no report drawn")
 	}
 
-	var compile compileFunc
-	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
-		doc, diags, err := compile(ctx, spec, data, ps)
+	var unswapped compileFunc
+	unswapped = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := unswapped(ctx, spec, data, ps)
 		return doc, slicesDeleteCode(diags, "openapi/later-version-construct"), err
 	})
 	v = spellingVerdict(t, minLength)
@@ -186,14 +186,14 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 // reports compare by: each pointer and each node read in the partner's
 // coordinates.
 func TestRelocatedSet_RelocatesEachPointerAndNode(t *testing.T) {
-	report := func(at string) ir.Diagnostic {
+	reportAt := func(at string) ir.Diagnostic {
 		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: "x/y",
 			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at), Node: "t/openapi" + at}}
 	}
 
-	got := relocatedSet([]ir.Diagnostic{report(useAt + "/allOf/1")}, eraseAllOf)
+	got := relocatedSet([]ir.Diagnostic{reportAt(useAt + "/allOf/1")}, eraseAllOf)
 
-	assert.Equal(t, diagnosticSet([]ir.Diagnostic{report(useAt)}), got)
+	assert.Equal(t, diagnosticSet([]ir.Diagnostic{reportAt(useAt)}), got)
 }
 
 // slicesDeleteCode returns diags less every report of code.
@@ -255,9 +255,9 @@ func swapUncompiled(t *testing.T) map[string]string {
 	t.Helper()
 	how := map[string]string{}
 	boom := ir.Diagnostic{Severity: ir.SeverityError, Code: "x/refused", Message: "refused"}
-	var compile compileFunc
-	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
-		doc, diags, err := compile(ctx, spec, data, ps)
+	var unswapped compileFunc
+	unswapped = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := unswapped(ctx, spec, data, ps)
 		switch how[string(data)] {
 		case "refused":
 			return nil, append(diags, boom), err

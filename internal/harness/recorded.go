@@ -22,10 +22,10 @@ type Finding struct{ Name, What string }
 // Recorded is an oracle's known findings at the core cases, by name, each
 // with what was found and the reason it stands: a file of lines
 // "name<TAB>what<TAB>reason", a line starting "#" a comment.
-type Recorded map[string]entry
+type Recorded map[string]recordLine
 
-// entry is one line of a Recorded.
-type entry struct{ what, reason string }
+// recordLine is one line of a Recorded.
+type recordLine struct{ what, reason string }
 
 // ReadRecorded reads a record. A line that is not a comment, blank, or three
 // non-empty fields between tabs, and a name listed twice, are errors.
@@ -45,18 +45,18 @@ func ReadRecorded(data []byte) (Recorded, error) {
 		if _, dup := r[fields[0]]; dup {
 			return nil, fmt.Errorf("harness: record line %d: %q is listed twice", n, fields[0])
 		}
-		r[fields[0]] = entry{what: fields[1], reason: fields[2]}
+		r[fields[0]] = recordLine{what: fields[1], reason: fields[2]}
 	}
 	return r, nil
 }
 
-// Judge holds found, every finding an oracle made at the core cases, to r,
+// Judge holds findings, every finding an oracle made at the core cases, to r,
 // whose reasons must be keys of reasons. It returns, each sorted, a finding r
 // does not list, one it lists with another What, a line naming no finding,
 // and a line whose reason reasons does not name, such as "unclassified".
-func (r Recorded) Judge(found []Finding, reasons map[string]string) (unlisted, changed, stale, unreasoned []string) {
-	seen := make(map[string]bool, len(found))
-	for _, f := range found {
+func (r Recorded) Judge(findings []Finding, reasons map[string]string) (unlisted, changed, stale, unreasoned []string) {
+	seen := make(map[string]bool, len(findings))
+	for _, f := range findings {
 		seen[f.Name] = true
 		e, ok := r[f.Name]
 		switch {
@@ -86,17 +86,17 @@ func (r Recorded) Explains(f Finding, as string) bool {
 	return ok && e.what == f.What
 }
 
-// Write renders found as a record ReadRecorded reads back: header as comment
+// Write renders findings as a record ReadRecorded reads back: header as comment
 // lines, then a line per finding, by name, keeping the reason r gives its
 // name, and "unclassified" for a name r does not list. A What that is empty
 // or holds a tab writes a line ReadRecorded refuses, so an oracle's signature
 // line is neither.
-func (r Recorded) Write(header string, found []Finding) []byte {
+func (r Recorded) Write(header string, findings []Finding) []byte {
 	var b strings.Builder
 	for line := range strings.Lines(header) {
 		b.WriteString(strings.TrimRight("# "+strings.TrimSuffix(line, "\n"), " ") + "\n")
 	}
-	sorted := slices.SortedFunc(slices.Values(found), func(a, b Finding) int { return cmp.Compare(a.Name, b.Name) })
+	sorted := slices.SortedFunc(slices.Values(findings), func(a, b Finding) int { return cmp.Compare(a.Name, b.Name) })
 	for _, f := range sorted {
 		reason := unclassified
 		if e, ok := r[f.Name]; ok {
@@ -111,21 +111,22 @@ func (r Recorded) Write(header string, found []Finding) []byte {
 // decline its record lists as it lists a finding (listed), whose What is
 // "declined: <reason>".
 func Findings(results []Result, o Oracle) []Finding {
-	var found []Finding
+	var out []Finding
 	for _, r := range results {
 		for _, v := range r.Verdicts {
 			if v.Oracle == o && listed(v) {
-				found = append(found, findingOf(r, v))
+				out = append(out, findingOf(r, v))
 			}
 		}
 	}
-	return found
+	return out
 }
 
-// listed reports whether a record lists v: a finding, or a decline saying a
-// case gave its oracle something to ask that the oracle could not. A case is
-// written to compile and each group to be judged, so a document that draws an
-// error and an instance nothing judged show as a new finding does.
+// listed reports whether a record lists v: a finding, or one of the two
+// declines no case should draw. A case is written to compile and each group to
+// be judged, so a document that draws an error and an instance nothing judged
+// show as a new finding does. A spelling the oracle cannot compare, for a
+// relocation that collides or a document nested too deep, is listed by none.
 func listed(v Verdict) bool {
 	return v.Found() || v.Declined == DeclineErrorDiagnostic || v.Declined == DeclineNotJudged
 }

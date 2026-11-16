@@ -18,17 +18,17 @@ comparing it with the blob SHA upstream's tree at that commit lists for the same
 ## Selection
 
 The files are `validation/tests/<name>.json` for each top-level test file holding a group that
-applies at 2020-12, kept at upstream's paths. The files holding none, the legacy and draft-3 ones,
-are left out, as are `optional/` and `proposals/`. A group's `tags` are not read: they say whether
-it expects `format` to assert, and a valid instance of a group expecting an assertion is valid
-where `format` only annotates.
+applies at 2020-12, kept at upstream's paths. The files holding none are left out, as are
+`optional/` and `proposals/`. A group's `tags` are not read: they say whether it expects `format`
+to assert, and a valid instance of a group expecting an assertion is valid where `format` only
+annotates.
 
-A group applies at a release by its `compatibility` expression, which `compatible` reads as
-upstream's `validation/README.md` defines it: terms ordered smallest to largest and joined by
-commas, `N` opening a range from release `N`, `<=N` closing the open range, or one from the first
-release, at `N`, and `=N` naming release `N` alone. A group applies where any range holds the
-release, and one writing no expression at every release. Releases are numbered as the suite numbers
-them: a draft by its number, 2019-09 as `2019` and 2020-12 as `2020`.
+A group applies at a release by its `compatibility` expression, which `compatible` reads by the
+algorithm upstream's `validation/README.md` gives: the terms, joined by commas, are read in order,
+each deciding alone, `N` for a release at or past `N`, `<=N` for one at or before it and `=N` for
+`N` alone, and the first term whose `N` is at or past the release is the last one read. A group
+writing no expression applies at every release. Releases are numbered as the suite numbers them: a
+draft by its number, 2019-09 as `2019` and 2020-12 as `2020`.
 
 A group is named `<file>/<description>`, with `#<n>` after the nth occurrence of a description its
 file repeats, so a refresh renames a group only where upstream renames its description.
