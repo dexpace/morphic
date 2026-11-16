@@ -4,6 +4,7 @@
 package operation
 
 import (
+	"context"
 	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -300,7 +301,7 @@ type itemDefault struct {
 }
 
 // Settle writes the default to the item encoding and no node of reg.
-func (d itemDefault) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (d itemDefault) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]
 		return td, ok

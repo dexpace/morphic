@@ -11,16 +11,17 @@ import (
 )
 
 // A Settlement is a decision that reads nodes other lowerings intern. A walk
-// lowers one declaration at a time, so mid-walk such a decision would read
-// whatever had been lowered so far, and its answer would follow declaration
-// order (invariant 3). Deferred to Finish, it reads the registry whole.
+// lowers one declaration at a time, so mid-walk such a decision would follow
+// declaration order (invariant 3). Deferred to Finish, it reads the registry
+// whole.
 //
 // Settle may rewrite nodes already in reg. It must not remove one, which would
-// leave every reference to it dangling, and it adds one only through Register:
-// nothing lowers after it, so an added node is one it mints, which Register
-// holds to a namespace of its own.
+// leave every reference to it dangling, and it adds one only through Register,
+// which holds a node it mints to a namespace of its own. One settling many
+// nodes asks ctx between them and returns once it is done, as Finish does
+// between settlements.
 type Settlement interface {
-	Settle(reg ir.TypeRegistry) []ir.Diagnostic
+	Settle(ctx context.Context, reg ir.TypeRegistry) []ir.Diagnostic
 }
 
 // Defer queues s for Finish to settle. A nil settlement cannot be taken and is
@@ -66,7 +67,7 @@ func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 			return diags
 		}
 		before, minted := len(t.reg), t.minted
-		diags = append(diags, s.Settle(t.reg)...)
+		diags = append(diags, s.Settle(ctx, t.reg)...)
 		if after := len(t.reg); after != before+t.minted-minted {
 			t.refuse("settlement %T changed the registry from %d to %d nodes, having registered %d; "+
 				"a settlement rewrites nodes the registry holds, and adds one only through Register",

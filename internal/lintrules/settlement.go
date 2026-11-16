@@ -48,7 +48,7 @@ func settlements(pass *analysis.Pass) settlement {
 			if !isFunc || iface == nil || !types.Implements(fn.Signature().Recv().Type(), iface) {
 				continue
 			}
-			param := fn.Signature().Params().At(0)
+			param := fn.Signature().Params().At(1)
 			s.params[param] = !rebinds(pass.TypesInfo, fd.Body, param)
 			for n := range ast.Preorder(fd.Body) {
 				if lit, isLit := n.(*ast.FuncLit); isLit {

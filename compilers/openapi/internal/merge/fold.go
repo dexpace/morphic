@@ -79,10 +79,10 @@ func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {
 	return td, ok
 }
 
-// judgeAt is the judgment over g's registry of two declarations written at a
-// and b.
-func (g *Merger) judgeAt(a, b ir.Provenance) typeJudge {
-	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.Walk, written: [2]ir.Provenance{a, b}}}
+// judgeAt is the judgment over g's registry of two declarations whose types
+// are written at a and b (declaration.sites).
+func (g *Merger) judgeAt(a, b []ir.Provenance) typeJudge {
+	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.Walk, written: [2][]ir.Provenance{a, b}}}
 }
 
 // declaration is one declaration of a field, as the walk lowered it, and how
@@ -101,6 +101,22 @@ type declaration struct {
 	// declared there, so nothing keeps it verbatim and a report about it sits
 	// at the entry; nil for one the model declares itself.
 	via *composedEntry
+	// typeAt is where the nodes of the type of a declaration an entry brings
+	// may be written (Declared.TypeAt), and owner the model declaring it.
+	typeAt []ir.Provenance
+	owner  ir.TypeID
+}
+
+// sites is where the nodes of d's type may be written, which tells one
+// hoisted at its declaration from one a $ref brought there (hoistedAt): where
+// d is written, or, for a declaration an entry brings, where its part says,
+// since a member a part settled keeps its first declaration's identity
+// whichever gave its type.
+func (d declaration) sites() []ir.Provenance {
+	if d.via != nil {
+		return d.typeAt
+	}
+	return []ir.Provenance{d.prop.Provenance}
 }
 
 // reportAt is where what a fold says of d sits: the entry bringing it, or where
@@ -117,7 +133,7 @@ func (d declaration) reportAt() jsontext.Pointer {
 // which the flattening still reads.
 func (d declaration) keptAs() string {
 	if d.via != nil {
-		return "stays declared where it is written"
+		return "stays declared on its model"
 	}
 	return "is kept verbatim under Unmodeled"
 }
@@ -228,6 +244,10 @@ type folding struct {
 	// (composition).
 	conjuncts []conjunct
 	merged    ir.Property
+	// typeAt is where the nodes of the field's type may be written
+	// (Merger.typeSites), once foldType has settled it: a node the fold built
+	// holds members of declarations other than the winner.
+	typeAt []ir.Provenance
 	// notes holds what the fold reports at each declaration, in order, and
 	// lost marks each declaration something of which the field does not carry.
 	notes [][]note
@@ -278,6 +298,7 @@ func (f *folding) foldType() {
 	}
 	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
 	f.merged.Type.Target = target
+	f.typeAt = f.g.typeSites(f.merged, f.decls)
 }
 
 // meetField returns the field's target: the model the conjuncts compose, or the
@@ -349,13 +370,37 @@ func (f *folding) disagree(i, kept int, detail string) {
 
 // at is where decls[i] was written, as a report the fold makes names it: its
 // pointer, followed by its document's name where that is not the document the
-// report is in, as a declaration an entry brings may be written in another.
+// report is in, as a declaration an entry brings may be written in another. A
+// member an entry brings settled names its first declaration, which need not
+// say what the member does, so the report names the one place its type is
+// written, or, for one written nowhere (unwritten), the entry bringing it.
 func (f *folding) at(i int) string {
-	p := f.decls[i].prop.Provenance
+	d := f.decls[i]
+	p := d.prop.Provenance
+	if d.via != nil && len(d.typeAt) == 1 {
+		p = d.typeAt[0]
+	} else if f.unwritten(d) {
+		return string(d.via.at)
+	}
 	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {
 		return string(p.Pointer)
 	}
 	return string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+}
+
+// unwritten reports whether d is a member an entry brings that its model's
+// composition settled where no schema is written (settledAt).
+func (f *folding) unwritten(d declaration) bool {
+	if d.via == nil {
+		return false
+	}
+	td, _ := f.g.resolve(d.owner)
+	m, isModel := td.(*ir.Model)
+	if !isModel {
+		return false
+	}
+	at, wire := d.prop.Provenance.Pointer, d.prop.WireName
+	return at == settledAt(m, wire, false) || at == settledAt(m, wire, true)
 }
 
 // foldConstraints meets the constraints the cone writes on the property.
@@ -434,14 +479,15 @@ func sameExamples(a, b []ir.Example) bool {
 // other value every bound another declaration brought admits, where decls[i]'s
 // own type is the field's, but for those bounds (ownType), or the field's type
 // admits it. A value a declaration writes against its own type and bounds is
-// that declaration's to answer for, not the fold's, and a composed field has no
-// declaration whose type it is.
+// that declaration's to answer for, and a composed field has no declaration
+// whose type it is. The field's type is read where its nodes are written
+// (typeAt), not at the winner alone.
 func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
 		return nullable
 	}
-	winner, own := &f.decls[f.winner].prop, &f.decls[i].prop
-	judge := f.g.judgeAt(winner.Provenance, own.Provenance)
+	own := &f.decls[i].prop
+	judge := f.g.judgeAt(f.typeAt, f.decls[i].sites())
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}

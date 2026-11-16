@@ -63,7 +63,7 @@ func settleFlat(g *stubbed, idx *PropIndex, reg ir.TypeRegistry) []ir.Diagnostic
 		parts[target] = Table{}
 		for _, member := range ir.FlattenedProperties(reg, target).Properties {
 			if d, ok := TakenOutside(member, idx.m.ID); ok {
-				parts[target][member.Property.WireName] = d
+				parts[target][member.Property.WireName] = DeclaredAt(d)
 			}
 		}
 	}
@@ -259,8 +259,8 @@ func TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite(t *testing.T) {
 	g, _ := stubMerger(reg)
 	union, copied := ir.TypeRef{Target: "t/u"}, ir.TypeRef{Target: "t/e"}
 
-	assert.Equal(t, relBNarrower, g.judgeAt(ptrAt("/d0"), ptrAt("/d1")).relateFrom(union, copied, 0))
-	assert.Equal(t, relANarrower, g.judgeAt(ptrAt("/d1"), ptrAt("/d0")).relateFrom(copied, union, 0))
+	assert.Equal(t, relBNarrower, g.judgeAt(sitesAt("/d0"), sitesAt("/d1")).relateFrom(union, copied, 0))
+	assert.Equal(t, relANarrower, g.judgeAt(sitesAt("/d1"), sitesAt("/d0")).relateFrom(copied, union, 0))
 }
 
 // TestPropIndex_ComposesModelsAsTheirEntriesBringThem pins a member entries
@@ -379,6 +379,107 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 		"kept what the declaration at /M/allOf/1/properties/p says over the one at /B/p in other.yaml,")
 }
 
+// TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten pins where a settled
+// member says the nodes of its type may be written: where the one declaration
+// naming its node says, as that declaration's own list; where each says, of
+// several naming it; and, for a node the fold built, where it stands and then
+// where every declaration says, as it holds members of each.
+func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
+	t.Parallel()
+	reg := membersRegistry()
+	reg["t/built"] = &ir.List{ID: "t/built", Provenance: ptrAt("/M/p")}
+	g, _ := stubMerger(reg)
+	part := &composedEntry{target: "t/part", at: "/M/allOf/0"}
+	partSites := []ir.Provenance{ptrAt("/part/allOf/1/p"), ptrAt("/part/allOf/0/p")}
+	brought := declaration{prop: declared("p", "t/prim/string", "/part/allOf/0/p"), via: part, typeAt: partSites}
+	own := declaration{prop: declared("p", "t/prim/integer", "/M/p")}
+	twin := declaration{prop: declared("p", "t/prim/string", "/M/q")}
+	field := func(target ir.TypeID) ir.Property { return declared("p", target, "/M/p") }
+
+	kept := g.typeSites(field("t/prim/string"), []declaration{own, brought})
+	assert.Equal(t, partSites, kept)
+	assert.Same(t, &partSites[0], &kept[0], "one declaration's list is the member's, uncopied")
+	assert.Equal(t, []ir.Provenance{ptrAt("/part/allOf/1/p"), ptrAt("/part/allOf/0/p"), ptrAt("/M/q")},
+		g.typeSites(field("t/prim/string"), []declaration{brought, own, twin}), "each declaration naming the node")
+	assert.Equal(t, []ir.Provenance{ptrAt("/M/p"), ptrAt("/part/allOf/1/p"), ptrAt("/part/allOf/0/p")},
+		g.typeSites(field("t/built"), []declaration{own, brought}), "a built node first, then each declaration, once")
+	assert.Equal(t, []ir.Provenance{ptrAt("/M/p")},
+		g.typeSites(field("t/unregistered"), []declaration{own}), "a node the registry lacks adds no place")
+}
+
+// TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes pins how a report
+// names a declaration an entry brings. One a part settled names its first
+// declaration whichever gave its type, so the report names the one place its
+// type is written; where a fold built the type, the member's own place, or,
+// for one its model's composition settled at either depth, where no schema is
+// written, the entry bringing it.
+func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
+	t.Parallel()
+	reg := membersRegistry()
+	reg["t/part"] = &ir.Model{ID: "t/part", Provenance: ptrAt("/part")}
+	g, _ := stubMerger(reg)
+	entry := &composedEntry{target: "t/part", at: "/M/allOf/0"}
+	built := []ir.Provenance{ptrAt("/part/p"), ptrAt("/part/allOf/0/p"), ptrAt("/part/allOf/1/p")}
+	brought := func(owner ir.TypeID, pointer string, typeAt []ir.Provenance) declaration {
+		p := declared("p", "t/prim/string", pointer)
+		return broughtDeclaration(Declared{PropertyDecl: ir.PropertyDecl{Owner: owner, Property: &p}, TypeAt: typeAt}, entry)
+	}
+	f := &folding{g: &g.Merger, decls: []declaration{
+		brought("t/part", "/part/allOf/0/p", sitesAt("/part/allOf/1/p")),
+		brought("t/part", "/part/allOf/0/p", built),
+		brought("t/part", "/part/allOf/properties/p", built),
+		brought("t/part", "/part/allOf/allOf/properties/p", built),
+		brought("t/part", "/part/allOf/properties/p", sitesAt("/part/allOf/1/p")),
+		brought("t/prim/string", "/part/allOf/properties/p", built),
+		{prop: declared("p", "t/prim/string", "/M/allOf/properties/p")},
+	}}
+
+	for i, want := range []string{"/part/allOf/1/p", "/part/allOf/0/p", "/M/allOf/0", "/M/allOf/0", "/part/allOf/1/p",
+		"/part/allOf/properties/p", "/M/allOf/properties/p"} {
+		assert.Equal(t, want, f.at(i), "declaration %d", i)
+	}
+}
+
+// TestJoinSites_KeepsEachPlaceOnceUpToItsBound pins the places a settled
+// member records: each once by its document and pointer, in order, and no
+// more than maxTypeSites, so the place past the bound is the one left out.
+func TestJoinSites_KeepsEachPlaceOnceUpToItsBound(t *testing.T) {
+	t.Parallel()
+	places := func(n int) []ir.Provenance {
+		out := make([]ir.Provenance, n)
+		for i := range out {
+			out[i] = ptrAt(jsontext.Pointer(fmt.Sprintf("/d%d", i)))
+		}
+		return out
+	}
+	elsewhere := ir.Provenance{Source: 1, Pointer: "/d0"}
+
+	assert.Equal(t, []ir.Provenance{ptrAt("/d0"), ptrAt("/d1"), elsewhere},
+		joinSites(places(2), []ir.Provenance{ptrAt("/d1"), elsewhere, ptrAt("/d0")}), "one pointer in two documents is two places")
+	assert.Equal(t, places(maxTypeSites), joinSites(places(maxTypeSites)), "at the bound")
+	assert.Equal(t, places(maxTypeSites), joinSites(places(maxTypeSites+1)), "one past it")
+	assert.Equal(t, places(maxTypeSites), joinSites(places(maxTypeSites), places(1)), "a place already held costs nothing")
+}
+
+// TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType pins a hoisted node as
+// written at a declaration where it sits at or under any place the
+// declaration holds its type, in that place's document, and a named node, or
+// one written elsewhere, as declared apart.
+func TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType(t *testing.T) {
+	t.Parallel()
+	node := func(anonymous bool, source int, pointer jsontext.Pointer) ir.TypeDef {
+		return &ir.Enum{TypeCommon: ir.TypeCommon{Anonymous: anonymous, Provenance: ir.Provenance{Source: source, Pointer: pointer}}}
+	}
+	sites := []ir.Provenance{ptrAt("/A/allOf/0/p"), ptrAt("/A/allOf/1/p")}
+
+	assert.True(t, hoistedAt(node(true, 0, "/A/allOf/1/p"), sites), "at a later place")
+	assert.True(t, hoistedAt(node(true, 0, "/A/allOf/1/p/items"), sites), "under one")
+	assert.False(t, hoistedAt(node(true, 0, "/A/allOf/1/pq"), sites), "beside one")
+	assert.False(t, hoistedAt(node(true, 1, "/A/allOf/1/p"), sites), "in another document")
+	assert.False(t, hoistedAt(node(false, 0, "/A/allOf/1/p"), sites), "a named node")
+	assert.False(t, hoistedAt(node(true, 0, "/A/allOf/1/p"), nil), "a declaration holding it nowhere")
+}
+
 // TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder pins the entry a
 // field keeps of two written alike at one pointer in two documents, as two
 // files each holding one schema write /properties/p: the one in the document
@@ -392,7 +493,7 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 		at := ir.Provenance{Source: source, Pointer: "/properties/p/x-tag"}
 		p.Unmodeled = ir.Unmodeled{"openapi:x-tag": {Value: ir.RawValue(`"same"`), Provenance: at}}
 		entry := &composedEntry{target: "t/part", at: "/M/allOf/0", order: order}
-		return broughtDeclaration(p, entry)
+		return broughtDeclaration(DeclaredAt(ir.PropertyDecl{Owner: "t/part", Property: &p}), entry)
 	}
 
 	for _, sources := range [][2]int{{1, 2}, {2, 1}} {
@@ -424,7 +525,7 @@ func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
 			p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
 			last := ir.TypeID(fmt.Sprintf("t/link-%d", maxComposedParts))
 			reg[owner] = &ir.Model{ID: owner, Base: &ir.TypeRef{Target: last}, Properties: []ir.Property{p}}
-			cs[i] = candidate{decl: ir.PropertyDecl{Owner: owner, Property: &p}, part: i}
+			cs[i] = candidate{decl: DeclaredAt(ir.PropertyDecl{Owner: owner, Property: &p}), part: i}
 		}
 		count := 0
 		o := newOwnership(registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
@@ -477,8 +578,8 @@ func leafOver(depth int, direct bool) (map[ir.TypeID]ir.TypeDef, []candidate) {
 	}
 	reg["t/Leaf"] = leaf
 	return reg, []candidate{
-		{decl: ir.PropertyDecl{Owner: "t/Leaf", Property: &leafP}, part: 0},
-		{decl: ir.PropertyDecl{Owner: "t/Base", Property: &baseP}, part: 1},
+		{decl: DeclaredAt(ir.PropertyDecl{Owner: "t/Leaf", Property: &leafP}), part: 0},
+		{decl: DeclaredAt(ir.PropertyDecl{Owner: "t/Base", Property: &baseP}), part: 1},
 	}
 }
 
@@ -609,7 +710,7 @@ func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	idx.MergeProperty(declared("p", "t/prim/integer", "/M/allOf/1/properties/p"), written(`{}`), "")
 	g, _ := stubMerger(reg)
 	g.walk.interned = []jsontext.Pointer{"/M/allOf/1"}
-	parts := map[ir.TypeID]Table{"t/A": {"p": ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]}}}
+	parts := map[ir.TypeID]Table{"t/A": {"p": DeclaredAt(ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]})}}
 
 	diags, table := idx.Settle(g.Merger, parts, map[string]bool{"p": true})
 

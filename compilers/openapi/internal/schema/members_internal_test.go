@@ -6,6 +6,7 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -54,6 +56,27 @@ func hierarchy(n int, wide, shared bool) string {
 			i, entries, i)
 	}
 	return b.String()
+}
+
+// TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten pins
+// what a table read through a model not settled yet says of a member a settled
+// model declares: where that model's settlement left its type written, not
+// the member's own place, and the member's own place for any other.
+func TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten(t *testing.T) {
+	t.Parallel()
+	settled := ir.Property{ID: "p/K/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/K/allOf/0/properties/b"}}
+	other := ir.Property{ID: "p/L/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/L/properties/b"}}
+	typeAt := []ir.Provenance{{Pointer: "/K/allOf/1/properties/b"}}
+	held := ir.PropertyDecl{Owner: "t/K", Property: &settled}
+	rec := &members{tables: map[ir.TypeID]merge.Table{"t/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
+
+	assert.Equal(t, typeAt, rec.declared(held).TypeAt, "as its settlement left it")
+	for name, d := range map[string]ir.PropertyDecl{
+		"a model with no table":              {Owner: "t/L", Property: &other},
+		"another declaration under its name": {Owner: "t/K", Property: &other},
+	} {
+		assert.Equal(t, []ir.Provenance{other.Provenance}, rec.declared(d).TypeAt, name)
+	}
 }
 
 // TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared pins what the
@@ -277,4 +300,31 @@ func TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk(t *testing.T) {
 
 	_, diags, _ := settledUnder(t, clique(12), budget.AtMost(b/2))
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
+}
+
+// TestMembers_TheSettlementAsksItsContextBeforeEachModel pins where a cancel
+// stops the settlement: it asks the run's context once before each model it
+// settles, so a hierarchy twice as long asks that many more times, and once
+// the context refuses no further model settles.
+func TestMembers_TheSettlementAsksItsContextBeforeEachModel(t *testing.T) {
+	t.Parallel()
+	finish := func(models, left int) (asked, settledAtRefusal, settled int) {
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", hierarchy(models+1, false, false)))
+		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+		rec := membersOf(l.Ctx)
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+		ctx.OnRefuse = func() { settledAtRefusal = len(rec.settled) }
+		l.Types.Finish(ctx)
+		return ctx.Calls, settledAtRefusal, len(rec.settled)
+	}
+
+	short, _, all := finish(20, math.MaxInt)
+	long, _, _ := finish(40, math.MaxInt)
+	require.Equal(t, 20, all, "every composing model settles")
+	assert.Equal(t, 20, long-short, "one ask for each model more")
+
+	_, atRefusal, settled := finish(20, short-10)
+	assert.Equal(t, atRefusal, settled, "nothing settles once the context refuses")
+	assert.Greater(t, settled, 0)
+	assert.Less(t, settled, all)
 }

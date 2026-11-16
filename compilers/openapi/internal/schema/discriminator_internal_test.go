@@ -116,7 +116,7 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
 			d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Ghost", model: "t/ghost"}
 
-			diags := d.Settle(reg)
+			diags := d.Settle(t.Context(), reg)
 
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -135,7 +135,7 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
 	d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Pet", model: "t/pet"}
 
-	assert.Empty(t, d.Settle(reg))
+	assert.Empty(t, d.Settle(t.Context(), reg))
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
 }
 

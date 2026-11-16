@@ -43,7 +43,7 @@ func TestSubtypeTagReading_ReportsWhatItCannotSettle(t *testing.T) {
 			t.Parallel()
 			reading := subtypeTagReading{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}),
 				id: "t/s", pointer: "/components/schemas/S", property: "kind", name: "S"}
-			diags := reading.Settle(reg)
+			diags := reading.Settle(t.Context(), reg)
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
