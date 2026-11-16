@@ -2035,6 +2035,12 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
   `schema.TestNullableInference_OnlyABooleanStatesNull`,
   `schema.TestNullableTrue_PastTheMergeBoundTheModelsReadingStands`
+- Status: partly built: a `nullable` a `<<` merge chain brings in from deeper than the levels a
+  mapping's merges are expanded to (`nodeview.MergeDepthLimit`) has no key to read, so what the
+  parser decodes stands, a truth word's `true` included, at 3.0 too, where no row then reports it.
+  A `nullable` a later source of the same merge writes within those levels is then the key read,
+  though the deeper one outranks it, so where it is no boolean the deeper `true` states no null
+  (#2020).
 
 ### `schema-examples`
 

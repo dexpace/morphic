@@ -104,19 +104,28 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 
 // TestNullableTrue_PastTheMergeBoundTheModelsReadingStands pins what states a
 // null where the statement holds a `nullable` its key does not: one merged in
-// past nodeview.MergeDepthLimit keeps the model's true, as the policy read it
-// before a string was told from a boolean, while a string written within the
-// bound states none (GitHub #2007).
+// past nodeview.MergeDepthLimit keeps the model's true, a truth word's
+// included, and keeps it beside a false a later source writes within the
+// bound, which it outranks, while a string written within the bound states
+// none (GitHub #2007, #2020).
 func TestNullableTrue_PastTheMergeBoundTheModelsReadingStands(t *testing.T) {
 	t.Parallel()
 	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: true}")
+	word := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: 'yes'}")
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Past: {<<: "+past+", type: string}\n"+
+		"    PastWord: {<<: "+word+", type: string}\n"+
+		"    Outranks: {<<: ["+past+", {nullable: false}], type: string}\n"+
 		"    Within: {<<: {nullable: true}, type: string}\n    Yes: {type: string, nullable: 'yes'}\n"))
 
 	s := StatedIn(l, declared(t, l, "Past"))
 	_, written := s.Key("nullable")
 	require.False(t, written, "the keyword lies past the bound")
 	assert.True(t, nullableTrue(s))
+	assert.True(t, nullableTrue(StatedIn(l, declared(t, l, "PastWord"))), "no key tells the word from a boolean")
+	outranks := StatedIn(l, declared(t, l, "Outranks"))
+	listed, _ := outranks.Key("nullable")
+	require.Equal(t, "false", listed.Node.Value, "the key listed is the one written within the bound")
+	assert.True(t, nullableTrue(outranks), "the merge past the bound comes first, so its true is the schema's")
 	assert.True(t, nullableTrue(StatedIn(l, declared(t, l, "Within"))))
 	assert.False(t, nullableTrue(StatedIn(l, declared(t, l, "Yes"))))
 }
