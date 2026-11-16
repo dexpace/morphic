@@ -74,6 +74,11 @@ type Config struct {
 	// KeysByURI reports whether the document named name reads a requirement
 	// key as a URI, as OpenAPI 3.2 does. Nil reads none so.
 	KeysByURI func(name string) bool
+	// pushed, where set, is told each position a walk pushes a frame for, and
+	// whether a mapping holds it, whose key is a node at that pointer too. Only
+	// this package's tests set it, to total the pointers a table's walks spell
+	// (Config.Spelling).
+	pushed func(at Position, member bool)
 }
 
 // DialectRule is what the table reads otherwise in a dialect than in 2020-12.

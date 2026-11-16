@@ -31,3 +31,12 @@ var Sat = sat
 
 // SatMul is satMul, for the external tests that read the saturating product.
 var SatMul = satMul
+
+// Spelling returns c with note told each position a table's walks push a frame
+// for, and whether a mapping holds it, so its key is a node at that pointer
+// too: what only this package's external tests read, to total the pointers the
+// walks spell.
+func (c Config) Spelling(note func(at Position, member bool)) Config {
+	c.pushed = note
+	return c
+}

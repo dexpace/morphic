@@ -20,14 +20,16 @@ import (
 )
 
 // NamedPointerBytes totals the JSON pointers, keys as written, of the nodes a
-// compile of root names one by one (docs/compilers/openapi.md#source-budgets):
-// a value the grammar keeps raw adds its root alone, and a raw value a
-// reference lands in is named as the kind it expects, once per landing
-// position. It reads schemas by the minor's grammar, its caller answering for
-// dialects. complete is false where the total cannot be taken: a reference
-// leaves the document, names nothing, passes a Reference Object, or is read
-// under an `$id`; a fragment is no JSON pointer; merges nest past
-// nodeview.MergeDepthLimit; or past maxSteps.
+// compile of root names one by one, as docs/compilers/openapi.md#source-budgets
+// says, reading schemas by the minor's grammar: its caller answers for
+// dialects and for keys the Format section refuses. complete is false where
+// the total cannot be taken: a reference leaves the document, names nothing,
+// passes a Reference Object or is read under an `$id`; a fragment is no JSON
+// pointer; merges nest past nodeview.MergeDepthLimit; or past maxSteps.
+//
+// Two generated tests hold it to the walks it predicts, over their grammars
+// alone: TestNamedPointerBytes_TotalsWhatATablesWalksSpell the binder's,
+// e2e's TestCompile_SpellsNoPointerTheNamedTotalLeavesOut a compile's.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
 	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
@@ -146,15 +148,19 @@ func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 }
 
 // below returns the (node, state) pairs k's shape is made of, and notes the
-// references k writes.
+// references k writes. A scalar read raw holds none, so a raw value costs a
+// step for each mapping and list it holds.
 func (w *named) below(k namedKey) []namedFrame {
 	n := k.n
-	if k.s == sRaw || n == nil {
+	if n == nil {
 		return nil
 	}
 	w.noteRefs(k)
 	var out []namedFrame
 	w.eachNamedChild(n, k.s, func(c *yaml.Node, s state, _ int) {
+		if s == sRaw && (c == nil || c.Kind == yaml.ScalarNode) {
+			return
+		}
 		if _, done := w.memo[namedKey{n: c, s: s}]; !done {
 			out = append(out, namedFrame{key: namedKey{n: c, s: s}})
 		}
@@ -162,19 +168,25 @@ func (w *named) below(k namedKey) []namedFrame {
 	return out
 }
 
-// measured is k's shape once what it is made of is measured.
+// measured is k's shape once what it is made of is measured. A node read raw
+// names what a compile names inside it and not itself, which the node holding
+// it adds (rawNamed).
 func (w *named) measured(k namedKey) namedShape {
 	n := k.n
 	if n == nil {
 		return namedShape{}
 	}
-	if k.s == sRaw {
-		return namedShape{nodes: 1}
-	}
 	out := namedShape{nodes: 1}
-	member := n.Kind == yaml.MappingNode
+	if k.s == sRaw {
+		out = rawNamed(n)
+	}
+	member := n.Kind == yaml.MappingNode && k.s != sRaw
 	w.eachNamedChild(n, k.s, func(c *yaml.Node, s state, edge int) {
 		got := w.memo[namedKey{n: c, s: s}]
+		if s == sRaw && k.s != sRaw {
+			// A raw value's root, which a compile names alone.
+			got.nodes = sat(got.nodes, 1)
+		}
 		if member {
 			// The member's key, a node at its value's pointer.
 			got.nodes = sat(got.nodes, 1)
@@ -182,6 +194,22 @@ func (w *named) measured(k namedKey) namedShape {
 		out.nodes = sat(out.nodes, got.nodes)
 		out.pointers = sat(out.pointers, sat(got.pointers, satMul(got.nodes, edge)))
 	})
+	return out
+}
+
+// rawNamed is what a compile names at n itself, a node inside a value the
+// grammar keeps raw: each key a mapping writes more than once, where the rule
+// table places a finding at that key's pointer (nodeview.RepeatedKeys, as
+// oas's check of a raw value asks), and nothing else.
+func rawNamed(n *yaml.Node) namedShape {
+	var out namedShape
+	if n.Kind != yaml.MappingNode {
+		return out
+	}
+	for _, key := range nodeview.RepeatedKeys(n) {
+		out.nodes = sat(out.nodes, 1)
+		out.pointers = sat(out.pointers, len(key)+1)
+	}
 	return out
 }
 

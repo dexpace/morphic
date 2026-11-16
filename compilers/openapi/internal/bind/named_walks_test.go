@@ -43,10 +43,19 @@ func broughtLeaf(wide bool) string {
 type brought struct{ defs, mounts, schema string }
 
 // bringer is one way a document brings the schema inner to n positions, its
-// anchors and mounts named by id so that one bringer nests in another.
+// anchors and mounts named by id so that one bringer nests in another. repeats
+// marks one writing a key twice, which the total names in a raw value too,
+// where the rule table places a finding and no table walks.
 type bringer struct {
-	name  string
-	bring func(id string, n int, inner string) brought
+	name    string
+	bring   func(id string, n int, inner string) brought
+	repeats bool
+}
+
+// repeating returns b marked as writing a key twice.
+func repeating(b bringer) bringer {
+	b.repeats = true
+	return b
 }
 
 // each writes item for every index below n, joined by sep.
@@ -91,7 +100,7 @@ func landed(name string, within func(sites string) string, site func(ref, i stri
 var bringers = []bringer{
 	anchored("alias", "", func(a, i string) string { return "q" + i + ": *" + a }),
 	anchored("merge", "", func(a, i string) string { return "q" + i + ": {<<: *" + a + "}" }),
-	anchored("twice", "", func(a, i string) string { return "q" + i + ": {type: string}, q" + i + ": *" + a }),
+	repeating(anchored("twice", "", func(a, i string) string { return "q" + i + ": {type: string}, q" + i + ": *" + a })),
 	{name: "list", bring: func(id string, n int, inner string) brought {
 		return brought{defs: "a" + id + ": &a" + id + " " + inner,
 			schema: "{allOf: [" + each(n, ", ", func(string) string { return "*a" + id }) + "]}"}
@@ -102,8 +111,8 @@ var bringers = []bringer{
 		func(a, i string) string { return "q" + i + ": {<<: [*b@, *" + a + "]}" }),
 	anchored("merge of a merge", ", b@: &b@ {<<: *a@, description: b}",
 		func(_, i string) string { return "q" + i + ": {<<: *b@}" }),
-	anchored("twice in a merged source", ", s@: &s@ {type: object, properties: {p: *a@}, properties: {}}",
-		func(_, i string) string { return "q" + i + ": {<<: *s@}" }),
+	repeating(anchored("twice in a merged source", ", s@: &s@ {type: object, properties: {p: *a@}, properties: {}}",
+		func(_, i string) string { return "q" + i + ": {<<: *s@}" })),
 	landed("dynamic ref", func(s string) string { return "{allOf: [" + s + "]}" },
 		func(ref, _ string) string { return "{$dynamicRef: " + ref + "}" }),
 	landed("mapping", func(s string) string {
