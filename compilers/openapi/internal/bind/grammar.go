@@ -77,9 +77,51 @@ func withSchema(objects map[state]map[string]state) map[state]map[string]state {
 // the parser's or the load phase's: the Encoding Objects OpenAPI 3.2 nests
 // under another's encoding, prefixEncoding and itemEncoding. The load phase
 // models none, as it models components/mediaTypes, and the IR has no home for
-// one, so the lowering keeps each verbatim. A schema beneath one is raw YAML to
-// the model, which a reference landing on it has the table build (heldRole).
+// one, so the lowering keeps each verbatim. place.below is its one reader.
 var unheld = map[state]map[string]bool{sEncoding: {"encoding": true, "prefixEncoding": true, "itemEncoding": true}}
+
+// place is where a read stands in the grammar: the state it reads a position
+// at, and whether a token it read since it began, or since the last reference
+// it passed, named a field whose content no model holds (unheld). Beneath one a
+// schema is raw YAML to the model, as one under an extension is
+// (docs/compilers/openapi.md#references). A read past a reference starts
+// afresh, as under an extension: the object its chain ends on is built where
+// no model holds one.
+type place struct {
+	state   state
+	beneath bool
+}
+
+// below is the place one token below p. Every read asking what the model holds
+// steps by it. A walk placing what the grammar reads, as the finder's for
+// references, the identifiers' and Kinds' do, steps by step instead, since the
+// grammar places each such field
+// (docs/compilers/openapi.md#unmodeled-dialect-fields).
+func (p place) below(token string) place {
+	return place{state: step(p.state, token), beneath: p.beneath || unheld[p.state][token]}
+}
+
+// along is the place tokens reach from p.
+func (p place) along(tokens []string) place {
+	for _, t := range tokens {
+		p = p.below(t)
+	}
+	return p
+}
+
+// role is what a reference landing at p reads there (Role): a schema beneath a
+// field no model holds is raw YAML, and any other position is what its state
+// reads.
+func (p place) role() Role {
+	if r := roleOf(p.state); r != Schema || !p.beneath {
+		return r
+	}
+	return Raw
+}
+
+// held reports whether the model holds p as an object or a list of its own:
+// one the grammar models (modelled), beneath no field no model holds.
+func (p place) held() bool { return modelled(p.state) && !p.beneath }
 
 // schemaFields is what a Schema Object holds under each keyword the model
 // reads: a schema, a map or list of them, a literal kept raw, a list of

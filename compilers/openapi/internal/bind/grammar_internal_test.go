@@ -196,3 +196,36 @@ func TestGrammar_PlacesWhatNoModelHoldsAsUnheld(t *testing.T) {
 		}
 	}
 }
+
+// TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw pins place: a schema beneath
+// a field whose content no model holds, at any depth past it, is raw YAML to
+// the model, and so is nothing the grammar places as another object, which
+// keeps its role but is held by no model; a read starting afresh, as one past
+// a reference does, reads a schema below the same tokens as the model's.
+func TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw(t *testing.T) {
+	t.Parallel()
+	const encoding = "paths/~1a/post/requestBody/content/m~1x/encoding/f/"
+	tests := []struct {
+		pointer string
+		role    Role
+		held    bool
+	}{
+		{encoding + "encoding/g/headers/H/schema/items", Raw, false},
+		{encoding + "prefixEncoding/0/headers/H/schema", Raw, false},
+		{encoding + "itemEncoding/encoding/g/headers/H/schema", Raw, false},
+		{encoding + "encoding/g/headers/H", Object, false},
+		{encoding + "encoding", Object, false},
+		{encoding + "headers/H/schema/properties/encoding", Schema, true},
+		{encoding + "x-ext/encoding/g/headers/H/schema", Raw, false},
+		{"components/schemas/A/properties/encoding/properties/encoding", Schema, true},
+		{encoding + "headers/H", Object, true},
+	}
+	for _, tc := range tests {
+		p := place{state: sDocument}.along(strings.Split(tc.pointer, "/"))
+		assert.Equal(t, tc.role, p.role(), tc.pointer)
+		assert.Equal(t, tc.held, p.held(), tc.pointer)
+	}
+	past := place{state: sDocument}.along(strings.Split(encoding+"encoding/g/headers/H", "/"))
+	fresh := place{state: past.state}.along([]string{"schema"})
+	assert.Equal(t, Schema, fresh.role(), "a read past a reference to the header reads its schema afresh")
+}
