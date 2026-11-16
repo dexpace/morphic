@@ -159,8 +159,8 @@ func modelState(t *testing.T, ft reflect.Type) state {
 	}
 }
 
-// modelContainer is the container in of what holds, or a value for a
-// container of values.
+// modelContainer is the container state in gives for holds, the state of what
+// the container holds, or a value for a container of values.
 func modelContainer(in map[state]state, holds state) state {
 	if s, ok := in[holds]; ok {
 		return s
