@@ -50,7 +50,7 @@ func versions() []version {
 func seconds() []string { return []string{none} }
 
 // spellings returns the spellings, in the order the spelling axis lists them.
-func spellings() []string { return []string{inline} }
+func spellings() []string { return []string{inline, beside, wrap, entry, entryFirst, nested} }
 
 // cases is the OpenAPI product: the tables each axis lists the values of.
 type cases struct {
@@ -79,7 +79,7 @@ func (c cases) Axes() []harness.Axis {
 		axes[0].Values = append(axes[0].Values, harness.Value{Name: v.name, Like: v.like})
 	}
 	for _, t := range c.targets {
-		axes[1].Values = append(axes[1].Values, harness.Value{Name: t.name})
+		axes[1].Values = append(axes[1].Values, harness.Value{Name: t.name, Like: narrowed(t.name)})
 	}
 	axes[2].Values = append(axes[2].Values, harness.Value{Name: none})
 	for _, k := range c.constructs {
@@ -89,7 +89,7 @@ func (c cases) Axes() []harness.Axis {
 	for _, p := range c.positions {
 		axes[4].Values = append(axes[4].Values, harness.Value{Name: p.name})
 	}
-	axes[5].Values = names(c.spellings)
+	axes[5].Values = spellingValues(c.spellings)
 	return axes
 }
 
@@ -102,21 +102,43 @@ func names(of []string) []harness.Value {
 	return values
 }
 
+// spellingValues returns a value of each spelling, the gate running all but
+// an entry written first, which lowers as the entry written last does
+// (docs/compilers/openapi.md#allof-classification) and so repeats its
+// findings: a nightly run records them under that entry.
+func spellingValues(of []string) []harness.Value {
+	values := names(of)
+	for i, n := range of {
+		if n == entryFirst {
+			values[i].Like = entry
+		}
+	}
+	return values
+}
+
 // Write returns the document at one value index per axis, and false where the
 // combination writes nothing: a construct its version lacks or its target is
-// not said of, or indices outside the product. A table the writer cannot
+// not said of, a spelling that moves no such keyword or writes another's
+// document (spelt), or indices outside the product. A table the writer cannot
 // encode panics, which CheckCase reports as the case's outcome.
 func (c cases) Write(at []int) (harness.Document, bool) {
 	if !c.holds(at) {
 		return harness.Document{}, false
 	}
-	v, t, p := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]]
+	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
 	members, components, ok := c.construct(at[2], v, t)
-	if !ok || c.seconds[at[3]] != none || c.spellings[at[5]] != inline {
+	if !ok || c.seconds[at[3]] != none {
+		return harness.Document{}, false
+	}
+	use, ok := c.spelt(at[2], s, t, members)
+	if !ok {
 		return harness.Document{}, false
 	}
 
-	paths, schemas := p.place(t.body.with(members))
+	paths, schemas := p.place(use)
+	if s != inline {
+		schemas = append(schemas, member{targetSchema, t.body})
+	}
 	data, err := encode(object{
 		{"openapi", v.name},
 		{"info", object{{"title", "cases"}, {"version", "1"}}},
@@ -126,7 +148,10 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
-	doc := harness.Document{Sources: []compilers.Source{{Path: specPath, Data: data}}}
+	doc := harness.Document{
+		Sources: []compilers.Source{{Path: specPath, Data: data}},
+		Equal:   c.equal(at, members),
+	}
 	c.neighbours(&doc, t, at)
 	return doc, true
 }
@@ -135,6 +160,7 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 // with: the case leaving the construct out, and, for a keyword something
 // carries, the case writing its other value. The none construct and a
 // keyword's other value name none: the latter is asked through its keyword.
+// Left out of an entry spelling, the construct leaves wrap's document.
 // A keyword the target's body writes already is replaced by the construct, so
 // no case leaves it out (Document.Replaces).
 func (c cases) neighbours(doc *harness.Document, t target, at []int) {
@@ -143,6 +169,9 @@ func (c cases) neighbours(doc *harness.Document, t target, at []int) {
 	}
 	k := c.constructs[(at[2]-1)/2]
 	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
+	if s := c.spellings[at[5]]; s == entry || s == entryFirst {
+		doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
+	}
 	doc.Carried, doc.Reason = k.reason == "", k.reason
 	if doc.Carried {
 		doc.Other = slices.Concat(at[:2], []int{at[2] + 1}, at[3:])

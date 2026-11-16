@@ -1735,7 +1735,8 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `annotation.TestEffectiveVisibility_MapsTheFlagsToLifecycles`,
   `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
   `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
-  `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`
+  `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`,
+  `openapicases.TestCore_SpellingsHoldTheRecord`
 
 ### `reference-object-siblings`
 
@@ -2079,7 +2080,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `schema.TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites`,
   `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`,
   `schema.TestAllOf_AUnionItNamesComposesAsWritten`, `schema.TestAllOf_ARefToAHierarchyMemberIsTheBase`,
-  `merge.TestFold_RedeclaredModelsCompose`, `e2e.TestCompile_SharedCompositionAncestorsDoNotAmplify`
+  `merge.TestFold_RedeclaredModelsCompose`, `e2e.TestCompile_SharedCompositionAncestorsDoNotAmplify`,
+  `openapicases.TestCore_SpellingsHoldTheRecord`
 - Status: partly built: a field redeclared as a hierarchy member that lowers to a `Union` holding no
   discriminator takes it as a `Mixin` where a written `allOf` takes it as its `Base` (#1901).
 
@@ -2256,6 +2258,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_ACappedBranchStaysAComposition`,
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
   `schema.TestRefinement_AUnionBranchIsAConjunct`, `schema.TestRefinement_AUnionBesideTheAllOfIsAConjunct`,
+  `schema.TestRefinement_AUnionThePrincipalSaysIsConsumed`,
   `schema.TestRefinement_TheKeywordsBesideWithAUnionLowerAsWithNoAllOf`,
   `schema.TestRefinement_AShapelessUnionBesideIsValidationLogic`,
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
@@ -2395,7 +2398,8 @@ every entry reads that one twice.
   `schema.TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch`,
   `schema.TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt`,
   `schema.TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes`,
-  `schema.TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt`
+  `schema.TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt`,
+  `openapicases.TestCore_SpellingsHoldTheRecord`
 
 ### `allof-redeclared-property`
 
@@ -4950,23 +4954,28 @@ this document or kept verbatim, its presence and its value both, with four excep
 nothing by design: `$comment`, which the specification forbids surfacing; `$defs`, whose members
 lower where a `$ref` reaches them; and `$dynamicAnchor` and `$anchor`, each consumed as a reference
 target rather than carried as content ([`dialect-keywords`](#dialect-keywords)). The keyword lists
-of [boundaries](../ir/boundaries.md#validation-only-constructs) and of this section are held
-to that rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema cases to every
-keyword of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
-compiles, for each keyword at each position the cases write a schema, three documents: the keyword
-absent, written with one value, written with a second. It requires the absent form to differ from
-the first and the first from the second, and an exception to equal the absent form, its
-justification written beside the keyword; where the target writes the keyword itself, there is no
-absent form, and the two values are compared alone. A keyword that stops being carried at any one position
-fails there rather than waiting for a reader to notice, and a finding that stands is listed with
-its reason in the package's `testdata/presence.txt`. The guarantee is a floor rather than an
-inventory: it compares one pair of values per keyword, so a lowering that carried one value and
-dropped another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the
-positions they land on are lowered ([`validation-only`](#validation-only)).
+of [boundaries](../ir/boundaries.md#validation-only-constructs) and of this section are held to that
+rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema cases to every keyword
+of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
+compiles, for each keyword at each position the cases write a schema and in each spelling they write
+it in (merged into the schema it is said of, beside a `$ref` to that schema, beside an `allOf` of
+the `$ref`, on an entry of the `allOf` before or after the `$ref`, and on such an entry nested one
+`allOf` deeper), three documents: the keyword absent, written with one value, written with a second.
+It requires the absent form to differ from the first and the first from the second, and an exception
+to equal the absent form, its justification written beside the keyword; where the target writes the
+keyword itself, there is no absent form, and the two values are compared alone. A keyword that stops
+being carried at any one position or in any one spelling fails there rather than waiting for a
+reader to notice, and a finding that stands is listed with its reason in the package's
+`testdata/presence.txt`. The guarantee is a floor rather than an inventory: it compares one pair of
+values per keyword, so a lowering that carried one value and dropped another would still pass. A
+keyword kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
+([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
   `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,
   `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
+- Status: partly built: a `$dynamicRef` written beside a `$ref` at a position no property,
+  parameter, header or component holds reaches the IR in no form (#2009).
 
 ## 8. Paths and operations
 

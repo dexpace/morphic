@@ -25,6 +25,22 @@ const (
 	mapTarget       = "map"
 )
 
+// narrowed returns the target name narrows, whose cases the gate runs in its
+// place, or "" for a target the gate runs: an enum and a formatted string are
+// strings narrowed by a value set or a format, and a map an object narrowed to
+// one value type. Each repeats its target's findings with the same signature,
+// so a nightly run records them under that target.
+func narrowed(name string) string {
+	switch name {
+	case enumTarget, formattedTarget:
+		return stringTarget
+	case mapTarget:
+		return objectTarget
+	default:
+		return ""
+	}
+}
+
 // targets returns the targets, in the order the target axis lists them.
 func targets() []target {
 	typed := func(t string, more ...member) object { return append(object{{"type", t}}, more...) }

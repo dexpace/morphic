@@ -8,6 +8,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 
@@ -82,6 +83,9 @@ type Equal struct {
 	Relocate func(string) string
 	// Stated are the reports this spelling draws and its partner does not.
 	Stated []Stated
+	// Replaced are the reports the partner draws where this spelling draws one
+	// of Stated in their place.
+	Replaced []Stated
 }
 
 // Stated is one report a spelling states it causes.
@@ -258,7 +262,25 @@ func Core(c Cases) func(at []int) bool {
 	}
 }
 
-// Coordinates returns the value index per axis of c's case at index i.
+// Each returns every case of c, its index and its value index per axis, in
+// index order, reading c's axes once: a walk of the product calls Axes once,
+// where a Coordinates per index would rebuild them each time.
+func Each(c Cases) (iter.Seq2[int, []int], error) {
+	axes, n, err := product(c)
+	if err != nil {
+		return nil, err
+	}
+	return func(yield func(int, []int) bool) {
+		for i := range n {
+			if !yield(i, coordinates(axes, i)) {
+				return
+			}
+		}
+	}, nil
+}
+
+// Coordinates returns the value index per axis of c's case at index i. It
+// reads c's axes, so a walk of every case takes Each.
 func Coordinates(c Cases, i int) ([]int, error) {
 	axes, n, err := product(c)
 	if err != nil {
@@ -336,6 +358,7 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
 var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
+	spelled,
 	present,
 	admitted,
 }

@@ -183,13 +183,17 @@ func lines(encoded []byte) []string { return strings.Split(string(encoded), "\n"
 // changed element still differs and a moved one does not. A collection a
 // sequence orders, such as an enum's members, keeps its order.
 func canonicalJSON(doc *ir.Document) ([]byte, error) {
-	return encodeComparable(doc, sortedArray, jsontext.WithIndent("  "))
+	return encodeComparable(doc, sortedArray, nil, jsontext.WithIndent("  "))
 }
 
 // encodeComparable encodes doc without its diagnostics and its compiled
 // source's hash, as canonicalJSON describes, with each collection orderFree
-// lists written by arrange.
-func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, opts ...json.Options) ([]byte, error) {
+// lists written by arrange, and more, when set, consulted before orderFree.
+// The marshalers go through comparableOptions and never opts, where a second
+// json.WithMarshalers would replace orderFree rather than join it.
+func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, more *json.Marshalers,
+	opts ...json.Options,
+) ([]byte, error) {
 	type plain ir.Document // no methods, so the options below reach it
 	own := plain(*doc)
 	own.Diagnostics = nil
@@ -197,14 +201,14 @@ func encodeComparable(doc *ir.Document, arrange func(elems [][]byte) []byte, opt
 		own.Sources = slices.Clone(own.Sources)
 		own.Sources[0].Hash = ""
 	}
-	return json.Marshal(&own, append([]json.Options{comparableOptions(arrange)}, opts...)...)
+	return json.Marshal(&own, append([]json.Options{comparableOptions(arrange, more)}, opts...)...)
 }
 
 // comparableOptions are the options encodeComparable writes under: maps and a
-// verbatim value's members sorted, and each collection orderFree lists written
-// by arrange.
-func comparableOptions(arrange func(elems [][]byte) []byte) json.Options {
-	return json.JoinOptions(json.Deterministic(true), json.WithMarshalers(orderFree(arrange)),
+// verbatim value's members sorted, more's marshalers, when set, and each
+// collection orderFree lists written by arrange.
+func comparableOptions(arrange func(elems [][]byte) []byte, more *json.Marshalers) json.Options {
+	return json.JoinOptions(json.Deterministic(true), json.WithMarshalers(json.JoinMarshalers(more, orderFree(arrange))),
 		jsontext.ReorderRawObjects(true))
 }
 

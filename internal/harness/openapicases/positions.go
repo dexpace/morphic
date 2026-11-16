@@ -6,11 +6,13 @@ package openapicases
 // position is a place a document writes a case's schema: its name, and place,
 // which returns the paths and the component schemas holding schema there.
 // Where the validate pass judges a default, carry writes a carrier of each of
-// uses there, and returns the ID each carrier compiles to.
+// uses there, and returns the ID each carrier compiles to. pointer is the
+// pointer of the schema place writes.
 type position struct {
-	name  string
-	place func(schema object) (paths, schemas object)
-	carry func(uses []object) (paths, schemas object, nodes []string)
+	name    string
+	place   func(schema object) (paths, schemas object)
+	carry   func(uses []object) (paths, schemas object, nodes []string)
+	pointer string
 }
 
 // caseSchema is the component, and casePath the path, a position writes the
@@ -33,31 +35,31 @@ func positions() []position {
 		{"component", func(s object) (object, object) {
 			user := object{{"type", "object"}, {"properties", object{{"p", object{{"$ref", "#/components/schemas/" + caseSchema}}}}}}
 			return nil, object{{caseSchema, s}, {userSchema, user}}
-		}, nil},
+		}, nil, "/components/schemas/C"},
 		{"property", func(s object) (object, object) {
 			return in(object{{"type", "object"}, {"properties", object{{"p", s}}}})
-		}, carryProperties},
-		{"items", func(s object) (object, object) { return in(object{{"type", "array"}, {"items", s}}) }, nil},
+		}, carryProperties, "/components/schemas/C/properties/p"},
+		{"items", func(s object) (object, object) { return in(object{{"type", "array"}, {"items", s}}) }, nil, "/components/schemas/C/items"},
 		{"additionalProperties", func(s object) (object, object) {
 			return in(object{{"type", "object"}, {"additionalProperties", s}})
-		}, nil},
+		}, nil, "/components/schemas/C/additionalProperties"},
 		{"branch", func(s object) (object, object) {
 			return in(object{{"oneOf", []any{s, object{{"type", "boolean"}}}}})
-		}, nil},
+		}, nil, "/components/schemas/C/oneOf/0"},
 		{"parameter", func(s object) (object, object) {
 			param := object{{"name", "q"}, {"in", "query"}, {"schema", s}}
 			return at(object{{"get", object{{"parameters", []any{param}}, {"responses", ok}}}})
-		}, carryParameters},
+		}, carryParameters, "/paths/~1c/get/parameters/0/schema"},
 		{"requestBody", func(s object) (object, object) {
 			body := object{{"content", object{{"application/json", object{{"schema", s}}}}}}
 			return at(object{{"post", object{{"requestBody", body}, {"responses", ok}}}})
-		}, nil},
+		}, nil, "/paths/~1c/post/requestBody/content/application~1json/schema"},
 		{"responseBody", func(s object) (object, object) {
 			return at(response(member{"content", object{{"application/json", object{{"schema", s}}}}}))
-		}, nil},
+		}, nil, "/paths/~1c/get/responses/200/content/application~1json/schema"},
 		{"header", func(s object) (object, object) {
 			return at(response(member{"headers", object{{"H", object{{"schema", s}}}}}))
-		}, carryHeaders},
+		}, carryHeaders, "/paths/~1c/get/responses/200/headers/H/schema"},
 	}
 }
 

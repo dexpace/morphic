@@ -322,6 +322,35 @@ func TestRefinement_AUnionBesideTheAllOfIsAConjunct(t *testing.T) {
 	}
 }
 
+// TestRefinement_AUnionThePrincipalSaysIsConsumed pins a oneOf beside an allOf
+// of a string whose string branch says nothing the principal does not and
+// shares no kind with the other: the principal says the union, which is
+// consumed. At 3.1 the component is an alias over the target and the property
+// names it, neither keeping anything, and nothing is reported at either
+// (docs/compilers/openapi.md#allof-refinement).
+func TestRefinement_AUnionThePrincipalSaysIsConsumed(t *testing.T) {
+	t.Parallel()
+	const written = "{allOf: [{$ref: '#/components/schemas/Str'}], oneOf: [{type: string}, {type: boolean}]}"
+	for _, doc := range unionConjunctOrders(t, "    S: "+written+"\n"+
+		"    Holder:\n      type: object\n      properties:\n        f: "+written+"\n") {
+		s, ok := typeByName(doc, "S").(*ir.Scalar)
+		require.True(t, ok, "S is an alias over its principal, not %T", typeByName(doc, "S"))
+		assert.Equal(t, componentID("Str"), s.Base.Target)
+		assert.Empty(t, s.Unmodeled, "the alias keeps nothing")
+		assert.Nil(t, s.Constraints, "the alias adds no bound")
+		p := propertyOf(t, doc, "Holder", "f")
+		assert.Equal(t, componentID("Str"), p.Type.Target, "the property names the target")
+		assert.Empty(t, p.Unmodeled, "the property keeps nothing")
+		for _, d := range doc.Diagnostics {
+			at := string(d.Provenance.Pointer)
+			for _, written := range []string{"/components/schemas/S", "/components/schemas/Holder/properties/f"} {
+				assert.False(t, strings.HasSuffix(at, written) || strings.Contains(at, written+"/"),
+					"nothing is reported at %s: %s %s", written, d.Code, at)
+			}
+		}
+	}
+}
+
 // TestRefinement_TheKeywordsBesideWithAUnionLowerAsWithNoAllOf pins an allOf
 // whose principal is the keywords written beside it, a union among them: the
 // position lowers by them as if no allOf were written, a union alone as the

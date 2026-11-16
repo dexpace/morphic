@@ -251,3 +251,41 @@ func TestCaseSummary_CountsTheCaseOracles(t *testing.T) {
 	assert.NotContains(t, got, string(harness.OracleNoPanic), "a case summary counts the case oracles alone")
 	assert.True(t, strings.HasPrefix(harness.Summary(results), "oracle "))
 }
+
+// counted is a grid counting the calls of its Axes.
+type counted struct {
+	grid
+	calls *int
+}
+
+func (c counted) Axes() []harness.Axis {
+	*c.calls++
+	return c.grid.Axes()
+}
+
+// TestEach_WalksTheProductReadingItsAxesOnce walks a 2x3x2 product: every
+// case in index order, at the coordinates Coordinates gives, with one call of
+// Axes, where a walk through Coordinates makes one per case.
+func TestEach_WalksTheProductReadingItsAxesOnce(t *testing.T) {
+	calls := 0
+	c := counted{axes: threeAxes(), calls: &calls}
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+
+	var got [][]int
+	for i, at := range each {
+		require.Len(t, got, i)
+		got = append(got, at)
+		if i == 5 {
+			break
+		}
+	}
+	assert.Equal(t, 1, calls, "Each reads the axes once")
+	require.Len(t, got, 6, "the walk stops where its caller does")
+	want, err := harness.Coordinates(c, 5)
+	require.NoError(t, err)
+	assert.Equal(t, want, got[5])
+
+	_, err = harness.Each(grid{})
+	require.Error(t, err)
+}

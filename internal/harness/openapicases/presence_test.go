@@ -4,11 +4,9 @@
 package openapicases_test
 
 import (
-	"context"
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,21 +28,6 @@ const (
 // notCarried are the keywords nothing carries, which the cases write as the
 // control: each changes nothing.
 var notCarried = []string{"$anchor", "$comment", "$defs", "$dynamicAnchor"}
-
-// presenceRun runs the case oracles over the core cases once, for the tests
-// below to read, and returns what it found.
-var presenceRun = sync.OnceValues(func() ([]harness.Result, error) {
-	c := openapicases.New()
-	return harness.CheckCases(context.Background(), c, harness.Core(c))
-})
-
-// coreResults returns what the case oracles found at the core cases.
-func coreResults(t *testing.T) []harness.Result {
-	t.Helper()
-	results, err := presenceRun()
-	require.NoError(t, err)
-	return results
-}
 
 // presence returns r's verdict of the presence oracle.
 func presence(t *testing.T, r harness.Result) harness.Verdict {
@@ -135,12 +118,10 @@ func keywords(t *testing.T) []string {
 func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 	c := openapicases.New()
 	axes := c.Axes()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 	var kept, replaced []string
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		doc, ok := c.Write(at)
 		if !ok {
 			continue
@@ -152,7 +133,11 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 			continue
 		}
 		with := func(neighbour []int) []int { return slices.Concat(at[:2], neighbour, at[3:]) }
-		assert.Equal(t, with([]int{0}), doc.Absent, "%v", at)
+		absent := with([]int{0})
+		if s := axes[5].Values[at[5]].Name; s == "entry" || s == "entryFirst" {
+			absent[5] = slices.IndexFunc(axes[5].Values, func(v harness.Value) bool { return v.Name == "wrap" })
+		}
+		assert.Equal(t, absent, doc.Absent, "%v", at)
 		assert.Equal(t, doc.Carried, doc.Reason == "", "%v: a keyword nothing carries says why", at)
 		if doc.Replaces {
 			replaced = append(replaced, axes[1].Values[at[1]].Name+"/"+name)

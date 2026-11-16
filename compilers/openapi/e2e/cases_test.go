@@ -70,12 +70,10 @@ func writtenConstructs(t *testing.T, c harness.Cases) map[string]map[string]bool
 	require.GreaterOrEqual(t, version, 0)
 	require.GreaterOrEqual(t, construct, 0)
 
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 	written := map[string]map[string]bool{}
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		v, k := axes[version].Values[at[version]].Name, strings.TrimSuffix(axes[construct].Values[at[construct]].Name, "~")
 		if written[v] == nil {
 			written[v] = map[string]bool{}

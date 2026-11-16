@@ -21,12 +21,10 @@ import (
 // case's version and target.
 func shards(t *testing.T, c harness.Cases, pick func([]int) bool) map[[2]int][][]int {
 	t.Helper()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 	out := map[[2]int][][]int{}
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		if pick(at) {
 			out[[2]int{at[0], at[1]}] = append(out[[2]int{at[0], at[1]}], at)
 		}
@@ -105,17 +103,15 @@ func TestGroups_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources int) {
 	t.Helper()
 	axes := c.Axes()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 
 	writers := map[[sha256.Size]byte][]int{}
 	written := make([][]bool, len(axes))
 	for k, a := range axes {
 		written[k] = make([]bool, len(a.Values))
 	}
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		doc, ok := c.Write(at)
 		if !ok {
 			continue
@@ -144,7 +140,7 @@ func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources i
 }
 
 // TestNew_TheAxesInTheirOrder pins the axes' order and the values a later
-// version or construct is recorded under.
+// version, a narrowed target or an entry written first is recorded under.
 func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	axes := openapicases.New().Axes()
 	names := make([]string, len(axes))
@@ -155,13 +151,17 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	assert.Equal(t, []harness.Value{{Name: "3.0.3"}, {Name: "3.1.0"}, {Name: "3.2.0", Like: "3.1.0"}}, axes[0].Values)
 	assert.Equal(t, harness.Value{Name: "none"}, axes[2].Values[0])
 	assert.Equal(t, []harness.Value{{Name: "$ref"}, {Name: "$ref~"}}, axes[2].Values[1:3])
-	assert.Len(t, axes[1].Values, 8)
+	assert.Equal(t, []harness.Value{{Name: "object"}, {Name: "string"}, {Name: "integer"}, {Name: "array"},
+		{Name: "enum", Like: "string"}, {Name: "union"}, {Name: "formatted", Like: "string"},
+		{Name: "map", Like: "object"}}, axes[1].Values)
+	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
+		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}}, axes[5].Values)
 	assert.Len(t, axes[4].Values, 9)
 }
 
 func TestNew_WritesNothingOutsideTheProduct(t *testing.T) {
 	c := openapicases.New()
-	for _, at := range [][]int{nil, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 1}, {0, -1, 0, 0, 0, 0}} {
+	for _, at := range [][]int{nil, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 6}, {0, -1, 0, 0, 0, 0}} {
 		_, ok := c.Write(at)
 		assert.False(t, ok, "%v", at)
 	}
