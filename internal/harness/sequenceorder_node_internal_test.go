@@ -210,3 +210,56 @@ func TestUntied_LeavesOutWhatATieDecided(t *testing.T) {
 	}
 	assert.Equal(t, []string{"another node", "beside a site"}, keys)
 }
+
+// fixtureMinted: both branches declare r as an object of their own, each with a
+// member of its own beside two whose names share a neutral form, so the fold
+// mints a model composing both at the branch written later, and pass.Validate
+// reports the collision on each.
+var fixtureMinted = schemas("AB: {allOf: [{type: object, properties: {r: {type: object, " +
+	"properties: {'+1': {type: integer}, '-1': {type: integer}, alpha: {type: string}}}}}, " +
+	"{type: object, properties: {r: {type: object, properties: {'+1': {type: integer}, '-1': {type: integer}, " +
+	"beta: {type: integer}}}}}]}")
+
+// TestSequenceOrderInvariant_AReportOnANodeAReversalMovesPairsByWhatItHolds
+// pins how a report naming a node is compared: a node a fold mints at the
+// branch written later carries that branch's index in either order, so a
+// report on it pairs with its counterpart by what each node holds, as the
+// document's forms tell such IDs apart, and one moved to a node holding
+// something else does not.
+func TestSequenceOrderInvariant_AReportOnANodeAReversalMovesPairsByWhatItHolds(t *testing.T) {
+	t.Run("the real compiler's reports on the minted node pair", func(t *testing.T) {
+		got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureMinted), true)
+
+		assert.Equal(t, passed(OracleSequenceOrder), got)
+	})
+	t.Run("a report moved to another node is found", func(t *testing.T) {
+		plant(t, func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+			// Each compile names the node in its own coordinates: alpha's branch
+			// is first as written, beta's first reversed.
+			const node = "t/anon/components/schemas/AB/allOf/0/properties/r"
+			return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/node", "", node)), nil
+		})
+
+		got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureMinted), true)
+
+		require.True(t, got.Found(), "the report names alpha's model as written and beta's reversed: %+v", got)
+		assert.Contains(t, got.Detail, "x/node")
+	})
+}
+
+// TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds pins what a report's
+// node key is: none for a report naming no node, none where the form cannot
+// tell the node by what it holds, so the report pairs with nothing and stays
+// a difference, and otherwise the node as the form writes it, with no pointer.
+func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
+	t.Parallel()
+	named := report{raw: diagnostic(ir.SeverityWarning, "x/node", "/a/allOf/0", "t/anon/a/allOf/0")}
+	tells := func(id string) (string, bool) { return id + "#held", true }
+	fails := func(id string) (string, bool) { return id, false }
+
+	assert.Empty(t, nodeKey(report{raw: diagnostic(ir.SeverityWarning, "x/node", "/a", "")}, tells), "no node")
+	assert.Empty(t, nodeKey(named, fails), "a node no form tells")
+	want := named.raw
+	want.Provenance = ir.Provenance{Node: "t/anon/a/allOf/0#held"}
+	assert.Equal(t, diagnosticKey(want), nodeKey(named, tells))
+}

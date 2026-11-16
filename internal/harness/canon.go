@@ -49,8 +49,12 @@ func markedArray(elems [][]byte) []byte {
 	return append(append([]byte(`{"\u0000unordered":`), array(elems)...), '}')
 }
 
-// canonical is a document's canonical form: its lines, and its shape's.
-type canonical struct{ document, shape []string }
+// canonical is a document's canonical form: its lines, its shape's, and how it
+// writes an ID (rewriter.identify).
+type canonical struct {
+	document, shape []string
+	identify        func(id string) (string, bool)
+}
 
 // canonicalForm is doc as the sequence-order oracle compares it, where seqs
 // are the sequences reversed, in doc's source's coordinates, and ties what the
@@ -75,7 +79,7 @@ func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, 
 	out := jsontext.Value(r.rewrite(tree, place{}, 0))
 	r.fail(out.Indent(jsontext.WithIndent("  ")))
 	shape := r.shape(doc)
-	return canonical{document: lines(out), shape: shape}, r.err
+	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -283,6 +287,19 @@ func (r *rewriter) text(s string, depth int) string {
 		return erased
 	}
 	return erased + "#" + r.digest(s, depth)
+}
+
+// identify is id as the form writes a reference to it (text), for a report
+// naming the node, compared once the form is written. It is false where no
+// node the form holds is id, whose erased ID alone tells two nodes apart by
+// nothing they hold, and where the digest fails as a form does (errTooDeep,
+// errCycle).
+func (r *rewriter) identify(id string) (string, bool) {
+	if len(r.owners[id]) == 0 {
+		return "", false
+	}
+	text := r.text(id, 0)
+	return text, r.err == nil
 }
 
 // digest is the first six bytes, in hex, of the SHA-256 of the canonical
