@@ -115,8 +115,9 @@ func (s *Schema) find(name string) (place, compared int) {
 // Key is one key a schema object writes: its name, its value with its alias
 // followed, the slot the rows it is read with place it in and whether they
 // define it only later (oas.SchemaRules.Slot), whether its value is null, and
-// whether the parser's model holds it, which the census of unknown keywords
-// turns on.
+// whether the parser's model holds it. The census of unknown keywords reads
+// Schema.Unknown and not this, as a key merged in past
+// nodeview.MergeDepthLimit is no Key.
 type Key struct {
 	Name    string
 	Node    *yaml.Node
