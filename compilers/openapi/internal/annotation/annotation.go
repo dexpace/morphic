@@ -12,7 +12,6 @@ import (
 
 	"github.com/speakeasy-api/openapi/extensions"
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	"github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -244,55 +243,6 @@ func At(js *statement.Statement) Site {
 	return s
 }
 
-// SchemaOf returns the schema body written at this position, including one
-// that also carries a $ref — an example or bound written beside a $ref binds
-// the position, not the referent, the same rule fillPropertyAnnotations and
-// fillPropertyConstraints apply at a property. It returns nil only where no
-// body is written: a nil either, or a boolean schema, which admits no
-// annotations.
-//
-// Every position modeled as a site reads it through At: a named component
-// (lowerComponentSchema) and a $ref'd internal sub-schema (hoistSubSchema, fed
-// one hop at a time by the schema bindings).
-func SchemaOf(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
-	if js == nil || js.IsBool() {
-		return nil
-	}
-	return js.GetSchema()
-}
-
-// IsFalseSchema reports whether js is the boolean `false` schema, which no
-// other value written in its place is, though the parser decodes a null, a
-// string, a number or a list as `false`
-// (docs/parser-library.md#null-schema-is-false).
-func IsFalseSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsBool() && js.GetBool() != nil && !*js.GetBool() && !IsNoSchema(js)
-}
-
-// IsNoSchema reports whether js is written as no schema: its node, its alias
-// followed, is neither a mapping nor a scalar tagged !!bool. The parser reads
-// such a value as the boolean `false` schema
-// (docs/parser-library.md#null-schema-is-false), so only the node tells them
-// apart, on every route a schema is reached by.
-func IsNoSchema(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if js == nil {
-		return false
-	}
-	n := yml.ResolveAlias(js.GetCore().GetRootNode())
-	if n == nil || n.Kind == yaml.MappingNode {
-		return false
-	}
-	return n.Kind != yaml.ScalarNode || n.ShortTag() != "!!bool"
-}
-
-// Written reports whether js is a schema written at its position: present,
-// and not written as no schema, which states nothing about the values there
-// (IsNoSchema). The load phase reports such a value; every reader takes it as
-// left out (docs/compilers/openapi.md#null-schema).
-func Written(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && !IsNoSchema(js)
-}
-
 // Home names where the annotations a schema position declares are
 // kept. It is what decides whether a position that lowered to a shared node
 // hoists one of its own, so the two homes can never both hold the same
@@ -402,16 +352,27 @@ func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	m := statement.Parsed(s)
 	var out ir.Unmodeled
-	xmlTaken, diags := applyNodeType(&out, hints, xmlIn(s), doc, pointer+ids.Ptr("xml"))
+	x := xmlIn(s)
+	xmlTaken, diags := applyNodeType(&out, hints, x, doc, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
-		obj     any
+		unknown []string
+		node    *yaml.Node
 		ext     *extensions.Extensions
 		taken   []string
 	}{
-		{"xml", m.GetXML(), m.GetXML().GetExtensions(), xmlTaken},
-		{"discriminator", m.GetDiscriminator(), m.GetDiscriminator().GetExtensions(), nil},
-		{"externalDocs", m.GetExternalDocs(), m.GetExternalDocs().GetExtensions(), nil},
+		{"xml", nil, nil, m.GetXML().GetExtensions(), xmlTaken},
+		{"discriminator", nil, nil, m.GetDiscriminator().GetExtensions(), nil},
+		{"externalDocs", nil, nil, m.GetExternalDocs().GetExtensions(), nil},
+	}
+	if x != nil {
+		subs[0].unknown, subs[0].node = x.Unknown, x.Node
+	}
+	if d := discriminatorIn(s); d != nil {
+		subs[1].unknown, subs[1].node = d.Unknown, d.Node
+	}
+	if e := externalDocsIn(s); e != nil {
+		subs[2].unknown, subs[2].node = e.Unknown, e.Node
 	}
 	for _, sub := range subs {
 		if sub.keyword == "discriminator" && !discriminator {
@@ -421,7 +382,7 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 		ext, extDiags := ExtensionsUnder(sub.ext, doc, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysUnder(&out, sub.obj, doc, owner, sub.keyword, sub.taken...)...)
+		diags = append(diags, UnknownKeysNamed(&out, sub.unknown, sub.node, doc, owner, sub.keyword, sub.taken...)...)
 	}
 	return out, diags
 }
@@ -621,4 +582,20 @@ func xmlIn(s *statement.Schema) *statement.XML {
 		return nil
 	}
 	return s.Notes.XML
+}
+
+// externalDocsIn returns the externalDocs object s writes, nil for none.
+func externalDocsIn(s *statement.Schema) *statement.ExternalDocs {
+	if s == nil || s.Notes == nil {
+		return nil
+	}
+	return s.Notes.ExternalDocs
+}
+
+// discriminatorIn returns the discriminator s writes, nil for none.
+func discriminatorIn(s *statement.Schema) *statement.Discriminator {
+	if s == nil || s.Object == nil {
+		return nil
+	}
+	return s.Object.Discriminator
 }

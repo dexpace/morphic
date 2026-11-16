@@ -370,14 +370,14 @@ func newDeclarationSet() declarationSet {
 // add records s and its `items`. An s holding no schema object
 // (statement.Parsed), a boolean schema's, declares nothing, and the getters
 // read it as empty.
-func (d *declarationSet) add(s *statement.Schema) {
+func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
 	m := statement.Parsed(s)
 	d.schemas = append(d.schemas, m)
-	if items := itemsSchema(s); annotation.Written(items) {
+	if items := t.Sub(itemsSchema(s)); items.Truth != statement.Unwritten {
 		if d.items == nil {
 			d.items = &place{}
 		}
-		d.items.decls = append(d.items.decls, items)
+		d.items.decls = append(d.items.decls, statement.ParsedAt(items))
 	}
 }
 
@@ -405,7 +405,7 @@ func (d *declarationSet) property(name string) *place {
 func (w *admission) declarations(s *statement.Schema) declarationSet {
 	m := statement.Parsed(s)
 	out := newDeclarationSet()
-	out.add(s)
+	out.add(w.c.Statements(), s)
 	w.declare(&out, slices.Clone(m.GetAllOf()))
 	return out
 }
@@ -445,7 +445,7 @@ func (w *admission) declare(out *declarationSet, stack []*oas3.JSONSchema[oas3.R
 		stack = stack[:len(stack)-1]
 		out.composed = append(out.composed, js)
 		cs := js.GetSchema()
-		out.add(w.c.Statements().Of(js).Schema)
+		out.add(w.c.Statements(), w.c.Statements().Of(js).Schema)
 		stack = append(stack, cs.GetAllOf()...)
 		if next := w.c.Bindings().Declared(js); next != nil {
 			stack = append(stack, next)
@@ -483,8 +483,8 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 	m := statement.Parsed(s)
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
-	if items := itemsSchema(s); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
-		out.items = w.c.Statements().Of(items)
+	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
+		out.items = items
 	}
 	if form, ok := formOf(s); ok {
 		out.forms = []scalarForm{form}

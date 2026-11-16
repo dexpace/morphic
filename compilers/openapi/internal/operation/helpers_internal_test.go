@@ -4,6 +4,7 @@
 package operation
 
 import (
+	"iter"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -17,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -98,7 +100,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegistry, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx.Ctx, l.types, l.ctx.Doc.Components.GetSchemas().All()))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx.Ctx, l.types, componentStatements(l.ctx)))
 	declared, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.diags.AppendAll(authDiags)
 
@@ -107,4 +109,16 @@ func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegis
 	reg, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)
 	return l, lowered, reg, loadDiags
+}
+
+// componentStatements yields each component schema of c's document under its
+// name, as run hands them to schema.LowerComponentSchemas.
+func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+	return func(yield func(string, *statement.Statement) bool) {
+		for name, js := range c.Doc.Components.GetSchemas().All() {
+			if !yield(name, c.Statements().Of(js)) {
+				return
+			}
+		}
+	}
 }

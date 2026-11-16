@@ -123,7 +123,7 @@ func refinableBranches(c lowering.Ctx, comp allOfComposition) bool {
 	}
 	named := 0
 	for _, e := range comp.branches {
-		if e.capped || annotation.IsFalseSchema(statement.ParsedAt(e.schema)) ||
+		if e.capped || e.schema.Truth.ReadsFalse() ||
 			declaresDynamicRef(e.schema.Schema) && !c.Bindings().RefSite(statement.ParsedAt(e.schema)) || hasAnyKey(e.schema.Schema, objectKeywords) {
 			return false
 		}

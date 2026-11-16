@@ -383,6 +383,23 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 	}
 }
 
+// TestRead_SubObjectsKeepTheKeysTheirModelsLeaveOut pins the census of a
+// schema's xml, discriminator and externalDocs objects: each key one writes
+// that its model holds no field for is kept under the keyword it was written
+// under, and left for the rule table to report, as an OpenAPI object's is.
+func TestRead_SubObjectsKeepTheKeysTheirModelsLeaveOut(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\nxml: {name: s, a: 1}\n"+
+		"discriminator: {propertyName: k, b: 2}\nexternalDocs: {url: 'https://x', c: 3}\n")
+	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/S", sourced(0))
+	for key, want := range map[string]string{
+		"openapi:xml/a": "1", "openapi:discriminator/b": "2", "openapi:externalDocs/c": "3",
+	} {
+		assert.Equal(t, want, string(got.Unmodeled[key].Value), "the entry %s", key)
+	}
+	assert.Empty(t, diags, "the rule table reports each key")
+}
+
 // TestAt_ClassifiesEveryPositionShape pins the classification every annotation
 // read starts from. A declaration misread as a reference would fall back to a
 // referent that does not describe it, and a reference misread as a declaration

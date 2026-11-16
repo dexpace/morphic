@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -47,7 +45,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 	tid := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		def, unionDiags := buildUnion(c, ts, besideUnion(s, pointer), common,
 			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
-				ref, refDiags := Ref(c, ts, depth, c.Statements().Of(statement.ParsedAt(b)), vptr)
+				ref, refDiags := Ref(c, ts, depth, b, vptr)
 				diags = append(diags, refDiags...)
 				return ref
 			})
@@ -76,20 +74,21 @@ func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 		return nil, "", false
 	}
 	variants, key, _ := unionBranches(s)
-	var nonNull *oas3.JSONSchema[oas3.Referenceable]
+	var nonNull *statement.Statement
 	nonNullIdx, nonNullCount, nullCount := -1, 0, 0
 	for i, v := range variants {
-		if nullBranch(c, c.Statements().Of(v)) {
+		st := c.Statements().Sub(v)
+		if nullBranch(c, st) {
 			nullCount++
 			continue
 		}
-		nonNull, nonNullIdx = v, i
+		nonNull, nonNullIdx = st, i
 		nonNullCount++
 	}
 	if nullCount == 0 || nonNullCount != 1 {
 		return nil, "", false
 	}
-	return c.Statements().Of(nonNull), pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), true
+	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), true
 }
 
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
@@ -102,8 +101,8 @@ func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 // so lowerOneOfAnyOf lowers it the same way instead.
 func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
 	variants, _, _ := unionBranches(s)
-	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return !nullBranch(c, c.Statements().Of(v))
+	return len(variants) > 0 && !slices.ContainsFunc(variants, func(v statement.Sub) bool {
+		return !nullBranch(c, c.Statements().Sub(v))
 	})
 }
 
@@ -178,12 +177,15 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // declines to collapse past it, and the verbatim lowering keeps both keywords
 // (preserveUnionSiblings). Reading the preference as one only that last lowering
 // could reach is what dropped the anyOf in silence (GitHub #35).
-func unionBranches(s *statement.Schema) ([]*oas3.JSONSchema[oas3.Referenceable], string, bool) {
-	m := statement.Parsed(s)
-	if branches := m.GetOneOf(); len(branches) > 0 {
-		return branches, "oneOf", true
+func unionBranches(s *statement.Schema) ([]statement.Sub, string, bool) {
+	var choice statement.Choice
+	if s != nil && s.Choice != nil {
+		choice = *s.Choice
 	}
-	return m.GetAnyOf(), "anyOf", false
+	if len(choice.OneOf) > 0 {
+		return choice.OneOf, "oneOf", true
+	}
+	return choice.AnyOf, "anyOf", false
 }
 
 // otherCombinator names each union keyword's counterpart, so the branch set
@@ -241,13 +243,14 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.holder, u.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
-		if nullBranch(c, c.Statements().Of(b)) {
+		st := c.Statements().Sub(b)
+		if nullBranch(c, st) {
 			continue // null branches lift to the enclosing ref's Nullable bit
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
-		t := variantType(c.Statements().Of(b), vptr)
+		t := variantType(st, vptr)
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(variantHint(c, ts, c.Statements().Of(b), vptr, t)),
+			Name: compile.NamingHint(variantHint(c, ts, st, vptr, t)),
 			Type: t,
 		})
 	}
@@ -440,14 +443,14 @@ func decorates(td ir.TypeDef) bool {
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 // Each variant reads what the position's folding allOf branches write, at the
 // pointers they are written at.
-func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, types []statement.Kind) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		list := typeArray{types: types, voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
-			vid, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, statement.Kind(st), list)
+			vid, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list)
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
 				Name: compile.NamingHint(string(st)),
@@ -467,7 +470,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // typeArray is what every variant of one type array reads beside its schema: the
 // types it lists, and the voices of the position it is written at.
 type typeArray struct {
-	types  []oas3.SchemaType
+	types  []statement.Kind
 	voices []annotation.Voice
 }
 
@@ -500,12 +503,12 @@ func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 // type, since nothing then says which type it describes, and a format validates
 // only the instances of the types it is defined for (JSON Schema Validation
 // 2020-12 §7.1); none where it pairs with another listed type.
-func variantFormat(s *statement.Schema, st statement.Kind, types []oas3.SchemaType) string {
+func variantFormat(s *statement.Schema, st statement.Kind, types []statement.Kind) string {
 	format := writtenFormat(s)
 	if format == "" || pairs(st, format) {
 		return format
 	}
-	if slices.ContainsFunc(types, func(t oas3.SchemaType) bool { return pairs(statement.Kind(t), format) }) {
+	if slices.ContainsFunc(types, func(t statement.Kind) bool { return pairs(t, format) }) {
 		return ""
 	}
 	return format
@@ -533,11 +536,11 @@ func statesBounds(c lowering.Ctx, s *statement.Schema, voices []annotation.Voice
 // typesDisjoint reports whether no instance has two of types. A type listed
 // twice overlaps itself, and JSON's types are otherwise disjoint but for one
 // pair: every integer is a number.
-func typesDisjoint(types []oas3.SchemaType) bool {
+func typesDisjoint(types []statement.Kind) bool {
 	if len(slices.Compact(slices.Sorted(slices.Values(types)))) != len(types) {
 		return false
 	}
-	return !slices.Contains(types, oas3.SchemaTypeInteger) || !slices.Contains(types, oas3.SchemaTypeNumber)
+	return !slices.Contains(types, statement.KindInteger) || !slices.Contains(types, statement.KindNumber)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -731,7 +734,7 @@ func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 		return unionBothCombinators
 	}
 	branches, _, _ := unionBranches(holder)
-	if slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return nullBranch(c, c.Statements().Of(b)) }) {
+	if slices.ContainsFunc(branches, func(b statement.Sub) bool { return nullBranch(c, c.Statements().Sub(b)) }) {
 		return unionNullBranch
 	}
 	if !branchesNameReferents(c, holder) {
@@ -757,7 +760,7 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 	}
 	types := effectiveTypes(s)
 	if len(types) > 0 {
-		return len(types) == 1 && types[0] == oas3.SchemaTypeObject
+		return len(types) == 1 && types[0] == statement.KindObject
 	}
 	if props := m.GetProperties(); props != nil && props.Len() > 0 {
 		return true
@@ -771,8 +774,8 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 func branchesAdmitOnlyObjects(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	w := newAdmission(c)
-	objectsOnly := !slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return w.whole(c.Statements().Of(b)).kinds&^(kindObject|kindNull) != 0
+	objectsOnly := !slices.ContainsFunc(branches, func(b statement.Sub) bool {
+		return w.whole(c.Statements().Sub(b)).kinds&^(kindObject|kindNull) != 0
 	})
 	return objectsOnly && !w.incomplete()
 }
@@ -785,8 +788,9 @@ func branchesAdmitOnlyObjects(c lowering.Ctx, s *statement.Schema) bool {
 // about whether they carry the body, with nothing in the IR saying which.
 func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
-	return !slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return c.Bindings().RefSite(b) && !c.RefScope().NamesReferent(b)
+	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
+		st := c.Statements().Sub(b)
+		return st.Ref != nil && !c.RefScope().NamesReferent(statement.ParsedAt(st))
 	})
 }
 
@@ -844,13 +848,14 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
-		if !c.Bindings().RefSite(b) || c.RefScope().NamesReferent(b) || onLoop(c, c.Statements().Of(b)) {
+		st := c.Statements().Sub(b)
+		if st.Ref == nil || c.RefScope().NamesReferent(statement.ParsedAt(st)) || onLoop(c, st) {
 			continue
 		}
-		keyword, ref := refSpelling(c, c.Statements().Of(b))
+		keyword, ref := refSpelling(c, st)
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
-			"union branch %s %q is unresolved%s; the branch is kept verbatim", keyword, ref, unresolvedWhy(c, c.Statements().Of(b))))
+			"union branch %s %q is unresolved%s; the branch is kept verbatim", keyword, ref, unresolvedWhy(c, st)))
 	}
 	return diags
 }
@@ -1007,7 +1012,7 @@ func mintUnion(c lowering.Ctx, ts *compile.Types, depth int, u unionAt) (ir.Type
 	common.Name = compile.NamingHint(compile.SubHint(lowering.NameAt(c, u.at), key))
 	var diags []ir.Diagnostic
 	node, unionDiags := buildUnion(c, ts, u, common, func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Of(statement.ParsedAt(b)), vptr)
+		ref, refDiags := Ref(c, ts, depth, b, vptr)
 		diags = append(diags, refDiags...)
 		return ref
 	})

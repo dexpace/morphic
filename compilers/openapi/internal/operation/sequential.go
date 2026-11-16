@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -89,7 +90,7 @@ func keepItemEncoding(c service.Ctx, content *ir.Content, media *soa.MediaType, 
 // one value, not the repetition an array part declares. Only a multipart body
 // carries raw bytes, and an item no schema describes is said to be nothing.
 func itemFile(c service.Ctx, item *oas3.JSONSchema[oas3.Referenceable], mt string, contentTypes []string) partFile {
-	if !isMultipart(mt) || !annotation.Written(item) {
+	if !isMultipart(mt) || c.Statements().Of(item).Truth == statement.Unwritten {
 		return partFile{}
 	}
 	return fileFor(c, readFile(c, item), contentTypes)

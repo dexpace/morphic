@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -172,7 +170,7 @@ func formatHome(td ir.TypeDef, s *statement.Schema) bool {
 // shared primitive would (lowerTypeVariant).
 func pairedBase(s *statement.Schema, target ir.TypeID) bool {
 	m := statement.Parsed(s)
-	return slices.ContainsFunc(effectiveTypes(s), func(st oas3.SchemaType) bool {
+	return slices.ContainsFunc(effectiveTypes(s), func(st statement.Kind) bool {
 		prim, paired := spelling.Lookup(string(st) + "/" + m.GetFormat())
 		return paired && ir.PrimTypeID(prim) == target
 	})
@@ -200,7 +198,7 @@ func typeHome(td ir.TypeDef, s *statement.Schema) bool {
 		}
 	}
 	for _, st := range effectiveTypes(s) {
-		if !typeShapedBy(td, statement.Kind(st)) {
+		if !typeShapedBy(td, st) {
 			return false
 		}
 	}
@@ -215,10 +213,9 @@ func typeHome(td ir.TypeDef, s *statement.Schema) bool {
 // typeHome says, where it admits the value; one naming several, or a type the
 // value is not, reached no field.
 func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
-	m := statement.Parsed(s)
 	types := effectiveTypes(s)
 	if len(types) == 0 {
-		return typesAdmit(m.GetType(), lit.Value)
+		return typesAdmit(kindsIn(s), lit.Value)
 	}
 
 	if len(types) > 1 {
@@ -227,9 +224,9 @@ func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
 
 	switch lit.Value.Kind {
 	case ir.ValueObject:
-		return types[0] == oas3.SchemaTypeObject
+		return types[0] == statement.KindObject
 	case ir.ValueList:
-		return types[0] == oas3.SchemaTypeArray
+		return types[0] == statement.KindArray
 	case ir.ValueNull, ir.ValueBool, ir.ValueNumber, ir.ValueString, ir.ValueBytes,
 		ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		// A scalar value is typed by its ValueType, read below.
@@ -249,8 +246,7 @@ func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
 // set s declares, which then says nothing the members do not. One a member is
 // no value of is a type the Enum's ValueType does not take (enumValueType).
 func membersTyped(members []ir.EnumMember, s *statement.Schema) bool {
-	sM := statement.Parsed(s)
-	types := sM.GetType()
+	types := kindsIn(s)
 	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
 }
 
@@ -264,11 +260,11 @@ func membersTyped(members []ir.EnumMember, s *statement.Schema) bool {
 func typeShapedBy(td ir.TypeDef, st statement.Kind) bool {
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:
-		return oas3.SchemaType(st) == oas3.SchemaTypeObject
+		return st == statement.KindObject
 	case *ir.List, *ir.Tuple:
-		return oas3.SchemaType(st) == oas3.SchemaTypeArray
+		return st == statement.KindArray
 	case *ir.Primitive, *ir.Scalar, *ir.Enum:
-		return oas3.SchemaType(st) != oas3.SchemaTypeObject && oas3.SchemaType(st) != oas3.SchemaTypeArray
+		return st != statement.KindObject && st != statement.KindArray
 	case *ir.Any:
 		// The top type admits every shape, so a declared type says nothing it
 		// contradicts. A position only reaches Any with a type declared by being

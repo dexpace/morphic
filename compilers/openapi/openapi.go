@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"path/filepath"
 	"slices"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/stream"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -208,7 +210,7 @@ func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
 	// copies; compile.Diags.Append is what collapses them, and it has to see the
 	// whole stream to do it.
 	var acc compile.Diags
-	acc.AppendAll(schema.LowerComponentSchemas(ctx, c.Ctx, ts, c.Doc.Components.GetSchemas().All()))
+	acc.AppendAll(schema.LowerComponentSchemas(ctx, c.Ctx, ts, componentStatements(c)))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
@@ -289,6 +291,19 @@ func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
 	out.IDSpaces = ids.Namespaces(service.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
 	return out, acc.List(), nil
+}
+
+// componentStatements yields each component schema of c's document under its
+// name, in source order, as c's table reads it: the one place the schema walk
+// is handed a statement for a value of the parser's.
+func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+	return func(yield func(string, *statement.Statement) bool) {
+		for name, js := range c.Doc.Components.GetSchemas().All() {
+			if !yield(name, c.Statements().Of(js)) {
+				return
+			}
+		}
+	}
 }
 
 // optionsFrom resolves the compiler-specific options: a nil FormatOptions gets

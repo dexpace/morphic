@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -31,7 +30,7 @@ components:
 `)
 	js, ok := l.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
-	_, at := writtenAt(l.Ctx, StandaloneSchema(js.GetSchema()), "/components/schemas/U/type/0")
+	_, at := writtenAt(l.Ctx, l.Ctx.Statements().Of(js).Schema, "/components/schemas/U/type/0")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/U"), at)
 	_, at = writtenAt(l.Ctx, StandaloneSchema(&oas3.Schema{}), "/x")
 	assert.Equal(t, jsontext.Pointer("/x"), at, "a schema the bindings place nowhere")
@@ -77,7 +76,7 @@ components:
 	entries, rest, ok := ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Closed")))
 	require.True(t, ok, "a closed tuple is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "a closed tuple's entries")
-	assert.True(t, annotation.IsFalseSchema(statement.ParsedAt(rest)), "a closed tuple's rest admits nothing")
+	assert.True(t, rest.Truth.ReadsFalse(), "a closed tuple's rest admits nothing")
 	entries, rest, ok = ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Open")))
 	require.True(t, ok, "a tuple writing no rest is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "an open tuple's entries")

@@ -91,7 +91,7 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	at, decl, ok := c.RefScope().MappingTarget(d.At, "./ext.yaml#/X")
 	require.True(t, ok, "the bindings read ext.yaml")
 
-	_, ok = declaredAt(c.Ctx, at, Standalone(decl))
+	_, ok = declaredAt(c.Ctx, at, c.Statements().Of(decl))
 	assert.False(t, ok, "a document the compile does not list")
 	_, ok = chainOf(c.Ctx, d, "./ext.yaml#/X")
 	assert.False(t, ok)

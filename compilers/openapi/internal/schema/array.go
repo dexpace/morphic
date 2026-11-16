@@ -25,7 +25,6 @@ import (
 // dialect reads as one (listedTuple), or when prefixItems is present, else a
 // List over its item schema, each with the collection bounds it declares.
 func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		if n, tuple := listedTuple(c, s, pointer); tuple {
@@ -33,12 +32,12 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			diags = append(diags, tupleDiags...)
 			return t
 		}
-		if prefix := m.GetPrefixItems(); len(prefix) > 0 {
+		if prefix := prefixItems(s); len(prefix) > 0 {
 			t, tupleDiags := buildTuple(c, ts, depth, s, common, pointer, prefix)
 			diags = append(diags, tupleDiags...)
 			return t
 		}
-		elem, elemDiags := Ref(c, ts, depth, c.Statements().Of(itemsSchema(s)), pointer+ids.Ptr("items"))
+		elem, elemDiags := Ref(c, ts, depth, c.Statements().Sub(itemsSchema(s)), pointer+ids.Ptr("items"))
 		diags = append(diags, elemDiags...)
 		return &ir.List{
 			TypeCommon:  common,
@@ -70,15 +69,22 @@ func listedItems(s *statement.Schema) (int, bool) {
 	return len(n.Content), true
 }
 
-// itemsSchema returns the one schema s writes `items` as, and nil where it
-// writes a list, a tuple, whose entries no reader of one items schema reads:
-// the parser's model holds the false schema there.
-func itemsSchema(s *statement.Schema) *oas3.JSONSchema[oas3.Referenceable] {
-	m := statement.Parsed(s)
-	if _, listed := listedItems(s); listed {
+// itemsSchema returns the one schema s writes `items` as, and the zero Sub,
+// which names none, where it writes a list, a tuple, whose entries no reader
+// of one items schema reads: the parser's model holds the false schema there.
+func itemsSchema(s *statement.Schema) statement.Sub {
+	if _, listed := listedItems(s); listed || s == nil || s.Array == nil {
+		return statement.Sub{}
+	}
+	return s.Array.Items
+}
+
+// prefixItems returns the schemas s writes `prefixItems` as, nil for none.
+func prefixItems(s *statement.Schema) []statement.Sub {
+	if s == nil || s.Array == nil {
 		return nil
 	}
-	return m.GetItems()
+	return s.Array.PrefixItems
 }
 
 // buildListedTuple lowers the n schemas s writes `items` as a list of into a
@@ -102,7 +108,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
 	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
-	if js := heldAt(there, site+rest); !annotation.IsFalseSchema(statement.ParsedAt(js)) {
+	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
 		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
 		diags = append(diags, restDiags...)
 		t.Rest = &ref
@@ -181,17 +187,17 @@ func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
 // lowers to the top type as `items: true` does, though only the latter makes an
 // unevaluatedItems beside it inert. No field is derived from another: Elems is
 // never trimmed to maxItems, and a closed tuple gains no maxItems.
-func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []*oas3.JSONSchema[oas3.Referenceable]) (ir.TypeDef, []ir.Diagnostic) {
+func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Sub) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
-		ref, refDiags := Ref(c, ts, depth, c.Statements().Of(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
+		ref, refDiags := Ref(c, ts, depth, c.Statements().Sub(ps), pointer+ids.Ptr("prefixItems", strconv.Itoa(i)))
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
-	if items := itemsSchema(s); !annotation.IsFalseSchema(items) {
-		rest, restDiags := Ref(c, ts, depth, c.Statements().Of(items), pointer+ids.Ptr("items"))
+	if items := c.Statements().Sub(itemsSchema(s)); !items.Truth.ReadsFalse() {
+		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)
 		t.Rest = &rest
 	}

@@ -8,7 +8,6 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
@@ -115,10 +114,10 @@ func readElements(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas
 			elems = append(elems, c.Statements().Of(e))
 		}
 	}
-	if !annotation.Written(statement.ParsedAt(rest)) {
+	if rest.Truth == statement.Unwritten {
 		return readsOther
 	}
-	if !annotation.IsFalseSchema(statement.ParsedAt(rest)) {
+	if !rest.Truth.ReadsFalse() {
 		elems = append(elems, rest)
 	}
 	if len(elems) == 0 {

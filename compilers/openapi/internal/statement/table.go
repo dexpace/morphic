@@ -63,11 +63,11 @@ func (t *Table) Read(s *Schema) *Statement {
 }
 
 // readKeys places each key s's node writes, in the order the parser holds
-// them (nodeview.Pairs), in the slot rules give it, and marks those unknown
+// them (nodeview.Pairs), in the slot rules give it, and marks those s.Unknown
 // lists, the keys the parser's model holds no field for. Past indexAbove keys
 // it indexes them first, so that marking, and every later Key, finds a key
 // without scanning.
-func readKeys(s *Schema, rules oas.SchemaRules, unknown []string) {
+func readKeys(s *Schema, rules oas.SchemaRules) {
 	pairs := nodeview.Pairs(s.Node)
 	if len(pairs) == 0 {
 		return
@@ -83,7 +83,7 @@ func readKeys(s *Schema, rules oas.SchemaRules, unknown []string) {
 			s.index[k.Name] = i
 		}
 	}
-	for _, name := range unknown {
+	for _, name := range s.Unknown {
 		if i, _ := s.find(name); i >= 0 {
 			s.Keys[i].Modeled = false
 		}

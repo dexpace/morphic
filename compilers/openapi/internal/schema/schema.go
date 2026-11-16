@@ -10,8 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -23,8 +21,8 @@ import (
 )
 
 // LowerComponentSchemas interns every named component schema schemas yields,
-// the source's components/schemas in source order. It is the entry Compile's
-// run() calls before any operation lowering.
+// the statements of the source's components/schemas in source order. It is the
+// entry Compile's run() calls before any operation lowering.
 //
 // ctx bounds the walk in time: a document declares as many components as it
 // likes, so this loop is one of the places a compile does work proportional to
@@ -33,7 +31,7 @@ import (
 // phase boundary immediately after and refuses the document there, so a partial
 // registry never becomes a Document.
 func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types,
-	schemas iter.Seq2[string, *oas3.JSONSchema[oas3.Referenceable]],
+	schemas iter.Seq2[string, *statement.Statement],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	// The declared-name index the $ref and discriminator-mapping resolutions read
@@ -43,7 +41,7 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 		if ctx.Err() != nil {
 			return diags
 		}
-		diags = append(diags, lowerComponentSchema(c, ts, c.Statements().Of(js), ids.Ptr("components", "schemas", name))...)
+		diags = append(diags, lowerComponentSchema(c, ts, js, ids.Ptr("components", "schemas", name))...)
 	}
 	return diags
 }
@@ -355,7 +353,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		id, diags := lowerUnion(c, ts, depth, s, pointer, types)
 		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
 	case len(types) == 1:
-		return unhomed(lowerTyped(c, ts, depth, s, pointer, statement.Kind(types[0])))
+		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
 	case writesType(s):
 		// Every type s names is null, so its value space is null and nothing
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
@@ -531,24 +529,30 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 // none: `type: null` is the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
 func writesType(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return slices.ContainsFunc(m.GetType(), func(t oas3.SchemaType) bool { return t != "" })
+	return slices.ContainsFunc(kindsIn(s), func(t statement.Kind) bool { return t != "" })
 }
 
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
 // member removed, and any null that declares none (writesType); nullability is
 // normalized onto the TypeRef, not the type set.
-func effectiveTypes(s *statement.Schema) []oas3.SchemaType {
-	m := statement.Parsed(s)
-	types := m.GetType()
-	out := make([]oas3.SchemaType, 0, len(types))
+func effectiveTypes(s *statement.Schema) []statement.Kind {
+	types := kindsIn(s)
+	out := make([]statement.Kind, 0, len(types))
 	for _, t := range types {
-		if t == oas3.SchemaTypeNull || t == "" {
+		if t == statement.KindNull || t == "" {
 			continue
 		}
 		out = append(out, t)
 	}
 	return out
+}
+
+// kindsIn returns the types s's `type` names, as written, nil for none.
+func kindsIn(s *statement.Schema) []statement.Kind {
+	if s == nil || s.Kinds == nil {
+		return nil
+	}
+	return s.Kinds.Types
 }
 
 // siblingKeyword is a keyword whose presence beside a union or a $dynamicRef

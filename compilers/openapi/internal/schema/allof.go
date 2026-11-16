@@ -211,21 +211,21 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 	return comp
 }
 
-// allOfRefBranches yields the $ref branches of s's allOf after flattening,
-// schemas only: the view an ancestor walk needs, which reads no pointer.
-func allOfRefBranches(c lowering.Ctx, s *statement.Schema) iter.Seq[*oas3.JSONSchema[oas3.Referenceable]] {
+// allOfRefBranches yields the statements of the $ref branches of s's allOf
+// after flattening: the view an ancestor walk needs, which reads no pointer.
+func allOfRefBranches(c lowering.Ctx, s *statement.Schema) iter.Seq[*statement.Statement] {
 	m := statement.Parsed(s)
-	return func(yield func(*oas3.JSONSchema[oas3.Referenceable]) bool) {
+	return func(yield func(*statement.Statement) bool) {
 		if list := m.GetAllOf(); !slices.ContainsFunc(list, func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return wrapsAllOf(c.Bindings(), b) }) {
 			for _, b := range list { // nothing flattens: walkAllOf would yield the list itself
-				if c.Bindings().RefSite(b) && !yield(b) {
+				if c.Bindings().RefSite(b) && !yield(c.Statements().Of(b)) {
 					return
 				}
 			}
 			return
 		}
 		for st := range walkAllOf(c, s) {
-			if c.Bindings().RefSite(st.schema) && !yield(st.schema) {
+			if c.Bindings().RefSite(st.schema) && !yield(c.Statements().Of(st.schema)) {
 				return
 			}
 		}
@@ -374,7 +374,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *statement.Schema, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range comp.branches {
-		if !annotation.IsFalseSchema(statement.ParsedAt(e.schema)) {
+		if !e.schema.Truth.ReadsFalse() {
 			continue // `true`, a null and any schema with a body close nothing.
 		}
 		m.Additional = ir.AdditionalClosed

@@ -537,8 +537,8 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) 
 // or s declares properties where the walk reads none (declaresUnread). It
 // collects the value schemas of the catch-alls s holds in v.catchAllValues.
 func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) {
-	*v.catchAllValues = append(*v.catchAllValues, catchAllValues(s)...)
-	if s != nil && (admitsMembers(s) || declaresUnread(v.c.Bindings(), js, s)) {
+	*v.catchAllValues = append(*v.catchAllValues, catchAllValues(v.c.Statements(), s)...)
+	if s != nil && (admitsMembers(v.c.Statements(), s) || declaresUnread(v.c, js, s)) {
 		*v.open = true
 	}
 }
@@ -547,24 +547,25 @@ func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema
 // property for: an additionalProperties or unevaluatedProperties other than
 // false, or a patternProperties. A key such a member could have is not shown
 // to name nothing, though OpenAPI asks a key to name a declared property.
-func admitsMembers(s *oas3.Schema) bool {
-	return admitting(s.GetAdditionalProperties()) || admitting(s.GetUnevaluatedProperties()) ||
+func admitsMembers(t *statement.Table, s *oas3.Schema) bool {
+	return admitting(t, s.GetAdditionalProperties()) || admitting(t, s.GetUnevaluatedProperties()) ||
 		s.GetPatternProperties().Len() > 0
 }
 
-// admitting reports whether js, a catch-all's schema, admits a member: it is
-// written, and is not the false schema.
-func admitting(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return annotation.Written(js) && !annotation.IsFalseSchema(js)
+// admitting reports whether js, a catch-all's schema as t reads it, admits a
+// member: it is written, and is not the false schema.
+func admitting(t *statement.Table, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	truth := t.Of(js).Truth
+	return truth != statement.Unwritten && !truth.ReadsFalse()
 }
 
 // catchAllValues returns the value schemas of the catch-alls s, which may be
 // nil, holds that admit a member (admitting), additionalProperties,
 // unevaluatedProperties and each patternProperties entry, in that order.
-func catchAllValues(s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
+func catchAllValues(t *statement.Table, s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
 	var out []*oas3.JSONSchema[oas3.Referenceable]
 	for _, js := range []*oas3.JSONSchema[oas3.Referenceable]{s.GetAdditionalProperties(), s.GetUnevaluatedProperties()} {
-		if admitting(js) {
+		if admitting(t, js) {
 			out = append(out, js)
 		}
 	}
@@ -579,17 +580,18 @@ func catchAllValues(s *oas3.Schema) []*oas3.JSONSchema[oas3.Referenceable] {
 // of $refs js starts, writes that it does not read (writesUnread), past a $ref
 // resolving to nothing, and beside a $ref on the chain, which the walk reads
 // to its end (schemaOf).
-func declaresUnread(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
+func declaresUnread(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
 	if writesUnread(s, "") {
 		return true
 	}
+	refs := c.Bindings()
 	for range maxBodyAliasHops {
 		keyword := refs.RefKeyword(js)
 		if keyword == "" {
 			return false
 		}
 		site := js.GetSchema()
-		if refs.End(js) == nil || writesUnread(site, keyword) || admitsMembers(site) || len(site.GetAllOf()) > 0 ||
+		if refs.End(js) == nil || writesUnread(site, keyword) || admitsMembers(c.Statements(), site) || len(site.GetAllOf()) > 0 ||
 			len(site.GetOneOf()) > 0 || len(site.GetAnyOf()) > 0 || site.GetProperties().Len() > 0 {
 			return true
 		}

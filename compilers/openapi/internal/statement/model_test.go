@@ -311,14 +311,15 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 // `<<` chain runs past nodeview.MergeDepthLimit: its keys list only what it
 // writes itself, as the raw mapping reads it, while each typed value merged
 // past the bound, one keyword of each slot, is the parser's model's, which
-// expands the whole chain. A bound, kept as the node it was written as, comes
-// from its key, so it is not there.
+// expands the whole chain, as is its list of keys it holds no field for. A
+// bound, kept as the node it was written as, comes from its key, so it is not
+// there.
 func TestRead_AKeywordMergedPastTheBoundHasItsValueAndNoKey(t *testing.T) {
 	t.Parallel()
 	var spec strings.Builder
 	spec.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
 		"x-c0: &c0 {allOf: [{}], type: object, enum: [{}], format: f, minLength: 1, minItems: 2, maximum: 9, " +
-		"discriminator: {propertyName: k}, oneOf: [{}], not: {}, description: d}\n")
+		"discriminator: {propertyName: k, x: 1}, oneOf: [{}], not: {}, description: d, foo: 1}\n")
 	for i := 1; i <= nodeview.MergeDepthLimit; i++ {
 		fmt.Fprintf(&spec, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
 	}
@@ -338,6 +339,8 @@ func TestRead_AKeywordMergedPastTheBoundHasItsValueAndNoKey(t *testing.T) {
 	require.NotNil(t, p.Object)
 	require.NotNil(t, p.Object.Discriminator, "the model's discriminator")
 	assert.Equal(t, "k", p.Object.Discriminator.PropertyName)
+	assert.Equal(t, []string{"x"}, p.Object.Discriminator.Unknown)
+	assert.Equal(t, []string{"foo"}, p.Unknown, "the model's list names a key it holds no field for")
 	assert.Len(t, p.AllOf, 1)
 	assert.Len(t, p.Entries, 1)
 	assert.Equal(t, []statement.Kind{statement.KindObject}, p.Kinds.Types)
