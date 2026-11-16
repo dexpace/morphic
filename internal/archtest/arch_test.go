@@ -341,7 +341,8 @@ var rules = map[string][]string{
 	// states, the dialect question asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, provenance and diag for where a position of its document is
-	// placed, and promotion for the policy it carries.
+	// placed, ids for how the IDs of what that document declares are
+	// qualified, and promotion for the policy it carries.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
