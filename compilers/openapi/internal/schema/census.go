@@ -48,7 +48,6 @@ var censusKeywords = []string{
 // readers hold, and a collection bound the position's constraints hold
 // (referenceHolds).
 func keywordHome(td ir.TypeDef, s *statement.Schema, keyword string) bool {
-	m := statement.Parsed(s)
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties":
 		// A MapT homes all three: its Value is the catch-all, and it is a map
@@ -58,7 +57,7 @@ func keywordHome(td ir.TypeDef, s *statement.Schema, keyword string) bool {
 		// A MapT has no key to require, so it homes only an empty list. A name
 		// lands on a property or in Model.Requires (requireMembers), either of
 		// which keeps the node a Model, so a MapT never meets a longer one.
-		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(m.GetRequired()) == 0)
+		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(objectIn(s).Required) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "additionalItems":
@@ -106,9 +105,8 @@ func keywordHome(td ir.TypeDef, s *statement.Schema, keyword string) bool {
 // nullConstHome reports whether td is the Enum with no member a `const: null`
 // lowers to (nullConst).
 func nullConstHome(td ir.TypeDef, s *statement.Schema) bool {
-	m := statement.Parsed(s)
 	e, ok := td.(*ir.Enum)
-	return ok && e != nil && len(e.Members) == 0 && isNullValue(m.GetConst())
+	return ok && e != nil && len(e.Members) == 0 && isNullValue(constIn(s))
 }
 
 // discriminatorHome reports whether td holds the discriminator its position
@@ -169,9 +167,9 @@ func formatHome(td ir.TypeDef, s *statement.Schema) bool {
 // variant hoisted for the bounds its type takes, which holds the pairing as a
 // shared primitive would (lowerTypeVariant).
 func pairedBase(s *statement.Schema, target ir.TypeID) bool {
-	m := statement.Parsed(s)
+	format := namedFormat(s)
 	return slices.ContainsFunc(effectiveTypes(s), func(st statement.Kind) bool {
-		prim, paired := spelling.Lookup(string(st) + "/" + m.GetFormat())
+		prim, paired := spelling.Lookup(string(st) + "/" + format)
 		return paired && ir.PrimTypeID(prim) == target
 	})
 }
@@ -372,9 +370,8 @@ func referenceUnhomed(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poin
 // oneOf/anyOf stay out: callers check declaresUnion and call the union keepers
 // directly (GitHub #406).
 func refSiteUnhomedKeywords(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, handled []string) []string {
-	m := statement.Parsed(s)
 	unhomed := referenceUnhomed(c, s, pointer, handled)
-	if len(m.GetAllOf()) > 0 {
+	if len(allOfIn(s)) > 0 {
 		unhomed = append(unhomed, "allOf")
 	}
 	return unhomed

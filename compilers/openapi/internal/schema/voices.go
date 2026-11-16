@@ -86,8 +86,7 @@ func foldValue(s *statement.Schema, entry string) foldRendering {
 // which would make the position a $ref site, whose alias keeps the allOf
 // verbatim (docs/compilers/openapi.md#allof-beside-ref).
 func allOfBesideNoRef(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return len(m.GetAllOf()) > 0 && m.Ref == nil
+	return len(allOfIn(s)) > 0 && !refWritten(s)
 }
 
 // allOfMayRefine reports whether s's allOf may refine: no $ref or $dynamicRef
@@ -161,7 +160,7 @@ func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
 	writes := make([][]string, n)
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
-		if bs := statement.ParsedAt(e.schema).GetSchema(); bs != nil && !c.Bindings().RefSite(statement.ParsedAt(e.schema)) {
+		if statesSchema(e.schema.Schema) && e.schema.Ref == nil {
 			if out.rebased[i] = underID(e, e.schema.Schema, ids) && foldsReference(c, e.schema.Schema) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(e.schema.Schema)
 			}
@@ -238,7 +237,7 @@ func foldsReference(c lowering.Ctx, bs *statement.Schema) bool {
 // less e's path from it, as the allOf may be read where a $ref landed. A base
 // the bindings cannot tell is no match.
 func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
-	site, placed := c.Bindings().Site(statement.ParsedAt(e.schema))
+	site, placed := siteOf(e.schema.Schema)
 	at := bind.Position{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
 	own, known := c.Bindings().Table().Base(site)
 	position, knownAt := c.Bindings().Table().Base(at)

@@ -2007,7 +2007,9 @@ whatever references its schema. The policy is the Go option `Options.NullableInf
 `nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
 its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
-model does not name.
+model does not name. Under either policy only the boolean `true` states a null: a `nullable`
+holding a string states none at any version, a YAML 1.1 truth word the parser decodes as true, such
+as `"yes"` or a plain `on`, among them, and neither does any other value that is no boolean.
 
 Whether a 3.0 `nullable: true` has an effect is a fact of the specification, not of the policy: with
 no `type` written in the same Schema Object, a `type` written `null` being none, it has none, beside
@@ -2030,7 +2032,9 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
   `schema.TestNullableInference_ABranchWidensTheAllOfHoldingIt`,
   `oas.TestCheck_NullableAppliesBesideAType`,
-  `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`
+  `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
+  `schema.TestNullableInference_OnlyABooleanStatesNull`,
+  `schema.TestNullableTrue_PastTheMergeBoundTheModelsReadingStands`
 
 ### `schema-examples`
 

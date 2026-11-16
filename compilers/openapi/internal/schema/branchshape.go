@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -50,11 +48,10 @@ type bodyReading struct {
 // readBody reads s, the schema writing a union, for its branches to be judged
 // against.
 func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
-	m := statement.Parsed(s)
 	r := &bodyReading{w: newAdmission(c), body: s}
 	r.held = r.w.written(s, r.w.nullable)
-	for _, b := range m.GetAllOf() {
-		r.held = r.held.and(r.w.whole(c.Statements().Of(b)))
+	for _, b := range allOfIn(s) {
+		r.held = r.held.and(r.w.whole(c.Statements().Sub(b)))
 	}
 	return r
 }
@@ -93,8 +90,8 @@ func (r *bodyReading) declared() declarationSet {
 // declares shape, so the body is read only once an inline branch needs it, and
 // a reading its budget cut short says nothing, so it counts as one that does.
 func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return setsDeclareShape(c, s, m.GetOneOf(), m.GetAnyOf())
+	choice := choiceIn(s)
+	return setsDeclareShape(c, s, choice.OneOf, choice.AnyOf)
 }
 
 // setsDeclareShape is unionBranchesDeclareShape for the branches of sets, a
@@ -102,9 +99,9 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
 // body's own reading settles first each branch restating what s itself writes
 // (ownRestatements), and only the rest are judged against the whole reading,
 // which they would restate under too, as more declarations admit less.
-func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]*oas3.JSONSchema[oas3.Referenceable]) bool {
-	branches := slices.Concat(sets...)
-	if slices.ContainsFunc(branches, c.Bindings().RefSite) {
+func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]statement.Sub) bool {
+	branches := statementsOf(c, slices.Concat(sets...))
+	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return b.Ref != nil }) {
 		return true
 	}
 	settled := ownRestatements(c, s, branches)
@@ -115,17 +112,21 @@ func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]*oas3.JSONS
 		}
 		return r
 	}
-	found := slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return !settled[b] && branchDeclaresShape(body, c.Statements().Of(b))
-	})
+	found := false
+	for i, b := range branches {
+		if (settled == nil || !settled[i]) && branchDeclaresShape(c.Statements(), body, b) {
+			found = true
+			break
+		}
+	}
 	return found || r != nil && r.w.incomplete()
 }
 
-// ownRestatements returns the inline branches of branches that restate s read
-// alone (readOwnBody), judged all, and none where that reading ran out: which
-// branches it settled before running out would follow their order, and with it
-// what the whole reading is left to read (GitHub #1423).
-func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*oas3.JSONSchema[oas3.Referenceable]) map[*oas3.JSONSchema[oas3.Referenceable]]bool {
+// ownRestatements marks, by index, the inline branches of branches that
+// restate s read alone (readOwnBody), judged all, and none where that reading
+// ran out: which branches it settled before running out would follow their
+// order, and with it what the whole reading is left to read (GitHub #1423).
+func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*statement.Statement) []bool {
 	var r *bodyReading
 	body := func() *bodyReading {
 		if r == nil {
@@ -133,10 +134,10 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*oas3.JSONS
 		}
 		return r
 	}
-	settled := make(map[*oas3.JSONSchema[oas3.Referenceable]]bool, len(branches))
-	for _, b := range branches {
-		if !branchDeclaresShape(body, c.Statements().Of(b)) {
-			settled[b] = true
+	settled := make([]bool, len(branches))
+	for i, b := range branches {
+		if !branchDeclaresShape(c.Statements(), body, b) {
+			settled[i] = true
 		}
 	}
 	if r != nil && r.w.incomplete() {
@@ -146,17 +147,17 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*oas3.JSONS
 }
 
 // branchDeclaresShape reports whether the inline union branch b declares data
-// shape beside the body body reads. A boolean never does, and any other does
+// shape beside the body body reads, its schemas read from t. A boolean never does, and any other does
 // where one keyword it writes does: bare or beside a repeated `type`, a keyword
 // is judged alike, so restating the body changes no verdict. A branch writing
 // no key judged against the body, `required` alone the commonest, leaves it
 // unread.
-func branchDeclaresShape(body func() *bodyReading, b *statement.Statement) bool {
+func branchDeclaresShape(t *statement.Table, body func() *bodyReading, b *statement.Statement) bool {
 	if b.Truth != statement.Stated {
 		return false
 	}
 	writesJudged := slices.ContainsFunc(b.Keys, func(k statement.Key) bool {
-		return judged(b.Schema, k.Name)
+		return judged(t, b.Schema, k.Name)
 	})
 	if !writesJudged {
 		return false
@@ -166,9 +167,10 @@ func branchDeclaresShape(body func() *bodyReading, b *statement.Statement) bool 
 }
 
 // judged reports whether s's key is judged against what the body says: it is
-// neither shapeless nor a `type` naming only null, which contributes the null.
-func judged(s *statement.Schema, key string) bool {
-	return !shapeless(s, key) && (key != "type" || len(effectiveTypes(s)) > 0)
+// neither shapeless, its schemas read from t, nor a `type` naming only null,
+// which contributes the null.
+func judged(t *statement.Table, s *statement.Schema, key string) bool {
+	return !shapeless(t, s, key) && (key != "type" || len(effectiveTypes(s)) > 0)
 }
 
 // claim is a schema a branch writes, for itself, a property or an element, or
@@ -205,7 +207,7 @@ func (r *bodyReading) restates(top claim) bool {
 			return false
 		}
 		for _, j := range conjuncts {
-			claims = append(claims, claim{written: r.w.c.Statements().Of(j), held: c.held, at: c.at})
+			claims = append(claims, claim{written: r.w.c.Statements().Sub(j), held: c.held, at: c.at})
 		}
 		for _, n := range inner {
 			sub, open, ok := r.claimOf(n)
@@ -228,30 +230,30 @@ func (r *bodyReading) restates(top claim) bool {
 // boolean conjunct says nothing or only forbids. Keys are the statement's,
 // which hold the keywords the model has no field for
 // (docs/parser-library.md#unmodeled-keywords).
-func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceable], []nested, bool) {
-	s := statement.ParsedAt(c.written).GetSchema()
-	if s == nil {
+func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
+	if !statesSchema(c.written.Schema) {
 		return nil, nil, true
 	}
+	t := r.w.c.Statements()
 	var inner []nested
-	var conjuncts []*oas3.JSONSchema[oas3.Referenceable]
+	var conjuncts []statement.Sub
 	for _, k := range c.written.Keys {
 		switch {
-		case !judged(c.written.Schema, k.Name):
+		case !judged(t, c.written.Schema, k.Name):
 		case k.Name == "allOf":
-			conjuncts = s.GetAllOf()
+			conjuncts = c.written.AllOf
 		case k.Name == "properties":
 			decls := r.declarationsAt(c)
-			for name, p := range s.GetProperties().All() {
-				inner = append(inner, nested{written: r.w.c.Statements().Of(p), at: decls.property(name)})
+			for _, p := range objectIn(c.written.Schema).Properties {
+				inner = append(inner, nested{written: t.Sub(p), at: decls.property(t, p.Name)})
 			}
 		case k.Name == "items":
 			if _, listed := listedItems(c.written.Schema); listed {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
-			inner = append(inner, nested{written: r.w.c.Statements().Of(s.GetItems()), at: r.declarationsAt(c).items})
-		case k.Name == r.w.c.Bindings().RefKeyword(statement.ParsedAt(c.written)):
+			inner = append(inner, nested{written: t.Sub(writtenArray(c.written.Schema).Items), at: r.declarationsAt(c).items})
+		case k.Name == refKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false
 			}
@@ -284,8 +286,8 @@ func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
 	if n.at == nil {
 		return claim{}, false, false
 	}
-	alike := func(d *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return r.w.sameText(r.w.c.Statements().Of(d), n.written)
+	alike := func(d *statement.Statement) bool {
+		return r.w.sameText(d, n.written)
 	}
 	if statement.ParsedAt(n.written).IsBool() || slices.ContainsFunc(n.at.decls, alike) {
 		return claim{}, false, true
@@ -305,19 +307,18 @@ func (r *bodyReading) lands(c claim) bool {
 	if c.at == nil {
 		return false
 	}
-	at := r.w.c.Bindings().Declared(statement.ParsedAt(c.written))
+	at, _ := declaredOf(r.w.c, c.written)
 	return at != nil && slices.Contains(r.w.innerAt(c.at).composed, at)
 }
 
 // shapeless reports whether s's keyword key declares no shape whatever it
 // holds: a null that reads as the keyword left out, an extension, a keyword
-// shapelessKeywords names, or an unevaluatedProperties other than false, which
-// is validation logic where false closes the object
+// shapelessKeywords names, or an unevaluatedProperties other than false, read
+// from t, which is validation logic where false closes the object
 // (docs/ir/boundaries.md#validation-only-constructs).
-func shapeless(s *statement.Schema, key string) bool {
-	m := statement.Parsed(s)
+func shapeless(t *statement.Table, s *statement.Schema, key string) bool {
 	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
 	}
-	return key == "unevaluatedProperties" && !annotation.IsFalseSchema(m.GetUnevaluatedProperties())
+	return key == "unevaluatedProperties" && !t.Sub(objectIn(s).UnevaluatedProperties).Truth.ReadsFalse()
 }

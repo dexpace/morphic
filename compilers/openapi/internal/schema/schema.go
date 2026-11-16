@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -17,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -63,7 +66,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.State
 	diags = append(diags, aliasDiags...)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
-	if statement.Parsed(s.Node) != nil {
+	if statesSchema(s.Node) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
@@ -260,8 +263,7 @@ func refinesToBranch(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // allOfComposes reports whether s writes an allOf that composes rather than
 // refines, the one a union beside it distributes across or is kept beside.
 func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if len(m.GetAllOf()) == 0 {
+	if len(allOfIn(s)) == 0 {
 		return false
 	}
 	_, refines := refinementOf(c, s, "")
@@ -379,8 +381,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // allOf, which lower() elects first: a property set makes it a model; anything
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	if props := m.GetProperties(); props != nil && props.Len() > 0 {
+	if len(objectIn(s).Properties) > 0 {
 		// The node asserts an object, but the source declares no type, so every
 		// bound is read as it would be at a position lowering to the top type.
 		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredInstanceTypes(s))
@@ -403,14 +404,13 @@ var familyOrder = []string{"const", "enum", "allOf"}
 // otherwise report whichever guard the default happened to hold, electing that
 // name on schemas that never wrote it.
 func declaresFamily(s *statement.Schema, family string) bool {
-	m := statement.Parsed(s)
 	switch family {
 	case "const":
-		return m.GetConst() != nil
+		return constIn(s) != nil
 	case "enum":
 		return enumWritten(s)
 	case "allOf":
-		return len(m.GetAllOf()) > 0
+		return len(allOfIn(s)) > 0
 	default:
 		return false
 	}
@@ -426,8 +426,7 @@ func declaresFamily(s *statement.Schema, family string) bool {
 // empty list leaves it non-nil. A member list the model layer could not parse
 // reads as absent, which is a document the loader already refuses.
 func enumWritten(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return m.GetEnum() != nil
+	return enumIn(s) != nil
 }
 
 // dispatch records how lower() resolved a schema's competing keyword families:
@@ -555,6 +554,41 @@ func kindsIn(s *statement.Schema) []statement.Kind {
 	return s.Kinds.Types
 }
 
+// enumIn returns the members s's `enum` lists, nil where it writes none and
+// empty where it writes an empty list (enumWritten).
+func enumIn(s *statement.Schema) []*yaml.Node {
+	if s == nil || s.Values == nil {
+		return nil
+	}
+	return s.Values.Enum
+}
+
+// constIn returns the value s's `const` holds, nil where it writes none.
+func constIn(s *statement.Schema) *yaml.Node {
+	if s == nil || s.Values == nil {
+		return nil
+	}
+	return s.Values.Const
+}
+
+// nullableTrue reports whether s's `nullable` reads true whatever the dialect
+// defines, as a policy reads a 3.0 keyword in a 3.1 schema: only the boolean
+// true states it, never a string the parser's model decodes as true, such as
+// "yes" (docs/compilers/openapi.md#nullable, GitHub #2007). A keyword merged in
+// past nodeview.MergeDepthLimit has the model's value and no key, and that
+// value stands.
+func nullableTrue(s *statement.Schema) bool {
+	if s == nil || s.Kinds == nil || s.Kinds.Nullable == nil || !*s.Kinds.Nullable {
+		return false
+	}
+	k, _ := s.Key("nullable")
+	if k.Name == "" {
+		return true
+	}
+	written, err := value.Classify(k.Node)
+	return err == nil && written.Kind == value.ScalarBool && written.Bool
+}
+
 // siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
 // leaves something for the position to carry, with how a schema writes it.
 type siblingKeyword struct {
@@ -566,20 +600,14 @@ type siblingKeyword struct {
 // set, a value set, composition, or a catch-all — rather than only narrowing
 // what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
 var shapeKeywords = []siblingKeyword{
-	{"properties", func(s *statement.Schema) bool {
-		props := statement.Parsed(s).GetProperties()
-		return props != nil && props.Len() > 0
-	}},
-	{"const", func(s *statement.Schema) bool { return statement.Parsed(s).GetConst() != nil }},
+	{"properties", func(s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }},
+	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }},
 	{"enum", enumWritten},
-	{"allOf", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetAllOf()) > 0 }},
+	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }},
 	{"additionalProperties", func(s *statement.Schema) bool {
 		return annotation.Written(statement.Parsed(s).GetAdditionalProperties())
 	}},
-	{"patternProperties", func(s *statement.Schema) bool {
-		pp := statement.Parsed(s).GetPatternProperties()
-		return pp != nil && pp.Len() > 0
-	}},
+	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }},
 	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }},
 }
 
@@ -592,12 +620,12 @@ var shapeKeywords = []siblingKeyword{
 // co-declared property set. An `items` list narrows too, read off the raw node,
 // since nothing documents what the parser's model holds there.
 var narrowingKeywords = []siblingKeyword{
-	{"required", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetRequired()) > 0 }},
+	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }},
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
 		return listed || annotation.Written(statement.Parsed(s).GetItems())
 	}},
-	{"prefixItems", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetPrefixItems()) > 0 }},
+	{"prefixItems", func(s *statement.Schema) bool { return len(writtenArray(s).PrefixItems) > 0 }},
 }
 
 // siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords

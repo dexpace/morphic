@@ -69,8 +69,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 // conjoins, so the position is not nullable X. The Union keeps the unused
 // combinator (preserveUnusedCombinator), which X's shared node cannot.
 func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (*statement.Statement, jsontext.Pointer, bool) {
-	m := statement.Parsed(s)
-	if len(m.GetOneOf()) > 0 && len(m.GetAnyOf()) > 0 {
+	if choice := choiceIn(s); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return nil, "", false
 	}
 	variants, key, _ := unionBranches(s)
@@ -178,10 +177,7 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // (preserveUnionSiblings). Reading the preference as one only that last lowering
 // could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *statement.Schema) ([]statement.Sub, string, bool) {
-	var choice statement.Choice
-	if s != nil && s.Choice != nil {
-		choice = *s.Choice
-	}
+	choice := choiceIn(s)
 	if len(choice.OneOf) > 0 {
 		return choice.OneOf, "oneOf", true
 	}
@@ -206,8 +202,7 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // distributes the schema, so neither set is elected and both are kept beside
 // the body (lowerBesideUnmodeledUnion).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
-	m := statement.Parsed(s)
-	if len(m.GetOneOf()) == 0 || len(m.GetAnyOf()) == 0 {
+	if choice := choiceIn(s); len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
 	unused := otherCombinator[won]
@@ -376,8 +371,8 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	branches := allOfBranches(c, s, "").branches
 	index, count := 0, 0
 	for i, e := range branches {
-		bs := statement.ParsedAt(e.schema).GetSchema()
-		if c.Bindings().RefSite(statement.ParsedAt(e.schema)) || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, bs.GetOneOf(), bs.GetAnyOf()) {
+		choice := choiceIn(e.schema.Schema)
+		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 			continue
 		}
 		index, count = i, count+1
@@ -404,10 +399,8 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 // variant as 3.1's `{$ref: X, description: …}` does (GitHub #1018), a title
 // beside either too. The node t keeps the branch's own.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *statement.Statement, vptr jsontext.Pointer, t ir.TypeRef) string {
-	m := statement.ParsedAt(b)
 	own := lowering.NameAt(c, vptr)
-	s := annotation.SchemaOf(m)
-	if s == nil || c.Bindings().RefSite(m) {
+	if !statesSchema(b.Schema) || b.Ref != nil {
 		return own
 	}
 	if _, titled := lowering.NameTitle(c, vptr); titled {
@@ -589,16 +582,16 @@ type branchesSayOf struct {
 // none, and so does a schema writing no union, of which "every branch" would
 // say anything. Every reader of the position asks, so it is read once a run.
 func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
-	m := statement.Parsed(s)
 	return lowering.Remembered(c, branchesSayOf{s}, func() []string {
-		branches := slices.Concat(m.GetOneOf(), m.GetAnyOf())
+		choice := choiceIn(s)
+		branches := slices.Concat(choice.OneOf, choice.AnyOf)
 		if len(branches) == 0 {
 			return nil
 		}
 		w := newAdmission(c)
 		reads := make([]admitted, len(branches))
 		for i, b := range branches {
-			reads[i] = w.whole(c.Statements().Of(b))
+			reads[i] = w.whole(c.Statements().Sub(b))
 		}
 		if w.incomplete() {
 			return nil
@@ -729,8 +722,7 @@ func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // one on a branch of its allOf the body distributes (branchUnion), it does so
 // only where this says unionDistributed.
 func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
-	m := statement.Parsed(holder)
-	if len(m.GetOneOf()) > 0 && len(m.GetAnyOf()) > 0 {
+	if choice := choiceIn(holder); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return unionBothCombinators
 	}
 	branches, _, _ := unionBranches(holder)
@@ -751,8 +743,7 @@ func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 // instance it constrains, or null, which it leaves alone
 // (branchesAdmitOnlyObjects).
 func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if m.GetConst() != nil || enumWritten(s) {
+	if constIn(s) != nil || enumWritten(s) {
 		return false
 	}
 	if allOfComposes(c, s) {
@@ -762,7 +753,7 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 	if len(types) > 0 {
 		return len(types) == 1 && types[0] == statement.KindObject
 	}
-	if props := m.GetProperties(); props != nil && props.Len() > 0 {
+	if len(objectIn(s).Properties) > 0 {
 		return true
 	}
 	return slices.Equal(siblingKeywords(s), []string{"required"}) && branchesAdmitOnlyObjects(c, s)
@@ -849,10 +840,10 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	var diags []ir.Diagnostic
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
-		if st.Ref == nil || c.RefScope().NamesReferent(statement.ParsedAt(st)) || onLoop(c, st) {
+		if st.Ref == nil || c.RefScope().NamesReferent(statement.ParsedAt(st)) || onLoop(st) {
 			continue
 		}
-		keyword, ref := refSpelling(c, st)
+		keyword, ref := refSpelling(st)
 		diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr(key, strconv.Itoa(i)),
 			"union branch %s %q is unresolved%s; the branch is kept verbatim", keyword, ref, unresolvedWhy(c, st)))
@@ -915,8 +906,17 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 // as a $ref (fillAllOf) — gates hoisting a home for the union on, so the
 // three cannot drift into checking it three different ways.
 func declaresUnion(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0
+	choice := choiceIn(s)
+	return len(choice.OneOf) > 0 || len(choice.AnyOf) > 0
+}
+
+// choiceIn returns what s's oneOf and anyOf list, the zero Choice where it
+// writes neither.
+func choiceIn(s *statement.Schema) statement.Choice {
+	if s == nil || s.Choice == nil {
+		return statement.Choice{}
+	}
+	return *s.Choice
 }
 
 // buildsVariants reports whether a Union s lowers to holds variants s builds
@@ -943,7 +943,6 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 // into one or dropped. A union an allOf branch writes is the branch's to give,
 // not residue each variant keeps (allOfComposition.conjoins).
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
@@ -951,7 +950,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
 			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
-				ref, variantDiags := composedVariant(c, ts, depth, body, c.Statements().Of(statement.ParsedAt(b)), vptr)
+				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)
 				diags = append(diags, variantDiags...)
 				return ref
 			})
@@ -961,7 +960,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	// The union read s's discriminator, so one it cannot hold says why.
 	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, taglessShape(nil, s, distributedShape), nil, pointer)...)
 	where := "co-declared with structural keywords"
-	if statement.Parsed(u.holder) != m {
+	if u.holder != s {
 		where = "written on an allOf branch conjoins with the rest of the composition"
 	}
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
@@ -978,7 +977,6 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 // (tagLocated). The position's first lowering composes the union; a later one
 // finds it.
 func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	_, lowered := ts.Lookup(c.IDs().Coordinate(pointer))
 	d := dispatchOf(s)
 	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
@@ -992,7 +990,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	diags = append(diags, mintDiags...)
 	diags = append(diags, composeMixin(c, ts, id, mixin, pointer)...)
 	where := "co-declared with"
-	if statement.Parsed(u.holder) != m {
+	if u.holder != s {
 		where = "written on an allOf branch of"
 	}
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
@@ -1109,7 +1107,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	fields.compose(branch, m.Provenance.Pointer)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
-	requireMembers(m, compositionRequired(statement.Parsed(body.schema).GetRequired(), body.comp))
+	requireMembers(m, compositionRequired(objectIn(body.schema).Required, body.comp))
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
 	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
 	conjoinBranch(m, branch)

@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
@@ -61,9 +59,8 @@ func typeKinds(st statement.Kind) kindSet {
 // bound meet GitHub #1889's fold, and one left is reported at its position, not
 // its key.
 func positionTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
 	own := declaredInstanceTypes(s)
-	if m == nil || own == 0 || !namesSchema(s) || !writesBound(c, s) {
+	if !statesSchema(s) || own == 0 || !namesSchema(s) || !writesBound(c, s) {
 		return own
 	}
 	return own & namedTypes(c, s, pointer)
@@ -73,8 +70,7 @@ func positionTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // in one of the four ways boundTypes.names reads: an allOf entry, a $ref, a
 // union branch or a dynamic reference.
 func namesSchema(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return len(m.GetAllOf()) > 0 || m.Ref != nil || declaresUnion(s) || declaresDynamicRef(s)
+	return len(allOfIn(s)) > 0 || refWritten(s) || declaresUnion(s) || declaresDynamicRef(s)
 }
 
 // writesBound reports whether s, or an inline branch of its flattened allOf,
@@ -84,8 +80,8 @@ func writesBound(c lowering.Ctx, s *statement.Schema) bool {
 	if declaresBound(s) {
 		return true
 	}
-	for st := range walkAllOf(c, s) {
-		if bs := st.schema.GetSchema(); bs != nil && !c.Bindings().RefSite(st.schema) && declaresBound(c.Statements().Of(st.schema).Schema) {
+	for _, e := range c.Statements().Read(s).Entries {
+		if statesSchema(e.Schema) && e.Ref == nil && declaresBound(e.Schema) {
 			return true
 		}
 	}
@@ -134,8 +130,7 @@ type boundTypes struct {
 // as a boolean one, or one past the budget, excludes nothing; namedTypes
 // discards a read past it. Each read spends a step, one finding no schema too.
 func (r *boundTypes) schema(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
-	if !r.steps.Spend(1) || m == nil {
+	if !r.steps.Spend(1) || !statesSchema(s) {
 		return anyInstance
 	}
 	return declaredInstanceTypes(s) & r.names(c, s, pointer)
@@ -148,7 +143,7 @@ func (r *boundTypes) schema(c lowering.Ctx, s *statement.Schema, pointer jsontex
 // branches.
 func (r *boundTypes) names(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
 	out := r.conjuncts(c, s, pointer)
-	if held := heldAt(c, pointer); c.Bindings().RefSite(statement.ParsedAt(held)) {
+	if held := heldAt(c, pointer); held.Ref != nil {
 		out &= r.ref(c, held)
 	} else if at, ok := dynamicTarget(c, s, pointer); ok {
 		out &= r.at(c, at)
@@ -159,10 +154,9 @@ func (r *boundTypes) names(c lowering.Ctx, s *statement.Schema, pointer jsontext
 // conjuncts is what every entry of s's allOf admits, and anyInstance once the
 // budget is exhausted, reading no entry past it.
 func (r *boundTypes) conjuncts(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
 	out := anyInstance
-	for i, b := range m.GetAllOf() {
-		out &= r.entry(c, c.Statements().Of(b), pointer, "allOf", i)
+	for _, b := range s.AllOf {
+		out &= r.entry(c, c.Statements().Sub(b), pointer, "allOf", b.Index)
 		if r.steps.Exhausted() {
 			return anyInstance
 		}
@@ -176,21 +170,21 @@ func (r *boundTypes) conjuncts(c lowering.Ctx, s *statement.Schema, pointer json
 // though it may write no type, and is read at a step like any other branch. It
 // is anyInstance once the budget is exhausted, reading no branch past it.
 func (r *boundTypes) unions(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
+	choice := choiceIn(s)
 	out := anyInstance
 	for _, union := range [...]struct {
 		key      string
-		branches []*oas3.JSONSchema[oas3.Referenceable]
-	}{{"oneOf", m.GetOneOf()}, {"anyOf", m.GetAnyOf()}} {
+		branches []statement.Sub
+	}{{"oneOf", choice.OneOf}, {"anyOf", choice.AnyOf}} {
 		if len(union.branches) == 0 {
 			continue
 		}
 		var some kindSet
-		for i, b := range union.branches {
-			if nullBranch(c, c.Statements().Of(b)) {
+		for _, b := range union.branches {
+			if st := c.Statements().Sub(b); nullBranch(c, st) {
 				r.steps.Spend(1)
 			} else {
-				some |= r.entry(c, c.Statements().Of(b), pointer, union.key, i)
+				some |= r.entry(c, st, pointer, union.key, b.Index)
 			}
 			if r.steps.Exhausted() {
 				return anyInstance
@@ -205,9 +199,8 @@ func (r *boundTypes) unions(c lowering.Ctx, s *statement.Schema, pointer jsontex
 // at pointer. Only an inline b reads where it is written, so only its pointer
 // is joined.
 func (r *boundTypes) entry(c lowering.Ctx, b *statement.Statement, pointer jsontext.Pointer, key string, i int) kindSet {
-	m := statement.ParsedAt(b)
 	at := pointer
-	if !c.Bindings().RefSite(m) {
+	if b.Ref == nil {
 		at += ids.Ptr(key, strconv.Itoa(i))
 	}
 	return r.branch(c, b, at)
@@ -217,8 +210,7 @@ func (r *boundTypes) entry(c lowering.Ctx, b *statement.Statement, pointer jsont
 // one's own schema, a $ref's the schema its chain ends on. A keyword beside the
 // $ref is not read (GitHub #1390).
 func (r *boundTypes) branch(c lowering.Ctx, b *statement.Statement, pointer jsontext.Pointer) kindSet {
-	m := statement.ParsedAt(b)
-	if c.Bindings().RefSite(m) {
+	if b.Ref != nil {
 		return r.ref(c, b)
 	}
 	return r.schema(c, b.Schema, pointer)
@@ -227,12 +219,10 @@ func (r *boundTypes) branch(c lowering.Ctx, b *statement.Statement, pointer json
 // ref is what the schema js's $ref chain ends on admits, read as no schema
 // where it ends on none.
 func (r *boundTypes) ref(c lowering.Ctx, js *statement.Statement) kindSet {
-	m := statement.ParsedAt(js)
-	e, ok := c.Bindings().Entry(m)
-	if !ok || e.Chain.Status != bind.Resolved {
+	if js.Ref == nil || !js.Ref.Bound || js.Ref.Entry.Chain.Status != bind.Resolved {
 		return r.schema(c, nil, "")
 	}
-	return r.at(c, e.Chain.End)
+	return r.at(c, js.Ref.Entry.Chain.End)
 }
 
 // at is what the schema the bindings hold at p admits, read in p's document.

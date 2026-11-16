@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -148,7 +146,7 @@ func (a admitted) and(b admitted) admitted {
 	out := a
 	out.kinds &= b.kinds
 	out.forms = slices.Concat(a.forms, b.forms)
-	if statement.ParsedAt(out.items) == nil {
+	if out.items == nil {
 		out.items = b.items
 	}
 	switch {
@@ -304,39 +302,38 @@ func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.
 // document holding it: what its keywords say, conjoined with its allOf, its
 // unions and what its $ref lands on.
 func (w *admission) whole(js *statement.Statement) admitted {
-	m := statement.ParsedAt(js)
-	if !w.reads.Spend(1) || !annotation.Written(m) {
+	if !w.reads.Spend(1) || js.Truth == statement.Unwritten {
 		return admitted{kinds: kindAny}
 	}
-	if m.IsBool() {
-		if annotation.IsFalseSchema(m) {
+	if js.Truth != statement.Stated {
+		if js.Truth.ReadsFalse() {
 			return admitted{}
 		}
 		return admitted{kinds: kindAny}
 	}
-	s := m.GetSchema()
-	if declaresDynamicRef(js.Schema) && !w.c.Bindings().RefSite(m) {
+	if declaresDynamicRef(js.Schema) && js.Ref == nil {
 		w.reads.Exhaust()
 	}
 	out := w.written(js.Schema, definesNullableAt(w.c, js))
-	for _, b := range s.GetAllOf() {
-		out = out.and(w.whole(w.c.Statements().Of(b)))
+	for _, b := range js.AllOf {
+		out = out.and(w.whole(w.c.Statements().Sub(b)))
 	}
-	if branches := s.GetOneOf(); len(branches) > 0 {
-		out = out.and(w.union(branches))
+	choice := choiceIn(js.Schema)
+	if len(choice.OneOf) > 0 {
+		out = out.and(w.union(choice.OneOf))
 	}
-	if branches := s.GetAnyOf(); len(branches) > 0 {
-		out = out.and(w.union(branches))
+	if len(choice.AnyOf) > 0 {
+		out = out.and(w.union(choice.AnyOf))
 	}
-	if !w.c.Bindings().RefSite(m) {
+	if js.Ref == nil {
 		return out
 	}
-	next := w.c.Bindings().Declared(m)
+	next, _ := declaredOf(w.c, js)
 	if next == nil {
 		w.reads.Exhaust()
 		return out
 	}
-	return out.and(w.whole(w.c.Statements().Of(next)))
+	return out.and(w.whole(next))
 }
 
 // declarationSet is a set of schemas declaring together, with every schema they
@@ -345,8 +342,8 @@ func (w *admission) whole(js *statement.Statement) admitted {
 // the schemas the first time a claim asks for it, since a claim names few of
 // those a body declares.
 type declarationSet struct {
-	schemas    []*oas3.Schema
-	composed   []*oas3.JSONSchema[oas3.Referenceable]
+	schemas    []*statement.Schema
+	composed   []*statement.Statement
 	properties map[string]*place
 	items      *place
 }
@@ -356,7 +353,7 @@ type declarationSet struct {
 // the first time it is asked for and kept, so every claim restating the place
 // shares one reading.
 type place struct {
-	decls []*oas3.JSONSchema[oas3.Referenceable]
+	decls []*statement.Statement
 	held  *admitted
 	inner *declarationSet
 }
@@ -371,29 +368,28 @@ func newDeclarationSet() declarationSet {
 // (statement.Parsed), a boolean schema's, declares nothing, and the getters
 // read it as empty.
 func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
-	m := statement.Parsed(s)
-	d.schemas = append(d.schemas, m)
+	d.schemas = append(d.schemas, s)
 	if items := t.Sub(itemsSchema(s)); items.Truth != statement.Unwritten {
 		if d.items == nil {
 			d.items = &place{}
 		}
-		d.items.decls = append(d.items.decls, statement.ParsedAt(items))
+		d.items.decls = append(d.items.decls, items)
 	}
 }
 
 // property returns the place of the property name, nil where no schema of d
-// declares it, gathered once.
-func (d *declarationSet) property(name string) *place {
+// declares it, gathered once and read from t.
+func (d *declarationSet) property(t *statement.Table, name string) *place {
 	if at, ok := d.properties[name]; ok {
 		return at
 	}
 	var at *place
 	for _, s := range d.schemas {
-		if p, ok := s.GetProperties().Get(name); ok {
+		if p, ok := statement.Parsed(s).GetProperties().Get(name); ok {
 			if at == nil {
 				at = &place{}
 			}
-			at.decls = append(at.decls, p)
+			at.decls = append(at.decls, t.Of(p))
 		}
 	}
 	d.properties[name] = at
@@ -403,19 +399,18 @@ func (d *declarationSet) property(name string) *place {
 // declarations returns what s declares: itself, each allOf conjunct and what
 // a $ref lands on, read as whole reads them and within the same budget.
 func (w *admission) declarations(s *statement.Schema) declarationSet {
-	m := statement.Parsed(s)
 	out := newDeclarationSet()
 	out.add(w.c.Statements(), s)
-	w.declare(&out, slices.Clone(m.GetAllOf()))
+	w.declare(&out, statementsOf(w.c, allOfIn(s)))
 	return out
 }
 
 // heldAt returns what p's declarations admit together, read once.
 func (w *admission) heldAt(p *place) admitted {
 	if p.held == nil {
-		held := w.whole(w.c.Statements().Of(p.decls[0]))
+		held := w.whole(p.decls[0])
 		for _, d := range p.decls[1:] {
-			held = held.and(w.whole(w.c.Statements().Of(d)))
+			held = held.and(w.whole(d))
 		}
 		p.held = &held
 	}
@@ -439,25 +434,36 @@ func (w *admission) innerAt(p *place) declarationSet {
 // budget or a $ref landing nowhere, is one fewer to restate, which errs towards
 // shape. The walk keeps its own stack, so it adds no recursion cycle, and the
 // order of each list is no answer.
-func (w *admission) declare(out *declarationSet, stack []*oas3.JSONSchema[oas3.Referenceable]) {
+func (w *admission) declare(out *declarationSet, stack []*statement.Statement) {
 	for len(stack) > 0 && w.reads.Spend(1) {
-		js := stack[len(stack)-1]
+		st := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		out.composed = append(out.composed, js)
-		cs := js.GetSchema()
-		out.add(w.c.Statements(), w.c.Statements().Of(js).Schema)
-		stack = append(stack, cs.GetAllOf()...)
-		if next := w.c.Bindings().Declared(js); next != nil {
+		out.composed = append(out.composed, st)
+		out.add(w.c.Statements(), st.Schema)
+		for _, b := range st.AllOf {
+			stack = append(stack, w.c.Statements().Sub(b))
+		}
+		if next, _ := declaredOf(w.c, st); next != nil {
 			stack = append(stack, next)
 		}
 	}
 }
 
+// statementsOf returns the statements of the schemas list names, in its
+// order.
+func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
+	out := make([]*statement.Statement, len(list))
+	for i, b := range list {
+		out[i] = c.Statements().Sub(b)
+	}
+	return out
+}
+
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
-func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admitted {
-	out := w.whole(w.c.Statements().Of(branches[0]))
+func (w *admission) union(branches []statement.Sub) admitted {
+	out := w.whole(w.c.Statements().Sub(branches[0]))
 	for _, b := range branches[1:] {
-		out = out.or(w.whole(w.c.Statements().Of(b)))
+		out = out.or(w.whole(w.c.Statements().Sub(b)))
 	}
 	return out
 }
@@ -466,8 +472,7 @@ func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admit
 // defines nullable: where c's bindings place js, that document's, and c's own
 // for a schema they do not place.
 func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
-	m := statement.ParsedAt(js)
-	at, ok := c.Bindings().Site(m)
+	at, ok := siteOf(js.Schema)
 	if !ok {
 		return c.SchemaRules().Defines("nullable")
 	}
@@ -480,7 +485,6 @@ func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
 // with no type beside it claims an object, as lowerUntyped reads one. A schema
 // in c's document is read in w.nullable's dialect.
 func (w *admission) written(s *statement.Schema, nullable bool) admitted {
-	m := statement.Parsed(s)
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
@@ -493,10 +497,10 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 		}
 	}
 	if enumWritten(s) {
-		out = out.and(w.valueSet(valueSetOf{s, "enum"}, m.GetEnum()))
+		out = out.and(w.valueSet(valueSetOf{s, "enum"}, enumIn(s)))
 	}
-	if m.GetConst() != nil {
-		out = out.and(w.valueSet(valueSetOf{s, "const"}, []values.Value{m.GetConst()}))
+	if constant := constIn(s); constant != nil {
+		out = out.and(w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant}))
 	}
 	return out
 }
@@ -506,19 +510,17 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 // the dialect defines the keyword, as nullable says. A null `type` writes none
 // (writesType).
 func writtenKinds(s *statement.Schema, nullable bool) kindSet {
-	m := statement.Parsed(s)
-	types := m.GetType()
 	if !writesType(s) {
-		if props := m.GetProperties(); props != nil && props.Len() > 0 {
+		if len(objectIn(s).Properties) > 0 {
 			return kindObject
 		}
 		return kindAny
 	}
 	var out kindSet
-	for _, t := range types {
-		out |= kindOfType(statement.Kind(t))
+	for _, t := range kindsIn(s) {
+		out |= kindOfType(t)
 	}
-	if nullable && m.Nullable != nil && *m.Nullable {
+	if nullable && nullableTrue(s) {
 		out |= kindNull
 	}
 	return out
@@ -526,8 +528,7 @@ func writtenKinds(s *statement.Schema, nullable bool) kindSet {
 
 // formOf returns the format s holds a value to. The redaction names no shape.
 func formOf(s *statement.Schema) (scalarForm, bool) {
-	m := statement.Parsed(s)
-	format := m.GetFormat()
+	format := namedFormat(s)
 	if format == "" || annotation.DeclaresRedaction(s) {
 		return scalarForm{}, false
 	}
@@ -553,7 +554,7 @@ type memberSet struct {
 // so a shared enum costs its members once and not at each position naming it, but
 // spending is not: a read's verdict turns on what it spends, so a remembered set
 // must cut a read as reading it would, or lowering order would decide.
-func (w *admission) valueSet(key valueSetOf, members []values.Value) admitted {
+func (w *admission) valueSet(key valueSetOf, members []*yaml.Node) admitted {
 	if !w.members.Spend(len(members)) {
 		return admitted{fixed: true}
 	}
@@ -565,7 +566,7 @@ func (w *admission) valueSet(key valueSetOf, members []values.Value) admitted {
 }
 
 // readMembers reads each member's key with its kind.
-func readMembers(members []values.Value) memberSet {
+func readMembers(members []*yaml.Node) memberSet {
 	out := memberSet{values: make(map[string]kindSet, len(members))}
 	for _, m := range members {
 		key, kind, ok := memberOf(m)
@@ -586,10 +587,10 @@ func (w *admission) within(a, b admitted) bool {
 
 // itemsWithin reports whether a's elements are all b's elements can be.
 func (w *admission) itemsWithin(a, b admitted) bool {
-	if statement.ParsedAt(b.items) == nil || statement.ParsedAt(a.items) == statement.ParsedAt(b.items) {
+	if b.items == nil || a.items == b.items {
 		return true
 	}
-	return statement.ParsedAt(a.items) != nil && w.restates(w.whole(a.items), a.items, b.items)
+	return a.items != nil && w.restates(w.whole(a.items), a.items, b.items)
 }
 
 // restates reports whether what held admits, read from from, says all that js
@@ -615,10 +616,8 @@ func (w *admission) restates(held admitted, from, js *statement.Statement) bool 
 // its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
 // placed nowhere, a nil one among them, is written alike with none.
 func (w *admission) sameText(a, b *statement.Statement) bool {
-	aM := statement.ParsedAt(a)
-	bM := statement.ParsedAt(b)
-	at, placed := w.c.Bindings().Site(aM)
-	bt, placedB := w.c.Bindings().Site(bM)
+	at, placed := siteOf(a.Schema)
+	bt, placedB := siteOf(b.Schema)
 	if !placed || !placedB || at.Doc != bt.Doc {
 		return false
 	}

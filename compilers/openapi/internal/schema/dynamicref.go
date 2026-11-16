@@ -195,8 +195,7 @@ func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
 // former record: an expansion takes the target whole, so a keyword it cannot
 // carry is lost whether or not it declares a shape by itself.
 func dynamicRefSiblings(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if m.Ref != nil || len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0 {
+	if refWritten(s) || declaresUnion(s) {
 		return true
 	}
 	return writesSiblingKeyword(s)
@@ -284,7 +283,7 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 		return e.Chain.End, e.Chain.Status == bind.Resolved
 	}
 	s := annotation.At(c.Statements().Of(c.Bindings().At(at))).Node
-	if statement.Parsed(s) == nil {
+	if !statesSchema(s) {
 		return bind.Position{}, false
 	}
 	ref, _, ok := expandableRef(c, s, at.Pointer)
@@ -304,7 +303,7 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 // (typed.Bindings.RefKeyword) is the $ref it spells, resolved as one.
 func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	ref, written := dynamicRefOf(c, s, pointer)
-	if !written || c.Bindings().RefKeyword(statement.ParsedAt(heldAt(c, pointer))) == ref.keyword {
+	if !written || refKeyword(heldAt(c, pointer)) == ref.keyword {
 		return nil
 	}
 	_, why, expanded := dynamicExpansion(c, s, pointer)

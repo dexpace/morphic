@@ -215,6 +215,29 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 	}
 }
 
+// TestNullableInference_OnlyABooleanStatesNull pins what a `nullable` must hold
+// to state a null: the boolean true. At 3.1 and 3.2, which define no keyword,
+// the policy reads it as it does at 3.0.3: a string the parser decodes as true,
+// a YAML 1.1 truth word quoted or plain, states none, as any other value
+// (GitHub #2007).
+func TestNullableInference_OnlyABooleanStatesNull(t *testing.T) {
+	t.Parallel()
+	stated := map[string]bool{"true": true, "True": true}
+	written := []string{`"yes"`, `"Yes"`, `"YES"`, `"on"`, `"On"`, `"y"`, `"true"`, `"True"`, `"false"`, `"x"`,
+		`"1"`, "!!str true", "1", "0", "null", "[true]", "{a: 1}", "yes", "on", "true", "True", "false"}
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, value := range written {
+			doc, diags := compileNullable(t, openapitest.HolderSpec(version, "{type: string, nullable: "+value+"}", ""), false)
+			p := holderP(t, doc)
+			assert.Equal(t, stated[value], p.Nullable, "%s nullable: %s", version, value)
+			inferred := stated[value] && version != "3.0.3"
+			assert.Equal(t, inferred, p.Inferred != "", "%s nullable: %s", version, value)
+			assert.Equal(t, inferred, openapitest.HasDiagCodeAt(diags, diag.InferredNullable,
+				"/components/schemas/Holder/properties/p/nullable"), "%s nullable: %s", version, value)
+		}
+	}
+}
+
 // TestNullableInference_AnEnumsNullMemberFollowsTheReadingInForce pins the one
 // lowering besides a reference's bit that asks whether a schema admits null: a
 // null member lifts off an enum onto the reference only where the reading the

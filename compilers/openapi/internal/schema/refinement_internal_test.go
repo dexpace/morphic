@@ -91,7 +91,7 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 	_, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
 	require.True(t, refined)
 
-	declared(t, l, "Port").Type = oas3.NewTypeFromString(oas3.SchemaTypeObject)
+	StatedIn(l, declared(t, l, "Port")).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
 	_, refined = refinementOf(l.Ctx, StatedIn(l, s), at)
 	assert.True(t, refined, "the second ask reads what the first read")
 
@@ -129,7 +129,8 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
 	s := declared(t, l, "T")
 	require.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)))
 
-	s.AllOf = nil
+	st := l.Ctx.Statements().Read(StatedIn(l, s))
+	st.AllOf, st.Entries = nil, nil
 	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
@@ -146,7 +147,8 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
 	require.Len(t, first, 1)
 	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each branch at its pointer under the schema's")
 
-	s.AllOf = nil
+	st := l.Ctx.Statements().Read(StatedIn(l, s))
+	st.AllOf, st.Entries = nil, nil
 	assert.Equal(t, first, nullableVoices(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
@@ -165,7 +167,8 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 	require.Equal(t, values, valueNulls(l.Ctx, StatedIn(l, v)))
 	require.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)))
 
-	v.Const, v.Enum, u.OneOf = nil, nil, nil
+	StatedIn(l, v).Values = nil
+	StatedIn(l, u).Choice = nil
 	assert.Equal(t, values, valueNulls(l.Ctx, StatedIn(l, v)), "the second ask reads what the first read")
 	assert.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)), "the second ask reads what the first read")
 }
@@ -215,7 +218,8 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	first := lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents
 	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
 
-	js.GetSchema().AllOf = nil
+	st := l.Ctx.Statements().Of(js)
+	st.AllOf, st.Entries = nil, nil
 	assert.Equal(t, first, lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents, "the second ask reads what the first read")
 }
 
@@ -415,7 +419,7 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		total := 0
 		w.walked = func(n int) { total += n }
 		conjuncts := w.conjuncts(StatedIn(l, s), allOfBranches(l.Ctx, StatedIn(l, s), ""))
-		principal := w.elect(conjuncts, refBranchOf(w.c, conjuncts))
+		principal := w.elect(conjuncts, refBranchOf(conjuncts))
 		require.NotNil(t, principal.branch)
 		require.Nil(t, statement.ParsedAt(principal.branch.schema).GetSchema().Ref, "the narrowing is elected")
 		return total

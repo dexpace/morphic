@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
@@ -36,25 +35,25 @@ import (
 // bit, which schemaAdmitsNull decides at every site (enumEntries), so a list
 // of null alone is an Enum with no member.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
+	members := enumIn(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
 		// member count of zero exceeds no positive budget — so the order decides
 		// nothing, but reading the empty case beside the members it lacks is
 		// clearer than reading it after a bound on how many there may be.
-		if len(m.GetEnum()) == 0 {
+		if len(members) == 0 {
 			def, emptyDiags := emptyEnum(c, s, common, pointer)
 			diags = append(diags, emptyDiags...)
 			return def
 		}
-		if n := len(m.GetEnum()); !c.Limits.MaxEnumMembers.Admits(n) {
+		if n := len(members); !c.Limits.MaxEnumMembers.Admits(n) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
 				"enum declares %d members, past the %d-member budget; lowered as any",
 				n, c.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
-		entries := readEnum(m.GetEnum())
+		entries := readEnum(members)
 		diags = append(diags, enumRepeats(c, entries, pointer)...)
 		kept, keptDiags := enumEntries(c, s, entries, pointer)
 		diags = append(diags, keptDiags...)
@@ -84,7 +83,7 @@ type enumEntry struct {
 }
 
 // readEnum converts each entry of an enum once, for every reader of the list.
-func readEnum(nodes []values.Value) []enumEntry {
+func readEnum(nodes []*yaml.Node) []enumEntry {
 	out := make([]enumEntry, 0, len(nodes))
 	for i, node := range nodes {
 		val, err := value.FromNode(node)
@@ -263,12 +262,12 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, common 
 // holds the value as written, and the census keeps a type it does not fit
 // verbatim.
 func lowerConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	val, err := value.FromNode(m.GetConst())
+	constant := constIn(s)
+	val, err := value.FromNode(constant)
 	if err == nil && val.Kind == ir.ValueNull {
 		return nullConst(c, ts, s, pointer)
 	}
-	id, diags := hoistLiteral(c, ts, s, m.GetConst(), pointer)
+	id, diags := hoistLiteral(c, ts, s, constant, pointer)
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}

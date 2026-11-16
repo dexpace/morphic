@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -90,7 +88,7 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 		return decision{}
 	}
 	comp := allOfBranches(c, s, pointer)
-	if !refinableBranches(c, comp) {
+	if !refinableBranches(comp) {
 		return decision{}
 	}
 	w := newAdmission(c)
@@ -99,7 +97,7 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	for _, cj := range conjuncts[1:] {
 		joint = joint.and(cj.read)
 	}
-	ref := refBranchOf(c, conjuncts)
+	ref := refBranchOf(conjuncts)
 	says := slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
 	if disjoint(joint, conjuncts) || (joint.kinds&kindObject != 0 && (ref != nil || says)) {
 		return decision{}
@@ -117,17 +115,17 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 // for another would drop a branch the source wrote
 // (docs/ir/models.md#composition-entries). A union on a branch is a conjunct
 // admitting what its branches do (inlineConjunct).
-func refinableBranches(c lowering.Ctx, comp allOfComposition) bool {
+func refinableBranches(comp allOfComposition) bool {
 	if len(comp.branches) > maxRefinedConjuncts {
 		return false
 	}
 	named := 0
 	for _, e := range comp.branches {
 		if e.capped || e.schema.Truth.ReadsFalse() ||
-			declaresDynamicRef(e.schema.Schema) && !c.Bindings().RefSite(statement.ParsedAt(e.schema)) || hasAnyKey(e.schema.Schema, objectKeywords) {
+			declaresDynamicRef(e.schema.Schema) && e.schema.Ref == nil || hasAnyKey(e.schema.Schema, objectKeywords) {
 			return false
 		}
-		if c.Bindings().RefSite(statement.ParsedAt(e.schema)) {
+		if e.schema.Ref != nil {
 			named++
 		}
 	}
@@ -142,10 +140,9 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) []conj
 	out = append(out, conjunct{read: inlineConjunct(w, s), says: saysKind(s) || declaresUnion(s)})
 	for i := range comp.branches {
 		e := &comp.branches[i]
-		bs := statement.ParsedAt(e.schema).GetSchema()
 		switch {
-		case bs == nil:
-		case w.c.Bindings().RefSite(statement.ParsedAt(e.schema)):
+		case !statesSchema(e.schema.Schema):
+		case e.schema.Ref != nil:
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
 			out = append(out, conjunct{branch: e, read: inlineConjunct(w, e.schema.Schema), says: saysKind(e.schema.Schema) || declaresUnion(e.schema.Schema)})
@@ -159,9 +156,9 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) []conj
 // whose branches name the kinds it admits. Its allOf is read apart, since its
 // entries are conjuncts of their own.
 func inlineConjunct(w *admission, bs *statement.Schema) admitted {
-	m := statement.Parsed(bs)
+	choice := choiceIn(bs)
 	read := w.written(bs, w.nullable)
-	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{m.GetOneOf(), m.GetAnyOf()} {
+	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
 			read = read.and(w.union(branches))
 		}
@@ -171,14 +168,13 @@ func inlineConjunct(w *admission, bs *statement.Schema) admitted {
 
 // saysKind reports whether s writes what kind of value it admits.
 func saysKind(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return writesType(s) || enumWritten(s) || m.GetConst() != nil
+	return writesType(s) || enumWritten(s) || constIn(s) != nil
 }
 
 // refBranchOf returns the conjunct holding the one $ref branch, if any.
-func refBranchOf(c lowering.Ctx, conjuncts []conjunct) *conjunct {
+func refBranchOf(conjuncts []conjunct) *conjunct {
 	for i := range conjuncts {
-		if b := conjuncts[i].branch; b != nil && c.Bindings().RefSite(statement.ParsedAt(b.schema)) {
+		if b := conjuncts[i].branch; b != nil && b.schema.Ref != nil {
 			return &conjuncts[i]
 		}
 	}
@@ -273,7 +269,7 @@ func (w *admission) conesOver(conjuncts []conjunct, i int) int {
 // $ref the principal beat is still resolved: nothing else may lower what it names.
 func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
-	if c.Bindings().RefSite(statement.ParsedAt(e.schema)) {
+	if e.schema.Ref != nil {
 		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
 		return ref.Target, diags
 	}
@@ -348,14 +344,13 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
 		// inline branch on the node it owns, a type array's census included.
-		if r.principalIs(e) && (c.Bindings().RefSite(statement.ParsedAt(e.schema)) || LoweredToOwnNode(c, ts, e.pointer, target)) {
+		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, ts, e.pointer, target)) {
 			continue
 		}
-		bs := statement.ParsedAt(e.schema).GetSchema()
 		switch {
-		case c.Bindings().RefSite(statement.ParsedAt(e.schema)):
+		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e})
-		case bs != nil:
+		case statesSchema(e.schema.Schema):
 			residue := unmergedBranchKeys(e.schema.Schema, func(key string) bool {
 				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) || said(&w, r, typed, e.schema.Schema, key)
 			})
@@ -469,26 +464,26 @@ func said(w *admission, r refinement, typed ir.TypeDef, s *statement.Schema, key
 // keyword by keyword, as what it admits leaves its bounds and annotations unread,
 // and one writing what no reading compares says more. A read cut short says no.
 func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool {
-	m := statement.Parsed(s)
-	var branches []*oas3.JSONSchema[oas3.Referenceable]
+	var branches []statement.Sub
 	switch key {
 	case "oneOf":
-		branches = m.GetOneOf()
+		branches = choiceIn(s).OneOf
 	case "anyOf":
-		branches = m.GetAnyOf()
+		branches = choiceIn(s).AnyOf
 	default:
 		return false
 	}
-	var principal *oas3.JSONSchema[oas3.Referenceable]
+	principal := w.c.Statements().Read(nil)
 	if r.principal != nil {
-		principal = statement.ParsedAt(r.principal.schema)
+		principal = r.principal.schema
 	}
 	within, overlaps := 0, 0
 	for _, b := range branches {
+		branch := w.c.Statements().Sub(b)
 		switch {
-		case w.restates(r.held, w.c.Statements().Of(principal), w.c.Statements().Of(b)):
+		case w.restates(r.held, principal, branch):
 			within++
-		case r.held.kinds&w.whole(w.c.Statements().Of(b)).kinds != 0:
+		case r.held.kinds&w.whole(branch).kinds != 0:
 			overlaps++
 		}
 	}

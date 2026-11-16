@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
@@ -99,4 +100,23 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 	assert.False(t, declaresFamily(StandaloneSchema(withAllOf), "oneOf"),
 		"an unknown name must not inherit allOf's guard")
 	assert.False(t, declaresFamily(StandaloneSchema(&oas3.Schema{}), "nosuchfamily"))
+}
+
+// TestNullableTrue_PastTheMergeBoundTheModelsReadingStands pins what states a
+// null where the statement holds a `nullable` its key does not: one merged in
+// past nodeview.MergeDepthLimit keeps the model's true, as the policy read it
+// before a string was told from a boolean, while a string written within the
+// bound states none (GitHub #2007).
+func TestNullableTrue_PastTheMergeBoundTheModelsReadingStands(t *testing.T) {
+	t.Parallel()
+	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: true}")
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Past: {<<: "+past+", type: string}\n"+
+		"    Within: {<<: {nullable: true}, type: string}\n    Yes: {type: string, nullable: 'yes'}\n"))
+
+	s := StatedIn(l, declared(t, l, "Past"))
+	_, written := s.Key("nullable")
+	require.False(t, written, "the keyword lies past the bound")
+	assert.True(t, nullableTrue(s))
+	assert.True(t, nullableTrue(StatedIn(l, declared(t, l, "Within"))))
+	assert.False(t, nullableTrue(StatedIn(l, declared(t, l, "Yes"))))
 }
