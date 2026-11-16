@@ -98,8 +98,9 @@ func follow(c lowering.Ctx, start link) valueChain {
 		if decl.Ref == nil || !decl.Ref.Bound {
 			break
 		}
-		next, ok := landsAt(decl)
-		l := link{at: next, decl: declaredBy(c, decl.Ref.Entry)}
+		at, ok := landsAt(decl)
+		next, _ := declaredOf(c, decl)
+		l := link{at: at, decl: next}
 		if ok {
 			l.id, ok = declaredAt(c, l.at, l.decl)
 		}
@@ -121,15 +122,6 @@ func landsAt(st *statement.Statement) (bind.Position, bool) {
 		return bind.Position{}, false
 	}
 	return st.Ref.Entry.Hop.Target, true
-}
-
-// declaredBy returns the statement of the schema written where e's $ref lands,
-// an Unwritten one where it lands on none.
-func declaredBy(c lowering.Ctx, e bind.Entry) *statement.Statement {
-	if e.Hop.Status != bind.Resolved {
-		return c.Statements().Read(nil)
-	}
-	return c.Statements().At(e.Hop.Target)
 }
 
 // declaredAt returns the ID of the type declared at at, holding decl, which a

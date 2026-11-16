@@ -572,11 +572,13 @@ func constIn(s *statement.Schema) *yaml.Node {
 }
 
 // nullableTrue reports whether s's `nullable` reads true whatever the dialect
-// defines, as a policy reads a 3.0 keyword in a 3.1 schema: only the boolean
-// true states it, never a string the parser's model decodes as true, such as
-// "yes" (docs/compilers/openapi.md#nullable, GitHub #2007). A keyword merged in
-// past nodeview.MergeDepthLimit has the model's value and no key, and that
-// value stands.
+// defines, as a policy reads a 3.0 keyword in a 3.1 schema: the model's true
+// states it only where the key s lists is a boolean, never a string the model
+// decodes as true, such as "yes" (docs/compilers/openapi.md#nullable, GitHub
+// #2007). The model's true stands where s lists no key, and where it lists a
+// boolean that is not the model's: a keyword merged in past
+// nodeview.MergeDepthLimit outranks one a later source writes within it
+// (GitHub #2020).
 func nullableTrue(s *statement.Schema) bool {
 	if s == nil || s.Kinds == nil || s.Kinds.Nullable == nil || !*s.Kinds.Nullable {
 		return false
@@ -586,7 +588,7 @@ func nullableTrue(s *statement.Schema) bool {
 		return true
 	}
 	written, err := value.Classify(k.Node)
-	return err == nil && written.Kind == value.ScalarBool && written.Bool
+	return err == nil && written.Kind == value.ScalarBool
 }
 
 // siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
