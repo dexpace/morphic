@@ -871,7 +871,7 @@ it sees. Changes made together in one bump are listed together under it.
   declaration another model holds too, takes one in the `composed` namespace; a name it carries as
   `Required` leaves `Model.Requires`, a discriminator naming the model's own declaration names it,
   and a report on an entry's declaration names it in `Provenance.Node`. The fold relates a type to
-  an untagged union through its variants. A consumer
+  an untagged union holding no bounds of its own through its variants. A consumer
   pinned to 0.68.0 refuses the document; one reading such a carrier finds the bound on its node, one
   reading such a member took the declaration the flattening reached last, and one reading a tie
   between two inline declarations took the first's.

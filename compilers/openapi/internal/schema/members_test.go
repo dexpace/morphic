@@ -260,3 +260,29 @@ func TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed(t *testing
 		}
 	}
 }
+
+// TestMembers_AUnionBoundedBesideItIsNotTakenForAVariant pins a member declared
+// as a union holding a bound of its own and as a type within one of its
+// variants: the bound bounds that type's values too, which the variants do not
+// say, so the type is not taken as narrower, which would drop the bound
+// unreported; the pair is reported as not compared, written inline or brought
+// by an entry.
+func TestMembers_AUnionBoundedBesideItIsNotTakenForAVariant(t *testing.T) {
+	t.Parallel()
+	_, diags := composedDoc(t, `    U: {anyOf: [{type: string}, {type: integer}], maxLength: 2}
+    Base: {type: object, properties: {p: {$ref: '#/components/schemas/U'}}}
+    Inline:
+      allOf:
+        - {type: object, properties: {p: {$ref: '#/components/schemas/U'}}}
+        - {type: object, properties: {p: {type: string}}}
+    Brought:
+      allOf:
+        - $ref: '#/components/schemas/Base'
+        - {type: object, properties: {p: {type: string}}}
+`)
+	for _, at := range []string{"/components/schemas/Inline/allOf/0/properties/p", "/components/schemas/Brought/allOf/0"} {
+		found := diagsAtPointer(diags, diag.DegradedConstruct, at)
+		require.Len(t, found, 1, "%s: %+v", at, diags)
+		assert.Contains(t, found[0].Message, "that the merge does not compare", at)
+	}
+}

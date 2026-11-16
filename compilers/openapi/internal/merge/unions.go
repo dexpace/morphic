@@ -3,7 +3,11 @@
 
 package merge
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"slices"
+
+	"github.com/dexpace/morphic/ir"
+)
 
 // maxVariantReads bounds the union variants one judgment relates a type to
 // (unionArms), which a union nested in a variant multiplies by its own. Stopping
@@ -13,7 +17,8 @@ const maxVariantReads = 64
 
 // unionArms relates a type to an untagged union, each read through aliases, by
 // the union's variants: the type is within the union where it is within one
-// variant (withinUnion), and the union within the type where every variant is
+// variant (withinUnion) and nothing on the way bounds the union's values
+// (boundsBeside), and the union within the type where every variant is
 // (unionWithin). Two unions, a tagged union, or a type neither holds, are
 // unrelated here. A variant is judged on its union's side, against the site
 // that union was declared at (declarationSites), so swapping a and b flips the
@@ -26,18 +31,31 @@ func unionArms(j typeJudge, a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	}
 	if bUnion {
 		against := func(v ir.TypeRef) relation { return j.relateAt(a, v, depth+1) }
-		return byVariants(j, against, bu)
+		return byVariants(j, against, bu, !j.boundsBeside(bt))
 	}
 	against := func(v ir.TypeRef) relation { return j.relateAt(v, b, depth+1).flipped() }
-	return byVariants(j, against, au).flipped()
+	return byVariants(j, against, au, !j.boundsBeside(at)).flipped()
+}
+
+// boundsBeside reports whether td, a union read through aliases, or an alias
+// on the way holds bounds of its own. Each bounds the values of its kind
+// whichever variant holds them (docs/ir/unions.md#bounds-beside-a-union),
+// which the variants do not say, so a type within one of them is not shown to
+// be within td, and a field taking it would lose them.
+func (j typeJudge) boundsBeside(td ir.TypeDef) bool {
+	chain, end := j.aliasChain(td)
+	if u, ok := end.(*ir.Union); ok && u.Constraints != nil {
+		return true
+	}
+	return slices.ContainsFunc(chain, func(s *ir.Scalar) bool { return s.Constraints != nil })
 }
 
 // byVariants relates a type to u, an untagged union, where against is the type
-// judged against one of u's variants: narrower where it is within u, broader
-// where u is within it, and unrelated otherwise.
-func byVariants(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union) relation {
+// judged against one of u's variants: narrower where it is within u, which
+// holds says it may be, broader where u is within it, and unrelated otherwise.
+func byVariants(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union, holds bool) relation {
 	switch {
-	case withinUnion(j, against, u):
+	case holds && withinUnion(j, against, u):
 		return relANarrower
 	case unionWithin(j, against, u):
 		return relBNarrower
