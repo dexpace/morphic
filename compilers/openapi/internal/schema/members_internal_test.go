@@ -58,6 +58,27 @@ func hierarchy(n int, wide, shared bool) string {
 	return b.String()
 }
 
+// TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten pins
+// what a table read through a model not settled yet says of a member a settled
+// model declares: where that model's settlement left its type written, not
+// the member's own place, and the member's own place for any other.
+func TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten(t *testing.T) {
+	t.Parallel()
+	settled := ir.Property{ID: "p/K/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/K/allOf/0/properties/b"}}
+	other := ir.Property{ID: "p/L/b", WireName: "b", Provenance: ir.Provenance{Pointer: "/L/properties/b"}}
+	typeAt := []ir.Provenance{{Pointer: "/K/allOf/1/properties/b"}}
+	held := ir.PropertyDecl{Owner: "t/K", Property: &settled}
+	rec := &members{tables: map[ir.TypeID]merge.Table{"t/K": {"b": {PropertyDecl: held, TypeAt: typeAt}}}}
+
+	assert.Equal(t, typeAt, rec.declared(held).TypeAt, "as its settlement left it")
+	for name, d := range map[string]ir.PropertyDecl{
+		"a model with no table":              {Owner: "t/L", Property: &other},
+		"another declaration under its name": {Owner: "t/K", Property: &other},
+	} {
+		assert.Equal(t, []ir.Provenance{other.Provenance}, rec.declared(d).TypeAt, name)
+	}
+}
+
 // TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared pins what the
 // settlement reads of a hierarchy, a chain and one whose every level composes
 // the first model too: its tables hold only names more than one model

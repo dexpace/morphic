@@ -5,6 +5,7 @@ package merge
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -88,10 +89,12 @@ type registry struct {
 // written, which decides whether two nodes alike are copies of one declaration,
 // and the walk that reads what the source writes at a node's site.
 type declarationSites struct {
-	// written is where declarations a and b were written. A node is a hoisted
-	// copy only where it was written at or under its declaration's pointer, in
-	// the same document; one a $ref reached elsewhere was declared apart.
-	written [2]ir.Provenance
+	// written is where declarations a and b were written: one place, or, for a
+	// member a part settled, each place a node of its type may be written at
+	// (declaration.sites). A node is a hoisted copy only where it was written
+	// at or under one of them, in the same document; one a $ref reached
+	// elsewhere was declared apart.
+	written [2][]ir.Provenance
 	// walk is Merger.Walk, whose Alike says two nodes held alike keeping a
 	// reference are one type only where they read it against one base, and
 	// whose Untyped says whether a node's source states no instance type.
@@ -331,7 +334,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	ak, aok := j.kindOf(a)
 	bk, bok := j.kindOf(b)
 	au, bu := j.unaliased(at), j.unaliased(bt)
-	aSite, bSite := j.sites.written[0], j.sites.written[1]
+	aSites, bSites := j.sites.written[0], j.sites.written[1]
 	switch {
 	case aok && ak.prim == ir.PrimAny, bok && bk.prim == ir.PrimAny:
 		return relUnrelated
@@ -341,9 +344,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 		}
 		return relOverlap
 	case aok && isStructural(bu):
-		return j.againstOtherInstance(bt, bSite, depth).flipped()
+		return j.againstOtherInstance(bt, bSites, depth).flipped()
 	case bok && isStructural(au):
-		return j.againstOtherInstance(at, aSite, depth)
+		return j.againstOtherInstance(at, aSites, depth)
 	case aok:
 		return j.againstKind(j.view(bt, ""), a, j.view(at, ""), ak).flipped()
 	case bok:
@@ -351,7 +354,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
 	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
-		return acrossInstances(j.againstOtherInstance(at, aSite, depth), j.againstOtherInstance(bt, bSite, depth))
+		return acrossInstances(j.againstOtherInstance(at, aSites, depth), j.againstOtherInstance(bt, bSites, depth))
 	default:
 		return relUnrelated
 	}
@@ -365,16 +368,16 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 // examples, overlaps instead, as topAt reads an alias of `{}`, since a type
 // replacing it would lose it. Any other structure is disjoint from the other
 // type.
-func (j typeJudge) againstOtherInstance(td ir.TypeDef, site ir.Provenance, depth int) relation {
+func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, depth int) relation {
 	chain, end := j.aliasChain(td)
 	if !isStructural(end) || !j.sites.walk.Untyped(end.Common().Provenance) {
 		return relDisjoint
 	}
 	// A $ref carries the docs, deprecation and redaction of what it reaches
 	// down to the property, so a field's own type the declaration written at
-	// site reached through one may hold them; one written there keeps them on
+	// sites reached through one may hold them; one written there keeps them on
 	// itself alone (docs/ir/annotations.md#what-a-reference-carries-down).
-	carried := depth == 0 && !hoistedAt(td, site)
+	carried := depth == 0 && !hoistedAt(td, sites)
 	saysNothing := structureSaysNothing(end, carried && len(chain) == 0)
 	for k, s := range chain {
 		if !j.sites.walk.Untyped(s.Provenance) {
@@ -545,16 +548,20 @@ func (r registry) isAnyType(ref ir.TypeRef) bool {
 	return ok && td.Kind() == ir.KindAny
 }
 
-// hoistedAt reports whether td is a hoisted node written at or under at, the
-// declaration that holds it: in its document, at or below its pointer. A
-// hoisted node a $ref reached from elsewhere, another schema's property, a
-// parameter's schema or a position of another document that happens to share
-// the pointer, was declared apart.
-func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
+// hoistedAt reports whether td is a hoisted node written at or under one of
+// sites, where the declaration that holds it is written (declaration.sites):
+// in its document, at or below its pointer. A hoisted node a $ref reached from
+// elsewhere, another schema's property, a parameter's schema or a position of
+// another document that happens to share the pointer, was declared apart.
+func hoistedAt(td ir.TypeDef, sites []ir.Provenance) bool {
 	c := td.Common()
+	if !c.Anonymous {
+		return false
+	}
 	p := c.Provenance.Pointer
-	return c.Anonymous && c.Provenance.Source == at.Source &&
-		(p == at.Pointer || strings.HasPrefix(string(p), string(at.Pointer)+"/"))
+	return slices.ContainsFunc(sites, func(at ir.Provenance) bool {
+		return c.Provenance.Source == at.Source && (p == at.Pointer || strings.HasPrefix(string(p), string(at.Pointer)+"/"))
+	})
 }
 
 // copies relates a and b, two nodes held alike, by sameNodes, each a copy

@@ -47,10 +47,19 @@ func declaring(id ir.TypeID) *ir.Model {
 	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: string(id)}}}
 }
 
+// sitesAt is the one place a declaration written at pointer holds its type.
+func sitesAt(pointer jsontext.Pointer) []ir.Provenance { return []ir.Provenance{ptrAt(pointer)} }
+
+// atRoot is the sites of two declarations each written at its document's
+// root, which every node of the document is written under, read by walk.
+func atRoot(walk Walk) declarationSites {
+	return declarationSites{walk: walk, written: [2][]ir.Provenance{sitesAt(""), sitesAt("")}}
+}
+
 // judge is the type judgment over the registry g reads, its declarations read
 // against one base.
 func judge(g *stubbed) typeJudge {
-	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.walk}}
+	return typeJudge{resolve: g.resolve, sites: atRoot(g.walk)}
 }
 
 // untypedAt is Walk.Untyped for a registry whose nodes written under /untyped

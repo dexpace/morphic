@@ -795,6 +795,25 @@ func TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
 	}
 }
 
+// TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies pins a
+// default written against its own declaration's type, where the field's node
+// is one the fold built: two lists of one enum, each holding a bound, meet in
+// a list whose element is the copy one declaration hoisted. The default lists
+// a value the enum lacks, which its own declaration answers for, so the field
+// keeps it with nothing reported, whichever declaration wrote it and whichever
+// the built list's element copies.
+func TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies(t *testing.T) {
+	t.Parallel()
+	const items = "items: {type: string, enum: [x, y]}"
+	valued, bare := "{type: array, maxItems: 5, default: [q, q, q], "+items+"}", "{type: array, minItems: 3, "+items+"}"
+	for _, order := range [][2]string{{valued, bare}, {bare, valued}} {
+		p, _, diags := redeclared(t, order[0], order[1])
+		assert.Empty(t, diags, "%v", order)
+		require.NotNil(t, p.Default, "%v", order)
+		assert.Len(t, p.Default.List, 3, "%v", order)
+	}
+}
+
 // TestAllOf_EnumsOfDifferentValueTypesAreJudgedByTheirValues pins GitHub #1654
 // in both branch orders: an enum of integer within an enum of number is the
 // field's type, and two each holding a value the other lacks meet in an enum of

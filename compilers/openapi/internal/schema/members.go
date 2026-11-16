@@ -287,10 +287,19 @@ func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Ta
 	for _, member := range ir.FlattenedProperties(reg, id).Properties {
 		rec.reads.Spend(1 + len(member.Overridden))
 		if d, ok := merge.TakenOutside(member, from); ok && rec.shared[member.Property.WireName] {
-			table[member.Property.WireName] = d
+			table[member.Property.WireName] = rec.declared(d)
 		}
 	}
 	return table
+}
+
+// declared is d, a declaration a flattening takes, with where its type may be
+// written: where the model declaring it says, once settled, or at d itself.
+func (rec *members) declared(d ir.PropertyDecl) merge.Declared {
+	if settled, ok := rec.tables[d.Owner][d.Property.WireName]; ok && settled.Property.ID == d.Property.ID {
+		return settled
+	}
+	return merge.DeclaredAt(d)
 }
 
 // chargeComposition spends, of the run's reads, what a flattening of id walks

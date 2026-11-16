@@ -67,7 +67,7 @@ func (p position) heldByAnother(i int) bool {
 func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int
 	for k, c := range cs {
-		if !hoistedAt(c.node, b.f.decls[c.decl].prop.Provenance) {
+		if !hoistedAt(c.node, b.f.decls[c.decl].sites()) {
 			refs = append(refs, k)
 		}
 	}
