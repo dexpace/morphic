@@ -300,7 +300,7 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 // mappingValues returns the scalars the discriminator of the schema n names
 // schemas by, as view reads them, aliases followed: each value of its mapping,
 // then its defaultMapping. The finder binds them and NamedPointerBytes weighs
-// where they land, so both ask here.
+// where they land, each by its text whatever its tag, so both ask here.
 func mappingValues(view *nodeview.View, n *yaml.Node) []*yaml.Node {
 	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
 	if d == nil || d.Kind != yaml.MappingNode {

@@ -310,10 +310,16 @@ a value of a discriminator's `mapping` or its `defaultMapping` lands in, its fra
 binder reads one, percent escapes decoded, is named node by node as the kind that reference
 expects, once for each position it lands at that the grammar does not read as that kind, since the
 binder walks each from where it lands and an anchor can mount one value at many. A discriminator's
-value spelling the key of a schema component names that component, which is read where it is
-declared. It is refused only when that total too is past the bound, or when it cannot be taken: a
+value is read by its text whatever its tag, as the binder reads one, and one spelling the key of a
+schema component names that component, which is read where it is declared. A key of a Security
+Requirement Object that names no security scheme component is such a reference to a Security
+Scheme Object, the key its URI, in a document of a minor that reads one so, from 3.2
+([`security-requirements`](#security-requirements)). It is refused only when that total too is past
+the bound, or when it cannot be taken: a
 reference leaves
-the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
+the document, names nothing its pointer finds, passes a reference object that writes a `$ref`, where
+the binder reads on in the object it names and not beside the `$ref` ([`references`](#references)),
+a path item's own fields not told apart, or is read under an `$id`, which moves where it
 lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the depth the binder
 expands; the document may name a dialect, by `jsonSchemaDialect` or a
 `$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
@@ -376,7 +382,10 @@ node bound. An overlay document and a document a reference reads keep the first 
   `bind.TestNamedPointerBytes_AKeyWrittenTwiceIsNamedAtTheCopyAMergeReads`,
   `bind.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
   `bind.TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt`,
+  `bind.TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt`,
+  `bind.TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects`,
   `bind.TestNamedPointerBytes_TotalsEachPositionATableReads`,
+  `e2e.TestCompile_ARawValueARequirementKeyNamesIsNamedNodeByNode`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 
 ### `overlays`

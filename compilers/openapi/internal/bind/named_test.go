@@ -151,8 +151,9 @@ func TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode(t *testing.T
 }
 
 // TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed holds the
-// answer's completeness: a reference that leaves the document, a bound spent
-// before the document is read, and a closed document tell it apart.
+// answer's completeness: a reference that leaves the document, one whose
+// pointer the binder reads by a rule of its own, a bound spent before the
+// document is read, and a closed document tell it apart.
 func TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed(t *testing.T) {
 	t.Parallel()
 	closed := namedHead + "components:\n  schemas:\n    A: {type: string}\n"
@@ -164,13 +165,36 @@ func TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed(t *testing.T)
 	_, left := namedTotal(t, leaving)
 	_, nowhere := namedTotal(t, namedHead+"components:\n  schemas:\n    A: {$ref: \"#/x-nowhere\"}\n")
 	_, underID := namedTotal(t, namedHead+"x-data: {}\ncomponents:\n  schemas:\n    A: {$id: \"https://e.example/a\", properties: {p: {$ref: \"#/x-data\"}}}\n")
+	_, through := namedTotal(t, namedHead+"x-p: {name: n, in: query, x-data: "+namedSpine+"}\ncomponents:\n  parameters:\n"+
+		"    P: {$ref: \"#/x-p\", x-data: {type: string}}\n  schemas:\n    A: {$ref: \"#/components/parameters/P/x-data\"}\n")
+	_, beside := namedTotal(t, namedHead+"components:\n  parameters:\n    P: {name: n, in: query, x-data: {type: string}}\n"+
+		"  schemas:\n    A: {$ref: \"#/components/parameters/P/x-data\"}\n")
 	_, spent := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(&doc), 1)
 
 	assert.True(t, whole)
+	assert.True(t, beside, "a pointer through an object that writes no $ref reads what the object writes")
+	assert.False(t, through, "the binder reads on in the object a Reference Object names, not beside its $ref")
 	assert.False(t, left, "another document could route back into a raw value")
 	assert.False(t, nowhere, "the binder may answer a pointer naming nothing by a rule of its own")
 	assert.False(t, underID, "an $id moves where a $ref under it lands")
 	assert.False(t, spent, "past the step bound")
+}
+
+// TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects holds a
+// position the grammar reads as one kind and a reference lands on as another
+// to the reference's reading: a schema $ref onto a parameter reads its
+// `properties`, raw to the parameter, as a schema's, node by node.
+func TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects(t *testing.T) {
+	t.Parallel()
+	const base = namedHead + "components:\n  parameters:\n    P: {name: n, in: query, properties: {q: " + namedSpine +
+		"}}\n  schemas:\n    A: "
+	unread, c1 := namedTotal(t, base+"{type: string}\n")
+	landed, c2 := namedTotal(t, base+"{$ref: \"#/components/parameters/P\"}\n")
+	inPlace, c3 := namedTotal(t, namedHead+"components:\n  schemas:\n    P: {name: n, in: query, properties: {q: "+namedSpine+"}}\n")
+	empty, c4 := namedTotal(t, namedHead+"components:\n  schemas:\n    P: {name: n, in: query, properties: {}}\n")
+
+	assert.True(t, c1 && c2 && c3 && c4)
+	assert.Greater(t, landed-unread, inPlace-empty, "the spine is named as a schema's property, under the parameter's pointer")
 }
 
 // TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames holds a fragment
@@ -214,8 +238,8 @@ func TestNamedPointerBytes_ADynamicRefLandsAsARefDoes(t *testing.T) {
 // discriminator's mapping value and its defaultMapping to the binder's reading:
 // one spelling a schema component's key names that component, which is read
 // where it is declared and leaves the total whole, one written as a pointer
-// into a raw value adds that value node by node, and one naming neither leaves
-// the document.
+// into a raw value adds that value node by node, tagged null or not, since the
+// binder reads a value's text, and one naming neither leaves the document.
 func TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt(t *testing.T) {
 	t.Parallel()
 	total := func(mapped, fallback string) (int, bool) {
@@ -228,13 +252,51 @@ func TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt(t *testing
 	byPointer, alsoWhole := total("'#/components/schemas/Dog'", "'#/components/schemas/Dog'")
 	mapped, c1 := total("'#/x-data'", "Dog")
 	fallback, c2 := total("Dog", "'#/x-data'")
+	tagged, c3 := total("!!null '#/x-data'", "Dog")
+	taggedFallback, c4 := total("Dog", "!!null '#/x-data'")
 	_, undeclared := total("Dog", "Cat")
+	_, null := total("~", "Dog")
 
-	assert.True(t, whole && alsoWhole && c1 && c2)
+	assert.True(t, whole && alsoWhole && c1 && c2 && c3 && c4)
 	assert.Equal(t, byPointer, byKey, "a component is read where it is declared")
 	assert.Greater(t, mapped, byKey, "the raw value a mapping value lands in is named node by node")
 	assert.Equal(t, mapped, fallback, "a defaultMapping lands as a mapping value does")
+	assert.Equal(t, mapped, tagged, "a mapping value tagged null lands where its text names")
+	assert.Equal(t, mapped, taggedFallback, "and so does a defaultMapping")
 	assert.False(t, undeclared, "a name no component declares reads as another document's")
+	assert.False(t, null, "and so does a null's text")
+}
+
+// TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt holds a Security
+// Requirement Object's key to the binder's reading: one spelling a security
+// scheme component's key names that component, which is read where it is
+// declared, one written as a pointer into a raw value adds that value read as
+// a Security Scheme Object, as a security scheme's $ref naming it does, and
+// one naming neither leaves the document. A minor before 3.2 reads no key as a
+// URI, so there such a key is a name and lands nowhere.
+func TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt(t *testing.T) {
+	t.Parallel()
+	const declared, raw = "'#/components/securitySchemes/Aaaaaaaa'", "'#/x-data'"
+	total := func(minor, key, ref string) (int, bool) {
+		t.Helper()
+		return namedTotal(t, "openapi: "+minor+"\ninfo: {title: t, version: \"1\"}\npaths: {}\n"+
+			"x-data: {type: http, scheme: basic, kkkkkkkkkkkk: 1, llllllllllll: 1}\n"+
+			"security: [{"+key+": []}]\ncomponents:\n  securitySchemes:\n    Aaaaaaaa: {type: http, scheme: basic}\n"+
+			"    Bbbbbbbb: {$ref: "+ref+"}\n")
+	}
+	byName, c1 := total("3.2.0", "Aaaaaaaa", declared)
+	byKey, c2 := total("3.2.0", raw, declared)
+	byRef, c3 := total("3.2.0", "Aaaaaaaa", raw)
+	_, undeclared := total("3.2.0", "Cccccccc", declared)
+	earlier, c4 := total("3.1.2", raw, declared)
+	_, earlierName := total("3.1.2", "Cccccccc", declared)
+
+	assert.True(t, c1 && c2 && c3 && c4)
+	assert.Greater(t, byKey, byName, "the raw value a key lands in is named as a Security Scheme Object")
+	assert.Equal(t, byRef, byKey, "as one a security scheme's $ref lands in is, the two keys of one length")
+	assert.False(t, undeclared, "a name no component declares reads as another document's")
+	assert.Equal(t, byName, earlier, "before 3.2 a key is no URI, so it lands nowhere")
+	assert.True(t, earlierName, "and a name no component declares names no document")
 }
 
 // TestNamedPointerBytes_CountsAKeyAsItIsWritten holds a key holding a `/` and
