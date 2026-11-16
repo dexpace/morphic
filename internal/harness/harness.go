@@ -49,6 +49,9 @@ const (
 	OutcomeSpellingDependent Outcome = "spelling-dependent"
 	OutcomeNotCarried        Outcome = "not-carried"
 	OutcomeInstanceExcluded  Outcome = "instance-excluded"
+	// OutcomeDeclined is a case oracle's decline its record must list and
+	// does not (Oracle.records, Unexplained).
+	OutcomeDeclined Outcome = "declined"
 )
 
 // Result is one spec's outcome plus human-readable detail, and every oracle's

@@ -1,2 +1,17 @@
 # What the instance oracle finds at the core cases, and the reason each finding
 # stands: case name, what was found, reason (Reasons).
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/header/inline	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/parameter/inline	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/inline	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
+3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/header/inline	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
+3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/parameter/inline	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
+3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/inline	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
+3.1.0/properties.json%2Fobject properties validation/header/inline	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/properties.json%2Fobject properties validation/parameter/inline	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/properties.json%2Fobject properties validation/property/inline	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/header/inline	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/parameter/inline	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/inline	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/required.json%2Frequired validation/header/inline	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind
+3.1.0/required.json%2Frequired validation/parameter/inline	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind
+3.1.0/required.json%2Frequired validation/property/inline	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind

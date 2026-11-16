@@ -3,9 +3,11 @@
 A copy of part of the
 [JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite), kept with its
 `LICENSE` (MIT). `SuiteGroups` in `suite.go` reads it, embedded, as the groups that apply at JSON
-Schema 2020-12. The binding oracle in `compilers/openapi/internal/canary/oracle_test.go` compiles
-each such group's schema that writes a `$ref`, and compares what the compiler binds it to with what
-the parser library resolves it to.
+Schema 2020-12. `Groups` writes each valid instance of each such group as the default of a use of
+the group's schema, which the instance oracle holds to the type the use compiles to. The binding
+oracle in `compilers/openapi/internal/canary/oracle_test.go` compiles each such group's schema that
+writes a `$ref`, and compares what the compiler binds it to with what the parser library resolves
+it to.
 
 ## Revision
 
@@ -36,13 +38,15 @@ file repeats, so a refresh renames a group only where upstream renames its descr
 1. Copy `LICENSE` and the selected files from upstream's new commit over these, keeping the paths,
    and update the revision above.
 2. Run `go test ./internal/harness/openapicases -run TestSuiteGroups` to read them.
-3. Run the binding oracle with `-update`:
+3. Run both oracles with `-update`:
 
    ```bash
    go test ./compilers/openapi/internal/canary -run TestBindingOracle_AgreesWithTheLibrary -update
+   go test ./internal/harness/openapicases -run TestCore_ValidInstancesAreAdmitted -update
    ```
 
-   It rewrites `compilers/openapi/internal/canary/testdata/binding_disagreements.txt`, keeping the
-   reason of each disagreement still found and marking a new one `unclassified`.
-4. Give each `unclassified` line a reason the oracle's reason map names, and run the test again
+   They rewrite `compilers/openapi/internal/canary/testdata/binding_disagreements.txt` and
+   `internal/harness/openapicases/testdata/instances.txt`, keeping the reason of each line still
+   found and marking a new one `unclassified`.
+4. Give each `unclassified` line a reason its test's reason map names, and run both tests again
    without `-update`.
