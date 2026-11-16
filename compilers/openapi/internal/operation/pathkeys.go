@@ -10,7 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,7 +26,7 @@ const pathLiteralBytes = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 // template: the name hint of an operation with no operationId derives from the
 // whole key, and the URI template and the path-prefix group from the rest,
 // unrepaired.
-func pathKeyDiags(c lowering.Ctx, key string) []ir.Diagnostic {
+func pathKeyDiags(c service.Ctx, key string) []ir.Diagnostic {
 	defects := pathKeyDefects(key)
 	if len(defects) == 0 {
 		return nil

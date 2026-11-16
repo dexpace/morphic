@@ -39,7 +39,7 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	if _, listed := listedItems(s); listed {
 		taken = append(taken, "additionalItems")
 	}
-	rules := lowering.SchemaRulesAt(c, pointer)
+	rules := c.Rules().At(c.Position(pointer))
 	if rules.Takes("definitions", oas.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")

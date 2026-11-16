@@ -4,8 +4,10 @@
 package schema
 
 import (
+	"iter"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/require"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,6 +41,7 @@ const MaxRefinedConjuncts = maxRefinedConjuncts
 // so the package's in-package and external tests drive one fixture.
 type Lowerer struct {
 	Ctx   lowering.Ctx
+	Doc   *soa.OpenAPI
 	Out   *ir.Document
 	Types *compile.Types
 	Diags compile.Diags
@@ -46,10 +50,11 @@ type Lowerer struct {
 // LowererOver is the only place the fixture's fields are initialised. Both
 // entry points below build on it, so a field added to Lowerer cannot reach one
 // of them and miss the other.
-func LowererOver(ctx lowering.Ctx) *Lowerer {
+func LowererOver(c service.Ctx) *Lowerer {
 	types := compile.NewTypes()
 	return &Lowerer{
-		Ctx:   ctx,
+		Ctx:   c.Ctx,
+		Doc:   c.Doc,
 		Out:   &ir.Document{},
 		Types: types,
 	}
@@ -59,7 +64,7 @@ func LowererOver(ctx lowering.Ctx) *Lowerer {
 // plus the load diagnostics, so a test can drive one entry point at a time.
 func LoweredFor(t *testing.T, src string) (*Lowerer, []ir.Diagnostic) {
 	t.Helper()
-	return LoweredWith(t, src, lowering.Policy{Grouping: lowering.GroupByTags})
+	return LoweredWith(t, src, lowering.Policy{})
 }
 
 // LoweredWith is LoweredFor under policy.
@@ -68,7 +73,7 @@ func LoweredWith(t *testing.T, src string, policy lowering.Policy) (*Lowerer, []
 	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return LowererOver(lowering.New(0, loadedDoc, policy)), diags
+	return LowererOver(service.New(0, loadedDoc, service.Policy{Schema: policy})), diags
 }
 
 // LowerSpec loads src and lowers its component schemas, returning the document
@@ -76,7 +81,7 @@ func LoweredWith(t *testing.T, src string, policy lowering.Policy) (*Lowerer, []
 func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, diags := LoweredFor(t, src)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 	return doc, append(diags, l.Diags.List()...)
 }
@@ -86,7 +91,7 @@ func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 func LowerSpecCountingLands(t *testing.T, src string) (*ir.Document, []ir.Diagnostic, int) {
 	t.Helper()
 	l, diags := LoweredFor(t, src)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 	return doc, append(diags, l.Diags.List()...), *landingCount(l.Ctx)
 }
@@ -94,7 +99,13 @@ func LowerSpecCountingLands(t *testing.T, src string) (*ir.Document, []ir.Diagno
 // NewRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {
-	return LowererOver(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
+	return LowererOver(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
+}
+
+// Schemas returns the component schemas of the fixture's document, as run
+// hands them to LowerComponentSchemas.
+func (l *Lowerer) Schemas() iter.Seq2[string, *oas3.JSONSchema[oas3.Referenceable]] {
+	return l.Doc.Components.GetSchemas().All()
 }
 
 // Document finishes the registry as run does once every lowering has

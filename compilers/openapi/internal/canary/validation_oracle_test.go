@@ -363,7 +363,7 @@ func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Docu
 	}
 	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate, Rows: doc.Rows.Schema,
 		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) {
-			return doc.Dialects.At(bind.Position{Doc: bind.Source, Pointer: at})
+			return doc.Dialects.RootAt(bind.Position{Doc: bind.Source, Pointer: at})
 		}})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {

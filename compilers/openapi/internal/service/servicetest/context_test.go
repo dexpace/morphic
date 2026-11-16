@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package loweringtest_test
+package servicetest_test
 
 import (
 	"testing"
@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 )
 
 // TestContext_LowersWhatTheLoadPhaseRead pins the context the helper hands a
@@ -21,7 +21,7 @@ func TestContext_LowersWhatTheLoadPhaseRead(t *testing.T) {
 	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
 		"components: {schemas: {A: {type: string}}}\n"
 
-	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByPathPrefix})
+	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByPathPrefix})
 
 	require.NotNil(t, c.Doc)
 	assert.Equal(t, "3.1.0", c.Doc.GetOpenAPI())
@@ -29,5 +29,5 @@ func TestContext_LowersWhatTheLoadPhaseRead(t *testing.T) {
 	assert.Equal(t, 0, c.SrcIndex)
 	assert.True(t, c.DeclaresSchema("A"))
 	assert.NotNil(t, c.Bindings(), "the load phase bound the source")
-	assert.Equal(t, lowering.GroupByPathPrefix, c.Grouping)
+	assert.Equal(t, service.GroupByPathPrefix, c.Grouping)
 }

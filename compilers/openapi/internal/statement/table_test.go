@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -224,10 +224,10 @@ func TestTable_ReadsEachObjectOnce(t *testing.T) {
 // relative to it.
 func TestTable_AtFindsWhatOfReads(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, document("3.1.0",
+	c := servicetest.Context(t, document("3.1.0",
 		"A: &shared {allOf: [{type: object}], additionalItems: false}",
 		"B: *shared",
-	), lowering.Policy{})
+	), service.Policy{}).Ctx
 	draft07, own := rulesAt(t, "3.1.0", "http://json-schema.org/draft-07/schema#"), rulesAt(t, "3.1.0", "")
 	table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rowsBy(func(p bind.Position) oas.SchemaRules {
 		if p == component(c, "A") {

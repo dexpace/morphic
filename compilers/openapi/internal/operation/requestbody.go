@@ -13,8 +13,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,9 +28,9 @@ import (
 // component's name rather than the operationId hint (issue #107). A body $ref'd
 // from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
-func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerRequestBody(c service.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
-	rb, dc, bodyPtr := lowering.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
+	rb, dc, bodyPtr := service.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
@@ -53,7 +53,7 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
 	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.Place(), bodyPtr)...)
-	beside, besideDiags := lowering.Beside[soa.RequestBody](c, src.GetRequestBody(), usePtr, true)
+	beside, besideDiags := service.Beside[soa.RequestBody](c, src.GetRequestBody(), usePtr, true)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, beside)
 	op.Request = payload
 	diags = append(diags, besideDiags...)
@@ -65,7 +65,7 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 // the wire, where HTTP defines a body no semantics, an info, or forbids one, a
 // warning (docs/compilers/openapi.md#request-body). A method is compared as
 // written, as HTTP compares one (RFC 9110 §9.1). The body lowers as declared.
-func bodyMethodDiags(c lowering.Ctx, method string, at jsontext.Pointer) []ir.Diagnostic {
+func bodyMethodDiags(c service.Ctx, method string, at jsontext.Pointer) []ir.Diagnostic {
 	switch method {
 	case "GET", "HEAD", "DELETE":
 		return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.BodyWithoutSemantics, at,
@@ -83,7 +83,7 @@ func bodyMethodDiags(c lowering.Ctx, method string, at jsontext.Pointer) []ir.Di
 // emptyContentDiags reports rb's content map written empty, at the map, or
 // nothing; the design record is on diag.EmptyRequestContent. The condition is
 // the parser's own for reading the map as missing, which the load phase drops.
-func emptyContentDiags(c lowering.Ctx, rb *soa.RequestBody, bodyPtr jsontext.Pointer) []ir.Diagnostic {
+func emptyContentDiags(c service.Ctx, rb *soa.RequestBody, bodyPtr jsontext.Pointer) []ir.Diagnostic {
 	if !rb.GetCore().Content.Present || rb.GetContent().Len() != 0 {
 		return nil
 	}

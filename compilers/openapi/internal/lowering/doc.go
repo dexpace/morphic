@@ -1,16 +1,15 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// Package lowering holds the context every OpenAPI lowering reads.
+// Package lowering holds the context the OpenAPI schema lowering reads.
 //
 // It is the substrate the lowering packages share, not a stage: it lowers and
-// reports nothing itself. It owns the answer to "what is being lowered, and
-// what does the document say about itself": the parsed document, the source's
-// identity, the indexes derived once at entry, and the constructors that stamp
-// provenance.
+// reports nothing. It owns the answer to "which document is being
+// read": the site a lowering places and names what it reads by, the bindings
+// and the rows each schema is read with, and the indexes derived once at
+// entry. What only the service lowerings read is package service's.
 //
-// It is a package because every lowering package needs those answers, and only
-// one beneath them all serves each: the schema walk may not reach the
-// operation walk, which reaches it, and auth and document reach neither
-// (micro-compiler-design §5.1).
+// It is a package because only one beneath every lowering package serves
+// those answers: the schema walk may not reach the operation walk, which
+// reaches it (micro-compiler-design §5.1).
 package lowering

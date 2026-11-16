@@ -15,9 +15,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,7 +32,7 @@ type layer struct {
 	// which no pointer here addresses.
 	decl jsontext.Pointer
 	name string
-	in   lowering.Ctx
+	in   service.Ctx
 }
 
 // pathItemLayers returns the layers of the path item rp, written at usePtr and
@@ -41,15 +41,15 @@ type layer struct {
 // table reads that $ref at, in whichever document, then the item the chain
 // ends at. The load phase models the fields beside every $ref the bindings'
 // table lands a path item on (load.Siblings), so none is left unread.
-func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) []layer {
-	pi, dc, declPtr := lowering.Declared[soa.PathItem](use, rp, usePtr)
+func pathItemLayers(use service.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext.Pointer) []layer {
+	pi, dc, declPtr := service.Declared[soa.PathItem](use, rp, usePtr)
 	if pi == nil {
 		return nil
 	}
 	sibs := use.Siblings()
 	var layers []layer
 	// visit reads one $ref of the chain, written at decl in in's document.
-	visit := func(hop *soa.ReferencedPathItem, in lowering.Ctx, decl jsontext.Pointer) {
+	visit := func(hop *soa.ReferencedPathItem, in service.Ctx, decl jsontext.Pointer) {
 		if sib, ok := sibs.Of(hop); ok {
 			layers = append(layers, layer{item: sib.Item, decl: decl, name: string(decl), in: in})
 		}
@@ -57,7 +57,7 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 	visit(rp, use, usePtr) // an alias's own position, as for an inline item
 	last := rp
 	for _, hop := range resolve.Hops[soa.PathItem](use.Bindings(), rp) {
-		in, _ := lowering.InDocument(use, hop.At.Doc)
+		in, _ := service.InDocument(use, hop.At.Doc)
 		visit(hop.Ref, in, hop.At.Pointer)
 		last = hop.Ref
 	}
@@ -66,16 +66,16 @@ func pathItemLayers(use lowering.Ctx, rp *soa.ReferencedPathItem, usePtr jsontex
 
 // writtenRef is the $ref the reference object hop writes, as the bindings'
 // table read it.
-func writtenRef(c lowering.Ctx, hop *soa.ReferencedPathItem) string {
+func writtenRef(c service.Ctx, hop *soa.ReferencedPathItem) string {
 	r, _ := c.Bindings().Reference(hop)
 	return r.Hop.Ref
 }
 
 // referent returns the layer of pi, the item a chain ends at through last,
-// declared at declPtr in dc's document (lowering.Declared). A finding made in
+// declared at declPtr in dc's document (service.Declared). A finding made in
 // use's document names a position in another by the reference
 // (referenceName).
-func referent(use, dc lowering.Ctx, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
+func referent(use, dc service.Ctx, last *soa.ReferencedPathItem, pi *soa.PathItem, declPtr jsontext.Pointer,
 ) layer {
 	ref := layer{item: pi, decl: declPtr, name: string(declPtr), in: dc}
 	if dc.IDs() != use.IDs() {

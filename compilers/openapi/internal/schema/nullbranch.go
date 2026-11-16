@@ -68,7 +68,7 @@ func saysTheNull(c lowering.Ctx, at jsontext.Pointer, key string) bool {
 	case "type", "enum", "const":
 		return true
 	case "nullable":
-		return c.NullableInference.Honours() || lowering.SchemaRulesAt(c, at).Defines(key)
+		return c.NullableInference.Honours() || c.Rules().At(c.Position(at)).Defines(key)
 	default:
 		return false
 	}

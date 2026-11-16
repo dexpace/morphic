@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package service_test
 
 import (
 	"maps"
@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 )
 
 // besideSpec has a parameter use writing keys beside its $ref, a use that
@@ -36,9 +36,9 @@ components:
 `
 
 // besideParams returns the context of besideSpec and the parameters of GET /a.
-func besideParams(t *testing.T) (lowering.Ctx, []*soa.ReferencedParameter) {
+func besideParams(t *testing.T) (service.Ctx, []*soa.ReferencedParameter) {
 	t.Helper()
-	c := loweringtest.Context(t, besideSpec, lowering.Policy{})
+	c := servicetest.Context(t, besideSpec, service.Policy{})
 	a, ok := c.Doc.Paths.Get("/a")
 	require.True(t, ok)
 	return c, a.GetObject().Get().GetParameters()
@@ -53,19 +53,19 @@ func TestBeside_KeysTheUseAndEachAlias(t *testing.T) {
 	t.Parallel()
 	c, params := besideParams(t)
 
-	got, diags := lowering.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", true)
+	got, diags := service.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", true)
 	assert.Equal(t, []string{"openapi:reference/0/required", "openapi:reference/0/x-note"}, slices.Sorted(maps.Keys(got)))
 	assert.Equal(t, `"kept"`, string(got["openapi:reference/0/x-note"].Value))
 	assert.Equal(t, "/paths/~1a/get/parameters/0/x-note", string(got["openapi:reference/0/x-note"].Provenance.Pointer))
 	assert.Empty(t, diags, "the table reports a key no object defines; the census keeps it and says nothing")
 
-	got, diags = lowering.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", false)
+	got, diags = service.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", false)
 	assert.Contains(t, got, "openapi:reference/0/summary", "a use with no docs to hold it keeps its summary")
 	require.Len(t, diags, 1)
 	assert.Equal(t, "openapi/unhomed-construct", diags[0].Code)
 	assert.Equal(t, "/paths/~1a/get/parameters/0/summary", string(diags[0].Provenance.Pointer))
 
-	got, _ = lowering.Beside[soa.Parameter](c, params[3], "/paths/~1a/get/parameters/3", true)
+	got, _ = service.Beside[soa.Parameter](c, params[3], "/paths/~1a/get/parameters/3", true)
 	assert.Equal(t, []string{"openapi:reference/0/x-use", "openapi:reference/1/x-alias"}, slices.Sorted(maps.Keys(got)),
 		"the use and the alias each write their own entry")
 	assert.Equal(t, "/components/parameters/Alias/x-alias",
@@ -77,11 +77,11 @@ func TestBeside_KeysTheUseAndEachAlias(t *testing.T) {
 func TestBeside_ABareReferenceCostsNothing(t *testing.T) {
 	c, params := besideParams(t)
 	for name, i := range map[string]int{"a bare $ref": 1, "an inline entry": 2} {
-		got, diags := lowering.Beside[soa.Parameter](c, params[i], "/paths/~1a/get/parameters/x", true)
+		got, diags := service.Beside[soa.Parameter](c, params[i], "/paths/~1a/get/parameters/x", true)
 		assert.Nil(t, got, name)
 		assert.Empty(t, diags, name)
 		assert.Zero(t, testing.AllocsPerRun(10, func() {
-			_, _ = lowering.Beside[soa.Parameter](c, params[i], "/paths/~1a/get/parameters/x", true)
+			_, _ = service.Beside[soa.Parameter](c, params[i], "/paths/~1a/get/parameters/x", true)
 		}), name)
 	}
 }

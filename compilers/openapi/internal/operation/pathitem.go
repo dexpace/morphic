@@ -16,9 +16,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -105,7 +105,7 @@ func pathOperations(pi *soa.PathItem) []pathOperation {
 // lowerPaths lowers every path operation in source order into groups, stopping
 // between path items when ctx is done. svc carries what a path item mounting no
 // operation writes, which has no operation of its own to hold it.
-func lowerPaths(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerPaths(ctx context.Context, c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	paths := c.Doc.GetPaths()
 	if paths == nil {
 		return nil
@@ -134,7 +134,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGrou
 // and lowers from where its layer declares it (see pathItemLayers). A fragment
 // the path's key carries is left out of the URI template and the grouping, and
 // kept on each operation's binding (docs/compilers/openapi.md#path-keys).
-func lowerPathItem(c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
+func lowerPathItem(c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer,
 ) []ir.Diagnostic {
 	template, fragment, fragmented := pathRoute(path)
 	route := opContext{key: path, template: template, groups: groups}
@@ -157,7 +157,7 @@ func lowerPathItem(c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Servic
 // keepFragment keeps on op's HTTP binding the fragment the key at ptr carries,
 // which its URI template leaves out, verbatim and without its "#". It is text
 // whatever it spells, as a quoted scalar is, so "123" stays no number.
-func keepFragment(c lowering.Ctx, op *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
+func keepFragment(c service.Ctx, op *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
 	text := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: fragment}
 	_, diags := annotation.PreserveNodeInto(&op.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
 		ir.ReasonDegradedLowering, c.Place().At(ptr))
@@ -182,7 +182,7 @@ type mountedOp struct {
 // Callback Object writes it, which a mount below a $ref'd one does not address.
 type mountSite struct {
 	ptr     jsontext.Pointer
-	use     lowering.Ctx
+	use     service.Ctx
 	usePtr  jsontext.Pointer
 	residue *ir.Unmodeled
 }
@@ -216,7 +216,7 @@ func mountPathItem(w walk, layers []layer, at mountSite, route opContext) ([]mou
 		// An additionalOperations entry is charged what it copies (chargeItemCopy),
 		// as the fixed methods, which bound their own copies, are not; and none
 		// lowers once the budget is crossed, whatever copy crossed it.
-		if po.additional && lowering.ExpansionCrossed(l.in) {
+		if po.additional && service.ExpansionCrossed(l.in) {
 			break // the document is refused, so no copy past the budget lowers
 		}
 		opCtx := route
@@ -279,7 +279,7 @@ func keepOn(op *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
 // beside the first is a chance to forget one on a route added later (GitHub
 // #39). The undeclared keys come from undeclaredPathItemKeys: the library's
 // GetUnknownProperties is empty for this object.
-func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
+func applyPathItem(c service.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
 ) []ir.Diagnostic {
 	diags := applyPathItemDocs(c, into, pi, declPtr, cedes)
 	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), c.Place(), declPtr, into.scope)
@@ -437,7 +437,7 @@ var pathItemDocKeywords = []string{"summary", "description"}
 // reported: the pair reaches a field. An item mounting none keeps the pair
 // verbatim beside what else it keeps on the nearest node, which
 // preserveUnmountedPathItem announces (GitHub #383).
-func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
+func applyPathItemDocs(c service.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
 	if pi.GetSummary() == "" && pi.GetDescription() == "" {
@@ -482,7 +482,7 @@ func writePathDocs(docs *ir.Docs, pi *soa.PathItem, cedes func(string) bool) {
 // ID would be, less what cedes says a nearer layer keeps. An entry whose $ref
 // resolves to nothing has no slot: it is reported where the reference is
 // written, and lowers nowhere, as on an operation.
-func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
+func keepItemParams(c service.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic

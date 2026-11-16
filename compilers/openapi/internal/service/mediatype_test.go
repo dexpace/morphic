@@ -1,14 +1,14 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package service_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas pins the rule
@@ -36,7 +36,7 @@ func TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, lowering.NormalizeMediaType(tc.in))
+			assert.Equal(t, tc.want, service.NormalizeMediaType(tc.in))
 		})
 	}
 }
@@ -62,6 +62,6 @@ func TestHoldsOneDocument_AnswersOnlyForJSONAndXML(t *testing.T) {
 		"application/vnd.acme.frames":     false,
 		"":                                false,
 	} {
-		assert.Equal(t, want, lowering.HoldsOneDocument(mediaType), "%q", mediaType)
+		assert.Equal(t, want, service.HoldsOneDocument(mediaType), "%q", mediaType)
 	}
 }

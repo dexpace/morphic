@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,7 +28,7 @@ const maxCallbackNesting = 4
 // (lowerCallbacks) while it is nested in fewer than maxCallbackNesting
 // callbacks. Past that the map is kept verbatim, beside the callbacks' own
 // extensions, and reported (docs/compilers/openapi.md#callbacks).
-func operationCallbacks(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func operationCallbacks(c service.Ctx, w walk, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	if src.GetCallbacks().Len() == 0 {
 		return nil, nil, nil, nil
 	}
@@ -55,7 +55,7 @@ func operationCallbacks(c lowering.Ctx, w walk, src *soa.Operation, opCtx opCont
 // identity, so two parents sharing one $ref'd callback keep distinct callback
 // operations; parent.ptrs.decl is the base a $ref'd callback or path item
 // resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c service.Ctx, w walk, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	var ext ir.Unmodeled
@@ -64,10 +64,10 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opContext
 		use := parent.ptrs.decl + ids.Ptr("callbacks", cbName)
 		// A callback has no docs, so a summary or description beside its $ref is
 		// kept as what the chain writes, on the binding beside its extensions.
-		beside, besideDiags := lowering.Beside[soa.Callback](c, rcb, use, false)
+		beside, besideDiags := service.Beside[soa.Callback](c, rcb, use, false)
 		ext = annotation.MergeUnmodeled(ext, annotation.Under(ids.Scope("callbacks", cbName), beside))
 		diags = append(diags, besideDiags...)
-		cb, c, cbDecl := lowering.Declared[soa.Callback](c, rcb, use)
+		cb, c, cbDecl := service.Declared[soa.Callback](c, rcb, use)
 		if cb == nil {
 			continue
 		}
@@ -129,7 +129,7 @@ func lowerCallbackOps(w walk, layers []layer, at mountSite, route opContext) ([]
 // webhooks-map key, an event's name rather than a path, as WebhookName. It
 // stops between webhooks when ctx is done, as lowerPaths does, and svc holds
 // what a webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerWebhooks(ctx context.Context, c service.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil

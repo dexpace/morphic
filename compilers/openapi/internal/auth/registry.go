@@ -8,7 +8,7 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,7 +38,7 @@ type Registry struct {
 // LowerSecuritySchemes lowers, so a scheme a requirement adds reaches the
 // registry and never the caller's map. Such a scheme is placed at the root of
 // c's source.
-func RegistryOf(c lowering.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
+func RegistryOf(c service.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
 	byID := make(map[ir.AuthID]ir.AuthScheme, len(declared))
 	entries := make(map[string]bool, len(declared))
 	var reaching []string

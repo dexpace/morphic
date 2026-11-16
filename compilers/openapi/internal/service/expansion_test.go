@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package service_test
 
 import (
 	"encoding/json/jsontext"
@@ -15,9 +15,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
@@ -79,7 +79,7 @@ func TestWeightOf_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, lowering.WeightOf(tc.root, raw, budget.Unbounded()))
+			assert.Equal(t, tc.want, service.WeightOf(tc.root, raw, budget.Unbounded()))
 		})
 	}
 }
@@ -119,10 +119,10 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, lowering.WeightOf(tc.root, tc.at, budget.Unbounded()))
+			assert.Equal(t, tc.want, service.WeightOf(tc.root, tc.at, budget.Unbounded()))
 		})
 	}
-	assert.Greater(t, lowering.WeightOf(withSchema(big), raw, budget.Unbounded()), asOne,
+	assert.Greater(t, service.WeightOf(withSchema(big), raw, budget.Unbounded()), asOne,
 		"read as raw YAML, the same tree holds no schema")
 }
 
@@ -132,7 +132,7 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 func TestWeightOf_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 	t.Parallel()
 	const within = 1000
-	got := lowering.WeightOf(doubling(22), raw, budget.AtMost(within))
+	got := service.WeightOf(doubling(22), raw, budget.AtMost(within))
 	assert.Greater(t, got, within, "a declaration past what is left weighs past it")
 	assert.LessOrEqual(t, got, 2*(within+1), "no more than one node past it is visited, each weighing 2 at most")
 }
@@ -140,7 +140,7 @@ func TestWeightOf_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 func TestExpansion_ChargesEveryCopy(t *testing.T) {
 	t.Parallel()
 	root := declaration()
-	e := lowering.NewExpansion(budget.AtMost(28))
+	e := service.NewExpansion(budget.AtMost(28))
 	assert.True(t, e.Admit(raw, root))
 	assert.True(t, e.Admit(raw, root), "a second copy reaching the budget is within it")
 	_, refused := e.Refusal(0)
@@ -160,7 +160,7 @@ func TestExpansion_ChargesEveryCopy(t *testing.T) {
 func TestExpansion_ChargesEachDeclarationOfAChain(t *testing.T) {
 	t.Parallel()
 	alias := ynode.Map(ynode.Scalar("$ref"), ynode.Scalar("#/x"))
-	e := lowering.NewExpansion(budget.AtMost(2 * (14 + 1)))
+	e := service.NewExpansion(budget.AtMost(2 * (14 + 1)))
 	assert.True(t, e.Admit(raw, declaration(), alias))
 	assert.Equal(t, 14+1, e.Spent(), "the end (14) and the alias, a mapping (1) and nothing beside its $ref")
 	assert.True(t, e.Admit(raw, declaration(), alias))
@@ -177,7 +177,7 @@ func TestExpansion_ChargesEachDeclarationOfAChain(t *testing.T) {
 func TestExpansion_WeighsADeclarationOnce(t *testing.T) {
 	t.Parallel()
 	root := declaration()
-	e := lowering.NewExpansion(budget.AtMost(100))
+	e := service.NewExpansion(budget.AtMost(100))
 	assert.True(t, e.Admit(raw, root))
 	root.Content = append(root.Content, ynode.Scalar("c"), ynode.Scalar("d"))
 	assert.True(t, e.Admit(raw, root))
@@ -192,7 +192,7 @@ func TestExpansion_WeighsADeclarationOnce(t *testing.T) {
 
 func TestExpansion_UnboundedAdmitsWithoutWeighing(t *testing.T) {
 	t.Parallel()
-	e := lowering.NewExpansion(budget.Unbounded())
+	e := service.NewExpansion(budget.Unbounded())
 	for range 3 {
 		assert.True(t, e.Admit(raw, declaration()))
 	}
@@ -207,7 +207,7 @@ func TestExpansion_UnboundedAdmitsWithoutWeighing(t *testing.T) {
 // follows the walk's order.
 func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 	t.Parallel()
-	e := lowering.NewExpansion(budget.AtMost(5))
+	e := service.NewExpansion(budget.AtMost(5))
 	assert.False(t, e.Admit(raw, declaration()))
 	got, refused := e.Refusal(3)
 	assert.True(t, refused)
@@ -220,9 +220,9 @@ func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 
 // loaded returns the context of src, loaded as a source, with its $refs'
 // copies held to limit.
-func loaded(t *testing.T, src string, limit budget.Limit) lowering.Ctx {
+func loaded(t *testing.T, src string, limit budget.Limit) service.Ctx {
 	t.Helper()
-	return loweringtest.Context(t, src, lowering.Policy{Limits: lowering.Limits{MaxReferenceExpansion: limit}})
+	return servicetest.Context(t, src, service.Policy{MaxReferenceExpansion: limit})
 }
 
 // TestDeclared_ResolvesNoReferencePastTheExpansionBudget pins what bounds a
@@ -252,23 +252,23 @@ components:
 	params := a.GetObject().Get().GetParameters()
 	const usePtr = "/paths/~1a/get/parameters/0"
 
-	p, _, at := lowering.Declared[soa.Parameter](c, params[0], usePtr)
+	p, _, at := service.Declared[soa.Parameter](c, params[0], usePtr)
 	require.NotNil(t, p, "a copy weighing the budget is within it")
 	assert.Equal(t, "/components/parameters/P", string(at))
 	_, refused := c.ExpansionRefusal()
 	assert.False(t, refused)
 
-	p, _, at = lowering.Declared[soa.Parameter](c, params[0], usePtr)
+	p, _, at = service.Declared[soa.Parameter](c, params[0], usePtr)
 	assert.Nil(t, p, "a second copy crosses it")
 	assert.Equal(t, usePtr, string(at))
 	_, refused = c.ExpansionRefusal()
 	assert.True(t, refused)
 
-	p, _, at = lowering.Declared[soa.Parameter](c, params[0], usePtr)
+	p, _, at = service.Declared[soa.Parameter](c, params[0], usePtr)
 	assert.Nil(t, p, "a copy past the crossing resolves to nothing")
 	assert.Equal(t, usePtr, string(at))
 
-	inline, _, _ := lowering.Declared[soa.Parameter](c, params[1], "/paths/~1a/get/parameters/1")
+	inline, _, _ := service.Declared[soa.Parameter](c, params[1], "/paths/~1a/get/parameters/1")
 	require.NotNil(t, inline)
 	assert.Equal(t, "r", inline.GetName())
 }
@@ -301,7 +301,7 @@ components:
 		c := loaded(t, src, budget.AtMost(limit))
 		a, ok := c.Doc.Paths.Get("/a")
 		require.True(t, ok)
-		p, _, _ := lowering.Declared[soa.Parameter](c, a.GetObject().Get().GetParameters()[0], usePtr)
+		p, _, _ := service.Declared[soa.Parameter](c, a.GetObject().Get().GetParameters()[0], usePtr)
 		assert.Equal(t, admitted, p != nil, "under %d", limit)
 		_, refused := c.ExpansionRefusal()
 		assert.Equal(t, !admitted, refused, "under %d", limit)
@@ -314,10 +314,10 @@ components:
 func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	t.Parallel()
 	c := loaded(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", budget.Unbounded())
-	param := lowering.ReadingOf(c, "/paths/~1a/get/parameters/0")
+	param := service.ReadingOf(c, "/paths/~1a/get/parameters/0")
 	assert.True(t, param.Referable())
 	assert.True(t, param.Below("schema").Schema())
-	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
+	assert.Equal(t, bind.Reading{}, service.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
 		"a schema is no object a $ref of this kind names")
 }
 
@@ -339,13 +339,13 @@ paths:
 	require.True(t, ok)
 	param := a.GetObject().Parameters[0].GetObject().GetRootNode()
 
-	lowering.ChargeExpansionAt(c, "/paths/~1a/parameters/0", param)
-	lowering.ChargeExpansion(c, 3)
+	service.ChargeExpansionAt(c, "/paths/~1a/parameters/0", param)
+	service.ChargeExpansion(c, 3)
 	_, refused := c.ExpansionRefusal()
 	assert.False(t, refused, "a copy weighing 25 and three raw bytes beside it reach the budget of 28")
-	assert.False(t, lowering.ExpansionCrossed(c), "a budget reached is not crossed")
-	lowering.ChargeExpansion(c, 1)
+	assert.False(t, service.ExpansionCrossed(c), "a budget reached is not crossed")
+	service.ChargeExpansion(c, 1)
 	_, refused = c.ExpansionRefusal()
 	assert.True(t, refused, "one more crosses it")
-	assert.True(t, lowering.ExpansionCrossed(c))
+	assert.True(t, service.ExpansionCrossed(c))
 }

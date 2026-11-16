@@ -464,7 +464,7 @@ components:
           $ref: '#/components/schemas/Target'
           example: at-reference
 `)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 
 	target := typeByName(l.Document(t), "Target")
 	require.NotNil(t, target)

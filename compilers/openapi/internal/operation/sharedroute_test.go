@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -89,7 +89,7 @@ func TestSharedRoute_PathPrefixGroupsTheRoute(t *testing.T) {
     get: {operationId: b, responses: {"200": {description: ok}}}
   /#root:
     get: {operationId: c, responses: {"200": {description: ok}}}
-`), lowering.GroupByPathPrefix)
+`), service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, map[ir.GroupID][]ir.OpID{
 		"g/path-prefix/bearer": {"op/openapi/paths/~1bearer#oauth2/get", "op/openapi/paths/~1bearer~1x#apiKey/get"},

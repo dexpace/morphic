@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // TestSites_ListEveryObjectAroundTheMetadata pins the one list the extension
@@ -34,7 +34,7 @@ func TestSites_ListEveryObjectAroundTheMetadata(t *testing.T) {
 		scope string
 		owner jsontext.Pointer
 	}
-	all := sites(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
+	all := sites(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
 	got := make([]keyed, 0, len(all))
 	for _, s := range all {
 		got = append(got, keyed{s.scope, s.owner})

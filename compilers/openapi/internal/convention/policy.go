@@ -16,7 +16,7 @@ type Policy struct {
 // IdempotencyInferenceHeuristic is the name an Operation's
 // Provenance.Inferred carries where the idempotency policy read its
 // Idempotency off a header parameter. It is a constant for the reason
-// lowering.StreamingInferenceHeuristic is: an auditor greps for it.
+// service.StreamingInferenceHeuristic is: an auditor greps for it.
 const IdempotencyInferenceHeuristic ir.Inferred = "idempotency-inference"
 
 // IdempotencyInference is the idempotency policy: whether an operation
@@ -38,7 +38,7 @@ func (p IdempotencyInference) Honours() bool { return !p.Disabled }
 
 // SecretInferenceHeuristic is the name a parameter's, a header's or a
 // property's Provenance.Inferred carries where the secret policy set its
-// Secret. It is a constant for the reason lowering.StreamingInferenceHeuristic
+// Secret. It is a constant for the reason service.StreamingInferenceHeuristic
 // is: an auditor greps for it.
 const SecretInferenceHeuristic ir.Inferred = "secret-inference"
 
@@ -61,7 +61,7 @@ func (p SecretInference) Honours() bool { return !p.Disabled }
 
 // HTTPDateInferenceHeuristic is the name a header's Provenance.Inferred carries
 // where the HTTP-date policy set its Encoding. It is a constant for the reason
-// lowering.StreamingInferenceHeuristic is: an auditor greps for it.
+// service.StreamingInferenceHeuristic is: an auditor greps for it.
 const HTTPDateInferenceHeuristic ir.Inferred = "http-date-inference"
 
 // HTTPDateInference is the HTTP-date policy: whether a response header whose

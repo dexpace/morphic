@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -47,13 +47,13 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	}
 	deep.WriteString("components:\n  schemas:\n    T: {type: string}\n    A: {<<: *c70}\n")
 	past, _ := LoweredFor(t, deep.String())
-	a, ok := past.Ctx.Doc.Components.GetSchemas().Get("A")
+	a, ok := past.Doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	assert.Equal(t, `unresolved $ref "#/components/schemas/T": it is past a `+"`<<`"+` merge chain deeper than `+
 		"the 64 levels the compiler expands", message(t, past, a))
 
 	unheld := unheldLowerer(t)
-	a, ok = unheld.Ctx.Doc.Components.GetSchemas().Get("A")
+	a, ok = unheld.Doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p"`, message(t, unheld, a))
 }
@@ -123,5 +123,5 @@ func unheldLowerer(t *testing.T) *Lowerer {
 	a, ok := doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})
-	return LowererOver(lowering.New(0, &load.Document{Doc: doc, Bindings: bd.Bindings()}, lowering.Policy{}))
+	return LowererOver(service.New(0, &load.Document{Doc: doc, Bindings: bd.Bindings()}, service.Policy{}))
 }

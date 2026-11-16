@@ -20,9 +20,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -193,8 +193,8 @@ components:
 	unlisted := *loaded
 	unlisted.Others = load.Others{}
 
-	l := schema.LowererOver(lowering.New(0, &unlisted, lowering.Policy{Grouping: lowering.GroupByTags}))
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l := schema.LowererOver(service.New(0, &unlisted, service.Policy{Grouping: service.GroupByTags}))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 
 	unresolved := func(pointer jsontext.Pointer, message string) ir.Diagnostic {

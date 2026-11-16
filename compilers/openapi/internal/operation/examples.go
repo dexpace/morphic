@@ -14,8 +14,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,7 +23,7 @@ import (
 // examples, in source order. An unconvertible node is skipped with a warning
 // diagnostic rather than silently. The singular `example` keyword is a bare
 // value with nowhere to hang a name or summary, so it lowers to a value alone.
-func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer jsontext.Pointer) ([]ir.Example, []ir.Diagnostic) {
+func exampleList(c service.Ctx, single *yaml.Node, plural *sequencedmap.Map[string, *soa.ReferencedExample], pointer jsontext.Pointer) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	if single != nil {
@@ -51,19 +51,19 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 // `dataValue`. Only this hop
 // is de-referenced: an enclosing $ref'd response or parameter is already
 // flattened into pointer.
-func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
+func appendPluralExample(c service.Ctx, out []ir.Example, re *soa.ReferencedExample, pointer jsontext.Pointer, name string) ([]ir.Example, []ir.Diagnostic) {
 	// The declaration pointer, not the entry's, is where an Example Object's own
 	// keywords are written: a $ref entry holds none of them. ir.Example carries an
 	// Unmodeled map, so neither the object's x-* nor its undeclared keys need a
 	// scope.
 	use := pointer + ids.Ptr("examples", name)
-	ex, dc, decl := lowering.Declared[soa.Example](c, re, use)
+	ex, dc, decl := service.Declared[soa.Example](c, re, use)
 	if ex == nil {
 		return out, nil
 	}
 	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.Place(), decl)
 	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.Place(), decl)...)
-	beside, besideDiags := lowering.Beside[soa.Example](c, re, use, true)
+	beside, besideDiags := service.Beside[soa.Example](c, re, use, true)
 	ext = annotation.MergeUnmodeled(ext, beside)
 	diags = append(diags, besideDiags...)
 	if name == "" {
@@ -88,7 +88,7 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 // openapi:examples/key (docs/compilers/openapi.md#example-values), with an info
 // there. No key of the Example Object can spell it, as one holding a "/" is
 // escaped, so an undeclared name key the object writes stays its own entry.
-func keepEmptyName(c lowering.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.Diagnostic {
+func keepEmptyName(c service.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir.Diagnostic {
 	annotation.PreserveInto(ext, annotation.EntryKey("examples", "key"), ir.RawValue(`""`),
 		ir.ReasonDegradedLowering, c.Place().At(use))
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, use,
@@ -102,7 +102,7 @@ func keepEmptyName(c lowering.Ctx, ext *ir.Unmodeled, use jsontext.Pointer) []ir
 // 3.2's `serializedValue` whatever it is written beside, and a `dataValue`
 // written beside `value`, which the rule table reports. An entry with no value in
 // any spelling is an empty stub, dropped with a warning.
-func appendExampleValue(c, dc lowering.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
+func appendExampleValue(c, dc service.Ctx, out []ir.Example, proto ir.Example, ex *soa.Example,
 	re *soa.ReferencedExample, pointer, decl jsontext.Pointer, name string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	serialized, diags := keepExampleSpelling(dc, &proto.Unmodeled, ex.GetCore().SerializedValue.ValueNode,
@@ -131,7 +131,7 @@ func appendExampleValue(c, dc lowering.Ctx, out []ir.Example, proto ir.Example, 
 // written with — stamping the failure pointer where the value is written: at the
 // reference site for a $ref entry, which holds no node of its own, and at its own
 // keyword for an inline one.
-func appendExampleData(c lowering.Ctx, out []ir.Example, proto ir.Example,
+func appendExampleData(c service.Ctx, out []ir.Example, proto ir.Example,
 	re *soa.ReferencedExample, node *yaml.Node, pointer jsontext.Pointer, name, keyword string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	if re.IsReference() {
@@ -145,7 +145,7 @@ func appendExampleData(c lowering.Ctx, out []ir.Example, proto ir.Example,
 // with why. node is the parser's own reading of the field, so a value merged in
 // through `<<` is kept like one written directly. It reports whether anything
 // was kept.
-func keepExampleSpelling(c lowering.Ctx, u *ir.Unmodeled, node *yaml.Node, keyword string,
+func keepExampleSpelling(c service.Ctx, u *ir.Unmodeled, node *yaml.Node, keyword string,
 	reason ir.UnmodeledReason, decl jsontext.Pointer, why string,
 ) (bool, []ir.Diagnostic) {
 	at := decl + ids.Ptr(keyword)

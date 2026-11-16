@@ -8,7 +8,7 @@ import "github.com/dexpace/morphic/ir"
 // InferenceHeuristic is the name a deprecated node's Provenance.Inferred
 // carries where the replacement policy read its Deprecation.ReplacedBy out of
 // the deprecation's message. It is a constant for the reason
-// lowering.StreamingInferenceHeuristic is: an auditor greps for it.
+// service.StreamingInferenceHeuristic is: an auditor greps for it.
 const InferenceHeuristic ir.Inferred = "replacement-inference"
 
 // Inference is the replacement policy: whether a deprecation whose message

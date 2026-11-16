@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 )
 
 // TestLeastOf_StopsAtOther holds leastOf to the least of its items and to the
@@ -38,8 +38,8 @@ func TestLeastOf_StopsAtOther(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			reads := 0
-			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-			got := leastOf(c, tc.items, func(_ lowering.Ctx, r fileReading) fileReading {
+			c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+			got := leastOf(c, tc.items, func(_ service.Ctx, r fileReading) fileReading {
 				reads++
 				return r
 			})
@@ -72,7 +72,7 @@ func readAs(t *testing.T, l *lowerer, name string, part bool, reads *int) fileRe
 	if part {
 		read = readPartBranch
 	}
-	return readSchema(l.ctx, js, branchReading{part: part, read: func(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	return readSchema(l.ctx, js, branchReading{part: part, read: func(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 		*reads++
 		return read(c, branch)
 	}})

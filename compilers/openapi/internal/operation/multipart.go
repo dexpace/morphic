@@ -19,10 +19,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,7 +35,7 @@ import (
 // Unmodeled: what they hold reads the type behind body, which a $ref may have
 // promised (compile.Types.Promise), so partKeys settles them and each entry's
 // records once every node exists, for every body stating a schema.
-func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
+func partEncodings(c service.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
 	map[ir.PropID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
 ) {
 	bodyWalk := walkBodyParts(c.Bindings(), media.GetSchema())
@@ -47,7 +47,7 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 	}
 	encMap := media.GetEncoding()
 	keys := partKeys{
-		c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: lowering.NormalizeMediaType(mt),
+		c: c, body: body, schema: mediaPtr + ids.Ptr("schema"), mediaType: service.NormalizeMediaType(mt),
 		catchAllValues: bodyWalk.catchAllValues,
 	}
 	for _, part := range parts {
@@ -69,7 +69,7 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 // lowerPart lowers the entry of part, a part of a form body under mt, a
 // normalized media type, and reads whether it takes its default content type
 // (keyedPart).
-func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
+func lowerPart(c service.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (keyedPart, []ir.Diagnostic) {
 	pe, partUnmodeled, diags := buildPartEncoding(c, w, part.name, encMap, mediaPtr, mt)
 	kp := keyedPart{
 		part:      part,
@@ -80,7 +80,7 @@ func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[s
 	}
 	if enc, ok := encMap.Get(part.name); ok && enc != nil {
 		kp.entry = enc.GetRootNode()
-		kp.defaulted = takesDefault(lowering.EncodingRules(c), enc, mt)
+		kp.defaulted = takesDefault(service.EncodingRules(c), enc, mt)
 		diags = append(diags, unknownNestedKeys(c, part, kp.entry, kp.at)...)
 	}
 	return kp, diags
@@ -92,7 +92,7 @@ func lowerPart(c lowering.Ctx, w walk, part bodyPart, encMap *sequencedmap.Map[s
 // applies one as the Media Type Object's encoding is applied, to each item of
 // an array part. Where the walk of a declaration leaves a key undecided
 // (partWalk.decidesKeys), no key is judged.
-func unknownNestedKeys(c lowering.Ctx, part bodyPart, entry *yaml.Node, at jsontext.Pointer) []ir.Diagnostic {
+func unknownNestedKeys(c service.Ctx, part bodyPart, entry *yaml.Node, at jsontext.Pointer) []ir.Diagnostic {
 	nested := nodeview.Pairs(nodeview.Child(entry, "encoding"))
 	if len(nested) == 0 {
 		return nil
@@ -147,7 +147,7 @@ const (
 // with no parts, has no effect, so is out of scope; one the walk cannot
 // decide, as a catch-all may take it, has no IR home. An entry that is no
 // object, which load reports, is skipped.
-func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
+func keepUnkeyedEncodings(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, w partWalk, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(w.parts))
 	for _, part := range w.parts {
 		walked[part.name] = struct{}{}
@@ -182,7 +182,7 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 // model reads an entry that is no mapping as one with no node, so nothing is
 // kept for it and load's error is its one finding. written reports whether the
 // entry was kept.
-func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string,
+func keepEntry(c service.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, at jsontext.Pointer, why string,
 	reason ir.UnmodeledReason,
 ) (written bool, diags []ir.Diagnostic) {
 	written, diags = annotation.PreserveNodeInto(u, annotation.EntryKey("encoding", name), entry,
@@ -198,7 +198,7 @@ func keepEntry(c lowering.Ctx, u *ir.Unmodeled, name string, entry *yaml.Node, a
 // key names no property the schema of owner, its body or its part, declares,
 // which OpenAPI requires of every key and gives no effect where it does not
 // hold.
-func unknownEncodingKey(c lowering.Ctx, name, owner string, at jsontext.Pointer) ir.Diagnostic {
+func unknownEncodingKey(c service.Ctx, name, owner string, at jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.UnknownEncodingKey, at,
 		"encoding entry %q names no property the %s's schema declares, which OpenAPI requires of an encoding key, "+
 			"so the entry has no effect", name, owner)
@@ -214,7 +214,7 @@ func unknownEncodingKey(c lowering.Ctx, name, owner string, at jsontext.Pointer)
 // mediaType its normalized media type, and catchAllValues the catch-alls'
 // value schemas the part walk met.
 type partKeys struct {
-	c              lowering.Ctx
+	c              service.Ctx
 	out            map[ir.PropID]ir.PartEncoding
 	catchAll       map[ir.TypeID]ir.CatchAllParts
 	kept           ir.Unmodeled
@@ -326,7 +326,7 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart,
 	if !p.defaulted {
 		return pe
 	}
-	return withDefaultContentType(unions, node, lowering.EncodingRules(k.c), d, readContentEncoding(k.c, part.schemas), pe)
+	return withDefaultContentType(unions, node, service.EncodingRules(k.c), d, readContentEncoding(k.c, part.schemas), pe)
 }
 
 // declarationSchemas returns, for each of decls, the declarations the body's
@@ -335,7 +335,7 @@ func (k partKeys) declared(node func(ir.TypeID) (ir.TypeDef, bool), p keyedPart,
 // where none of decls is, which a declaration the merge folded into one of
 // them, an allOf branch's, is. So one variant's declaration is read apart
 // from another's, and each schema is placed once.
-func declarationSchemas(c lowering.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable] {
+func declarationSchemas(c service.Ctx, part bodyPart, decls []*ir.Property) map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable] {
 	out := make(map[ir.PropID][]*oas3.JSONSchema[oas3.Referenceable], len(decls))
 	if len(decls) < 2 {
 		for _, d := range decls {
@@ -363,9 +363,9 @@ func declarationSchemas(c lowering.Ctx, part bodyPart, decls []*ir.Property) map
 // schema lowering names one by where it is read, and false where the bindings
 // do not place js in a document the compile read. Where they place it
 // nowhere, the zero position names the source, which is read and not used.
-func declaredProp(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropID, bool) {
+func declaredProp(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropID, bool) {
 	at, placed := c.Bindings().Site(js)
-	dc, read := lowering.InDocument(c, at.Doc)
+	dc, read := service.InDocument(c, at.Doc)
 	return dc.IDs().Prop(at.Pointer), placed && read
 }
 
@@ -620,7 +620,7 @@ func propertyParts(s *oas3.Schema) []bodyPart {
 // part past one, which gets no Content.Encoding key and no structural flags,
 // is not lost without a word; an entry written for it is kept whole
 // (keepUnkeyedEncodings).
-func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
+func diagPartWalkCut(c service.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	if w.capped {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
@@ -879,7 +879,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 // name under mt, a normalized media type: content types, headers and the
 // arrangement. Its structural flags, Multi and Filename, are partKeys' to read
 // once every type has lowered (partFlags).
-func buildPartEncoding(c lowering.Ctx, w walk, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func buildPartEncoding(c service.Ctx, w walk, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	enc, ok := encMap.Get(name)
 	if !ok {
 		return ir.PartEncoding{}, nil, nil

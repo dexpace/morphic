@@ -54,7 +54,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // (docs/compilers/openapi.md#tuples).
 func listedTuple(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (int, bool) {
 	n, listed := listedItems(s)
-	return n, listed && lowering.SchemaRulesAt(c, pointer).Takes("items", oas.List)
+	return n, listed && c.Rules().At(c.Position(pointer)).Takes("items", oas.List)
 }
 
 // listedItems returns how many schemas s writes `items` as a list of, a tuple

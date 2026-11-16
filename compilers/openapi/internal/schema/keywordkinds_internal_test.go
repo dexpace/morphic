@@ -16,10 +16,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 )
 
 // TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary holds the
@@ -130,12 +130,12 @@ func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
 	for _, name := range []string{"AllOf", "AnyOf", "Nulls", "Trues", "Dangling", "Mixed", "D0", "Deep", "All"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := loweringtest.Context(t, spec, lowering.Policy{})
+			c := servicetest.Context(t, spec, service.Policy{})
 			pointer := jsontext.Pointer("/components/schemas/" + name)
-			s := heldAt(c, pointer).GetSchema()
+			s := heldAt(c.Ctx, pointer).GetSchema()
 			require.NotNil(t, s)
 			r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-			assert.Equal(t, anyInstance, r.names(c, s, pointer))
+			assert.Equal(t, anyInstance, r.names(c.Ctx, s, pointer))
 			assert.True(t, r.steps.Exhausted())
 			assert.LessOrEqual(t, r.steps.Spent(), bound)
 		})
@@ -183,13 +183,13 @@ func budgetShapes(n int) string {
 // the chain of expansions again.
 func TestBoundTypes_ADynamicCycleEndsOnTheBudget(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
-		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"), lowering.Policy{})
+	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0",
+		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"), service.Policy{})
 	const pointer = jsontext.Pointer("/components/schemas/A")
-	s := heldAt(c, pointer).GetSchema()
+	s := heldAt(c.Ctx, pointer).GetSchema()
 	require.NotNil(t, s)
 	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
+	assert.Equal(t, anyInstance, r.schema(c.Ctx, s, pointer))
 	assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
 }
 
@@ -199,12 +199,12 @@ func TestBoundTypes_ADynamicCycleEndsOnTheBudget(t *testing.T) {
 // no type.
 func TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
-		"    Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}]}\n"), lowering.Policy{})
+	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}]}\n"), service.Policy{})
 	const pointer = jsontext.Pointer("/components/schemas/Dangling")
-	s := heldAt(c, pointer).GetSchema()
+	s := heldAt(c.Ctx, pointer).GetSchema()
 	require.NotNil(t, s)
 	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
+	assert.Equal(t, anyInstance, r.schema(c.Ctx, s, pointer))
 	assert.Equal(t, 2, r.steps.Spent())
 }
