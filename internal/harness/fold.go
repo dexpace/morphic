@@ -4,6 +4,7 @@
 package harness
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
@@ -138,8 +139,9 @@ func lentBy(td ir.TypeDef) annotations {
 }
 
 // annotations are the fields a decorator shares with a use site, merged along
-// a chain: each Docs field, Deprecation and Availability from the first that
-// sets one, Examples whole from the nearest, and Unmodeled the union by name.
+// a chain: each field of Docs and of Deprecation, and Availability, from the
+// first that sets one, Examples whole from the nearest, and Unmodeled the
+// union by name.
 type annotations struct {
 	docs         ir.Docs
 	deprecation  *ir.Deprecation
@@ -171,9 +173,7 @@ func entryLists(u ir.Unmodeled) map[string][]ir.UnmodeledEntry {
 func (a annotations) then(b annotations) annotations {
 	out := a
 	out.docs = mergeDocs(a.docs, b.docs)
-	if out.deprecation == nil {
-		out.deprecation = b.deprecation
-	}
+	out.deprecation = mergeDeprecation(a.deprecation, b.deprecation)
 	if len(out.examples) == 0 {
 		out.examples = b.examples
 	}
@@ -203,6 +203,25 @@ func mergeDocs(a, b ir.Docs) ir.Docs {
 		a.ExternalDocs = b.ExternalDocs
 	}
 	return a
+}
+
+// mergeDeprecation returns a's deprecation with each field a leaves empty
+// taken from b, as the compiler fills a use site's from the schema it names
+// (docs/ir/annotations.md#what-a-reference-carries-down), and the one set
+// where the other is nil: a carrier is deprecated where either is.
+func mergeDeprecation(a, b *ir.Deprecation) *ir.Deprecation {
+	if a == nil || b == nil {
+		return cmp.Or(a, b)
+	}
+	out := *a
+	out.Message = cmp.Or(a.Message, b.Message)
+	out.Since = cmp.Or(a.Since, b.Since)
+	out.RemovalVersion = cmp.Or(a.RemovalVersion, b.RemovalVersion)
+	out.RemovalDate = cmp.Or(a.RemovalDate, b.RemovalDate)
+	if len(out.ReplacedBy) == 0 {
+		out.ReplacedBy = b.ReplacedBy
+	}
+	return &out
 }
 
 // written is a as a reference's use member writes it, nil where a holds
