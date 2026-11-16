@@ -183,15 +183,7 @@ var parserSchema = schemaModel{pkg: schemaPackage, names: []string{"Schema", "JS
 // holds reports whether t, its pointers removed, is one of m's types or an
 // instance of one.
 func (m schemaModel) holds(t types.Type) bool {
-	t = types.Unalias(t)
-	for {
-		ptr, ok := t.(*types.Pointer)
-		if !ok {
-			break
-		}
-		t = types.Unalias(ptr.Elem())
-	}
-	named, ok := t.(*types.Named)
+	named, ok := pointee(t).(*types.Named)
 	if !ok {
 		return false
 	}
@@ -199,15 +191,48 @@ func (m schemaModel) holds(t types.Type) bool {
 	return obj.Pkg() != nil && obj.Pkg().Path() == m.pkg && slices.Contains(m.names, obj.Name())
 }
 
-// modelSelections returns where p selects a member on a value of one of m's
-// types, by member, whatever type declares the member, so one promoted from
-// an embedded model counts: a field, a method value or call, and a method
-// expression. It leaves out those in the file adapter names and returns how
-// many there were.
+// reaches reports whether sel selects a member of one of m's types: on a value
+// of one, or through a field embedding one, which promotes its members.
+func (m schemaModel) reaches(sel *types.Selection) bool {
+	if m.holds(sel.Recv()) {
+		return true
+	}
+	t, path := sel.Recv(), sel.Index()
+	for _, i := range path[:len(path)-1] {
+		s, ok := pointee(t).Underlying().(*types.Struct)
+		if !ok {
+			return false
+		}
+		t = s.Field(i).Type()
+		if m.holds(t) {
+			return true
+		}
+	}
+	return false
+}
+
+// pointee returns t with its aliases and pointers removed.
+func pointee(t types.Type) types.Type {
+	t = types.Unalias(t)
+	for {
+		ptr, ok := t.(*types.Pointer)
+		if !ok {
+			return t
+		}
+		t = types.Unalias(ptr.Elem())
+	}
+}
+
+// modelSelections returns where p selects a member of one of m's types
+// (reaches), by member, whatever type declares the member, so one promoted
+// from an embedded model counts: a field, a method value or call, and a method
+// expression. A call through an interface or a type parameter, and a library
+// function handed a schema, select no member of m's types and are not counted.
+// It leaves out those in the file adapter names and returns how many there were.
 func modelSelections(p *decls.Package, m schemaModel, adapter string) (outside map[string][]token.Position, inAdapter int) {
 	outside = map[string][]token.Position{}
 	for expr, sel := range p.Info.Selections {
-		if !m.holds(sel.Recv()) {
+		if !m.reaches(sel) {
 			continue
 		}
 		pos := p.Fset.Position(expr.Sel.Pos())
@@ -293,23 +318,30 @@ import "lib"
 func adapt(js *lib.JSONSchema[int]) string { return js.GetSchema().GetType() }
 `
 
-// plantedReads reads the planted model in each spelling a read takes, each
-// line counted marked with the member it counts toward, beside look-alikes
-// that are not reads: another type's field of a member's name, and the
-// embedded model read on its own.
+// plantedReads reads the planted model in each spelling a read takes, through
+// a struct embedding it too, each line counted marked with the member it
+// counts toward, beside look-alikes that are not counted: the embedding
+// field itself, a call through an interface, another type's field of a
+// member's name, and the embedded model read on its own.
 const plantedReads = `package p
 
 import "lib"
 
 type wrapper = lib.JSONSchema[string]
 
-func use(js *wrapper, s *lib.Schema, o lib.Other, m *lib.Model) {
+type embeds struct{ *lib.Schema }
+
+func use(js *wrapper, s *lib.Schema, o lib.Other, m *lib.Model, e embeds, g interface{ GetType() string }) {
 	_ = js.GetSchema()     // counts GetSchema
 	_ = s.GetRootNode()    // counts GetRootNode
 	_ = s.Type             // counts Type
 	_ = (*lib.Schema).GetType // counts GetType
 	read := s.GetType      // counts GetType
 	_ = read
+	_ = e.Type             // counts Type
+	_ = e.GetRootNode()    // counts GetRootNode
+	_ = e.Schema
+	_ = g.GetType()
 	_ = o.Type
 	_ = m.GetRootNode()
 }
