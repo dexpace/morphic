@@ -100,6 +100,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 		`Notes: {title: T, description: D, default: d, example: e, examples: [x, y], deprecated: true, readOnly: true, `+
 			`writeOnly: false, xml: {name: n, namespace: 'https://example.com/ns', prefix: p, attribute: true, wrapped: false}, `+
 			`externalDocs: {description: E, url: 'https://example.com'}, $comment: c}`,
+		`Flags: {deprecated: true, readOnly: false}`,
 		`Conjunction: {allOf: [{type: string}]}`,
 		`Reference: {$ref: '#/components/schemas/Kinds'}`,
 	), rulesAt(t, "3.1.0", ""))
@@ -180,6 +181,8 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	assert.Equal(t, []string{"d", "e", "c"}, texts([]*yaml.Node{notes.Default, notes.Example, notes.Comment}))
 	assert.Equal(t, []string{"x", "y"}, texts(notes.Examples))
 	assert.Equal(t, []string{"true", "true", "false"}, bools(notes.Deprecated, notes.ReadOnly, notes.WriteOnly))
+	flags := at("Flags").Notes
+	assert.Equal(t, []string{"true", "false"}, bools(flags.Deprecated, flags.ReadOnly), "each flag from its own key")
 	require.NotNil(t, notes.XML)
 	assert.Equal(t, []string{"n", "https://example.com/ns", "p"}, []string{*notes.XML.Name, *notes.XML.Namespace,
 		*notes.XML.Prefix})
