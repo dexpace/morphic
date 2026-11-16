@@ -38,15 +38,15 @@ file repeats, so a refresh renames a group only where upstream renames its descr
 1. Copy `LICENSE` and the selected files from upstream's new commit over these, keeping the paths,
    and update the revision above.
 2. Run `go test ./internal/harness/openapicases -run TestSuiteGroups` to read them.
-3. Run both oracles with `-update`:
+3. Run the oracles that read the groups with `-update`:
 
    ```bash
    go test ./compilers/openapi/internal/canary -run TestBindingOracle_AgreesWithTheLibrary -update
-   go test ./internal/harness/openapicases -run TestCore_ValidInstancesAreAdmitted -update
+   go test ./internal/harness/openapicases -run 'TestCore_(ValidInstancesAreAdmitted|SpellingsHoldTheRecord)' -update
    ```
 
    They rewrite `compilers/openapi/internal/canary/testdata/binding_disagreements.txt` and
-   `internal/harness/openapicases/testdata/instances.txt`, keeping the reason of each line still
-   found and marking a new one `unclassified`.
-4. Give each `unclassified` line a reason its test's reason map names, and run both tests again
+   `internal/harness/openapicases/testdata/instances.txt` and `spelling.txt`, keeping the reason
+   of each line still found and marking a new one `unclassified`.
+4. Give each `unclassified` line a reason its test's reason map names, and run the tests again
    without `-update`.
