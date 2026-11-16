@@ -27,7 +27,8 @@ func TestGroups_TheAxesInTheirOrder(t *testing.T) {
 	assert.Equal(t, []string{"version", "group", "position", "spelling"}, names)
 	assert.Equal(t, []harness.Value{{Name: "3.1.0"}, {Name: "3.2.0", Like: "3.1.0"}}, axes[0].Values)
 	assert.Equal(t, []harness.Value{{Name: "property"}, {Name: "parameter"}, {Name: "header"}}, axes[2].Values)
-	assert.Equal(t, openapicases.New().Axes()[5].Values, axes[3].Values, "the spellings the schema cases list")
+	assert.Equal(t, openapicases.New().Axes()[5].Values[1:], axes[3].Values,
+		"the spellings the schema cases list but inline: a group's target is named by $ref alone")
 
 	groups, err := openapicases.SuiteGroups()
 	require.NoError(t, err)
@@ -41,7 +42,7 @@ func TestGroups_TheAxesInTheirOrder(t *testing.T) {
 
 func TestGroups_WritesNothingOutsideTheProduct(t *testing.T) {
 	c := openapicases.Groups()
-	for _, at := range [][]int{nil, {0, 0, 0}, {0, 0, 0, 1}, {0, -1, 0, 0}, {2, 0, 0, 0}, {0, 0, 3, 0}} {
+	for _, at := range [][]int{nil, {0, 0, 0}, {0, 0, 0, 5}, {0, -1, 0, 0}, {2, 0, 0, 0}, {0, 0, 3, 0}} {
 		_, ok := c.Write(at)
 		assert.False(t, ok, "%v", at)
 	}

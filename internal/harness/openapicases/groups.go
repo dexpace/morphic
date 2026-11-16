@@ -51,7 +51,7 @@ func Groups() harness.Cases {
 		versions:  slices.DeleteFunc(versions(), func(v version) bool { return !v.dialect }),
 		groups:    groups,
 		positions: slices.DeleteFunc(positions(), func(p position) bool { return p.carry == nil }),
-		spellings: spellings(),
+		spellings: slices.DeleteFunc(spellings(), func(s string) bool { return s == inline }),
 		suite:     err,
 	}
 }
@@ -86,17 +86,21 @@ func (c groupCases) Write(at []int) (harness.Document, bool) {
 		panic(c.suite.Error())
 	}
 	if len(at) != 4 || !within(at[0], c.versions) || !within(at[1], c.groups) || !within(at[2], c.positions) ||
-		!within(at[3], c.spellings) || c.spellings[at[3]] != inline {
+		!within(at[3], c.spellings) {
 		return harness.Document{}, false
 	}
 	v, g, p := c.versions[at[0]], &c.groups[at[1]], c.positions[at[2]]
 	var uses []object
 	var tests []Test
 	for _, t := range g.Tests {
-		if t.Valid {
-			uses = append(uses, object{{"$ref", groupPath}, {"default", raw(string(t.Data))}})
-			tests = append(tests, t)
+		if !t.Valid {
+			continue
 		}
+		use, ok := spell(c.spellings[at[3]], object{{"$ref", groupPath}}, object{{"default", raw(string(t.Data))}})
+		if !ok {
+			return harness.Document{}, false
+		}
+		uses, tests = append(uses, use), append(tests, t)
 	}
 	paths, schemas, nodes := p.carry(uses)
 	root, err := encode(object{
@@ -108,7 +112,9 @@ func (c groupCases) Write(at []int) (harness.Document, bool) {
 	if err == nil {
 		var schema []byte
 		if schema, err = withDialect(g.Schema); err == nil {
-			return groupDocument(root, schema, g, tests, nodes), true
+			doc := groupDocument(root, schema, g, tests, nodes)
+			doc.Equal = c.equal(at)
+			return doc, true
 		}
 	}
 	panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
@@ -208,4 +214,24 @@ func carryHeaders(uses []object) (object, object, []string) {
 // pointerToken returns s as one JSON Pointer reference token (RFC 6901).
 func pointerToken(s string) string {
 	return strings.NewReplacer("~", "~0", "/", "~1").Replace(s)
+}
+
+// equal is what the case at, a group's uses in one spelling, must equal: the
+// same uses in its partner spelling, each relocated beneath the carriers its
+// position writes, and nil for wrap, the spelling the others equal.
+func (c groupCases) equal(at []int) *harness.Equal {
+	partner, rule, ok := partnerOf(c.spellings[at[3]])
+	if !ok {
+		return nil
+	}
+	to := slices.Clone(at)
+	to[3] = slices.Index(c.spellings, partner)
+	return &harness.Equal{To: to, Rule: rulePrefix + rule, Relocate: relocation(carriersOf(c.positions[at[2]]))}
+}
+
+// carriersOf is the pointer every carrier p writes for a group lies beneath:
+// its own schema's pointer less that schema and the carrier's name or index.
+func carriersOf(p position) string {
+	at := strings.TrimSuffix(p.pointer, "/schema")
+	return at[:strings.LastIndex(at, "/")+1]
 }

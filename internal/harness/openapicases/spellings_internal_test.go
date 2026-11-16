@@ -59,6 +59,9 @@ func TestRelocation_ErasesEachAllOfIndexAfterTheUse(t *testing.T) {
 		assert.Equal(t, want, relocate(in), in)
 	}
 	assert.PanicsWithValue(t, "openapicases: a relocation of no use", func() { relocation("") })
+
+	beneath := relocation("/components/schemas/C/properties/")
+	assert.Equal(t, "p/openapi/components/schemas/C/properties/t1", beneath("p/openapi/components/schemas/C/properties/t1/allOf/0"))
 }
 
 // caseAt returns the coordinates of the case naming each axis's value by name.
@@ -130,13 +133,40 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 }
 
 func TestSpell_RefusesAUseWritingAKeyTwice(t *testing.T) {
-	_, ok := spell(beside, object{{"$ref", "#/components/schemas/RefString"}})
+	ref := object{{"$ref", "#/components/schemas/T"}}
+	_, ok := spell(beside, ref, object{{"$ref", "#/components/schemas/RefString"}})
 	assert.False(t, ok)
-	_, ok = spell(inline, nil)
+	_, ok = spell(inline, ref, nil)
 	assert.False(t, ok, "inline writes the body, no use")
-	use, ok := spell(nested, object{{"title", "T"}})
+	use, ok := spell(nested, ref, object{{"title", "T"}})
 	require.True(t, ok)
 	got, err := encode(use)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"allOf": [{"allOf": [{"$ref": "#/components/schemas/T"}, {"title": "T"}]}]}`, string(got))
+}
+
+// TestGroups_EachSpellingNamesItsPartner pins a group's spellings: no inline,
+// since a group's target is named by $ref alone, and each other one naming its
+// partner, its uses relocated beneath the carriers the position writes.
+func TestGroups_EachSpellingNamesItsPartner(t *testing.T) {
+	c := Groups().(groupCases)
+	require.NotContains(t, c.spellings, inline)
+	want := map[string]string{"property": "/components/schemas/C/properties/",
+		"parameter": "/paths/~1c/get/parameters/", "header": "/paths/~1c/get/responses/200/headers/"}
+	for i, p := range c.positions {
+		assert.Equal(t, want[p.name], carriersOf(p), p.name)
+		for k, s := range c.spellings {
+			doc, ok := c.Write([]int{0, 0, i, k})
+			require.True(t, ok, "%s %s", p.name, s)
+			partner, _, named := partnerOf(s)
+			if !named {
+				assert.Nil(t, doc.Equal, s)
+				continue
+			}
+			require.NotNil(t, doc.Equal, s)
+			assert.Equal(t, partner, c.spellings[doc.Equal.To[3]])
+		}
+	}
+	_, ok := c.Write([]int{0, 0, 0, len(c.spellings)})
+	assert.False(t, ok)
 }

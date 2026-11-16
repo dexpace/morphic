@@ -71,7 +71,7 @@ func (c cases) spelt(i int, s string, t target, members object) (object, bool) {
 		}
 	default:
 	}
-	return spell(s, members)
+	return spell(s, object{{"$ref", "#/components/schemas/" + targetSchema}}, members)
 }
 
 // staysAt is where the construct at index i of the construct axis is written;
@@ -83,10 +83,10 @@ func (c cases) staysAt(i int) stays {
 	return c.constructs[(i-1)/2].stays
 }
 
-// spell returns the use of the target saying k in spelling s, and false where
-// s cannot write it: k names the keyword s writes the use with.
-func spell(s string, k object) (object, bool) {
-	ref := object{{"$ref", "#/components/schemas/" + targetSchema}}
+// spell returns the use of the target ref names saying k in spelling s, and
+// false where s cannot write it: k names the keyword s writes the use with.
+// Both products write their uses through it.
+func spell(s string, ref, k object) (object, bool) {
 	var use object
 	switch s {
 	case beside:
@@ -171,10 +171,10 @@ func laterVersion(at jsontext.Pointer) harness.Stated {
 	return harness.Stated{Severity: ir.SeverityWarning, Code: "openapi/later-version-construct", Pointer: at}
 }
 
-// relocation returns the Relocate of a use at pointer use: each allOf index
-// following use in a string holding it, and following an unmodeled name's
-// "openapi:" prefix, erased. It is the one place that knows how a pointer is
-// spelled inside an ID.
+// relocation returns the Relocate of a use at pointer use, or of every use
+// beneath it where use ends in "/": each allOf index following use in a string
+// holding it, and following an unmodeled name's "openapi:" prefix, erased. It
+// is the one place that knows how a pointer is spelled inside an ID.
 func relocation(use string) func(string) string {
 	if use == "" {
 		panic("openapicases: a relocation of no use")
@@ -186,7 +186,7 @@ func relocation(use string) func(string) string {
 		from := 0
 		for range strings.Count(s, use) {
 			end := from + strings.Index(s[from:], use) + len(use)
-			if end == len(s) || s[end] == '/' {
+			if end == len(s) || s[end] == '/' || strings.HasSuffix(use, "/") {
 				return s[:end] + eraseAllOf(s[end:])
 			}
 			from = end
