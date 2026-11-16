@@ -204,9 +204,9 @@ func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
 	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: this spelling compiles to no document")
 }
 
-// TestSpelled_WhatStopsAComparison pins the verdicts no comparison makes: no
-// partner, a partner writing nothing, a compile's error and a document that
-// does not encode.
+// TestSpelled_WhatStopsAComparison pins what stops a comparison: no partner
+// and a partner writing nothing decline, and a compile's error and a document
+// that does not encode are faults.
 func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
 	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
@@ -226,14 +226,19 @@ func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, broken
 	})
-	assert.Equal(t, found(OracleSpelling, "compile: engine broke"), spellingVerdict(t, f))
+	withAsked(t, spelled)
+	r, ok := CheckCase(t.Context(), f, []int{1})
+	require.True(t, ok)
+	assert.True(t, r.Faulted(), "a compile's error is a fault")
+	assert.Contains(t, r.Detail, "harness: compile case [1] or its partner: engine broke")
 
 	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return &ir.Document{Name: "\xff"}, nil, nil
 	})
-	v := spellingVerdict(t, f)
-	require.True(t, v.Found(), "%+v", v)
-	assert.Contains(t, v.Detail, "encode: ")
+	r, ok = CheckCase(t.Context(), f, []int{1})
+	require.True(t, ok)
+	assert.True(t, r.Faulted(), "a document that does not encode is a fault")
+	assert.Contains(t, r.Detail, "harness: encode case [1] or its partner: ")
 }
 
 // TestSpelled_ACaseNamingAPartnerAmissPanics pins the asserts on what a
