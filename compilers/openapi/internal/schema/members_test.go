@@ -116,7 +116,9 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 // model declaring the member itself keeps that declaration's identity; and one
 // whose declaration another model holds too, through a $ref to the allOf
 // branch writing it, takes one in the composed namespace, which a
-// discriminator naming that declaration follows.
+// discriminator naming that declaration follows. A discriminator naming a
+// member only entries declare names it by its ID once the model declares it,
+// as for a member the model writes (docs/compilers/openapi.md#discriminator).
 func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T) {
 	t.Parallel()
 	doc, _ := composedDoc(t, `    A: {type: object, properties: {kind: {type: string}}}
@@ -132,6 +134,9 @@ func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T
       allOf: [{$ref: '#/components/schemas/B'}, {type: object, properties: {kind: {type: string}}}]
       discriminator: {propertyName: kind}
     Branch: {$ref: '#/components/schemas/Shared/allOf/1'}
+    Brought:
+      allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+      discriminator: {propertyName: kind}
 `)
 	required, ok := typeByName(doc, "Required").(*ir.Model)
 	require.True(t, ok)
@@ -139,8 +144,9 @@ func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T
 	assert.Empty(t, required.Requires)
 
 	for name, want := range map[string]ir.PropID{
-		"Tagged": "p/openapi/components/schemas/Tagged/properties/kind",
-		"Shared": "p/composed/components/schemas/Shared/allOf/properties/kind",
+		"Tagged":  "p/openapi/components/schemas/Tagged/properties/kind",
+		"Shared":  "p/composed/components/schemas/Shared/allOf/properties/kind",
+		"Brought": "p/composed/components/schemas/Brought/allOf/properties/kind",
 	} {
 		tagged, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, name)
@@ -150,6 +156,7 @@ func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T
 		assert.Equal(t, new(int64(9)), kind.Constraints.MaxLength, "%s: B's bound", name)
 		require.NotNil(t, tagged.Discriminator, name)
 		assert.Equal(t, kind.ID, tagged.Discriminator.Property, name)
+		assert.Empty(t, tagged.Discriminator.PropertyName, "%s: one locator", name)
 	}
 }
 

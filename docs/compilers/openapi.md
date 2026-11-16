@@ -2749,7 +2749,8 @@ one, and one only entries declare, the model declares in the `composed` namespac
 composition, shares its pointer with the schema written there, which may settle a member of that
 name too, so it declares one an `allOf` deeper, at `<model>/allOf/allOf/properties/<name>`, and no
 two models name one member. The member is required where the model's `required` names it, which the
-name then leaves, and a discriminator naming the model's own declaration names the member.
+name then leaves, and a discriminator naming the model's own declaration, or by its name a member
+only entries declare, names the member ([`discriminator`](#discriminator)).
 The registry does not record which heuristic made a brought declaration secret, so a secret one's
 `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
 composes for a member lists its parts as the entries bringing them are written, and settles in turn,

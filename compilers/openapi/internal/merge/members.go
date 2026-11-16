@@ -129,13 +129,19 @@ func (idx *PropIndex) heldAlone(g Merger, d declaration) bool {
 }
 
 // place writes p as the model's property at pos, or appends it where pos is
-// -1. A discriminator naming the property it replaces names p.
+// -1. A discriminator naming the property it replaces names p, and so does one
+// naming by its name a member the model did not declare when the walk read
+// it, which the model now declares (docs/compilers/openapi.md#discriminator).
 func (idx *PropIndex) place(pos int, p ir.Property) {
+	d := idx.m.Discriminator
 	if pos < 0 {
 		idx.m.Properties = append(idx.m.Properties, p)
+		if d != nil && d.Property == "" && d.PropertyName != "" && d.PropertyName == p.Name.Source {
+			d.Property, d.PropertyName = p.ID, ""
+		}
 		return
 	}
-	if d := idx.m.Discriminator; d != nil && d.Property == idx.m.Properties[pos].ID {
+	if d != nil && d.Property == idx.m.Properties[pos].ID {
 		d.Property = p.ID
 	}
 	idx.m.Properties[pos] = p
