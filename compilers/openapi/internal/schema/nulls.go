@@ -454,8 +454,7 @@ func typeNullVerdict(s *statement.Schema) nullVerdict {
 
 // constNullVerdict reads `const`, which fixes the value space to one member.
 func constNullVerdict(s *statement.Schema) nullVerdict {
-	m := statement.Parsed(s)
-	node := m.GetConst()
+	node := constIn(s)
 	if node == nil {
 		return nullSilent
 	}
@@ -473,8 +472,7 @@ func constNullVerdict(s *statement.Schema) nullVerdict {
 // co-declared type array's null; what an empty enum lowers to is GitHub #278's
 // question, and this rule leaves it open.
 func enumNullVerdict(s *statement.Schema) nullVerdict {
-	m := statement.Parsed(s)
-	nodes := m.GetEnum()
+	nodes := enumIn(s)
 	if len(nodes) == 0 {
 		return nullSilent
 	}
@@ -577,11 +575,11 @@ func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
 		return false
 	}
 	if enumWritten(s) {
-		members := m.GetEnum()
+		members := enumIn(s)
 		return len(members) > 0 && c.Limits.MaxEnumMembers.Admits(len(members)) &&
 			!slices.ContainsFunc(members, func(v values.Value) bool { return !isNullValue(v) })
 	}
-	return m.GetConst() != nil || writesType(s) && len(effectiveTypes(s)) == 0
+	return constIn(s) != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }
 
 // allOf conjoins what the allOf branches say. A conjunction admits null when a

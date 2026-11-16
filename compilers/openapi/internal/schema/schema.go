@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -406,7 +408,7 @@ func declaresFamily(s *statement.Schema, family string) bool {
 	m := statement.Parsed(s)
 	switch family {
 	case "const":
-		return m.GetConst() != nil
+		return constIn(s) != nil
 	case "enum":
 		return enumWritten(s)
 	case "allOf":
@@ -426,8 +428,7 @@ func declaresFamily(s *statement.Schema, family string) bool {
 // empty list leaves it non-nil. A member list the model layer could not parse
 // reads as absent, which is a document the loader already refuses.
 func enumWritten(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return m.GetEnum() != nil
+	return enumIn(s) != nil
 }
 
 // dispatch records how lower() resolved a schema's competing keyword families:
@@ -555,6 +556,23 @@ func kindsIn(s *statement.Schema) []statement.Kind {
 	return s.Kinds.Types
 }
 
+// enumIn returns the members s's `enum` lists, nil where it writes none and
+// empty where it writes an empty list (enumWritten).
+func enumIn(s *statement.Schema) []*yaml.Node {
+	if s == nil || s.Values == nil {
+		return nil
+	}
+	return s.Values.Enum
+}
+
+// constIn returns the value s's `const` holds, nil where it writes none.
+func constIn(s *statement.Schema) *yaml.Node {
+	if s == nil || s.Values == nil {
+		return nil
+	}
+	return s.Values.Const
+}
+
 // nullableTrue reports whether s's `nullable` reads true, as the parser's
 // model holds it whatever the dialect defines: a policy reads a 3.0 keyword in
 // a 3.1 schema (docs/compilers/openapi.md#nullable).
@@ -577,7 +595,7 @@ var shapeKeywords = []siblingKeyword{
 		props := statement.Parsed(s).GetProperties()
 		return props != nil && props.Len() > 0
 	}},
-	{"const", func(s *statement.Schema) bool { return statement.Parsed(s).GetConst() != nil }},
+	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }},
 	{"enum", enumWritten},
 	{"allOf", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetAllOf()) > 0 }},
 	{"additionalProperties", func(s *statement.Schema) bool {

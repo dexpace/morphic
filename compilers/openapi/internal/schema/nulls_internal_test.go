@@ -134,7 +134,7 @@ func TestNullAloneReading_ReadsASchemaOnce(t *testing.T) {
 	s := declared(t, l, "S")
 	first, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 	require.True(t, ok)
-	s.Enum = nil
+	StatedIn(l, s).Values.Enum = nil
 	again, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 	assert.True(t, ok, "the second ask reads what the first read")
 	assert.Equal(t, first, again)

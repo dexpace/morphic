@@ -171,8 +171,7 @@ func inlineConjunct(w *admission, bs *statement.Schema) admitted {
 
 // saysKind reports whether s writes what kind of value it admits.
 func saysKind(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return writesType(s) || enumWritten(s) || m.GetConst() != nil
+	return writesType(s) || enumWritten(s) || constIn(s) != nil
 }
 
 // refBranchOf returns the conjunct holding the one $ref branch, if any.

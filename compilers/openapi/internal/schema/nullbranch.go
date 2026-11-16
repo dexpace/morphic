@@ -133,7 +133,7 @@ func liftedNullFindings(c lowering.Ctx, s *statement.Schema, pointer jsontext.Po
 		n := newNulls(c)
 		n.schema(b.schema, siteAt(b.at))
 		diags = append(diags, n.findings(c)...)
-		diags = append(diags, enumRepeats(c, readEnum(statement.Parsed(b.schema).GetEnum()), b.at)...)
+		diags = append(diags, enumRepeats(c, readEnum(enumIn(b.schema)), b.at)...)
 	}
 	return diags
 }

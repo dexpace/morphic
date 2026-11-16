@@ -106,7 +106,6 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetAdditionalProperties":  2,
 		"GetAllOf":                 20,
 		"GetAnyOf":                 14,
-		"GetConst":                 12,
 		"GetContains":              1,
 		"GetContentEncoding":       3,
 		"GetContentMediaType":      2,
@@ -117,7 +116,6 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetDescription":           1,
 		"GetDiscriminator":         1,
 		"GetElse":                  1,
-		"GetEnum":                  8,
 		"GetExample":               1,
 		"GetExamples":              1,
 		"GetExtensions":            2,
@@ -153,7 +151,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"MinProperties":            1,
 		"Ref":                      4,
 		"UniqueItems":              3,
-		"statement.Parsed":         185,
+		"statement.Parsed":         175,
 	},
 }
 

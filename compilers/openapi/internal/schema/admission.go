@@ -480,7 +480,6 @@ func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
 // with no type beside it claims an object, as lowerUntyped reads one. A schema
 // in c's document is read in w.nullable's dialect.
 func (w *admission) written(s *statement.Schema, nullable bool) admitted {
-	m := statement.Parsed(s)
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
@@ -493,10 +492,10 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 		}
 	}
 	if enumWritten(s) {
-		out = out.and(w.valueSet(valueSetOf{s, "enum"}, m.GetEnum()))
+		out = out.and(w.valueSet(valueSetOf{s, "enum"}, enumIn(s)))
 	}
-	if m.GetConst() != nil {
-		out = out.and(w.valueSet(valueSetOf{s, "const"}, []values.Value{m.GetConst()}))
+	if constant := constIn(s); constant != nil {
+		out = out.and(w.valueSet(valueSetOf{s, "const"}, []values.Value{constant}))
 	}
 	return out
 }

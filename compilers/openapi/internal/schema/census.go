@@ -106,9 +106,8 @@ func keywordHome(td ir.TypeDef, s *statement.Schema, keyword string) bool {
 // nullConstHome reports whether td is the Enum with no member a `const: null`
 // lowers to (nullConst).
 func nullConstHome(td ir.TypeDef, s *statement.Schema) bool {
-	m := statement.Parsed(s)
 	e, ok := td.(*ir.Enum)
-	return ok && e != nil && len(e.Members) == 0 && isNullValue(m.GetConst())
+	return ok && e != nil && len(e.Members) == 0 && isNullValue(constIn(s))
 }
 
 // discriminatorHome reports whether td holds the discriminator its position

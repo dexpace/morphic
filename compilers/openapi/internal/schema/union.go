@@ -752,7 +752,7 @@ func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 // (branchesAdmitOnlyObjects).
 func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 	m := statement.Parsed(s)
-	if m.GetConst() != nil || enumWritten(s) {
+	if constIn(s) != nil || enumWritten(s) {
 		return false
 	}
 	if allOfComposes(c, s) {
