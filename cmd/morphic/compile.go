@@ -60,7 +60,7 @@ does not use it, as it exists to run the stages.
 --triage reads a JSON file of rules, each naming one diagnostic code exactly:
 a rule rates the code's findings at another severity, everywhere or at one
 place, or accepts the findings at one place, which then fail the run at no
---fail-on. The README gives the file's form. A rule no finding matched is
+--fail-on. docs/cli.md gives the file's form. A rule no finding matched is
 named after the findings.
 
 The findings go to stderr as text unless --diag-format json asks for one JSON
@@ -72,7 +72,7 @@ finding a rule accepted is only counted.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
-compiler's are listed in the README.
+compiler's are listed in docs/cli.md.
 
 A -- argument ends flag parsing: every argument after it is an operand, even one
 that begins with a dash, which is how a spec file named like a flag is passed.

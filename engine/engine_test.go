@@ -795,8 +795,8 @@ func TestEngine_RunOnAnUnbuiltEngine(t *testing.T) {
 	}
 }
 
-// TestEngine_RunDiagnosticsAreOneLineEach pins the README's rendering contract,
-// one diagnostic per line, across the ways a source can fail.
+// TestEngine_RunDiagnosticsAreOneLineEach pins the rendering contract of
+// docs/cli.md#diagnostics, one diagnostic per line, across the ways a source can fail.
 //
 // A message carrying a newline splits one report into several, and every line
 // after the first has no severity, code or location: a reader takes it for

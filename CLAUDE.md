@@ -51,6 +51,9 @@ covers.
   in `compilers/openapi/internal/canary` that goes red when a library change alters it. Read it
   before working in the load phase or bumping the library, and cite an entry rather than restating
   a behaviour or naming a library version, which a test refuses.
+- `docs/cli.md` and `docs/library.md` — the reference for the `morphic` command and for the engine
+  called from Go: flags, findings, triage, exit codes, the OpenAPI compiler's options and the `Run`
+  family. A change to any of those updates its entry there; `README.md` keeps the short version.
 - `docs/micro-compiler-design.md` and `docs/micro-compiler-plan.md` — the restructuring that
   produced today's `compilers/openapi`. Both record work that has landed; read them for why the
   package boundaries fall where they do, not as a proposal or a backlog.

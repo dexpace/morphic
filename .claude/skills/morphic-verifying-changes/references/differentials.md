@@ -154,9 +154,9 @@ whether the answer means anything.
 
 - **Rule.** `scripts/sweep.py` runs only `compile`, with one set of flags on both builds, so it
   cannot see a change to argument parsing, help or another subcommand. For a change under `cmd/`,
-  run both builds over every spelling `README.md` documents and each misuse class (no operand, an
+  run both builds over every spelling `docs/cli.md` documents and each misuse class (no operand, an
   unknown flag, conflicting flags, a stray `--`, a one-dash long flag), and read stdout, stderr and
-  the exit code against the README's "Exit codes" section.
+  the exit code against `docs/cli.md#exit-codes`.
 - **Why.** Moving the CLI onto a framework turned `morphic -- compile <spec>`, which had compiled,
   into help with exit 0: a success that wrote nothing, invisible to a sweep (#815).
 - **Probe.** `<bin> <args> > out 2> err; echo $?` for each invocation on each build, then `diff` the
