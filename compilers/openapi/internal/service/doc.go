@@ -6,7 +6,7 @@
 // document's own metadata.
 //
 // It is the schema lowering's context (lowering.Ctx) and what only those
-// lowerings read beside it: the parsed document, the source's identity, the
+// lowerings read beside it: the parsed document, the source's index, the
 // fields the load phase modelled beside path items' $refs and the media types
 // it resolved, how operations group, which media types stream or are binary,
 // and the budget a $ref's copies are charged against. The schema walk reads

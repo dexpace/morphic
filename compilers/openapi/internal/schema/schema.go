@@ -38,8 +38,8 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	// The declared-name index the $ref and discriminator-mapping resolutions read
-	// arrives with the context (lowering.Loaded), so a component declared later in the
-	// document is already a valid target here regardless of source order.
+	// arrives with the context (lowering.Loaded), so a component declared later
+	// in the document is already a valid target here regardless of source order.
 	for name, js := range schemas {
 		if ctx.Err() != nil {
 			return diags
