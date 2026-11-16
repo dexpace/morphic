@@ -61,19 +61,25 @@ func TestCases_CoverTheRuleTable(t *testing.T) {
 
 // writtenConstructs returns, by the name of each version the version axis
 // lists, the keywords of the constructs some case writes at it, read through
-// the cases' own axes and Write.
+// the cases' own axes and Write. A case writing a second construct is passed
+// over: beside the construct of a case writing none, it adds no construct.
 func writtenConstructs(t *testing.T, c harness.Cases) map[string]map[string]bool {
 	t.Helper()
 	axes := c.Axes()
 	version := slices.IndexFunc(axes, func(a harness.Axis) bool { return a.Name == "version" })
 	construct := slices.IndexFunc(axes, func(a harness.Axis) bool { return a.Name == "construct" })
+	second := slices.IndexFunc(axes, func(a harness.Axis) bool { return a.Name == "second" })
 	require.GreaterOrEqual(t, version, 0)
 	require.GreaterOrEqual(t, construct, 0)
+	require.GreaterOrEqual(t, second, 0)
 
 	written := map[string]map[string]bool{}
 	each, err := harness.Each(c)
 	require.NoError(t, err)
 	for _, at := range each {
+		if axes[second].Values[at[second]].Name != "none" {
+			continue
+		}
 		v, k := axes[version].Values[at[version]].Name, strings.TrimSuffix(axes[construct].Values[at[construct]].Name, "~")
 		if written[v] == nil {
 			written[v] = map[string]bool{}
