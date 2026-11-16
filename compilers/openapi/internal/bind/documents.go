@@ -319,11 +319,14 @@ func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
 }
 
 // reading is where a read of a pointer stands: the position, the node there,
-// and the state the grammar reads it at.
+// the state the grammar reads it at, and whether a token read since the last
+// reference the read passed named a field whose content no model holds
+// (unheld).
 type reading struct {
-	at    Position
-	node  *yaml.Node
-	state state
+	at            Position
+	node          *yaml.Node
+	state         state
+	beneathUnheld bool
 }
 
 // spelledAs is r at the pointer spelled in b.

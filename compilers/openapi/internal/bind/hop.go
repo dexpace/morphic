@@ -60,13 +60,18 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 // heldRole is the role of r, a reading a reference answers, to the model: a
 // schema the grammar places beneath a field whose content no model holds
 // (unheld) is raw YAML to it, which the table builds as a landing
-// (finder.landed). That is read from r's document's root, a step a token, as
-// far as such a field, or a schema, raw YAML or a value, below which none
-// lies. The reason is NoTarget where the budget runs out first.
+// (finder.landed). A schema is beneath one where the read crossed one after the
+// last reference it passed (reading.beneathUnheld), or where its own document
+// places it beneath one, read from that document's root, a step a token, as
+// far as such a field, a schema, raw YAML or a value. The reason is NoTarget
+// where the budget runs out first.
 func heldRole(d *docs, r reading) (Role, Reason) {
 	role := roleOf(r.state)
 	if role != Schema {
 		return role, NoReason
+	}
+	if r.beneathUnheld {
+		return Raw, NoReason
 	}
 	s := d.rootState(r.at.Doc)
 	for token := range r.at.Pointer.Tokens() {
