@@ -21,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -656,10 +656,10 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 		{"17 wrappers", 17, false, shapeInline, multipart, false},
 		{"20 wrappers", 20, false, shapeInline, multipart, false},
 		{"20 wrappers, urlencoded", 20, false, shapeInline, urlencoded, false},
-		{"past the flattening depth", schema.MaxAllOfFlattenDepth + 2, false, shapeInline, multipart, true},
-		{"past the flattening depth, urlencoded", schema.MaxAllOfFlattenDepth + 2, false, shapeInline, urlencoded, true},
-		{"past the flattening depth behind a $ref", schema.MaxAllOfFlattenDepth + 2, false, shapeViaRef, multipart, true},
-		{"a part beside the cut", schema.MaxAllOfFlattenDepth + 2, false, shapeBesideNote, multipart, true},
+		{"past the flattening depth", statement.MaxFlattenDepth + 2, false, shapeInline, multipart, true},
+		{"past the flattening depth, urlencoded", statement.MaxFlattenDepth + 2, false, shapeInline, urlencoded, true},
+		{"past the flattening depth behind a $ref", statement.MaxFlattenDepth + 2, false, shapeViaRef, multipart, true},
+		{"a part beside the cut", statement.MaxFlattenDepth + 2, false, shapeBesideNote, multipart, true},
 		{"residue wrapper", 1, true, shapeInline, multipart, false},
 	}
 	for _, tc := range cases {
@@ -684,7 +684,7 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 					}
 					msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, string(bodyPtr))
 					assert.Equal(t, fmt.Sprintf("form body composition is nested past the flattening depth of %d, "+
-						"so a part reached only below it has no Content.Encoding key", schema.MaxAllOfFlattenDepth), msg,
+						"so a part reached only below it has no Content.Encoding key", statement.MaxFlattenDepth), msg,
 						"a walk cut short by the bound says so")
 					if tc.shape == shapeBesideNote {
 						note := ir.PropID("p/openapi" + bodyPtr + ids.Ptr("properties", "note"))
@@ -803,7 +803,7 @@ components:
 // the body names first, both parts are keyed, so no cap is reported.
 func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
 	t.Parallel()
-	const n = schema.MaxAllOfFlattenDepth + 2
+	const n = statement.MaxFlattenDepth + 2
 	obj := "{type: object, properties: {file: {type: string, format: binary}, meta: {type: string}}}"
 	deep := obj
 	for range n {
@@ -814,7 +814,7 @@ func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
 	viaDeep := "{$ref: '#/components/schemas/Deep'}"
 	viaForm := "{$ref: '#/components/schemas/Form'}"
 	formBelowCap := viaForm
-	for range schema.MaxAllOfFlattenDepth + 1 {
+	for range statement.MaxFlattenDepth + 1 {
 		formBelowCap = "{allOf: [" + formBelowCap + "]}"
 	}
 	cases := []struct{ name, allOf, keyedAt string }{
@@ -869,7 +869,7 @@ func TestPartEncodings_CutPastReachedPart(t *testing.T) {
 		chain.WriteString("    L" + strconv.Itoa(i) + ": {allOf: [{$ref: '#/components/schemas/L" + strconv.Itoa(i+1) + "'}]}\n")
 	}
 	chain.WriteString("    L" + strconv.Itoa(partRefHops+1) + ": " + obj + "\n")
-	const n = schema.MaxAllOfFlattenDepth + 3
+	const n = statement.MaxFlattenDepth + 3
 	deep := obj
 	for range n {
 		deep = "{allOf: [" + deep + "]}"
@@ -877,7 +877,7 @@ func TestPartEncodings_CutPastReachedPart(t *testing.T) {
 	leaf := "Deep" + strings.Repeat("/allOf/0", n)
 	target := "L" + strconv.Itoa(partRefHops+1)
 	pastHops := fmt.Sprintf("past %d hops, so a part reached only beyond them", partRefHops)
-	pastDepth := fmt.Sprintf("depth of %d, so a part reached only below it", schema.MaxAllOfFlattenDepth)
+	pastDepth := fmt.Sprintf("depth of %d, so a part reached only below it", statement.MaxFlattenDepth)
 	cases := []struct{ name, first, second, comps, keyedAt, bound string }{
 		{"hops, chain first", "L0", target, chain.String(), target, pastHops},
 		{"hops, target first", target, "L0", chain.String(), target, pastHops},

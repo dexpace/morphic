@@ -201,7 +201,7 @@ func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 // it writes an identifier. Only one can give the branch another base than the
 // position holding the allOf, so a branch under none reads at the position
 // without a base being looked up. The wrappers holding e are the prefixes of
-// its pointer, as many as MaxAllOfFlattenDepth allows, so each is looked up.
+// its pointer, as many as statement.MaxFlattenDepth allows, so each is looked up.
 func underID(e allOfBranch, bs *statement.Schema, wrappers map[jsontext.Pointer]bool) bool {
 	if writesIdentifier(bs) {
 		return true

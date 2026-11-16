@@ -1691,7 +1691,7 @@ func TestRefinement_PastItsConjunctBoundStaysAComposition(t *testing.T) {
 func TestRefinement_ACappedBranchStaysAComposition(t *testing.T) {
 	t.Parallel()
 	body := "{type: string}"
-	for range schema.MaxAllOfFlattenDepth + 2 {
+	for range statement.MaxFlattenDepth + 2 {
 		body = "{allOf: [" + body + "]}"
 	}
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: "+body+"\n"))

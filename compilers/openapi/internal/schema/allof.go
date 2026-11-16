@@ -70,14 +70,6 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // composed model (requireMembers).
 var compositionCensusHandled = []string{"required"}
 
-// MaxAllOfFlattenDepth bounds how many levels of nested inline allOf wrappers
-// the lowering flattens, and FlattenedAllOf with it (styleguide
-// bounded-everything rule). A wrapper inside this many flattened ones is not
-// flattened: it is kept verbatim like any other branch with residue, so a
-// source nesting deeper than any author writes still lowers, with nothing
-// dropped.
-const MaxAllOfFlattenDepth = 32
-
 // allOfBranch is one inline-or-ref branch of an allOf composition after nested
 // wrappers are flattened into the list (GitHub #599).
 type allOfBranch struct {
@@ -90,7 +82,7 @@ type allOfBranch struct {
 	// required list, and is kept verbatim only for what else it writes.
 	wrapper bool
 	// capped marks an inline branch whose allOf was not flattened because it sits
-	// past MaxAllOfFlattenDepth, so the diagnostic can say why it was kept.
+	// past statement.MaxFlattenDepth, so the diagnostic can say why it was kept.
 	capped bool
 }
 
@@ -251,7 +243,7 @@ type FlatBranch struct {
 	// itself and bounds on its own.
 	Ref bool
 	// Capped marks an inline branch whose own allOf sits past
-	// MaxAllOfFlattenDepth and was not flattened, so the reader has not reached
+	// statement.MaxFlattenDepth and was not flattened, so the reader has not reached
 	// what it declares.
 	Capped bool
 }
@@ -286,7 +278,7 @@ func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
 // is no concern of this predicate: the merge keeps that as residue
 // (preserveUnmergedBranch).
 func flattensInto(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable], depth int) bool {
-	return depth < MaxAllOfFlattenDepth && wrapsAllOf(refs, b)
+	return depth < statement.MaxFlattenDepth && wrapsAllOf(refs, b)
 }
 
 // wrapsAllOf reports whether b is inline and declares a non-empty allOf. An empty
@@ -459,7 +451,7 @@ func diagUnmergedBranch(c lowering.Ctx, bs *statement.Schema, residue []string, 
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {
-			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) + ", was not flattened"
+			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) + ", was not flattened"
 		}
 		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer, "%s", msg)
 	}
@@ -490,7 +482,7 @@ func unmergedWhy(residue []string, e allOfBranch) string {
 			strings.Join(residue, ", ") + ")" + keptTail
 	case e.capped:
 		rest := keptKeywords(residue, e)
-		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) +
+		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) +
 			", so its own allOf was not flattened, and the branch"
 		if len(rest) > 0 {
 			why += " (" + strings.Join(rest, ", ") + ")"

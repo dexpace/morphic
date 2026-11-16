@@ -414,7 +414,7 @@ type partWalk struct {
 	// each additionalProperties, unevaluatedProperties and patternProperties
 	// entry admitting a member, in walk order.
 	catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
-	// capped marks an inline branch nested past schema.MaxAllOfFlattenDepth
+	// capped marks an inline branch nested past statement.MaxFlattenDepth
 	// whose own allOf entries no path entered.
 	capped bool
 	// hopsSpent marks a $ref target or union branch past maxPartRefHops that
@@ -628,7 +628,7 @@ func diagPartWalkCut(c service.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagno
 	if w.capped {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no Content.Encoding key",
-			schema.MaxAllOfFlattenDepth))
+			statement.MaxFlattenDepth))
 	}
 	if w.hopsSpent {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,

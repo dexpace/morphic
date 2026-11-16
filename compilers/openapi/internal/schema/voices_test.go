@@ -18,7 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -437,7 +437,7 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	assert.NotContains(t, got, disagreed, "a branch that folds keeps what it declares of a shape, disagreed on by nothing")
 
 	deep := "{description: deep, allOf: [{type: object}]}"
-	for range schema.MaxAllOfFlattenDepth {
+	for range statement.MaxFlattenDepth {
 		deep = "{allOf: [" + deep + "]}"
 	}
 	_, diags = parseFull(t, openapitest.ComponentSpec("    T: {description: top, allOf: ["+deep+"]}\n"))
