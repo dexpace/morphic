@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -176,7 +177,7 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 		diags = append(diags, extDiags...)
 		diags = append(diags, preserveUndefinedFlowFields(c, &lowered[i], f, fptr)...)
 		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.Place(), fptr)...)
-		methods, promoted := lowering.TokenEndpointAuthMethods(c.Promoter(), lowered[i].Unmodeled, &lowered[i].Inferred)
+		methods, promoted := promotion.TokenEndpointAuthMethods(c.Promoter(), lowered[i].Unmodeled, &lowered[i].Inferred)
 		lowered[i].TokenEndpointAuthMethods = methods
 		diags = append(diags, promoted...)
 	}

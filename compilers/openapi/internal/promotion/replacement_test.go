@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package promotion_test
 
 import (
 	"encoding/json/jsontext"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -34,8 +34,8 @@ func TestPromoter_ReadsReplacementNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := promoter(lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-				lowering.TargetDeprecationReplacedBy: {{Key: "x-gone"}, {Key: "x-replaced-by"}},
+			p := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+				promotion.TargetDeprecationReplacedBy: {{Key: "x-gone"}, {Key: "x-replaced-by"}},
 			}})
 			entry := vendorExtension(tc.value)
 			entry.Provenance.Pointer = "/paths/~1a/get/x-replaced-by"
@@ -53,7 +53,7 @@ func TestPromoter_ReadsReplacementNames(t *testing.T) {
 // the target, so a key a document writes is read only once a mapping names it.
 func TestPromoter_ReplacementsUnmappedReadNothing(t *testing.T) {
 	t.Parallel()
-	names, _, diags := promoter(lowering.ExtensionPromotions{}).Replacements(ir.Unmodeled{"openapi:x-replaced-by": vendorExtension(`"v2"`)})
+	names, _, diags := promotion.New(promotion.ExtensionPromotions{}).Replacements(ir.Unmodeled{"openapi:x-replaced-by": vendorExtension(`"v2"`)})
 	assert.Empty(t, names)
 	assert.Empty(t, diags)
 }
@@ -63,9 +63,9 @@ func TestPromoter_ReplacementsUnmappedReadNothing(t *testing.T) {
 // default naming none for a replacement.
 func TestPromoter_MapsTellsAMappedTarget(t *testing.T) {
 	t.Parallel()
-	mapped := promoter(mapping(lowering.TargetDeprecationReplacedBy, lowering.ExtensionSource{Key: "x-r"}))
-	assert.True(t, mapped.Maps(lowering.TargetDeprecationReplacedBy))
-	assert.False(t, promoter(lowering.ExtensionPromotions{}).Maps(lowering.TargetDeprecationReplacedBy),
+	mapped := promotion.New(mapping(promotion.TargetDeprecationReplacedBy, promotion.ExtensionSource{Key: "x-r"}))
+	assert.True(t, mapped.Maps(promotion.TargetDeprecationReplacedBy))
+	assert.False(t, promotion.New(promotion.ExtensionPromotions{}).Maps(promotion.TargetDeprecationReplacedBy),
 		"the default mapping names no replacement key")
 }
 
@@ -75,9 +75,9 @@ func TestPromoter_MapsTellsAMappedTarget(t *testing.T) {
 // `false` and a misfit among them, and never a key mapped to another target.
 func TestPromoter_WritesSeesAKeyWhateverItSays(t *testing.T) {
 	t.Parallel()
-	p := promoter(lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-		lowering.TargetRedaction:             {{Key: "x-a"}, {Key: "x-b"}},
-		lowering.TargetDeprecationReplacedBy: {{Key: "x-c"}},
+	p := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+		promotion.TargetRedaction:             {{Key: "x-a"}, {Key: "x-b"}},
+		promotion.TargetDeprecationReplacedBy: {{Key: "x-c"}},
 	}})
 	for _, tc := range []struct {
 		name  string
@@ -91,10 +91,10 @@ func TestPromoter_WritesSeesAKeyWhateverItSays(t *testing.T) {
 		{"an unmapped key", ir.Unmodeled{"openapi:x-d": vendorExtension(`true`)}, false},
 		{"none", nil, false},
 	} {
-		assert.Equal(t, tc.wants, p.Writes(tc.own, lowering.TargetRedaction), tc.name)
+		assert.Equal(t, tc.wants, p.Writes(tc.own, promotion.TargetRedaction), tc.name)
 	}
-	assert.False(t, promoter(lowering.ExtensionPromotions{Disabled: true}).Writes(
-		ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, lowering.TargetRedaction),
+	assert.False(t, promotion.New(promotion.ExtensionPromotions{Disabled: true}).Writes(
+		ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, promotion.TargetRedaction),
 		"a disabled policy reads no key")
 }
 
@@ -105,11 +105,11 @@ func TestPromoter_WritesSeesAKeyWhateverItSays(t *testing.T) {
 func TestPromoter_WritesKnowsEveryTarget(t *testing.T) {
 	t.Parallel()
 	own := ir.Unmodeled{"openapi:x-k": vendorExtension(`false`)}
-	for _, target := range lowering.Targets() {
+	for _, target := range promotion.Targets() {
 		t.Run(string(target), func(t *testing.T) {
 			t.Parallel()
-			p := promoter(mapping(target, lowering.ExtensionSource{Key: "x-k", Member: "m"}))
-			for _, other := range lowering.Targets() {
+			p := promotion.New(mapping(target, promotion.ExtensionSource{Key: "x-k", Member: "m"}))
+			for _, other := range promotion.Targets() {
 				assert.Equal(t, other == target, p.Writes(own, other), "asked of %s", other)
 			}
 		})
@@ -121,8 +121,8 @@ func TestPromoter_WritesKnowsEveryTarget(t *testing.T) {
 // conventions' among them, is the document speaking to that target.
 func TestPromoter_WritesSeesEveryDefaultKey(t *testing.T) {
 	t.Parallel()
-	p := promoter(lowering.ExtensionPromotions{})
-	for target, sources := range lowering.DefaultExtensionPromotions() {
+	p := promotion.New(promotion.ExtensionPromotions{})
+	for target, sources := range promotion.DefaultExtensionPromotions() {
 		for _, src := range sources {
 			own := ir.Unmodeled{"openapi:" + src.Key: vendorExtension(`{}`)}
 			assert.True(t, p.Writes(own, target), "%s read for %s", src.Key, target)
@@ -146,8 +146,8 @@ func TestPromoter_ReplacementSourcesCompareTheirNames(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := promoter(mapping(lowering.TargetDeprecationReplacedBy, lowering.ExtensionSource{Key: "x-a"},
-				lowering.ExtensionSource{Key: "x-b"}))
+			p := promotion.New(mapping(promotion.TargetDeprecationReplacedBy, promotion.ExtensionSource{Key: "x-a"},
+				promotion.ExtensionSource{Key: "x-b"}))
 			names, _, diags := p.Replacements(ir.Unmodeled{
 				"openapi:x-a": vendorExtension(tc.first), "openapi:x-b": vendorExtension(tc.second),
 			})

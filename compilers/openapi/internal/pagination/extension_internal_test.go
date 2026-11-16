@@ -6,20 +6,17 @@ package pagination
 import (
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // pagerOver is a pager over reg, under the default policy.
 func pagerOver(reg ir.TypeRegistry) *pager {
-	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	return &pager{c: c, p: c.Promoter(), w: whole.New(&ir.Document{Types: reg})}
+	return &pager{p: promotion.New(promotion.ExtensionPromotions{}), w: whole.New(&ir.Document{Types: reg})}
 }
 
 // TestMarker_AUseOfATypeTheRegistryLacksMarksNothing drives the guard no
@@ -27,8 +24,8 @@ func pagerOver(reg ir.TypeRegistry) *pager {
 // dangling reference would, is marked by its own keys alone.
 func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 	t.Parallel()
-	m := &marker{pg: pagerOver(ir.TypeRegistry{}), target: lowering.TargetPaginationItems,
-		src: lowering.ExtensionSource{Key: "x-k", Values: []string{"items"}}}
+	m := &marker{pg: pagerOver(ir.TypeRegistry{}), target: promotion.TargetPaginationItems,
+		src: promotion.ExtensionSource{Key: "x-k", Values: []string{"items"}}}
 	keeper, marked := m.marksUse(nil, &ir.Provenance{}, "t/gone")
 	assert.Nil(t, keeper)
 	assert.False(t, marked)
@@ -44,7 +41,7 @@ func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 // keeps nothing.
 func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	t.Parallel()
-	src := lowering.ExtensionSource{Key: "x-k", Member: "purpose", Values: []string{"items"}}
+	src := promotion.ExtensionSource{Key: "x-k", Member: "purpose", Values: []string{"items"}}
 	member := func(id ir.PropID, target ir.TypeID) ir.Property {
 		return ir.Property{ID: id, WireName: string(id), Type: ir.TypeRef{Target: target}}
 	}
@@ -56,14 +53,14 @@ func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	}
 
 	unkept := pagerOver(reg)
-	assert.Nil(t, (&marker{pg: unkept, target: lowering.TargetPaginationItems, src: src}).search("t/root"))
+	assert.Nil(t, (&marker{pg: unkept, target: promotion.TargetPaginationItems, src: src}).search("t/root"))
 	assert.Empty(t, unkept.reach[src.Key], "no member keeps the key, so no model reaches it")
 
 	reg["t/marked"].(*ir.Model).Properties[0].Unmodeled = ir.Unmodeled{
 		"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"purpose":"items"}`)},
 	}
 	kept := pagerOver(reg)
-	m := &marker{pg: kept, target: lowering.TargetPaginationItems, src: src}
+	m := &marker{pg: kept, target: promotion.TargetPaginationItems, src: src}
 	reach := kept.reaching(src.Key)
 	assert.Equal(t, map[ir.TypeID]bool{"t/root": true, "t/marked": true}, reach)
 	_, next := m.descend([]step{{model: "t/root"}}, map[ir.TypeID]bool{"t/root": true}, reach)

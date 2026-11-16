@@ -17,3 +17,6 @@ var Run = run
 
 // WithoutRereported is withoutRereported, for the external tests.
 var WithoutRereported = withoutRereported
+
+// InferencesOf is inferencesOf, for the external tests.
+var InferencesOf = inferencesOf

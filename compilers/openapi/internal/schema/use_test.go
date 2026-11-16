@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -256,7 +256,7 @@ func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
 	for wire, dep := range map[string]*ir.Deprecation{"wrapped": want, "wrappedStated": want, "live": nil, "bare": nil} {
 		decorator := doc.Types[propertyOf(t, doc, "Holder", wire).Type.Target].Common()
 		assert.Equal(t, dep, decorator.Deprecation, wire)
-		assert.Equal(t, dep != nil, decorator.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, wire)
+		assert.Equal(t, dep != nil, decorator.Provenance.Inferred == promotion.ExtensionPromotionHeuristic, wire)
 	}
 }
 

@@ -15,8 +15,8 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -279,7 +279,7 @@ func TestDiscriminatorInference_JoinsTheMarksANodeCarries(t *testing.T) {
 	rest := taggedVariants + "    V:\n" + deprecated + "      anyOf: " + variants +
 		"    Base: {type: object, properties: {type: {type: string}}, discriminator: {propertyName: type}}\n" +
 		"    Sub:\n" + deprecated + "      allOf: [{$ref: '#/components/schemas/Base'}, {properties: {type: {const: sub}}}]\n"
-	want := ir.JoinInferred(lowering.ExtensionPromotionHeuristic, openapi.DiscriminatorInferenceHeuristic)
+	want := ir.JoinInferred(promotion.ExtensionPromotionHeuristic, openapi.DiscriminatorInferenceHeuristic)
 	for _, doc := range taggedOrders(t, union, rest) {
 		assert.Equal(t, mappingOf(map[string]string{"json": "Json", "text": "Text"}), taggedUnion(t, doc).Discriminator.Mapping)
 		assert.Equal(t, want, taggedUnion(t, doc).Provenance.Inferred)

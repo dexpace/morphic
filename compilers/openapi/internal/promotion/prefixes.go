@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering
+package promotion
 
 import (
 	"maps"
@@ -14,19 +14,18 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// UnreadExtensions reports each vendor extension doc keeps under a prefix c's
-// promotion policy owns that the compiler reads no key of, naming the nearest
-// key it reads, as the likeliest one it misspells. The keys read are each
-// reader's own: the promotion mapping's (Promoter.Keys) and grouping's
-// (GroupingExtension.Keys). doc is the whole document, every node's Unmodeled
-// read once; an extension inside an entry kept verbatim, such as an allOf
-// branch, is a value of that entry and is not read.
-func UnreadExtensions(c Ctx, doc *ir.Document) []ir.Diagnostic {
-	p := c.Promoter()
+// UnreadExtensions reports each vendor extension doc keeps under a prefix p's
+// policy owns that the compiler reads no key of, naming the nearest key it
+// reads, as the likeliest one it misspells. The keys read are each reader's
+// own: the promotion mapping's (Promoter.Keys) and grouping, the keys the run's
+// grouping reads. doc is the whole document, every node's Unmodeled read once;
+// an extension inside an entry kept verbatim, such as an allOf branch, is a
+// value of that entry and is not read.
+func UnreadExtensions(p Promoter, grouping []string, doc *ir.Document) []ir.Diagnostic {
 	if len(p.prefixes) == 0 {
 		return nil
 	}
-	read := slices.AppendSeq(c.GroupingExtension.Keys(c.Grouping), p.Keys())
+	read := slices.Concat(grouping, p.keys)
 	slices.Sort(read)
 	read = slices.Compact(read)
 	var diags []ir.Diagnostic

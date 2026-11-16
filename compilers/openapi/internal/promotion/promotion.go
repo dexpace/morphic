@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering
+package promotion
 
 import (
 	"encoding/json/v2"
@@ -274,18 +274,19 @@ type Referent struct {
 	Homes bool
 }
 
-// newPromoter normalizes a policy. The caller's map and lists are copied, so no
-// lowering can write through a context into what the caller holds, and nothing
-// the caller does later reaches a run.
-func newPromoter(p ExtensionPromotions) *Promoter {
+// New normalizes a policy into the promoter that reads it. The caller's map and
+// lists are copied, so no lowering can write through a promoter into what the
+// caller holds, and nothing the caller does later reaches a run. Copies of the
+// promoter share what it remembers (Referent).
+func New(p ExtensionPromotions) Promoter {
 	if p.Disabled {
-		return &Promoter{}
+		return Promoter{}
 	}
 	targets := p.Targets
 	if len(targets) == 0 {
 		targets = DefaultExtensionPromotions()
 	}
-	out := &Promoter{
+	out := Promoter{
 		targets:   make(map[ExtensionTarget][]ExtensionSource, len(targets)),
 		referents: map[any]Referent{},
 		prefixes:  slices.Compact(slices.Sorted(slices.Values(p.Prefixes))),

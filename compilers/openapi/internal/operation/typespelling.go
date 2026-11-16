@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,7 +31,7 @@ import (
 // content entry written as a $ref declares its schema where the chain ends
 // (declaredMedia), in that document's context. carries is the scopes the
 // carrier keeps what the spelling's objects write under, nearest first
-// (lowering.CarrierScopes).
+// (promotion.CarrierScopes).
 type typeSpelling struct {
 	ctx       lowering.Ctx
 	js        *oas3.JSONSchema[oas3.Referenceable]
@@ -77,7 +78,7 @@ func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenc
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
 		return elected, diags
 	}
-	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema"), carries: lowering.CarrierScopes("")}
+	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema"), carries: promotion.CarrierScopes("")}
 	if js == nil {
 		// Neither spelling states a type — a header carrying only a description,
 		// or a `content` map naming no usable entry — so there is no winner, and
@@ -97,7 +98,7 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	elected := typeSpelling{ctx: c, pointer: mediaPtr + ids.Ptr("schema"), mediaType: mt,
-		carries: lowering.CarrierScopes(mt)}
+		carries: promotion.CarrierScopes(mt)}
 	d, found := declaredMedia(c, media, mediaPtr)
 	if !found {
 		return elected, nil

@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -82,12 +83,12 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 	// writes, so the schema's entries are kept beneath its scope: the two can
 	// spell one key.
 	diags = append(diags, schema.FillPropertyDetail(elected.ctx, w.types, &p, elected.js, elected.pointer)...)
-	lowering.DropContained(dc.Promoter(), &p.Unmodeled)
+	promotion.DropContained(dc.Promoter(), &p.Unmodeled)
 	p.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), p.Unmodeled), elected.unmodeled)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
 	lent := dc.Promoter().Lent(schema.KeysLentTo(dc, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,
 		elected.carries...)
-	own := lowering.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
+	own := promotion.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
 	diags = append(diags, schema.PromoteUse(dc, lent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)
 	diags = append(diags, promoteShadowed(dc, p.Unmodeled, elected.carries...)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}

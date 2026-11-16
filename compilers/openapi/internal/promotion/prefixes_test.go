@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package promotion_test
 
 import (
 	"encoding/json/jsontext"
@@ -9,12 +9,10 @@ import (
 	"slices"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -50,14 +48,14 @@ func prefixedDoc() *ir.Document {
 // read unescaped.
 func TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads(t *testing.T) {
 	t.Parallel()
-	c := policyCtx(lowering.Policy{Promotions: lowering.ExtensionPromotions{
-		Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-			lowering.TargetStability:              {{Key: "x-acme-stability"}},
-			lowering.TargetDeprecationRemovalDate: {{Key: "x-acme-sunset-date"}},
+	p := promotion.New(promotion.ExtensionPromotions{
+		Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+			promotion.TargetStability:              {{Key: "x-acme-stability"}},
+			promotion.TargetDeprecationRemovalDate: {{Key: "x-acme-sunset-date"}},
 		},
 		Prefixes: []string{"x-ac", "x-acme-"},
-	}})
-	diags := lowering.UnreadExtensions(c, prefixedDoc())
+	})
+	diags := promotion.UnreadExtensions(p, nil, prefixedDoc())
 	got := map[string]string{}
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityWarning, d.Severity)
@@ -79,39 +77,36 @@ func TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads(t *testing.T) {
 // owning no prefix, which reads no document.
 func TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead(t *testing.T) {
 	t.Parallel()
-	empty := lowering.ExtensionPromotions{
-		Targets:  map[lowering.ExtensionTarget][]lowering.ExtensionSource{lowering.TargetStability: nil},
+	empty := promotion.ExtensionPromotions{
+		Targets:  map[promotion.ExtensionTarget][]promotion.ExtensionSource{promotion.TargetStability: nil},
 		Prefixes: []string{"x-other"},
 	}
-	diags := lowering.UnreadExtensions(policyCtx(lowering.Policy{Promotions: empty}), prefixedDoc())
+	diags := promotion.UnreadExtensions(promotion.New(empty), nil, prefixedDoc())
 	require.Len(t, diags, 1)
 	assert.Equal(t, `extension "x-other" is under prefix "x-other", which the promotion policy owns, `+
 		`and the compiler reads no such key`, diags[0].Message)
 
-	assert.Empty(t, lowering.UnreadExtensions(policyCtx(lowering.Policy{}), prefixedDoc()))
+	assert.Empty(t, promotion.UnreadExtensions(promotion.New(promotion.ExtensionPromotions{}), nil, prefixedDoc()))
 }
 
-// TestUnreadExtensions_TheGroupingKeyIsRead pins the key grouping by extension
-// reads to what no prefix reports: under that strategy it is read, and under
-// another it is a key like any other.
+// TestUnreadExtensions_TheGroupingKeyIsRead pins a key grouping reads to what
+// no prefix reports: given as one grouping reads it is read, and otherwise it
+// is a key like any other.
 func TestUnreadExtensions_TheGroupingKeyIsRead(t *testing.T) {
 	t.Parallel()
-	owning := lowering.ExtensionPromotions{
-		Targets:  map[lowering.ExtensionTarget][]lowering.ExtensionSource{lowering.TargetStability: nil},
+	owning := promotion.New(promotion.ExtensionPromotions{
+		Targets:  map[promotion.ExtensionTarget][]promotion.ExtensionSource{promotion.TargetStability: nil},
 		Prefixes: []string{"x-other"},
-	}
-	byExtension := lowering.Policy{Promotions: owning, Grouping: lowering.GroupByExtension,
-		GroupingExtension: lowering.GroupingExtension{Key: "x-other", Lists: lowering.ListsAreGroups}}
-	assert.Empty(t, lowering.UnreadExtensions(policyCtx(byExtension), prefixedDoc()))
-	assert.Len(t, lowering.UnreadExtensions(policyCtx(lowering.Policy{Promotions: owning, Grouping: lowering.GroupByTags}),
-		prefixedDoc()), 1)
+	})
+	assert.Empty(t, promotion.UnreadExtensions(owning, []string{"x-other"}, prefixedDoc()))
+	assert.Len(t, promotion.UnreadExtensions(owning, nil, prefixedDoc()), 1)
 }
 
 // TestUnreadExtensions_TheAliasesKeyIsRead pins the aliases key grouping by
 // extension reads beside its key to what no prefix reports, as the key is,
 // while a key under the prefix that nothing reads is still reported, naming
-// the aliases key as the nearest read. Under another strategy grouping reads
-// neither, so both are reported.
+// the aliases key as the nearest read. Where grouping reads neither, both are
+// reported.
 func TestUnreadExtensions_TheAliasesKeyIsRead(t *testing.T) {
 	t.Parallel()
 	kept := ir.Unmodeled{}
@@ -121,16 +116,13 @@ func TestUnreadExtensions_TheAliasesKeyIsRead(t *testing.T) {
 		kept["openapi:"+name] = e
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/s": &ir.Scalar{ID: "t/s", Unmodeled: kept}}}
-	owning := lowering.ExtensionPromotions{
-		Targets:  map[lowering.ExtensionTarget][]lowering.ExtensionSource{lowering.TargetStability: nil},
+	owning := promotion.New(promotion.ExtensionPromotions{
+		Targets:  map[promotion.ExtensionTarget][]promotion.ExtensionSource{promotion.TargetStability: nil},
 		Prefixes: []string{"x-forge"},
-	}
-	grouping := lowering.GroupingExtension{Key: "x-forge-group", Lists: lowering.ListsAreSegments,
-		Aliases: "x-forge-aliases"}
-	unread := func(strategy lowering.GroupingStrategy) map[string]string {
+	})
+	unread := func(grouping []string) map[string]string {
 		got := map[string]string{}
-		policy := lowering.Policy{Promotions: owning, Grouping: strategy, GroupingExtension: grouping}
-		for _, d := range lowering.UnreadExtensions(policyCtx(policy), doc) {
+		for _, d := range promotion.UnreadExtensions(owning, grouping, doc) {
 			got[string(d.Provenance.Pointer)] = d.Message
 		}
 		return got
@@ -139,14 +131,7 @@ func TestUnreadExtensions_TheAliasesKeyIsRead(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"/x-forge-alias": `extension "x-forge-alias" is under prefix "x-forge", which the promotion policy owns, ` +
 			`and the compiler reads no such key; the nearest it reads is "x-forge-aliases"`,
-	}, unread(lowering.GroupByExtension))
-	for _, strategy := range []lowering.GroupingStrategy{lowering.GroupByTags, lowering.GroupByPathPrefix} {
-		assert.ElementsMatch(t, []string{"/x-forge-alias", "/x-forge-aliases", "/x-forge-group"},
-			slices.Collect(maps.Keys(unread(strategy))), "under %s grouping reads none of them", strategy)
-	}
-}
-
-// policyCtx is a context carrying nothing but policy.
-func policyCtx(policy lowering.Policy) lowering.Ctx {
-	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, policy)
+	}, unread([]string{"x-forge-group", "x-forge-aliases"}))
+	assert.ElementsMatch(t, []string{"/x-forge-alias", "/x-forge-aliases", "/x-forge-group"},
+		slices.Collect(maps.Keys(unread(nil))), "grouping reads none of them")
 }

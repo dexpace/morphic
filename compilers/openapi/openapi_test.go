@@ -258,7 +258,8 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	types := compile.NewTypes()
 	types.Register("", nil)
 
-	_, diags, err := openapi.Run(t.Context(), loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), types, whole.New)
+	_, diags, err := openapi.Run(t.Context(), loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}),
+		openapi.InferencesOf(openapi.Options{}), types, whole.New)
 	require.NoError(t, err)
 
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {

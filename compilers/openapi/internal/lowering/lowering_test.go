@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -26,6 +27,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -591,6 +593,31 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Grouping: lowering.GroupByTags, Limits: limits})
 
 	assert.Equal(t, limits, c.Limits)
+}
+
+// TestNew_CarriesThePromotionPolicy pins that the promotion policy reaches the
+// walk through the context, and that every copy of it reads one promoter: what
+// a referent lends is read once for the run, whichever copy asks.
+func TestNew_CarriesThePromotionPolicy(t *testing.T) {
+	t.Parallel()
+	policy := promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+		promotion.TargetRedaction: {{Key: "x-k"}},
+	}}
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Promotions: policy})
+	assert.Equal(t, []string{"x-k"}, slices.Collect(c.Promoter().Keys()))
+
+	reads := 0
+	entries := func() ir.Unmodeled {
+		reads++
+		return ir.Unmodeled{"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`true`)}}
+	}
+	at := bind.Position{Pointer: "/components/schemas/S"}
+	assert.True(t, c.Promoter().Referent(at, false, entries).Redacted)
+	assert.True(t, c.InScope(c.RefScope().InSource()).Promoter().Referent(at, false, entries).Redacted)
+	assert.Equal(t, 1, reads, "a copy of the context reads the promoter the context does")
+
+	off := loweringtest.Context(t, bindingsSpec, lowering.Policy{Promotions: promotion.ExtensionPromotions{Disabled: true}})
+	assert.Empty(t, slices.Collect(off.Promoter().Keys()))
 }
 
 // overlayDoc reads ov as the compile reads an overlay document, into the tree

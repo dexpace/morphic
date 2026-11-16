@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -66,7 +67,7 @@ func tagKeys(c lowering.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []
 // tag's first declaration and the tier they state, recorded in its Inferred,
 // and reports a tier stated on a tag that forms no group, and a deprecation
 // stated on any, which fill nothing (docs/compilers/openapi.md#tag-groups).
-func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
+func tagGroups(p promotion.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
 	first := map[ir.GroupID]int{}
 	for i := range slices.Backward(defs) {
 		first[ids.TagGroup(defs[i].Name)] = i
@@ -89,13 +90,13 @@ func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef
 		}
 		formed[defs[i].Name] = true
 		g.Unmodeled = annotation.MergeUnmodeled(g.Unmodeled, vendorExtensions(defs[i].Unmodeled))
-		diags = append(diags, lowering.GroupStability(p, g.Unmodeled, &g.Stability, &g.Inferred)...)
+		diags = append(diags, promotion.GroupStability(p, g.Unmodeled, &g.Stability, &g.Inferred)...)
 	}
 	for _, def := range defs {
 		if !formed[def.Name] {
-			diags = append(diags, lowering.UnformedTier(p, def.Name, def.Unmodeled)...)
+			diags = append(diags, promotion.UnformedTier(p, def.Name, def.Unmodeled)...)
 		}
-		diags = append(diags, lowering.UnheldDeprecation(p, def.Name, formed[def.Name], def.Unmodeled)...)
+		diags = append(diags, promotion.UnheldDeprecation(p, def.Name, formed[def.Name], def.Unmodeled)...)
 	}
 	return diags
 }

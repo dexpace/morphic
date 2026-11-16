@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -75,7 +76,7 @@ type Ctx struct {
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
 	// map. It sits behind one pointer for the reason loaded does.
-	promoter *Promoter
+	promoter *promotion.Promoter
 
 	// schemas is the set of component-schema names the document declares, read
 	// through DeclaresSchema and handed to each scope RefScope builds. Every copy
@@ -83,16 +84,10 @@ type Ctx struct {
 	schemas resolve.Names
 
 	// NullableInference is the nullable-inference policy, and
-	// DiscriminatorInference the discriminator-inference policy, beside the
-	// policies of what a document's names and messages imply, read once it is
-	// whole. They sit before foreign so all of them share a word.
+	// DiscriminatorInference the discriminator-inference policy. They sit
+	// before foreign so all of them share a word.
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
-	IdempotencyInference   IdempotencyInference
-	SecretInference        SecretInference
-	HTTPDateInference      HTTPDateInference
-	ReplacementInference   ReplacementInference
-	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the name the bindings read it by (see
@@ -190,14 +185,9 @@ type Policy struct {
 	Limits                 Limits
 	StreamingInference     StreamingInference
 	BinaryInference        BinaryInference
-	Promotions             ExtensionPromotions
+	Promotions             promotion.ExtensionPromotions
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
-	IdempotencyInference   IdempotencyInference
-	SecretInference        SecretInference
-	HTTPDateInference      HTTPDateInference
-	ReplacementInference   ReplacementInference
-	PaginationInference    PaginationInference
 	TitleNames             TitleNames
 }
 
@@ -210,6 +200,7 @@ type Policy struct {
 // here so readers cannot disagree about a media type, and the promotion policy
 // is copied so no lowering can write through the context into the caller's map.
 func New(srcIndex int, doc *load.Document, p Policy) Ctx {
+	promoter := promotion.New(p.Promotions)
 	return Ctx{
 		Doc:                    doc.Doc,
 		Source:                 doc.Source,
@@ -220,14 +211,9 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		schemas:                declaredSchemaNames(doc.Doc),
 		streaming:              streamingSet(p.StreamingInference),
 		binary:                 binarySet(p.BinaryInference),
-		promoter:               newPromoter(p.Promotions),
+		promoter:               &promoter,
 		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
-		IdempotencyInference:   p.IdempotencyInference,
-		SecretInference:        p.SecretInference,
-		HTTPDateInference:      p.HTTPDateInference,
-		ReplacementInference:   p.ReplacementInference,
-		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
@@ -249,7 +235,7 @@ func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries.
-func (c Ctx) Promoter() Promoter {
+func (c Ctx) Promoter() promotion.Promoter {
 	return *c.promoter
 }
 

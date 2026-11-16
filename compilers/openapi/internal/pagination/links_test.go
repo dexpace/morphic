@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -190,7 +190,7 @@ func TestInferWalks_ReadsAHeaderCursor(t *testing.T) {
 					ir.PropID("p/openapi/paths/~1things/get/responses/200/headers/" + name)}},
 				Stop: []ir.PageStop{ir.PageStopNoNext},
 			}, op.Pagination)
-			assert.Equal(t, lowering.PaginationInferenceHeuristic, op.Provenance.Inferred)
+			assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
 		})
 	}
 
@@ -296,7 +296,7 @@ func TestInferWalks_LinkWalks(t *testing.T) {
 				op, _, diags := listOp(t, src, openapi.Options{})
 				assert.Equal(t, tc.want, op.Pagination)
 				if tc.want != nil {
-					assert.Equal(t, lowering.PaginationInferenceHeuristic, op.Provenance.Inferred)
+					assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
 				}
 				if tc.finding {
 					assert.Len(t, diags, 1)

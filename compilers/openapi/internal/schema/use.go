@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -140,8 +141,8 @@ func (u Use) takes(v values.Value) bool {
 // members, any stating a deprecation by a key states it of the use, and any
 // asking for redaction asks it of the use. No `deprecated` withdraws them, as
 // none withdraws another's keyword (annotation.EffectiveDeprecated).
-func (u Use) lentKeys(c lowering.Ctx) lowering.Referent {
-	from := lowering.Referent{Homes: u.deprecatedBase}
+func (u Use) lentKeys(c lowering.Ctx) promotion.Referent {
+	from := promotion.Referent{Homes: u.deprecatedBase}
 	lent := false
 	for _, r := range u.Referents {
 		read := keysOf(c, r)
@@ -156,8 +157,8 @@ func (u Use) lentKeys(c lowering.Ctx) lowering.Referent {
 }
 
 // keysOf reads what the mapped keys of r, a schema a use falls back to, lend
-// it, as the policy answers once for each schema (lowering.Promoter.Referent).
-func keysOf(c lowering.Ctx, r *oas3.Schema) lowering.Referent {
+// it, as the policy answers once for each schema (promotion.Promoter.Referent).
+func keysOf(c lowering.Ctx, r *oas3.Schema) promotion.Referent {
 	promoter := c.Promoter()
 	return promoter.Referent(r, r.GetDeprecated(), func() ir.Unmodeled {
 		return annotation.ExtensionsNamed(r.GetExtensions(), promoter.Keys())
@@ -286,7 +287,7 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 // lowered to target. A Base reaches what a $ref says, so the node falls back
 // only to a $ref its lowering lost; of one its Base holds, it reads only
 // whether a keyword or a key along it deprecates the node, which the node's own
-// member keys then annotate (lowering.Referent.Homes).
+// member keys then annotate (promotion.Referent.Homes).
 func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
 	u := Use{Voices: positionVoices(c, ts, s, pointer, target)}
 	p, ok := passageOf(c, s, pointer)
