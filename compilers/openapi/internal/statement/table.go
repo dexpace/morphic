@@ -58,7 +58,9 @@ func (t *Table) Sub(s Sub) *Statement {
 // Read returns the statement of the schema object s, for a caller lowering
 // an entry as a position of its own: the one Of built over s, which s keeps,
 // so that a schema read once more costs no lookup. A nil s reads as
-// Unwritten.
+// Unwritten, and so does one no table read, which holds no value. s is one
+// t read: a schema another table built a statement over keeps that
+// statement, whichever table is asked.
 func (t *Table) Read(s *Schema) *Statement {
 	if s == nil {
 		return t.Of(nil)
