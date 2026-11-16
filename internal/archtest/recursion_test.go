@@ -143,14 +143,7 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	calls := loweringCallGraph(t)
 	require.NotEmpty(t, calls, "no lowerings found; the load or the package path changed")
 
-	var cycles [][]string
-	for _, c := range stronglyConnected(calls) {
-		if len(c) == 1 && !calls[c[0]][c[0]] {
-			continue
-		}
-		slices.Sort(c)
-		cycles = append(cycles, c)
-	}
+	cycles := cyclesOf(calls)
 	// Ties are broken by first member because there is more than one pair now,
 	// and the sort is not stable: length alone would leave the two pairs in
 	// whichever order the sort happened to land them.
@@ -163,9 +156,24 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		"the lowering call graph's recursion changed; anything joining one of these sets can no longer be moved alone")
 }
 
-// typedPkg is one type-checked package of the lowering: its production files
-// and what the checker resolved in them.
+// cyclesOf returns graph's recursions, each sorted: every strongly connected
+// set of more than one function, and every function that calls itself.
+func cyclesOf(graph map[string]map[string]bool) [][]string {
+	var cycles [][]string
+	for _, c := range stronglyConnected(graph) {
+		if len(c) == 1 && !graph[c[0]][c[0]] {
+			continue
+		}
+		slices.Sort(c)
+		cycles = append(cycles, c)
+	}
+	return cycles
+}
+
+// typedPkg is one type-checked package of the lowering: its path, its
+// production files and what the checker resolved in them.
 type typedPkg struct {
+	path  string
 	files []*ast.File
 	info  *types.Info
 }
@@ -180,9 +188,16 @@ type typedPkg struct {
 // refuses the import that would let the callee's package call back.
 func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
-	patterns := make([]string, len(loweringPackages))
-	for i, pkg := range loweringPackages {
-		patterns[i] = "./" + pkg
+	return callGraphOf(t, typedPackages(t, loweringPackages))
+}
+
+// typedPackages type-checks dirs, repo-relative, and fails unless every one
+// loads clean, since a pin over a package it did not load reads nothing there.
+func typedPackages(t *testing.T, dirs []string) []typedPkg {
+	t.Helper()
+	patterns := make([]string, len(dirs))
+	for i, dir := range dirs {
+		patterns[i] = "./" + dir
 	}
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
@@ -191,14 +206,14 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	}
 	loaded, err := packages.Load(cfg, patterns...)
 	require.NoError(t, err)
-	require.Len(t, loaded, len(patterns), "a lowering package did not load; the pin no longer reads it")
+	require.Len(t, loaded, len(patterns), "a package did not load; the pin no longer reads it")
 
 	pkgs := make([]typedPkg, 0, len(loaded))
 	for _, p := range loaded {
 		require.Empty(t, p.Errors, "type-check %s", p.PkgPath)
-		pkgs = append(pkgs, typedPkg{files: p.Syntax, info: p.TypesInfo})
+		pkgs = append(pkgs, typedPkg{path: p.PkgPath, files: p.Syntax, info: p.TypesInfo})
 	}
-	return callGraphOf(t, pkgs)
+	return pkgs
 }
 
 // graphNode is one function of the graph: the body its edges are read from,
@@ -541,6 +556,44 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 // changed for — one level up, in the input rather than the graph.
 func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 	t.Parallel()
+	derived := packagesTaking(t, "lowering.Ctx")
+	require.NotEmpty(t, derived, "no package declares a lowering; the walk or the context type moved")
+	listed := slices.Sorted(slices.Values(loweringPackages))
+
+	assert.Equal(t, derived, listed,
+		"the packages this pin reads must be the packages that lower; a listed one that no longer "+
+			"lowers is dead, and an unlisted one is a recursion the pin cannot see")
+}
+
+// TestWholeDocumentReaders_DoNotRecurse holds the packages that read the
+// finished document, and take it rather than the context, to what the pin
+// above holds the lowerings: no recursion it does not name, and it names none
+// of theirs. Each package is graphed alone, since none imports another and no
+// call between packages closes a cycle, so a name two of them declare, as each
+// policy's Honours is, stays apart. The packages are derived, as the lowerings'
+// are, by the type they take.
+func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
+	t.Parallel()
+	var readers []string
+	for _, dir := range packagesTaking(t, "*whole.Document") {
+		if !slices.Contains(loweringPackages, dir) {
+			readers = append(readers, dir)
+		}
+	}
+	require.Contains(t, readers, "compilers/openapi/internal/pagination",
+		"the derivation misses a known reader; the walk or the document type moved")
+
+	for _, p := range typedPackages(t, readers) {
+		assert.Empty(t, cyclesOf(callGraphOf(t, []typedPkg{p})),
+			"%s recurses; recursion needs an explicit depth bound, and a pin as the lowerings' have", p.path)
+	}
+}
+
+// packagesTaking returns, sorted and repo-relative, the directories under
+// compilers whose production files declare a function with a parameter
+// spelled typ, such as "lowering.Ctx".
+func packagesTaking(t *testing.T, typ string) []string {
+	t.Helper()
 	root := irtest.RepoRoot(t)
 	found := map[string]bool{}
 	err := filepath.WalkDir(filepath.Join(root, "compilers"), func(p string, d fs.DirEntry, err error) error {
@@ -551,7 +604,7 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 		if parseErr != nil {
 			return parseErr
 		}
-		if !declaresLowering(f) {
+		if !declaresParam(f, typ) {
 			return nil
 		}
 		rel, relErr := filepath.Rel(root, filepath.Dir(p))
@@ -562,30 +615,20 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, found, "no package declares a lowering; the walk or the context type moved")
-
-	derived := slices.Sorted(maps.Keys(found))
-	listed := slices.Sorted(slices.Values(loweringPackages))
-
-	assert.Equal(t, derived, listed,
-		"the packages this pin reads must be the packages that lower; a listed one that no longer "+
-			"lowers is dead, and an unlisted one is a recursion the pin cannot see")
+	return slices.Sorted(maps.Keys(found))
 }
 
-// declaresLowering reports whether f declares a function taking the lowering
-// context by value, which is what every lowering in this compiler is.
-func declaresLowering(f *ast.File) bool {
+// declaresParam reports whether f declares a function with a parameter
+// spelled typ: "lowering.Ctx" is the lowering context taken by value, which
+// is what every lowering in this compiler is.
+func declaresParam(f *ast.File, typ string) bool {
 	for _, d := range f.Decls {
 		fn, isFunc := d.(*ast.FuncDecl)
 		if !isFunc || fn.Type.Params == nil {
 			continue
 		}
 		for _, p := range fn.Type.Params.List {
-			sel, isSel := p.Type.(*ast.SelectorExpr)
-			if !isSel || sel.Sel.Name != "Ctx" {
-				continue
-			}
-			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && pkg.Name == "lowering" {
+			if types.ExprString(p.Type) == typ {
 				return true
 			}
 		}
