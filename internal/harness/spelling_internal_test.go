@@ -158,6 +158,16 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 		`{$ref: '#/components/schemas/T', nullable: true}`, nullable))
 	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
 
+	for _, amiss := range []Equal{
+		{Stated: stated(useAt + "/maxLength")},
+		{Stated: []Stated{{Severity: ir.SeverityInfo, Code: "openapi/later-version-construct", Pointer: useAt + "/minLength"}}},
+	} {
+		v = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], minLength: 1}`,
+			`{$ref: '#/components/schemas/T', minLength: 1}`, amiss))
+		assert.Equal(t, "diagnostics:openapi/later-version-construct,stated:openapi/later-version-construct",
+			strings.SplitN(v.Detail, "\n", 2)[0], "a report stated at another pointer or severity is no report drawn")
+	}
+
 	var compile compileFunc
 	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := compile(ctx, spec, data, ps)
@@ -166,6 +176,20 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 	v = spellingVerdict(t, minLength)
 	require.True(t, v.Found(), "%+v", v)
 	assert.Equal(t, "stated:openapi/later-version-construct", strings.SplitN(v.Detail, "\n", 2)[0])
+}
+
+// TestRelocatedSet_RelocatesEachPointerAndNode pins what a spelling's
+// reports compare by: each pointer and each node read in the partner's
+// coordinates.
+func TestRelocatedSet_RelocatesEachPointerAndNode(t *testing.T) {
+	report := func(at string) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: "x/y",
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at), Node: "t/openapi" + at}}
+	}
+
+	got := relocatedSet([]ir.Diagnostic{report(useAt + "/allOf/1")}, eraseAllOf)
+
+	assert.Equal(t, diagnosticSet([]ir.Diagnostic{report(useAt)}), got)
 }
 
 // slicesDeleteCode returns diags less every report of code.
