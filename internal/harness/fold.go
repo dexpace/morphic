@@ -17,10 +17,12 @@ import (
 )
 
 // folded returns doc with its decorators (ir.Decorated) left out of Types, and
-// the marshalers that write each use of one as a use of the type it stands for,
-// what the chain holds beside it, and at a carrier what carried.write merges.
-// Two spellings of one use then encode alike. It is a second implementation of
-// the emitter's collapse (docs/emitters/refine/decorators.md), until
+// the marshalers that write each reference to one as a reference to the type
+// it stands for, what the chain holds beside it, and at a carrier what
+// carried.write merges. Two spellings of one use then encode alike. An ID
+// naming a decorator is written as the type's alone, so what a decorator holds
+// is compared only where a reference names it. It is a second implementation
+// of the emitter's collapse (docs/emitters/refine/decorators.md), until
 // emitters/refine holds that one, which replaces it.
 func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 	uses := decoratorUses(doc.Types)
