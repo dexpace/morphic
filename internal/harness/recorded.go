@@ -122,10 +122,11 @@ func Findings(results []Result, o Oracle) []Finding {
 	return out
 }
 
-// listed reports whether a record lists v: a finding, or a decline saying a
-// case gave its oracle something to ask that the oracle could not. A case is
-// written to compile and each group to be judged, so a document that draws an
-// error and an instance nothing judged show as a new finding does.
+// listed reports whether a record lists v: a finding, or one of the two
+// declines no case should draw. A case is written to compile and each group to
+// be judged, so a document that draws an error and an instance nothing judged
+// show as a new finding does. A spelling the oracle cannot compare, for a
+// relocation that collides or a document nested too deep, is listed by none.
 func listed(v Verdict) bool {
 	return v.Found() || v.Declined == DeclineErrorDiagnostic || v.Declined == DeclineNotJudged
 }
