@@ -202,6 +202,19 @@ var twinRows = []twinRow{
 		// rule finds raw YAML above.
 		nestedOnly: definedInResource, twinOnly: definedInRaw,
 	},
+	{
+		name: "a draft 7 $schema naming its dialect", doc: func(p twinPlace) twinDoc {
+			return twinDoc{schemas: "    In: {$ref: '#nested'}\n",
+				schema: ", $schema: 'http://json-schema.org/draft-07/schema#', $id: '#nested'"}
+		},
+		// "A schema another holds roots a resource ... as the dialect its own
+		// `$schema` names does", and "In drafts 4, 6 and 7 one naming a fragment
+		// alone, `#name`, declares that plain name" (references): the compile
+		// reads the `$schema` of the schema the grammar places, so In lowers it,
+		// where an extension's names nothing and In is unresolved. The binder
+		// above is handed no Config.Dialect, so it reads both as 2020-12 does.
+		nestedOnly: draftIdentifiersKept, twinOnly: draftAnchorUnresolved,
+	},
 	{name: "an escaped pointer token", doc: func(p twinPlace) twinDoc {
 		esc := strings.Replace(p.header(), p.key, p.escaped(), 1)
 		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + esc + "/schema'}\n"}
@@ -374,6 +387,17 @@ func listLanded(p twinPlace) []string {
 func anchorAnswers(p twinPlace) []string {
 	return []string{"entry spec.yaml#/components/schemas/In: hop resolved 0 raw spec.yaml#" + encodingAt +
 		p.header() + "/schema", "landing spec.yaml#" + encodingAt + p.header() + "/schema"}
+}
+
+// draftIdentifiersKept is the schema In lowers reporting the identifiers it
+// keeps, its $id and its $schema.
+func draftIdentifiersKept(p twinPlace) []string {
+	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.header() + "/schema/$"}
+}
+
+// draftAnchorUnresolved is the compile refusing In's $ref.
+func draftAnchorUnresolved(twinPlace) []string {
+	return []string{"diag error openapi/unresolved-ref 0/components/schemas/In:"}
 }
 
 // anchorUnanswered is In's $ref naming an anchor no schema declares.
