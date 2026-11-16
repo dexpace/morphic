@@ -41,8 +41,7 @@ func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (read
 			return r.spelledAs(soFar), b.docs.absent(r.at.Doc, r.node), objectKey{}
 		}
 		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
-		beneath := r.beneathUnheld || unheld[r.state][token]
-		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token), beneathUnheld: beneath}
+		r = reading{at: Position{Doc: r.at.Doc}, node: child, place: r.below(token)}
 	}
 	return r.spelledAs(soFar), NoReason, objectKey{}
 }
@@ -55,10 +54,11 @@ func (d *docs) writesRef(r reading) bool {
 }
 
 // through carries r, a reference object with token left to read, on to where
-// its chain ends, read at r's state: a pointer through a response reads on in
-// the response it names, in whichever document. A path item's token the
-// mapping writes beside its $ref is read where it is written, as a mount keeps
-// the nearer layer (docs/compilers/openapi.md#path-item-ref-fields). A chain
+// its chain ends, read at r's state afresh (place): a pointer through a
+// response reads on in the response it names, in whichever document. A path
+// item's token the mapping writes beside its $ref is read where it is written,
+// as a mount keeps the nearer layer
+// (docs/compilers/openapi.md#path-item-ref-fields). A chain
 // that does not resolve is Unpassable, and one that waits for documents a pass
 // has yet to read is Held. Without settle, a chain not settled is returned as
 // what the read needs.

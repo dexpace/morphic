@@ -298,8 +298,10 @@ it.
 
 A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
-default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
-leaves out, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
+default, a `const`, an enum member, an Example Object's value, an `x-` key, a field its object
+leaves out, and an Encoding Object another nests, which the lowering keeps verbatim
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)) and whose references are read all the
+same, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
 mapping of the document lands in, its fragment read as the binder reads one, percent escapes
 decoded, is named node by node as the kind that reference expects, once, where the walk has not
 named it already. It is
@@ -1071,9 +1073,13 @@ any chain that fails does, though the schema writing it keeps what it declares b
 alias or merge key is a copy written where it is placed, so what it holds is read at that position,
 as the document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in
 another document, is read as a schema, as is a schema beneath an Encoding Object that another nests
-through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. A `$ref`
-written beneath such a nested Encoding Object, a schema's or a Reference Object's, is bound and
-reported as one anywhere else is, though the object itself is kept verbatim
+through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. Every reading
+of what the model holds takes such a schema as raw YAML under an extension at its place, the
+`#/$defs/...` rule's and the weight of a copy ([`source-budgets`](#source-budgets)) among them,
+but a pointer read on past a reference object reads afresh: a schema below the object its chain
+ends on is that object's, which the load phase builds where no model holds one, as under an
+extension. A `$ref` written beneath such a nested Encoding Object, a schema's or a Reference
+Object's, is bound and reported as one anywhere else is, though the object itself is kept verbatim
 ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). A schema position of the model holds the
 schema the parser built there, whatever its YAML, so a `$ref` to a component written as a string
 names that component, as it lowers. A key written twice in one mapping is read as its last
@@ -1273,7 +1279,8 @@ the item as what else it writes.
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`,
   `e2e.TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding`,
-  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestHeldRole_ReadsToTheFirstFieldNoModelHolds`,
+  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw`,
+  `e2e.TestCompile_AFieldNoModelHoldsReadsAsAnExtension`,
   `e2e.TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML`,
   `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`
 - Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947). No deadline bounds a compile's reads together (#1036). A name resolving to several address spaces is answered by the order of asking (#1969).

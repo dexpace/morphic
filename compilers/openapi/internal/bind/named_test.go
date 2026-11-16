@@ -56,6 +56,30 @@ func TestNamedPointerBytes_AValueKeptRawAddsItsRootAlone(t *testing.T) {
 	assert.Greater(t, asSchema-asSchemaBase, 5*(asExample-without), "mounted as a schema, every node of it is named")
 }
 
+// TestNamedPointerBytes_AFieldNoModelHoldsAddsItsRootAlone holds a schema
+// beneath an Encoding Object another nests to the total its twin under an
+// extension key of the same length gives: the lowering keeps the field
+// verbatim, so only its root is named. A $ref written beneath it is bound all
+// the same, so the raw value it lands in is named node by node, as the twin
+// names it once a $ref reaches the schema writing it.
+func TestNamedPointerBytes_AFieldNoModelHoldsAddsItsRootAlone(t *testing.T) {
+	t.Parallel()
+	doc := func(key, ref string) string {
+		return namedHead + "x-data: " + namedSpine + "\ncomponents:\n  schemas:\n    T: {type: string}\n    In: {$ref: '" + ref + "'}\n" +
+			"  requestBodies:\n    B: {content: {m/x: {encoding: {f: {" + key + ": {g: {headers: {H: {schema: " +
+			"{type: object, properties: {o: {$ref: '#/x-data'}, k: " + namedSpine + "}}}}}}}}}}}\n"
+	}
+	const at = "#/components/requestBodies/B/content/m~1x/encoding/f/"
+	nested, c1 := namedTotal(t, doc("encoding", "#/components/schemas/T"))
+	twin, c2 := namedTotal(t, doc("x-coding", "#/components/schemas/T"))
+	reached, c3 := namedTotal(t, doc("encoding", at+"encoding/g/headers/H/schema"))
+	reachedTwin, c4 := namedTotal(t, doc("x-coding", at+"x-coding/g/headers/H/schema"))
+
+	assert.True(t, c1 && c2 && c3 && c4)
+	assert.Greater(t, nested, twin+100, "the $ref beneath the field names the raw value it lands in")
+	assert.Equal(t, reachedTwin, reached, "a $ref reaching the schema names it, and all it lands in, as the twin's")
+}
+
 // TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst holds a
 // node mounted as a schema and as an example to one total in both declaration
 // orders: a memo keyed by the node alone would count whichever came first.
