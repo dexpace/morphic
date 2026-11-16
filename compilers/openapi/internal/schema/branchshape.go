@@ -114,7 +114,7 @@ func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]statement.S
 	}
 	found := false
 	for i, b := range branches {
-		if (settled == nil || !settled[i]) && branchDeclaresShape(body, b) {
+		if (settled == nil || !settled[i]) && branchDeclaresShape(c.Statements(), body, b) {
 			found = true
 			break
 		}
@@ -136,7 +136,7 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*statement.
 	}
 	settled := make([]bool, len(branches))
 	for i, b := range branches {
-		if !branchDeclaresShape(body, b) {
+		if !branchDeclaresShape(c.Statements(), body, b) {
 			settled[i] = true
 		}
 	}
@@ -147,17 +147,17 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*statement.
 }
 
 // branchDeclaresShape reports whether the inline union branch b declares data
-// shape beside the body body reads. A boolean never does, and any other does
+// shape beside the body body reads, its schemas read from t. A boolean never does, and any other does
 // where one keyword it writes does: bare or beside a repeated `type`, a keyword
 // is judged alike, so restating the body changes no verdict. A branch writing
 // no key judged against the body, `required` alone the commonest, leaves it
 // unread.
-func branchDeclaresShape(body func() *bodyReading, b *statement.Statement) bool {
+func branchDeclaresShape(t *statement.Table, body func() *bodyReading, b *statement.Statement) bool {
 	if b.Truth != statement.Stated {
 		return false
 	}
 	writesJudged := slices.ContainsFunc(b.Keys, func(k statement.Key) bool {
-		return judged(b.Schema, k.Name)
+		return judged(t, b.Schema, k.Name)
 	})
 	if !writesJudged {
 		return false
@@ -167,9 +167,10 @@ func branchDeclaresShape(body func() *bodyReading, b *statement.Statement) bool 
 }
 
 // judged reports whether s's key is judged against what the body says: it is
-// neither shapeless nor a `type` naming only null, which contributes the null.
-func judged(s *statement.Schema, key string) bool {
-	return !shapeless(s, key) && (key != "type" || len(effectiveTypes(s)) > 0)
+// neither shapeless, its schemas read from t, nor a `type` naming only null,
+// which contributes the null.
+func judged(t *statement.Table, s *statement.Schema, key string) bool {
+	return !shapeless(t, s, key) && (key != "type" || len(effectiveTypes(s)) > 0)
 }
 
 // claim is a schema a branch writes, for itself, a property or an element, or
@@ -230,29 +231,29 @@ func (r *bodyReading) restates(top claim) bool {
 // which hold the keywords the model has no field for
 // (docs/parser-library.md#unmodeled-keywords).
 func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
-	s := statement.ParsedAt(c.written).GetSchema()
-	if s == nil {
+	if !statesSchema(c.written.Schema) {
 		return nil, nil, true
 	}
+	t := r.w.c.Statements()
 	var inner []nested
 	var conjuncts []statement.Sub
 	for _, k := range c.written.Keys {
 		switch {
-		case !judged(c.written.Schema, k.Name):
+		case !judged(t, c.written.Schema, k.Name):
 		case k.Name == "allOf":
 			conjuncts = c.written.AllOf
 		case k.Name == "properties":
 			decls := r.declarationsAt(c)
-			for name, p := range s.GetProperties().All() {
-				inner = append(inner, nested{written: r.w.c.Statements().Of(p), at: decls.property(r.w.c.Statements(), name)})
+			for _, p := range objectIn(c.written.Schema).Properties {
+				inner = append(inner, nested{written: t.Sub(p), at: decls.property(t, p.Name)})
 			}
 		case k.Name == "items":
 			if _, listed := listedItems(c.written.Schema); listed {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
-			inner = append(inner, nested{written: r.w.c.Statements().Of(s.GetItems()), at: r.declarationsAt(c).items})
-		case k.Name == r.w.c.Bindings().RefKeyword(statement.ParsedAt(c.written)):
+			inner = append(inner, nested{written: t.Sub(writtenArray(c.written.Schema).Items), at: r.declarationsAt(c).items})
+		case k.Name == refKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false
 			}
@@ -306,19 +307,18 @@ func (r *bodyReading) lands(c claim) bool {
 	if c.at == nil {
 		return false
 	}
-	at := declaredOf(r.w.c, c.written)
+	at, _ := declaredOf(r.w.c, c.written)
 	return at != nil && slices.Contains(r.w.innerAt(c.at).composed, at)
 }
 
 // shapeless reports whether s's keyword key declares no shape whatever it
 // holds: a null that reads as the keyword left out, an extension, a keyword
-// shapelessKeywords names, or an unevaluatedProperties other than false, which
-// is validation logic where false closes the object
+// shapelessKeywords names, or an unevaluatedProperties other than false, read
+// from t, which is validation logic where false closes the object
 // (docs/ir/boundaries.md#validation-only-constructs).
-func shapeless(s *statement.Schema, key string) bool {
-	m := statement.Parsed(s)
+func shapeless(t *statement.Table, s *statement.Schema, key string) bool {
 	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
 	}
-	return key == "unevaluatedProperties" && !annotation.IsFalseSchema(m.GetUnevaluatedProperties())
+	return key == "unevaluatedProperties" && !t.Sub(objectIn(s).UnevaluatedProperties).Truth.ReadsFalse()
 }

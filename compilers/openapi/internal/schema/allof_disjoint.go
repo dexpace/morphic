@@ -6,8 +6,6 @@ package schema
 import (
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -32,20 +30,20 @@ const anyInstance = kindAny &^ kindNull
 // named only where no number is left beside it.
 var kindWords = []struct {
 	kinds kindSet
-	word  oas3.SchemaType
+	word  statement.Kind
 }{
-	{kindObject, oas3.SchemaTypeObject},
-	{kindArray, oas3.SchemaTypeArray},
-	{kindString, oas3.SchemaTypeString},
-	{kindNumber, oas3.SchemaTypeNumber},
-	{kindInteger, oas3.SchemaTypeInteger},
-	{kindBoolean, oas3.SchemaTypeBoolean},
+	{kindObject, statement.KindObject},
+	{kindArray, statement.KindArray},
+	{kindString, statement.KindString},
+	{kindNumber, statement.KindNumber},
+	{kindInteger, statement.KindInteger},
+	{kindBoolean, statement.KindBoolean},
 }
 
 // instanceWords spells t, a set of instance types, for a diagnostic.
 func instanceWords(t kindSet) string {
 	if t == 0 {
-		return string(oas3.SchemaTypeNull)
+		return string(statement.KindNull)
 	}
 	out := make([]string, 0, len(kindWords))
 	for _, w := range kindWords {
@@ -144,7 +142,7 @@ func (r *conjunctTypes) besideChain(b *statement.Statement) bool {
 		if writesBesideRef(hop.Schema, refKeyword(hop)) {
 			return true
 		}
-		hop = declaredOf(r.c, hop)
+		hop, _ = declaredOf(r.c, hop)
 	}
 	return false
 }

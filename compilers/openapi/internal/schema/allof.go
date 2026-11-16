@@ -30,7 +30,6 @@ import (
 // catch-all is a map, as a plain object's is (objectNode). Where discriminated is
 // false, a union the model composes took s's discriminator (lowerSubtypeUnion).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
-	sM := statement.Parsed(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, positionTypes(c, s, pointer))
@@ -41,7 +40,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		fields := newModelFields(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
 		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
-		requireMembers(m, compositionRequired(sM.GetRequired(), comp))
+		requireMembers(m, compositionRequired(objectIn(s).Required, comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		if discriminated {
@@ -202,8 +201,8 @@ func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
 func compositionRequired(own []string, comp allOfComposition) []string {
 	var out []string
 	for _, e := range comp.branches {
-		// A boolean branch's schema is nil, and GetRequired is nil-safe.
-		out = append(out, statement.ParsedAt(e.schema).GetSchema().GetRequired()...)
+		// A boolean branch writes no object keyword, so objectIn reads none.
+		out = append(out, objectIn(e.schema.Schema).Required...)
 	}
 	return append(out, own...)
 }
@@ -244,8 +243,8 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	b := e.schema
 	id, ok := resolveSchemaRef(c, ts, b)
 	if !ok {
-		if !onLoop(c, b) {
-			keyword, ref := refSpelling(c, b)
+		if !onLoop(b) {
+			keyword, ref := refSpelling(b)
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, e.pointer,
 				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(c, b)))
 		}
@@ -473,7 +472,7 @@ func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	}
 	return merge.SelectBase(refIdxs, func(i int) bool {
 		target := refBranchTarget(c, branches[i].schema)
-		return statement.Parsed(target) != nil && inHierarchy(c, target)
+		return statesSchema(target) && inHierarchy(c, target)
 	})
 }
 

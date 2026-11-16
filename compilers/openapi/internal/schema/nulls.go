@@ -8,12 +8,9 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -149,8 +146,7 @@ func (s nullSite) child(tokens ...string) nullSite {
 // an alias's own keywords included, within one budget for the whole read,
 // conjuncts.
 type nulls struct {
-	c    lowering.Ctx
-	refs *typed.Bindings
+	c lowering.Ctx
 	// nullable reports whether the dialect of the schema being read defines the
 	// nullable keyword (oas.SchemaRules.Defines), the one question of the
 	// version this read asks.
@@ -172,7 +168,7 @@ type nullFinding struct {
 // dialect c reads its schemas in. It returns a value so the read lives on its
 // caller's stack, as one per position read is.
 func newNulls(c lowering.Ctx) nulls {
-	return nulls{c: c, refs: c.Bindings(), nullable: c.SchemaRules().Defines("nullable"),
+	return nulls{c: c, nullable: c.SchemaRules().Defines("nullable"),
 		conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 }
 
@@ -194,8 +190,7 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 // its keyword families says (keywords), then widening it where it writes
 // `nullable: true` or an inline allOf branch speaking for it does.
 func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
-	m := statement.Parsed(s)
-	if m == nil || !n.conjuncts.Spend(1) {
+	if !statesSchema(s) || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
 	own := n.keywords(s, site)
@@ -206,9 +201,7 @@ func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 // conjoined with what it lands on (lands). The target is read here because one
 // interned at its own ID discards the reference its definition produced.
 func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
-	m := statement.ParsedAt(js)
-	s := m.GetSchema()
-	if s == nil || !n.conjuncts.Spend(1) {
+	if !statesSchema(js.Schema) || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
 	return n.usage(js.Schema, n.lands(js), site)
@@ -230,18 +223,17 @@ func (n *nulls) usage(s *statement.Schema, target nullReading, site nullSite) nu
 // bounds, then read backward, each once, so n sites of one chain cost n
 // readings, not n squared over two.
 func (n *nulls) lands(js *statement.Statement) nullReading {
-	m := statement.ParsedAt(js)
-	e, ok := n.refs.Entry(m)
-	if !ok || e.Chain.Status != bind.Resolved {
+	if js.Ref == nil || !js.Ref.Bound || js.Ref.Entry.Chain.Status != bind.Resolved {
 		return alike(nullSilent)
 	}
+	e := js.Ref.Entry
 	sites := []*landing{landingOf(n.c, js)}
 	var aliases []nullHop
-	hop, at := n.refs.DeclaredAt(m)
-	for i := 1; i < e.Chain.Hops && hop != nil && n.refs.RefSite(hop) && !sites[len(sites)-1].kept; i++ {
-		aliases = append(aliases, nullHop{s: n.c.Statements().Of(hop).Schema, nullable: definesNullableIn(n.c, at.Doc)})
-		sites = append(sites, landingOf(n.c, n.c.Statements().Of(hop)))
-		hop, at = n.refs.DeclaredAt(hop)
+	hop, at := declaredOf(n.c, js)
+	for i := 1; i < e.Chain.Hops && hop != nil && hop.Ref != nil && !sites[len(sites)-1].kept; i++ {
+		aliases = append(aliases, nullHop{s: hop.Schema, nullable: definesNullableIn(n.c, at.Doc)})
+		sites = append(sites, landingOf(n.c, hop))
+		hop, at = declaredOf(n.c, hop)
 	}
 	// Each read below is in its own document's dialect, and the walk returns to
 	// its own on every way out.
@@ -249,7 +241,7 @@ func (n *nulls) lands(js *statement.Statement) nullReading {
 	last := sites[len(sites)-1]
 	if !last.kept {
 		n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
-		n.keep(last, n.conjunct(n.c.Statements().Of(n.refs.At(e.Chain.End)), nullSite{}))
+		n.keep(last, n.conjunct(n.c.Statements().At(e.Chain.End), nullSite{}))
 	}
 	// Only the last site can be kept already: the walk stops at the first.
 	for i, a := range slices.Backward(aliases) {
@@ -503,7 +495,7 @@ func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	out := alike(nullSilent)
 	for _, b := range slices.Concat(choice.OneOf, choice.AnyOf) {
 		st := c.Statements().Sub(b)
-		if !inlineBranch(c.Bindings(), st) {
+		if !inlineBranch(st) {
 			continue
 		}
 		r, ok := nullAloneReading(c, st.Schema)
@@ -577,7 +569,7 @@ func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
 	if enumWritten(s) {
 		members := enumIn(s)
 		return len(members) > 0 && c.Limits.MaxEnumMembers.Admits(len(members)) &&
-			!slices.ContainsFunc(members, func(v values.Value) bool { return !isNullValue(v) })
+			!slices.ContainsFunc(members, func(v *yaml.Node) bool { return !isNullValue(v) })
 	}
 	return constIn(s) != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }
@@ -653,18 +645,16 @@ func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 // nor does a `null` written for one, which is no `false`
 // (annotation.IsFalseSchema).
 func (n *nulls) conjunct(b *statement.Statement, site nullSite) nullReading {
-	m := statement.ParsedAt(b)
-	if m == nil {
+	switch {
+	case b == nil:
 		return alike(nullSilent)
-	}
-	if m.IsBool() {
-		if annotation.IsFalseSchema(m) {
-			return alike(nullForbidden)
-		}
+	case b.Truth.ReadsFalse():
+		return alike(nullForbidden)
+	case b.Truth != statement.Stated:
 		return alike(nullSilent)
-	}
-	if n.refs.RefSite(m) {
+	case b.Ref != nil:
 		return n.ref(b, site)
+	default:
+		return n.schema(b.Schema, site)
 	}
-	return n.schema(b.Schema, site)
 }

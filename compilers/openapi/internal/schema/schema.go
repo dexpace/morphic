@@ -65,7 +65,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.State
 	diags = append(diags, aliasDiags...)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
-	if statement.Parsed(s.Node) != nil {
+	if statesSchema(s.Node) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
@@ -380,8 +380,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // allOf, which lower() elects first: a property set makes it a model; anything
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	if props := m.GetProperties(); props != nil && props.Len() > 0 {
+	if len(objectIn(s).Properties) > 0 {
 		// The node asserts an object, but the source declares no type, so every
 		// bound is read as it would be at a position lowering to the top type.
 		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredInstanceTypes(s))
@@ -589,20 +588,14 @@ type siblingKeyword struct {
 // set, a value set, composition, or a catch-all — rather than only narrowing
 // what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
 var shapeKeywords = []siblingKeyword{
-	{"properties", func(s *statement.Schema) bool {
-		props := statement.Parsed(s).GetProperties()
-		return props != nil && props.Len() > 0
-	}},
+	{"properties", func(s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }},
 	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }},
 	{"enum", enumWritten},
 	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }},
 	{"additionalProperties", func(s *statement.Schema) bool {
 		return annotation.Written(statement.Parsed(s).GetAdditionalProperties())
 	}},
-	{"patternProperties", func(s *statement.Schema) bool {
-		pp := statement.Parsed(s).GetPatternProperties()
-		return pp != nil && pp.Len() > 0
-	}},
+	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }},
 	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }},
 }
 
@@ -615,12 +608,12 @@ var shapeKeywords = []siblingKeyword{
 // co-declared property set. An `items` list narrows too, read off the raw node,
 // since nothing documents what the parser's model holds there.
 var narrowingKeywords = []siblingKeyword{
-	{"required", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetRequired()) > 0 }},
+	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }},
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
 		return listed || annotation.Written(statement.Parsed(s).GetItems())
 	}},
-	{"prefixItems", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetPrefixItems()) > 0 }},
+	{"prefixItems", func(s *statement.Schema) bool { return len(writtenArray(s).PrefixItems) > 0 }},
 }
 
 // siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords

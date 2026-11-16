@@ -62,14 +62,12 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *s
 func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
-	m := statement.ParsedAt(js)
-	// GetSchema is nil-safe and yields nil for a boolean schema too, so the one
-	// check covers an absent position, a boolean one, and a caller passing nil.
-	s := m.GetSchema()
-	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
+	// The one check covers an absent position, a boolean one, and a caller
+	// passing nil.
+	if js == nil || !statesSchema(js.Schema) || LoweredToOwnNode(c, ts, pointer, t) {
 		return nil
 	}
-	if !c.Bindings().RefSite(m) {
+	if js.Ref == nil {
 		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
 		// reference just as a $ref site does.
 		return keepsAtOutcome(c, ts, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer)
@@ -94,10 +92,10 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, poin
 	if ok {
 		return refNullRef(c, id, js, siteAt(pointer))
 	}
-	if onLoop(c, js) {
+	if onLoop(js) {
 		return ts.PrimRef(ir.PrimAny), nil
 	}
-	keyword, ref := refSpelling(c, js)
+	keyword, ref := refSpelling(js)
 	return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, pointer,
 		"unresolved %s %q%s", keyword, ref, unresolvedWhy(c, js))}
 }
@@ -105,12 +103,11 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, poin
 // refSpelling is the keyword and the value of the reference js writes, as the
 // load phase reports one landing nowhere: the table's entry's, else the
 // model's $ref, which the budget left unread.
-func refSpelling(c lowering.Ctx, js *statement.Statement) (keyword, value string) {
-	m := statement.ParsedAt(js)
-	if e, ok := c.Bindings().Entry(m); ok {
-		return e.Keyword, e.Hop.Ref
+func refSpelling(js *statement.Statement) (keyword, value string) {
+	if js.Ref != nil && js.Ref.Bound {
+		return js.Ref.Entry.Keyword, js.Ref.Entry.Hop.Ref
 	}
-	return "$ref", m.GetRef().String()
+	return "$ref", statement.ParsedAt(js).GetRef().String()
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
@@ -119,9 +116,8 @@ func refSpelling(c lowering.Ctx, js *statement.Statement) (keyword, value string
 // declaring nothing to lower. The position may well exist, so without it the
 // report reads as though it named nothing.
 func unresolvedWhy(c lowering.Ctx, js *statement.Statement) string {
-	m := statement.ParsedAt(js)
-	if e, ok := c.Bindings().Entry(m); ok {
-		return hopWhy(e.Hop)
+	if js.Ref != nil && js.Ref.Bound {
+		return hopWhy(js.Ref.Entry.Hop)
 	}
 	return unreadWhy(c.Bindings())
 }
@@ -150,12 +146,12 @@ func hopWhy(h bind.Hop) string {
 // lands on no schema (resolve.Scope.Target) and for a reference to an
 // undeclared component.
 func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement) (ir.TypeID, bool) {
-	m := statement.ParsedAt(js)
-	at, ok := c.RefScope().Target(m)
+	at, ok := landsAt(js)
 	if !ok {
 		return "", false
 	}
-	return resolveAt(c, ts, at, c.Statements().Of(c.Bindings().Declared(m)))
+	decl, _ := declaredOf(c, js)
+	return resolveAt(c, ts, at, decl)
 }
 
 // resolveAt is resolvePointer at a position of the bindings' table, read at
@@ -259,8 +255,6 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load
 // phase reports once and the lowering drops to any without a report of its
 // own.
-func onLoop(c lowering.Ctx, b *statement.Statement) bool {
-	m := statement.ParsedAt(b)
-	e, ok := c.Bindings().Entry(m)
-	return ok && e.Chain.Member
+func onLoop(b *statement.Statement) bool {
+	return b.Ref != nil && b.Ref.Bound && b.Ref.Entry.Chain.Member
 }

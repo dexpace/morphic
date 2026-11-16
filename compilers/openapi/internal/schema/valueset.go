@@ -74,10 +74,10 @@ func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*state
 	out := []*statement.Schema{s}
 	for _, e := range r.comp.branches {
 		bs := e.schema.Schema
-		if c.Bindings().RefSite(statement.ParsedAt(e.schema)) {
-			bs = DecidingSchema(c, c.Statements().Of(c.Bindings().End(statement.ParsedAt(e.schema))).Schema)
+		if e.schema.Ref != nil {
+			bs = DecidingSchema(c, refBranchTarget(c, e.schema))
 		}
-		if statement.Parsed(bs) != nil {
+		if statesSchema(bs) {
 			out = append(out, bs)
 		}
 	}

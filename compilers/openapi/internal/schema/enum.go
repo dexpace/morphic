@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
@@ -84,7 +83,7 @@ type enumEntry struct {
 }
 
 // readEnum converts each entry of an enum once, for every reader of the list.
-func readEnum(nodes []values.Value) []enumEntry {
+func readEnum(nodes []*yaml.Node) []enumEntry {
 	out := make([]enumEntry, 0, len(nodes))
 	for i, node := range nodes {
 		val, err := value.FromNode(node)

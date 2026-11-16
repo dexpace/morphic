@@ -242,7 +242,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		return refs[0]
 	}
-	if !allOfMayRefine(s) || hasAnyKey(s, objectKeywords) || !refinableBranches(c, allOfBranches(c, s, "")) {
+	if !allOfMayRefine(s) || hasAnyKey(s, objectKeywords) || !refinableBranches(allOfBranches(c, s, "")) {
 		return nil
 	}
 	if declaresUnion(s) && allOfComposes(c, s) {

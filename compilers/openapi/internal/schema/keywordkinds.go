@@ -59,9 +59,8 @@ func typeKinds(st statement.Kind) kindSet {
 // bound meet GitHub #1889's fold, and one left is reported at its position, not
 // its key.
 func positionTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
 	own := declaredInstanceTypes(s)
-	if m == nil || own == 0 || !namesSchema(s) || !writesBound(c, s) {
+	if !statesSchema(s) || own == 0 || !namesSchema(s) || !writesBound(c, s) {
 		return own
 	}
 	return own & namedTypes(c, s, pointer)
@@ -131,8 +130,7 @@ type boundTypes struct {
 // as a boolean one, or one past the budget, excludes nothing; namedTypes
 // discards a read past it. Each read spends a step, one finding no schema too.
 func (r *boundTypes) schema(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
-	if !r.steps.Spend(1) || m == nil {
+	if !r.steps.Spend(1) || !statesSchema(s) {
 		return anyInstance
 	}
 	return declaredInstanceTypes(s) & r.names(c, s, pointer)

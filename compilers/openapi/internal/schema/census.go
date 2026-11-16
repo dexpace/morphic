@@ -48,7 +48,6 @@ var censusKeywords = []string{
 // readers hold, and a collection bound the position's constraints hold
 // (referenceHolds).
 func keywordHome(td ir.TypeDef, s *statement.Schema, keyword string) bool {
-	m := statement.Parsed(s)
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties":
 		// A MapT homes all three: its Value is the catch-all, and it is a map
@@ -58,7 +57,7 @@ func keywordHome(td ir.TypeDef, s *statement.Schema, keyword string) bool {
 		// A MapT has no key to require, so it homes only an empty list. A name
 		// lands on a property or in Model.Requires (requireMembers), either of
 		// which keeps the node a Model, so a MapT never meets a longer one.
-		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(m.GetRequired()) == 0)
+		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(objectIn(s).Required) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 	case "additionalItems":
@@ -168,9 +167,9 @@ func formatHome(td ir.TypeDef, s *statement.Schema) bool {
 // variant hoisted for the bounds its type takes, which holds the pairing as a
 // shared primitive would (lowerTypeVariant).
 func pairedBase(s *statement.Schema, target ir.TypeID) bool {
-	m := statement.Parsed(s)
+	format := namedFormat(s)
 	return slices.ContainsFunc(effectiveTypes(s), func(st statement.Kind) bool {
-		prim, paired := spelling.Lookup(string(st) + "/" + m.GetFormat())
+		prim, paired := spelling.Lookup(string(st) + "/" + format)
 		return paired && ir.PrimTypeID(prim) == target
 	})
 }

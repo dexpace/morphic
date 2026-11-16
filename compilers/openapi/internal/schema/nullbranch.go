@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -24,14 +23,13 @@ import (
 // behind a nullable reference that the reference's bit says. A $ref branch
 // names a node the source declares, and stays the variant naming it.
 func nullBranch(c lowering.Ctx, js *statement.Statement) bool {
-	return inlineBranch(c.Bindings(), js) && NullAlone(c, js.Schema)
+	return inlineBranch(js) && NullAlone(c, js.Schema)
 }
 
 // inlineBranch reports whether js is a schema written in place: no boolean,
 // and no reference site (typed.Bindings.RefSite).
-func inlineBranch(refs *typed.Bindings, js *statement.Statement) bool {
-	m := statement.ParsedAt(js)
-	return m != nil && m.IsSchema() && !refs.RefSite(m)
+func inlineBranch(js *statement.Statement) bool {
+	return js != nil && statesSchema(js.Schema) && js.Ref == nil
 }
 
 // liftedNull is a null branch (nullBranch) of a union, where it is written,

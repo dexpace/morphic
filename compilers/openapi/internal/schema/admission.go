@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -147,7 +146,7 @@ func (a admitted) and(b admitted) admitted {
 	out := a
 	out.kinds &= b.kinds
 	out.forms = slices.Concat(a.forms, b.forms)
-	if statement.ParsedAt(out.items) == nil {
+	if out.items == nil {
 		out.items = b.items
 	}
 	switch {
@@ -329,7 +328,7 @@ func (w *admission) whole(js *statement.Statement) admitted {
 	if js.Ref == nil {
 		return out
 	}
-	next := declaredOf(w.c, js)
+	next, _ := declaredOf(w.c, js)
 	if next == nil {
 		w.reads.Exhaust()
 		return out
@@ -444,7 +443,7 @@ func (w *admission) declare(out *declarationSet, stack []*statement.Statement) {
 		for _, b := range st.AllOf {
 			stack = append(stack, w.c.Statements().Sub(b))
 		}
-		if next := declaredOf(w.c, st); next != nil {
+		if next, _ := declaredOf(w.c, st); next != nil {
 			stack = append(stack, next)
 		}
 	}
@@ -473,8 +472,7 @@ func (w *admission) union(branches []statement.Sub) admitted {
 // defines nullable: where c's bindings place js, that document's, and c's own
 // for a schema they do not place.
 func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
-	m := statement.ParsedAt(js)
-	at, ok := c.Bindings().Site(m)
+	at, ok := siteOf(js.Schema)
 	if !ok {
 		return c.SchemaRules().Defines("nullable")
 	}
@@ -502,7 +500,7 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 		out = out.and(w.valueSet(valueSetOf{s, "enum"}, enumIn(s)))
 	}
 	if constant := constIn(s); constant != nil {
-		out = out.and(w.valueSet(valueSetOf{s, "const"}, []values.Value{constant}))
+		out = out.and(w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant}))
 	}
 	return out
 }
@@ -513,7 +511,7 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 // (writesType).
 func writtenKinds(s *statement.Schema, nullable bool) kindSet {
 	if !writesType(s) {
-		if props := statement.Parsed(s).GetProperties(); props != nil && props.Len() > 0 {
+		if len(objectIn(s).Properties) > 0 {
 			return kindObject
 		}
 		return kindAny
@@ -530,8 +528,7 @@ func writtenKinds(s *statement.Schema, nullable bool) kindSet {
 
 // formOf returns the format s holds a value to. The redaction names no shape.
 func formOf(s *statement.Schema) (scalarForm, bool) {
-	m := statement.Parsed(s)
-	format := m.GetFormat()
+	format := namedFormat(s)
 	if format == "" || annotation.DeclaresRedaction(s) {
 		return scalarForm{}, false
 	}
@@ -557,7 +554,7 @@ type memberSet struct {
 // so a shared enum costs its members once and not at each position naming it, but
 // spending is not: a read's verdict turns on what it spends, so a remembered set
 // must cut a read as reading it would, or lowering order would decide.
-func (w *admission) valueSet(key valueSetOf, members []values.Value) admitted {
+func (w *admission) valueSet(key valueSetOf, members []*yaml.Node) admitted {
 	if !w.members.Spend(len(members)) {
 		return admitted{fixed: true}
 	}
@@ -569,7 +566,7 @@ func (w *admission) valueSet(key valueSetOf, members []values.Value) admitted {
 }
 
 // readMembers reads each member's key with its kind.
-func readMembers(members []values.Value) memberSet {
+func readMembers(members []*yaml.Node) memberSet {
 	out := memberSet{values: make(map[string]kindSet, len(members))}
 	for _, m := range members {
 		key, kind, ok := memberOf(m)
@@ -590,10 +587,10 @@ func (w *admission) within(a, b admitted) bool {
 
 // itemsWithin reports whether a's elements are all b's elements can be.
 func (w *admission) itemsWithin(a, b admitted) bool {
-	if statement.ParsedAt(b.items) == nil || statement.ParsedAt(a.items) == statement.ParsedAt(b.items) {
+	if b.items == nil || a.items == b.items {
 		return true
 	}
-	return statement.ParsedAt(a.items) != nil && w.restates(w.whole(a.items), a.items, b.items)
+	return a.items != nil && w.restates(w.whole(a.items), a.items, b.items)
 }
 
 // restates reports whether what held admits, read from from, says all that js
@@ -619,10 +616,8 @@ func (w *admission) restates(held admitted, from, js *statement.Statement) bool 
 // its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
 // placed nowhere, a nil one among them, is written alike with none.
 func (w *admission) sameText(a, b *statement.Statement) bool {
-	aM := statement.ParsedAt(a)
-	bM := statement.ParsedAt(b)
-	at, placed := w.c.Bindings().Site(aM)
-	bt, placedB := w.c.Bindings().Site(bM)
+	at, placed := siteOf(a.Schema)
+	bt, placedB := siteOf(b.Schema)
 	if !placed || !placedB || at.Doc != bt.Doc {
 		return false
 	}

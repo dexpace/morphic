@@ -277,7 +277,7 @@ func missingArrayItemsBesideRef(c lowering.Ctx, js *statement.Statement, pointer
 		return nil
 	}
 	w := newAdmission(c)
-	if statement.ParsedAt(w.whole(js).items) != nil {
+	if w.whole(js).items != nil {
 		return nil
 	}
 	return diags
