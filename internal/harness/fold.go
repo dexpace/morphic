@@ -49,31 +49,35 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
 			c := carried[plainProperty]{Carrier: plainProperty(p)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
 			c := carried[plainHeader]{Carrier: plainHeader(h)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
 			c := carried[plainParameter]{Carrier: plainParameter(p)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
 			c := carried[plainVariant]{Carrier: plainVariant(v)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, false})
 		}),
 	)
 }
 
 // use is what a decorator stands for: the first type along its Base chain that
-// is no decorator, and the chain's annotations, merged nearest first.
+// is no decorator, the chain's annotations, merged nearest first, and lent, the
+// Docs and Deprecation of that type, which a property, parameter or header
+// takes after the chain's, as a reference to the type lends them
+// (docs/ir/annotations.md#what-a-reference-carries-down).
 type use struct {
 	target ir.TypeID
 	notes  annotations
+	lent   annotations
 }
 
 // decoratorUses returns, for each decorator of types, what it stands for. A
@@ -102,12 +106,23 @@ func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
 	for range len(types) + 1 {
 		base, ok := ir.Decorated(types[at])
 		if !ok {
-			return use{target: at, notes: notes}, true
+			return use{target: at, notes: notes, lent: lentBy(types[at])}, true
 		}
 		notes = notes.then(notesOf(types[at].Common()))
 		at = base.Target
 	}
 	return use{}, false
+}
+
+// lentBy returns the annotations td lends a carrier naming it: its Docs and
+// Deprecation, and none of a type the registry does not hold. Its Examples
+// describe the type and stay on it (docs/compilers/openapi.md#schema-examples).
+func lentBy(td ir.TypeDef) annotations {
+	if td == nil {
+		return annotations{}
+	}
+	c := td.Common()
+	return annotations{docs: c.Docs, deprecation: c.Deprecation}
 }
 
 // annotations are the fields a decorator shares with a use site, merged as
@@ -241,7 +256,9 @@ type carried[T any] struct {
 	Unmodeled map[string]any `json:"unmodeled,omitempty"`
 }
 
-// slots point at a carrier's reference and the fields the chain merges into.
+// slots point at a carrier's reference and the fields the chain merges into,
+// and say whether the carrier takes what the chain's type lends: a union
+// variant takes none of it, as the compiler gives a variant none.
 type slots struct {
 	ref          *ir.TypeRef
 	docs         *ir.Docs
@@ -249,10 +266,12 @@ type slots struct {
 	examples     *[]ir.Example
 	availability **ir.Availability
 	unmodeled    ir.Unmodeled
+	lends        bool
 }
 
 // write writes c, merging the chain its reference names into s, the carrier's
-// own fields first, or declines, for a carrier naming no decorator.
+// own fields first and what the chain's type lends last, or declines, for a
+// carrier naming no decorator.
 func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slots) error {
 	u, ok := uses[s.ref.Target]
 	if !ok {
@@ -261,6 +280,9 @@ func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slot
 	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples,
 		availability: *s.availability, unmodeled: entryLists(s.unmodeled)}
 	merged := own.then(u.notes)
+	if s.lends {
+		merged = merged.then(u.lent)
+	}
 	s.ref.Target = u.target
 	*s.docs, *s.deprecation, *s.examples, *s.availability = merged.docs, merged.deprecation, merged.examples,
 		merged.availability

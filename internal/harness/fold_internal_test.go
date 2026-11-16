@@ -153,6 +153,54 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	assert.Len(t, got.Properties[0].Unmodeled["openapi:x"], 2, "a repeated name keeps both entries")
 }
 
+// carrierSlots points at the carrier of kind in a document carrying builds.
+func carrierSlots(doc *ir.Document, kind string) slots {
+	switch kind {
+	case "property":
+		p := &doc.Types[holderID].(*ir.Model).Properties[0]
+		return slots{ref: &p.Type, docs: &p.Docs, deprecation: &p.Deprecation, examples: &p.Examples}
+	case "header":
+		h := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
+		return slots{ref: &h.Type, docs: &h.Docs, deprecation: &h.Deprecation, examples: &h.Examples}
+	case "parameter":
+		p := &doc.Services[0].Groups[0].Operations[0].Params[0]
+		return slots{ref: &p.Type, docs: &p.Docs, deprecation: &p.Deprecation, examples: &p.Examples}
+	default:
+		v := &doc.Types[holderID].(*ir.Union).Variants[0]
+		return slots{ref: &v.Type, docs: &v.Docs, deprecation: &v.Deprecation, examples: &v.Examples}
+	}
+}
+
+// TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor pins the last
+// step of the merge: a property, parameter or header takes the Docs and
+// Deprecation of the type its decorator stands for where the carrier and the
+// decorator set none, as a reference naming that type is lent them, and never
+// its Examples. A union variant takes none of them.
+func TestFolded_ACarrierTakesTheDocsOfWhatItsDecoratorStandsFor(t *testing.T) {
+	for _, c := range []struct {
+		kind  string
+		lends bool
+	}{{"property", true}, {"header", true}, {"parameter", true}, {"variant", false}} {
+		t.Run(c.kind, func(t *testing.T) {
+			decorated, plain := carrying(c.kind, true), carrying(c.kind, false)
+			for _, doc := range []*ir.Document{decorated, plain} {
+				obj := doc.Types[objID].Common()
+				obj.Docs = ir.Docs{Summary: "obj", Description: "obj"}
+				obj.Deprecation, obj.Examples = &ir.Deprecation{Message: "obj"}, []ir.Example{{Name: "obj"}}
+			}
+			dec := decorated.Types[decID].Common()
+			dec.Deprecation, dec.Examples = nil, nil
+			s := carrierSlots(plain, c.kind)
+			*s.deprecation, *s.examples = nil, nil
+			if c.lends {
+				s.docs.Summary, *s.deprecation = "obj", &ir.Deprecation{Message: "obj"}
+			}
+
+			assert.Empty(t, cmp.Diff(foldedText(t, plain), foldedText(t, decorated)))
+		})
+	}
+}
+
 // TestMergeDocs_TakesEveryField holds mergeDocs to ir.Docs' fields: each is
 // taken from the second where the first leaves it empty.
 func TestMergeDocs_TakesEveryField(t *testing.T) {
@@ -196,6 +244,7 @@ func TestDecoratorUses_FollowsAChainAndLeavesACycle(t *testing.T) {
 	assert.Equal(t, []ir.Example{{Name: "outer"}}, uses[outerID].notes.examples)
 	assert.Len(t, uses[outerID].notes.unmodeled["openapi:x"], 2)
 	assert.Equal(t, ir.TypeID("t/x/gone"), uses["t/x/d"].target)
+	assert.Zero(t, uses["t/x/d"].lent, "a type the registry does not hold lends nothing")
 
 	_, more := folded(&ir.Document{Types: types})
 	b, err := json.Marshal(types["t/x/a"], json.WithMarshalers(more))
