@@ -6556,10 +6556,10 @@ how operations are arranged rather than filling a fact a node holds.
    rule reads, is met where the document has not spoken, and which then declines to fill the fact,
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
-   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `lowering` and
-   `whole`, the one reading of the finished document every such step shares, and `runtimeexpr`
-   where it reads an expression the document writes, and so nothing of the walks that built the
-   document. The compiler's run reads them in one block, in one order: links
+   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `ids` and
+   `promotion`, and `whole`, the one reading of the finished document every such step shares, and
+   `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks that
+   built the document. The compiler's run reads them in one block, in one order: links
    ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
    promotions, then inferences, so an inference sees what every promotion filled. Nothing after the
    root follows a reference, as which components the root keeps turns on what was reached. The
