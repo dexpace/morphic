@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -33,7 +34,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: ref, Referents: []*oas3.Schema{tgt}}, "/p", sourced(0))
+	got, diags := Read(Site{Kind: Reference, Node: standaloneSchema(ref), Referents: []*statement.Schema{standaloneSchema(tgt)}}, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -49,7 +50,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: node, Referents: []*oas3.Schema{stray}}, "/p", sourced(0))
+	got, _ := Read(Site{Kind: Declaration, Node: standaloneSchema(node), Referents: []*statement.Schema{standaloneSchema(stray)}}, "/p", sourced(0))
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
@@ -62,7 +63,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 func TestAnnotations_AVoiceReadsAsTheSiteDoes(t *testing.T) {
 	t.Parallel()
 	node := schemaFromYAML(t, "description: site\n")
-	voice := Voice{At: "/p/allOf/1", Node: schemaFromYAML(t, `description: voice
+	voice := Voice{At: "/p/allOf/1", Node: standaloneSchema(schemaFromYAML(t, `description: voice
 title: voice
 deprecated: true
 format: password
@@ -70,17 +71,17 @@ xml: {name: voiced}
 example: 1
 x-kept: 1
 not: {type: string}
-`)}
-	second := Voice{At: "/p/allOf/2", Node: schemaFromYAML(t, `example: 2
+`))}
+	second := Voice{At: "/p/allOf/2", Node: standaloneSchema(schemaFromYAML(t, `example: 2
 xml: {name: other}
 x-kept: 2
 $id: 'https://example.com/s'
 discriminator: {propertyName: kind, x-d: 1}
-`)}
+`))}
 	referent := schemaFromYAML(t, "title: referent\nexternalDocs: {url: 'https://x'}\n")
 
-	got, _ := Read(Site{Kind: Reference, Node: node, Voices: []Voice{voice, second},
-		Referents: []*oas3.Schema{referent}}, "/p", sourced(0))
+	got, _ := Read(Site{Kind: Reference, Node: standaloneSchema(node), Voices: []Voice{voice, second},
+		Referents: []*statement.Schema{standaloneSchema(referent)}}, "/p", sourced(0))
 
 	assert.Equal(t, "site", got.Docs.Description, "the site writes one")
 	assert.Equal(t, "voice", got.Docs.Summary, "a voice is nearer than a referent")
@@ -101,11 +102,20 @@ discriminator: {propertyName: kind, x-d: 1}
 // read in, and that a declaration has no referent in it.
 func TestSite_ChainIsNearestFirst(t *testing.T) {
 	t.Parallel()
-	node, voice, referent := &oas3.Schema{}, &oas3.Schema{}, &oas3.Schema{}
-	st := Site{Kind: Reference, Node: node, Voices: []Voice{{Node: voice}}, Referents: []*oas3.Schema{referent}}
-	assert.Equal(t, []*oas3.Schema{node, voice, referent}, st.Chain())
+	node, voice, referent := standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{}), standaloneSchema(&oas3.Schema{})
+	st := Site{Kind: Reference, Node: node, Voices: []Voice{{Node: voice}}, Referents: []*statement.Schema{referent}}
+	assertSameSchemas(t, []*statement.Schema{node, voice, referent}, st.Chain())
 	st.Kind = Declaration
-	assert.Equal(t, []*oas3.Schema{node, voice}, st.Chain())
+	assertSameSchemas(t, []*statement.Schema{node, voice}, st.Chain())
+}
+
+// assertSameSchemas asserts got holds the schemas of want, in order.
+func assertSameSchemas(t *testing.T, want, got []*statement.Schema) {
+	t.Helper()
+	require.Len(t, got, len(want))
+	for i := range want {
+		assert.Same(t, want[i], got[i], "schema %d", i)
+	}
 }
 
 // TestAnnotations_RedactionFromTheSiteOrItsReferent pins how Read decides
@@ -120,12 +130,12 @@ func TestAnnotations_RedactionFromTheSiteOrItsReferent(t *testing.T) {
 		site Site
 		want bool
 	}{
-		{"the site writes it", Site{Kind: Reference, Node: password}, true},
-		{"the referent writes it", Site{Kind: Reference, Node: &oas3.Schema{}, Referents: []*oas3.Schema{password}}, true},
-		{"another format at the site", Site{Kind: Reference, Node: byteFormat, Referents: []*oas3.Schema{password}}, true},
-		{"a declaration's stray referent", Site{Kind: Declaration, Node: &oas3.Schema{}, Referents: []*oas3.Schema{password}}, false},
-		{"another format alone", Site{Kind: Reference, Node: byteFormat}, false},
-		{"neither", Site{Kind: Reference, Node: &oas3.Schema{}, Referents: []*oas3.Schema{{}}}, false},
+		{"the site writes it", Site{Kind: Reference, Node: standaloneSchema(password)}, true},
+		{"the referent writes it", Site{Kind: Reference, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(password)}}, true},
+		{"another format at the site", Site{Kind: Reference, Node: standaloneSchema(byteFormat), Referents: []*statement.Schema{standaloneSchema(password)}}, true},
+		{"a declaration's stray referent", Site{Kind: Declaration, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(password)}}, false},
+		{"another format alone", Site{Kind: Reference, Node: standaloneSchema(byteFormat)}, false},
+		{"neither", Site{Kind: Reference, Node: standaloneSchema(&oas3.Schema{}), Referents: []*statement.Schema{standaloneSchema(&oas3.Schema{})}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -144,7 +154,7 @@ func TestAnnotations_ReadsEverySiteLocalAspect(t *testing.T) {
 		XML:         &oas3.XML{Name: new("Q")},
 		Example:     openapitest.YAMLNode(t, "hello"),
 	}
-	got, diags := Read(Site{Kind: Declaration, Node: node}, "/components/schemas/S", sourced(0))
+	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(node)}, "/components/schemas/S", sourced(0))
 
 	assert.Equal(t, "D", got.Docs.Description)
 	require.NotNil(t, got.XML)
@@ -160,7 +170,7 @@ func TestSchemaExamplesAt_UnconvertibleValueIsReportedNotDropped(t *testing.T) {
 	t.Parallel()
 	node := &oas3.Schema{Example: &yaml.Node{Kind: yaml.Kind(99)}}
 
-	got, diags := schemaExamplesAt(node, "/p", sourced(3))
+	got, diags := schemaExamplesAt(standaloneSchema(node), "/p", sourced(3))
 
 	assert.Empty(t, got, "an unconvertible example yields no value")
 	require.Len(t, diags, 1, "and is reported rather than dropped")
@@ -176,7 +186,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
+	got, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), Dialect{})
 
 	require.Len(t, got, 2, "one entry per keyword written")
 	for _, keyword := range []string{"$id", "$schema"} {
@@ -185,7 +195,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		assert.Equal(t, ir.ReasonOutOfScope, entry.Reason)
 	}
 	assert.Len(t, diags, 2, "each exclusion is announced where it was written")
-	assert.True(t, DeclaresAny(s, slices.Collect(DialectKeywords())),
+	assert.True(t, DeclaresAny(standaloneSchema(s), slices.Collect(DialectKeywords())),
 		"and the hoist gate agrees a node is needed to hold them")
 }
 
@@ -197,7 +207,7 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\n"+
 		"$vocabulary: {'https://example.com/v': true}\ntype: string\n")
-	_, diags := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
+	_, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), Dialect{})
 	require.Len(t, diags, 3)
 	said := map[jsontext.Pointer]string{}
 	for _, d := range diags {
@@ -218,7 +228,7 @@ func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "id: 'urn:example:a'\n$id: 'urn:example:b'\ntype: string\n")
 	saidOf := func(dialect Dialect) (ir.Unmodeled, map[jsontext.Pointer]string) {
-		got, diags := dialectAt(s, "/components/schemas/S", sourced(0), dialect)
+		got, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), dialect)
 		said := map[jsontext.Pointer]string{}
 		for _, d := range diags {
 			said[d.Provenance.Pointer] = d.Message
@@ -234,7 +244,7 @@ func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
 	_, said = saidOf(Dialect{Identifier: "id", IdentifierIgnored: true})
 	assert.Contains(t, said["/components/schemas/S/id"], "is read for nothing, as this schema's dialect ignores")
 	assert.Contains(t, said["/components/schemas/S/$id"], "spells an identifier id")
-	plain, _ := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
+	plain, _ := dialectAt(standaloneSchema(s), "/components/schemas/S", sourced(0), Dialect{})
 	assert.NotContains(t, plain, "openapi:id", "where `$id` is the identifier, `id` is an unknown keyword's to keep")
 }
 
@@ -246,7 +256,7 @@ func TestDialectAt_AttributesTheKeywordRatherThanTheSchema(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"), Dialect{})
+	got, diags := dialectAt(standaloneSchema(s), "/components/schemas/S", overlaid("/components/schemas/S/$id"), Dialect{})
 
 	entry, ok := got["openapi:$id"]
 	require.True(t, ok)
@@ -298,7 +308,7 @@ func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nxml:\n  name: q\n  nodeType: attribute\n")
 
-	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
+	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
 
 	require.NotNil(t, got.XML)
 	assert.Equal(t, "q", got.XML.Name, "the modelled fields still come from the model")
@@ -313,7 +323,7 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\n")
 
-	got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
+	got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
 
 	assert.Nil(t, got.XML)
 	assert.Empty(t, diags)
@@ -352,7 +362,7 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, "type: string\nxml: "+tc.xml+"\n")
-			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
+			got, diags := Read(Site{Kind: Declaration, Node: standaloneSchema(s)}, "/components/schemas/S", sourced(0))
 			require.NotNil(t, got.XML)
 			assert.Equal(t, tc.nodeType, got.XML.NodeType)
 			assert.Equal(t, tc.attr, got.XML.Attribute, "the attribute flag, placed only where no nodeType contradicts it")
@@ -403,9 +413,9 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := At(openapitest.SchemaFromYAML(t.Context(), t, tc.body))
+			got := At(standalone(openapitest.SchemaFromYAML(t.Context(), t, tc.body)))
 			assert.Equal(t, tc.wantKind, got.Kind)
-			assert.Equal(t, tc.wantNode, got.Node != nil, "Node presence")
+			assert.Equal(t, tc.wantNode, statement.Parsed(got.Node) != nil, "Node presence")
 			assert.Nil(t, got.Referents, "At fills no referent")
 		})
 	}
@@ -414,7 +424,7 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 		t.Parallel()
 		got := At(nil)
 		assert.Equal(t, Declaration, got.Kind)
-		assert.Nil(t, got.Node)
+		assert.Nil(t, statement.Parsed(got.Node))
 		assert.Nil(t, got.Referents)
 	})
 }
@@ -425,11 +435,11 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 // At builds (see TestAt_ClassifiesEveryPositionShape).
 func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 	t.Parallel()
-	got := At(openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/Target', description: fromSite}\n"))
+	got := At(standalone(openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/Target', description: fromSite}\n")))
 
 	require.Equal(t, Reference, got.Kind)
-	require.NotNil(t, got.Node, "the body written beside the $ref is the site's own")
-	assert.Equal(t, "fromSite", got.Node.GetDescription())
+	require.NotNil(t, statement.Parsed(got.Node), "the body written beside the $ref is the site's own")
+	assert.Equal(t, "fromSite", statement.Parsed(got.Node).GetDescription())
 	assert.Nil(t, got.Referents, "and the schema the $ref names is not read here")
 }
 
@@ -582,7 +592,7 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			got, disjoint := EffectiveVisibility([]*oas3.Schema{ref, tgt})
+			got, disjoint := EffectiveVisibility([]*statement.Schema{standaloneSchema(ref), standaloneSchema(tgt)})
 			assert.Equal(t, tc.want, got)
 			assert.Equal(t, tc.wantDisjoint, disjoint, "whether the flags left no lifecycle at all")
 		})
@@ -618,7 +628,7 @@ func TestEffectiveDeprecated_AnySchemaDeprecates(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			assert.Equal(t, tc.want, EffectiveDeprecated([]*oas3.Schema{ref, tgt}))
+			assert.Equal(t, tc.want, EffectiveDeprecated([]*statement.Schema{standaloneSchema(ref), standaloneSchema(tgt)}))
 		})
 	}
 }
@@ -631,8 +641,8 @@ func TestFillTypeDocs_AssignsRatherThanAccumulates(t *testing.T) {
 	s := schemaFromYAML(t, "title: T\ndescription: D\nexternalDocs: {url: 'https://x', description: E}\n")
 
 	var d ir.Docs
-	FillTypeDocs(&d, s)
-	FillTypeDocs(&d, s)
+	FillTypeDocs(&d, standaloneSchema(s))
+	FillTypeDocs(&d, standaloneSchema(s))
 
 	assert.Equal(t, "T", d.Summary)
 	assert.Equal(t, "D", d.Description)
@@ -646,7 +656,7 @@ func TestFillTypeDocs_AnAbsentFieldOverwritesNothing(t *testing.T) {
 	t.Parallel()
 	d := ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}
 
-	FillTypeDocs(&d, schemaFromYAML(t, "type: string\n"))
+	FillTypeDocs(&d, standaloneSchema(schemaFromYAML(t, "type: string\n")))
 
 	assert.Equal(t, ir.Docs{Summary: "kept", Description: "kept", ExternalDocs: []ir.Link{{URL: "kept"}}}, d)
 }
@@ -660,9 +670,9 @@ func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
 	t.Parallel()
 	var d ir.Docs
 
-	FillCarrierDocs(&d, []*oas3.Schema{
-		schemaFromYAML(t, "description: fromSite\n"),
-		schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n"),
+	FillCarrierDocs(&d, []*statement.Schema{
+		standaloneSchema(schemaFromYAML(t, "description: fromSite\n")),
+		standaloneSchema(schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n")),
 	})
 
 	assert.Equal(t, "fromTarget", d.Summary, "the title has no site-local answer")
@@ -700,7 +710,7 @@ func TestSchemaExamplesAt_ReadsBothKeywordsInOrder(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nexample: one\nexamples: [two, three]\n")
 
-	got, diags := schemaExamplesAt(s, "/components/schemas/S", sourced(0))
+	got, diags := schemaExamplesAt(standaloneSchema(s), "/components/schemas/S", sourced(0))
 
 	assert.Empty(t, diags)
 	require.Len(t, got, 3)
@@ -718,7 +728,7 @@ func TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer(t *testin
 	t.Parallel()
 	s := schemaFromYAML(t, "type: number\nexample: .nan\n")
 
-	got, diags := schemaExamplesAt(s, "/S", overlaid("/S/example"))
+	got, diags := schemaExamplesAt(standaloneSchema(s), "/S", overlaid("/S/example"))
 
 	assert.Empty(t, got, "an unconvertible example yields no value")
 	require.Len(t, diags, 1)
@@ -776,4 +786,20 @@ func overlaid(pointers ...jsontext.Pointer) provenance.Doc {
 		at.Write()
 	}
 	return provenance.Doc{Overlay: provenance.Attributed(1, touched)}
+}
+
+// standalone returns the statement of js read alone, by a table of its own
+// that knows no bindings and reads no rows: for a test handing a schema it
+// decoded to a reader that takes a statement.
+func standalone(js *oas3.JSONSchema[oas3.Referenceable]) *statement.Statement {
+	return statement.NewTable(statement.Source{}).Of(js)
+}
+
+// standaloneSchema is standalone for a schema object decoded alone, nil for a
+// nil s.
+func standaloneSchema(s *oas3.Schema) *statement.Schema {
+	if s == nil {
+		return nil
+	}
+	return standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](s)).Schema
 }

@@ -30,7 +30,7 @@ func TestRefNullRef_AnUnresolvedRefIsNotNullable(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 
-	ref, diags := refNullRef(NewRawLowerer(&soa.OpenAPI{}).Ctx, "t/x", js, siteAt("/x"))
+	ref, diags := refNullRef(NewRawLowerer(&soa.OpenAPI{}).Ctx, "t/x", Standalone(js), siteAt("/x"))
 	assert.Equal(t, ir.TypeRef{Target: "t/x"}, ref)
 	assert.Empty(t, diags)
 }
@@ -50,10 +50,10 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 	}
 
 	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
-	require.Equal(t, alike(nullAdmitted), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(1))}).schema(nullable, nullSite{}),
+	require.Equal(t, alike(nullAdmitted), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(1))}).schema(StandaloneSchema(nullable), nullSite{}),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, alike(nullSilent), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(0))}).schema(nullable, nullSite{}),
+	assert.Equal(t, alike(nullSilent), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(0))}).schema(StandaloneSchema(nullable), nullSite{}),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
@@ -72,8 +72,8 @@ func TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas(t *testing.T) {
 		return js.GetSchema()
 	}
 	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
-	assert.True(t, schemaAdmitsNull(c, chain(maxNullConjuncts-1)), "the null the last schema the budget reads admits")
-	assert.False(t, schemaAdmitsNull(c, chain(maxNullConjuncts)), "one schema deeper, the walk is silent")
+	assert.True(t, schemaAdmitsNull(c, StandaloneSchema(chain(maxNullConjuncts-1))), "the null the last schema the budget reads admits")
+	assert.False(t, schemaAdmitsNull(c, StandaloneSchema(chain(maxNullConjuncts))), "one schema deeper, the walk is silent")
 }
 
 // TestNulls_ABranchWithNoSchemaSaysNothing pins the guard on an
@@ -85,7 +85,7 @@ func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
 	n := &nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
-	assert.Equal(t, alike(nullSilent), n.conjunct(openapitest.EmptyEitherSchema(), nullSite{}),
+	assert.Equal(t, alike(nullSilent), n.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
 		"a branch whose either-value holds neither schema nor bool says nothing either")
 }
 
@@ -113,14 +113,14 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 				continue // 3.0 writes no type list, so it reads this one as left out
 			}
 			s := declared(t, l, "S"+string(rune('a'+i)))
-			got, ok := nullAloneReading(l.Ctx, s)
+			got, ok := nullAloneReading(l.Ctx, StandaloneSchema(s))
 			require.True(t, ok, "%s %s leaves no value but null", version, src)
 			n := newNulls(l.Ctx)
-			assert.Equal(t, n.schema(s, nullSite{}), got, "%s %s", version, src)
+			assert.Equal(t, n.schema(StandaloneSchema(s), nullSite{}), got, "%s %s", version, src)
 		}
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {type: [string, \"null\"]}\n"))
-	_, ok := nullAloneReading(l.Ctx, declared(t, l, "S"))
+	_, ok := nullAloneReading(l.Ctx, StandaloneSchema(declared(t, l, "S")))
 	assert.False(t, ok, "a type admitting a string leaves more than null")
 }
 
@@ -132,10 +132,10 @@ func TestNullAloneReading_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {enum: [null]}\n"))
 	s := declared(t, l, "S")
-	first, ok := nullAloneReading(l.Ctx, s)
+	first, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 	require.True(t, ok)
 	s.Enum = nil
-	again, ok := nullAloneReading(l.Ctx, s)
+	again, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 	assert.True(t, ok, "the second ask reads what the first read")
 	assert.Equal(t, first, again)
 }

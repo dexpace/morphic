@@ -9,11 +9,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -54,8 +53,9 @@ const (
 // table's check to report (docs/compilers/openapi.md#constraints) or the caller
 // to keep. The second return holds a 3.0 exclusive modifier with no bound
 // beside it (applyExclusiveFlag), placed by pointer and doc.
-func Constraints(s *oas3.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
-	if s == nil {
+func Constraints(s *statement.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
+	m := statement.Parsed(s)
+	if m == nil {
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
@@ -67,13 +67,13 @@ func Constraints(s *oas3.Schema, take Bounds, exclusiveBoolean bool, pointer jso
 		diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
 	}
 	if take&StringBounds != 0 {
-		c.MinLength = ExactCount(s, "minLength", s.MinLength)
-		c.MaxLength = ExactCount(s, "maxLength", s.MaxLength)
-		c.Pattern = s.GetPattern()
+		c.MinLength = ExactCount(s, "minLength", m.MinLength)
+		c.MaxLength = ExactCount(s, "maxLength", m.MaxLength)
+		c.Pattern = m.GetPattern()
 	}
 	if take&ObjectBounds != 0 {
-		c.MinProps = ExactCount(s, "minProperties", s.MinProperties)
-		c.MaxProps = ExactCount(s, "maxProperties", s.MaxProperties)
+		c.MinProps = ExactCount(s, "minProperties", m.MinProperties)
+		c.MaxProps = ExactCount(s, "maxProperties", m.MaxProperties)
 	}
 	if emptyConstraints(c) {
 		return nil, residue.kept, diags
@@ -88,7 +88,7 @@ func Constraints(s *oas3.Schema, take Bounds, exclusiveBoolean bool, pointer jso
 // docs/parser-library.md#scalar-resolution), never the model's,
 // which reads 010 as 8, holds an integer past int64 as 0 and cuts a fraction to
 // an integer. A negative one is the load phase's to report.
-func ExactCount(s *oas3.Schema, keyword string, count *int64) *int64 {
+func ExactCount(s *statement.Schema, keyword string, count *int64) *int64 {
 	node := RawPropertyNode(s, keyword)
 	if count == nil || node == nil || (node.ShortTag() != "!!int" && node.ShortTag() != "!!float") {
 		return nil
@@ -116,7 +116,7 @@ func ExactCount(s *oas3.Schema, keyword string, count *int64) *int64 {
 
 // CountIsExact reports whether the integer keyword s writes states a count,
 // the parser's model holding one, count (ExactCount).
-func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
+func CountIsExact(s *statement.Schema, keyword string, count *int64) bool {
 	return ExactCount(s, keyword, count) != nil
 }
 
@@ -151,7 +151,7 @@ func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic
 // numericBounds fills Min, Max, and MultipleOf from the raw minimum/maximum/
 // multipleOf nodes, preserving exact decimal text, and skips one no decimal
 // spells.
-func numericBounds(c *ir.Constraints, s *oas3.Schema) {
+func numericBounds(c *ir.Constraints, s *statement.Schema) {
 	bounds := []struct {
 		prop string
 		dst  **ir.BigVal
@@ -179,10 +179,11 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) {
 // exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
 // wrong form for the dialect, or a literal no decimal spells, is dropped, and
 // the rule table's check reports it (Constraints).
-func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
-	ev := s.GetExclusiveMaximum()
+func applyExclusive(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
+	m := statement.Parsed(s)
+	ev := m.GetExclusiveMaximum()
 	if side == minBound {
-		ev = s.GetExclusiveMinimum()
+		ev = m.GetExclusiveMinimum()
 	}
 	_, prop := boundProps(side)
 	node := RawPropertyNode(s, prop)
@@ -212,7 +213,7 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 // Absence is read off the raw node, because the parsed slot is also nil for a
 // bound numericBounds could not read. That bound has drawn its own error, and
 // its modifier is dropped silently.
-func applyExclusiveFlag(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, flag *bool) []ir.Diagnostic {
+func applyExclusiveFlag(c *ir.Constraints, s *statement.Schema, side boundSide, residue *boundResidue, flag *bool) []ir.Diagnostic {
 	if flag == nil || !*flag {
 		return nil
 	}

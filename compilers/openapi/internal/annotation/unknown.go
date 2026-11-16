@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -95,7 +95,7 @@ var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 // and `dependentRequired` have readers of their own. A keyword no reader
 // leaves a trace of is named in decidedKeywords, or in taken where only the
 // caller knows a reader took it.
-func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
+func UnknownKeywordsIn(p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
 	keys, root := unknownSchemaKeys(s)
 	keys = slices.DeleteFunc(keys, func(key string) bool { return slices.Contains(taken, key) })
 	return census(p, keys, root, doc, pointer, "", keyClass{
@@ -109,7 +109,7 @@ func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer
 // WritesUnknownKeyword reports whether s writes a keyword UnknownKeywordsIn
 // would consider keeping, so a position can tell whether it needs a node of its
 // own for one to land on.
-func WritesUnknownKeyword(s *oas3.Schema) bool {
+func WritesUnknownKeyword(s *statement.Schema) bool {
 	keys, _ := unknownSchemaKeys(s)
 	return len(keys) > 0
 }
@@ -118,8 +118,9 @@ func WritesUnknownKeyword(s *oas3.Schema) bool {
 // keyword left out (RawPropertyNode), for a reader that lists the keys s writes
 // rather than asking for one. A null is a value in an extension, and in a key
 // the census keeps.
-func WritesKeywordLeftOut(s *oas3.Schema, key string) bool {
-	if !IsNullNode(nodeview.Child(s.GetRootNode(), key)) || holdsInstance(key) || strings.HasPrefix(key, "x-") {
+func WritesKeywordLeftOut(s *statement.Schema, key string) bool {
+	m := statement.Parsed(s)
+	if !IsNullNode(nodeview.Child(m.GetRootNode(), key)) || holdsInstance(key) || strings.HasPrefix(key, "x-") {
 		return false
 	}
 	keys, _ := unknownSchemaKeys(s)
@@ -131,8 +132,9 @@ func WritesKeywordLeftOut(s *oas3.Schema, key string) bool {
 // the ones decided about (DecidedKeyword) and a null for a keyword the dialect
 // defines, which reads as left out (RawPropertyNode). A key of no vocabulary
 // has no type a null could break, so it is kept with the null it wrote.
-func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
-	keys, root := undeclaredKeys(s)
+func unknownSchemaKeys(s *statement.Schema) ([]string, *yaml.Node) {
+	m := statement.Parsed(s)
+	keys, root := undeclaredKeys(m)
 	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
 		return DecidedKeyword(key) ||
 			slices.Contains(modellessKeywords, key) && IsNullNode(nodeview.Child(root, key))
@@ -144,11 +146,12 @@ func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
 // reads, and announces each as UnknownKeywordsIn announces a keyword the model
 // does not name: JSON Schema 2020-12 ignores the two alike. The caller says
 // which keywords those are, since only it knows the dialect and the policies.
-func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer jsontext.Pointer, doc provenance.Doc) []ir.Diagnostic {
+func UndefinedKeywordsIn(p *ir.Unmodeled, s *statement.Schema, keys []string, pointer jsontext.Pointer, doc provenance.Doc) []ir.Diagnostic {
+	m := statement.Parsed(s)
 	if len(keys) == 0 {
 		return nil
 	}
-	_, root := undeclaredKeys(s)
+	_, root := undeclaredKeys(m)
 	return census(p, keys, root, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,

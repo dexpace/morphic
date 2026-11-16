@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,7 +33,7 @@ const maxChainHops = 64
 // declared there (declaredAt).
 type link struct {
 	at   bind.Position
-	decl *oas3.JSONSchema[oas3.Referenceable]
+	decl *statement.Statement
 	id   ir.TypeID
 }
 
@@ -52,7 +53,7 @@ func (v valueChain) end() link { return v.links[len(v.links)-1] }
 // (follow).
 type chainFrom struct {
 	at   bind.Position
-	decl *oas3.JSONSchema[oas3.Referenceable]
+	decl *statement.Statement
 }
 
 // chainOf reads value, a value of d's mapping or its defaultMapping, as
@@ -78,12 +79,13 @@ func chainOf(c lowering.Ctx, d *oas3.Discriminator, value string) (valueChain, b
 // valuePosition is the position value, a value of d's mapping, names, and the
 // schema held there: the entry document's component it is the name of, else
 // where it lands read as a URI reference, false where it lands on no schema.
-func valuePosition(c lowering.Ctx, d *oas3.Discriminator, value string) (bind.Position, *oas3.JSONSchema[oas3.Referenceable], bool) {
+func valuePosition(c lowering.Ctx, d *oas3.Discriminator, value string) (bind.Position, *statement.Statement, bool) {
 	if c.DeclaresSchema(value) {
 		at := bind.Position{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
-		return at, c.Bindings().At(at), true
+		return at, c.Statements().Of(c.Bindings().At(at)), true
 	}
-	return c.RefScope().MappingTarget(d, value)
+	at, js, ok := c.RefScope().MappingTarget(d, value)
+	return at, c.Statements().Of(js), ok
 }
 
 // follow returns the chain from start: each $ref read in turn, to the first
@@ -96,11 +98,11 @@ func follow(c lowering.Ctx, start link) valueChain {
 	chain := valueChain{links: []link{start}}
 	for range maxChainHops {
 		decl := chain.end().decl
-		if _, writes := scope.Bindings.Entry(decl); !writes {
+		if _, writes := scope.Bindings.Entry(statement.ParsedAt(decl)); !writes {
 			break
 		}
-		next, ok := scope.Target(decl)
-		l := link{at: next, decl: scope.Bindings.Declared(decl)}
+		next, ok := scope.Target(statement.ParsedAt(decl))
+		l := link{at: next, decl: c.Statements().Of(scope.Bindings.Declared(statement.ParsedAt(decl)))}
 		if ok {
 			l.id, ok = declaredAt(c, l.at, l.decl)
 		}
@@ -117,7 +119,7 @@ func follow(c lowering.Ctx, start link) valueChain {
 // route can name, as resolveAt resolves it without promising it (declaredIn):
 // a component the source declares, by its name, or a schema the compile can
 // hoist, in a document it read, by the ID its pointer derives there.
-func declaredAt(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+func declaredAt(c lowering.Ctx, at bind.Position, decl *statement.Statement) (ir.TypeID, bool) {
 	in, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false
@@ -163,17 +165,17 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		// A non-null branch lacking its variant is a compiler bug
 		// spellImplicitRoutes reports; it routes nothing here.
 		i := len(x.pointers)
-		if nullBranch(c, b) || i == len(variants) {
+		if nullBranch(c, c.Statements().Of(b)) || i == len(variants) {
 			continue
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(n))
 		x.pointers = append(x.pointers, vptr)
 		keepFirst(x.is, variants[i].Type.Target, i)
 		own := c.Position(vptr)
-		if id, ok := declaredAt(c, own, b); ok {
+		if id, ok := declaredAt(c, own, c.Statements().Of(b)); ok {
 			keepFirst(x.is, id, i)
 		}
-		for _, l := range follow(c, link{at: own, decl: b}).links[1:] {
+		for _, l := range follow(c, link{at: own, decl: c.Statements().Of(b)}).links[1:] {
 			keepFirst(x.passes, l.id, i)
 			x.several[l.id] = append(x.several[l.id], i)
 		}
@@ -303,8 +305,9 @@ func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, value string) string {
 // keeps it verbatim: each value reaches what it names as a reference does, so
 // the type each chain ends on is promised a node, and one naming no schema is
 // reported at its entry, as on a model.
-func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	d := s.GetDiscriminator()
+func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	m := statement.Parsed(s)
+	d := m.GetDiscriminator()
 	if d == nil {
 		return nil
 	}

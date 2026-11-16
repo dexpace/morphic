@@ -160,7 +160,7 @@ func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
 			there, read := lowering.InDocument(l.Ctx, at.Doc)
 			want := false
 			if read {
-				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Bindings().At(at))
+				_, want = resolvePointer(there, l.Types, at.Pointer, Standalone(l.Ctx.Bindings().At(at)))
 			}
 			assert.Equal(t, want, resolvesAt(l.Ctx, at), "%s: %v", name, at)
 			asked++
@@ -197,7 +197,7 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	}
 	branch := func(name string) allOfBranch {
 		s := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).GetSchema()
-		return allOfBranches(nil, s, "").branches[0]
+		return allOfBranches(l.Ctx, StandaloneSchema(s), "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
 		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
@@ -205,8 +205,8 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	w := newAdmission(l.Ctx)
 	fields := modelFields{c: l.Ctx}
 
-	assert.True(t, w.sameText(at("Plain"), at("Twin")))
-	assert.False(t, w.sameText(at("Plain"), at("Deep")))
+	assert.True(t, w.sameText(Standalone(at("Plain")), Standalone(at("Twin"))))
+	assert.False(t, w.sameText(Standalone(at("Plain")), Standalone(at("Deep"))))
 	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
 	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))

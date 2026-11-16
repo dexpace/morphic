@@ -298,16 +298,20 @@ it.
 
 A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
-default, a `const`, an enum member, an Example Object's value, an `x-` key, a field its object
-leaves out, and an Encoding Object another nests, which the lowering keeps verbatim
-([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)) and whose references are read all the
-same, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
-mapping of the document lands in, its fragment read as the binder reads one, percent escapes
-decoded, is named node by node as the kind that reference expects, once, where the walk has not
-named it already. It is
-refused only when that total too is past the bound, or when it cannot be taken: a reference leaves
+default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
+leaves out, adds its root alone, though not an Encoding Object another nests: the lowering keeps
+it verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), but the binder reads it
+node by node for the references written in it. A mapping's members are read as the binder reads
+them, each a `<<` merge key brings in named at the mapping and a key written twice at its last copy
+([`validation`](#validation)), so a schema merged into a schema's position is named node by
+node. A raw value a `$ref`, a `$dynamicRef` or a
+discriminator mapping of the document lands in, its fragment read as the binder reads one, percent
+escapes decoded, is named node by node as the kind that reference expects, once, where the walk has
+not named it already. It is refused only when that total too is past the bound, or when it cannot
+be taken: a reference leaves
 the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
-lands; a fragment is no JSON pointer; the document may name a dialect, by `jsonSchemaDialect` or a
+lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the depth the binder
+expands; the document may name a dialect, by `jsonSchemaDialect` or a
 `$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
 `definitions`, `dependencies`, an `items` list and `additionalItems`); or the weighing runs past the
 node bound. An overlay document and a document a reference reads keep the first total.
@@ -358,6 +362,8 @@ node bound. An overlay document and a document a reference reads keep the first 
   `e2e.TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode`,
   `e2e.TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode`,
   `bind.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
+  `bind.TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode`,
+  `bind.TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping`,
   `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`,
   `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
   `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
@@ -2777,19 +2783,20 @@ written and the schema's own `properties` after its `allOf`; a union branch dist
 variant reads before the body. A declaration an entry brings stays declared on its own model, so it
 is not kept verbatim, and a report about it sits at the entry bringing it, naming the member in its
 `Provenance.Node`, and names a declaration another document holds with that document's name, a
-member a part settled by the one place its type is written, and one written nowhere, as a member
-only a part's entries declare, by the entry bringing it. A member the model declares itself keeps
-the identity of the first of its own declarations, unless another model holds that declaration too,
-as a node interned at the `allOf` branch writing it does, or as the variants of a distributed union
-share their body's; that one, and one only entries declare, the model declares in the `composed`
-namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it, and a node its
-fold mints, name an overlay that wrote every entry and declaration it is assembled from. A model the
-merge composes, a distributed variant or a field's composition, shares its pointer with the schema
-written there, which may settle a member of that name too, so it declares one an `allOf` deeper, at
-`<model>/allOf/allOf/properties/<name>`, and no two models name one member. The member is required
-where the model's `required` names it, which the name then leaves, and a discriminator naming the
-model's own declaration, or by its name a member only entries declare, names the member
-([`discriminator`](#discriminator)).
+member a part settled by the one place its type is written, or by its first declaration where its
+type is written at several places or none, and one that would so be named where nothing is written,
+as a member only a part's entries declare, by the entry bringing it. A member the model declares
+itself keeps the identity of the first of its own declarations, unless another model holds that
+declaration too, as a node interned at the `allOf` branch writing it does, or as the variants of a
+distributed union share their body's; that one, and one only entries declare, the model declares in
+the `composed` namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it,
+and a node its fold mints, name an overlay that wrote every entry and declaration it is assembled
+from. A model the merge composes, a distributed variant or a field's composition, shares its pointer
+with the schema written there, which may settle a member of that name too, so it declares one an
+`allOf` deeper, at `<model>/allOf/allOf/properties/<name>`, and no two models name one member. The
+member is required where the model's `required` names it, which the name then leaves, and a
+discriminator naming the model's own declaration, or by its name a member only entries declare,
+names the member ([`discriminator`](#discriminator)).
 The registry does not record which heuristic made a brought declaration secret, so a secret one's
 `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
 composes for a member lists its parts as the entries bringing them are written, and settles in turn,
@@ -3130,7 +3137,7 @@ A keyword beside a `$ref` entry states nothing either: OpenAPI 3.0 ignores it, a
 any version. A conjunct writing an `allOf` also states nothing here where its `type` and its entries
 leave at most a null, which is what keeps a schema composing a reported one from drawing a second
 report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
-entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
+entries share or a `type: "null"` beside them, or one nested past `statement.MaxFlattenDepth`. An
 `allOf` beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read.
 One passed over for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as
 any composition is, and the warning names the value set the position lowered as.
@@ -4959,17 +4966,19 @@ rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema case
 of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
 compiles, for each keyword at each position the cases write a schema and in each spelling they write
 it in (merged into the schema it is said of, beside a `$ref` to that schema, beside an `allOf` of
-the `$ref`, on an entry of the `allOf` before or after the `$ref`, and on such an entry nested one
-`allOf` deeper), three documents: the keyword absent, written with one value, written with a second.
+the `$ref`, on an entry of the `allOf` after the `$ref`, and on such an entry nested one `allOf`
+deeper), three documents: the keyword absent, written with one value, written with a second.
 It requires the absent form to differ from the first and the first from the second, and an exception
 to equal the absent form, its justification written beside the keyword; where the target writes the
 keyword itself, there is no absent form, and the two values are compared alone. A keyword that stops
 being carried at any one position or in any one spelling fails there rather than waiting for a
 reader to notice, and a finding that stands is listed with its reason in the package's
-`testdata/presence.txt`. The guarantee is a floor rather than an inventory: it compares one pair of
-values per keyword, so a lowering that carried one value and dropped another would still pass. A
-keyword kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
-([`validation-only`](#validation-only)).
+`testdata/presence.txt`. The test asks this of the core cases, which the gate runs;
+`morphic-harness -cases full` asks it of every case, an entry written before the `$ref` among them,
+and reports what the record does not explain. The guarantee is a floor rather than an inventory:
+it compares one pair of values per keyword, so a lowering that carried one value and dropped
+another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the positions
+they land on are lowered ([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
   `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,

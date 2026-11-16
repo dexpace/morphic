@@ -349,7 +349,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	decoded := &oas3.JSONSchema[oas3.Referenceable]{}
 	_, err := marshaller.UnmarshalNode(t.Context(), "", misshapen.Content[0], decoded)
 	require.NoError(t, err)
-	unchecked := statement.NewTable(statement.Source{Dialects: rows{rulesAt(t, "3.1.0", "")}}).Of(decoded)
+	unchecked := statement.NewTable(statement.Source{Rules: everywhere(rulesAt(t, "3.1.0", ""))}).Of(decoded)
 	require.Len(t, unchecked.Keys, 3, "a schema no load checked, decoded alone")
 	assert.Nil(t, unchecked.Notes.XML, "a value the parser's model does not hold opens its slot and fills nothing")
 	assert.Nil(t, unchecked.Notes.ExternalDocs)
@@ -364,7 +364,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	assert.False(t, read, "a nil schema writes nothing")
 
 	js := c.Bindings().At(component(c, "Disc"))
-	unknown := statement.NewTable(statement.Source{Dialects: rows{rulesAt(t, "3.1.0", "")}}).Of(js)
+	unknown := statement.NewTable(statement.Source{Rules: everywhere(rulesAt(t, "3.1.0", ""))}).Of(js)
 	assert.Equal(t, bind.Position{}, unknown.At, "a value the bindings do not know has no position")
 	require.NotNil(t, unknown.Object.Discriminator)
 	assert.Equal(t, "a", unknown.Object.Discriminator.PropertyName)

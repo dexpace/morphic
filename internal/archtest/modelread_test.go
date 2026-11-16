@@ -26,7 +26,8 @@ import (
 // modelReadBaseline is how many times each production package, keyed by its
 // repo-relative path, selects each member of the parser library's schema
 // types outside the statement adapter, compilers/openapi/internal/statement's
-// model.go. TestModelReads_HeldToTheBaseline fails when a count rises, since
+// model.go, and names a bridge back to them (bridgeKey).
+// TestModelReads_HeldToTheBaseline fails when a count rises, since
 // each new read is a second reading of the source beside the statement, and
 // when one falls until the count here is lowered to match, so the map only
 // shrinks as the readers move onto the statement (GitHub #1991).
@@ -67,6 +68,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"MinProperties":            1,
 		"ReadOnly":                 1,
 		"WriteOnly":                1,
+		"statement.Parsed":         19,
 	},
 	"compilers/openapi/internal/bind/typed": {
 		"GetCore":     1,
@@ -90,12 +92,13 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetPrefixItems":           1,
 		"GetProperties":            3,
 		"GetRootNode":              2,
-		"GetSchema":                6,
+		"GetSchema":                4,
 		"GetThen":                  1,
 		"GetType":                  6,
 		"GetUnevaluatedProperties": 2,
 		"IsBool":                   1,
 		"IsSchema":                 2,
+		"statement.Parsed":         16,
 	},
 	"compilers/openapi/internal/resolve": {
 		"GetSchema": 1,
@@ -105,13 +108,13 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetAdditionalProperties":  2,
 		"GetAllOf":                 20,
 		"GetAnyOf":                 15,
-		"GetBool":                  2,
+		"GetBool":                  1,
 		"GetConst":                 12,
 		"GetContains":              1,
 		"GetContentEncoding":       3,
 		"GetContentMediaType":      2,
 		"GetContentSchema":         2,
-		"GetCore":                  3,
+		"GetCore":                  2,
 		"GetDefault":               2,
 		"GetDependentSchemas":      1,
 		"GetDeprecated":            4,
@@ -137,7 +140,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetRef":                   1,
 		"GetRequired":              6,
 		"GetRootNode":              13,
-		"GetSchema":                56,
+		"GetSchema":                22,
 		"GetThen":                  1,
 		"GetTitle":                 1,
 		"GetType":                  12,
@@ -145,7 +148,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetUnevaluatedProperties": 2,
 		"GetUniqueItems":           1,
 		"GetXML":                   1,
-		"IsBool":                   5,
+		"IsBool":                   4,
 		"IsSchema":                 1,
 		"MaxItems":                 4,
 		"MaxLength":                1,
@@ -156,6 +159,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"Nullable":                 8,
 		"Ref":                      4,
 		"UniqueItems":              3,
+		"statement.Parsed":         228,
 	},
 }
 
@@ -166,6 +170,37 @@ var modelReadRatchet = ratchet{
 	what:   "reads of",
 	rise: "each is a second reading of the source beside compilers/openapi/internal/statement, " +
 		"which reads the parser's schema once (GitHub #1991)",
+}
+
+// bridgeKey is the key modelReadBaseline counts each use of the statement's
+// bridges under: a function handing back the parser's value a statement was
+// read from, which a reader not yet reading the statement reads the model
+// through as surely as by a selection on it.
+const bridgeKey = "statement.Parsed"
+
+// statementPackage is the package the bridges are declared in, and bridges
+// names them.
+const statementPackage = module + "/compilers/openapi/internal/statement"
+
+var bridges = []string{"Parsed", "ParsedAt"}
+
+// bridgeUses returns where p names one of the statement's bridges.
+func bridgeUses(p *decls.Package) []token.Position {
+	var out []token.Position
+	for id, obj := range p.Info.Uses {
+		fn, ok := obj.(*types.Func)
+		if !ok || fn.Pkg() == nil || fn.Pkg().Path() != statementPackage || !slices.Contains(bridges, fn.Name()) {
+			continue
+		}
+		out = append(out, p.Fset.Position(id.Pos()))
+	}
+	slices.SortFunc(out, func(a, b token.Position) int {
+		if c := strings.Compare(a.Filename, b.Filename); c != 0 {
+			return c
+		}
+		return a.Offset - b.Offset
+	})
+	return out
 }
 
 // schemaModel names the parser library's schema types: a package and the
@@ -274,6 +309,9 @@ func TestModelReads_HeldToTheBaseline(t *testing.T) {
 		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
 		outside, inside := modelSelections(p, parserSchema, adapter)
 		inAdapter += inside
+		if at := bridgeUses(p); len(at) > 0 {
+			outside[bridgeKey] = at
+		}
 		for member, at := range outside {
 			if sites[rel] == nil {
 				sites[rel] = map[string][]string{}

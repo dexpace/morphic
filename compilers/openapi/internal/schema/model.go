@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
@@ -19,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,17 +31,18 @@ import (
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool, takes kindSet) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool, takes kindSet) (ir.TypeID, []ir.Diagnostic) {
+	sM := statement.Parsed(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer, takes)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
-		requireMembers(m, s.GetRequired())
+		requireMembers(m, sM.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, nil)
+			d, discDiags := lowerDiscriminator(c, ts, sM.GetDiscriminator(), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -144,8 +144,8 @@ func (f modelFields) Untyped(p ir.Provenance) bool {
 	if js == nil || js.GetSchema() == nil {
 		return false
 	}
-	r := conjunctTypes{refs: f.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
-	return r.schema(js.GetSchema(), f.c.Bindings().RefKeyword(js)) == anyInstance && !r.steps.Exhausted() && !r.passedOver
+	r := conjunctTypes{c: f.c, steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
+	return r.schema(f.c.Statements().Of(js).Schema, f.c.Bindings().RefKeyword(js)) == anyInstance && !r.steps.Exhausted() && !r.passedOver
 }
 
 // Mint registers node, the type of the field the declaration at pointer names
@@ -196,17 +196,18 @@ func membersBeneath(ms []ir.EnumMember, from ir.TypeID, idAt func(tail string) i
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
 // Which are required is requireMembers' to say, once every property is in.
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields modelFields, s *oas3.Schema,
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields modelFields, s *statement.Schema,
 	pointer jsontext.Pointer,
 ) []ir.Diagnostic {
-	props := s.GetProperties()
+	m := statement.Parsed(s)
+	props := m.GetProperties()
 	if props == nil {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	for name, js := range props.All() {
 		ppointer := pointer + ids.Ptr("properties", name)
-		ref, refDiags := CarriedRef(c, ts, depth, js, ppointer)
+		ref, refDiags := CarriedRef(c, ts, depth, c.Statements().Of(js), ppointer)
 		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         c.IDs().Prop(ppointer),
@@ -215,14 +216,14 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 			Type:       ref,
 			Provenance: c.Place().At(ppointer),
 		}
-		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
+		diags = append(diags, FillPropertyDetail(c, ts, &p, c.Statements().Of(js), ppointer)...)
 		declared := p.Secret
-		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, c.Statements().Of(js), p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 		var secretBy ir.Inferred
 		if p.Secret && !declared {
 			secretBy = promotion.ExtensionPromotionHeuristic
 		}
-		fields.merge(p, redeclarationSource(js), secretBy)
+		fields.merge(p, redeclarationSource(c.Statements().Of(js)), secretBy)
 	}
 	return diags
 }
@@ -236,15 +237,16 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 //
 // A boolean schema has no node of its own to render, so its value is spelled
 // out; a `$ref` is rendered as the `$ref` the position wrote, not the target.
-func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
+func redeclarationSource(js *statement.Statement) merge.Source {
+	m := statement.ParsedAt(js)
 	return func() (ir.RawValue, error) {
-		if annotation.IsNoSchema(js) {
-			return annotation.RawFromNode(js.GetCore().GetRootNode())
+		if annotation.IsNoSchema(m) {
+			return annotation.RawFromNode(m.GetCore().GetRootNode())
 		}
-		if b := js.GetBool(); b != nil {
+		if b := m.GetBool(); b != nil {
 			return ir.RawValue(strconv.FormatBool(*b)), nil
 		}
-		return annotation.RawFromNode(js.GetSchema().GetRootNode())
+		return annotation.RawFromNode(m.GetSchema().GetRootNode())
 	}
 }
 
@@ -280,16 +282,17 @@ func requireMembers(m *ir.Model, required []string) {
 // catch-all, unless patterns need one. Neither spelling touches Additional,
 // which this sets only for `false` and for an `unevaluatedProperties: false`
 // no additionalProperties leaves inert (annotation.ClosesAfterComposition).
-func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	sM := statement.Parsed(s)
 	var diags []ir.Diagnostic
-	ap := s.GetAdditionalProperties()
+	ap := sM.GetAdditionalProperties()
 	switch {
 	case !annotation.Written(ap):
 		// Left out, or a null, which states nothing: no catch-all is written.
 	case annotation.IsFalseSchema(ap):
 		m.Additional = ir.AdditionalClosed
 	default:
-		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
+		ref, refDiags := Ref(c, ts, depth, c.Statements().Of(ap), pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
@@ -334,15 +337,16 @@ func forbidRest(m *ir.Model) {
 
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
-func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) ([]ir.PatternProps, []ir.Diagnostic) {
-	pp := s.GetPatternProperties()
+func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProps, []ir.Diagnostic) {
+	m := statement.Parsed(s)
+	pp := m.GetPatternProperties()
 	if pp == nil || pp.Len() == 0 {
 		return nil, nil
 	}
 	var diags []ir.Diagnostic
 	out := make([]ir.PatternProps, 0, pp.Len())
 	for pattern, js := range pp.All() {
-		ref, refDiags := Ref(c, ts, depth, js, pointer+ids.Ptr("patternProperties", pattern))
+		ref, refDiags := Ref(c, ts, depth, c.Statements().Of(js), pointer+ids.Ptr("patternProperties", pattern))
 		diags = append(diags, refDiags...)
 		out = append(out, ir.PatternProps{Pattern: pattern, Value: ref})
 	}

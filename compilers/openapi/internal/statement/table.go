@@ -11,22 +11,17 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
 
 // Source is what a Table reads: the bindings holding each schema of the
 // documents and where it was read, and the rows each position's schema is
-// read with.
+// read with, those of the dialect in force there (dialect.Table.At).
 type Source struct {
 	Bindings *typed.Bindings
-	Dialects Dialects
-}
-
-// Dialects answers the Schema Object's rows a schema read at a position is
-// read with: the rows of the dialect in force there.
-type Dialects interface {
-	At(p bind.Position) oas.SchemaRules
+	Rules    dialect.Table
 }
 
 // Table reads schema objects into statements and remembers each, keyed by the
@@ -41,8 +36,8 @@ type Table struct {
 	reads int
 }
 
-// NewTable returns a table reading from src, which has read nothing yet. A
-// nil Dialects reads every key with the zero rows, which define none.
+// NewTable returns a table reading from src, which has read nothing yet. The
+// zero Rules reads every key with the zero rows, which define none.
 func NewTable(src Source) *Table {
 	return &Table{src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{}}
 }
@@ -65,14 +60,6 @@ func (t *Table) Read(s *Schema) *Statement {
 		return t.Of(nil)
 	}
 	return t.Of(s.m)
-}
-
-// rules returns the rows the schema read at p is read with.
-func (t *Table) rules(p bind.Position) oas.SchemaRules {
-	if t.src.Dialects == nil {
-		return oas.SchemaRules{}
-	}
-	return t.src.Dialects.At(p)
 }
 
 // readKeys places each key s's node writes, in the order the parser holds

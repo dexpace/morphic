@@ -13,18 +13,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
-
-// rowsOf reads every position with one row.
-type rowsOf struct{ rules oas.SchemaRules }
-
-// At returns r's row, wherever p is.
-func (r rowsOf) At(bind.Position) oas.SchemaRules { return r.rules }
 
 // sample returns a value of f's shape, one its format admits.
 func sample(f oas.Field) string {
@@ -81,8 +75,8 @@ func TestSlots_EveryKeywordReadsIntoItsSlotAndNoOther(t *testing.T) {
 	t.Parallel()
 	read := 0
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
-		for _, dialect := range append([]string{""}, oas.SchemaDialectIDs()...) {
-			rules, _ := oas.Table().SchemaRules(version, dialect)
+		for _, uri := range append([]string{""}, oas.SchemaDialectIDs()...) {
+			rules, _ := oas.Table().SchemaRules(version, uri)
 			defined, later := oas.KeywordsOf(rules)
 			fields := slices.Concat(defined, later)
 			lines := make([]string, 0, 1+len(fields))
@@ -91,13 +85,13 @@ func TestSlots_EveryKeywordReadsIntoItsSlotAndNoOther(t *testing.T) {
 				lines = append(lines, fmt.Sprintf("    K%d: {%s: %s}", i, f.Name, sample(f)))
 			}
 			head := "openapi: " + version + "\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
-			if dialect != "" && version != "3.0.3" {
-				head += "jsonSchemaDialect: '" + dialect + "'\n"
+			if uri != "" && version != "3.0.3" {
+				head += "jsonSchemaDialect: '" + uri + "'\n"
 			}
 			c := servicetest.Context(t, head+"components:\n  schemas:\n"+strings.Join(lines, "\n")+"\n", service.Policy{})
-			table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rowsOf{rules}})
+			table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: dialect.NewBuilder(rules).Table()})
 			for i, f := range fields {
-				row := version + " " + dialect + " " + f.Name
+				row := version + " " + uri + " " + f.Name
 				st := table.At(c.Position(jsontext.Pointer(fmt.Sprintf("/components/schemas/K%d", i))))
 				require.Equal(t, statement.Stated, st.Truth, row)
 				require.Len(t, st.Keys, 1, row)

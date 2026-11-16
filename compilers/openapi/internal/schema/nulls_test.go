@@ -1020,7 +1020,7 @@ func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
 				if off {
 					want = tc.off
 				}
-				assert.Equal(t, want, schema.NullAlone(l.Ctx, js.GetSchema()), "policy off: %v", off)
+				assert.Equal(t, want, schema.NullAlone(l.Ctx, schema.StandaloneSchema(js.GetSchema())), "policy off: %v", off)
 			}
 		})
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -1719,7 +1720,7 @@ func TestRefinement_PastItsConjunctBoundStaysAComposition(t *testing.T) {
 func TestRefinement_ACappedBranchStaysAComposition(t *testing.T) {
 	t.Parallel()
 	body := "{type: string}"
-	for range schema.MaxAllOfFlattenDepth + 2 {
+	for range statement.MaxFlattenDepth + 2 {
 		body = "{allOf: [" + body + "]}"
 	}
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: "+body+"\n"))
@@ -1897,7 +1898,7 @@ func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
 	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Narrowed": "binary", "Bare": ""} {
 		js, ok := schemas.Get(name)
 		require.True(t, ok, name)
-		assert.Equal(t, format, schema.DecidingSchema(l.Ctx, js.GetSchema()).GetFormat(), name)
+		assert.Equal(t, format, statement.Parsed(schema.DecidingSchema(l.Ctx, schema.StandaloneSchema(js.GetSchema()))).GetFormat(), name)
 	}
 }
 

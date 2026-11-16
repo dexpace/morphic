@@ -64,19 +64,25 @@ func pointerBoundDoc(where string) string {
 			"        multipart/form-data:\n          encoding:\n" +
 			"            f:\n              encoding:\n                g:\n                  headers:\n" +
 			"                    H:\n                      schema:\n" + spine(24, 60, true)
+	case "merged":
+		return head + "x-data: &S\n" + spine(2, 60, true) + "components:\n  schemas:\n    A: {<<: *S}\n"
 	default:
 		return head + "components:\n  schemas:\n    A:\n" + spine(6, 60, true)
 	}
 }
 
 // TestCompile_ARawValueNestingLongKeysIsNotRefusedAsPointerAmplification holds a
-// valid document that keeps a deep value of long keys verbatim, in an extension,
-// an example or a schema of an Encoding Object another nests, to compiling, and
-// the same shape placed as a schema, which a compile names node by node, to the
-// refusal the bound exists for.
+// valid document that keeps a deep value of long keys verbatim, in an extension
+// or an example, to compiling, and the same shape placed as a schema, which a
+// compile names node by node, to the refusal the bound exists for, as it is
+// merged into a schema through `<<` or beneath an Encoding Object another
+// nests, which the binder reads node by node to bind the references written
+// there.
 func TestCompile_ARawValueNestingLongKeysIsNotRefusedAsPointerAmplification(t *testing.T) {
 	t.Parallel()
-	for where, refused := range map[string]bool{"ext": false, "example": false, "nested": false, "schema": true} {
+	for where, refused := range map[string]bool{
+		"ext": false, "example": false, "nested": true, "merged": true, "schema": true,
+	} {
 		t.Run(where, func(t *testing.T) {
 			t.Parallel()
 

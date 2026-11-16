@@ -72,17 +72,18 @@ func TestFolded_AScalarAndAModelDecoratorAreOneUse(t *testing.T) {
 	assert.NotEqual(t, foldedText(t, model), foldedText(t, listOf(nil)), "a use holds its annotations")
 }
 
-// carrying returns a document whose carrier of kind names Obj and holds what
-// annotated(_, "d") holds, through a decorator when decorated.
+// carrying returns a document whose carrier of kind names Obj and holds the
+// Docs, Deprecation and Examples annotated(_, "d") holds, the annotations a
+// carrier takes from its decorator, through a decorator when decorated.
 func carrying(kind string, decorated bool) *ir.Document {
 	notes := annotated(decID, "d")
+	notes.Availability, notes.Unmodeled = nil, nil
 	ref := ir.TypeRef{Target: objID}
 	var p ir.Property
 	if decorated {
 		ref.Target = decID
 	} else {
-		p = ir.Property{Docs: notes.Docs, Deprecation: notes.Deprecation, Examples: notes.Examples,
-			Availability: notes.Availability, Unmodeled: notes.Unmodeled}
+		p = ir.Property{Docs: notes.Docs, Deprecation: notes.Deprecation, Examples: notes.Examples}
 	}
 	p.ID, p.Type = "p/x/Use/p", ref
 	doc := listOf(nil)
@@ -122,9 +123,51 @@ func TestFolded_ACarrierHoldsWhatItsDecoratorHeld(t *testing.T) {
 	}
 }
 
+// keepOn sets the Availability and Unmodeled of the carrier of kind in a
+// document carrying builds.
+func keepOn(doc *ir.Document, kind string, a *ir.Availability, u ir.Unmodeled) {
+	switch kind {
+	case "property":
+		p := &doc.Types[holderID].(*ir.Model).Properties[0]
+		p.Availability, p.Unmodeled = a, u
+	case "header":
+		h := &doc.Services[0].Groups[0].Operations[0].Responses[0].Headers[0]
+		h.Availability, h.Unmodeled = a, u
+	case "parameter":
+		p := &doc.Services[0].Groups[0].Operations[0].Params[0]
+		p.Availability, p.Unmodeled = a, u
+	default:
+		v := &doc.Types[holderID].(*ir.Union).Variants[0]
+		v.Availability, v.Unmodeled = a, u
+	}
+}
+
+// TestFolded_ACarrierLeavesWhatTheCollapseLeaves pins what no carrier takes:
+// a decorator's Availability and Unmodeled stay beside the carrier naming it,
+// so one holding them itself differs.
+func TestFolded_ACarrierLeavesWhatTheCollapseLeaves(t *testing.T) {
+	notes := annotated(decID, "d")
+	for _, kind := range []string{"property", "header", "parameter", "variant"} {
+		t.Run(kind, func(t *testing.T) {
+			decorated, plain := carrying(kind, true), carrying(kind, false)
+			dec := decorated.Types[decID].Common()
+			dec.Availability, dec.Unmodeled = notes.Availability, notes.Unmodeled
+			keepOn(plain, kind, notes.Availability, notes.Unmodeled)
+
+			got := foldedText(t, decorated)
+
+			assert.NotEqual(t, foldedText(t, plain), got)
+			assert.Contains(t, got, `"decorator": {`+"\n")
+			assert.NotContains(t, got, string(decID))
+			keepOn(decorated, kind, notes.Availability, notes.Unmodeled)
+			assert.NotEqual(t, foldedText(t, plain), foldedText(t, decorated), "the carrier's own stay its own")
+		})
+	}
+}
+
 // TestFolded_TheCarriersOwnComeFirst pins the merge onto a carrier: a field it
 // sets is its own, one it leaves empty the decorator's, a description and its
-// references as one, and an unmodeled name both hold kept as a list.
+// references as one, and an unmodeled name both hold kept on each.
 func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	doc := carrying("property", true)
 	p := &doc.Types[holderID].(*ir.Model).Properties[0]
@@ -133,12 +176,16 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	p.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonOutOfScope, Value: ir.RawValue(`1`)}}
 	dec := doc.Types[decID].Common()
 	dec.Docs.Summary, dec.Docs.ExternalDocs = "theirs", []ir.Link{{URL: "https://example.com"}}
+	dec.Unmodeled = annotated(decID, "d").Unmodeled
 
 	var got struct {
 		Properties []struct {
-			Docs      ir.Docs                        `json:"docs"`
-			Examples  []ir.Example                   `json:"examples"`
-			Unmodeled map[string][]ir.UnmodeledEntry `json:"unmodeled"`
+			Docs      ir.Docs                      `json:"docs"`
+			Examples  []ir.Example                 `json:"examples"`
+			Unmodeled map[string]ir.UnmodeledEntry `json:"unmodeled"`
+			Decorator struct {
+				Unmodeled map[string]ir.UnmodeledEntry `json:"unmodeled"`
+			} `json:"decorator"`
 		} `json:"properties"`
 	}
 	own, more := folded(doc)
@@ -150,7 +197,8 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	assert.Equal(t, ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}},
 		ExternalDocs: []ir.Link{{URL: "https://example.com"}}}, got.Properties[0].Docs)
 	assert.Equal(t, []ir.Example{{Name: "own"}}, got.Properties[0].Examples)
-	assert.Len(t, got.Properties[0].Unmodeled["openapi:x"], 2, "a repeated name keeps both entries")
+	assert.Equal(t, p.Unmodeled, ir.Unmodeled(got.Properties[0].Unmodeled), "the carrier's own")
+	assert.Equal(t, dec.Unmodeled, ir.Unmodeled(got.Properties[0].Decorator.Unmodeled), "the decorator's, beside it")
 }
 
 // carrierSlots points at the carrier of kind in a document carrying builds.
@@ -243,6 +291,9 @@ func TestDecoratorUses_FollowsAChainAndLeavesACycle(t *testing.T) {
 	assert.Equal(t, "outer", uses[outerID].notes.deprecation.Message)
 	assert.Equal(t, []ir.Example{{Name: "outer"}}, uses[outerID].notes.examples)
 	assert.Len(t, uses[outerID].notes.unmodeled["openapi:x"], 2)
+	listed, ok := uses[outerID].notes.unmodeledMember()["openapi:x"].([]ir.UnmodeledEntry)
+	require.True(t, ok, "a name the chain repeats is written as a list")
+	assert.Len(t, listed, 2)
 	assert.Equal(t, ir.TypeID("t/x/gone"), uses["t/x/d"].target)
 	assert.Zero(t, uses["t/x/d"].lent, "a type the registry does not hold lends nothing")
 
@@ -261,6 +312,39 @@ func TestFolded_AnIDNamingADecoratorNamesWhatItStandsFor(t *testing.T) {
 
 	assert.Contains(t, foldedText(t, doc), `"a": "t/x/Obj"`)
 	assert.NotContains(t, foldedText(t, doc), string(decID))
+}
+
+// TestFolded_AUseKeepsItsNullable pins the referring reference's Nullable,
+// which answers for the whole decorator: a nullable use of one, at a list and
+// at a carrier, differs from a use that is not.
+func TestFolded_AUseKeepsItsNullable(t *testing.T) {
+	decorator := func() ir.TypeDef {
+		return &ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}}
+	}
+	nullable := listOf(decorator())
+	nullable.Types[holderID].(*ir.List).Elem.Nullable = true
+	assert.Contains(t, foldedText(t, nullable), `"nullable": true`)
+	assert.NotEqual(t, foldedText(t, listOf(decorator())), foldedText(t, nullable))
+
+	carrier := carrying("property", true)
+	carrier.Types[holderID].(*ir.Model).Properties[0].Type.Nullable = true
+	assert.Contains(t, foldedText(t, carrier), `"nullable": true`)
+	assert.NotEqual(t, foldedText(t, carrying("property", true)), foldedText(t, carrier))
+}
+
+// TestWithoutTypes_LeavesTheDocumentAsItWas pins the removal: the decorators
+// leave the copy alone, and an ID the document holds no type at is a panic.
+func TestWithoutTypes_LeavesTheDocumentAsItWas(t *testing.T) {
+	doc := listOf(&ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}})
+
+	own, _ := folded(doc)
+
+	assert.NotContains(t, own.Types, decID)
+	assert.Contains(t, own.Types, holderID)
+	assert.Contains(t, doc.Types, decID, "the document folded keeps its decorator")
+	assert.PanicsWithValue(t,
+		`harness: leave the decorators out: internal: edit: remove rejected: no type "t/x/none" to remove; an edit adds no type`,
+		func() { withoutTypes(doc, []ir.TypeID{"t/x/none"}) })
 }
 
 func TestFolded_ADocumentOfNoDecoratorIsItself(t *testing.T) {

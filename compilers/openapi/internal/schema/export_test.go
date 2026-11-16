@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -121,4 +122,33 @@ func (l *Lowerer) Document(t *testing.T) *ir.Document {
 	l.Diags.AppendAll(settled)
 	l.Out.Types = reg
 	return l.Out
+}
+
+// Standalone returns the statement of js read alone, by a table of its own
+// that knows no bindings and reads no rows: for a test handing a schema it
+// decoded to a reader that takes a statement.
+func Standalone(js *oas3.JSONSchema[oas3.Referenceable]) *statement.Statement {
+	return statement.NewTable(statement.Source{}).Of(js)
+}
+
+// StandaloneSchema is Standalone for a schema object decoded alone, nil for a
+// nil s.
+func StandaloneSchema(s *oas3.Schema) *statement.Schema {
+	if s == nil {
+		return nil
+	}
+	return Standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](s)).Schema
+}
+
+// StatedIn returns the statement of s as l's table reads it, where s is the
+// schema a component of l's document declares, and read alone where it is
+// not: for a test asking twice of one schema a reader that remembers its
+// answer per statement.
+func StatedIn(l *Lowerer, s *oas3.Schema) *statement.Schema {
+	for _, js := range l.Doc.Components.Schemas.All() {
+		if js.GetSchema() == s {
+			return l.Ctx.Statements().Of(js).Schema
+		}
+	}
+	return StandaloneSchema(s)
 }

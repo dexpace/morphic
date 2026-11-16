@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -19,7 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -44,7 +43,7 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 		if ctx.Err() != nil {
 			return diags
 		}
-		diags = append(diags, lowerComponentSchema(c, ts, js, ids.Ptr("components", "schemas", name))...)
+		diags = append(diags, lowerComponentSchema(c, ts, c.Statements().Of(js), ids.Ptr("components", "schemas", name))...)
 	}
 	return diags
 }
@@ -54,7 +53,7 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 // shared primitive/any or aliases another type. Without this, a component like
 // `MyId: {type: string, format: uuid}` would leave nothing at its component
 // pointer and every $ref to it would dangle (invariants 1 and 2).
-func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
+func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
 	s := annotation.At(js)
 	ref, diags := Ref(c, ts, TopLevelDepth, js, pointer)
 	// A body that interned the component's own node at its component ID needs no
@@ -66,7 +65,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema
 	diags = append(diags, aliasDiags...)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
-	if s.Node != nil {
+	if statement.Parsed(s.Node) != nil {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
@@ -95,7 +94,7 @@ const maxSchemaDepth = 256
 // It defaults to annotation.HomeOwnNode deliberately: a position added later
 // inherits the lossless behaviour, and only a caller that can prove it already
 // carries the annotations opts out through CarriedRef.
-func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeOwnNode)
 }
 
@@ -103,18 +102,18 @@ func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.
 // already carries — a model property, a header, a parameter. Those callers
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
-func CarriedRef(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+func CarriedRef(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeCarrier)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
 // reaches the two places that can hoist an annotation-holding alias.
-func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
 	// struct, back when one held the whole compile.
-	if !annotation.Written(js) {
+	if js == nil || js.Truth == statement.Unwritten {
 		// None, or a null, which states nothing: an entry written so — a
 		// property, a branch, a component, items — lowers as the empty schema.
 		// A keyword whose absence differs from the empty schema reads a null as
@@ -128,36 +127,29 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
-	if js.IsBool() {
-		if unmended(js) {
-			return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
-				"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
-					"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
-					"moving the schemas below it into a component reads them",
-				typed.MaxMends)}
-		}
-		if b := js.GetBool(); b != nil && !*b {
-			id, diags := falseSchema(c, ts, pointer)
-			return ir.TypeRef{Target: id}, diags
-		}
+	switch js.Truth {
+	case statement.Unread:
+		// A mapping the parser read as false: the load phase decodes it again
+		// unless it lies past typed.MaxMends
+		// (docs/parser-library.md#failure-beneath-itself), so it says nothing of
+		// the values there.
+		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+			"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
+				"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
+				"moving the schemas below it into a component reads them",
+			typed.MaxMends)}
+	case statement.Nothing:
+		id, diags := falseSchema(c, ts, pointer)
+		return ir.TypeRef{Target: id}, diags
+	case statement.Anything:
 		return ts.PrimRef(ir.PrimAny), nil
+	default:
+		// Stated: a schema object, which a reference site writes too.
 	}
-	// Past the IsBool check, the either's left schema is always set (an empty
-	// either reads as a bool), so GetSchema never returns nil here.
-	schema := js.GetSchema()
-	if c.Bindings().RefSite(js) {
-		return refSiteRef(c, ts, js, schema, pointer, home)
+	if js.Ref != nil {
+		return refSiteRef(c, ts, js, js.Schema, pointer, home)
 	}
-	return schemaBody(c, ts, depth, schema, pointer, home)
-}
-
-// unmended reports whether js is a boolean the parser read from a mapping the
-// document writes, which the load phase decodes again unless it lies past
-// typed.MaxMends (docs/parser-library.md#failure-beneath-itself), and which
-// says nothing of the values there.
-func unmended(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	n := nodeview.Deref(js.GetCore().GetRootNode())
-	return n != nil && n.Kind == yaml.MappingNode
+	return schemaBody(c, ts, depth, js.Schema, pointer, home)
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -201,7 +193,7 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 // hoisting (hoistSubSchema) arrives through Ref. A rule about the
 // declaration itself is checked here, above the dispatch that picks what it
 // lowers to (missingArrayItems).
-func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	diags := missingArrayItems(c, schema, pointer)
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
 	diags = append(diags, bodyDiags...)
@@ -220,14 +212,14 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
-func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
 		// The expansion settled that the target resolves, by what resolveAt
 		// reads in its own document (resolvesAt), so nothing falls through: that
 		// would drop the reference unrecorded, as recordUnexpandedDynamicRef
 		// keeps only one that does not expand, where an empty target fails
 		// irverify.
-		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
+		target, _ := resolveAt(c, ts, at, c.Statements().Of(c.Bindings().At(at)))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
 	}
@@ -262,15 +254,16 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 // refinesToBranch reports whether s, written at pointer, refines to one of its
 // allOf branches, which then decides the position, a union beside the allOf
 // being one of the conjuncts it refines (docs/compilers/openapi.md#allof-refinement).
-func refinesToBranch(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+func refinesToBranch(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	r, refines := refinementOf(c, s, pointer)
 	return refines && r.principal != nil
 }
 
 // allOfComposes reports whether s writes an allOf that composes rather than
 // refines, the one a union beside it distributes across or is kept beside.
-func allOfComposes(c lowering.Ctx, s *oas3.Schema) bool {
-	if len(s.GetAllOf()) == 0 {
+func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	if len(m.GetAllOf()) == 0 {
 		return false
 	}
 	_, refines := refinementOf(c, s, "")
@@ -283,7 +276,7 @@ func allOfComposes(c lowering.Ctx, s *oas3.Schema) bool {
 // were written, an enum or a const there being one of its conjuncts rather than
 // its rival. The value set either lowers to is typed by every conjunct
 // (typeValueSet). Any other schema lowers by its election (lowerElected).
-func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	d, elected := electionOf(c, s, pointer)
 	r, refines := refinementOf(c, s, pointer)
 	if !refines {
@@ -305,7 +298,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 // false where an allOf refining it has a principal, which decides the position
 // instead: the keywords beside the allOf, as if none were written, for one
 // refining with none.
-func electionOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dispatch, bool) {
+func electionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dispatch, bool) {
 	r, refines := refinementOf(c, s, pointer)
 	switch {
 	case !refines:
@@ -322,7 +315,7 @@ func electionOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dispa
 // lowerSchemaBody tries first takes such a schema: a type is a shape, so no
 // $dynamicRef expands and no union collapses beside it, and a union beside it or
 // on an allOf branch distributes only over the allOf, which the election elects.
-func lowersTypeArray(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	if len(effectiveTypes(s)) < 2 {
 		return false
 	}
@@ -338,7 +331,7 @@ func lowersTypeArray(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) b
 // verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
 // never reads, such as `type: string` beside an allOf, goes through
 // preserveUnhomedKeywords, which asks the built node whether it has a field for it.
-func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, d dispatch) (ir.TypeID, []ir.Diagnostic) {
+func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
 		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
 		return owner, append(diags, ownDiags...)
@@ -362,7 +355,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 		id, diags := lowerUnion(c, ts, depth, s, pointer, types)
 		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
 	case len(types) == 1:
-		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
+		return unhomed(lowerTyped(c, ts, depth, s, pointer, statement.Kind(types[0])))
 	case writesType(s):
 		// Every type s names is null, so its value space is null and nothing
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
@@ -373,11 +366,11 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form.
-func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
-	case oas3.SchemaTypeObject:
+	case statement.KindObject:
 		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject)
-	case oas3.SchemaTypeArray:
+	case statement.KindArray:
 		return lowerArray(c, ts, depth, s, pointer)
 	default:
 		return scalarTypeID(c, ts, depth, s, st, pointer)
@@ -387,8 +380,9 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // lowerUntyped handles a schema with no declared type and no const, enum or
 // allOf, which lower() elects first: a property set makes it a model; anything
 // else is schemaless.
-func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	if props := s.GetProperties(); props != nil && props.Len() > 0 {
+func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	m := statement.Parsed(s)
+	if props := m.GetProperties(); props != nil && props.Len() > 0 {
 		// The node asserts an object, but the source declares no type, so every
 		// bound is read as it would be at a position lowering to the top type.
 		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, declaredInstanceTypes(s))
@@ -410,14 +404,15 @@ var familyOrder = []string{"const", "enum", "allOf"}
 // another family's guard: a familyOrder entry added without a case here would
 // otherwise report whichever guard the default happened to hold, electing that
 // name on schemas that never wrote it.
-func declaresFamily(s *oas3.Schema, family string) bool {
+func declaresFamily(s *statement.Schema, family string) bool {
+	m := statement.Parsed(s)
 	switch family {
 	case "const":
-		return s.GetConst() != nil
+		return m.GetConst() != nil
 	case "enum":
 		return enumWritten(s)
 	case "allOf":
-		return len(s.GetAllOf()) > 0
+		return len(m.GetAllOf()) > 0
 	default:
 		return false
 	}
@@ -432,8 +427,9 @@ func declaresFamily(s *oas3.Schema, family string) bool {
 // Nilness is what the parser keeps: an absent keyword leaves the field nil, an
 // empty list leaves it non-nil. A member list the model layer could not parse
 // reads as absent, which is a document the loader already refuses.
-func enumWritten(s *oas3.Schema) bool {
-	return s.GetEnum() != nil
+func enumWritten(s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	return m.GetEnum() != nil
 }
 
 // dispatch records how lower() resolved a schema's competing keyword families:
@@ -468,7 +464,7 @@ func (d dispatch) besideAllOf() dispatch {
 // winner lowerElected has no arm for is neither lowered nor skipped: the switch
 // falls through to the type-set arms and drops the keyword in silence (GitHub #35).
 // Adding a family means adding all three.
-func dispatchOf(s *oas3.Schema) dispatch {
+func dispatchOf(s *statement.Schema) dispatch {
 	var d dispatch
 	for _, family := range familyOrder {
 		if !declaresFamily(s, family) {
@@ -496,7 +492,7 @@ func dispatchOf(s *oas3.Schema) dispatch {
 // It reports the keywords it stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert. An allOf whose conjuncts
 // share no value draws its warning, stored or not.
-func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
+func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *statement.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(d.skipped) == 0 {
 		return nil
 	}
@@ -534,15 +530,17 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 // as a type spelled "" (docs/parser-library.md#null-type-is-empty), declares
 // none: `type: null` is the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
-func writesType(s *oas3.Schema) bool {
-	return slices.ContainsFunc(s.GetType(), func(t oas3.SchemaType) bool { return t != "" })
+func writesType(s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	return slices.ContainsFunc(m.GetType(), func(t oas3.SchemaType) bool { return t != "" })
 }
 
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
 // member removed, and any null that declares none (writesType); nullability is
 // normalized onto the TypeRef, not the type set.
-func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
-	types := s.GetType()
+func effectiveTypes(s *statement.Schema) []oas3.SchemaType {
+	m := statement.Parsed(s)
+	types := m.GetType()
 	out := make([]oas3.SchemaType, 0, len(types))
 	for _, t := range types {
 		if t == oas3.SchemaTypeNull || t == "" {
@@ -557,20 +555,28 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 // leaves something for the position to carry, with how a schema writes it.
 type siblingKeyword struct {
 	key    string
-	writes func(*oas3.Schema) bool
+	writes func(*statement.Schema) bool
 }
 
 // shapeKeywords are the keywords that declare data shape — a type, a property
 // set, a value set, composition, or a catch-all — rather than only narrowing
 // what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
 var shapeKeywords = []siblingKeyword{
-	{"properties", func(s *oas3.Schema) bool { props := s.GetProperties(); return props != nil && props.Len() > 0 }},
-	{"const", func(s *oas3.Schema) bool { return s.GetConst() != nil }},
+	{"properties", func(s *statement.Schema) bool {
+		props := statement.Parsed(s).GetProperties()
+		return props != nil && props.Len() > 0
+	}},
+	{"const", func(s *statement.Schema) bool { return statement.Parsed(s).GetConst() != nil }},
 	{"enum", enumWritten},
-	{"allOf", func(s *oas3.Schema) bool { return len(s.GetAllOf()) > 0 }},
-	{"additionalProperties", func(s *oas3.Schema) bool { return annotation.Written(s.GetAdditionalProperties()) }},
-	{"patternProperties", func(s *oas3.Schema) bool { pp := s.GetPatternProperties(); return pp != nil && pp.Len() > 0 }},
-	{"type", func(s *oas3.Schema) bool { return len(effectiveTypes(s)) > 0 }},
+	{"allOf", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetAllOf()) > 0 }},
+	{"additionalProperties", func(s *statement.Schema) bool {
+		return annotation.Written(statement.Parsed(s).GetAdditionalProperties())
+	}},
+	{"patternProperties", func(s *statement.Schema) bool {
+		pp := statement.Parsed(s).GetPatternProperties()
+		return pp != nil && pp.Len() > 0
+	}},
+	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }},
 }
 
 // narrowingKeywords are the keywords that constrain an instance without
@@ -582,17 +588,17 @@ var shapeKeywords = []siblingKeyword{
 // co-declared property set. An `items` list narrows too, read off the raw node,
 // since nothing documents what the parser's model holds there.
 var narrowingKeywords = []siblingKeyword{
-	{"required", func(s *oas3.Schema) bool { return len(s.GetRequired()) > 0 }},
-	{"items", func(s *oas3.Schema) bool {
+	{"required", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetRequired()) > 0 }},
+	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
-		return listed || annotation.Written(s.GetItems())
+		return listed || annotation.Written(statement.Parsed(s).GetItems())
 	}},
-	{"prefixItems", func(s *oas3.Schema) bool { return len(s.GetPrefixItems()) > 0 }},
+	{"prefixItems", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetPrefixItems()) > 0 }},
 }
 
 // siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords
 // that s writes, in that order.
-func siblingKeywords(s *oas3.Schema) []string {
+func siblingKeywords(s *statement.Schema) []string {
 	var out []string
 	for _, set := range [...][]siblingKeyword{shapeKeywords, narrowingKeywords} {
 		for _, k := range set {
@@ -606,7 +612,7 @@ func siblingKeywords(s *oas3.Schema) []string {
 
 // writesSiblingKeyword reports whether siblingKeywords(s) holds any keyword,
 // without building the list, as most schemas a reader asks of write one.
-func writesSiblingKeyword(s *oas3.Schema) bool {
+func writesSiblingKeyword(s *statement.Schema) bool {
 	writes := func(k siblingKeyword) bool { return k.writes(s) }
 	return slices.ContainsFunc(shapeKeywords, writes) || slices.ContainsFunc(narrowingKeywords, writes)
 }

@@ -62,7 +62,7 @@ func lowerHeader(c, dc service.Ctx, w walk, h *soa.Header, name string, hptr, hd
 	// this mount's, and lowered in its declaration's document (dc), so every
 	// response mounting one header builds the same nodes beneath it, in
 	// whichever order they lower (GitHub #433).
-	headerType, headerDiags := schema.CarriedRef(elected.ctx.Ctx, w.types, schema.TopLevelDepth, elected.js, elected.pointer)
+	headerType, headerDiags := schema.CarriedRef(elected.ctx.Ctx, w.types, schema.TopLevelDepth, c.Statements().Of(elected.js), elected.pointer)
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         c.IDs().Prop(hptr),
@@ -82,11 +82,11 @@ func lowerHeader(c, dc service.Ctx, w walk, h *soa.Header, name string, hptr, hd
 	// The property holds what the schema writes beside what the header object
 	// writes, so the schema's entries are kept beneath its scope: the two can
 	// spell one key.
-	diags = append(diags, schema.FillPropertyDetail(elected.ctx.Ctx, w.types, &p, elected.js, elected.pointer)...)
+	diags = append(diags, schema.FillPropertyDetail(elected.ctx.Ctx, w.types, &p, c.Statements().Of(elected.js), elected.pointer)...)
 	promotion.DropContained(dc.Promoter(), &p.Unmodeled)
 	p.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), p.Unmodeled), elected.unmodeled)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	lent := dc.Promoter().Lent(schema.KeysLentTo(dc.Ctx, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,
+	lent := dc.Promoter().Lent(schema.KeysLentTo(dc.Ctx, w.types, c.Statements().Of(elected.js), p.Type, elected.pointer), p.Unmodeled,
 		elected.carries...)
 	own := promotion.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
 	diags = append(diags, schema.PromoteUse(dc.Ctx, lent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)

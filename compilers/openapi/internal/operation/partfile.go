@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -107,20 +108,23 @@ func isArraySchema(s *oas3.Schema) bool {
 // one admitting no element does: what its elements past its prefix are is
 // left unsaid, not said to be anything.
 func readElements(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
-	elems, rest, tuple := schema.ListedTuple(c.Ctx, js)
+	elems, rest, tuple := schema.ListedTuple(c.Ctx, c.Statements().Of(js))
 	if !tuple {
-		elems, rest = slices.Clone(s.GetPrefixItems()), s.GetItems()
+		rest = c.Statements().Of(s.GetItems())
+		for _, e := range s.GetPrefixItems() {
+			elems = append(elems, c.Statements().Of(e))
+		}
 	}
-	if !annotation.Written(rest) {
+	if !annotation.Written(statement.ParsedAt(rest)) {
 		return readsOther
 	}
-	if !annotation.IsFalseSchema(rest) {
+	if !annotation.IsFalseSchema(statement.ParsedAt(rest)) {
 		elems = append(elems, rest)
 	}
 	if len(elems) == 0 {
 		return readsOther
 	}
-	return leastOf(c, elems, readFile)
+	return leastOf(c, elems, func(c service.Ctx, e *statement.Statement) fileReading { return readFile(c, statement.ParsedAt(e)) })
 }
 
 // partContentFile reads a part whose schema leaves its media type to say, and

@@ -22,5 +22,5 @@ func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
 `))
 	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	assert.Nil(t, refBranchTarget(l.Ctx.Bindings(), decl.GetSchema().GetAllOf()[0]))
+	assert.Nil(t, refBranchTarget(l.Ctx, l.Ctx.Statements().Of(decl.GetSchema().GetAllOf()[0])))
 }

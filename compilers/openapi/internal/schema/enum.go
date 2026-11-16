@@ -12,12 +12,14 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,25 +36,26 @@ import (
 // A `null` entry is neither member nor variant but the reference's Nullable
 // bit, which schemaAdmitsNull decides at every site (enumEntries), so a list
 // of null alone is an Enum with no member.
-func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lowerEnum(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	m := statement.Parsed(s)
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
 		// member count of zero exceeds no positive budget — so the order decides
 		// nothing, but reading the empty case beside the members it lacks is
 		// clearer than reading it after a bound on how many there may be.
-		if len(s.GetEnum()) == 0 {
+		if len(m.GetEnum()) == 0 {
 			def, emptyDiags := emptyEnum(c, s, common, pointer)
 			diags = append(diags, emptyDiags...)
 			return def
 		}
-		if n := len(s.GetEnum()); !c.Limits.MaxEnumMembers.Admits(n) {
+		if n := len(m.GetEnum()); !c.Limits.MaxEnumMembers.Admits(n) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
 				"enum declares %d members, past the %d-member budget; lowered as any",
 				n, c.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
-		entries := readEnum(s.GetEnum())
+		entries := readEnum(m.GetEnum())
 		diags = append(diags, enumRepeats(c, entries, pointer)...)
 		kept, keptDiags := enumEntries(c, s, entries, pointer)
 		diags = append(diags, keptDiags...)
@@ -75,7 +78,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 // enumEntry is one entry of an enum as written: its node, its index in the
 // list, and the value it converts to, or why it converts to none.
 type enumEntry struct {
-	node  values.Value
+	node  *yaml.Node
 	err   error
 	val   ir.Value
 	index int
@@ -101,9 +104,10 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // exclude null, which nothing then holds, and a value no type s declares
 // admits, a type of null included, which is kept as written beside the type
 // the census keeps verbatim.
-func enumEntries(c lowering.Ctx, s *oas3.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
+func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
+	m := statement.Parsed(s)
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
-	types := s.GetType()
+	types := m.GetType()
 	kept := make([]enumEntry, 0, len(entries))
 	var diags []ir.Diagnostic
 	for _, e := range entries {
@@ -133,7 +137,7 @@ func enumEntries(c lowering.Ctx, s *oas3.Schema, entries []enumEntry, pointer js
 func typesAdmit(types []oas3.SchemaType, v ir.Value) bool {
 	var admitted kindSet
 	for _, t := range types {
-		k := kindOfType(t)
+		k := kindOfType(statement.Kind(t))
 		if k == 0 {
 			return true
 		}
@@ -186,7 +190,7 @@ func describeValue(v ir.Value) string {
 // ValueType is what the declaration selects, else the top type. Whether a
 // reference admits null is not settled here: schemaAdmitsNull reads the type
 // keyword at each use site (GitHub #288).
-func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
+func emptyEnum(c lowering.Ctx, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, pointer,
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
@@ -234,7 +238,7 @@ func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimK
 // enumEntries kept to a Union of Literals, each hoisted at its entry's
 // position, emitting one info diagnostic. The Union is exclusive where those
 // entries are distinct: otherwise an instance can match two variants.
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, entries []enumEntry, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
+func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, common ir.TypeCommon, entries []enumEntry, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	variants := make([]ir.Variant, 0, len(entries))
@@ -260,16 +264,17 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 // no type s declares admits, as enumEntries reports an enum member. The Literal
 // holds the value as written, and the census keeps a type it does not fit
 // verbatim.
-func lowerConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	val, err := value.FromNode(s.GetConst())
+func lowerConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	m := statement.Parsed(s)
+	val, err := value.FromNode(m.GetConst())
 	if err == nil && val.Kind == ir.ValueNull {
 		return nullConst(c, ts, s, pointer)
 	}
-	id, diags := hoistLiteral(c, ts, s, s.GetConst(), pointer)
+	id, diags := hoistLiteral(c, ts, s, m.GetConst(), pointer)
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
-	if types := s.GetType(); !typesAdmit(types, val) {
+	if types := m.GetType(); !typesAdmit(types, val) {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))
@@ -282,7 +287,7 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsont
 // (docs/ir/containers.md#literals). Where a keyword beside the const excludes
 // null, the position admits nothing, which is reported at the const as
 // enumEntries reports such a member.
-func nullConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func nullConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	id := lowerNullAlone(c, ts, s, pointer)
 	if schemaAdmitsNull(c, s) {
 		return id, nil
@@ -298,7 +303,7 @@ func nullConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 // alone (docs/compilers/openapi.md#null-alone). Its ValueType is what s's type
 // and format select, as an enum's is (enumValueType), the top type where they
 // select none.
-func lowerNullAlone(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) ir.TypeID {
+func lowerNullAlone(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) ir.TypeID {
 	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		return &ir.Enum{TypeCommon: common, ValueType: enumValueType(s, nil, ir.PrimAny), Closed: true}
 	})
@@ -314,7 +319,7 @@ func lowerNullAlone(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 //
 // It returns the interned ID, plus the diagnostic an unconvertible node
 // produces — none when the node converts.
-func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, node values.Value, pointer jsontext.Pointer,
+func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *statement.Schema, node *yaml.Node, pointer jsontext.Pointer,
 ) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
@@ -340,7 +345,7 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, node values
 // else the primitive the value's own kind declares, and none for a list or an
 // object, which no primitive types. A refinement's principal is typed by
 // every conjunct after (typeValueSet).
-func literalValueType(s *oas3.Schema, val ir.Value) ir.PrimKind {
+func literalValueType(s *statement.Schema, val ir.Value) ir.PrimKind {
 	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return merge.Admits(p, val) }); ok {
 		return prim
 	}
@@ -360,7 +365,7 @@ func literalValueType(s *oas3.Schema, val ir.Value) ir.PrimKind {
 // format the members do not fit is one no target could back the enum with, so
 // it stays verbatim. It does not re-derive memberPrim from a ValueKind:
 // enumMemberForm decided it once, for the same members.
-func enumValueType(s *oas3.Schema, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
+func enumValueType(s *statement.Schema, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
 	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return enumMembersAre(members, p) }); ok {
 		return prim
 	}

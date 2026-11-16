@@ -6,13 +6,12 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -75,7 +74,7 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 // constraints s writes that the types the position admits take (positionTypes),
 // and the exclusive modifier no Constraints field holds, for the reason
 // hoistScalar records.
-func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := ConstraintsOf(c, &kept, s, positionVoices(c, ts, s, pointer, target), pointer, positionTypes(c, s, pointer))
@@ -86,7 +85,7 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 // left it no node, which also holds the collection bounds s writes. A position
 // that reached a shared node with one written had its alias hoisted by the
 // census first, so this reads none it also keeps.
-func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := referenceConstraintsOf(c, ts, &kept, s, positionVoices(c, ts, s, pointer, target), target, pointer)
