@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -289,6 +292,36 @@ components:
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, "openapi/unknown-object-key", at),
 			"%s key is announced as an object's, not as a schema keyword's", tc.keyword)
+	}
+}
+
+// TestUnknownKeys_MergedPastTheBoundIsReported holds the census of a schema,
+// and of its xml, discriminator and externalDocs objects, to every key the
+// parser's model names no field for: one merged in through `<<` from past
+// nodeview.MergeDepthLimit, which the compiler reads no pair for, is reported
+// unreachable rather than dropped in silence.
+func TestUnknownKeys_MergedPastTheBoundIsReported(t *testing.T) {
+	t.Parallel()
+	deep := func(body string) string { return openapitest.NestedMerges(nodeview.MergeDepthLimit, body) }
+	_, diags := compileAnnotationSpec(t, "merged-past-the-bound", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties: {k: {type: string}}
+      xml: {name: s, <<: `+deep("{attribute2: X}")+`}
+      discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
+      externalDocs: {url: 'https://d.example', <<: `+deep("{title: E}")+`}
+      <<: `+deep("{foo: 1}")+`
+`)
+	for _, at := range []string{
+		"/components/schemas/S/foo", "/components/schemas/S/xml/attribute2",
+		"/components/schemas/S/discriminator/mapping2", "/components/schemas/S/externalDocs/title",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.UnknownKeyUnreachable, at),
+			"the key at %s", at)
 	}
 }
 

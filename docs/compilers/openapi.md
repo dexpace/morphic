@@ -6570,7 +6570,7 @@ its entry, and the table reports each.
   `e2e.TestUnknownKeys_UnreferencedComponents`, `e2e.TestUnknownKeys_ObjectsKeptWhole`,
   `e2e.TestUnknownKeys_InsideAKeptSchema`, `e2e.TestUnknownKeys_ReportedOnceInEveryObjectAndMinor`,
   `e2e.TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten`,
-  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
+  `e2e.TestUnknownKeys_MergedPastTheBoundIsReported`, `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
   `oas.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,

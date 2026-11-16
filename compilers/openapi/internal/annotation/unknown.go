@@ -132,14 +132,14 @@ func WritesKeywordLeftOut(s *statement.Schema, key string) bool {
 // the ones decided about (DecidedKeyword) and a null for a keyword the dialect
 // defines, which reads as left out (statement.Schema.Key). A key of no
 // vocabulary has no type a null could break, so it is kept with the null it
-// wrote. The keys are the model's census, which names a key merged past
-// nodeview.MergeDepthLimit too, so the census reports it unreachable.
+// wrote. The keys are the model's census (statement.Schema.Unknown), which
+// names a key merged past nodeview.MergeDepthLimit too, so the census reports
+// it unreachable.
 func unknownSchemaKeys(s *statement.Schema) ([]string, *yaml.Node) {
 	if s == nil {
 		return nil, nil
 	}
-	keys, _ := undeclaredKeys(statement.Parsed(s))
-	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
+	return slices.DeleteFunc(slices.Clone(s.Unknown), func(key string) bool {
 		k, _ := s.Key(key)
 		return DecidedKeyword(key) || slices.Contains(modellessKeywords, key) && k.Null
 	}), s.Node

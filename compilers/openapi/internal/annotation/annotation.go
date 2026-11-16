@@ -402,16 +402,27 @@ func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	m := statement.Parsed(s)
 	var out ir.Unmodeled
-	xmlTaken, diags := applyNodeType(&out, hints, xmlIn(s), doc, pointer+ids.Ptr("xml"))
+	x := xmlIn(s)
+	xmlTaken, diags := applyNodeType(&out, hints, x, doc, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
-		obj     any
+		unknown []string
+		node    *yaml.Node
 		ext     *extensions.Extensions
 		taken   []string
 	}{
-		{"xml", m.GetXML(), m.GetXML().GetExtensions(), xmlTaken},
-		{"discriminator", m.GetDiscriminator(), m.GetDiscriminator().GetExtensions(), nil},
-		{"externalDocs", m.GetExternalDocs(), m.GetExternalDocs().GetExtensions(), nil},
+		{"xml", nil, nil, m.GetXML().GetExtensions(), xmlTaken},
+		{"discriminator", nil, nil, m.GetDiscriminator().GetExtensions(), nil},
+		{"externalDocs", nil, nil, m.GetExternalDocs().GetExtensions(), nil},
+	}
+	if x != nil {
+		subs[0].unknown, subs[0].node = x.Unknown, x.Node
+	}
+	if d := discriminatorIn(s); d != nil {
+		subs[1].unknown, subs[1].node = d.Unknown, d.Node
+	}
+	if e := externalDocsIn(s); e != nil {
+		subs[2].unknown, subs[2].node = e.Unknown, e.Node
 	}
 	for _, sub := range subs {
 		if sub.keyword == "discriminator" && !discriminator {
@@ -421,7 +432,7 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 		ext, extDiags := ExtensionsUnder(sub.ext, doc, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysUnder(&out, sub.obj, doc, owner, sub.keyword, sub.taken...)...)
+		diags = append(diags, UnknownKeysNamed(&out, sub.unknown, sub.node, doc, owner, sub.keyword, sub.taken...)...)
 	}
 	return out, diags
 }
@@ -621,4 +632,20 @@ func xmlIn(s *statement.Schema) *statement.XML {
 		return nil
 	}
 	return s.Notes.XML
+}
+
+// externalDocsIn returns the externalDocs object s writes, nil for none.
+func externalDocsIn(s *statement.Schema) *statement.ExternalDocs {
+	if s == nil || s.Notes == nil {
+		return nil
+	}
+	return s.Notes.ExternalDocs
+}
+
+// discriminatorIn returns the discriminator s writes, nil for none.
+func discriminatorIn(s *statement.Schema) *statement.Discriminator {
+	if s == nil || s.Object == nil {
+		return nil
+	}
+	return s.Object.Discriminator
 }

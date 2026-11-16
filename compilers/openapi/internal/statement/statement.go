@@ -50,11 +50,15 @@ type Entry struct {
 // nil where neither holds a keyword of it. Whether the rows read a key is its
 // Slot.
 type Schema struct {
-	At    bind.Position
-	Node  *yaml.Node
-	Keys  []Key
-	Ref   *Reference
-	AllOf []Sub
+	At   bind.Position
+	Node *yaml.Node
+	Keys []Key
+	// Unknown lists the keys the parser's model holds no field for, read as a
+	// typed value is: from the model, so it names a key merged in past
+	// nodeview.MergeDepthLimit, which Keys lack.
+	Unknown []string
+	Ref     *Reference
+	AllOf   []Sub
 
 	Kinds  *Kinds
 	Values *Values

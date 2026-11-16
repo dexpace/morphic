@@ -71,7 +71,8 @@ func (t *Table) read(js *model) *Schema {
 	}
 	m := js.GetSchema()
 	s.Node = nodeview.Deref(nodeview.DocumentRoot(m.GetRootNode()))
-	readKeys(s, t.src.Rules.At(s.At), m.GetCore().GetUnknownProperties())
+	s.Unknown = m.GetCore().GetUnknownProperties()
+	readKeys(s, t.src.Rules.At(s.At))
 	if kw := t.src.Bindings.RefKeyword(js); kw != "" {
 		e, bound := t.src.Bindings.Entry(js)
 		s.Ref = &Reference{Keyword: kw, Entry: e, Bound: bound}
@@ -234,7 +235,7 @@ func discriminatorOf(d *oas3.Discriminator, at bind.Position) *Discriminator {
 		return nil
 	}
 	out := &Discriminator{PropertyName: d.GetPropertyName(), DefaultMapping: d.GetDefaultMapping(),
-		Node: nodeview.Deref(d.GetRootNode())}
+		Node: nodeview.Deref(d.GetRootNode()), Unknown: d.GetCore().GetUnknownProperties()}
 	if at != (bind.Position{}) {
 		out.At = bind.Position{Doc: at.Doc, Pointer: at.Pointer + "/discriminator"}
 	}
@@ -282,7 +283,7 @@ func xmlOf(x *oas3.XML) *XML {
 		return nil
 	}
 	return &XML{Name: x.Name, Namespace: x.Namespace, Prefix: x.Prefix, Attribute: x.Attribute, Wrapped: x.Wrapped,
-		Node: nodeview.Deref(x.GetRootNode())}
+		Node: nodeview.Deref(x.GetRootNode()), Unknown: x.GetCore().GetUnknownProperties()}
 }
 
 // externalDocsOf returns what d says.
@@ -290,7 +291,8 @@ func externalDocsOf(d *oas3.ExternalDocumentation) *ExternalDocs {
 	if d == nil {
 		return nil
 	}
-	return &ExternalDocs{Description: d.GetDescription(), URL: d.GetURL(), Node: nodeview.Deref(d.GetRootNode())}
+	return &ExternalDocs{Description: d.GetDescription(), URL: d.GetURL(), Node: nodeview.Deref(d.GetRootNode()),
+		Unknown: d.GetCore().GetUnknownProperties()}
 }
 
 // listed returns the schemas of a list keyword, each at its index.
