@@ -121,6 +121,35 @@ func exclusive(keyword, bound string) func(target, version) [2]object {
 	}
 }
 
+// narrowing is the values of a union keyword: two branches, one of which
+// says more than the target, or for an object two shapes, so writing the union
+// is observable. A union whose branches the target already says changes
+// nothing (docs/compilers/openapi.md#allof-refinement), so no case writes one.
+func narrowing(keyword string) func(target, version) [2]object {
+	return func(t target, _ version) [2]object {
+		var one, other string
+		switch t.name {
+		case stringTarget, enumTarget, formattedTarget:
+			one, other = `[{"type": "string", "maxLength": 5}, {"type": "boolean"}]`,
+				`[{"type": "string", "maxLength": 6}, {"type": "boolean"}]`
+		case integerTarget:
+			one, other = `[{"type": "integer", "maximum": 5}, {"type": "boolean"}]`,
+				`[{"type": "integer", "maximum": 6}, {"type": "boolean"}]`
+		case arrayTarget:
+			one, other = `[{"type": "array", "maxItems": 5}, {"type": "boolean"}]`,
+				`[{"type": "array", "maxItems": 6}, {"type": "boolean"}]`
+		case objectTarget, mapTarget:
+			one, other = `[{"type": "object", "properties": {"b": {"type": "string"}}}, `+
+				`{"type": "object", "properties": {"c": {"type": "string"}}}]`,
+				`[{"type": "object", "properties": {"b": {"type": "integer"}}}, `+
+					`{"type": "object", "properties": {"c": {"type": "string"}}}]`
+		default:
+			one, other = `[{"type": "string"}, {"type": "boolean"}]`, `[{"type": "string"}, {"type": "number"}]`
+		}
+		return [2]object{{{keyword, raw(one)}}, {{keyword, raw(other)}}}
+	}
+}
+
 // constructs returns the constructs, in the order the construct axis lists
 // them after none.
 func constructs() []construct {
@@ -154,10 +183,8 @@ func sharedConstructs() []construct {
 		{keyword: "allOf", targets: []string{objectTarget}, values: fixed("allOf",
 			`[{"type": "object", "properties": {"q": {"type": "integer"}}}]`,
 			`[{"type": "object", "properties": {"q": {"type": "boolean"}}}]`)},
-		{keyword: "oneOf", values: fixed("oneOf", `[{"type": "string"}, {"type": "boolean"}]`,
-			`[{"type": "string"}, {"type": "number"}]`)},
-		{keyword: "anyOf", values: fixed("anyOf", `[{"type": "string"}, {"type": "boolean"}]`,
-			`[{"type": "string"}, {"type": "number"}]`)},
+		{keyword: "oneOf", values: narrowing("oneOf")},
+		{keyword: "anyOf", values: narrowing("anyOf")},
 		{keyword: "not", values: fixed("not", `{"enum": ["n"]}`, `{"enum": ["z"]}`)},
 		{keyword: "items", targets: arrayTargets(), values: fixed("items", `{"type": "integer"}`, `{"type": "boolean"}`)},
 		{keyword: "properties", targets: objectTargets(), values: fixed("properties",
