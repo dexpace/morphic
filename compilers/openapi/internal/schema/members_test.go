@@ -451,23 +451,52 @@ func TestMembers_AModelAFoldComposesIsSettledInTheNextRound(t *testing.T) {
 	}
 }
 
-// TestMembers_CompositionsNestedPastTheRoundsAreReported pins a chain of
-// folds each composing a model whose member is folded again, deeper
-// than the rounds settled: what the rounds reach is settled, and the rest is
-// reported once.
+// TestMembers_CompositionsNestedPastTheRoundsAreReported pins the rounds the
+// settlement reads: a chain of folds each composing a model whose member is
+// folded again settles a round a level, and one more for the member the
+// deepest two declare apart. Seven levels take the eight rounds, so that
+// member's tie is reported; eight leave the model composing it unsettled,
+// reported once, and its tie unreported.
 func TestMembers_CompositionsNestedPastTheRoundsAreReported(t *testing.T) {
 	t.Parallel()
-	var spec strings.Builder
-	for i := 1; i <= 10; i++ {
-		fmt.Fprintf(&spec, "    A%d: {type: object, properties: {q: {$ref: '#/components/schemas/A%d'}}}\n", i, i+1)
-		fmt.Fprintf(&spec, "    B%d: {type: object, properties: {q: {$ref: '#/components/schemas/B%d'}}}\n", i, i+1)
+	for levels, past := range map[int]int{7: 0, 8: 1} {
+		var spec strings.Builder
+		for i := 1; i <= levels; i++ {
+			fmt.Fprintf(&spec, "    A%d: {type: object, properties: {q: {$ref: '#/components/schemas/A%d'}}}\n", i, i+1)
+			fmt.Fprintf(&spec, "    B%d: {type: object, properties: {q: {$ref: '#/components/schemas/B%d'}}}\n", i, i+1)
+		}
+		fmt.Fprintf(&spec, "    A%d: {type: object, properties: {r: {type: string}}}\n", levels+1)
+		fmt.Fprintf(&spec, "    B%d: {type: object, properties: {r: {type: integer}}}\n", levels+1)
+		spec.WriteString("    M:\n      allOf: [{$ref: '#/components/schemas/A1'}, {$ref: '#/components/schemas/B1'}]\n")
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
+		require.Empty(t, irverify.Verify(doc))
+		assert.Equal(t, past, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%d levels: %+v", levels, diags)
+		assert.Equal(t, 1-past, openapitest.CountDiagsAt(diags, diag.ConflictingRedecl, ir.SeverityWarning), "%d levels: %+v", levels, diags)
 	}
-	spec.WriteString("    A11: {type: object, properties: {r: {type: string}}}\n")
-	spec.WriteString("    B11: {type: object, properties: {r: {type: integer}}}\n")
-	spec.WriteString("    M:\n      allOf: [{$ref: '#/components/schemas/A1'}, {$ref: '#/components/schemas/B1'}]\n")
-	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
+}
+
+// TestMembers_AModelSettlesOnceHoweverManyRoundsReachIt pins a model settled
+// in one round and composed by a model a fold builds, which the next round
+// settles: the first declares a member only its two entries declare, which a
+// second settlement of it would declare again, so it holds that member once.
+func TestMembers_AModelSettlesOnceHoweverManyRoundsReachIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    X: {type: object, properties: {r: {type: string}}}\n    Y: {type: object, properties: {r: {type: string, maxLength: 9}}}\n"+
+			"    A1: {allOf: [{$ref: '#/components/schemas/X'}, {$ref: '#/components/schemas/Y'}]}\n"+
+			"    B1: {type: object, properties: {r: {type: integer}}}\n"+
+			"    A: {type: object, properties: {q: {$ref: '#/components/schemas/A1'}}}\n"+
+			"    B: {type: object, properties: {q: {$ref: '#/components/schemas/B1'}}}\n"+
+			"    M: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
 	require.Empty(t, irverify.Verify(doc))
-	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
+
+	composed, isModel := doc.Types[propertyOf(t, doc, "M", "q").Type.Target].(*ir.Model)
+	require.True(t, isModel, "the fold composes A1 and B1")
+	require.Len(t, composed.Properties, 1, "settled in the round after")
+	first, isModel := doc.Types["t/openapi/components/schemas/A1"].(*ir.Model)
+	require.True(t, isModel)
+	assert.Len(t, first.Properties, 1, "its member only entries declare, once")
 }
 
 // TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed pins a

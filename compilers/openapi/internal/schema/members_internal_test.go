@@ -115,6 +115,21 @@ func TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone(t *testing.T) {
 	last, ok := doc.Types["t/openapi/components/schemas/A39"].(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/prim/number"), last.Properties[0].Type.Target, "past it, its own")
+
+	cut := 1
+	for ; cut < 40; cut++ {
+		m, isModel := doc.Types[ir.TypeID(fmt.Sprintf("t/openapi/components/schemas/A%d", cut))].(*ir.Model)
+		require.True(t, isModel)
+		if m.Properties[0].Type.Target == "t/prim/number" {
+			break
+		}
+	}
+	for _, d := range diags {
+		if d.Code == diag.BudgetExceeded {
+			assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/A%d", cut)), d.Provenance.Pointer,
+				"at the first model left with its own")
+		}
+	}
 }
 
 // TestMembers_ReadsAPartThroughItsAliasesAndNothingElse pins what a settlement
