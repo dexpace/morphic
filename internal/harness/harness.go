@@ -57,7 +57,8 @@ type Result struct {
 	// Spec identifies the input (its corpus path or logical name).
 	Spec string
 	// Outcome is the first oracle's finding, in Check's order, the fault that
-	// ended the run (OutcomeError, OutcomeUnrecognized), or OutcomeOK.
+	// ended the run (OutcomeError, OutcomeUnrecognized, and for a case
+	// OutcomePanic), or OutcomeOK. Faulted tells a fault from a finding.
 	Outcome Outcome
 	// Detail is human-readable context for a non-OK outcome.
 	Detail string
@@ -68,6 +69,16 @@ type Result struct {
 	// Verdicts holds one Verdict per oracle, in the order Oracles lists them,
 	// or for a case CaseOracles: what each found, or why it asked nothing.
 	Verdicts []Verdict
+}
+
+// Faulted reports whether a fault ended r's run: its outcome is neither OK nor
+// what one of its verdicts found. A case's oracle panicking after another
+// found something is one, so a reader judging r by its findings alone would
+// lose the panic.
+func (r Result) Faulted() bool {
+	return r.Outcome != OutcomeOK && !slices.ContainsFunc(r.Verdicts, func(v Verdict) bool {
+		return v.Found() && v.Outcome == r.Outcome
+	})
 }
 
 // Check runs data through the engine as `morphic compile --verify` runs a
@@ -419,7 +430,8 @@ type reportLine struct {
 }
 
 // linesOf is what Report renders for r: a line per finding among its verdicts,
-// in Check's order, or its outcome alone.
+// in Check's order, then the fault that ended its run (Faulted); or its
+// outcome alone.
 func linesOf(r Result) []reportLine {
 	var lines []reportLine
 	for _, v := range r.Verdicts {
@@ -427,7 +439,7 @@ func linesOf(r Result) []reportLine {
 			lines = append(lines, reportLine{spec: r.Spec, outcome: v.Outcome, detail: v.Detail})
 		}
 	}
-	if len(lines) == 0 {
+	if len(lines) == 0 || r.Faulted() {
 		lines = append(lines, reportLine{spec: r.Spec, outcome: r.Outcome, detail: r.Detail})
 	}
 	return lines

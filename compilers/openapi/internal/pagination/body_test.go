@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -81,7 +81,7 @@ func TestInferWalks_ReadsAPostThatSearches(t *testing.T) {
 
 				op := openapitest.FindOp(t, doc, "search")
 				assert.Equal(t, tc.want, op.Pagination)
-				assert.Equal(t, lowering.PaginationInferenceHeuristic, op.Provenance.Inferred)
+				assert.Equal(t, pagination.InferenceHeuristic, op.Provenance.Inferred)
 			}
 		})
 	}

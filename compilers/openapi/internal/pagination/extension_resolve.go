@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -26,7 +26,7 @@ const (
 // resolved is what one source of a pagination target names on an operation:
 // the value, the nodes whose keys named it, where that is written, and whether
 // the source's key is written where it is read, whatever it states
-// (lowering.PageStatement.Written).
+// (promotion.PageStatement.Written).
 type resolved[T any] struct {
 	value   T
 	read    []*ir.Provenance
@@ -40,11 +40,11 @@ type resolved[T any] struct {
 // stated a value that does not resolve, which is reported and fills no
 // pagination. A later source naming another value is reported and loses, as it
 // does for every target.
-func firstResolved[T any](pg *pager, op *ir.Operation, target lowering.ExtensionTarget,
-	read func(lowering.ExtensionSource) (resolved[T], string, []ir.Diagnostic), same func(T, T) bool,
+func firstResolved[T any](pg *pager, op *ir.Operation, target promotion.ExtensionTarget,
+	read func(promotion.ExtensionSource) (resolved[T], string, []ir.Diagnostic), same func(T, T) bool,
 ) (resolved[T], bool, []ir.Diagnostic) {
 	var kept resolved[T]
-	var first lowering.ExtensionSource
+	var first promotion.ExtensionSource
 	var diags []ir.Diagnostic
 	written := false
 	for _, src := range pg.p.Sources(target) {
@@ -69,12 +69,12 @@ func firstResolved[T any](pg *pager, op *ir.Operation, target lowering.Extension
 }
 
 // input resolves what op's extensions state of target, a value of its request.
-func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (resolved[*ir.InputPath], bool, []ir.Diagnostic) {
-	return firstResolved(pg, op, target, func(src lowering.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
+func (pg *pager) input(op *ir.Operation, target promotion.ExtensionTarget) (resolved[*ir.InputPath], bool, []ir.Diagnostic) {
+	return firstResolved(pg, op, target, func(src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
 		if len(src.Values) > 0 {
 			return pg.markedInput(op, target, src)
 		}
-		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
+		st, diags := promotion.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
 		r := resolved[*ir.InputPath]{at: st.At, stated: st.Stated, written: st.Written,
 			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {
@@ -87,12 +87,12 @@ func (pg *pager) input(op *ir.Operation, target lowering.ExtensionTarget) (resol
 }
 
 // output resolves what op's extensions state of target, a value of a page.
-func (pg *pager) output(op *ir.Operation, target lowering.ExtensionTarget) (resolved[*ir.PropPath], bool, []ir.Diagnostic) {
-	return firstResolved(pg, op, target, func(src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
+func (pg *pager) output(op *ir.Operation, target promotion.ExtensionTarget) (resolved[*ir.PropPath], bool, []ir.Diagnostic) {
+	return firstResolved(pg, op, target, func(src promotion.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
 		if len(src.Values) > 0 {
 			return pg.markedOutput(op, target, src)
 		}
-		st, diags := lowering.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
+		st, diags := promotion.PageStatementOf(pg.p, target, src, op.Unmodeled, pg.root)
 		r := resolved[*ir.PropPath]{at: st.At, stated: st.Stated, written: st.Written,
 			read: []*ir.Provenance{&op.Provenance}}
 		if !st.Stated {

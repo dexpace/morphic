@@ -10,30 +10,30 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // PromoteChoices fills each operation's ParamChoices from the key the policy's
-// sources of lowering.TargetParamChoices name: an object from a choice's name
+// sources of promotion.TargetParamChoices name: an object from a choice's name
 // to its optional flag and its variants, each a list of parameter names. A
 // choice is filled whole or not at all, one written badly leaving the others,
 // and is reported as info diag.UnpromotedExtension at the most specific
 // coordinate. Choices and variants are sorted by name, as an object's members
 // keep no order. An operation holding a filled choice is marked; the key stays.
-func PromoteChoices(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
-	p := c.Promoter()
+// p is the run's promoter.
+func PromoteChoices(p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, op := range w.Ops {
-		st, written, readDiags := p.StatementOf(lowering.TargetParamChoices, op.Unmodeled)
+		st, written, readDiags := p.StatementOf(promotion.TargetParamChoices, op.Unmodeled)
 		diags = append(diags, readDiags...)
 		if !written {
 			continue
 		}
 		var groups map[string]jsontext.Value
 		if err := json.Unmarshal(st.Value, &groups); err != nil || groups == nil {
-			diags = append(diags, lowering.Unpromoted(st.Source.String(), st.At, "is "+lowering.ShapeOf(st.Value)+
+			diags = append(diags, promotion.Unpromoted(st.Source.String(), st.At, "is "+promotion.ShapeOf(st.Value)+
 				`, not an object from each choice's name to a boolean "optional" and "variants", an object `+
 				`from each variant's name to a list of parameter names`, "no choice is filled"))
 			continue
@@ -48,7 +48,7 @@ func PromoteChoices(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 			op.ParamChoices = append(op.ParamChoices, choice)
 		}
 		if len(op.ParamChoices) > 0 {
-			op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.ExtensionPromotionHeuristic)
+			op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 		}
 	}
 	return diags
@@ -72,7 +72,7 @@ type refusal struct {
 func (r reader) choice(name string, raw jsontext.Value, where ir.Provenance) (ir.ParamChoice, ir.Diagnostic, bool) {
 	choice, no := r.readChoice(name, raw, where)
 	if no != nil {
-		return ir.ParamChoice{}, lowering.Unpromoted(r.key, no.at, no.why,
+		return ir.ParamChoice{}, promotion.Unpromoted(r.key, no.at, no.why,
 			"the choice "+strconv.Quote(name)+" is not filled"), false
 	}
 	return choice, ir.Diagnostic{}, true
@@ -86,7 +86,7 @@ func (r reader) choice(name string, raw jsontext.Value, where ir.Provenance) (ir
 func (r reader) readChoice(name string, raw jsontext.Value, where ir.Provenance) (ir.ParamChoice, *refusal) {
 	var fields map[string]jsontext.Value
 	if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
-		return ir.ParamChoice{}, &refusal{"holds " + lowering.ShapeOf(raw) + " for choice " + strconv.Quote(name) +
+		return ir.ParamChoice{}, &refusal{"holds " + promotion.ShapeOf(raw) + " for choice " + strconv.Quote(name) +
 			", not an object", where}
 	}
 	optional, no := flag(name, fields, where)

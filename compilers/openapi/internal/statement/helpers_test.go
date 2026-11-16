@@ -1,0 +1,52 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package statement_test
+
+import (
+	"encoding/json/jsontext"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+)
+
+// rows reads every position with one set of rows.
+type rows struct{ rules oas.SchemaRules }
+
+// At returns r's rows, wherever p is.
+func (r rows) At(bind.Position) oas.SchemaRules { return r.rules }
+
+// rulesAt returns the Schema Object's rows at version in dialect.
+func rulesAt(t *testing.T, version, dialect string) oas.SchemaRules {
+	t.Helper()
+	r, unread := oas.Table().SchemaRules(version, dialect)
+	require.False(t, unread, "%s %s", version, dialect)
+	return r
+}
+
+// document returns an OpenAPI document of version whose components are
+// schemas, each a line written in flow style.
+func document(version string, schemas ...string) string {
+	return openapitest.ComponentSpecVer(version, "    "+strings.Join(schemas, "\n    ")+"\n")
+}
+
+// tableOver loads spec and returns a table reading its bindings with rules,
+// and the context positions in its document are taken from.
+func tableOver(t *testing.T, spec string, rules oas.SchemaRules) (*statement.Table, lowering.Ctx) {
+	t.Helper()
+	c := loweringtest.Context(t, spec, lowering.Policy{})
+	return statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rows{rules}}), c
+}
+
+// component returns the position of the component schema name.
+func component(c lowering.Ctx, name string) bind.Position {
+	return c.Position(jsontext.Pointer("/components/schemas/" + name))
+}

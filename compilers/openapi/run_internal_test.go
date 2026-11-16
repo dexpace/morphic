@@ -31,7 +31,8 @@ func TestRun_ReadsTheFinishedDocumentOnce(t *testing.T) {
 		return whole.New(doc)
 	}
 
-	doc, diags, err := run(t.Context(), loweringtest.Context(t, string(src), lowering.Policy{}), compile.NewTypes(), count)
+	doc, diags, err := run(t.Context(), loweringtest.Context(t, string(src), lowering.Policy{}), inferences{},
+		compile.NewTypes(), count)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	assert.Empty(t, diags)
@@ -61,7 +62,8 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 				return kept
 			}
 
-			doc, _, err := run(t.Context(), loweringtest.Context(t, string(src), lowering.Policy{}), compile.NewTypes(), keep)
+			doc, _, err := run(t.Context(), loweringtest.Context(t, string(src), lowering.Policy{}), inferences{},
+				compile.NewTypes(), keep)
 			require.NoError(t, err)
 			require.NotNil(t, kept)
 			assert.Empty(t, staleReadings(kept, whole.New(doc)))

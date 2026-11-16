@@ -271,9 +271,8 @@ func Coordinates(c Cases, i int) ([]int, error) {
 
 // CheckCase writes c's case at and applies every case oracle to it, as
 // CheckCases does, and returns false, with the case's name alone, where the
-// case writes nothing. A caller
-// mistake (nil ctx, cases CaseCount refuses, at outside the product) is
-// OutcomeError with a harness-prefixed Detail.
+// case writes nothing. A caller mistake (nil ctx, cases CaseCount refuses, at
+// outside the product) is OutcomeError with a harness-prefixed Detail.
 func CheckCase(ctx context.Context, c Cases, at []int) (Result, bool) {
 	axes, _, err := product(c)
 	if err != nil {

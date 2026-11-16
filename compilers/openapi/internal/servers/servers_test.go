@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
@@ -459,7 +460,7 @@ paths:
 		s, ok := doc.Servers[id]
 		require.True(t, ok, id)
 		assert.Equal(t, want.name, s.Name, id)
-		assert.Equal(t, want.marked, s.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, id)
+		assert.Equal(t, want.marked, s.Provenance.Inferred == promotion.ExtensionPromotionHeuristic, id)
 		assert.Contains(t, s.Unmodeled, "openapi:x-fern-server-name", "%s keeps the key it read", id)
 	}
 }

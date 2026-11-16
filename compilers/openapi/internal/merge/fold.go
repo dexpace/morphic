@@ -516,7 +516,7 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
 // settles its docs: neither is bound to a shape. A promotion marks the
-// declaration it read (lowering.Promoter.Deprecation), so the field takes the
+// declaration it read (promotion.Promoter.Deprecation), so the field takes the
 // marker of the declaration whose deprecation it keeps, whichever declaration
 // that is.
 func (f *folding) foldAnnotations() {

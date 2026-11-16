@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -454,7 +455,7 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	if !kept {
 		return diags
 	}
-	lowering.DropContained(d.c.Promoter(), &m.Unmodeled, "openapi:discriminator")
+	promotion.DropContained(d.c.Promoter(), &m.Unmodeled, "openapi:discriminator")
 	m.Discriminator = nil
 	if mt, isMap := ir.AsMap(m); isMap {
 		reg[d.model] = mt
