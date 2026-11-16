@@ -240,6 +240,46 @@ func TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce(t *testing.T) {
 	assert.Equal(t, byRaw, byRef)
 }
 
+// TestNamedPointerBytes_AKeyWrittenTwiceIsNamedAtTheCopyAMergeReads holds a
+// spine under one copy of a key written twice to being named only where the
+// binder reads that copy (docs/parser-library.md#duplicate-key): a mapping's
+// own repeated key at its last copy, and a `<<` source's at its first.
+func TestNamedPointerBytes_AKeyWrittenTwiceIsNamedAtTheCopyAMergeReads(t *testing.T) {
+	t.Parallel()
+	const base = namedHead + "components:\n  schemas:\n"
+	const leaf = "{type: string}"
+	once, c1 := namedTotal(t, base+"    A: {type: object, properties: {k: "+leaf+"}}\n")
+	spineFirst, c2 := namedTotal(t, base+"    A: {type: object, properties: {k: "+namedSpine+", k: "+leaf+"}}\n")
+	spineLast, c3 := namedTotal(t, base+"    A: {type: object, properties: {k: "+leaf+", k: "+namedSpine+"}}\n")
+	const merged = namedHead + "x-s: &s {k: %s, k: %s}\ncomponents:\n  schemas:\n    A: {type: object, properties: {<<: *s}}\n"
+	mergedFirst, c4 := namedTotal(t, fmt.Sprintf(merged, namedSpine, leaf))
+	mergedLast, c5 := namedTotal(t, fmt.Sprintf(merged, leaf, namedSpine))
+
+	require.True(t, c1 && c2 && c3 && c4 && c5)
+	assert.Equal(t, once, spineFirst, "a spine under a mapping's first copy is not named")
+	assert.Greater(t, spineLast, once+100, "a spine under its last copy is")
+	assert.Greater(t, mergedFirst, mergedLast+100, "a spine under a merged source's first copy is named")
+}
+
+// TestNamedPointerBytes_ALandingIsNamedAtEachPositionItIsReachedAt holds a raw
+// spine an anchor mounts under two extension keys of one length to being named
+// once for each mount a $ref lands at: the binder walks a landing from where
+// it lands, so the second mount costs what the first does, though both hold
+// one node. Two references to one mount name it once.
+func TestNamedPointerBytes_ALandingIsNamedAtEachPositionItIsReachedAt(t *testing.T) {
+	t.Parallel()
+	const base = namedHead + "x-s: &s " + namedSpine + "\nx-a: *s\nx-b: *s\ncomponents:\n  schemas:\n"
+	none, c0 := namedTotal(t, base+"    A: {type: object}\n    B: {type: object}\n")
+	once, c1 := namedTotal(t, base+"    A: {$ref: \"#/x-a\"}\n    B: {type: object}\n")
+	twice, c2 := namedTotal(t, base+"    A: {$ref: \"#/x-a\"}\n    B: {$ref: \"#/x-b\"}\n")
+	again, c3 := namedTotal(t, base+"    A: {$ref: \"#/x-a\"}\n    B: {$ref: \"#/x-a\"}\n")
+
+	require.True(t, c0 && c1 && c2 && c3)
+	assert.Greater(t, once-none, 5*len("/x-a"), "the spine is named once a $ref lands in it")
+	assert.Equal(t, once-none, twice-once, "a second mount of the spine is named as the first is")
+	assert.Equal(t, once, again, "a mount two references land at is named once")
+}
+
 // TestNamedPointerBytes_NamesTheEntriesOfAListAndTheReferenceOfAnObject holds
 // the nodes of a list, an `allOf` branch and a parameter list item among
 // them, to the pointers they are named by: the total grows by what a list adds, a
