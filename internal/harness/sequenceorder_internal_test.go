@@ -68,6 +68,15 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want:  passed(OracleSequenceOrder),
 		},
 		{
+			// The base's tie flips its member with the order, and the member a
+			// model composing it declares again folds with what the tie kept.
+			name: "a tie among inline declarations decides what overrides it",
+			src: schemas("Base: {allOf: [{type: object, properties: {x: {type: integer}}}, {type: object, properties: {x: {type: string}}}]}",
+				"Sub: {allOf: [{$ref: '#/components/schemas/Base'}, {type: object, properties: {x: {type: string, description: d}}}]}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Base/allOf/0/properties/x"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
 			name: "a redeclared array keeps the declaration naming an item type",
 			src: schemas("N: {allOf: [{type: object, properties: {p: {type: array}}}, " +
 				"{type: object, properties: {p: {type: array, items: {type: string}}}}]}"),

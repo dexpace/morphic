@@ -135,8 +135,11 @@ func TestSettledFrom_TiesWhatATiedMemberDecides(t *testing.T) {
 	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, got.nodes)
 	assert.Contains(t, got.pointers, "/M/allOf/properties/p", "where the tied member's fold mints")
 	assert.Equal(t, []string{"t/AB", "t/M"}, got.holders, "the models holding a tied member")
+	bySite := settledFrom(tieSites{pointers: []string{"/AB"}}, doc, nil)
+	assert.Equal(t, []string{"p/AB/p", "p/M/p", "t/inferred"}, bySite.nodes,
+		"a member declared beneath a tie site is tied, as a fold of inline declarations reports where they are")
 	assert.Equal(t, tieSites{pointers: []string{"/x"}}, settledFrom(tieSites{pointers: []string{"/x"}}, doc, nil),
-		"no tied node, no closure")
+		"a site no member is declared at ties none")
 	assert.Equal(t, tieSites{nodes: []string{"p/AB/p"}}, settledFrom(tieSites{nodes: []string{"p/AB/p"}}, nil, nil),
 		"a refused compile adds none")
 }
