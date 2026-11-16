@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -170,6 +171,45 @@ components:
 		def, ok := got.doc.Types[at]
 		require.True(t, ok, "a node at %s", at)
 		assert.Equal(t, compile.SubHint("H", "item"), def.Common().Name.Hint, at)
+	}
+}
+
+// TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding pins that the
+// YAML at a schema position beneath an Encoding Object another nests, which no
+// model holds, answers a reference only where it is shaped as a schema, as raw
+// YAML under an extension does: a string at both is refused at the reference,
+// and neither is built.
+func TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding(t *testing.T) {
+	t.Parallel()
+	const at = "/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X/schema"
+	doc, diags := parseVerified(t, `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {doc: {type: object, properties: {inner: {type: string}}}}}
+            encoding: {doc: {encoding: {inner: {headers: {X: {schema: "Part"}}}}}}
+      responses: {'200': {description: ok}}
+components:
+  schemas:
+    Nested: {$ref: '#`+at+`'}
+    Extension: {$ref: '#/x-defs/X/schema'}
+x-defs:
+  X: {schema: "Part"}
+`)
+	require.NotNil(t, doc)
+	refs := unresolvedRefs(diags)
+	got := make([]string, 0, len(refs))
+	for _, d := range refs {
+		assert.Contains(t, d.Message, "holds no schema", d.Provenance.Pointer)
+		got = append(got, string(d.Provenance.Pointer))
+	}
+	assert.ElementsMatch(t, []string{"/components/schemas/Nested", "/components/schemas/Extension"}, got)
+	for _, schema := range []string{at, "/x-defs/X/schema"} {
+		assert.NotContains(t, doc.Types, ids.Document{}.AnonType(jsontext.Pointer(schema)))
 	}
 }
 

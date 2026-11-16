@@ -44,13 +44,13 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason = reason
 		return h
 	}
-	if !answers(r) {
-		h.Reason = NotSchema
-		return h
-	}
 	role, reason := heldRole(b.docs, r)
 	if reason != NoReason {
 		h.Reason = reason
+		return h
+	}
+	if !answers(role, r.node) {
+		h.Reason = NotSchema
 		return h
 	}
 	h.Status, h.Target, h.Role = Resolved, r.at, role
