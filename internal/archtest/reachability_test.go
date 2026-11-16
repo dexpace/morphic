@@ -69,6 +69,8 @@ var apiRoots = map[string]string{
 	"ir/irfacts.Index.Component":   factAPI,
 	"ir/irfacts.Index.Correlation": factAPI,
 	"ir/irfacts.Index.Correlated":  factAPI,
+	"internal/harness/openapicases.SuiteGroups": "the groups the instance oracle's cases write as defaults, " +
+		"and the binding canary compiles",
 }
 
 // testSupport names each package whose production files exist for tests, with
