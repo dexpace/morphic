@@ -17,10 +17,10 @@ import (
 
 // folded returns doc with its decorators (ir.Decorated) left out of Types, and
 // the marshalers that write each use of one as a use of the type it stands for,
-// its annotations merged as annotations says. Two spellings of one use then
-// encode alike. It is a second implementation of the emitter's collapse
-// (docs/emitters/refine/decorators.md), until emitters/refine holds that one,
-// which replaces it.
+// what the chain holds beside it, and at a carrier what carried.write merges.
+// Two spellings of one use then encode alike. It is a second implementation of
+// the emitter's collapse (docs/emitters/refine/decorators.md), until
+// emitters/refine holds that one, which replaces it.
 func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 	uses := decoratorUses(doc.Types)
 	if len(uses) == 0 {
@@ -45,22 +45,22 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
 			c := carried[plainProperty]{Carrier: plainProperty(p)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, true})
+				&c.Carrier.Examples, true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
 			c := carried[plainHeader]{Carrier: plainHeader(h)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, true})
+				&c.Carrier.Examples, true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
 			c := carried[plainParameter]{Carrier: plainParameter(p)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, true})
+				&c.Carrier.Examples, true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
 			c := carried[plainVariant]{Carrier: plainVariant(v)}
 			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, false})
+				&c.Carrier.Examples, false})
 		}),
 	)
 }
@@ -137,12 +137,9 @@ func lentBy(td ir.TypeDef) annotations {
 	return annotations{docs: c.Docs, deprecation: c.Deprecation}
 }
 
-// annotations are the fields a decorator shares with a use site: each Docs
-// field and Deprecation from the first that sets one and Examples whole from
-// the nearest, as docs/emitters/refine/decorators.md merges a chain onto its
-// carrier, and Availability from the first and Unmodeled the union by name,
-// which that collapse leaves on the decorator. So the fold does not tell an
-// Unmodeled entry a carrier holds from one the decorator it names holds.
+// annotations are the fields a decorator shares with a use site, merged along
+// a chain: each Docs field, Deprecation and Availability from the first that
+// sets one, Examples whole from the nearest, and Unmodeled the union by name.
 type annotations struct {
 	docs         ir.Docs
 	deprecation  *ir.Deprecation
@@ -264,42 +261,53 @@ type foldedRef struct {
 }
 
 // carried is a carrier whose type names a decorator: its own members, the
-// chain merged in, and Unmodeled the union, which may list a repeated name.
+// chain's Docs, Deprecation and Examples merged in, and Decorator, what the
+// chain holds that the collapse leaves on it.
 type carried[T any] struct {
-	Carrier   T              `json:",embed"`
-	Unmodeled map[string]any `json:"unmodeled,omitempty"`
+	Carrier   T           `json:",embed"`
+	Decorator *keptBeside `json:"decorator,omitzero"`
+}
+
+// keptBeside is a chain's Availability and Unmodeled, which no carrier takes,
+// so a carrier holding them differs from one naming a decorator that does.
+type keptBeside struct {
+	Availability *ir.Availability `json:"availability,omitzero"`
+	Unmodeled    map[string]any   `json:"unmodeled,omitempty"`
 }
 
 // slots point at a carrier's reference and the fields the chain merges into,
 // and say whether the carrier takes what the chain's type lends: a union
 // variant takes none of it, as the compiler gives a variant none.
 type slots struct {
-	ref          *ir.TypeRef
-	docs         *ir.Docs
-	deprecation  **ir.Deprecation
-	examples     *[]ir.Example
-	availability **ir.Availability
-	unmodeled    ir.Unmodeled
-	lends        bool
+	ref         *ir.TypeRef
+	docs        *ir.Docs
+	deprecation **ir.Deprecation
+	examples    *[]ir.Example
+	lends       bool
 }
 
-// write writes c, merging the chain its reference names into s, the carrier's
-// own fields first and what the chain's type lends last, or declines, for a
-// carrier naming no decorator.
+// write writes c with the chain its reference names folded in as the
+// collapse folds it, "The decorators' annotations fold onto the carrier
+// holding the reference — a property, a parameter, a header or a union
+// variant, each of which has a field for all three"
+// (docs/emitters/refine/decorators.md#decorators-collapse-into-their-references):
+// the three its list and steps.md's CollapseAliases row name, Docs,
+// Deprecation and Examples, the carrier's own first and what the chain's type
+// lends last. It declines a carrier naming no decorator.
 func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slots) error {
 	u, ok := uses[s.ref.Target]
 	if !ok {
 		return errors.ErrUnsupported
 	}
-	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples,
-		availability: *s.availability, unmodeled: entryLists(s.unmodeled)}
+	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples}
 	merged := own.then(u.notes)
 	if s.lends {
 		merged = merged.then(u.lent)
 	}
 	s.ref.Target = u.target
-	*s.docs, *s.deprecation, *s.examples, *s.availability = merged.docs, merged.deprecation, merged.examples,
-		merged.availability
-	c.Unmodeled = merged.unmodeledMember()
+	*s.docs, *s.deprecation, *s.examples = merged.docs, merged.deprecation, merged.examples
+	if u.notes.availability != nil || len(u.notes.unmodeled) > 0 {
+		c.Decorator = &keptBeside{Availability: u.notes.availability, Unmodeled: u.notes.unmodeledMember()}
+	}
 	return json.MarshalEncode(enc, c)
 }
