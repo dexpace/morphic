@@ -355,7 +355,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve"},
 	// What the service lowerings read beside the schema lowering's context,
-	// which it embeds: the parsed document, the source's identity, how
+	// which it embeds: the parsed document, the source's index, how
 	// operations group, which media types stream or are binary, and the budget
 	// a $ref's copies are charged against. It reaches load for what the load
 	// phase modelled beside path items' $refs and the media types it resolved,
