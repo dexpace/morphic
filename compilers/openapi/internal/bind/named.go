@@ -123,7 +123,7 @@ type namedFrame struct {
 }
 
 // shapeOf measures what top names, over an explicit stack: each (node, state)
-// once, an alias as what it names, a raw value as its root alone.
+// once, an alias as what it names, a node read raw as rawNamed counts it.
 func (w *named) shapeOf(ctx context.Context, top namedKey) namedShape {
 	stack := []namedFrame{{key: top}}
 	for len(stack) > 0 && w.complete {
