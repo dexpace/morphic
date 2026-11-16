@@ -747,6 +747,8 @@ parameters:
 - Code:
   - `oas.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports such a
     string.
+  - `statement.Exclusive` holds the arm the model read, which the node's tag does not give for such
+    a string.
 
 ### `unmodeled-keywords`
 
@@ -793,6 +795,7 @@ components:
 - Code:
   - `statement.truthOf` reads such a value as `Unwritten` by its node.
   - `statement.Truth.ReadsFalse` excludes it, so no reader takes one for `false`.
+  - `statement.Sub.Held` tells a keyword holding one from a keyword left out.
 
 ### `failure-beneath-itself`
 

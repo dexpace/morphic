@@ -178,14 +178,15 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/sourceindex", "go.yaml.in/yaml/v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
 	// plus how a construct is kept verbatim under Unmodeled, the validation-only
-	// keywords among them. It reads the parsed model and the raw nodes behind
-	// it, those through nodeview and their scalars through value, and holds no
-	// opinion about lowering — so it sits below the schema lowering that asks it
-	// questions and above nothing that asks it any. It reaches the library's yml
-	// package for the tags its decoder accepts as a string, so a field read off
-	// a raw node decodes as the parser decodes the fields it models, budget for
-	// the nodes a kept construct may render, and provenance for where what it
-	// keeps and reports is placed.
+	// keywords among them. It reads each schema from its statement and the raw
+	// nodes behind what a statement leaves out, those through nodeview and their
+	// scalars through value, and holds no opinion about lowering — so it sits
+	// below the schema lowering that asks it questions and above nothing that
+	// asks it any. It reaches the library's yml package for the tags its decoder
+	// accepts as a string, so a field read off a raw node decodes as the parser
+	// decodes the fields it models, its extensions package for the extension
+	// map of an object that is no schema, budget for the nodes a kept construct
+	// may render, and provenance for where what it keeps and reports is placed.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
@@ -291,7 +292,8 @@ var rules = map[string][]string{
 	// walk at raw YAML, which holds none, and compilers for the file a file URI
 	// names as a reader reads it. It reaches nothing that lowers — following a
 	// reference far enough to lower its target recurses back into the schema
-	// walk, so that stays with the walk.
+	// walk, so that stays with the walk. It reads where a reference lands from
+	// the bindings and holds no schema of the library's model.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -477,7 +479,9 @@ var rules = map[string][]string{
 	// reference following, and the preservation that hangs off both. It is one
 	// package because they are one cycle (micro-compiler-design §5), and it
 	// reaches every part of the compiler below it — but nothing above: an import
-	// of the compiler package from here is the cycle the extraction removed.
+	// of the compiler package from here is the cycle the extraction removed. It
+	// reads each schema from its statement and imports none of the library's
+	// schema model, which modelHolders holds it to by type.
 	"compilers/openapi/internal/schema": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",

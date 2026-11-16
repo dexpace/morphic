@@ -195,9 +195,13 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    joins `schema`'s `allof.go`, or, in a package split by responsibility, the file of the
    responsibility it serves, as a visibility rule's joins `merge`'s `visibility.go`. A construct or
    responsibility no file holds yet starts a file named for it, however small, and a helper goes
-   with what it serves, not with its caller. The
-   parser library's model can read an absent field and an empty one alike, so check what it
-   returns before you branch on it. A call of the library that panics on input it accepts runs
+   with what it serves, not with its caller. A rule reads a schema from its statement
+   (`compilers/openapi/internal/statement`), not from the parser library's model, and a keyword the
+   statement lacks is added to `oas`'s rows and filled in the statement's `model.go`, the one file
+   that reads the model. Two places outside it still read the model's fields: the load phase, which
+   builds the bindings from it before any statement is read, and the operation walk. Wherever the
+   model is read, it can read an absent field and an empty one alike, so check what it returns
+   before you branch on it. A call of the library that panics on input it accepts runs
    behind `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but
    `barrier` may call `recover` outside its tests. The root guidance's caps apply: no function
    over 70 lines or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no
@@ -207,6 +211,9 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    instead, or, for a call of a kind the table keeps, such as an immediate callback, raise its
    pair's count.
    *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
+   `TestModelHolders_NoOtherPackageHoldsAParserSchema` for a package outside its list that holds
+   the model's schema type, whether it imports the library or not,
+   `TestModelReads_HeldToTheBaseline` for a read of the model beside the statement,
    `TestMethodsPerType_StayUnderTheCap`, `TestDocComments_StayUnderTheCap`,
    `TestSuppressions_NoDirectiveStandsInTheSource`, `TestCallShape_HeldToTheBaseline`. Nothing fails
    for code in the wrong file of its package.
