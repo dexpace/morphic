@@ -2511,10 +2511,10 @@ neither: a discriminator routes by a tag a variant's values need not agree with.
 within a union holding bounds of its own, or reached through an alias that holds some, since each
 bounds the values of its kind whichever variant holds them, which the variants do not say. One
 judgment reads at most 64 variants, past which the two are unrelated. A structure whose source
-states no instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read
-as [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it
-admits every value of another instance type, as `properties` alone constrains objects and admits a
-string.
+states no instance type is the exception to the disjoint pairs: its own `type` and its `allOf`,
+read as [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so
+it admits every value of another instance type, as `properties` alone constrains objects and
+admits a string.
 That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
 else could refuse a value of some instance type reads as stating its type: a `oneOf`, `anyOf`,
 `not`, `if`, `enum`, `const`, `$dynamicRef` or `$recursiveRef`, a keyword beside an entry's or an
