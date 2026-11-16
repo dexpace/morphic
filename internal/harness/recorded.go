@@ -108,8 +108,8 @@ func (r Recorded) Write(header string, found []Finding) []byte {
 }
 
 // Findings returns what o found in each of results, in their order, and each
-// decline its record lists as it lists a finding (Oracle.records), whose What
-// is "declined: <reason>".
+// decline its record lists as it lists a finding (listed), whose What is
+// "declined: <reason>".
 func Findings(results []Result, o Oracle) []Finding {
 	var found []Finding
 	for _, r := range results {
@@ -122,9 +122,13 @@ func Findings(results []Result, o Oracle) []Finding {
 	return found
 }
 
-// listed reports whether a record lists v: a finding, or a decline its oracle
-// records.
-func listed(v Verdict) bool { return v.Found() || v.Oracle.records(v.Declined) }
+// listed reports whether a record lists v: a finding, or a decline saying a
+// case gave its oracle something to ask that the oracle could not. A case is
+// written to compile and each group to be judged, so a document that draws an
+// error and an instance nothing judged show as a new finding does.
+func listed(v Verdict) bool {
+	return v.Found() || v.Declined == DeclineErrorDiagnostic || v.Declined == DeclineNotJudged
+}
 
 // findingOf is the Finding v, a verdict of r a record lists, makes.
 func findingOf(r Result, v Verdict) Finding {

@@ -50,7 +50,7 @@ const (
 	OutcomeNotCarried        Outcome = "not-carried"
 	OutcomeInstanceExcluded  Outcome = "instance-excluded"
 	// OutcomeDeclined is a case oracle's decline its record must list and
-	// does not (Oracle.records, Unexplained).
+	// does not (Unexplained).
 	OutcomeDeclined Outcome = "declined"
 )
 

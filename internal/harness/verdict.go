@@ -102,14 +102,6 @@ func idle(o Oracle) Decline {
 	}
 }
 
-// records reports whether o's record lists a decline for the reason d, as it
-// lists a finding: a case gave o something to ask, and o could not ask it. The
-// instance oracle's alone, every group the test suite holds being one to ask,
-// so a group that starts to decline shows.
-func (o Oracle) records(d Decline) bool {
-	return o == OracleInstance && (d == DeclineErrorDiagnostic || d == DeclineNotJudged)
-}
-
 // notReached is why an oracle a fault ended the run before declines.
 func notReached(Oracle) Decline { return DeclineNotReached }
 

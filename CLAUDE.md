@@ -297,10 +297,12 @@ These all exist already — extend them rather than building a parallel mechanis
   value changes, unless it says why nothing carries it) and instance (the suite's valid instances
   are admitted). The gate checks the core cases, each axis value whose `Like` is empty, in
   `go test ./internal/harness/openapicases`; `make cases` checks every case, as the nightly job
-  does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by index. The presence
-  oracle declines a document drawing an error diagnostic and the spelling oracle compares it like
-  any other, so the same tests also compile each core case, and each axis value at a version
-  outside the core, and fail on one. A finding that stands is a line of that package's
+  does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by index. A case is
+  written to compile: an oracle declining one for an error diagnostic, the spelling oracle where
+  neither side compiled, has made a finding its record must list. The same tests also compile each
+  core case, and at each version outside the core the first case writing each other axis value,
+  and name the error; a document refused only where two such values meet is the nightly run's to
+  find. A finding that stands is a line of that package's
   `testdata/spelling.txt`, `presence.txt` or `instances.txt`: case name, what was found, and a
   reason that `Reasons` maps to its issue. `-update` writes a new finding as `unclassified`, which
   fails until it is given a reason, and deletes the lines a fix leaves naming no finding, which

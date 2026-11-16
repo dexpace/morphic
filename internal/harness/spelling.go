@@ -29,9 +29,10 @@ const maxSpellingDepth = 2 * maxReverseDepth
 // to the partner's coordinates, and the diagnostics compared as a multiset once
 // the reports the spelling states are taken out. A difference is
 // OutcomeSpellingDependent, its Detail's first line naming where they differ.
-// A compile's error, a document that does not encode and a partner the product
-// writes nothing for are the harness's or the product's fault, a panic, never
-// a finding a record could list.
+// Where neither side compiled it declines, which its record lists as a finding
+// (listed): two refusals compare alike whatever the case says. A compile's
+// error, a document that does not encode and a partner the product writes
+// nothing for are the harness's or the product's fault, a panic.
 func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	eq := doc.Equal
 	if eq == nil {
@@ -51,6 +52,9 @@ func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	if err := cmp.Or(mine.err, theirs.err); err != nil {
 		panic(fmt.Sprintf("harness: compile case %v or its partner: %v", at, err))
 	}
+	if uncompiled(mine) && uncompiled(theirs) {
+		return declined(OracleSpelling, DeclineErrorDiagnostic)
+	}
 	if refused := oneSideRefused(mine.doc, theirs.doc); refused != "" {
 		return found(OracleSpelling, refused+"\n"+eq.Rule)
 	}
@@ -68,6 +72,13 @@ func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 		return found(OracleSpelling, spellingDetail(what, eq.Rule, a, b, diags, doc, partner))
 	}
 	return passed(OracleSpelling)
+}
+
+// uncompiled reports whether c is a refusal and not what its case says: the
+// compile drew an error diagnostic, or returned no document.
+func uncompiled(c compiled) bool {
+	_, failed := ir.FirstError(c.diags)
+	return failed || c.doc == nil
 }
 
 // oneSideRefused says which of a spelling and its partner alone compiled to no
@@ -92,8 +103,7 @@ var errTreeTooDeep = errors.New("encoded document nests too deep")
 var errCollides = errors.New("two names of one object relocate to one")
 
 // comparableSides returns each document folded, encoded and relocated as a
-// decoded tree, nil for no document, why the two cannot be compared, or the
-// error that stopped one.
+// decoded tree, why the two cannot be compared, or the error that stopped one.
 func comparableSides(mine, theirs *ir.Document, relocate func(string) string) (any, any, Decline, error) {
 	a, why, err := comparableSide(mine, relocate)
 	if why != "" || err != nil {
@@ -105,9 +115,6 @@ func comparableSides(mine, theirs *ir.Document, relocate func(string) string) (a
 
 // comparableSide is one side of comparableSides.
 func comparableSide(doc *ir.Document, relocate func(string) string) (any, Decline, error) {
-	if doc == nil {
-		return nil, "", nil
-	}
 	own, more := folded(doc)
 	encoded, err := encodeComparable(own, sortedArray, more)
 	if err != nil {
