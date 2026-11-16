@@ -79,6 +79,16 @@ func TestRecorded_WriteKeepsEachReason(t *testing.T) {
 	assert.Equal(t, []string{"c/x\tunclassified", "e/x\tunclassified"}, unreasoned)
 }
 
+// TestRecorded_WriteOfAWhatNoLineHolds pins Write's limit: a What that is
+// empty or holds a tab writes a line ReadRecorded refuses.
+func TestRecorded_WriteOfAWhatNoLineHolds(t *testing.T) {
+	for _, what := range []string{"", "kind\tbase"} {
+		_, err := harness.ReadRecorded(harness.Recorded{}.Write("", []harness.Finding{{Name: "a/x", What: what}}))
+		require.Error(t, err, "%q", what)
+		assert.Contains(t, err.Error(), "want name, what and reason", "%q", what)
+	}
+}
+
 func TestReadRecorded_RefusesWhatNoRecordHolds(t *testing.T) {
 	for _, tc := range []struct{ name, data, want string }{
 		{"two fields", "a/x\tkind\n", "record line 1: want name, what and reason"},
