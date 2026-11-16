@@ -570,8 +570,7 @@ func nullAloneReading(c lowering.Ctx, s *statement.Schema) (nullReading, bool) {
 // which lowers to the top type (lowerEnum); and it writes a const, which the
 // null reading holds to null, such an enum, or a type naming null alone.
 func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if m == nil || m.Ref != nil || len(m.GetAllOf()) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
+	if !statesSchema(s) || refWritten(s) || len(s.AllOf) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
 		return false
 	}
 	if enumWritten(s) {
@@ -590,10 +589,9 @@ func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
 // conjunct, and nullability is a property of the usage that names the
 // conjunction.
 func (n *nulls) allOf(s *statement.Schema, site nullSite) nullReading {
-	m := statement.Parsed(s)
 	out := alike(nullSilent)
-	for i, b := range m.GetAllOf() {
-		out = foldNullReadings(out, n.conjunct(n.c.Statements().Of(b), site.child("allOf", strconv.Itoa(i))))
+	for _, b := range allOfIn(s) {
+		out = foldNullReadings(out, n.conjunct(n.c.Statements().Sub(b), site.child("allOf", strconv.Itoa(b.Index))))
 	}
 	return out
 }

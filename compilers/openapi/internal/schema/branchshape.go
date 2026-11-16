@@ -50,11 +50,10 @@ type bodyReading struct {
 // readBody reads s, the schema writing a union, for its branches to be judged
 // against.
 func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
-	m := statement.Parsed(s)
 	r := &bodyReading{w: newAdmission(c), body: s}
 	r.held = r.w.written(s, r.w.nullable)
-	for _, b := range m.GetAllOf() {
-		r.held = r.held.and(r.w.whole(c.Statements().Of(b)))
+	for _, b := range allOfIn(s) {
+		r.held = r.held.and(r.w.whole(c.Statements().Sub(b)))
 	}
 	return r
 }
@@ -205,7 +204,7 @@ func (r *bodyReading) restates(top claim) bool {
 			return false
 		}
 		for _, j := range conjuncts {
-			claims = append(claims, claim{written: r.w.c.Statements().Of(j), held: c.held, at: c.at})
+			claims = append(claims, claim{written: r.w.c.Statements().Sub(j), held: c.held, at: c.at})
 		}
 		for _, n := range inner {
 			sub, open, ok := r.claimOf(n)
@@ -228,22 +227,22 @@ func (r *bodyReading) restates(top claim) bool {
 // boolean conjunct says nothing or only forbids. Keys are the statement's,
 // which hold the keywords the model has no field for
 // (docs/parser-library.md#unmodeled-keywords).
-func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceable], []nested, bool) {
+func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 	s := statement.ParsedAt(c.written).GetSchema()
 	if s == nil {
 		return nil, nil, true
 	}
 	var inner []nested
-	var conjuncts []*oas3.JSONSchema[oas3.Referenceable]
+	var conjuncts []statement.Sub
 	for _, k := range c.written.Keys {
 		switch {
 		case !judged(c.written.Schema, k.Name):
 		case k.Name == "allOf":
-			conjuncts = s.GetAllOf()
+			conjuncts = c.written.AllOf
 		case k.Name == "properties":
 			decls := r.declarationsAt(c)
 			for name, p := range s.GetProperties().All() {
-				inner = append(inner, nested{written: r.w.c.Statements().Of(p), at: decls.property(name)})
+				inner = append(inner, nested{written: r.w.c.Statements().Of(p), at: decls.property(r.w.c.Statements(), name)})
 			}
 		case k.Name == "items":
 			if _, listed := listedItems(c.written.Schema); listed {
@@ -284,8 +283,8 @@ func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
 	if n.at == nil {
 		return claim{}, false, false
 	}
-	alike := func(d *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return r.w.sameText(r.w.c.Statements().Of(d), n.written)
+	alike := func(d *statement.Statement) bool {
+		return r.w.sameText(d, n.written)
 	}
 	if statement.ParsedAt(n.written).IsBool() || slices.ContainsFunc(n.at.decls, alike) {
 		return claim{}, false, true
@@ -305,7 +304,7 @@ func (r *bodyReading) lands(c claim) bool {
 	if c.at == nil {
 		return false
 	}
-	at := r.w.c.Bindings().Declared(statement.ParsedAt(c.written))
+	at := declaredOf(r.w.c, c.written)
 	return at != nil && slices.Contains(r.w.innerAt(c.at).composed, at)
 }
 

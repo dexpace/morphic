@@ -262,8 +262,7 @@ func refinesToBranch(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // allOfComposes reports whether s writes an allOf that composes rather than
 // refines, the one a union beside it distributes across or is kept beside.
 func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if len(m.GetAllOf()) == 0 {
+	if len(allOfIn(s)) == 0 {
 		return false
 	}
 	_, refines := refinementOf(c, s, "")
@@ -405,14 +404,13 @@ var familyOrder = []string{"const", "enum", "allOf"}
 // otherwise report whichever guard the default happened to hold, electing that
 // name on schemas that never wrote it.
 func declaresFamily(s *statement.Schema, family string) bool {
-	m := statement.Parsed(s)
 	switch family {
 	case "const":
 		return constIn(s) != nil
 	case "enum":
 		return enumWritten(s)
 	case "allOf":
-		return len(m.GetAllOf()) > 0
+		return len(allOfIn(s)) > 0
 	default:
 		return false
 	}
@@ -597,7 +595,7 @@ var shapeKeywords = []siblingKeyword{
 	}},
 	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }},
 	{"enum", enumWritten},
-	{"allOf", func(s *statement.Schema) bool { return len(statement.Parsed(s).GetAllOf()) > 0 }},
+	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }},
 	{"additionalProperties", func(s *statement.Schema) bool {
 		return annotation.Written(statement.Parsed(s).GetAdditionalProperties())
 	}},

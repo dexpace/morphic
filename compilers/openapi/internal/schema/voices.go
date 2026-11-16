@@ -86,8 +86,7 @@ func foldValue(s *statement.Schema, entry string) foldRendering {
 // which would make the position a $ref site, whose alias keeps the allOf
 // verbatim (docs/compilers/openapi.md#allof-beside-ref).
 func allOfBesideNoRef(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return len(m.GetAllOf()) > 0 && m.Ref == nil
+	return len(allOfIn(s)) > 0 && !refWritten(s)
 }
 
 // allOfMayRefine reports whether s's allOf may refine: no $ref or $dynamicRef

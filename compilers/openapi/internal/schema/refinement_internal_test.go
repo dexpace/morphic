@@ -129,7 +129,8 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
 	s := declared(t, l, "T")
 	require.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)))
 
-	s.AllOf = nil
+	st := l.Ctx.Statements().Read(StatedIn(l, s))
+	st.AllOf, st.Entries = nil, nil
 	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
@@ -146,7 +147,8 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
 	require.Len(t, first, 1)
 	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each branch at its pointer under the schema's")
 
-	s.AllOf = nil
+	st := l.Ctx.Statements().Read(StatedIn(l, s))
+	st.AllOf, st.Entries = nil, nil
 	assert.Equal(t, first, nullableVoices(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
@@ -216,7 +218,8 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	first := lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents
 	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
 
-	js.GetSchema().AllOf = nil
+	st := l.Ctx.Statements().Of(js)
+	st.AllOf, st.Entries = nil, nil
 	assert.Equal(t, first, lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents, "the second ask reads what the first read")
 }
 

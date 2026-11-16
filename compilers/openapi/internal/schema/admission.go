@@ -304,23 +304,22 @@ func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.
 // document holding it: what its keywords say, conjoined with its allOf, its
 // unions and what its $ref lands on.
 func (w *admission) whole(js *statement.Statement) admitted {
-	m := statement.ParsedAt(js)
-	if !w.reads.Spend(1) || !annotation.Written(m) {
+	if !w.reads.Spend(1) || js.Truth == statement.Unwritten {
 		return admitted{kinds: kindAny}
 	}
-	if m.IsBool() {
-		if annotation.IsFalseSchema(m) {
+	if js.Truth != statement.Stated {
+		if js.Truth.ReadsFalse() {
 			return admitted{}
 		}
 		return admitted{kinds: kindAny}
 	}
-	s := m.GetSchema()
-	if declaresDynamicRef(js.Schema) && !w.c.Bindings().RefSite(m) {
+	s := statement.Parsed(js.Schema)
+	if declaresDynamicRef(js.Schema) && js.Ref == nil {
 		w.reads.Exhaust()
 	}
 	out := w.written(js.Schema, definesNullableAt(w.c, js))
-	for _, b := range s.GetAllOf() {
-		out = out.and(w.whole(w.c.Statements().Of(b)))
+	for _, b := range js.AllOf {
+		out = out.and(w.whole(w.c.Statements().Sub(b)))
 	}
 	if branches := s.GetOneOf(); len(branches) > 0 {
 		out = out.and(w.union(branches))
@@ -328,15 +327,15 @@ func (w *admission) whole(js *statement.Statement) admitted {
 	if branches := s.GetAnyOf(); len(branches) > 0 {
 		out = out.and(w.union(branches))
 	}
-	if !w.c.Bindings().RefSite(m) {
+	if js.Ref == nil {
 		return out
 	}
-	next := w.c.Bindings().Declared(m)
+	next := declaredOf(w.c, js)
 	if next == nil {
 		w.reads.Exhaust()
 		return out
 	}
-	return out.and(w.whole(w.c.Statements().Of(next)))
+	return out.and(w.whole(next))
 }
 
 // declarationSet is a set of schemas declaring together, with every schema they
@@ -345,8 +344,8 @@ func (w *admission) whole(js *statement.Statement) admitted {
 // the schemas the first time a claim asks for it, since a claim names few of
 // those a body declares.
 type declarationSet struct {
-	schemas    []*oas3.Schema
-	composed   []*oas3.JSONSchema[oas3.Referenceable]
+	schemas    []*statement.Schema
+	composed   []*statement.Statement
 	properties map[string]*place
 	items      *place
 }
@@ -356,7 +355,7 @@ type declarationSet struct {
 // the first time it is asked for and kept, so every claim restating the place
 // shares one reading.
 type place struct {
-	decls []*oas3.JSONSchema[oas3.Referenceable]
+	decls []*statement.Statement
 	held  *admitted
 	inner *declarationSet
 }
@@ -371,29 +370,28 @@ func newDeclarationSet() declarationSet {
 // (statement.Parsed), a boolean schema's, declares nothing, and the getters
 // read it as empty.
 func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
-	m := statement.Parsed(s)
-	d.schemas = append(d.schemas, m)
+	d.schemas = append(d.schemas, s)
 	if items := t.Sub(itemsSchema(s)); items.Truth != statement.Unwritten {
 		if d.items == nil {
 			d.items = &place{}
 		}
-		d.items.decls = append(d.items.decls, statement.ParsedAt(items))
+		d.items.decls = append(d.items.decls, items)
 	}
 }
 
 // property returns the place of the property name, nil where no schema of d
-// declares it, gathered once.
-func (d *declarationSet) property(name string) *place {
+// declares it, gathered once and read from t.
+func (d *declarationSet) property(t *statement.Table, name string) *place {
 	if at, ok := d.properties[name]; ok {
 		return at
 	}
 	var at *place
 	for _, s := range d.schemas {
-		if p, ok := s.GetProperties().Get(name); ok {
+		if p, ok := statement.Parsed(s).GetProperties().Get(name); ok {
 			if at == nil {
 				at = &place{}
 			}
-			at.decls = append(at.decls, p)
+			at.decls = append(at.decls, t.Of(p))
 		}
 	}
 	d.properties[name] = at
@@ -403,19 +401,18 @@ func (d *declarationSet) property(name string) *place {
 // declarations returns what s declares: itself, each allOf conjunct and what
 // a $ref lands on, read as whole reads them and within the same budget.
 func (w *admission) declarations(s *statement.Schema) declarationSet {
-	m := statement.Parsed(s)
 	out := newDeclarationSet()
 	out.add(w.c.Statements(), s)
-	w.declare(&out, slices.Clone(m.GetAllOf()))
+	w.declare(&out, statementsOf(w.c, allOfIn(s)))
 	return out
 }
 
 // heldAt returns what p's declarations admit together, read once.
 func (w *admission) heldAt(p *place) admitted {
 	if p.held == nil {
-		held := w.whole(w.c.Statements().Of(p.decls[0]))
+		held := w.whole(p.decls[0])
 		for _, d := range p.decls[1:] {
-			held = held.and(w.whole(w.c.Statements().Of(d)))
+			held = held.and(w.whole(d))
 		}
 		p.held = &held
 	}
@@ -439,18 +436,29 @@ func (w *admission) innerAt(p *place) declarationSet {
 // budget or a $ref landing nowhere, is one fewer to restate, which errs towards
 // shape. The walk keeps its own stack, so it adds no recursion cycle, and the
 // order of each list is no answer.
-func (w *admission) declare(out *declarationSet, stack []*oas3.JSONSchema[oas3.Referenceable]) {
+func (w *admission) declare(out *declarationSet, stack []*statement.Statement) {
 	for len(stack) > 0 && w.reads.Spend(1) {
-		js := stack[len(stack)-1]
+		st := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		out.composed = append(out.composed, js)
-		cs := js.GetSchema()
-		out.add(w.c.Statements(), w.c.Statements().Of(js).Schema)
-		stack = append(stack, cs.GetAllOf()...)
-		if next := w.c.Bindings().Declared(js); next != nil {
+		out.composed = append(out.composed, st)
+		out.add(w.c.Statements(), st.Schema)
+		for _, b := range st.AllOf {
+			stack = append(stack, w.c.Statements().Sub(b))
+		}
+		if next := declaredOf(w.c, st); next != nil {
 			stack = append(stack, next)
 		}
 	}
+}
+
+// statementsOf returns the statements of the schemas list names, in its
+// order.
+func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
+	out := make([]*statement.Statement, len(list))
+	for i, b := range list {
+		out[i] = c.Statements().Sub(b)
+	}
+	return out
 }
 
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.

@@ -104,57 +104,35 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")
 }
 
-// TestWalkAllOf_StopsWhenTheConsumerDoes pins that the walk and the schema view
-// end when the loop reading them breaks: at a leaf, at a wrapper that follows
-// its entries, and at a $ref branch the view yields.
-func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
+// TestAllOfRefBranches_StopsWhenTheConsumerDoes pins that the view of a
+// flattened allOf's $ref branches yields them in order, a nested wrapper's
+// included, and ends when the loop reading it breaks.
+func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
+    B: {type: object}
     M:
       allOf:
         - allOf:
             - {$ref: '#/components/schemas/A'}
         - {type: object}
-    Flat:
-      allOf:
-        - {$ref: '#/components/schemas/A'}
-        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
 `))
-	decl, ok := l.Doc.Components.Schemas.Get("M")
-	require.True(t, ok)
-
-	var all []bool // wrapper flag of every step, in order
-	for st := range walkAllOf(l.Ctx, l.Ctx.Statements().Of(decl).Schema) {
-		all = append(all, st.wrapper)
+	s := StatedIn(l, declared(t, l, "M"))
+	var all []*statement.Statement
+	for b := range allOfRefBranches(l.Ctx, s) {
+		all = append(all, b)
 	}
-	assert.Equal(t, []bool{false, true, false}, all, "the ref, its wrapper, then the inline branch")
+	require.Len(t, all, 2, "the nested $ref and the one beside it")
+	assert.Equal(t, StatedIn(l, declared(t, l, "A")), refBranchTarget(l.Ctx, all[0]))
+	assert.Equal(t, StatedIn(l, declared(t, l, "B")), refBranchTarget(l.Ctx, all[1]))
 
-	for stop := range all {
-		var seen int
-		for range walkAllOf(l.Ctx, l.Ctx.Statements().Of(decl).Schema) {
-			seen++
-			if seen > stop {
-				break
-			}
-		}
-		assert.Equal(t, stop+1, seen, "the walk yields nothing after the loop breaks")
-	}
-
-	var refs int
-	for range allOfRefBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema) {
-		refs++
+	var seen int
+	for range allOfRefBranches(l.Ctx, s) {
+		seen++
 		break
 	}
-	assert.Equal(t, 1, refs)
-
-	flatDecl, ok := l.Doc.Components.Schemas.Get("Flat")
-	require.True(t, ok)
-	var flatRefs int
-	for range allOfRefBranches(l.Ctx, l.Ctx.Statements().Of(flatDecl).Schema) {
-		flatRefs++
-		break
-	}
-	assert.Equal(t, 1, flatRefs, "a flat list stops at the first $ref when the loop breaks")
+	assert.Equal(t, 1, seen, "the view yields nothing after the loop breaks")
 }
 
 // TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites pins that a wrapper

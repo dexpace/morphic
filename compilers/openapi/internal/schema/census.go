@@ -371,9 +371,8 @@ func referenceUnhomed(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poin
 // oneOf/anyOf stay out: callers check declaresUnion and call the union keepers
 // directly (GitHub #406).
 func refSiteUnhomedKeywords(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, handled []string) []string {
-	m := statement.Parsed(s)
 	unhomed := referenceUnhomed(c, s, pointer, handled)
-	if len(m.GetAllOf()) > 0 {
+	if len(allOfIn(s)) > 0 {
 		unhomed = append(unhomed, "allOf")
 	}
 	return unhomed

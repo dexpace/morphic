@@ -8,7 +8,6 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -99,15 +98,14 @@ type conjunctTypes struct {
 // is a reference site under (typed.Bindings.RefKeyword), which the read leaves
 // to branch, as it leaves a $ref.
 func (r *conjunctTypes) schema(s *statement.Schema, reference string) kindSet {
-	m := statement.Parsed(s)
-	if m == nil || !r.steps.Spend(1) {
+	if !statesSchema(s) || !r.steps.Spend(1) {
 		return anyInstance
 	}
 	r.passedOver = r.passedOver || passesOver(s, reference)
 	out := declaredInstanceTypes(s)
-	entries := m.GetAllOf()
+	entries := s.AllOf
 	for _, b := range entries {
-		out &= r.branch(r.c.Statements().Of(b))
+		out &= r.branch(r.c.Statements().Sub(b))
 	}
 	if out == 0 && len(entries) > 0 {
 		return anyInstance
@@ -123,13 +121,12 @@ func (r *conjunctTypes) schema(s *statement.Schema, reference string) kindSet {
 // passed over (besideChain), as are a `false` entry and a $ref landing on no
 // schema.
 func (r *conjunctTypes) branch(b *statement.Statement) kindSet {
-	m := statement.ParsedAt(b)
-	if r.c.Bindings().RefSite(m) {
+	if b.Ref != nil {
 		target := refBranchTarget(r.c, b)
-		r.passedOver = r.passedOver || statement.Parsed(target) == nil || r.besideChain(b)
+		r.passedOver = r.passedOver || !statesSchema(target) || r.besideChain(b)
 		return r.schema(target, "")
 	}
-	r.passedOver = r.passedOver || annotation.IsFalseSchema(m)
+	r.passedOver = r.passedOver || b.Truth.ReadsFalse()
 	return r.schema(b.Schema, "")
 }
 
@@ -139,14 +136,15 @@ func (r *conjunctTypes) branch(b *statement.Statement) kindSet {
 // chain's own length bounds, as nulls.lands walks them; one the bindings do
 // not know has none.
 func (r *conjunctTypes) besideChain(b *statement.Statement) bool {
-	m := statement.ParsedAt(b)
-	e, _ := r.c.Bindings().Entry(m)
-	hop := b
-	for i := 0; i < e.Chain.Hops && statement.ParsedAt(hop) != nil; i++ {
-		if writesBesideRef(hop.Schema, r.c.Bindings().RefKeyword(statement.ParsedAt(hop))) {
+	hops := 0
+	if b.Ref != nil && b.Ref.Bound {
+		hops = b.Ref.Entry.Chain.Hops
+	}
+	for hop, i := b, 0; i < hops && hop != nil; i++ {
+		if writesBesideRef(hop.Schema, refKeyword(hop)) {
 			return true
 		}
-		hop = r.c.Statements().Of(r.c.Bindings().Declared(statement.ParsedAt(hop)))
+		hop = declaredOf(r.c, hop)
 	}
 	return false
 }
@@ -167,8 +165,7 @@ func passesOver(s *statement.Schema, reference string) bool {
 // writesBesideRef reports whether s, a reference site under reference, writes
 // beside it anything that can refuse a value of some instance type.
 func writesBesideRef(s *statement.Schema, reference string) bool {
-	m := statement.Parsed(s)
-	return m != nil && (writesType(s) || len(m.GetAllOf()) > 0 || passesOver(s, reference))
+	return statesSchema(s) && (writesType(s) || len(s.AllOf) > 0 || passesOver(s, reference))
 }
 
 // entry is what one flattened entry adds. A wrapper adds only its own `type`,

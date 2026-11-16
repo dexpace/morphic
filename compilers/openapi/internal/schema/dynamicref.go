@@ -196,7 +196,7 @@ func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
 // carry is lost whether or not it declares a shape by itself.
 func dynamicRefSiblings(s *statement.Schema) bool {
 	m := statement.Parsed(s)
-	if m.Ref != nil || len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0 {
+	if refWritten(s) || len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0 {
 		return true
 	}
 	return writesSiblingKeyword(s)
