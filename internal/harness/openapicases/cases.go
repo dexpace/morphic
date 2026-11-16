@@ -79,7 +79,7 @@ func (c cases) Axes() []harness.Axis {
 		axes[0].Values = append(axes[0].Values, harness.Value{Name: v.name, Like: v.like})
 	}
 	for _, t := range c.targets {
-		axes[1].Values = append(axes[1].Values, harness.Value{Name: t.name})
+		axes[1].Values = append(axes[1].Values, harness.Value{Name: t.name, Like: narrowed(t.name)})
 	}
 	axes[2].Values = append(axes[2].Values, harness.Value{Name: none})
 	for _, k := range c.constructs {
@@ -89,7 +89,7 @@ func (c cases) Axes() []harness.Axis {
 	for _, p := range c.positions {
 		axes[4].Values = append(axes[4].Values, harness.Value{Name: p.name})
 	}
-	axes[5].Values = names(c.spellings)
+	axes[5].Values = spellingValues(c.spellings)
 	return axes
 }
 
@@ -98,6 +98,20 @@ func names(of []string) []harness.Value {
 	values := make([]harness.Value, len(of))
 	for i, n := range of {
 		values[i] = harness.Value{Name: n}
+	}
+	return values
+}
+
+// spellingValues returns a value of each spelling, the gate running all but
+// an entry written first, which lowers as the entry written last does
+// (docs/compilers/openapi.md#allof-classification) and so repeats its
+// findings: a nightly run records them under that entry.
+func spellingValues(of []string) []harness.Value {
+	values := names(of)
+	for i, n := range of {
+		if n == entryFirst {
+			values[i].Like = entry
+		}
 	}
 	return values
 }

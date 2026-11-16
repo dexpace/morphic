@@ -26,7 +26,8 @@ func TestGroups_TheAxesInTheirOrder(t *testing.T) {
 	}
 	assert.Equal(t, []string{"version", "group", "position", "spelling"}, names)
 	assert.Equal(t, []harness.Value{{Name: "3.1.0"}, {Name: "3.2.0", Like: "3.1.0"}}, axes[0].Values)
-	assert.Equal(t, []harness.Value{{Name: "property"}, {Name: "parameter"}, {Name: "header"}}, axes[2].Values)
+	assert.Equal(t, []harness.Value{{Name: "property"}, {Name: "parameter", Like: "property"},
+		{Name: "header", Like: "property"}}, axes[2].Values)
 	assert.Equal(t, openapicases.New().Axes()[5].Values[1:], axes[3].Values,
 		"the spellings the schema cases list but inline: a group's target is named by $ref alone")
 

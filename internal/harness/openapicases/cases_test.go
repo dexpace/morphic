@@ -140,7 +140,7 @@ func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources i
 }
 
 // TestNew_TheAxesInTheirOrder pins the axes' order and the values a later
-// version or construct is recorded under.
+// version, a narrowed target or an entry written first is recorded under.
 func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	axes := openapicases.New().Axes()
 	names := make([]string, len(axes))
@@ -151,7 +151,11 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	assert.Equal(t, []harness.Value{{Name: "3.0.3"}, {Name: "3.1.0"}, {Name: "3.2.0", Like: "3.1.0"}}, axes[0].Values)
 	assert.Equal(t, harness.Value{Name: "none"}, axes[2].Values[0])
 	assert.Equal(t, []harness.Value{{Name: "$ref"}, {Name: "$ref~"}}, axes[2].Values[1:3])
-	assert.Len(t, axes[1].Values, 8)
+	assert.Equal(t, []harness.Value{{Name: "object"}, {Name: "string"}, {Name: "integer"}, {Name: "array"},
+		{Name: "enum", Like: "string"}, {Name: "union"}, {Name: "formatted", Like: "string"},
+		{Name: "map", Like: "object"}}, axes[1].Values)
+	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
+		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}}, axes[5].Values)
 	assert.Len(t, axes[4].Values, 9)
 }
 

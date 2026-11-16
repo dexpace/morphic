@@ -57,7 +57,9 @@ func Groups() harness.Cases {
 }
 
 // Axes names the axes: version, group, position and spelling. A group is
-// named by its Name with "%" and the "/" no value holds percent-encoded.
+// named by its Name with "%" and the "/" no value holds percent-encoded. The
+// gate runs the first position alone, the others like it: one validate pass
+// judges a default at every carrier, so each repeats its findings.
 func (c groupCases) Axes() []harness.Axis {
 	axes := []harness.Axis{{Name: versionAxis}, {Name: groupAxis}, {Name: positionAxis}, {Name: spellingAxis}}
 	for _, v := range c.versions {
@@ -68,9 +70,13 @@ func (c groupCases) Axes() []harness.Axis {
 		axes[1].Values = append(axes[1].Values, harness.Value{Name: escape.Replace(g.Name)})
 	}
 	for _, p := range c.positions {
-		axes[2].Values = append(axes[2].Values, harness.Value{Name: p.name})
+		v := harness.Value{Name: p.name}
+		if p.name != c.positions[0].name {
+			v.Like = c.positions[0].name
+		}
+		axes[2].Values = append(axes[2].Values, v)
 	}
-	axes[3].Values = names(c.spellings)
+	axes[3].Values = spellingValues(c.spellings)
 	return axes
 }
 
