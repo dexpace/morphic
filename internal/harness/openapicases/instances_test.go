@@ -31,9 +31,7 @@ const (
 // declines each case: a group writes no construct.
 func TestCore_ValidInstancesAreAdmitted(t *testing.T) {
 	t.Parallel()
-	c := openapicases.Groups()
-	results, err := harness.CheckCases(t.Context(), c, harness.Core(c))
-	require.NoError(t, err)
+	results := groupResults(t)
 	require.NotEmpty(t, results)
 	for _, r := range results {
 		require.False(t, r.Faulted(), "%s: %s: %s", r.Spec, r.Outcome, r.Detail)

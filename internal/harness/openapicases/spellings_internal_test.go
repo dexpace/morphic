@@ -169,4 +169,7 @@ func TestGroups_EachSpellingNamesItsPartner(t *testing.T) {
 	}
 	_, ok := c.Write([]int{0, 0, 0, len(c.spellings)})
 	assert.False(t, ok)
+	c.spellings = append(c.spellings, inline)
+	_, ok = c.Write([]int{0, 0, 0, len(c.spellings) - 1})
+	assert.False(t, ok, "a spelling writing no use of a group's target writes nothing")
 }

@@ -16,28 +16,42 @@ import (
 	"github.com/dexpace/morphic/internal/harness/openapicases"
 )
 
-// coreRun is what the case oracles found at the core cases, checked once for
-// every test that reads it, and whether every shard checked.
-var coreRun struct {
+// run is what the case oracles found at a product's core cases, checked once
+// for every test that reads it, and whether every shard checked.
+type run struct {
 	once    sync.Once
 	results []harness.Result
 	checked bool
 }
 
-// coreResults returns what the case oracles found at the core cases, in index
-// order. The first test asking checks them, a shard of one version and target
-// per parallel subtest of its own.
+// The runs of the schema cases and of the suite groups.
+var schemaRun, groupRun run
+
+// coreResults returns what the case oracles found at the schema cases' core.
 func coreResults(t *testing.T) []harness.Result {
 	t.Helper()
-	coreRun.once.Do(func() { coreRun.results, coreRun.checked = checkCore(t) })
-	require.True(t, coreRun.checked, "a shard of the core cases did not check")
-	return coreRun.results
+	return schemaRun.of(t, openapicases.New())
 }
 
-// checkCore checks the core cases shard by shard in parallel subtests of t,
+// groupResults returns what the case oracles found at the suite groups' core.
+func groupResults(t *testing.T) []harness.Result {
+	t.Helper()
+	return groupRun.of(t, openapicases.Groups())
+}
+
+// of returns what the case oracles found at c's core cases, in index order.
+// The first test asking checks them, a shard of the first two axes' values per
+// parallel subtest of its own.
+func (r *run) of(t *testing.T, c harness.Cases) []harness.Result {
+	t.Helper()
+	r.once.Do(func() { r.results, r.checked = checkCore(t, c) })
+	require.True(t, r.checked, "a shard of the core cases did not check")
+	return r.results
+}
+
+// checkCore checks c's core cases shard by shard in parallel subtests of t,
 // and reports whether each shard checked.
-func checkCore(t *testing.T) ([]harness.Result, bool) {
-	c := openapicases.New()
+func checkCore(t *testing.T, c harness.Cases) ([]harness.Result, bool) {
 	core := harness.Core(c)
 	byShard := shards(t, c, core)
 	keys := slices.SortedFunc(maps.Keys(byShard), func(a, b [2]int) int {
