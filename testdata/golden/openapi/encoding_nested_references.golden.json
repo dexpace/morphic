@@ -1,0 +1,600 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Nested encoding references",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Nested encoding references",
+        "canonical": "nested_encoding_references"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1parts/post",
+              "name": {
+                "source": "upload",
+                "canonical": "upload"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc": {
+                        "contentTypes": [
+                          "multipart/form-data"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts": {
+                        "contentTypes": [
+                          "multipart/mixed"
+                        ],
+                        "multi": true,
+                        "filename": false,
+                        "allowReserved": false
+                      }
+                    },
+                    "unmodeled": {
+                      "openapi:encoding/doc/encoding": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "inner": {
+                            "headers": {
+                              "X-Component": {
+                                "schema": {
+                                  "$ref": "#/components/schemas/Part"
+                                }
+                              },
+                              "X-Inner": {
+                                "schema": {
+                                  "items": {
+                                    "properties": {
+                                      "i": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "X-Kept": {
+                                "schema": {
+                                  "$ref": "#/x-defs/Kept"
+                                }
+                              },
+                              "X-Shared": {
+                                "$ref": "#/components/headers/Shared"
+                              }
+                            }
+                          }
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding"
+                        }
+                      },
+                      "openapi:encoding/parts/itemEncoding": {
+                        "reason": "no_ir_home",
+                        "value": {
+                          "headers": {
+                            "X-Component": {
+                              "schema": {
+                                "$ref": "#/components/schemas/Part"
+                              }
+                            },
+                            "X-Kept": {
+                              "schema": {
+                                "$ref": "#/x-defs/Kept"
+                              }
+                            },
+                            "X-Shared": {
+                              "$ref": "#/components/headers/Shared"
+                            }
+                          }
+                        },
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/itemEncoding"
+                        }
+                      },
+                      "openapi:encoding/parts/prefixEncoding": {
+                        "reason": "no_ir_home",
+                        "value": [
+                          {
+                            "headers": {
+                              "X-Component": {
+                                "schema": {
+                                  "$ref": "#/components/schemas/Part"
+                                }
+                              },
+                              "X-Kept": {
+                                "schema": {
+                                  "$ref": "#/x-defs/Kept"
+                                }
+                              },
+                              "X-Shared": {
+                                "$ref": "#/components/headers/Shared"
+                              }
+                            }
+                          }
+                        ],
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1parts/post/responses/200/headers/X-Back",
+                      "name": {
+                        "source": "X-Back",
+                        "canonical": "x_back"
+                      },
+                      "wireName": "X-Back",
+                      "type": {
+                        "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1parts/post/responses/200/headers/X-Back"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/parts",
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1parts/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema",
+      "name": {
+        "hint": "x_inner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema"
+      },
+      "elem": {
+        "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items": {
+      "kind": "model",
+      "id": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items",
+      "name": {
+        "hint": "x_inner_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items/properties/i",
+          "name": {
+            "source": "i",
+            "canonical": "i"
+          },
+          "wireName": "i",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items/properties/i"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "upload_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc",
+          "name": {
+            "source": "doc",
+            "canonical": "doc"
+          },
+          "wireName": "doc",
+          "type": {
+            "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts",
+          "name": {
+            "source": "parts",
+            "canonical": "parts"
+          },
+          "wireName": "parts",
+          "type": {
+            "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc": {
+      "kind": "model",
+      "id": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc",
+      "name": {
+        "hint": "doc"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc/properties/inner",
+          "name": {
+            "source": "inner",
+            "canonical": "inner"
+          },
+          "wireName": "inner",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/doc/properties/inner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts": {
+      "kind": "list",
+      "id": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts",
+      "name": {
+        "hint": "parts"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/schema/properties/parts"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Into": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Into",
+      "name": {
+        "source": "Into",
+        "canonical": "into"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Into"
+      },
+      "base": {
+        "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Part": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Part",
+      "name": {
+        "source": "Part",
+        "canonical": "part"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Part"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "unmodeled": {
+    "openapi:components/headers/Shared": {
+      "reason": "no_ir_home",
+      "value": {
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/headers/Shared"
+      }
+    },
+    "openapi:x-defs": {
+      "reason": "vendor_extension",
+      "value": {
+        "Kept": {
+          "properties": {
+            "k": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-defs"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding encoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding prefixEncoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "encoding itemEncoding has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/itemEncoding"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "encoding_nested_references.yaml",
+      "hash": "07a872555a766d72165903607a4638dc24ccfe4913fdb05cc45079c8a6cf51dc"
+    }
+  ]
+}

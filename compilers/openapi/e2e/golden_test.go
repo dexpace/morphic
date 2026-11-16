@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
@@ -71,6 +72,41 @@ func TestGolden_ExtensionGroups(t *testing.T) {
 	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
 	assert.Equal(t, jsontext.Pointer("/paths/~1legacy/get/x-fern-sdk-group-name"), diags[0].Provenance.Pointer)
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/extension_groups.golden.json", doc)
+}
+
+// TestGolden_EncodingNestedReferences pins the IR of references beneath the
+// Encoding Objects OpenAPI 3.2 nests under another's encoding, prefixEncoding
+// and itemEncoding, and of references into them. Each nested one is kept
+// verbatim, and a component schema and a response header that reference a
+// position beneath one read it where it is written, the header schema's items
+// named by the header's key.
+func TestGolden_EncodingNestedReferences(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../../../testdata/golden/openapi/encoding_nested_references.yaml")
+	require.NoError(t, err)
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "encoding_nested_references.yaml", Data: data}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	const header = "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema"
+	into, ok := typeByName(doc, "Into").(*ir.Scalar)
+	require.True(t, ok, "Into is a scalar over what it references")
+	assert.Equal(t, ir.TypeID(header+"/items"), into.Base.Target)
+	items, ok := doc.Types[header+"/items"]
+	require.True(t, ok)
+	assert.Equal(t, compile.SubHint("X-Inner", "item"), items.Common().Name.Hint)
+	op := operationAt(t, doc, "POST", "/parts")
+	back, ok := headerByWire(op.Responses[0].Headers, "X-Back")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID(header), back.Type.Target)
+	for _, nested := range []string{"doc/encoding", "parts/prefixEncoding", "parts/itemEncoding"} {
+		entry := unmodeledEntry(t, requestContent(t, op).Unmodeled, "openapi:encoding/"+nested)
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, nested)
+	}
+	// Last: under -update the compare refuses a test whose assertions failed.
+	irtest.CompareGolden(t, "../../../testdata/golden/openapi/encoding_nested_references.golden.json", doc)
 }
 
 // TestGolden_SplitSpec pins the IR of a spec split across four files, read
