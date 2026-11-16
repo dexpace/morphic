@@ -65,7 +65,7 @@ type canonical struct {
 // keyed by its ID (untie). An unmodeled member's name is relative, so an index
 // after allOf or required in it is always erased.
 func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, error) {
-	encoded, err := encodeComparable(doc, markedArray)
+	encoded, err := encodeComparable(doc, markedArray, nil)
 	if err != nil {
 		return canonical{}, err
 	}
@@ -464,7 +464,7 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 		Deprecation *ir.Deprecation `json:"deprecation"`
 		Required    bool            `json:"required"`
 		Secret      bool            `json:"secret"`
-	}{p.Property, p.Deprecation, p.Required, p.Secret}, comparableOptions(markedArray))
+	}{p.Property, p.Deprecation, p.Required, p.Secret}, comparableOptions(markedArray, nil))
 	r.fail(err)
 	return string(r.rewrite(r.decode(encoded), place{how: noIdentity}, 0))
 }

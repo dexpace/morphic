@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -1085,4 +1086,31 @@ func TestMaxReverseDepth_ReachesEveryAdmittedDocument(t *testing.T) {
 	assert.Empty(t, why, "a document at the compiler's bound is permuted")
 	_, why = reverseMappings(nested(admitted + 1))
 	assert.Equal(t, DeclineTooDeep, why, "one past it is the compiler's to refuse, and the rewrite's")
+}
+
+// TestEncodeComparable_MoreJoinsOrderFree pins the join more goes through: a
+// marshaler in it reaches a TypeRef in a Property orderFree sorts, and the
+// properties are still sorted. Handed in opts instead, the second
+// json.WithMarshalers replaces orderFree, which is why it is a parameter.
+func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Properties: []ir.Property{
+		{ID: "p/x/b", Type: ir.TypeRef{Target: "t/x/old"}}, {ID: "p/x/a"},
+	}}}}
+	renamed := json.MarshalToFunc(func(enc *jsontext.Encoder, r ir.TypeRef) error {
+		if r.Target != "t/x/old" {
+			return errors.ErrUnsupported
+		}
+		return enc.WriteToken(jsontext.String("renamed"))
+	})
+
+	joined, err := encodeComparable(doc, sortedArray, renamed)
+	require.NoError(t, err)
+	assert.Contains(t, string(joined), `"type":"renamed"`, "more reaches an element orderFree writes")
+	assert.Less(t, bytes.Index(joined, []byte("p/x/a")), bytes.Index(joined, []byte("p/x/b")), "orderFree still sorts")
+
+	replaced, err := encodeComparable(doc, sortedArray, nil, json.WithMarshalers(renamed))
+	require.NoError(t, err)
+	assert.Contains(t, string(replaced), `"type":"renamed"`)
+	assert.Greater(t, bytes.Index(replaced, []byte("p/x/a")), bytes.Index(replaced, []byte("p/x/b")),
+		"a second json.WithMarshalers replaces orderFree")
 }
