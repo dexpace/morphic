@@ -330,7 +330,7 @@ lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the d
 expands; the document may name a dialect, by `jsonSchemaDialect` or a
 `$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
 `definitions`, `dependencies`, an `items` list and `additionalItems`); a mapping writes a key that
-is no string, or a `<<` that names no mapping, where the check of the document's keys spells a
+is no scalar, or a `<<` that names no mapping, where the check of the document's keys spells a
 pointer for every node to place its findings; or the weighing runs past the node bound. An overlay
 document and a document a reference reads keep the first total.
 
