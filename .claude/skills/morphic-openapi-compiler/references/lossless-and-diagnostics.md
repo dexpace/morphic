@@ -233,16 +233,16 @@ and every diagnostic is true, located, and decided from what actually happened.
 `same-construct-at-every-position`
 
 - **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate every
-  position: each key `fields` and `schemaFields` in `compilers/openapi/internal/bind/grammar.go`
-  map to `sSchema`, `sSchemaMap` or `sSchemaList`, with the schema written inline, as a `$ref` to
-  a declaration, beside a `$ref`, and under an `$id` naming another base with its `$ref`s written
-  relative and absolute. Make each reach the same path or record what it cannot carry.
+  position: each schema, schema map or schema list a field of the rule table
+  `compilers/openapi/internal/oas` holds, and each `schemaFields` key, with the schema written
+  inline, as a `$ref` to a declaration, beside a `$ref`, and under an `$id` naming another base,
+  its `$ref`s relative and absolute. Make each reach the same path or record what it cannot carry.
 - **Why.** Parameter, header and nested-object positions dropped keywords the property position
   kept (#149, #156), and inline branches under two `$id` bases fold a keyword they spell alike
   (#1408).
 - **Probe.** Compile one fixture writing the construct, with a sibling keyword and an `x-` key, at
-  every position and in every spelling the Rule lists, and diff the IR and diagnostics per position
-  and per spelling.
+  every position and spelling the Rule lists, and diff the IR and diagnostics per position and
+  spelling.
 
 ## Diff the reports an object draws kept whole against lowered
 `kept-whole-draws-the-lowered-reports`

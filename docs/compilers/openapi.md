@@ -1068,7 +1068,11 @@ document's root, which holds no schema, so a chain reaching one ends on none and
 any chain that fails does, though the schema writing it keeps what it declares beside it. A YAML
 alias or merge key is a copy written where it is placed, so what it holds is read at that position,
 as the document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in
-another document, is read as a schema. A schema position of the model holds the schema the parser
+another document, is read as a schema, as is a schema beneath an Encoding Object that another nests
+through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. A reference
+written beneath such a nested Encoding Object is bound and reported as one anywhere else is, though
+the object itself is kept verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). A
+schema position of the model holds the schema the parser
 built there, whatever its YAML, so a `$ref` to a component written as a string names that component,
 as it lowers. A key written twice in one mapping is read as its last occurrence, raw YAML included,
 as the parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
@@ -1264,7 +1268,9 @@ the item as what else it writes.
   `load.TestLoad_ANullRefOfAReferenceObjectIsReadWithoutAFaultAtEachModelBuild`,
   `e2e.TestCompile_AReachedObjectTheModelFaultsOnLowersAsUnderPaths`,
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
-  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`
+  `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`,
+  `e2e.TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding`,
+  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestHeldRole_ReadsToTheFirstFieldNoModelHolds`
 - Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947). No deadline bounds a compile's reads together (#1036). A name resolving to several address spaces is answered by the order of asking (#1969).
 
 ### `reference-cycles`
@@ -1429,7 +1435,11 @@ entry, whose carrier has no docs for the one media type it names. The load phase
 `components/mediaTypes` and each content entry written as a `$ref`, which the parser models as
 neither a section nor a reference, and the reference is followed as any other is
 ([`references`](#references)); each entry no reference reaches is kept
-([`unreferenced-components`](#unreferenced-components)).
+([`unreferenced-components`](#unreferenced-components)). Nothing models the nested Encoding fields.
+The binder places every field of the live set where the specification defines one, whatever the
+parser's model holds, so a reference written beneath any of them is bound and reported as any other
+is, and a schema it lands on beneath a nested Encoding Object is built from the raw YAML, as one an
+extension holds is.
 
 - Cases: `response-summary-32`, `xml-nodetype-32`, `nested-encoding-32`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`, `openapi/unknown-key-unreachable`
@@ -1516,8 +1526,7 @@ holds is named for that object even where the object is kept under an extension 
 `$ref`, and a document a `$ref` reads whole as a schema is named for the document (`./Cat.yaml`
 names its root `cat_yaml`). A `components/mediaTypes` entry is named by its key, `""` minted as a
 component schema's is, and a header of an Encoding Object that another nests through 3.2's
-`encoding`, `prefixEncoding` or `itemEncoding`, which the parser does not model, by its key, as one
-the parser models is. Every such name is a function of the documents and the position alone, read
+`encoding`, `prefixEncoding` or `itemEncoding` by its key, as any other header is. Every such name is a function of the documents and the position alone, read
 where the position is written, so no lowering order changes it: a union variant, or a composition
 branch holding a `$ref`, is named as the position the `$ref` lands on, in whichever document, and
 keeps its own name where that names nothing. An inline `allOf` branch is a conjunct of the schema
@@ -1572,7 +1581,7 @@ one.
   `naming.TestAt_ATitleNamesAlikeInEitherOrder`,
   `naming.TestAt_ATitleNamesAcrossDocuments`, `naming.TestTitle_IsTheNameATitleGives`,
   `naming.TestAt_NamesAHeaderAnEncodingNests`, `schema.TestRefinement_TwinsTheRefSpelling`,
-  `e2e.TestGolden_HintPositions`
+  `e2e.TestGolden_HintPositions`, `e2e.TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader`
 
 ### `values`
 

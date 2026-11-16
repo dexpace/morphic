@@ -115,7 +115,7 @@ func (w *waits) requeue(f *finder, hops map[Position]Hop, objHops map[Position]o
 	}
 	for _, p := range w.heldObjects {
 		delete(objHops, p)
-		for kind := range RefKind(len(kindStates)) {
+		for kind := range RefKind(len(refStates)) {
 			k := objectKey{at: p, kind: kind + 1}
 			delete(w.onObjects, k)
 			if w.objects[k] {

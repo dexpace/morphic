@@ -48,8 +48,40 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason = NotSchema
 		return h
 	}
-	h.Status, h.Target, h.Role = Resolved, r.at, roleOf(r.state)
+	role, reason := heldRole(b.docs, r)
+	if reason != NoReason {
+		h.Reason = reason
+		return h
+	}
+	h.Status, h.Target, h.Role = Resolved, r.at, role
 	return h
+}
+
+// heldRole is the role of r, a reading a reference answers, to the model: a
+// schema the grammar places beneath a field whose content no model holds
+// (unheld) is raw YAML to it, which the table builds as a landing
+// (finder.landed). That is read from r's document's root, a step a token, as
+// far as such a field, or a schema, raw YAML or a value, below which none
+// lies. The reason is NoTarget where the budget runs out first.
+func heldRole(d *docs, r reading) (Role, Reason) {
+	role := roleOf(r.state)
+	if role != Schema {
+		return role, NoReason
+	}
+	s := d.rootState(r.at.Doc)
+	for token := range r.at.Pointer.Tokens() {
+		if !modelled(s) || s == sSchema {
+			break
+		}
+		if !d.work.spend(1) {
+			return NoRole, NoTarget
+		}
+		if unheld[s][token] {
+			return Raw, NoReason
+		}
+		s = step(s, token)
+	}
+	return Schema, NoReason
 }
 
 // named is the resource the document part uri of a reference read in the

@@ -37,8 +37,7 @@ const (
 	KindResponse
 	// KindMediaType is a Media Type Object.
 	KindMediaType
-	// KindEncoding is an Encoding Object, whose 3.2 fields nesting another the
-	// model does not read, so what they hold is raw YAML to it.
+	// KindEncoding is an Encoding Object, a media type's or one another nests.
 	KindEncoding
 )
 
