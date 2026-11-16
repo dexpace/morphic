@@ -4,8 +4,8 @@
 package openapicases_test
 
 import (
+	"crypto/sha256"
 	"encoding/json/jsontext"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,30 +66,46 @@ func TestNew_EveryDocumentCompilesClean(t *testing.T) {
 	}
 }
 
-// TestNew_EveryCaseHasANameOfItsOwn writes every case of the full product:
-// each has a name of its own, each document is JSON, and core cases are
-// written at every version, target and position.
-func TestNew_EveryCaseHasANameOfItsOwn(t *testing.T) {
+// TestNew_EachCaseWritesADocumentOfItsOwn writes every case of the full
+// product: each document is one JSON source, written alike twice, and no two
+// cases write the same one, as a value Write misreads would make them; and
+// each value of each axis is written by some case. Each case's name is its
+// own because CaseCount accepts the axes.
+func TestNew_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 	t.Parallel()
 	c := openapicases.New()
-	results, err := harness.CheckCases(t.Context(), c, func([]int) bool { return true })
-	require.NoError(t, err)
-
-	names := make([]string, 0, len(results))
-	for _, r := range results {
-		names = append(names, r.Spec)
-		require.Equal(t, harness.OutcomeOK, r.Outcome, "%s: %s", r.Spec, r.Detail)
-	}
-	assert.Len(t, slices.Compact(slices.Sorted(slices.Values(names))), len(names))
-
+	axes := c.Axes()
 	n, err := harness.CaseCount(c)
 	require.NoError(t, err)
+
+	writers := map[[sha256.Size]byte][]int{}
+	written := make([][]bool, len(axes))
+	for k, a := range axes {
+		written[k] = make([]bool, len(a.Values))
+	}
 	for i := range n {
 		at, err := harness.Coordinates(c, i)
 		require.NoError(t, err)
-		if doc, ok := c.Write(at); ok {
-			require.Len(t, doc.Sources, 1)
-			require.True(t, jsontext.Value(doc.Sources[0].Data).IsValid(), "%v", at)
+		doc, ok := c.Write(at)
+		if !ok {
+			continue
+		}
+		require.Len(t, doc.Sources, 1, "%v", at)
+		data := doc.Sources[0].Data
+		require.True(t, jsontext.Value(data).IsValid(), "%v", at)
+		again, _ := c.Write(at)
+		require.Equal(t, string(data), string(again.Sources[0].Data), "%v is written alike twice", at)
+		sum := sha256.Sum256(data)
+		first, dup := writers[sum]
+		require.False(t, dup, "%v and %v write one document", first, at)
+		writers[sum] = at
+		for k, v := range at {
+			written[k][v] = true
+		}
+	}
+	for k, a := range axes {
+		for v, ok := range written[k] {
+			assert.True(t, ok, "no case writes %s %s", a.Name, a.Values[v].Name)
 		}
 	}
 }
