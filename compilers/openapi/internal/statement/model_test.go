@@ -438,3 +438,49 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	require.NotNil(t, unruled.Object, "its value is read all the same")
 	assert.Equal(t, "a", unruled.Object.Discriminator.PropertyName)
 }
+
+// extensionNames returns the names list holds, in its order.
+func extensionNames(list []statement.Extension) []string {
+	out := make([]string, len(list))
+	for i, e := range list {
+		out[i] = e.Name
+	}
+	return out
+}
+
+// TestRead_ListsExtensionsAsTheModelHoldsThem holds a schema's extensions, and
+// those of its xml, discriminator and externalDocs objects, to the parser's
+// model: in the order they are written, and one merged in through `<<` from
+// past nodeview.MergeDepthLimit, whose pair the schema's keys, and the xml
+// object's node as the compiler reads it, do not reach.
+func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
+	t.Parallel()
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
+		"x-c0: &c0 {x-a: 1}\nx-d0: &d0 {x-x: 2}\n")
+	for i := 1; i <= nodeview.MergeDepthLimit; i++ {
+		fmt.Fprintf(&spec, "x-c%d: &c%d {<<: *c%d}\nx-d%d: &d%d {<<: *d%d}\n", i, i, i-1, i, i, i-1)
+	}
+	fmt.Fprintf(&spec, "components:\n  schemas:\n    P: {<<: *c%d, title: P, xml: {<<: *d%d, name: n}}\n",
+		nodeview.MergeDepthLimit, nodeview.MergeDepthLimit)
+	spec.WriteString("    O: {x-b: 1, x-a: 2, type: object, xml: {x-y: 1, x-w: 2}, discriminator: {propertyName: k, x-d: 1}, " +
+		"externalDocs: {url: 'https://d.example', x-e: 1}}\n")
+	table, c := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
+
+	p := table.At(component(c, "P"))
+	require.Equal(t, statement.Stated, p.Truth)
+	assert.Equal(t, []string{"x-a"}, extensionNames(p.Extensions), "the model's, past the bound")
+	_, read := p.Key("x-a")
+	assert.False(t, read, "the keys do not reach it")
+	require.NotNil(t, p.Notes.XML)
+	assert.Equal(t, []string{"x-x"}, extensionNames(p.Notes.XML.Extensions), "an xml object's, past the bound")
+	assert.Nil(t, nodeview.Child(p.Notes.XML.Node, "x-x"), "which its node does not reach")
+
+	o := table.At(component(c, "O"))
+	assert.Equal(t, []string{"x-b", "x-a"}, extensionNames(o.Extensions), "in source order")
+	assert.Equal(t, "2", text(o.Extensions[1].Node))
+	assert.Equal(t, []string{"x-y", "x-w"}, extensionNames(o.Notes.XML.Extensions))
+	assert.Equal(t, []string{"x-d"}, extensionNames(o.Object.Discriminator.Extensions))
+	assert.Equal(t, []string{"x-e"}, extensionNames(o.Notes.ExternalDocs.Extensions))
+	assert.Nil(t, table.At(component(c, "Absent")).Extensions)
+}

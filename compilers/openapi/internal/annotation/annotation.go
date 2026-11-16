@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/extensions"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -320,14 +319,13 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 // keywords no fold reads and whose residue keeps them, dialect is what its
 // dialect spells otherwise (Site.Dialect), and closure is Site.Closure.
 func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	var out Set
 	out.XML = XMLHints(xmlIn(s))
 
 	examples, exDiags := schemaExamplesAt(s, pointer, doc)
 	out.Examples = examples
 
-	ext, extDiags := ExtensionsFrom(m.GetExtensions(), doc, pointer)
+	ext, extDiags := SchemaExtensions(extensionsIn(s), doc, pointer, "")
 	sub, subDiags := subObjectKeys(s, out.XML, pointer, doc, own)
 	kept, keptDiags := unmodeledAt(s, pointer, doc, own, dialect, closure)
 
@@ -349,7 +347,6 @@ func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 // not a schema keyword's. It first reads the XML object's nodeType into hints
 // (applyNodeType). discriminator says whether s's discriminator is read.
 func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	var out ir.Unmodeled
 	x := xmlIn(s)
 	xmlTaken, diags := applyNodeType(&out, hints, x, doc, pointer+ids.Ptr("xml"))
@@ -357,28 +354,28 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 		keyword string
 		unknown []string
 		node    *yaml.Node
-		ext     *extensions.Extensions
+		ext     []statement.Extension
 		taken   []string
 	}{
-		{"xml", nil, nil, m.GetXML().GetExtensions(), xmlTaken},
-		{"discriminator", nil, nil, m.GetDiscriminator().GetExtensions(), nil},
-		{"externalDocs", nil, nil, m.GetExternalDocs().GetExtensions(), nil},
+		{"xml", nil, nil, nil, xmlTaken},
+		{"discriminator", nil, nil, nil, nil},
+		{"externalDocs", nil, nil, nil, nil},
 	}
 	if x != nil {
-		subs[0].unknown, subs[0].node = x.Unknown, x.Node
+		subs[0].unknown, subs[0].node, subs[0].ext = x.Unknown, x.Node, x.Extensions
 	}
 	if d := discriminatorIn(s); d != nil {
-		subs[1].unknown, subs[1].node = d.Unknown, d.Node
+		subs[1].unknown, subs[1].node, subs[1].ext = d.Unknown, d.Node, d.Extensions
 	}
 	if e := externalDocsIn(s); e != nil {
-		subs[2].unknown, subs[2].node = e.Unknown, e.Node
+		subs[2].unknown, subs[2].node, subs[2].ext = e.Unknown, e.Node, e.Extensions
 	}
 	for _, sub := range subs {
 		if sub.keyword == "discriminator" && !discriminator {
 			continue
 		}
 		owner := pointer + ids.Ptr(sub.keyword)
-		ext, extDiags := ExtensionsUnder(sub.ext, doc, owner, sub.keyword)
+		ext, extDiags := SchemaExtensions(sub.ext, doc, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
 		diags = append(diags, UnknownKeysNamed(&out, sub.unknown, sub.node, doc, owner, sub.keyword, sub.taken...)...)
@@ -584,6 +581,14 @@ func notesIn(s *statement.Schema) *statement.Notes {
 		return nil
 	}
 	return s.Notes
+}
+
+// extensionsIn returns the extensions s writes, nil for none.
+func extensionsIn(s *statement.Schema) []statement.Extension {
+	if s == nil {
+		return nil
+	}
+	return s.Extensions
 }
 
 // xmlIn returns the xml object s writes, nil for none.

@@ -87,8 +87,9 @@ type Object struct {
 
 // Discriminator is what a schema's discriminator says: the property, its
 // mapping in source order, its default mapping, the node it was read from and
-// where (the zero position where the bindings do not know the schema), and the
-// keys the parser's model holds no field for (Schema.Unknown).
+// where (the zero position where the bindings do not know the schema), the
+// keys the parser's model holds no field for (Schema.Unknown), and its
+// extensions (Schema.Extensions).
 type Discriminator struct {
 	PropertyName   string
 	Mapping        []MappingEntry
@@ -96,6 +97,7 @@ type Discriminator struct {
 	Node           *yaml.Node
 	At             bind.Position
 	Unknown        []string
+	Extensions     []Extension
 }
 
 // MappingEntry is one entry of a discriminator's mapping: the property value
@@ -131,20 +133,23 @@ type Notes struct {
 	Comment              *yaml.Node
 }
 
-// XML is what a schema's xml object says, the node it was read from, and the
-// keys the parser's model holds no field for (Schema.Unknown).
+// XML is what a schema's xml object says, the node it was read from, the keys
+// the parser's model holds no field for (Schema.Unknown), and its extensions
+// (Schema.Extensions).
 type XML struct {
 	Name, Namespace, Prefix *string
 	Attribute, Wrapped      *bool
 	Node                    *yaml.Node
 	Unknown                 []string
+	Extensions              []Extension
 }
 
 // ExternalDocs is what a schema's externalDocs object says, the node it was
-// read from, and the keys the parser's model holds no field for
-// (Schema.Unknown).
+// read from, the keys the parser's model holds no field for (Schema.Unknown),
+// and its extensions (Schema.Extensions).
 type ExternalDocs struct {
 	Description, URL string
 	Node             *yaml.Node
 	Unknown          []string
+	Extensions       []Extension
 }

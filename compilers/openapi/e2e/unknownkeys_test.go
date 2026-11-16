@@ -332,6 +332,50 @@ components:
 	}
 }
 
+// TestUnknownKeys_ExtensionMergedPastTheBoundIsKept holds the extensions a
+// schema, its xml, discriminator and externalDocs objects, and the
+// discriminator an allOf branch writes for its union, merge in through `<<`
+// from past nodeview.MergeDepthLimit to what the parser's model holds: each is
+// kept on the node holding the object, as one written in place is, though the
+// compiler reads no pair for it.
+func TestUnknownKeys_ExtensionMergedPastTheBoundIsKept(t *testing.T) {
+	t.Parallel()
+	deep := func(body string) string { return openapitest.NestedMerges(nodeview.MergeDepthLimit, body) }
+	doc, _ := compileAnnotationSpec(t, "extension-past-the-bound", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      <<: `+deep("{x-own: 1}")+`
+      properties: {k: {type: string}}
+      xml: {name: s, <<: `+deep("{x-x: 2}")+`}
+      discriminator: {propertyName: k, <<: `+deep("{x-d: 3}")+`}
+      externalDocs: {url: 'https://d.example', <<: `+deep("{x-e: 4}")+`}
+    U:
+      type: object
+      allOf:
+        - discriminator: {propertyName: k, <<: `+deep("{x-b: 5}")+`}
+          oneOf: [{$ref: '#/components/schemas/S'}]
+`)
+	for _, tc := range []struct{ schema, key, want string }{
+		{"S", "openapi:x-own", "1"},
+		{"S", "openapi:xml/x-x", "2"},
+		{"S", "openapi:discriminator/x-d", "3"},
+		{"S", "openapi:externalDocs/x-e", "4"},
+		{"U", "openapi:allOf/0/discriminator/x-b", "5"},
+	} {
+		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+tc.schema)]
+		require.True(t, ok, tc.schema)
+		entry, found := node.Common().Unmodeled[tc.key]
+		if assert.True(t, found, "%s keeps %s", tc.schema, tc.key) {
+			assert.Equal(t, tc.want, string(entry.Value), tc.key)
+			assert.Equal(t, ir.ReasonVendorExtension, entry.Reason, tc.key)
+		}
+	}
+}
+
 // TestUnknownKeys_PathItemKeyKeepsItsValue compiles the reproducer from GitHub
 // #377 and holds the half of it that used to go missing.
 //

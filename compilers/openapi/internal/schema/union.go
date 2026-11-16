@@ -274,7 +274,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 // keys OpenAPI defines for no Discriminator Object. A schema's own are read onto
 // its position's node (annotation.Read), and a branch has no node, so they ride
 // on the node holding the discriminator, scoped by their path from it where they
-// lie beneath it (annotation.ExtensionsUnder).
+// lie beneath it (annotation.SchemaExtensions).
 func keepBranchDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
 	if !u.branch || u.disc == nil || u.discAt != u.at {
 		return nil
@@ -284,11 +284,9 @@ func keepBranchDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Di
 	if rest, beneath := strings.CutPrefix(string(owner), string(n.Provenance.Pointer)+"/"); beneath {
 		scope = rest
 	}
-	// u.disc is the holder's, as discAt is at, and the census of its keys reads
-	// the parser's object.
-	disc := statement.Parsed(u.holder).GetDiscriminator()
-	kept, diags := annotation.ExtensionsUnder(disc.GetExtensions(), c.Place(), owner, scope)
-	diags = append(diags, annotation.UnknownKeysUnder(&kept, disc, c.Place(), owner, scope)...)
+	// u.disc is the holder's, as discAt is at.
+	kept, diags := annotation.SchemaExtensions(u.disc.Extensions, c.Place(), owner, scope)
+	diags = append(diags, annotation.UnknownKeysNamed(&kept, u.disc.Unknown, u.disc.Node, c.Place(), owner, scope)...)
 	n.Unmodeled = annotation.MergeUnmodeled(n.Unmodeled, kept)
 	return diags
 }

@@ -57,8 +57,11 @@ type Schema struct {
 	// typed value is: from the model, so it names a key merged in past
 	// nodeview.MergeDepthLimit, which Keys lack.
 	Unknown []string
-	Ref     *Reference
-	AllOf   []Sub
+	// Extensions lists the x- keys the schema writes, read from the model as
+	// Unknown is.
+	Extensions []Extension
+	Ref        *Reference
+	AllOf      []Sub
 
 	Kinds  *Kinds
 	Values *Values
@@ -131,6 +134,13 @@ type Key struct {
 // read only where the keyword holds an instance.
 func (k Key) read() bool {
 	return !k.Null || k.Name == "const" || k.Name == "default" || k.Name == "example"
+}
+
+// Extension is one x- key an object writes and its value, in the order the
+// parser's model holds them: in source order, a key written twice once.
+type Extension struct {
+	Name string
+	Node *yaml.Node
 }
 
 // Sub is a schema written under a keyword: the name of the property, pattern

@@ -445,6 +445,9 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 		assert.Equal(t, Declaration, got.Kind)
 		assert.Nil(t, statement.Parsed(got.Node))
 		assert.Nil(t, got.Referents)
+		set, diags := Read(got, "/p", sourced(0))
+		assert.Empty(t, set.Unmodeled, "and reads as declaring nothing")
+		assert.Empty(t, diags)
 	})
 }
 

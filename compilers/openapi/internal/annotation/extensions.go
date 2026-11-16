@@ -6,12 +6,15 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"iter"
+	"slices"
 
 	"github.com/speakeasy-api/openapi/extensions"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -44,13 +47,41 @@ func ExtensionsUnder(ext *extensions.Extensions, doc provenance.Doc, owner jsont
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
+	return lowerExtensions(ext.All(), doc, owner, scope)
+}
+
+// SchemaExtensions is ExtensionsUnder for the extensions a schema's statement
+// lists, or one of the objects the schema holds.
+func SchemaExtensions(list []statement.Extension, doc provenance.Doc, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	return lowerExtensions(extensionPairs(list), doc, owner, scope)
+}
+
+// extensionPairs yields each extension of list, its name and its value, in
+// order.
+func extensionPairs(list []statement.Extension) iter.Seq2[string, *yaml.Node] {
+	return func(yield func(string, *yaml.Node) bool) {
+		for _, e := range list {
+			if !yield(e.Name, e.Node) {
+				return
+			}
+		}
+	}
+}
+
+// lowerExtensions lowers the extensions all yields, as ExtensionsUnder gives
+// them, a diagnostic for each that does not serialize in the order all yields
+// it.
+func lowerExtensions(all iter.Seq2[string, *yaml.Node], doc provenance.Doc, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	prefix := "openapi:"
 	if scope != "" {
 		prefix += scope + "/"
 	}
 	out := ir.Unmodeled{}
 	var diags []ir.Diagnostic
-	for name, node := range ext.All() {
+	for name, node := range all {
 		raw, err := RawFromNode(node)
 		if err != nil || raw == nil {
 			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
@@ -79,9 +110,31 @@ func ExtensionsNamed(ext *extensions.Extensions, names iter.Seq[string]) ir.Unmo
 	if ext == nil || ext.Len() == 0 {
 		return nil
 	}
+	return extensionsNamed(ext.Get, names)
+}
+
+// SchemaExtensionsNamed is ExtensionsNamed for the extensions a schema's
+// statement lists, which it scans once for each name: a policy reads a handful
+// of keys, once for each schema (promotion.Promoter.Referent).
+func SchemaExtensionsNamed(list []statement.Extension, names iter.Seq[string]) ir.Unmodeled {
+	if len(list) == 0 {
+		return nil
+	}
+	return extensionsNamed(func(name string) (*yaml.Node, bool) {
+		i := slices.IndexFunc(list, func(e statement.Extension) bool { return e.Name == name })
+		if i < 0 {
+			return nil, false
+		}
+		return list[i].Node, true
+	}, names)
+}
+
+// extensionsNamed lowers the extensions names lists that get finds, as
+// ExtensionsNamed gives them.
+func extensionsNamed(get func(name string) (*yaml.Node, bool), names iter.Seq[string]) ir.Unmodeled {
 	var out ir.Unmodeled
 	for name := range names {
-		node, written := ext.Get(name)
+		node, written := get(name)
 		if !written {
 			continue
 		}

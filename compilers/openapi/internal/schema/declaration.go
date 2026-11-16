@@ -113,8 +113,7 @@ func declaresAnnotations(s *statement.Schema) bool {
 	if annotation.EffectiveDeprecated([]*statement.Schema{s}) || annotation.DeclaresRedaction(s) {
 		return true
 	}
-	ext := statement.Parsed(s).GetExtensions()
-	return ext != nil && ext.Len() > 0
+	return len(s.Extensions) > 0
 }
 
 // declaresValidationOnly reports whether s writes a validation-only keyword

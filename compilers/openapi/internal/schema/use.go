@@ -173,10 +173,12 @@ func deprecates(s *statement.Schema) bool {
 // keysOf reads what the mapped keys of r, a schema a use falls back to, lend
 // it, as the policy answers once for each schema (promotion.Promoter.Referent).
 func keysOf(c lowering.Ctx, r *statement.Schema) promotion.Referent {
-	m := statement.Parsed(r)
 	promoter := c.Promoter()
-	return promoter.Referent(m, deprecates(r), func() ir.Unmodeled {
-		return annotation.ExtensionsNamed(m.GetExtensions(), promoter.Keys())
+	return promoter.Referent(r, deprecates(r), func() ir.Unmodeled {
+		if r == nil {
+			return nil
+		}
+		return annotation.SchemaExtensionsNamed(r.Extensions, promoter.Keys())
 	})
 }
 
