@@ -1,8 +1,8 @@
 # Contributing to Morphic
 
-This guide is the way in. It says what to read for the change you are making, then walks the three
-changes most contributions are: a lowering rule in the OpenAPI compiler, a pass, and a compiler,
-and ends with merging a dependency update. Each step names the check that fails when the step is
+This guide is the way in. It says what to read for the change you are making and how to run the
+checks, then walks the three changes most contributions are: a lowering rule in the OpenAPI
+compiler, a pass, and a compiler, and ends with merging a dependency update. Each step names the check that fails when the step is
 missed, so a red test points back to the step, and says so where nothing checks it, so a green run
 is not read as more than it proves. The rules themselves live in the root guidance,
 [`CLAUDE.md`](CLAUDE.md), and in the design documents under [`docs/`](docs/); this guide links them
@@ -15,10 +15,10 @@ rather than restating them.
   type-check this module, reporting `typecheck` errors rather than findings, so install that
   version with the toolchain you build with:
   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(make print-lint-version)`.
-- **The gate.** `make gate` runs every check CI runs, in the order CI runs them. Coverage is gated
-  at exactly 100% of statements, counted from the profile, so `go test ./...` passing is not
-  evidence the gate passes. While iterating, run one package (`go test ./compilers/openapi/...`) or
-  one test (`go test ./ir -run TestName`), and `make coverage` or `make lint` on their own.
+- **The gate.** `make gate` runs every check CI runs, in the order CI runs them, and
+  `go test ./...` passing is not evidence it passes. [Run the checks](#run-the-checks) says what it
+  holds and how to run one part of it while iterating: one package
+  (`go test ./compilers/openapi/...`), one test, or `make coverage` or `make lint` on their own.
 - **Conventions.** Branch names, commit messages and pull requests follow the root guidance's
   [Commits & pull requests](CLAUDE.md#commits--pull-requests); Go code follows its style section.
 
@@ -101,6 +101,61 @@ Read the documents for your layer, and skip the rest until you need them.
   that construct.
   *Fails if missed:* `make coverage`, for code only an end-to-end test reaches. Nothing fails for an
   end-to-end test written in the compiler's own package or in one of its internal packages.
+
+## Run the checks
+
+One command, and it must pass before a change lands:
+
+```bash
+make gate
+```
+
+That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
+a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
+pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
+by side. The race detector is outside it: a nightly job runs `make race` on `main`. The `Makefile`
+holds the step list, and each target (`make coverage`, `make race`, `make fuzz`, `make bench` and
+the rest) runs on its own while iterating. Coverage is gated at exactly 100% of statements, counted
+from the profile rather than from `go test`'s rounded percentage, so one uncovered statement fails
+the build.
+
+Run a single test with `go test ./ir -run TestName`. Beyond that:
+
+- **Golden snapshots.** `testdata/golden/` and `testdata/conformance/` pair each spec with the IR
+  it must compile to, byte for byte, except the `irVersion` stamp: the helper asserts it rather than
+  storing it, so moving the version rewrites no golden. After an intentional change, rewrite them
+  and review the diff:
+
+  ```bash
+  go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
+  ```
+
+- **Conformance corpus.** Each case in `testdata/conformance/openapi/` is a minimal spec that
+  witnesses one or more rows of the [spec capability matrix](docs/ir-spec-matrix.md). To add one,
+  write `<name>.yaml`, add an entry to `conformanceCases()` in
+  `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it under the matrix rows it
+  witnesses in `testdata/conformance/openapi/matrix.md`, then run the command above to write
+  `<name>.golden.json`, and name the case in the rule of the
+  [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails on a spec
+  with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no case
+  witnesses, unless `matrix.md` lists the row as uncovered with a reason.
+- **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` runs specs as
+  `morphic compile --verify` does, passes included, through the bug-catching oracles, stopping at
+  the first that fires for each: no panic, the `ir/irverify` structural invariants, no error
+  diagnostic, JSON round-trip, determinism, pass idempotence, order-invariance, and
+  sequence-order-invariance, which reverses `allOf` and `required` sequences. It exits `1` if
+  any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep it with
+  `go test ./internal/harness`, which knows which ones are expected to.
+- **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every
+  fact of the IR with the number of documents that set it and the number of instances, zeros
+  included: each member of its structs, the emptiness of a member whose empty value differs from
+  its absence, and each value of its enumerations. The facts no committed spec sets are held to
+  `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
+  which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
+  it reads the IR's declarations through the go command.
+- **Fuzzing.** `make fuzz` runs every fuzz target for 5s each (`make fuzz FUZZTIME=5m` for a
+  longer search). One target runs on its own with, for example,
+  `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 
 ## Add a lowering rule to the OpenAPI compiler
 

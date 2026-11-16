@@ -26,14 +26,14 @@ check that a report reproduces there.
 
 Morphic treats the spec it compiles, and every document the spec references, as untrusted. It
 trusts what its caller supplies: the options, a file an option names (an overlay), and the code a
-[library](README.md#library) caller hands it, such as a compiler, a pass or a cache.
+[library](docs/library.md) caller hands it, such as a compiler, a pass or a cache.
 
 The [README](README.md#design-principles) states the bounds Morphic holds untrusted input to:
 
 - Unless `allow-external-refs` is set, a `$ref` reads only regular files inside the spec's
   directory, through relative references. An absolute path, a `file:` URI, a URL and a symbolic
   link out of the directory are each refused.
-- [Budgets](README.md#compiler-options) on what a document or a compile may cost turn a
+- [Budgets](docs/cli.md#budgets) on what a document or a compile may cost turn a
   pathological document into a diagnostic instead of an exhausted host.
 
 A vulnerability is untrusted input that gets past one of these bounds: a spec that makes Morphic
