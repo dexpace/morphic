@@ -108,7 +108,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
 	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
-	if js := heldAt(there, site+rest); !annotation.IsFalseSchema(statement.ParsedAt(js)) {
+	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
 		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
 		diags = append(diags, restDiags...)
 		t.Rest = &ref

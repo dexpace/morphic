@@ -95,9 +95,8 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetThen":                  1,
 		"GetType":                  6,
 		"GetUnevaluatedProperties": 2,
-		"IsBool":                   1,
 		"IsSchema":                 2,
-		"statement.Parsed":         16,
+		"statement.Parsed":         14,
 	},
 	"compilers/openapi/internal/resolve": {
 		"GetSchema": 1,
@@ -155,7 +154,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"Nullable":                 8,
 		"Ref":                      4,
 		"UniqueItems":              3,
-		"statement.Parsed":         195,
+		"statement.Parsed":         192,
 	},
 }
 

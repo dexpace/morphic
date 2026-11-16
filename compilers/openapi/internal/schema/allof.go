@@ -374,7 +374,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *statement.Schema, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range comp.branches {
-		if !annotation.IsFalseSchema(statement.ParsedAt(e.schema)) {
+		if !e.schema.Truth.ReadsFalse() {
 			continue // `true`, a null and any schema with a body close nothing.
 		}
 		m.Additional = ir.AdditionalClosed

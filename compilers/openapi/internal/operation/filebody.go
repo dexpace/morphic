@@ -146,17 +146,14 @@ func besideRefsOpen(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool
 // Where none does, decided is false and s is the schema whose keywords the
 // caller reads, never nil, as a position holding no schema reads as a boolean.
 func readHead(c service.Ctx, js *statement.Statement) (s *statement.Schema, r fileReading, decided bool) {
-	m := statement.ParsedAt(js)
-	end := refEnd(c.Bindings(), m)
+	end := c.Statements().Of(refEnd(c.Bindings(), statement.ParsedAt(js)))
 	switch {
-	case !annotation.Written(end):
-		return nil, readsUntyped, true
-	case annotation.IsFalseSchema(end):
+	case end.Truth.ReadsFalse():
 		return nil, readsOther, true
-	case end.IsBool():
+	case end.Truth != statement.Stated:
 		return nil, readsUntyped, true
 	}
-	s = c.Statements().Of(end).Schema
+	s = end.Schema
 	if declaresBinary(statement.Parsed(schema.DecidingSchema(c.Ctx, s))) {
 		return nil, readsBinary, true
 	}
@@ -281,7 +278,7 @@ func leastOf[T any](c service.Ctx, items []T, read func(service.Ctx, T) fileRead
 // schema of null alone in any spelling (schema.NullAlone) writing nothing else
 // a reader of a file looks at, the enum or const saying its null aside.
 func admitsNoBytes(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if annotation.IsFalseSchema(refEnd(c.Bindings(), branch)) {
+	if c.Statements().Of(refEnd(c.Bindings(), branch)).Truth.ReadsFalse() {
 		return true
 	}
 	s := statementOf(c.Ctx, branch)
