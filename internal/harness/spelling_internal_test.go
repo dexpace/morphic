@@ -172,9 +172,9 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 			strings.SplitN(v.Detail, "\n", 2)[0], "a report stated at another pointer or severity is no report drawn")
 	}
 
-	var real compileFunc
-	real = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
-		doc, diags, err := real(ctx, spec, data, ps)
+	var unswapped compileFunc
+	unswapped = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := unswapped(ctx, spec, data, ps)
 		return doc, slicesDeleteCode(diags, "openapi/later-version-construct"), err
 	})
 	v = spellingVerdict(t, minLength)
@@ -255,9 +255,9 @@ func swapUncompiled(t *testing.T) map[string]string {
 	t.Helper()
 	how := map[string]string{}
 	boom := ir.Diagnostic{Severity: ir.SeverityError, Code: "x/refused", Message: "refused"}
-	var real compileFunc
-	real = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
-		doc, diags, err := real(ctx, spec, data, ps)
+	var unswapped compileFunc
+	unswapped = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := unswapped(ctx, spec, data, ps)
 		switch how[string(data)] {
 		case "refused":
 			return nil, append(diags, boom), err
