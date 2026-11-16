@@ -4,6 +4,7 @@
 package operation
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
@@ -244,7 +245,7 @@ const unkeyedPartEntry = "names a part the form body's schema declares, but the 
 // Settle keys each part's encoding, writing no node of reg. It reads each
 // property a part names as the merge settled it, which Finish has done by then:
 // a fold is a completion (compile.Types.Complete).
-func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (k partKeys) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]
 		return td, ok

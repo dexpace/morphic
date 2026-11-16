@@ -1,6 +1,8 @@
 package graphql
 
 import (
+	"context"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
@@ -18,7 +20,7 @@ type rewrite struct {
 // Settle rewrites a node of reg, which is its to rewrite, and writes others,
 // which are not. It also leaves a write to reg in a function literal, which
 // can run after Settle returns.
-func (r *rewrite) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (r *rewrite) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	id := r.id
 	reg[id] = reg[id]
 	delete(reg, r.id)   // want "registrywrites: writes a type registry outside ir and compilers/compile; go through compile.Types, or rewrite a node in a compile.Settlement"
@@ -53,27 +55,27 @@ type (
 	}
 )
 
-func (r *rebound) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (r *rebound) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	reg[r.id] = nil // want "registrywrites: writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
 	(reg) = r.other
 	reg[r.id] = nil // want "registrywrites: writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
 	return nil
 }
 
-func (a *addressed) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (a *addressed) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	_ = &reg
 	reg[a.id] = nil // want "registrywrites: writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
 	return nil
 }
 
-func (r *ranged) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (r *ranged) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	for _, reg = range r.all {
 		reg[r.id] = nil // want "registrywrites: writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
 	}
 	return nil
 }
 
-func (f *fed) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (f *fed) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	for reg = range f.feed {
 		reg[f.id] = nil // want "registrywrites: writes through the registry parameter Settle rebinds, which may name a registry it was not handed; leave the parameter bound"
 	}

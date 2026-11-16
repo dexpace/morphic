@@ -6,6 +6,7 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -277,4 +279,31 @@ func TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk(t *testing.T) {
 
 	_, diags, _ := settledUnder(t, clique(12), budget.AtMost(b/2))
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
+}
+
+// TestMembers_TheSettlementAsksItsContextBeforeEachModel pins where a cancel
+// stops the settlement: it asks the run's context once before each model it
+// settles, so a hierarchy twice as long asks that many more times, and once
+// the context refuses no further model settles.
+func TestMembers_TheSettlementAsksItsContextBeforeEachModel(t *testing.T) {
+	t.Parallel()
+	finish := func(models, left int) (asked, settledAtRefusal, settled int) {
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", hierarchy(models+1, false, false)))
+		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+		rec := membersOf(l.Ctx)
+		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
+		ctx.OnRefuse = func() { settledAtRefusal = len(rec.settled) }
+		l.Types.Finish(ctx)
+		return ctx.Calls, settledAtRefusal, len(rec.settled)
+	}
+
+	short, _, all := finish(20, math.MaxInt)
+	long, _, _ := finish(40, math.MaxInt)
+	require.Equal(t, 20, all, "every composing model settles")
+	assert.Equal(t, 20, long-short, "one ask for each model more")
+
+	_, atRefusal, settled := finish(20, short-10)
+	assert.Equal(t, atRefusal, settled, "nothing settles once the context refuses")
+	assert.Greater(t, settled, 0)
+	assert.Less(t, settled, all)
 }

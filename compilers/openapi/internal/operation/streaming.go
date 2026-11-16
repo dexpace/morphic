@@ -4,6 +4,7 @@
 package operation
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"slices"
 
@@ -125,7 +126,7 @@ type streamElement struct {
 }
 
 // Settle writes the element to the detail and no node of reg.
-func (e streamElement) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (e streamElement) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	events := e.candidates[0].frame(reg)
 	for _, candidate := range e.candidates[1:] {
 		if candidate.frame(reg) != events {

@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
@@ -436,7 +437,7 @@ type besideUnionDiscriminator struct {
 //
 // A move leaving a map swaps in its MapT (ir.AsMap), which homes all the model
 // did; a later settlement leaves the map alone.
-func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (d besideUnionDiscriminator) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	if mt, settled := reg[d.model].(*ir.MapT); settled && mt != nil {
 		return nil
 	}
