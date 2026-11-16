@@ -57,7 +57,7 @@ func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 // The schema lowering's resolvePointer and NamesReferent both ask it, so they
 // cannot part.
 func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
+	return decl != nil && (decl.IsBool() || annotation.SchemaOf(decl) != nil)
 }
 
 // TargetSchema returns the schema the chain of references from js ends on

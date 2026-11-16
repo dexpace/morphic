@@ -10,6 +10,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
@@ -18,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -105,7 +107,7 @@ func nullRef(c lowering.Ctx, target ir.TypeID, declared, lenient bool) ir.TypeRe
 // allOf conjunct and a $ref use site must never disagree about one schema. It
 // reports nothing; schemaNullRef is the reading a position takes its own bit
 // from.
-func schemaAdmitsNull(c lowering.Ctx, s *oas3.Schema) bool {
+func schemaAdmitsNull(c lowering.Ctx, s *statement.Schema) bool {
 	n := newNulls(c)
 	return n.schema(s, nullSite{}).admits(c)
 }
@@ -113,13 +115,13 @@ func schemaAdmitsNull(c lowering.Ctx, s *oas3.Schema) bool {
 // schemaNullRef returns a reference to target from s, a schema that writes no
 // $ref, carrying what s says about null, and reports each null the policy reads
 // in where site's position writes it (nullSite).
-func schemaNullRef(c lowering.Ctx, target ir.TypeID, s *oas3.Schema, site nullSite) (ir.TypeRef, []ir.Diagnostic) {
+func schemaNullRef(c lowering.Ctx, target ir.TypeID, s *statement.Schema, site nullSite) (ir.TypeRef, []ir.Diagnostic) {
 	n := newNulls(c)
 	return n.schema(s, site).ref(c, target), n.findings(c)
 }
 
 // refNullRef is schemaNullRef for a $ref usage, read across the reference.
-func refNullRef(c lowering.Ctx, target ir.TypeID, js *oas3.JSONSchema[oas3.Referenceable], site nullSite) (ir.TypeRef, []ir.Diagnostic) {
+func refNullRef(c lowering.Ctx, target ir.TypeID, js *statement.Statement, site nullSite) (ir.TypeRef, []ir.Diagnostic) {
 	n := newNulls(c)
 	return n.ref(js, site).ref(c, target), n.findings(c)
 }
@@ -192,8 +194,9 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 // schema reads a whole schema that writes no $ref, by conjoining what each of
 // its keyword families says (keywords), then widening it where it writes
 // `nullable: true` or an inline allOf branch speaking for it does.
-func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
-	if s == nil || !n.conjuncts.Spend(1) {
+func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
+	m := statement.Parsed(s)
+	if m == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
 	own := n.keywords(s, site)
@@ -203,18 +206,19 @@ func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
 // ref reads a $ref usage as JSON Schema reads it: the keywords beside the $ref
 // conjoined with what it lands on (lands). The target is read here because one
 // interned at its own ID discards the reference its definition produced.
-func (n *nulls) ref(js *oas3.JSONSchema[oas3.Referenceable], site nullSite) nullReading {
-	s := js.GetSchema()
+func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
+	m := statement.ParsedAt(js)
+	s := m.GetSchema()
 	if s == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
-	return n.usage(s, n.lands(js), site)
+	return n.usage(js.Schema, n.lands(js), site)
 }
 
 // usage is s, a schema writing a $ref, read over target, what the $ref lands
 // on: s's own keywords conjoined with it, which the lenient reading widens
 // where they admit null (widenRef) or write `nullable: true` (widen).
-func (n *nulls) usage(s *oas3.Schema, target nullReading, site nullSite) nullReading {
+func (n *nulls) usage(s *statement.Schema, target nullReading, site nullSite) nullReading {
 	own := n.keywords(s, site)
 	return n.widen(s, own, n.widenRef(own, foldNullReadings(own, target), site), site)
 }
@@ -226,17 +230,18 @@ func (n *nulls) usage(s *oas3.Schema, target nullReading, site nullSite) nullRea
 // walked forward to the first already read, on a stack the chain's length
 // bounds, then read backward, each once, so n sites of one chain cost n
 // readings, not n squared over two.
-func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
-	e, ok := n.refs.Entry(js)
+func (n *nulls) lands(js *statement.Statement) nullReading {
+	m := statement.ParsedAt(js)
+	e, ok := n.refs.Entry(m)
 	if !ok || e.Chain.Status != bind.Resolved {
 		return alike(nullSilent)
 	}
 	sites := []*landing{landingOf(n.c, js)}
 	var aliases []nullHop
-	hop, at := n.refs.DeclaredAt(js)
+	hop, at := n.refs.DeclaredAt(m)
 	for i := 1; i < e.Chain.Hops && hop != nil && n.refs.RefSite(hop) && !sites[len(sites)-1].kept; i++ {
-		aliases = append(aliases, nullHop{s: hop.GetSchema(), nullable: definesNullableIn(n.c, at.Doc)})
-		sites = append(sites, landingOf(n.c, hop))
+		aliases = append(aliases, nullHop{s: n.c.Statements().Of(hop).Schema, nullable: definesNullableIn(n.c, at.Doc)})
+		sites = append(sites, landingOf(n.c, n.c.Statements().Of(hop)))
 		hop, at = n.refs.DeclaredAt(hop)
 	}
 	// Each read below is in its own document's dialect, and the walk returns to
@@ -245,7 +250,7 @@ func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
 	last := sites[len(sites)-1]
 	if !last.kept {
 		n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
-		n.keep(last, n.conjunct(n.refs.At(e.Chain.End), nullSite{}))
+		n.keep(last, n.conjunct(n.c.Statements().Of(n.refs.At(e.Chain.End)), nullSite{}))
 	}
 	// Only the last site can be kept already: the walk stops at the first.
 	for i, a := range slices.Backward(aliases) {
@@ -266,14 +271,14 @@ type landing struct {
 
 // landedOn keys the landing of a reference site in the compile's readings.
 type landedOn struct {
-	js *oas3.JSONSchema[oas3.Referenceable]
+	js *statement.Statement
 }
 
 // landsRead keys the count of hop readings lands has made.
 type landsRead struct{}
 
 // landingOf returns the landing of the reference site js, one per compile.
-func landingOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) *landing {
+func landingOf(c lowering.Ctx, js *statement.Statement) *landing {
 	return lowering.Remembered(c, landedOn{js}, func() *landing { return &landing{} })
 }
 
@@ -292,7 +297,7 @@ func (n *nulls) keep(l *landing, r nullReading) {
 // nullHop is an alias a $ref chain passes, and whether the dialect of the
 // document holding it defines nullable.
 type nullHop struct {
-	s        *oas3.Schema
+	s        *statement.Schema
 	nullable bool
 }
 
@@ -328,7 +333,7 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 // among them but not a $ref it writes. Only `type` has a rule of its own for
 // each reading, the nullable keyword's declared effect on it
 // (declaredTypeVerdict); the conjuncts differ only as each is read.
-func (n *nulls) keywords(s *oas3.Schema, site nullSite) nullReading {
+func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
 	v := valueNulls(n.c, s)
 	own := foldNullReadings(n.typed(s, v.constant, v.enum), v.union)
 	return foldNullReadings(own, n.allOf(s, site))
@@ -336,7 +341,7 @@ func (n *nulls) keywords(s *oas3.Schema, site nullSite) nullReading {
 
 // typed is what s's type says of null under each reading, conjoined with the
 // verdicts of its const and enum.
-func (n *nulls) typed(s *oas3.Schema, constant, enum nullVerdict) nullReading {
+func (n *nulls) typed(s *statement.Schema, constant, enum nullVerdict) nullReading {
 	return nullReading{
 		declared: foldNullVerdicts(n.declaredTypeVerdict(s), constant, enum),
 		lenient:  foldNullVerdicts(typeNullVerdict(s), constant, enum),
@@ -345,7 +350,7 @@ func (n *nulls) typed(s *oas3.Schema, constant, enum nullVerdict) nullReading {
 
 // valueNullsOf keys what valueNulls read of one schema.
 type valueNullsOf struct {
-	schema *oas3.Schema
+	schema *statement.Schema
 }
 
 // valueVerdicts is what a schema's const, enum and union families say of null.
@@ -359,7 +364,7 @@ type valueVerdicts struct {
 // valueNulls returns s's valueVerdicts, read once a run: every $ref to s asks,
 // and the enum and union families scan each member and branch, so reading them
 // at each reference would cost the references times the members.
-func valueNulls(c lowering.Ctx, s *oas3.Schema) valueVerdicts {
+func valueNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
 	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
 		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullReading(c, s)}
 	})
@@ -370,8 +375,9 @@ func valueNulls(c lowering.Ctx, s *oas3.Schema) valueVerdicts {
 // member of a `type` that the rest of s conjoins with. own is what s's own
 // keywords say, and r what s says in all. A keyword that admits null only so
 // is noted at site, with why its version does not.
-func (n *nulls) widen(s *oas3.Schema, own, r nullReading, site nullSite) nullReading {
-	if s.Nullable == nil || !*s.Nullable {
+func (n *nulls) widen(s *statement.Schema, own, r nullReading, site nullSite) nullReading {
+	m := statement.Parsed(s)
+	if m.Nullable == nil || !*m.Nullable {
 		return r
 	}
 	if r.declared != nullAdmitted && site.ok {
@@ -388,7 +394,7 @@ func (n *nulls) widen(s *oas3.Schema, own, r nullReading, site nullSite) nullRea
 // a `type` the keyword adds null to, only an enum, a const or an allOf beside
 // it forbids it, which leaves own without null, or, for s writing a $ref, what
 // that lands on, which own's null conjoins with.
-func (n *nulls) why(s *oas3.Schema, own nullReading) string {
+func (n *nulls) why(s *statement.Schema, own nullReading) string {
 	switch {
 	case !n.nullable:
 		return "the dialect this schema is read in defines no nullable keyword"
@@ -411,9 +417,10 @@ func (n *nulls) why(s *oas3.Schema, own nullReading) string {
 // it adds null to a type written in the same Schema Object, beside a $ref as
 // anywhere, as `type: [T, "null"]` spells it from 3.1, so the result then
 // conjoins like any type. Where it does not, nullable says nothing.
-func (n *nulls) declaredTypeVerdict(s *oas3.Schema) nullVerdict {
+func (n *nulls) declaredTypeVerdict(s *statement.Schema) nullVerdict {
+	m := statement.Parsed(s)
 	v := typeNullVerdict(s)
-	if v == nullForbidden && n.nullable && s.Nullable != nil && *s.Nullable {
+	if v == nullForbidden && n.nullable && m.Nullable != nil && *m.Nullable {
 		return nullAdmitted
 	}
 	return v
@@ -438,19 +445,21 @@ func foldNullVerdicts(verdicts ...nullVerdict) nullVerdict {
 
 // typeNullVerdict reads the `type` keyword. A schema writing none constrains no
 // instance kind at all, so it is silent rather than forbidding.
-func typeNullVerdict(s *oas3.Schema) nullVerdict {
+func typeNullVerdict(s *statement.Schema) nullVerdict {
+	m := statement.Parsed(s)
 	if !writesType(s) {
 		return nullSilent
 	}
-	if slices.Contains(s.GetType(), oas3.SchemaTypeNull) {
+	if slices.Contains(m.GetType(), oas3.SchemaTypeNull) {
 		return nullAdmitted
 	}
 	return nullForbidden
 }
 
 // constNullVerdict reads `const`, which fixes the value space to one member.
-func constNullVerdict(s *oas3.Schema) nullVerdict {
-	node := s.GetConst()
+func constNullVerdict(s *statement.Schema) nullVerdict {
+	m := statement.Parsed(s)
+	node := m.GetConst()
 	if node == nil {
 		return nullSilent
 	}
@@ -467,8 +476,9 @@ func constNullVerdict(s *oas3.Schema) nullVerdict {
 // reading it as "no null member" would let a degenerate keyword strip a
 // co-declared type array's null; what an empty enum lowers to is GitHub #278's
 // question, and this rule leaves it open.
-func enumNullVerdict(s *oas3.Schema) nullVerdict {
-	nodes := s.GetEnum()
+func enumNullVerdict(s *statement.Schema) nullVerdict {
+	m := statement.Parsed(s)
+	nodes := m.GetEnum()
 	if len(nodes) == 0 {
 		return nullSilent
 	}
@@ -482,7 +492,7 @@ func enumNullVerdict(s *oas3.Schema) nullVerdict {
 // read through the same converter enumEntries drops a member by. Both must
 // recognize one spelling: the null this predicate lifts onto a reference is
 // exactly the member that lowering strips.
-func isNullValue(node values.Value) bool {
+func isNullValue(node *yaml.Node) bool {
 	val, err := value.FromNode(node)
 	return err == nil && val.Kind == ir.ValueNull
 }
@@ -494,13 +504,14 @@ func isNullValue(node values.Value) bool {
 // structural siblings intersect with the union, which is then kept verbatim,
 // and block its distribution. It never forbids: a union with no null branch
 // says nothing of a null a sibling admits, as in `{nullable: true, oneOf: …}`.
-func unionNullReading(c lowering.Ctx, s *oas3.Schema) nullReading {
+func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
+	m := statement.Parsed(s)
 	out := alike(nullSilent)
-	for _, b := range slices.Concat(s.GetOneOf(), s.GetAnyOf()) {
-		if !inlineBranch(c.Bindings(), b) {
+	for _, b := range slices.Concat(m.GetOneOf(), m.GetAnyOf()) {
+		if !inlineBranch(c.Bindings(), c.Statements().Of(b)) {
 			continue
 		}
-		r, ok := nullAloneReading(c, b.GetSchema())
+		r, ok := nullAloneReading(c, c.Statements().Of(b).Schema)
 		if !ok {
 			continue
 		}
@@ -523,14 +534,14 @@ func unionNullReading(c lowering.Ctx, s *oas3.Schema) nullReading {
 // keywords, as c's policy reads null (docs/compilers/openapi.md#null-alone).
 // Such a schema lowers to an Enum with no member behind a nullable reference,
 // and a union branch written so is the union's null.
-func NullAlone(c lowering.Ctx, s *oas3.Schema) bool {
+func NullAlone(c lowering.Ctx, s *statement.Schema) bool {
 	r, ok := nullAloneReading(c, s)
 	return ok && r.admits(c)
 }
 
 // nullAloneOf keys what nullAloneReading read of one schema.
 type nullAloneOf struct {
-	schema *oas3.Schema
+	schema *statement.Schema
 }
 
 // nullAloneRead is nullAloneReading's answer for one schema.
@@ -546,7 +557,7 @@ type nullAloneRead struct {
 // schema finds (schemaAdmitsNull), read here without asking valueNulls, which
 // reads a union's branches by this. Every reader of a branch asks, so it is
 // read once a run.
-func nullAloneReading(c lowering.Ctx, s *oas3.Schema) (nullReading, bool) {
+func nullAloneReading(c lowering.Ctx, s *statement.Schema) (nullReading, bool) {
 	r := lowering.Remembered(c, nullAloneOf{s}, func() nullAloneRead {
 		if !leavesOnlyNull(c, s) {
 			return nullAloneRead{}
@@ -564,16 +575,17 @@ func nullAloneReading(c lowering.Ctx, s *oas3.Schema) (nullReading, bool) {
 // writes lists null and nothing else, within the member budget an enum past
 // which lowers to the top type (lowerEnum); and it writes a const, which the
 // null reading holds to null, such an enum, or a type naming null alone.
-func leavesOnlyNull(c lowering.Ctx, s *oas3.Schema) bool {
-	if s == nil || s.Ref != nil || len(s.GetAllOf()) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
+func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	if m == nil || m.Ref != nil || len(m.GetAllOf()) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
 		return false
 	}
 	if enumWritten(s) {
-		members := s.GetEnum()
+		members := m.GetEnum()
 		return len(members) > 0 && c.Limits.MaxEnumMembers.Admits(len(members)) &&
 			!slices.ContainsFunc(members, func(v values.Value) bool { return !isNullValue(v) })
 	}
-	return s.GetConst() != nil || writesType(s) && len(effectiveTypes(s)) == 0
+	return m.GetConst() != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }
 
 // allOf conjoins what the allOf branches say. A conjunction admits null when a
@@ -583,10 +595,11 @@ func leavesOnlyNull(c lowering.Ctx, s *oas3.Schema) bool {
 // #279). Model.Base and Mixins still carry no Nullable bit: they name a
 // conjunct, and nullability is a property of the usage that names the
 // conjunction.
-func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
+func (n *nulls) allOf(s *statement.Schema, site nullSite) nullReading {
+	m := statement.Parsed(s)
 	out := alike(nullSilent)
-	for i, b := range s.GetAllOf() {
-		out = foldNullReadings(out, n.conjunct(b, site.child("allOf", strconv.Itoa(i))))
+	for i, b := range m.GetAllOf() {
+		out = foldNullReadings(out, n.conjunct(n.c.Statements().Of(b), site.child("allOf", strconv.Itoa(i))))
 	}
 	return out
 }
@@ -599,13 +612,13 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 // is noted here, where s is written. A 3.1 `type: [T, "null"]` on a conjunct
 // stays conjoined, which beside a $ref it does not
 // (docs/compilers/openapi.md#allof-refinement).
-func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) nullReading {
+func (n *nulls) widenByBranch(s *statement.Schema, r nullReading, site nullSite) nullReading {
 	for _, e := range nullableVoices(n.c, s) {
 		r.lenient = nullAdmitted
 		if !site.ok {
 			break // a read across a $ref reports nothing, so one widening is all it needs
 		}
-		if r.declared != nullAdmitted && n.keywords(e.schema.GetSchema(), nullSite{}).declared == nullAdmitted {
+		if r.declared != nullAdmitted && n.keywords(e.schema.Schema, nullSite{}).declared == nullAdmitted {
 			n.found = append(n.found, nullFinding{at: site.at + e.pointer + ids.Ptr("nullable"), message: "nullable: true " +
 				"is read as admitting null under the nullable-inference policy, though another conjunct of this allOf " +
 				"excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it " +
@@ -617,7 +630,7 @@ func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) null
 
 // nullableVoicesOf keys what nullableVoices read of one schema.
 type nullableVoicesOf struct {
-	schema *oas3.Schema
+	schema *statement.Schema
 }
 
 // nullableVoices returns the branches of s's flattened allOf, each at its pointer
@@ -625,16 +638,16 @@ type nullableVoicesOf struct {
 // (foldsNullable). Every use of s asks, so it is read once a run. A branch writing
 // `false` widens nothing, though it speaks where the only `true` beside it is on a
 // $ref branch, which no fold compares.
-func nullableVoices(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
+func nullableVoices(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfBranch {
 		if !allOfDecides(c, s) {
 			return nil
 		}
-		comp := allOfBranches(c.Bindings(), s, "")
+		comp := allOfBranches(c, s, "")
 		var out []allOfBranch
 		for i, speaks := range voicesAmong(c, s) {
 			e := comp.branches[i]
-			if bs := e.schema.GetSchema(); speaks && bs.Nullable != nil && *bs.Nullable && foldsNullable(bs) {
+			if bs := statement.ParsedAt(e.schema).GetSchema(); speaks && bs.Nullable != nil && *bs.Nullable && foldsNullable(e.schema.Schema) {
 				out = append(out, e)
 			}
 		}
@@ -646,19 +659,19 @@ func nullableVoices(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
 // admits no instance whatever, null included; a `true` one constrains nothing,
 // nor does a `null` written for one, which is no `false`
 // (annotation.IsFalseSchema).
-func (n *nulls) conjunct(b *oas3.JSONSchema[oas3.Referenceable], site nullSite) nullReading {
-	if b == nil {
+func (n *nulls) conjunct(b *statement.Statement, site nullSite) nullReading {
+	m := statement.ParsedAt(b)
+	if m == nil {
 		return alike(nullSilent)
 	}
-	if b.IsBool() {
-		if annotation.IsFalseSchema(b) {
+	if m.IsBool() {
+		if annotation.IsFalseSchema(m) {
 			return alike(nullForbidden)
 		}
 		return alike(nullSilent)
 	}
-	s := b.GetSchema()
-	if n.refs.RefSite(b) {
+	if n.refs.RefSite(m) {
 		return n.ref(b, site)
 	}
-	return n.schema(s, site)
+	return n.schema(b.Schema, site)
 }

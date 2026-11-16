@@ -29,7 +29,7 @@ func TestUnknownKeywordsIn_KeepsWhatTheModelDoesNotName(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nx-ray: kept\nnotAKeyword: 7\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", sourced(3))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(3))
 
 	require.Len(t, got, 1, "the x-* is the extension reader's, not the census's; got %v", got)
 	entry := got["openapi:notAKeyword"]
@@ -52,7 +52,7 @@ func TestUndefinedKeywordsIn_KeepsWhatTheCallerNames(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nnullable: false\n")
 
 	var got ir.Unmodeled
-	diags := UndefinedKeywordsIn(&got, s, []string{"nullable"}, "/components/schemas/A", sourced(2))
+	diags := UndefinedKeywordsIn(&got, standaloneSchema(s), []string{"nullable"}, "/components/schemas/A", sourced(2))
 
 	require.Len(t, got, 1)
 	entry := got["openapi:nullable"]
@@ -65,7 +65,7 @@ func TestUndefinedKeywordsIn_KeepsWhatTheCallerNames(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"nullable" is not defined by the dialect`)
 
 	var none ir.Unmodeled
-	assert.Empty(t, UndefinedKeywordsIn(&none, s, nil, "/components/schemas/A", sourced(2)))
+	assert.Empty(t, UndefinedKeywordsIn(&none, standaloneSchema(s), nil, "/components/schemas/A", sourced(2)))
 	assert.Empty(t, none)
 }
 
@@ -87,7 +87,7 @@ func TestUnknownKeywordsIn_DecidedKeywordsAreLeftAlone(t *testing.T) {
 	s := schemaFromYAML(t, body.String())
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(0))
 
 	assert.Empty(t, got, "each is decided about elsewhere, so the census keeps none of them")
 	assert.Empty(t, diags)
@@ -108,7 +108,7 @@ func TestUnknownKeywordsIn_AlreadyRecordedKeyIsLeftAlone(t *testing.T) {
 	}
 	got := ir.Unmodeled{"openapi:dependentRequired": already}
 
-	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
 
 	assert.Equal(t, ir.Unmodeled{"openapi:dependentRequired": already}, got)
 	assert.Empty(t, diags, "a keyword another reader already announced is not announced twice")
@@ -122,7 +122,7 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nnotAKeyword: .nan\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
 
 	assert.Empty(t, got)
 	require.Len(t, diags, 1)
@@ -516,9 +516,9 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, tc.schema)
-			assert.Equal(t, tc.want, WritesUnknownKeyword(s))
+			assert.Equal(t, tc.want, WritesUnknownKeyword(standaloneSchema(s)))
 			var kept ir.Unmodeled
-			UnknownKeywordsIn(&kept, s, "/s", sourced(0))
+			UnknownKeywordsIn(&kept, standaloneSchema(s), "/s", sourced(0))
 			assert.Equal(t, tc.want, len(kept) > 0)
 		})
 	}
@@ -535,6 +535,6 @@ func TestWritesKeywordLeftOut_TellsANullThatStatesNothing(t *testing.T) {
 		"description": true, "dependentRequired": true,
 		"const": false, "x-e": false, "k": false, "title": false, "absent": false,
 	} {
-		assert.Equal(t, want, WritesKeywordLeftOut(s, key), key)
+		assert.Equal(t, want, WritesKeywordLeftOut(standaloneSchema(s), key), key)
 	}
 }

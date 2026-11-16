@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // TestWrittenAt_ReadsWhereTheBindingsPlaceTheSchema pins where a tuple's
@@ -30,9 +31,9 @@ components:
 `)
 	js, ok := l.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
-	_, at := writtenAt(l.Ctx, js.GetSchema(), "/components/schemas/U/type/0")
+	_, at := writtenAt(l.Ctx, StandaloneSchema(js.GetSchema()), "/components/schemas/U/type/0")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/U"), at)
-	_, at = writtenAt(l.Ctx, &oas3.Schema{}, "/x")
+	_, at = writtenAt(l.Ctx, StandaloneSchema(&oas3.Schema{}), "/x")
 	assert.Equal(t, jsontext.Pointer("/x"), at, "a schema the bindings place nowhere")
 }
 
@@ -60,28 +61,28 @@ components:
 		require.True(t, ok, "sanity: %s is declared", name)
 		return js
 	}
-	descriptions := func(entries []*oas3.JSONSchema[oas3.Referenceable]) []string {
+	descriptions := func(entries []*statement.Statement) []string {
 		out := make([]string, 0, len(entries))
 		for _, e := range entries {
-			out = append(out, e.GetSchema().GetDescription())
+			out = append(out, statement.ParsedAt(e).GetSchema().GetDescription())
 		}
 		return out
 	}
 	for _, name := range []string{"Pair", "Ref"} {
-		entries, rest, ok := ListedTuple(l.Ctx, component(name))
+		entries, rest, ok := ListedTuple(l.Ctx, Standalone(component(name)))
 		require.True(t, ok, "%s is a tuple", name)
 		assert.Equal(t, []string{"a", "b"}, descriptions(entries), "%s's entries", name)
-		assert.Equal(t, "rest", rest.GetSchema().GetDescription(), "%s's rest", name)
+		assert.Equal(t, "rest", statement.ParsedAt(rest).GetSchema().GetDescription(), "%s's rest", name)
 	}
-	entries, rest, ok := ListedTuple(l.Ctx, component("Closed"))
+	entries, rest, ok := ListedTuple(l.Ctx, Standalone(component("Closed")))
 	require.True(t, ok, "a closed tuple is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "a closed tuple's entries")
-	assert.True(t, annotation.IsFalseSchema(rest), "a closed tuple's rest admits nothing")
-	entries, rest, ok = ListedTuple(l.Ctx, component("Open"))
+	assert.True(t, annotation.IsFalseSchema(statement.ParsedAt(rest)), "a closed tuple's rest admits nothing")
+	entries, rest, ok = ListedTuple(l.Ctx, Standalone(component("Open")))
 	require.True(t, ok, "a tuple writing no rest is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "an open tuple's entries")
-	assert.Nil(t, rest, "a tuple writing no rest has none")
-	_, _, ok = ListedTuple(l.Ctx, component("Prefixed"))
+	assert.Nil(t, statement.ParsedAt(rest), "a tuple writing no rest has none")
+	_, _, ok = ListedTuple(l.Ctx, Standalone(component("Prefixed")))
 	assert.False(t, ok, "a tuple of prefixItems is no list of items")
 	other, _ := LoweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -93,6 +94,6 @@ components:
 `)
 	elsewhere, declared := other.Doc.Components.Schemas.Get("Elsewhere")
 	require.True(t, declared, "sanity: Elsewhere is declared")
-	_, _, ok = ListedTuple(l.Ctx, elsewhere)
+	_, _, ok = ListedTuple(l.Ctx, Standalone(elsewhere))
 	assert.False(t, ok, "a tuple the bindings place nowhere is none")
 }

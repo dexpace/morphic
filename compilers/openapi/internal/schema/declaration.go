@@ -7,14 +7,13 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -28,10 +27,11 @@ import (
 // $ref, which reached none of it until it was routed here. A position that
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+	m := statement.Parsed(s)
 	voices := positionVoices(c, ts, s, pointer, target)
 	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
-	if s != nil {
+	if m != nil {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
 	}
 	diags = append(diags, recordVoicedResidue(c, ts, voices, pointer, home)...)
@@ -51,8 +51,9 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target i
 // unhomed is the census verdict of a position lowered to a reference
 // (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
 // cannot judge.
-func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	if home != annotation.HomeOwnNode || s == nil {
+func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+	m := statement.Parsed(s)
+	if home != annotation.HomeOwnNode || m == nil {
 		return ref, nil
 	}
 	if !unhomed && !declaresPositionScoped(c, s, pointer) {
@@ -79,18 +80,18 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 // node, and one stored but missing here would still be dropped. A $dynamicRef
 // making pointer a reference site (typed.Bindings.RefSite) is its reference,
 // which recordUnexpandedDynamicRef keeps nowhere, as a $ref.
-func declaresPositionScoped(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+func declaresPositionScoped(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
 		annotation.DeclaresAny(s, collectionBoundKeywords) ||
 		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
-		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(heldAt(c, pointer)) ||
+		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(statement.ParsedAt(heldAt(c, pointer))) ||
 		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
 }
 
 // declaresDialectKeyword reports whether s writes one of the dialect keywords
 // annotation keeps out of scope, read from the raw node as DeclaresAny reads.
-func declaresDialectKeyword(s *oas3.Schema) bool {
+func declaresDialectKeyword(s *statement.Schema) bool {
 	for keyword := range annotation.DialectKeywords() {
 		if annotation.RawPropertyNode(s, keyword) != nil {
 			return true
@@ -102,41 +103,43 @@ func declaresDialectKeyword(s *oas3.Schema) bool {
 // declaresAnnotations reports whether s carries documentation, deprecation, a
 // redaction, XML hints, vendor extensions, or examples — the TypeCommon fields
 // attachDeclaredAnnotations fills.
-func declaresAnnotations(s *oas3.Schema) bool {
-	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
+func declaresAnnotations(s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	if m.GetTitle() != "" || m.GetDescription() != "" || m.GetExternalDocs() != nil {
 		return true
 	}
-	if annotation.EffectiveDeprecated([]*oas3.Schema{s}) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated([]*statement.Schema{s}) || annotation.DeclaresRedaction(s) || m.GetXML() != nil {
 		return true
 	}
-	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
+	if ext := m.GetExtensions(); ext != nil && ext.Len() > 0 {
 		return true
 	}
-	return s.GetExample() != nil || len(s.GetExamples()) > 0
+	return m.GetExample() != nil || len(m.GetExamples()) > 0
 }
 
 // declaresValidationOnly reports whether s writes a validation-only keyword
 // that annotation.Read keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties counts: only a Model, which owns its pointer and so
 // needs no node hoisted, holds it as its openness (closureTyped).
-func declaresValidationOnly(s *oas3.Schema) bool {
-	if annotation.Written(s.GetNot()) || annotation.Written(s.GetContains()) ||
-		annotation.Written(s.GetPropertyNames()) {
+func declaresValidationOnly(s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	if annotation.Written(m.GetNot()) || annotation.Written(m.GetContains()) ||
+		annotation.Written(m.GetPropertyNames()) {
 		return true
 	}
-	if annotation.Written(s.GetIf()) || annotation.Written(s.GetThen()) || annotation.Written(s.GetElse()) {
+	if annotation.Written(m.GetIf()) || annotation.Written(m.GetThen()) || annotation.Written(m.GetElse()) {
 		return true
 	}
-	if s.GetMinContains() != nil || s.GetMaxContains() != nil {
+	if m.GetMinContains() != nil || m.GetMaxContains() != nil {
 		return true
 	}
-	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
+	if ds := m.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		return true
 	}
 	if annotation.RawPropertyNode(s, "dependentRequired") != nil {
 		return true
 	}
-	return annotation.Written(s.GetUnevaluatedItems()) || annotation.Written(s.GetUnevaluatedProperties())
+	return annotation.Written(m.GetUnevaluatedItems()) || annotation.Written(m.GetUnevaluatedProperties())
 }
 
 // closureTyped reports whether td, the node s lowered to, holds s's
@@ -145,7 +148,7 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // closed after composition, or a Union whose variants s builds itself
 // (buildsVariants), one of them such a Model. A `false` allOf branch that
 // closed the model outright leaves it holding the keyword no longer.
-func closureTyped(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, td ir.TypeDef) bool {
+func closureTyped(c lowering.Ctx, ts *compile.Types, s *statement.Schema, td ir.TypeDef) bool {
 	if !annotation.ClosesAfterComposition(s) {
 		return false
 	}
@@ -178,7 +181,7 @@ func closedAfterComposition(td ir.TypeDef) bool {
 // is checked before conversion because callers cover a pointer in either order,
 // and only the one that finds a node may emit conversion diagnostics. target
 // says what speaks there (nodeUse).
-func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) []ir.Diagnostic {
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []ir.Diagnostic {
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
 	// declaration once its build returns (GitHub #749).
@@ -248,11 +251,12 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 // or, at a parameter, verbatim on the ir.Parameter (preserveParamVisibility).
 // A pointer with no node wrote none (declaresPositionScoped hoists one for any
 // it wrote) or is mid-build, and its builder records them.
-func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
+func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
+	m := statement.Parsed(s)
 	// A $ref never lowers a carrier's own schema, which its declaration lowers as
 	// HomeCarrier, so a position reaches here as HomeOwnNode only where nothing
 	// carries it, and the record here is its only one (GitHub #750).
-	if home != annotation.HomeOwnNode || s == nil {
+	if home != annotation.HomeOwnNode || m == nil {
 		return nil
 	}
 	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
@@ -291,7 +295,7 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 // declaration's readOnly reaches a referencing parameter only here, on the
 // declaration's own node. A default no ir.Value holds reaches no carrier
 // (residueReach).
-func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
 		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
@@ -309,9 +313,10 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointe
 // residueReach says where the residue keyword s writes reaches: each
 // referencing carrier with a field for it, but for a default no ir.Value
 // holds, which no carrier takes (Use.Default, which reports it).
-func residueReach(s *oas3.Schema, keyword string) string {
+func residueReach(s *statement.Schema, keyword string) string {
+	m := statement.Parsed(s)
 	if keyword == "default" {
-		if _, err := value.FromNode(s.GetDefault()); err != nil {
+		if _, err := value.FromNode(m.GetDefault()); err != nil {
 			return "applied to no carrier, as no IR value holds it"
 		}
 	}

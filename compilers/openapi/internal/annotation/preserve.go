@@ -9,12 +9,12 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -71,7 +71,7 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // or report a collision with this entry.
 //
 // An absent keyword is no construct: it keeps and places nothing.
-func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func PreserveSchemaKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {
 	node := RawPropertyNode(s, keyword)
@@ -88,7 +88,7 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 // of, it announces nothing of. A validation-only entry combining several
 // keywords has no such node and is not kept here but by Read, which attributes
 // it by the keywords it holds (GitHub #534).
-func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
 	pointer jsontext.Pointer, doc provenance.Doc,
 ) []ir.Diagnostic {
 	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, doc)

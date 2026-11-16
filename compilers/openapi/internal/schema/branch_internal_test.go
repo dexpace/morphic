@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // TestRefBranchTarget_InlineBranchNamesNothing pins that an inline branch has
@@ -22,5 +23,5 @@ func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
 `))
 	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	assert.Nil(t, refBranchTarget(l.Ctx.Bindings(), decl.GetSchema().GetAllOf()[0]))
+	assert.Nil(t, statement.Parsed(refBranchTarget(l.Ctx, Standalone(decl.GetSchema().GetAllOf()[0]))))
 }

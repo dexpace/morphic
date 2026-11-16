@@ -219,7 +219,7 @@ func TestMemberHolders_StopsPastItsBound(t *testing.T) {
 func TestBodyParts_RefHopBound(t *testing.T) {
 	t.Parallel()
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})
-	v := partVisits{entered: map[*oas3.Schema]int{}, cut: map[*oas3.Schema]bool{}}
+	v := partVisits{c: newRawLowerer(&soa.OpenAPI{}).ctx.Ctx, entered: map[*oas3.Schema]int{}, cut: map[*oas3.Schema]bool{}}
 	w := bodyParts(js, maxPartRefHops+1, v)
 	assert.Nil(t, w.parts,
 		"past the bound the walk stops rather than descending further")
@@ -501,7 +501,7 @@ func TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration(t *testing.T) {
 			l, _ := loweredFor(t, openapitest.ComponentSpec("    Form: {"+base+"}\n    Hop: {$ref: '#/components/schemas/Form'}\n    Body: "+tc.schema+"\n"))
 			js, ok := l.ctx.Doc.Components.Schemas.Get("Body")
 			require.True(t, ok)
-			assert.Equal(t, tc.decides, walkBodyParts(l.ctx.Bindings(), js).decidesKeys())
+			assert.Equal(t, tc.decides, walkBodyParts(l.ctx.Ctx, js).decidesKeys())
 		})
 	}
 }
@@ -524,7 +524,7 @@ func TestPartWalk_ReadsARefChainToItsBound(t *testing.T) {
 		l, _ := loweredFor(t, openapitest.ComponentSpec(chain(sites)))
 		js, ok := l.ctx.Doc.Components.Schemas.Get("L0")
 		require.True(t, ok)
-		w := walkBodyParts(l.ctx.Bindings(), js)
+		w := walkBodyParts(l.ctx.Ctx, js)
 		require.Len(t, w.parts, 1, "the walk reads the chain's end at %d sites", sites)
 		assert.Equal(t, decides, w.decidesKeys(), "%d sites", sites)
 	}
@@ -546,7 +546,7 @@ func TestDeclarationSchemas_PlacesEachSchemaOnce(t *testing.T) {
 		l, _ := loweredFor(t, openapitest.ComponentSpec(b.String()))
 		js, ok := l.ctx.Doc.Components.Schemas.Get("U")
 		require.True(t, ok)
-		w := walkBodyParts(l.ctx.Bindings(), js)
+		w := walkBodyParts(l.ctx.Ctx, js)
 		require.Len(t, w.parts, 1)
 		part := w.parts[0]
 		require.Len(t, part.schemas, n)

@@ -6,11 +6,10 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -34,7 +33,7 @@ import (
 // is Read's (annotation.Dialect), and `additionalItems` beside a list the
 // census's (keywordHome). td is the node the position lowered to, nil for none
 // of its own.
-func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
 	var taken []string
 	if _, listed := listedItems(s); listed {
 		taken = append(taken, "additionalItems")
@@ -64,7 +63,7 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // defined, as in a 3.0 schema, one beside its $ref included, it is read by its
 // declared effect (docs/compilers/openapi.md#nullable), and the policy reads it
 // everywhere.
-func undefinedKeywords(c lowering.Ctx, s *oas3.Schema) []string {
+func undefinedKeywords(c lowering.Ctx, s *statement.Schema) []string {
 	if c.NullableInference.Honours() || c.SchemaRules().Defines("nullable") ||
 		annotation.RawPropertyNode(s, "nullable") == nil {
 		return nil

@@ -24,7 +24,7 @@ func TestNullBranch_NoSchemaIsNoNullBranch(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	assert.False(t, nullBranch(l.Ctx, nil), "no branch is no null")
-	assert.False(t, nullBranch(l.Ctx, openapitest.EmptyEitherSchema()), "empty either is not a null schema")
+	assert.False(t, nullBranch(l.Ctx, Standalone(openapitest.EmptyEitherSchema())), "empty either is not a null schema")
 }
 
 // TestAllNullUnion_NoBranchesFalse covers the guard's own contract rather than
@@ -34,7 +34,7 @@ func TestNullBranch_NoSchemaIsNoNullBranch(t *testing.T) {
 func TestAllNullUnion_NoBranchesFalse(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	assert.False(t, allNullUnion(l.Ctx, &oas3.Schema{}), "no oneOf/anyOf branches admits nothing to be null-only")
+	assert.False(t, allNullUnion(l.Ctx, StandaloneSchema(&oas3.Schema{})), "no oneOf/anyOf branches admits nothing to be null-only")
 }
 
 // TestBranchesSay_NoBranchesSayNothing covers the guard's own contract rather
@@ -48,7 +48,7 @@ func TestBranchesSay_NoBranchesSayNothing(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 	l := NewRawLowerer(&soa.OpenAPI{})
-	assert.Empty(t, branchesSay(l.Ctx, js.GetSchema()), "no branch says a keyword the schema writes")
+	assert.Empty(t, branchesSay(l.Ctx, StandaloneSchema(js.GetSchema())), "no branch says a keyword the schema writes")
 }
 
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
@@ -56,7 +56,7 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 	l := NewRawLowerer(&soa.OpenAPI{})
 	// No node registered under the id: the union branches have nowhere to go, so
 	// the guard reports the broken invariant instead of dropping them quietly.
-	diags := preserveUnionSiblings(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{}, "/p", ir.ReasonDegradedLowering, "why")
+	diags := preserveUnionSiblings(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}), "/p", ir.ReasonDegradedLowering, "why")
 	assertInternalInvariant(t, diags)
 }
 
@@ -67,7 +67,7 @@ func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
 func TestPreserveNullOnlyUnion_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := preserveNullOnlyUnion(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{}, "/p")
+	diags := preserveNullOnlyUnion(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}), "/p")
 	assertInternalInvariant(t, diags)
 }
 
@@ -83,7 +83,7 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	id := internNode(l.Ctx, l.Types, "/components/schemas/S", func(cm ir.TypeCommon) ir.TypeDef {
 		return &ir.Scalar{TypeCommon: cm}
 	})
-	diags := preserveNullOnlyUnion(l.Ctx, l.Types, id, &oas3.Schema{}, "/components/schemas/S")
+	diags := preserveNullOnlyUnion(l.Ctx, l.Types, id, StandaloneSchema(&oas3.Schema{}), "/components/schemas/S")
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
 

@@ -68,6 +68,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"MinProperties":            1,
 		"ReadOnly":                 1,
 		"WriteOnly":                1,
+		"statement.Parsed":         19,
 	},
 	"compilers/openapi/internal/bind/typed": {
 		"GetCore":     1,
@@ -91,12 +92,13 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetPrefixItems":           1,
 		"GetProperties":            3,
 		"GetRootNode":              2,
-		"GetSchema":                6,
+		"GetSchema":                4,
 		"GetThen":                  1,
 		"GetType":                  6,
 		"GetUnevaluatedProperties": 2,
 		"IsBool":                   1,
 		"IsSchema":                 2,
+		"statement.Parsed":         16,
 	},
 	"compilers/openapi/internal/resolve": {
 		"GetSchema": 1,
@@ -138,7 +140,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetRef":                   1,
 		"GetRequired":              6,
 		"GetRootNode":              13,
-		"GetSchema":                56,
+		"GetSchema":                22,
 		"GetThen":                  1,
 		"GetTitle":                 1,
 		"GetType":                  12,
@@ -157,6 +159,7 @@ var modelReadBaseline = map[string]map[string]int{
 		"Nullable":                 8,
 		"Ref":                      4,
 		"UniqueItems":              3,
+		"statement.Parsed":         230,
 	},
 }
 

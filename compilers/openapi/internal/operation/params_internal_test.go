@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,10 +43,10 @@ func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
 	s := &oas3.Schema{XML: &oas3.XML{}}
 	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
-	require.Nil(t, annotation.RawPropertyNode(s, "xml"), "and no raw node backs it")
+	require.Nil(t, annotation.RawPropertyNode(standaloneSchema(s), "xml"), "and no raw node backs it")
 
 	var written ir.Unmodeled
-	diags := preserveParamXML(l.ctx, &written, s, "/paths/~1x/get/parameters/0/schema")
+	diags := preserveParamXML(l.ctx, &written, standaloneSchema(s), "/paths/~1x/get/parameters/0/schema")
 
 	assert.Nil(t, written, "no entry is recorded when there are no bytes to record")
 	assert.Empty(t, diags, "and nothing is announced, so the two channels agree")
@@ -102,4 +103,20 @@ func TestParamKey_NilParameterIsNotAKey(t *testing.T) {
 	t.Parallel()
 	_, ok := paramKey(nil, nil)
 	assert.False(t, ok)
+}
+
+// standalone returns the statement of js read alone, by a table of its own
+// that knows no bindings and reads no rows: for a test handing a schema it
+// decoded to a reader that takes a statement.
+func standalone(js *oas3.JSONSchema[oas3.Referenceable]) *statement.Statement {
+	return statement.NewTable(statement.Source{}).Of(js)
+}
+
+// standaloneSchema is standalone for a schema object decoded alone, nil for a
+// nil s.
+func standaloneSchema(s *oas3.Schema) *statement.Schema {
+	if s == nil {
+		return nil
+	}
+	return standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](s)).Schema
 }

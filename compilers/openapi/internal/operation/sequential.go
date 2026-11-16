@@ -32,7 +32,7 @@ import (
 func fillSequential(c service.Ctx, w walk, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
+		ref, itemDiags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, c.Statements().Of(item), mediaPtr+ids.Ptr("itemSchema"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
 		diags = append(diags, itemsOfOneDocument(c, content.MediaType, mediaPtr)...)

@@ -19,10 +19,12 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,7 +40,7 @@ import (
 func partEncodings(c service.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (
 	map[ir.PropID]ir.PartEncoding, map[ir.TypeID]ir.CatchAllParts, ir.Unmodeled, []ir.Diagnostic,
 ) {
-	bodyWalk := walkBodyParts(c.Bindings(), media.GetSchema())
+	bodyWalk := walkBodyParts(c.Ctx, media.GetSchema())
 	parts := bodyWalk.parts
 	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, bodyWalk, unkeyedFormEntry)
 	diags := append(diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema")), keptDiags...)
@@ -102,7 +104,7 @@ func unknownNestedKeys(c service.Ctx, part bodyPart, entry *yaml.Node, at jsonte
 		if s := schemaOf(c.Bindings(), js); isArraySchema(s) {
 			js = s.GetItems()
 		}
-		w := walkBodyParts(c.Bindings(), js)
+		w := walkBodyParts(c.Ctx, js)
 		if !w.decidesKeys() {
 			return nil
 		}
@@ -433,8 +435,9 @@ func (w partWalk) decidesKeys() bool { return !w.capped && !w.hopsSpent && !w.op
 // was entered at, the targets met past a bound, and whether a schema entered
 // leaves a key undecided (partWalk.open).
 type partVisits struct {
-	// refs says where each $ref ends, as the lowering read it (schemaOf).
-	refs    *typed.Bindings
+	// c is the run's context: where each $ref ends, as the lowering read it
+	// (schemaOf), and the statement the lowering flattens an allOf of.
+	c       lowering.Ctx
 	entered map[*oas3.Schema]int
 	cut     map[*oas3.Schema]bool
 	// capped holds the allOf entries of an inline branch past the flattening
@@ -449,7 +452,7 @@ type partVisits struct {
 // flattening depth, as targets the walk did not follow.
 func (v partVisits) markCapped(b *oas3.Schema) {
 	for _, c := range b.GetAllOf() {
-		if cs := schemaOf(v.refs, c); cs != nil {
+		if cs := schemaOf(v.c.Bindings(), c); cs != nil {
 			v.capped[cs] = true
 		}
 	}
@@ -457,11 +460,11 @@ func (v partVisits) markCapped(b *oas3.Schema) {
 
 // walkBodyParts runs bodyParts over one body, whose $refs end where refs says,
 // and reports a bound only for a target that no path entered.
-func walkBodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
+func walkBodyParts(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) partWalk {
 	open := false
 	var catchAllValues []*oas3.JSONSchema[oas3.Referenceable]
 	v := partVisits{
-		refs:           refs,
+		c:              c,
 		entered:        map[*oas3.Schema]int{},
 		cut:            map[*oas3.Schema]bool{},
 		capped:         map[*oas3.Schema]bool{},
@@ -493,7 +496,7 @@ func walkBodyParts(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]
 // so one met again by no shorter path yields no parts, and the bounds that cut
 // the walk.
 func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) partWalk {
-	s := schemaOf(v.refs, js)
+	s := schemaOf(v.c.Bindings(), js)
 	if s == nil || hops > maxPartRefHops {
 		if s != nil {
 			v.cut[s] = true
@@ -507,13 +510,13 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) 
 	v.note(js, s)
 	w := partWalk{parts: propertyParts(s)}
 	branches := []*oas3.Schema{s}
-	for _, br := range schema.FlattenedAllOf(v.refs, s) {
+	for _, br := range schema.FlattenedAllOf(v.c, statementOf(v.c, js)) {
 		if br.Ref {
-			w.parts = append(w.parts, bodyParts(br.Schema, hops+1, v).parts...)
+			w.parts = append(w.parts, bodyParts(statement.ParsedAt(br.Schema), hops+1, v).parts...)
 			continue
 		}
-		bs := schemaOf(v.refs, br.Schema)
-		v.note(br.Schema, bs)
+		bs := schemaOf(v.c.Bindings(), statement.ParsedAt(br.Schema))
+		v.note(statement.ParsedAt(br.Schema), bs)
 		w.parts = append(w.parts, propertyParts(bs)...)
 		branches = append(branches, bs)
 		if br.Capped {
@@ -535,7 +538,7 @@ func bodyParts(js *oas3.JSONSchema[oas3.Referenceable], hops int, v partVisits) 
 // collects the value schemas of the catch-alls s holds in v.catchAllValues.
 func (v partVisits) note(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) {
 	*v.catchAllValues = append(*v.catchAllValues, catchAllValues(s)...)
-	if s != nil && (admitsMembers(s) || declaresUnread(v.refs, js, s)) {
+	if s != nil && (admitsMembers(s) || declaresUnread(v.c.Bindings(), js, s)) {
 		*v.open = true
 	}
 }

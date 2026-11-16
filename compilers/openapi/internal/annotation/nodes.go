@@ -6,11 +6,11 @@ package annotation
 import (
 	"slices"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // RawPropertyNode returns the raw YAML value node of a top-level schema
@@ -23,11 +23,12 @@ import (
 // A null reads as absent, since no keyword admits one, unless the keyword's
 // value is an instance (holdsInstance), so every reader sees one keyword left
 // out (docs/compilers/openapi.md#null-keywords).
-func RawPropertyNode(s *oas3.Schema, key string) *yaml.Node {
-	if s == nil {
+func RawPropertyNode(s *statement.Schema, key string) *yaml.Node {
+	m := statement.Parsed(s)
+	if m == nil {
 		return nil
 	}
-	n := nodeview.Child(s.GetRootNode(), key)
+	n := nodeview.Child(m.GetRootNode(), key)
 	if IsNullNode(n) && !holdsInstance(key) {
 		return nil
 	}
@@ -45,7 +46,7 @@ func holdsInstance(keyword string) bool {
 // lists read them there (recordResidue, dialectAt, declaredConstraints), and a
 // predicate consulting a different source could disagree with them in either
 // direction.
-func DeclaresAny(s *oas3.Schema, keywords []string) bool {
+func DeclaresAny(s *statement.Schema, keywords []string) bool {
 	return slices.ContainsFunc(keywords, func(keyword string) bool { return RawPropertyNode(s, keyword) != nil })
 }
 
