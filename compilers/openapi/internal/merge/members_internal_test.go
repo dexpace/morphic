@@ -380,17 +380,38 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 }
 
 // TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten pins where a settled
-// member says the nodes of its type may be written: where the one declaration
-// naming its node says, as that declaration's own list; where each says, of
-// several naming it; and, for a node the fold built, where it stands and then
-// where every declaration says, as it holds members of each.
+// member says the nodes of its type are written: where the one declaration
+// naming its node says, as that declaration's own list; nowhere for a
+// primitive several name, or a node the registry lacks; where each says, for a
+// hoisted node several name; and, for a node the fold built, where it stands
+// and where each node it holds is written, through a node built beneath it or
+// one holding itself, however many places a declaration brings, leaving out a
+// node a $ref reached and what that one holds.
 func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 	t.Parallel()
+	hoisted := func(id ir.TypeID, at jsontext.Pointer) ir.TypeCommon {
+		return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(at)}
+	}
 	reg := membersRegistry()
-	reg["t/built"] = &ir.List{ID: "t/built", Provenance: ptrAt("/M/p")}
+	reg["t/enum"] = &ir.Enum{TypeCommon: hoisted("t/enum", "/part/allOf/1/p/items")}
+	reg["t/reached"] = &ir.List{TypeCommon: hoisted("t/reached", "/elsewhere/q"), Elem: ir.TypeRef{Target: "t/within"}}
+	reg["t/within"] = &ir.Enum{TypeCommon: hoisted("t/within", "/part/allOf/0/p/items")}
+	held, lacking := ir.TypeRef{Target: "t/enum"}, ir.TypeRef{Target: "t/unregistered"}
+	reg["t/built"] = &ir.Tuple{TypeCommon: hoisted("t/built", "/M/p"),
+		Elems: []ir.TypeRef{held, {Target: "t/prim/string"}, {Target: "t/reached"}, lacking, held}}
+	reg["t/built-list"] = &ir.List{TypeCommon: hoisted("t/built-list", "/M/p"), Elem: held}
+	reg["t/built-map"] = &ir.MapT{TypeCommon: hoisted("t/built-map", "/M/p"), Value: held}
+	reg["t/built-rest"] = &ir.Tuple{TypeCommon: hoisted("t/built-rest", "/M/p"), Rest: &held}
+	reg["t/built-model"] = &ir.Model{TypeCommon: hoisted("t/built-model", "/M/p"), Mixins: []ir.TypeRef{held}}
+	reg["t/built-items"] = &ir.List{TypeCommon: hoisted("t/built-items", "/M/p/items"), Elem: held}
+	reg["t/built-nested"] = &ir.List{TypeCommon: hoisted("t/built-nested", "/M/p"), Elem: ir.TypeRef{Target: "t/built-items"}}
+	reg["t/built-cycle"] = &ir.Tuple{TypeCommon: hoisted("t/built-cycle", "/M/p"), Elems: []ir.TypeRef{{Target: "t/built-cycle"}, held}}
 	g, _ := stubMerger(reg)
 	part := &composedEntry{target: "t/part", at: "/M/allOf/0"}
-	partSites := []ir.Provenance{ptrAt("/part/allOf/1/p"), ptrAt("/part/allOf/0/p")}
+	partSites := append([]ir.Provenance{ptrAt("/part/allOf/0/p")}, sitesAt("/part/allOf/1/p")...)
+	for i := range maxTypeSites {
+		partSites = append(partSites, ptrAt(jsontext.Pointer(fmt.Sprintf("/part/deeper/%d", i))))
+	}
 	brought := declaration{prop: declared("p", "t/prim/string", "/part/allOf/0/p"), via: part, typeAt: partSites}
 	own := declaration{prop: declared("p", "t/prim/integer", "/M/p")}
 	twin := declaration{prop: declared("p", "t/prim/string", "/M/q")}
@@ -399,20 +420,55 @@ func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 	kept := g.typeSites(field("t/prim/string"), []declaration{own, brought})
 	assert.Equal(t, partSites, kept)
 	assert.Same(t, &partSites[0], &kept[0], "one declaration's list is the member's, uncopied")
-	assert.Equal(t, []ir.Provenance{ptrAt("/part/allOf/1/p"), ptrAt("/part/allOf/0/p"), ptrAt("/M/q")},
-		g.typeSites(field("t/prim/string"), []declaration{brought, own, twin}), "each declaration naming the node")
-	assert.Equal(t, []ir.Provenance{ptrAt("/M/p"), ptrAt("/part/allOf/1/p"), ptrAt("/part/allOf/0/p")},
-		g.typeSites(field("t/built"), []declaration{own, brought}), "a built node first, then each declaration, once")
-	assert.Equal(t, []ir.Provenance{ptrAt("/M/p")},
-		g.typeSites(field("t/unregistered"), []declaration{own}), "a node the registry lacks adds no place")
+	assert.Nil(t, g.typeSites(field("t/prim/string"), []declaration{brought, own, twin}), "no declaration writes a primitive")
+	assert.Nil(t, g.typeSites(field("t/unregistered"), []declaration{own}))
+
+	named := func(pointer string) declaration { return declaration{prop: declared("p", "t/enum", pointer)} }
+	assert.Equal(t, []ir.Provenance{ptrAt("/M/a"), ptrAt("/M/b")},
+		g.typeSites(field("t/enum"), []declaration{named("/M/a"), own, named("/M/b"), named("/M/a")}), "each naming a hoisted node, once")
+	for _, built := range []ir.TypeID{"t/built", "t/built-list", "t/built-map", "t/built-rest", "t/built-model",
+		"t/built-nested", "t/built-cycle"} {
+		assert.Equal(t, []ir.Provenance{ptrAt("/M/p"), ptrAt("/part/allOf/1/p")},
+			g.typeSites(field(built), []declaration{own, brought}), "%s: where it stands, then where what it holds is written", built)
+	}
+}
+
+// TestBuiltSites_ReadsNoMoreNodesThanItsBound pins the nodes a settled member
+// reads of the type its fold built: each once, and maxTypeSites of them at
+// most. Of a tuple holding that many hoisted nodes, each written at its own
+// declaration and the first held twice, every place is recorded; of one
+// holding one more, the last is left out.
+func TestBuiltSites_ReadsNoMoreNodesThanItsBound(t *testing.T) {
+	t.Parallel()
+	for _, held := range []int{maxTypeSites, maxTypeSites + 1} {
+		reg := membersRegistry()
+		built := &ir.Tuple{ID: "t/built", Anonymous: true, Provenance: ptrAt("/M/p")}
+		decls := make([]declaration, held)
+		for i := range decls {
+			at := jsontext.Pointer(fmt.Sprintf("/part%d/p", i))
+			id := ir.TypeID(fmt.Sprintf("t/held-%d", i))
+			reg[id] = &ir.Enum{ID: id, Anonymous: true, Provenance: ptrAt(at)}
+			built.Elems = append(built.Elems, ir.TypeRef{Target: id})
+			decls[i] = declaration{prop: declared("p", id, string(at))}
+		}
+		built.Elems = append([]ir.TypeRef{built.Elems[0]}, built.Elems...)
+		reg["t/built"] = built
+		g, _ := stubMerger(reg)
+
+		got := g.typeSites(declared("p", "t/built", "/M/p"), decls)
+
+		require.Len(t, got, 1+maxTypeSites, "%d held", held)
+		assert.Equal(t, ptrAt(jsontext.Pointer(fmt.Sprintf("/part%d/p", maxTypeSites-1))), got[maxTypeSites], "%d held", held)
+	}
 }
 
 // TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes pins how a report
 // names a declaration an entry brings. One a part settled names its first
 // declaration whichever gave its type, so the report names the one place its
-// type is written; where a fold built the type, the member's own place, or,
-// for one its model's composition settled at either depth, where no schema is
-// written, the entry bringing it.
+// type is written; where its type is written at several places or none, the
+// member's own place; and where the place it would name is the member's own
+// and its model's composition settled it there, at either depth, the entry
+// bringing it, since no schema is written there.
 func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
@@ -422,7 +478,7 @@ func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
 	built := []ir.Provenance{ptrAt("/part/p"), ptrAt("/part/allOf/0/p"), ptrAt("/part/allOf/1/p")}
 	brought := func(owner ir.TypeID, pointer string, typeAt []ir.Provenance) declaration {
 		p := declared("p", "t/prim/string", pointer)
-		return broughtDeclaration(Declared{PropertyDecl: ir.PropertyDecl{Owner: owner, Property: &p}, TypeAt: typeAt}, entry)
+		return broughtDeclaration(Declared{Owner: owner, Property: &p, TypeAt: typeAt}, entry)
 	}
 	f := &folding{g: &g.Merger, decls: []declaration{
 		brought("t/part", "/part/allOf/0/p", sitesAt("/part/allOf/1/p")),
@@ -430,12 +486,14 @@ func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
 		brought("t/part", "/part/allOf/properties/p", built),
 		brought("t/part", "/part/allOf/allOf/properties/p", built),
 		brought("t/part", "/part/allOf/properties/p", sitesAt("/part/allOf/1/p")),
+		brought("t/part", "/part/allOf/properties/p", sitesAt("/part/allOf/properties/p")),
+		brought("t/part", "/part/allOf/0/p", nil),
 		brought("t/prim/string", "/part/allOf/properties/p", built),
 		{prop: declared("p", "t/prim/string", "/M/allOf/properties/p")},
 	}}
 
 	for i, want := range []string{"/part/allOf/1/p", "/part/allOf/0/p", "/M/allOf/0", "/M/allOf/0", "/part/allOf/1/p",
-		"/part/allOf/properties/p", "/M/allOf/properties/p"} {
+		"/M/allOf/0", "/part/allOf/0/p", "/part/allOf/properties/p", "/M/allOf/properties/p"} {
 		assert.Equal(t, want, f.at(i), "declaration %d", i)
 	}
 }
@@ -468,7 +526,7 @@ func TestJoinSites_KeepsEachPlaceOnceUpToItsBound(t *testing.T) {
 func TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType(t *testing.T) {
 	t.Parallel()
 	node := func(anonymous bool, source int, pointer jsontext.Pointer) ir.TypeDef {
-		return &ir.Enum{TypeCommon: ir.TypeCommon{Anonymous: anonymous, Provenance: ir.Provenance{Source: source, Pointer: pointer}}}
+		return &ir.Enum{Anonymous: anonymous, Provenance: ir.Provenance{Source: source, Pointer: pointer}}
 	}
 	sites := []ir.Provenance{ptrAt("/A/allOf/0/p"), ptrAt("/A/allOf/1/p")}
 
