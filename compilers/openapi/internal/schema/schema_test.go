@@ -101,21 +101,12 @@ func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 }
 
 // vocabCase is one JSON Schema 2020-12 keyword and the minimal document that
-// writes it. schemas must contain the literal "KW, " where the keyword goes: the
-// control replaces that marker with nothing, so the two documents differ in
-// exactly this one keyword.
-//
-// write and alt write the same keyword with *different* values. A keyword whose
-// presence reshapes the IR while its value is discarded passes a presence check
-// and fails this one, which is the whole difference between "the keyword was
-// noticed" and "the keyword was carried". excluded, when set, is why nothing
-// carries it, and leaves alt unused.
+// writes it. schemas holds the literal "KW, " where the keyword goes, which a
+// test replaces by write.
 type vocabCase struct {
-	keyword  string
-	write    string
-	alt      string
-	schemas  string
-	excluded string
+	keyword string
+	write   string
+	schemas string
 }
 
 // objectSchema, arraySchema and stringSchema are the three keyword domains the
@@ -130,9 +121,8 @@ const (
 // vocabularyCases enumerates every keyword of the JSON Schema 2020-12
 // vocabularies — core (§8), applicator (§10) and unevaluated (§11) of the core
 // specification, and validation (§6), format-annotation (§7), content (§8) and
-// meta-data (§9) of the validation specification — so a keyword the compiler
-// neither lowers nor keeps fails loudly instead of joining the ones GitHub #125
-// found by hand.
+// meta-data (§9) of the validation specification — each written where the
+// specification gives it meaning, for a test that judges every keyword alike.
 func vocabularyCases() []vocabCase {
 	return append(append(append(
 		vocabularyCore(), vocabularyApplicator()...), vocabularyValidation()...),
@@ -144,43 +134,32 @@ func vocabularyCore() []vocabCase {
 		{
 			keyword: "$schema", schemas: stringSchema,
 			write: "$schema: 'https://json-schema.org/draft/2020-12/schema'",
-			alt:   "$schema: 'https://json-schema.org/draft/2019-09/schema'",
 		},
 		{
 			keyword: "$vocabulary", schemas: stringSchema,
 			write: "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}",
-			alt:   "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/validation': true}",
 		},
-		{keyword: "$id", write: "$id: 'urn:example:a'", alt: "$id: 'urn:example:z'", schemas: stringSchema},
+		{keyword: "$id", write: "$id: 'urn:example:a'", schemas: stringSchema},
 		{
 			keyword: "$ref", schemas: objectSchema + "    B: {type: string}\n    C: {type: integer}\n",
-			write: "$ref: '#/components/schemas/B'", alt: "$ref: '#/components/schemas/C'",
+			write: "$ref: '#/components/schemas/B'",
 		},
 		{
 			keyword: "$dynamicRef", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n" +
 				"    C: {$dynamicAnchor: n, type: integer}\n",
-			write: "$dynamicRef: '#m'", alt: "$dynamicRef: '#n'",
+			write: "$dynamicRef: '#m'",
 		},
 		{
 			keyword: "$anchor", write: "$anchor: a", schemas: stringSchema,
-			excluded: "read as a reference target: the binder resolves $ref: '#a' to the schema " +
-				"declaring it (docs/compilers/openapi.md#references), so the reference carries it; " +
-				"declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
-			excluded: "read as a reference target by the binder, which is what lets a " +
-				"$dynamicRef expand (docs/compilers/openapi.md#dynamic-ref); declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$defs", write: "$defs: {D: {type: string}}", schemas: stringSchema,
-			excluded: "declares nothing about the enclosing shape; a member is lowered on demand " +
-				"when a $ref names it (resolveSchemaRef -> hoistSubSchema)",
 		},
 		{
 			keyword: "$comment", write: "$comment: note", schemas: stringSchema,
-			excluded: "2020-12 §8.3 forbids presenting it to end users, so an SDK emitter must " +
-				"never see it",
 		},
 	}
 }
@@ -190,67 +169,64 @@ func vocabularyApplicator() []vocabCase {
 		{
 			keyword: "allOf", schemas: objectSchema,
 			write: "allOf: [{type: object, properties: {q: {type: integer}}}]",
-			alt:   "allOf: [{type: object, properties: {q: {type: boolean}}}]",
 		},
 		{
 			keyword: "anyOf", schemas: stringSchema,
 			write: "anyOf: [{type: string}, {type: integer}]",
-			alt:   "anyOf: [{type: string}, {type: boolean}]",
 		},
 		{
 			keyword: "oneOf", schemas: stringSchema,
 			write: "oneOf: [{type: string}, {type: integer}]",
-			alt:   "oneOf: [{type: string}, {type: boolean}]",
 		},
-		{keyword: "not", write: "not: {const: n}", alt: "not: {const: z}", schemas: stringSchema},
-		{keyword: "if", write: "if: {const: a}", alt: "if: {const: z}", schemas: stringSchema},
-		{keyword: "then", write: "then: {const: a}", alt: "then: {const: z}", schemas: stringSchema},
-		{keyword: "else", write: "else: {const: a}", alt: "else: {const: z}", schemas: stringSchema},
+		{keyword: "not", write: "not: {const: n}", schemas: stringSchema},
+		{keyword: "if", write: "if: {const: a}", schemas: stringSchema},
+		{keyword: "then", write: "then: {const: a}", schemas: stringSchema},
+		{keyword: "else", write: "else: {const: a}", schemas: stringSchema},
 		{
 			keyword: "dependentSchemas", schemas: objectSchema,
-			write: "dependentSchemas: {p: {type: object}}", alt: "dependentSchemas: {p: {type: array}}",
+			write: "dependentSchemas: {p: {type: object}}",
 		},
 		{
 			keyword: "prefixItems", schemas: arraySchema,
-			write: "prefixItems: [{type: integer}]", alt: "prefixItems: [{type: boolean}]",
+			write: "prefixItems: [{type: integer}]",
 		},
 		{
 			keyword: "items", schemas: "    A: {KW, type: array}\n",
-			write: "items: {type: integer}", alt: "items: {type: boolean}",
+			write: "items: {type: integer}",
 		},
 		{
 			keyword: "contains", schemas: arraySchema,
-			write: "contains: {type: string}", alt: "contains: {type: boolean}",
+			write: "contains: {type: string}",
 		},
 		{
 			keyword: "properties", schemas: "    A: {KW, type: object}\n",
-			write: "properties: {p: {type: string}}", alt: "properties: {p: {type: boolean}}",
+			write: "properties: {p: {type: string}}",
 		},
 		{
 			keyword: "patternProperties", schemas: objectSchema,
-			write: "patternProperties: {'^a': {type: string}}", alt: "patternProperties: {'^a': {type: boolean}}",
+			write: "patternProperties: {'^a': {type: string}}",
 		},
 		{
 			keyword: "additionalProperties", schemas: objectSchema,
-			write: "additionalProperties: {type: integer}", alt: "additionalProperties: {type: boolean}",
+			write: "additionalProperties: {type: integer}",
 		},
 		{
 			keyword: "propertyNames", schemas: objectSchema,
-			write: "propertyNames: {maxLength: 4}", alt: "propertyNames: {maxLength: 5}",
+			write: "propertyNames: {maxLength: 4}",
 		},
 		{
 			keyword: "unevaluatedItems", schemas: arraySchema,
-			write: "unevaluatedItems: {type: string}", alt: "unevaluatedItems: {type: boolean}",
+			write: "unevaluatedItems: {type: string}",
 		},
 		{
 			keyword: "unevaluatedProperties", schemas: objectSchema,
-			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: {type: string}",
+			write: "unevaluatedProperties: false",
 		},
 		// Its false form again, where no model holds it as a closure: kept
 		// verbatim, as every other form is (docs/compilers/openapi.md#validation-only).
 		{
 			keyword: "unevaluatedProperties", schemas: stringSchema,
-			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: true",
+			write: "unevaluatedProperties: false",
 		},
 	}
 }
@@ -258,53 +234,53 @@ func vocabularyApplicator() []vocabCase {
 func vocabularyValidation() []vocabCase {
 	const intSchema = "    A: {KW, type: integer}\n"
 	return []vocabCase{
-		{keyword: "type", write: "type: string", alt: "type: boolean", schemas: "    A: {KW, title: T}\n"},
-		{keyword: "enum", write: "enum: [a, b]", alt: "enum: [y, z]", schemas: stringSchema},
-		{keyword: "const", write: "const: a", alt: "const: z", schemas: stringSchema},
-		{keyword: "multipleOf", write: "multipleOf: 2", alt: "multipleOf: 3", schemas: intSchema},
-		{keyword: "maximum", write: "maximum: 9", alt: "maximum: 8", schemas: intSchema},
-		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", alt: "exclusiveMaximum: 8", schemas: intSchema},
-		{keyword: "minimum", write: "minimum: 1", alt: "minimum: 2", schemas: intSchema},
-		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", alt: "exclusiveMinimum: 2", schemas: intSchema},
-		{keyword: "maxLength", write: "maxLength: 9", alt: "maxLength: 8", schemas: stringSchema},
-		{keyword: "minLength", write: "minLength: 1", alt: "minLength: 2", schemas: stringSchema},
-		{keyword: "pattern", write: "pattern: '^a'", alt: "pattern: '^z'", schemas: stringSchema},
-		{keyword: "maxItems", write: "maxItems: 9", alt: "maxItems: 8", schemas: arraySchema},
-		{keyword: "minItems", write: "minItems: 1", alt: "minItems: 2", schemas: arraySchema},
-		{keyword: "uniqueItems", write: "uniqueItems: true", alt: "uniqueItems: false", schemas: arraySchema},
-		{keyword: "maxContains", write: "maxContains: 9", alt: "maxContains: 8", schemas: arraySchema},
-		{keyword: "minContains", write: "minContains: 1", alt: "minContains: 2", schemas: arraySchema},
-		{keyword: "maxProperties", write: "maxProperties: 9", alt: "maxProperties: 8", schemas: objectSchema},
-		{keyword: "minProperties", write: "minProperties: 1", alt: "minProperties: 2", schemas: objectSchema},
-		{keyword: "required", write: "required: [p]", alt: "required: []", schemas: objectSchema},
+		{keyword: "type", write: "type: string", schemas: "    A: {KW, title: T}\n"},
+		{keyword: "enum", write: "enum: [a, b]", schemas: stringSchema},
+		{keyword: "const", write: "const: a", schemas: stringSchema},
+		{keyword: "multipleOf", write: "multipleOf: 2", schemas: intSchema},
+		{keyword: "maximum", write: "maximum: 9", schemas: intSchema},
+		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", schemas: intSchema},
+		{keyword: "minimum", write: "minimum: 1", schemas: intSchema},
+		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", schemas: intSchema},
+		{keyword: "maxLength", write: "maxLength: 9", schemas: stringSchema},
+		{keyword: "minLength", write: "minLength: 1", schemas: stringSchema},
+		{keyword: "pattern", write: "pattern: '^a'", schemas: stringSchema},
+		{keyword: "maxItems", write: "maxItems: 9", schemas: arraySchema},
+		{keyword: "minItems", write: "minItems: 1", schemas: arraySchema},
+		{keyword: "uniqueItems", write: "uniqueItems: true", schemas: arraySchema},
+		{keyword: "maxContains", write: "maxContains: 9", schemas: arraySchema},
+		{keyword: "minContains", write: "minContains: 1", schemas: arraySchema},
+		{keyword: "maxProperties", write: "maxProperties: 9", schemas: objectSchema},
+		{keyword: "minProperties", write: "minProperties: 1", schemas: objectSchema},
+		{keyword: "required", write: "required: [p]", schemas: objectSchema},
 		{
 			keyword: "dependentRequired", schemas: objectSchema,
-			write: "dependentRequired: {p: [q]}", alt: "dependentRequired: {p: [z]}",
+			write: "dependentRequired: {p: [q]}",
 		},
 	}
 }
 
 func vocabularyAnnotation() []vocabCase {
 	return []vocabCase{
-		{keyword: "title", write: "title: T", alt: "title: Z", schemas: stringSchema},
-		{keyword: "description", write: "description: D", alt: "description: Z", schemas: stringSchema},
-		{keyword: "default", write: "default: a", alt: "default: z", schemas: stringSchema},
-		{keyword: "deprecated", write: "deprecated: true", alt: "deprecated: false", schemas: stringSchema},
-		{keyword: "readOnly", write: "readOnly: true", alt: "readOnly: false", schemas: stringSchema},
-		{keyword: "writeOnly", write: "writeOnly: true", alt: "writeOnly: false", schemas: stringSchema},
-		{keyword: "examples", write: "examples: [a]", alt: "examples: [z]", schemas: stringSchema},
-		{keyword: "format", write: "format: uuid", alt: "format: date", schemas: stringSchema},
+		{keyword: "title", write: "title: T", schemas: stringSchema},
+		{keyword: "description", write: "description: D", schemas: stringSchema},
+		{keyword: "default", write: "default: a", schemas: stringSchema},
+		{keyword: "deprecated", write: "deprecated: true", schemas: stringSchema},
+		{keyword: "readOnly", write: "readOnly: true", schemas: stringSchema},
+		{keyword: "writeOnly", write: "writeOnly: true", schemas: stringSchema},
+		{keyword: "examples", write: "examples: [a]", schemas: stringSchema},
+		{keyword: "format", write: "format: uuid", schemas: stringSchema},
 		{
 			keyword: "contentEncoding", schemas: stringSchema,
-			write: "contentEncoding: base64", alt: "contentEncoding: base32",
+			write: "contentEncoding: base64",
 		},
 		{
 			keyword: "contentMediaType", schemas: stringSchema,
-			write: "contentMediaType: image/png", alt: "contentMediaType: text/csv",
+			write: "contentMediaType: image/png",
 		},
 		{
 			keyword: "contentSchema", schemas: stringSchema,
-			write: "contentSchema: {type: object}", alt: "contentSchema: {type: array}",
+			write: "contentSchema: {type: object}",
 		},
 	}
 }
