@@ -267,13 +267,10 @@ func takesContent(takes kindSet) bool {
 }
 
 // declaresContentVocabulary reports whether s writes any content-vocabulary
-// keyword, so a position that wrote one owns a node to keep it on. Whether
-// contentSchema is written is still the parser's value's to say, as a
-// statement's reading of it needs the table this takes none of.
+// keyword, so a position that wrote one owns a node to keep it on.
 func declaresContentVocabulary(s *statement.Schema) bool {
 	text := textIn(s)
-	return text.ContentEncoding != "" || text.ContentMediaType != "" ||
-		annotation.Written(statement.Parsed(s).GetContentSchema())
+	return text.ContentEncoding != "" || text.ContentMediaType != "" || written(text.ContentSchema)
 }
 
 // recordUnplacedContent keeps each content keyword verbatim on p, for a position

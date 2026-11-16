@@ -591,6 +591,30 @@ func extensionsIn(s *statement.Schema) []statement.Extension {
 	return s.Extensions
 }
 
+// arrayIn returns what s says of an array, nothing for a nil s.
+func arrayIn(s *statement.Schema) statement.Array {
+	if s == nil || s.Array == nil {
+		return statement.Array{}
+	}
+	return *s.Array
+}
+
+// objectIn returns what s says of an object, nothing for a nil s.
+func objectIn(s *statement.Schema) statement.Object {
+	if s == nil || s.Object == nil {
+		return statement.Object{}
+	}
+	return *s.Object
+}
+
+// logicIn returns what s's in-place applicators say, nothing for a nil s.
+func logicIn(s *statement.Schema) statement.Logic {
+	if s == nil || s.Logic == nil {
+		return statement.Logic{}
+	}
+	return *s.Logic
+}
+
 // xmlIn returns the xml object s writes, nil for none.
 func xmlIn(s *statement.Schema) *statement.XML {
 	if s == nil || s.Notes == nil {

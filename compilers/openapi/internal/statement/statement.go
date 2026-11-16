@@ -181,7 +181,9 @@ const (
 
 // ReadsFalse reports whether t reads as the false schema, which admits no
 // value: Nothing, and Unread, a mapping the parser decodes as `false`
-// (docs/parser-library.md#failure-beneath-itself).
+// (docs/parser-library.md#failure-beneath-itself), and not Unwritten, a value
+// the parser decodes so though it is written as no schema
+// (docs/parser-library.md#null-schema-is-false).
 func (t Truth) ReadsFalse() bool {
 	return t == Nothing || t == Unread
 }

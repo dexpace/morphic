@@ -253,7 +253,7 @@ func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 	if !slices.Contains(kindsIn(s), statement.KindArray) {
 		return nil
 	}
-	if _, listed := listedItems(s); listed || written(c.Statements(), arrayIn(s).Items) {
+	if _, listed := listedItems(s); listed || written(arrayIn(s).Items) {
 		return nil
 	}
 	if !c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {

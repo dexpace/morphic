@@ -607,7 +607,7 @@ var shapeKeywords = []siblingKeyword{
 	{"enum", enumWritten},
 	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }},
 	{"additionalProperties", func(s *statement.Schema) bool {
-		return annotation.Written(statement.Parsed(s).GetAdditionalProperties())
+		return written(objectIn(s).AdditionalProperties)
 	}},
 	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }},
 	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }},
@@ -625,7 +625,7 @@ var narrowingKeywords = []siblingKeyword{
 	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }},
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
-		return listed || annotation.Written(statement.Parsed(s).GetItems())
+		return listed || written(arrayIn(s).Items)
 	}},
 	{"prefixItems", func(s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }},
 }

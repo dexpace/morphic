@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -483,4 +484,70 @@ func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
 	assert.Equal(t, []string{"x-d"}, extensionNames(o.Object.Discriminator.Extensions))
 	assert.Equal(t, []string{"x-e"}, extensionNames(o.Notes.ExternalDocs.Extensions))
 	assert.Nil(t, table.At(component(c, "Absent")).Extensions)
+}
+
+// TestSub_TruthTellsNoSchemaFromFalse pins what a value written where a schema
+// belongs states, read from its Sub and from its statement alike. The parser
+// decodes a null, a string, a number or a list as the `false` schema
+// (docs/parser-library.md#null-schema-is-false), which admits no value where
+// these state nothing, so only the node tells them apart, through an alias
+// too; and it decodes a mapping it fails beneath as a boolean
+// (docs/parser-library.md#failure-beneath-itself). Only a written `false`, and
+// such a mapping, read as the false schema.
+func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
+	t.Parallel()
+	rows := []struct {
+		name, value string
+		want        statement.Truth
+	}{
+		{"the word null", "null", statement.Unwritten},
+		{"a tilde", "~", statement.Unwritten},
+		{"an empty value", "", statement.Unwritten},
+		{"a null that is anchored", "&n null", statement.Unwritten},
+		{"an alias to an anchored null", "*n", statement.Unwritten},
+		{"false", "false", statement.Nothing},
+		{"a false that is anchored", "&f false", statement.Nothing},
+		{"an alias to an anchored false", "*f", statement.Nothing},
+		{"true", "true", statement.Anything},
+		{"an object", "{type: string}", statement.Stated},
+		{"an empty object", "{}", statement.Stated},
+		{"a string", "hello", statement.Unwritten},
+		{"a quoted false", `"false"`, statement.Unwritten},
+		{"a number", "7", statement.Unwritten},
+		{"a list", "[a]", statement.Unwritten},
+		{"a string tagged as one", "!!str true", statement.Unwritten},
+		{"a boolean tagged outside the ruleset", "!local true", statement.Unwritten},
+		{"a list that is anchored", "&l [a]", statement.Unwritten},
+		{"an alias to an anchored list", "*l", statement.Unwritten},
+		{"a tagged boolean", "!!bool false", statement.Nothing},
+	}
+	var props strings.Builder
+	for i, row := range rows {
+		fmt.Fprintf(&props, "        p%d: %s\n", i, row.value)
+	}
+	depth := typed.MaxMends + 2
+	chain := strings.Repeat("{type: array, items: ", depth) + "[{}]" + strings.Repeat("}", depth)
+	table, c := tableOver(t, openapitest.ComponentSpecVer("3.1.0",
+		"    A:\n      properties:\n"+props.String()+"    Chain: "+chain+"\n"), rulesAt(t, "3.1.0", ""))
+
+	a := table.At(component(c, "A"))
+	require.Len(t, a.Object.Properties, len(rows))
+	for i, row := range rows {
+		sub := a.Object.Properties[i]
+		require.Equal(t, fmt.Sprintf("p%d", i), sub.Name)
+		assert.Equal(t, row.want, sub.Truth(), "%s: the Sub", row.name)
+		assert.Equal(t, row.want, table.Sub(sub).Truth, "%s: its statement", row.name)
+		assert.Equal(t, row.want == statement.Nothing, sub.Truth().ReadsFalse(), "%s: read as false", row.name)
+	}
+
+	above := table.At(c.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", depth-2))))
+	require.Equal(t, statement.Stated, above.Truth)
+	items := above.Array.Items
+	assert.Equal(t, statement.Unread, items.Truth(), "a mapping read as a boolean")
+	assert.Equal(t, statement.Unread, table.Sub(items).Truth)
+	assert.True(t, items.Truth().ReadsFalse(), "the parser reads it as false")
+
+	assert.Equal(t, statement.Unwritten, statement.Sub{}.Truth(), "no value at all")
+	built := statement.NewTable(statement.Source{}).Of(oas3.NewJSONSchemaFromBool(false))
+	assert.Equal(t, statement.Nothing, built.Truth, "a false schema built in memory, which has no node")
 }

@@ -81,7 +81,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 func declaresPositionScoped(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
 		hasAnyKey(s, collectionBoundKeywords) ||
-		declaresValidationOnly(c, s) || hasAnyKey(s, residueKeywords) ||
+		declaresValidationOnly(s) || hasAnyKey(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(statement.ParsedAt(heldAt(c, pointer))) ||
 		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
@@ -120,18 +120,17 @@ func declaresAnnotations(s *statement.Schema) bool {
 // that annotation.Read keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties counts: only a Model, which owns its pointer and so
 // needs no node hoisted, holds it as its openness (closureTyped).
-func declaresValidationOnly(c lowering.Ctx, s *statement.Schema) bool {
-	t := c.Statements()
+func declaresValidationOnly(s *statement.Schema) bool {
 	if a := s.Array; a != nil {
-		if written(t, a.Contains) || written(t, a.UnevaluatedItems) || a.MinContains != nil || a.MaxContains != nil {
+		if written(a.Contains) || written(a.UnevaluatedItems) || a.MinContains != nil || a.MaxContains != nil {
 			return true
 		}
 	}
-	if o := s.Object; o != nil && (written(t, o.PropertyNames) || written(t, o.UnevaluatedProperties)) {
+	if o := s.Object; o != nil && (written(o.PropertyNames) || written(o.UnevaluatedProperties)) {
 		return true
 	}
 	if l := s.Logic; l != nil {
-		if written(t, l.Not) || written(t, l.If) || written(t, l.Then) || written(t, l.Else) || len(l.DependentSchemas) > 0 {
+		if written(l.Not) || written(l.If) || written(l.Then) || written(l.Else) || len(l.DependentSchemas) > 0 {
 			return true
 		}
 	}
@@ -140,8 +139,8 @@ func declaresValidationOnly(c lowering.Ctx, s *statement.Schema) bool {
 
 // written reports whether sub is a schema written at its position, which a
 // value written as no schema is not (statement.Unwritten).
-func written(t *statement.Table, sub statement.Sub) bool {
-	return t.Sub(sub).Truth != statement.Unwritten
+func written(sub statement.Sub) bool {
+	return sub.Truth() != statement.Unwritten
 }
 
 // stated reports whether s is a schema object, which alone has keys and slots

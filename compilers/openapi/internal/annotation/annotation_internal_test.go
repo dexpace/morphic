@@ -5,14 +5,12 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -477,95 +475,6 @@ func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
 	s := SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "type: string\ntitle: T\n"))
 	require.NotNil(t, s)
 	assert.Equal(t, "T", s.GetTitle())
-}
-
-// TestIsFalseSchema_OnlyTheFalseBoolean pins the predicate that distinguishes a
-// structural mode from a schema. Reading `true` or an object schema as the false
-// one would turn a permissive position into a forbidding one.
-func TestIsFalseSchema_OnlyTheFalseBoolean(t *testing.T) {
-	t.Parallel()
-	assert.True(t, IsFalseSchema(openapitest.SchemaFromYAML(t.Context(), t, "false\n")))
-	assert.False(t, IsFalseSchema(openapitest.SchemaFromYAML(t.Context(), t, "true\n")))
-	assert.False(t, IsFalseSchema(openapitest.SchemaFromYAML(t.Context(), t, "type: string\n")))
-	assert.False(t, IsFalseSchema(nil))
-}
-
-// TestIsNoSchema_TellsNoSchemaFromFalse pins the three predicates that read a
-// value written where a schema belongs. The parser decodes a null, a string, a
-// number or a list as the boolean `false` schema, which admits no value where
-// these state nothing, so only the node tells them apart: IsNoSchema holds of
-// every node that is neither a mapping nor a boolean scalar, through an alias,
-// IsFalseSchema is true only for a written `false`, and Written is false for no
-// schema.
-func TestIsNoSchema_TellsNoSchemaFromFalse(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, value string
-		noSchema    bool
-		isFalse     bool
-		written     bool
-	}{
-		{name: "the word null", value: "null", noSchema: true},
-		{name: "a tilde", value: "~", noSchema: true},
-		{name: "an empty value", value: "", noSchema: true},
-		{name: "a null that is anchored", value: "&n null", noSchema: true},
-		{name: "an alias to an anchored null", value: "*n", noSchema: true},
-		{name: "false", value: "false", isFalse: true, written: true},
-		{name: "a false that is anchored", value: "&f false", isFalse: true, written: true},
-		{name: "an alias to an anchored false", value: "*f", isFalse: true, written: true},
-		{name: "true", value: "true", written: true},
-		{name: "an object", value: "{type: string}", written: true},
-		{name: "an empty object", value: "{}", written: true},
-		{name: "a string", value: "hello", noSchema: true},
-		{name: "a quoted false", value: `"false"`, noSchema: true},
-		{name: "a number", value: "7", noSchema: true},
-		{name: "a list", value: "[a]", noSchema: true},
-		{name: "a string tagged as one", value: "!!str true", noSchema: true},
-		{name: "a boolean tagged outside the ruleset", value: "!local true", noSchema: true},
-		{name: "a list that is anchored", value: "&l [a]", noSchema: true},
-		{name: "an alias to an anchored list", value: "*l", noSchema: true},
-		{name: "a tagged boolean", value: "!!bool false", isFalse: true, written: true},
-	}
-	var props strings.Builder
-	for i, tc := range tests {
-		fmt.Fprintf(&props, "        p%d: %s\n", i, tc.value)
-	}
-	parsed, _, err := soa.Unmarshal(t.Context(), strings.NewReader("openapi: 3.1.0\n"+
-		"info: {title: T, version: '1'}\npaths: {}\n"+
-		"components:\n  schemas:\n    A:\n      properties:\n"+props.String()))
-	require.NoError(t, err, "the parser reads a null schema; the load phase reports it")
-	a, ok := parsed.Components.Schemas.Get("A")
-	require.True(t, ok)
-	require.Equal(t, len(tests), a.GetSchema().GetProperties().Len())
-
-	for i, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			js, ok := a.GetSchema().GetProperties().Get(fmt.Sprintf("p%d", i))
-			require.True(t, ok)
-			require.NotNil(t, js)
-
-			assert.Equal(t, tc.noSchema, IsNoSchema(js), "IsNoSchema")
-			assert.Equal(t, tc.isFalse, IsFalseSchema(js), "IsFalseSchema")
-			assert.Equal(t, tc.written, Written(js), "Written")
-		})
-	}
-
-	t.Run("no schema at all", func(t *testing.T) {
-		t.Parallel()
-		var absent *oas3.JSONSchema[oas3.Referenceable]
-		assert.False(t, IsNoSchema(absent))
-		assert.False(t, IsFalseSchema(absent))
-		assert.False(t, Written(absent))
-	})
-
-	t.Run("a false schema built in memory, which has no node", func(t *testing.T) {
-		t.Parallel()
-		built := oas3.NewJSONSchemaFromBool(false)
-		assert.False(t, IsNoSchema(built))
-		assert.True(t, IsFalseSchema(built))
-		assert.True(t, Written(built))
-	})
 }
 
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly

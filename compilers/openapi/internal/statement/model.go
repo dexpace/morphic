@@ -82,9 +82,17 @@ func (t *Table) read(js *model) *Schema {
 	return s
 }
 
-// truthOf returns what js states, by the readings the lowering makes of it:
-// annotation.IsNoSchema's of a value written as no schema, and that of a
-// mapping the parser read as a boolean.
+// Truth returns what the schema s names states, as Table.Sub reads it, with no
+// lookup.
+func (s Sub) Truth() Truth {
+	return truthOf(s.m)
+}
+
+// truthOf returns what js states. The parser reads a value written as no
+// schema as the `false` schema, which truthOf reads as Unwritten by its node
+// (docs/parser-library.md#null-schema-is-false), and a mapping it fails
+// beneath as a boolean, which truthOf reads as Unread
+// (docs/parser-library.md#failure-beneath-itself).
 func truthOf(js *model) Truth {
 	if js == nil {
 		return Unwritten
