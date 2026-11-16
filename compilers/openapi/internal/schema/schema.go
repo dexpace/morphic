@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -570,11 +571,22 @@ func constIn(s *statement.Schema) *yaml.Node {
 	return s.Values.Const
 }
 
-// nullableTrue reports whether s's `nullable` reads true, as the parser's
-// model holds it whatever the dialect defines: a policy reads a 3.0 keyword in
-// a 3.1 schema (docs/compilers/openapi.md#nullable).
+// nullableTrue reports whether s's `nullable` reads true whatever the dialect
+// defines, as a policy reads a 3.0 keyword in a 3.1 schema: only the boolean
+// true states it, never a string the parser's model decodes as true, such as
+// "yes" (docs/compilers/openapi.md#nullable, GitHub #2007). A keyword merged in
+// past nodeview.MergeDepthLimit has the model's value and no key, and that
+// value stands.
 func nullableTrue(s *statement.Schema) bool {
-	return s != nil && s.Kinds != nil && s.Kinds.Nullable != nil && *s.Kinds.Nullable
+	if s == nil || s.Kinds == nil || s.Kinds.Nullable == nil || !*s.Kinds.Nullable {
+		return false
+	}
+	k, _ := s.Key("nullable")
+	if k.Name == "" {
+		return true
+	}
+	written, err := value.Classify(k.Node)
+	return err == nil && written.Kind == value.ScalarBool && written.Bool
 }
 
 // siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
