@@ -795,7 +795,7 @@ components:
 - Code:
   - `statement.truthOf` reads such a value as `Unwritten` by its node.
   - `statement.Truth.ReadsFalse` excludes it, so no reader takes one for `false`.
-  - `statement.Sub.Held` tells a keyword holding one from a keyword left out.
+  - `statement.Schema.Held` tells a position holding one from a position holding nothing.
 
 ### `failure-beneath-itself`
 
