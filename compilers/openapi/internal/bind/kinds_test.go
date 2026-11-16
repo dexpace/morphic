@@ -182,13 +182,21 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 
 // TestReading_BelowStepsTheGrammar pins Below: from a parameter, its schema
 // is a schema, and so is a media type's beneath its content, while beneath an
-// example's value or an extension a schema key is raw YAML.
+// example's value or an extension a schema key is raw YAML, as is a header's
+// schema beneath an Encoding Object another nests, though not beneath the one
+// nesting it.
 func TestReading_BelowStepsTheGrammar(t *testing.T) {
 	t.Parallel()
 	param := bound(t, head, self).ReadingAt(at("/components/parameters/P"))
 	require.True(t, param.Referable())
 	assert.True(t, param.Below("schema").Schema())
 	assert.True(t, param.Below("content").Below("application/json").Below("schema").Schema())
+	encoding := param.Below("content").Below("multipart/form-data").Below("encoding").Below("f")
+	headerSchema := func(r bind.Reading) bool { return r.Below("headers").Below("H").Below("schema").Schema() }
+	assert.True(t, headerSchema(encoding))
+	assert.False(t, headerSchema(encoding.Below("encoding").Below("g")))
+	assert.False(t, headerSchema(encoding.Below("prefixEncoding").Below("0")))
+	assert.False(t, headerSchema(encoding.Below("itemEncoding")))
 	assert.False(t, param.Below("examples").Below("e").Below("value").Below("schema").Schema())
 	assert.False(t, param.Below("x-shape").Below("schema").Schema())
 	assert.True(t, param.Below("examples").Below("e").Referable(), "an example can be a $ref")

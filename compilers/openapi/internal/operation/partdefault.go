@@ -4,13 +4,14 @@
 package operation
 
 import (
+	"context"
 	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,14 +32,14 @@ const (
 // readContentEncoding reads whether schemas, a part's declarations, write
 // contentEncoding, each read through its $ref chain and a refinement to the
 // schema deciding it (schema.DecidingSchema), as the type lowering reads it.
-func readContentEncoding(c lowering.Ctx, schemas []*oas3.JSONSchema[oas3.Referenceable]) contentEncoding {
+func readContentEncoding(c service.Ctx, schemas []*oas3.JSONSchema[oas3.Referenceable]) contentEncoding {
 	writes, omits := false, false
 	for _, js := range schemas {
 		s := schemaOf(c.Bindings(), js)
 		if s == nil {
 			continue
 		}
-		if schema.DecidingSchema(c, s).GetContentEncoding() != "" {
+		if schema.DecidingSchema(c.Ctx, s).GetContentEncoding() != "" {
 			writes = true
 		} else {
 			omits = true
@@ -293,19 +294,19 @@ func encodedCase(encodedBy contentEncoding, plain, written oas.DefaultCase) oas.
 // an array inside the array the encoding applies to. encoded is what the item
 // schema says of contentEncoding, and c the context the content lowered in.
 type itemDefault struct {
-	c        lowering.Ctx
+	c        service.Ctx
 	encoding *ir.PartEncoding
 	item     ir.TypeRef
 	encoded  contentEncoding
 }
 
 // Settle writes the default to the item encoding and no node of reg.
-func (d itemDefault) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (d itemDefault) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]
 		return td, ok
 	}
-	types := partUnionsOf(d.c).itemDefault(node, lowering.EncodingRules(d.c), d.item, d.encoded)
+	types := partUnionsOf(d.c).itemDefault(node, service.EncodingRules(d.c), d.item, d.encoded)
 	d.encoding.ContentTypes = slices.Clone(types)
 	return nil
 }

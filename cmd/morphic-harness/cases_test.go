@@ -95,13 +95,17 @@ func TestRun_TheCasesOfEachFormat(t *testing.T) {
 }
 
 // TestRun_AtWritesOneCase pins -at: a case's name, its sources and each
-// verdict; a case writing nothing says so; and an index past the last case,
-// or before the first, names none.
+// verdict; the last index names the last product's last case; and an index
+// past the last case, or before the first, names none.
 func TestRun_AtWritesOneCase(t *testing.T) {
 	t.Parallel()
 	c := openapicases.New()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
+	n := 0
+	for _, f := range formats() {
+		count, err := harness.CaseCount(f.cases)
+		require.NoError(t, err)
+		n += count
+	}
 
 	code, stdout, stderr := runArgs(t, formats(), "-cases", "full", "-at", "0")
 	require.Equal(t, 0, code, stderr)
@@ -111,6 +115,13 @@ func TestRun_AtWritesOneCase(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "--- openapi.json\n"+string(doc.Sources[0].Data)+"\n"+
 		"spelling declined: no partner\npresence declined: no construct\ninstance declined: no instance\n", rest)
+
+	groups := openapicases.Groups().Axes()
+	last := groups[0].Values[len(groups[0].Values)-1].Name + "/" + groups[1].Values[len(groups[1].Values)-1].Name +
+		"/" + groups[2].Values[len(groups[2].Values)-1].Name + "/" + groups[3].Values[len(groups[3].Values)-1].Name
+	_, stdout, _ = runArgs(t, formats(), "-cases", "full", "-at", fmt.Sprint(n-1))
+	name, _, _ = strings.Cut(stdout, "\n")
+	assert.Equal(t, last, name, "the last index names the groups' last case")
 
 	for _, at := range []int{n, -1} {
 		code, stdout, stderr = runArgs(t, formats(), "-cases", "core", "-at", fmt.Sprint(at))

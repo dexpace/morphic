@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,8 +31,8 @@ func TestUnionTags_ReportsWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u", pointer: "/components/schemas/U"}
-			diags := tags.Settle(reg)
+			tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "t/u", pointer: "/components/schemas/U"}
+			diags := tags.Settle(t.Context(), reg)
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -75,9 +75,9 @@ func TestUnionTags_ReadsOnlyWhatItWasDeferredFor(t *testing.T) {
 				"t/lit/a": &ir.Literal{ID: "t/lit/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
 				"t/lit/b": &ir.Literal{ID: "t/lit/b", Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
 			}
-			tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u",
+			tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "t/u",
 				pointer: "/components/schemas/U", at: tc.at, implicit: tc.implicit}
-			diags := tags.Settle(reg)
+			diags := tags.Settle(t.Context(), reg)
 			if tc.bug {
 				require.Len(t, diags, 1)
 				assert.Equal(t, diag.InternalInvariant, diags[0].Code)
@@ -99,7 +99,7 @@ func TestSpellImplicitRoutes_ReportsAVariantNoBranchStandsFor(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0",
 		"    U: {oneOf: [{$ref: '#/components/schemas/A'}], discriminator: {propertyName: k}}\n    A: {type: object}\n"))
-	js, ok := l.Ctx.Doc.Components.Schemas.Get("U")
+	js, ok := l.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
 	u := &ir.Union{Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/a"}}, {Type: ir.TypeRef{Target: "t/b"}}},
 		Discriminator: &ir.Discriminator{PropertyName: "k"}}
@@ -158,11 +158,11 @@ func settleAllocs(t *testing.T, width, pinned int) float64 {
 	}
 	reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants, Closed: true}
 
-	tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u",
+	tags := unionTags{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx, id: "t/u",
 		pointer: "/components/schemas/U"}
 	fewest := math.Inf(1)
 	for range 20 {
-		fewest = min(fewest, testing.AllocsPerRun(1, func() { tags.Settle(reg) }))
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { tags.Settle(t.Context(), reg) }))
 	}
 	return fewest
 }

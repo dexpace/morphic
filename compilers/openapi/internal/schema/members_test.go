@@ -110,6 +110,237 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 	}
 }
 
+// TestMembers_ATieAnEntrySettledIsNotCountedAgain pins where a $ref entry and
+// the schema it names written inline fold apart: the entry's schema declares
+// the member as a string and then an integer, a tie its settlement gives the
+// later. Beside one more string, the entry brings the integer alone, which
+// ties again and stands as the later, while the inline spelling counts two
+// strings against one integer. Each spelling reports its tie.
+func TestMembers_ATieAnEntrySettledIsNotCountedAgain(t *testing.T) {
+	t.Parallel()
+	holding := func(kind string) string { return "{type: object, properties: {p: {type: " + kind + "}}}" }
+	part := "{allOf: [" + holding("string") + ", " + holding("integer") + "]}"
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Part: "+part+"\n"+
+		"    Ref: {allOf: ["+holding("string")+", {$ref: '#/components/schemas/Part'}]}\n"+
+		"    Inline: {allOf: ["+holding("string")+", "+part+"]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "Ref", "p").Type.Target)
+	assert.Equal(t, ir.TypeID("t/prim/string"), propertyOf(t, doc, "Inline", "p").Type.Target)
+	for _, model := range []string{"Ref", "Inline"} {
+		at := diagsUnder(diags, "/components/schemas/"+model+"/")
+		require.Len(t, at, 1, model)
+		assert.Equal(t, diag.ConflictingRedecl, at[0].Code, model)
+	}
+}
+
+// TestMembers_AMemberAPartSettledIsJudgedWhereItsTypeIsWritten pins a member
+// two entries each bring settled. Each part declares it as a string holding a
+// bound and as an enum, so its member keeps the first declaration's identity
+// and the enum the other hoisted. The two enums are copies of one declaration,
+// each written at a declaration of its part, so the member takes one and both
+// bounds, as the four declarations written inline do, whichever each part
+// writes first.
+func TestMembers_AMemberAPartSettledIsJudgedWhereItsTypeIsWritten(t *testing.T) {
+	t.Parallel()
+	const enum = "{type: object, properties: {b: {type: string, enum: [x, y, z]}}}"
+	bound := func(keyword string) string { return "{type: object, properties: {b: {type: string, " + keyword + "}}}" }
+	for _, boundFirst := range []bool{true, false} {
+		part := func(keyword string) string {
+			if boundFirst {
+				return "{allOf: [" + bound(keyword) + ", " + enum + "]}"
+			}
+			return "{allOf: [" + enum + ", " + bound(keyword) + "]}"
+		}
+		name := fmt.Sprintf("bound first %v", boundFirst)
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+			"    S1: "+part("minLength: 1")+"\n    S2: "+part("maxLength: 9")+"\n"+
+				"    Ref: {allOf: [{$ref: '#/components/schemas/S1'}, {$ref: '#/components/schemas/S2'}]}\n"+
+				"    Inline: {allOf: ["+part("minLength: 1")+", "+part("maxLength: 9")+"]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		require.Empty(t, irverify.Verify(doc))
+
+		byRef, written := propertyOf(t, doc, "Ref", "b"), propertyOf(t, doc, "Inline", "b")
+		one, nine := int64(1), int64(9)
+		assert.Equal(t, &ir.Constraints{MinLength: &one, MaxLength: &nine}, byRef.Constraints, name)
+		assert.Equal(t, written.Constraints, byRef.Constraints, name)
+		assert.IsType(t, &ir.Enum{}, doc.Types[byRef.Type.Target], name)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/Ref/"), name)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/Inline/"), name)
+	}
+}
+
+// TestMembers_AMemberAPartMeetsIsJudgedAtEachDeclarationItHolds pins a member
+// an entry brings met, in either entry order. The part declares it as a list
+// of strings, then of an enum, each holding a bound, so its member is a list
+// the fold built, whose element the second declaration hoisted. Folded with
+// another entry's list of that enum, the element reads as written at the
+// part's declaration: the lists meet in the tightest bounds, and the other
+// entry's default, listing a value the enum lacks, is its own type's to answer
+// for, as written inline.
+func TestMembers_AMemberAPartMeetsIsJudgedAtEachDeclarationItHolds(t *testing.T) {
+	t.Parallel()
+	list := func(rest string) string { return "{type: object, properties: {b: {type: array, " + rest + "}}}" }
+	const enum = "items: {type: string, enum: [x, y]}"
+	part := "{allOf: [" + list("minItems: 3, items: {type: string}") + ", " + list("maxItems: 9, "+enum) + "]}"
+	leaf := list("maxItems: 5, default: [q, q, q], " + enum)
+	for _, leafFirst := range []bool{true, false} {
+		entries := func(a, b string) string {
+			if leafFirst {
+				return "[" + a + ", " + b + "]"
+			}
+			return "[" + b + ", " + a + "]"
+		}
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S1: "+part+"\n    S2: "+leaf+"\n"+
+			"    Ref: {allOf: "+entries("{$ref: '#/components/schemas/S2'}", "{$ref: '#/components/schemas/S1'}")+"}\n"+
+			"    Inline: {allOf: "+entries(leaf, part)+"}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		require.Empty(t, irverify.Verify(doc))
+
+		three, five := int64(3), int64(5)
+		for _, model := range []string{"Ref", "Inline"} {
+			name := fmt.Sprintf("%s, leaf first %v", model, leafFirst)
+			b := propertyOf(t, doc, model, "b")
+			met, isList := doc.Types[b.Type.Target].(*ir.List)
+			require.True(t, isList, name)
+			assert.Equal(t, &ir.Constraints{MinItems: &three, MaxItems: &five}, met.Constraints, name)
+			require.NotNil(t, b.Default, name)
+			assert.Len(t, b.Default.List, 3, name)
+			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), name)
+		}
+	}
+}
+
+// TestMembers_AMemberOnlyEntriesDeclareIsJudgedWhereItsTypeIsWritten pins a
+// member two entries each bring settled from their own entries, so each names
+// a place no schema is written at. Where each keeps the enum one of its
+// entries declares, and where each holds the enum its fold built of two, the
+// two are copies of one declaration, so the member takes one and what both
+// say beside it, with nothing reported.
+func TestMembers_AMemberOnlyEntriesDeclareIsJudgedWhereItsTypeIsWritten(t *testing.T) {
+	t.Parallel()
+	holding := func(schema string) string { return "{type: object, properties: {b: " + schema + "}}" }
+	composing := func(a, b string) string {
+		return "{allOf: [{$ref: '#/components/schemas/" + a + "'}, {$ref: '#/components/schemas/" + b + "'}]}"
+	}
+	one, nine := int64(1), int64(9)
+	for name, tc := range map[string]struct {
+		first, second [2]string
+		members       int
+		want          *ir.Constraints
+	}{
+		"an enum an entry declares": {
+			first:   [2]string{"{type: string, enum: [x, y]}", "{type: string, minLength: 1}"},
+			second:  [2]string{"{type: string, enum: [x, y]}", "{type: string, maxLength: 9}"},
+			members: 2, want: &ir.Constraints{MinLength: &one, MaxLength: &nine},
+		},
+		"an enum the fold built": {
+			first:   [2]string{"{type: string, enum: [x, y]}", "{type: string, enum: [y, z]}"},
+			second:  [2]string{"{type: string, enum: [y, z]}", "{type: string, enum: [x, y]}"},
+			members: 1,
+		},
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+			"    A1: "+holding(tc.first[0])+"\n    B1: "+holding(tc.first[1])+"\n    One: "+composing("A1", "B1")+"\n"+
+				"    A2: "+holding(tc.second[0])+"\n    B2: "+holding(tc.second[1])+"\n    Two: "+composing("A2", "B2")+"\n"+
+				"    Ref: "+composing("One", "Two")+"\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		require.Empty(t, irverify.Verify(doc), name)
+
+		b := propertyOf(t, doc, "Ref", "b")
+		enum, isEnum := doc.Types[b.Type.Target].(*ir.Enum)
+		require.True(t, isEnum, name)
+		assert.Len(t, enum.Members, tc.members, name)
+		assert.Equal(t, tc.want, b.Constraints, name)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/Ref/"), name)
+	}
+}
+
+// TestMembers_ABroughtMembersDefaultIsItsOwnTypesWhereThatIsWritten pins the
+// default a settled member an entry brings holds, written against its own
+// type: the part declares a list of strings and then one of an enum, giving
+// the default, beside another entry's list of that enum, whose copy the built
+// list takes. The default lists a value the enum lacks, which its own
+// declaration answers for, so the member keeps it in either entry order, as
+// the part's own member does.
+func TestMembers_ABroughtMembersDefaultIsItsOwnTypesWhereThatIsWritten(t *testing.T) {
+	t.Parallel()
+	list := func(rest, items string) string {
+		return "{type: object, properties: {b: {type: array, " + rest + ", items: {type: string" + items + "}}}}"
+	}
+	const enum = ", enum: [x, y]"
+	for _, order := range [][2]string{{"A", "S"}, {"S", "A"}} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+			"    A: "+list("maxItems: 5", enum)+"\n"+
+				"    S: {allOf: ["+list("minItems: 3", "")+", "+list("maxItems: 9, default: [q, q, q]", enum)+"]}\n"+
+				"    Ref: {allOf: [{$ref: '#/components/schemas/"+order[0]+"'}, {$ref: '#/components/schemas/"+order[1]+"'}]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		require.Empty(t, irverify.Verify(doc))
+
+		b := propertyOf(t, doc, "Ref", "b")
+		require.NotNil(t, b.Default, "%v", order)
+		assert.Equal(t, propertyOf(t, doc, "S", "b").Default, b.Default, "%v", order)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/Ref/"), "%v", order)
+	}
+}
+
+// TestMembers_AReportNamesABroughtMemberWhereItSaysWhatItDoes pins what a
+// report says of a member an entry brings settled. Where one declaration gave
+// its type, the report names that declaration, not the first the member is
+// named for, which says another type. Where its model's composition built the
+// type of what only its entries declare, no schema is written where the model
+// declares it, so the report names the entry bringing it.
+func TestMembers_AReportNamesABroughtMemberWhereItSaysWhatItDoes(t *testing.T) {
+	t.Parallel()
+	holding := func(schema string) string { return "{type: object, properties: {p: " + schema + "}}" }
+	const composing = "{allOf: [{$ref: '#/components/schemas/M'}, {$ref: '#/components/schemas/C'}]}"
+	for name, tc := range map[string]struct{ part, over string }{
+		"the declaration giving its type": {
+			part: "{allOf: [" + holding("{type: string}") + ", " + holding("{type: integer}") + "]}",
+			over: "/components/schemas/M/allOf/1/properties/p",
+		},
+		"the entry bringing what is written nowhere": {
+			part: "{allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}",
+			over: "/components/schemas/N/allOf/0",
+		},
+	} {
+		_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+			"    A: "+holding("{type: string, enum: [x, y]}")+"\n    B: "+holding("{type: string, enum: [y, z]}")+"\n"+
+				"    M: "+tc.part+"\n    C: "+holding("{type: boolean}")+"\n    N: "+composing+"\n"))
+
+		at := diagsUnder(diags, "/components/schemas/N/")
+		require.Len(t, at, 1, name)
+		assert.Equal(t, diag.ConflictingRedecl, at[0].Code, name)
+		assert.Contains(t, at[0].Message, "kept what the declaration at /components/schemas/C/properties/p says over the one at "+
+			tc.over+", which stays declared on its model", name)
+	}
+}
+
+// TestMembers_ASettledMembersInlineTypeIsNoBaseOfWhatComposesIt pins the model
+// a fold composes of a member one entry brings settled: the part declares the
+// member with no type and then as an inline object, so the member keeps the
+// first declaration's identity and the model the second hoisted. No $ref names
+// that model, so the composition lists it among its Mixins, as it lists the
+// other entry's, and elects no Base (SelectBase).
+func TestMembers_ASettledMembersInlineTypeIsNoBaseOfWhatComposesIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    S1: {allOf: [{type: object, properties: {a: {description: about a}}}, "+
+			"{type: object, properties: {a: {type: object, properties: {x: {type: string}}}}}]}\n"+
+			"    S2: {type: object, properties: {a: {type: object, properties: {y: {type: string}}}}}\n"+
+			"    Ref: {allOf: [{$ref: '#/components/schemas/S1'}, {$ref: '#/components/schemas/S2'}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Empty(t, irverify.Verify(doc))
+
+	composed, isModel := doc.Types[propertyOf(t, doc, "Ref", "a").Type.Target].(*ir.Model)
+	require.True(t, isModel, "two inline objects compose")
+	assert.Nil(t, composed.Base, "no $ref names either object")
+	assert.Equal(t, []ir.TypeRef{
+		{Target: "t/anon/components/schemas/S1/allOf/1/properties/a"},
+		{Target: "t/anon/components/schemas/S2/properties/a"},
+	}, composed.Mixins)
+}
+
 // TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember pins what
 // names a member a composition settles: a composition requiring one it does
 // not declare requires the member it declares, its name leaving Requires; a

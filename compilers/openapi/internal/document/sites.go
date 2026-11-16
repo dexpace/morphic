@@ -10,7 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -18,7 +18,7 @@ import (
 // node with an Unmodeled map for all of them, so each object's entries are keyed
 // under the source path it was written at — see annotation.ExtensionsUnder for
 // why one unscoped key for all of them would not do.
-func documentExtensions(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
+func documentExtensions(c service.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 	all := sites(c)
 	ext := make([]annotation.ExtensionSite, 0, len(all))
 	for _, s := range all {
@@ -34,7 +34,7 @@ func documentExtensions(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 // object's keys are scoped by the source path they were written at. One unscoped
 // "openapi:status" would be a single key for every object, and the entry that
 // survived would be whichever site ran last.
-func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+func documentUnknownKeys(c service.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	all := sites(c)
 	diags := make([]ir.Diagnostic, 0, len(all))
 	for _, s := range all {
@@ -73,7 +73,7 @@ type extensible interface {
 // is an entry of it (docs/parser-library.md#embedded-map-keys), while the
 // Components Object is a fixed-field struct and a key it does not define is as
 // undeclared as one on any other site.
-func sites(c lowering.Ctx) []site {
+func sites(c service.Ctx) []site {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
 	out := []site{

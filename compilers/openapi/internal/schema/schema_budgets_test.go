@@ -46,7 +46,7 @@ components:
 			l, _ := schema.LoweredFor(t, spec)
 			l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
 
-			diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+			diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 
 			node := typeByName(l.Document(t), "E")
 			require.NotNil(t, node)
@@ -96,7 +96,7 @@ components:
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	diags := schema.LowerComponentSchemas(ctx, l.Ctx, l.Types)
+	diags := schema.LowerComponentSchemas(ctx, l.Ctx, l.Types, l.Schemas())
 
 	assert.Empty(t, diags)
 	reg, finished := l.Types.Finish(t.Context())

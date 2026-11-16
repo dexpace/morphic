@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
@@ -60,7 +61,7 @@ type unionTags struct {
 }
 
 // Settle reads the union's tags, and writes them where the policy reads one.
-func (t unionTags) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (t unionTags) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	u, ok := reg[t.id].(*ir.Union)
 	if !ok || u == nil {
 		return t.invariant("is not registered as one")

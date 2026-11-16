@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -41,7 +41,7 @@ const (
 // declaration pointer, so a $ref'd response interns its content once at its
 // component pointer rather than once per mount site (issue #107). Each
 // response's links go to w's, which resolves them once the service is whole.
-func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerResponses(c service.Ctx, w walk, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -58,11 +58,11 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 		// operation to make the same mistake lost its warning to the first,
 		// since the diagnostic stream dedups on full identity.
 		entry := opDeclPtr + ids.Ptr("responses", code)
-		r, rc, rptr := lowering.Declared[soa.Response](c, rr, entry)
+		r, rc, rptr := service.Declared[soa.Response](c, rr, entry)
 		if r == nil {
 			continue
 		}
-		beside, besideDiags := lowering.Beside[soa.Response](c, rr, entry, true)
+		beside, besideDiags := service.Beside[soa.Response](c, rr, entry, true)
 		diags = append(diags, besideDiags...)
 		rng, named := statusRange(code)
 		if !named {
@@ -100,17 +100,17 @@ func lowerResponses(c lowering.Ctx, w walk, op *ir.Operation, src *soa.Operation
 // (docs/ir/responses.md), so the compiler classes it as neither: whether it is
 // the success response, an error, or both is a reading of the API, which the
 // plan makes under its policy.
-func lowerDefaultResponse(c lowering.Ctx, w walk, op *ir.Operation,
+func lowerDefaultResponse(c service.Ctx, w walk, op *ir.Operation,
 	resps *soa.Responses, opDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
 	use := opDeclPtr + ids.Ptr("responses", defaultResponseKey)
-	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), use)
+	def, dc, dptr := service.Declared[soa.Response](c, resps.GetDefault(), use)
 	if def == nil {
 		return nil
 	}
 	resp, drafts, diags := lowerResponse(dc, w, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
-	beside, besideDiags := lowering.Beside[soa.Response](c, resps.GetDefault(), use, true)
+	beside, besideDiags := service.Beside[soa.Response](c, resps.GetDefault(), use, true)
 	resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 	diags = append(diags, besideDiags...)
 	op.Default = &resp
@@ -121,7 +121,7 @@ func lowerDefaultResponse(c lowering.Ctx, w walk, op *ir.Operation,
 // duplicateStatusKeyDiags reports each status range more than one responses-map
 // key resolved to, at the map itself. Ranges are visited in order and the keys
 // of each sorted, so the same map reads the same however it was written.
-func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string, mapPtr jsontext.Pointer) []ir.Diagnostic {
+func duplicateStatusKeyDiags(c service.Ctx, byRange map[ir.StatusRange][]string, mapPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ranges := slices.SortedFunc(maps.Keys(byRange), func(a, b ir.StatusRange) int {
 		return cmp.Or(cmp.Compare(a.From, b.From), cmp.Compare(a.To, b.To))
@@ -144,7 +144,7 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 // status (see statusConditions). ref is the entry the document wrote there,
 // which carries the summary and description a Reference Object may put beside
 // its $ref.
-func lowerResponse(c lowering.Ctx, w walk, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
+func lowerResponse(c service.Ctx, w walk, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, w, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
@@ -178,7 +178,7 @@ type responseParts struct {
 // error interns its body once, so two naming fallbacks would rename it when
 // paths are reordered. The use-site docs fold over ref, the entry written here,
 // must agree across classes for the same reason (GitHub #610).
-func lowerResponseParts(c lowering.Ctx, w walk, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
+func lowerResponseParts(c service.Ctx, w walk, r *soa.Response, code string, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (responseParts, []ir.Diagnostic) {
 	headers, diags := lowerHeaders(c, w, r.GetHeaders(), rptr)
 	payload, payloadDiags := lowerPayload(c, w, r.GetContent(), rptr)
 	diags = append(diags, payloadDiags...)
@@ -196,7 +196,7 @@ func lowerResponseParts(c lowering.Ctx, w walk, r *soa.Response, code string, rp
 // the parser's model names no member for (GitHub #615), and returns the keys it
 // read for the census to leave alone. It reads at every version, as load
 // reports the key below 3.2 (diag.LaterVersionConstruct).
-func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
+func responseSummary(c service.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
 	summary, read, diags := annotation.TakeString(p, r.GetRootNode(), "summary", nil, c.Place(), rptr, "")
 	if !read {
 		return "", nil, diags
@@ -208,7 +208,7 @@ func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr json
 // on its node: its x-* extensions, and the undefined keys other than taken
 // (responseSummary's). One helper serves ir.Response and ir.ErrorCase, so
 // neither keeps a construct the other drops (GitHub #275).
-func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
+func preserveResponseExtras(c service.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	ext, diags := annotation.ExtensionsFrom(r.GetExtensions(), c.Place(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	return append(diags, annotation.UnknownKeysIn(p, r, c.Place(), rptr, taken...)...)
@@ -238,7 +238,7 @@ func responseName(code string) ir.Naming {
 // #422). code is the responses-map key, the only record of how the source
 // spelled a status its range cannot state ("4XX"); ref is the entry written
 // here.
-func lowerErrorCase(c lowering.Ctx, w walk, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
+func lowerErrorCase(c service.Ctx, w walk, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, w, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,
@@ -319,7 +319,7 @@ func statusConditions(rng ir.StatusRange, ok bool) ir.ResponseConditions {
 // document still compiles to IR worth having. It also keeps an input carrying
 // one in reach of FuzzCompile, which skips an input that draws an error and so
 // would hold none of its oracles to the case that provokes it.
-func invalidStatusKeyDiag(c lowering.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
+func invalidStatusKeyDiag(c service.Ctx, code string, entry jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.InvalidStatusKey, entry,
 		"response key %q is no status code, no 1XX-5XX range, and not %s; "+
 			"the response is kept with no status condition", code, defaultResponseKey)
@@ -333,7 +333,7 @@ func invalidStatusKeyDiag(c lowering.Ctx, code string, entry jsontext.Pointer) i
 // the entries answer to one status and cannot be told apart by name or
 // condition. It is sited at the map and names all the keys, so the report reads
 // the same from either spelling of the map.
-func duplicateStatusKeyDiag(c lowering.Ctx, keys []string, mapPtr jsontext.Pointer) ir.Diagnostic {
+func duplicateStatusKeyDiag(c service.Ctx, keys []string, mapPtr jsontext.Pointer) ir.Diagnostic {
 	quoted := make([]string, len(keys))
 	for i, k := range keys {
 		quoted[i] = strconv.Quote(k)

@@ -13,10 +13,10 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -30,7 +30,7 @@ import (
 // function of the context and the registry, or the walk holding it (#177), and
 // this holds what a single-lowering test wants in one place.
 type lowerer struct {
-	ctx   lowering.Ctx
+	ctx   service.Ctx
 	types *compile.Types
 	diags compile.Diags
 }
@@ -38,7 +38,7 @@ type lowerer struct {
 // lowererOver is the only place the fixture's fields are initialised. Both
 // entry points below build on it, so a field added to lowerer cannot reach one
 // of them and miss the other.
-func lowererOver(ctx lowering.Ctx) *lowerer {
+func lowererOver(ctx service.Ctx) *lowerer {
 	types := compile.NewTypes()
 	return &lowerer{
 		ctx:   ctx,
@@ -67,13 +67,13 @@ func loweredAt(t *testing.T, src compilers.Source, opts load.Options) (*lowerer,
 	loadedDoc, diags, err := load.Load(t.Context(), 0, src, opts)
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return lowererOver(lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags})), diags
+	return lowererOver(service.New(0, loadedDoc, service.Policy{Grouping: service.GroupByTags})), diags
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing
 // the parser so nil slice/map entries can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
+	return lowererOver(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath
@@ -98,7 +98,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegistry, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
-	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
+	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx.Ctx, l.types, l.ctx.Doc.Components.GetSchemas().All()))
 	declared, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.diags.AppendAll(authDiags)
 

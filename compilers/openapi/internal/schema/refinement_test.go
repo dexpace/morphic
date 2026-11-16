@@ -1864,7 +1864,7 @@ func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
     Narrowed: {enum: [a, b], allOf: [{type: string, format: binary, enum: [a]}]}
     Bare: {allOf: [{description: says nothing}]}
 `))
-	schemas := l.Ctx.Doc.Components.GetSchemas()
+	schemas := l.Doc.Components.GetSchemas()
 	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Narrowed": "binary", "Bare": ""} {
 		js, ok := schemas.Get(name)
 		require.True(t, ok, name)

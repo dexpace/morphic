@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,9 +22,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
@@ -255,8 +254,8 @@ func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 	resolved := func(l Limits) []budget.Limit {
 		o := Options{Limits: l}.withDefaults()
 		phase := loadOptions(o, nil, src)
-		lowered := loweringCtx(&load.Document{Doc: &soa.OpenAPI{}}, o).Limits
-		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, lowered.MaxEnumMembers,
+		lowered := loweringPolicy(o)
+		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, lowered.Schema.Limits.MaxEnumMembers,
 			phase.MaxAliasSurplus, phase.MaxExternalDocuments, lowered.MaxReferenceExpansion}
 	}
 	tests := []struct {
@@ -387,7 +386,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			t.Parallel()
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
-			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), inferences{},
+			doc, diags, err := run(ctx, servicetest.Context(t, openapitest.EmptySpec, service.Policy{}), inferences{},
 				compile.NewTypes(), whole.New)
 
 			require.ErrorIs(t, err, context.Canceled)
@@ -423,7 +422,7 @@ components:
 		loaded, _, err := load.Load(t.Context(), 0, source, loadOptions(Options{}.withDefaults(), nil, source))
 		require.NoError(t, err)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: live}
-		_, diags, err := run(ctx, loweringCtx(loaded, Options{}.withDefaults()), inferencesOf(Options{}.withDefaults()),
+		_, diags, err := run(ctx, service.New(rootSrcIndex, loaded, loweringPolicy(Options{}.withDefaults())), inferencesOf(Options{}.withDefaults()),
 			compile.NewTypes(), whole.New)
 		return ctx.Calls, diags, err
 	}

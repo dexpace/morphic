@@ -12,9 +12,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -28,12 +28,12 @@ import (
 // second value rather than writing it, because PartEncoding carries no
 // Unmodeled map of its own; scope is where that belongs on the owning Content
 // (see encodingUnmodeled).
-func encodingConfig(c lowering.Ctx, w walk, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func encodingConfig(c service.Ctx, w walk, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	pe := ir.PartEncoding{}
 	if enc == nil {
 		return pe, nil, nil
 	}
-	rules := lowering.EncodingRules(c)
+	rules := service.EncodingRules(c)
 	unmodeled, diags := keepIgnoredFields(c, enc, encPtr, scope, mt, rules)
 	pe.ContentTypes = splitContentTypes(enc.GetContentTypeValue())
 	if !rules.Ignores("headers", mt) {
@@ -79,7 +79,7 @@ func arrangement(enc *soa.Encoding) (style string, explode *bool, allowReserved 
 // RFC6570-style field outside the media types it applies to, and headers
 // outside multipart. Each is reported where it is written as the check reports
 // a field written where the specification gives it no effect.
-func keepIgnoredFields(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string, rules oas.EncodingRules) (ir.Unmodeled, []ir.Diagnostic) {
+func keepIgnoredFields(c service.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string, rules oas.EncodingRules) (ir.Unmodeled, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, field := range append([]string{"headers"}, arrangingFields...) {
@@ -108,7 +108,7 @@ func keepIgnoredFields(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointe
 // Unmodeled map, keyed under scope: "encoding/<part>" or "itemEncoding". One
 // content can hold several such entries in the same map, so the part tells them
 // apart.
-func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+func encodingUnmodeled(c service.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	diags := nestedEncodings(c, &out, enc, encPtr, scope)
 	ext, extDiags := annotation.ExtensionsUnder(enc.GetExtensions(), c.Place(), encPtr, scope)
@@ -132,7 +132,7 @@ var nestedEncodingFields = []string{"encoding", "prefixEncoding", "itemEncoding"
 //
 // ReasonNoIRHome, since PartEncoding could grow the fields. Nothing is lowered:
 // a part inside a part has no shape here, and keeping the source is lossless.
-func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) []ir.Diagnostic {
+func nestedEncodings(c service.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range nestedEncodingFields {
 		at := encPtr + ids.Ptr(keyword)

@@ -34,15 +34,29 @@ func shards(t *testing.T, c harness.Cases, pick func([]int) bool) map[[2]int][][
 	return out
 }
 
-// TestNew_EachCoreCaseCompilesWithNoError compiles each core case as the
+// TestNew_EachCoreCaseCompilesWithNoError holds the schema cases to
+// eachCoreCaseCompilesWithNoError.
+func TestNew_EachCoreCaseCompilesWithNoError(t *testing.T) {
+	t.Parallel()
+	eachCoreCaseCompilesWithNoError(t, openapicases.New())
+}
+
+// TestGroups_EachCoreCaseCompilesWithNoError holds the test suite's groups to
+// eachCoreCaseCompilesWithNoError: a group whose schema the compiler refuses
+// would leave its instances unjudged.
+func TestGroups_EachCoreCaseCompilesWithNoError(t *testing.T) {
+	t.Parallel()
+	eachCoreCaseCompilesWithNoError(t, openapicases.Groups())
+}
+
+// eachCoreCaseCompilesWithNoError compiles each core case of c as the
 // harness's first three oracles hold a spec: verified, so a broken invariant
 // or a panic fails the run, and with no error diagnostic. Each case is a valid
 // document of its version, so a case the compiler refuses is the writer's
 // defect. An info or a warning stands: it is the compiler's account of a valid
 // construct, which the case oracles judge.
-func TestNew_EachCoreCaseCompilesWithNoError(t *testing.T) {
-	t.Parallel()
-	c := openapicases.New()
+func eachCoreCaseCompilesWithNoError(t *testing.T, c harness.Cases) {
+	t.Helper()
 	axes := c.Axes()
 	for key, cases := range shards(t, c, harness.Core(c)) {
 		name := axes[0].Values[key[0]].Name + "/" + axes[1].Values[key[1]].Name
@@ -68,14 +82,28 @@ func TestNew_EachCoreCaseCompilesWithNoError(t *testing.T) {
 	}
 }
 
-// TestNew_EachCaseWritesADocumentOfItsOwn writes every case of the full
-// product: each document is one JSON source, written alike twice, and no two
-// cases write the same one, as a value Write misreads would make them; and
-// each value of each axis is written by some case. Each case's name is its
-// own because CaseCount accepts the axes.
+// TestNew_EachCaseWritesADocumentOfItsOwn holds the schema cases to
+// eachCaseWritesADocumentOfItsOwn, each writing one source.
 func TestNew_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 	t.Parallel()
-	c := openapicases.New()
+	eachCaseWritesADocumentOfItsOwn(t, openapicases.New(), 1)
+}
+
+// TestGroups_EachCaseWritesADocumentOfItsOwn holds the test suite's groups to
+// eachCaseWritesADocumentOfItsOwn, each writing a root and its group's schema
+// at least.
+func TestGroups_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
+	t.Parallel()
+	eachCaseWritesADocumentOfItsOwn(t, openapicases.Groups(), 2)
+}
+
+// eachCaseWritesADocumentOfItsOwn writes every case of c's full product: each
+// document holds minSources sources or more, each JSON, is written alike
+// twice, and no two cases write the same one, as a value Write misreads would
+// make them; and each value of each axis is written by some case. Each case's
+// name is its own because CaseCount accepts the axes.
+func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources int) {
+	t.Helper()
 	axes := c.Axes()
 	n, err := harness.CaseCount(c)
 	require.NoError(t, err)
@@ -92,12 +120,15 @@ func TestNew_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 		if !ok {
 			continue
 		}
-		require.Len(t, doc.Sources, 1, "%v", at)
-		data := doc.Sources[0].Data
-		require.True(t, jsontext.Value(data).IsValid(), "%v", at)
+		require.GreaterOrEqual(t, len(doc.Sources), minSources, "%v", at)
+		h := sha256.New()
+		for _, src := range doc.Sources {
+			require.True(t, jsontext.Value(src.Data).IsValid(), "%v: %s", at, src.Path)
+			h.Write([]byte(src.Path + "\x00" + string(src.Data) + "\x00"))
+		}
 		again, _ := c.Write(at)
-		require.Equal(t, string(data), string(again.Sources[0].Data), "%v is written alike twice", at)
-		sum := sha256.Sum256(data)
+		require.Equal(t, doc.Sources, again.Sources, "%v is written alike twice", at)
+		sum := [sha256.Size]byte(h.Sum(nil))
 		first, dup := writers[sum]
 		require.False(t, dup, "%v and %v write one document", first, at)
 		writers[sum] = at

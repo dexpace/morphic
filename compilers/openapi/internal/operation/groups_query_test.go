@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -57,7 +57,7 @@ func TestGroups_PathPrefixStopsAtTheQuery(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			svc, diags := serviceWithGrouping(t, head+tc.paths, lowering.GroupByPathPrefix)
+			svc, diags := serviceWithGrouping(t, head+tc.paths, service.GroupByPathPrefix)
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			assert.Equal(t, tc.order, groupIDs(svc.Groups))
@@ -85,7 +85,7 @@ info: {title: T, version: "1"}
 paths:
   /users?role=admin:
     get: {operationId: listAdmins, responses: {"200": {description: ok}}}
-`, lowering.GroupByPathPrefix)
+`, service.GroupByPathPrefix)
 
 	require.Len(t, svc.Groups, 1)
 	require.Len(t, svc.Groups[0].Operations, 1)
@@ -106,7 +106,7 @@ paths:
       operationId: odd
       parameters: [{name: "a?b", in: path, required: true, schema: {type: string}}]
       responses: {"200": {description: ok}}
-`, lowering.GroupByPathPrefix)
+`, service.GroupByPathPrefix)
 
 	assert.Equal(t, []ir.GroupID{"g/path-prefix/{a?b}"}, groupIDs(svc.Groups))
 }

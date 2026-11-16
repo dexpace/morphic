@@ -181,3 +181,35 @@ func TestResult_FaultedTellsAFaultFromAFinding(t *testing.T) {
 	assert.False(t, panicked.Faulted(), "a spec's panic is the no-panic oracle's finding")
 	assert.True(t, harness.Result{Outcome: harness.OutcomeError}.Faulted())
 }
+
+// TestFindings_ListTheDeclinesARecordHolds pins the declines a record lists as
+// it lists a finding: the instance oracle's error diagnostic and unjudged
+// instance, as "declined: <reason>", and no other decline. Unexplained keeps
+// one its record does not list as a finding of OutcomeDeclined.
+func TestFindings_ListTheDeclinesARecordHolds(t *testing.T) {
+	results := []harness.Result{
+		{Spec: "g/p", Like: "g/p", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineNoPartner},
+			{Oracle: harness.OraclePresence, Declined: harness.DeclineErrorDiagnostic},
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineErrorDiagnostic},
+		}},
+		{Spec: "g/q", Like: "g/q", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineNotJudged},
+		}},
+		{Spec: "g/r", Like: "g/r", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineNoInstance},
+		}},
+	}
+	assert.Equal(t, []harness.Finding{{Name: "g/p", What: "declined: error diagnostic"},
+		{Name: "g/q", What: "declined: not judged"}}, harness.Findings(results, harness.OracleInstance))
+	assert.Empty(t, harness.Findings(results, harness.OraclePresence))
+
+	record, err := harness.ReadRecorded([]byte("g/p\tdeclined: error diagnostic\tremote\n"))
+	require.NoError(t, err)
+	got := harness.Unexplained(results, map[harness.Oracle]harness.Recorded{harness.OracleInstance: record})
+	unjudged := harness.Verdict{Oracle: harness.OracleInstance, Outcome: harness.OutcomeDeclined, Detail: "declined: not judged"}
+	assert.Equal(t, []harness.Result{{Spec: "g/q", Like: "g/q", Outcome: harness.OutcomeDeclined,
+		Detail: "declined: not judged", Verdicts: []harness.Verdict{unjudged}}}, got)
+	assert.False(t, got[0].Faulted())
+	assert.Equal(t, "g/q declined declined: not judged\n", harness.Report(got))
+}

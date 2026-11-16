@@ -17,7 +17,7 @@ import (
 // settleFunc adapts a function to compile.Settlement.
 type settleFunc func(reg ir.TypeRegistry) []ir.Diagnostic
 
-func (f settleFunc) Settle(reg ir.TypeRegistry) []ir.Diagnostic { return f(reg) }
+func (f settleFunc) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic { return f(reg) }
 
 // TestTypes_SettleTakesEachDeferredSettlementOnceInOrder pins what a compiler
 // relies on: every settlement it deferred runs, once, against the live

@@ -125,11 +125,11 @@ type annotations struct {
 // notesOf returns the annotations a decorator's c holds.
 func notesOf(c *ir.TypeCommon) annotations {
 	return annotations{docs: c.Docs, deprecation: c.Deprecation, examples: c.Examples, availability: c.Availability,
-		unmodeled: listed(c.Unmodeled)}
+		unmodeled: entryLists(c.Unmodeled)}
 }
 
-// listed returns u's entries as one-entry lists, by name.
-func listed(u ir.Unmodeled) map[string][]ir.UnmodeledEntry {
+// entryLists returns u's entries as one-entry lists, by name.
+func entryLists(u ir.Unmodeled) map[string][]ir.UnmodeledEntry {
 	if len(u) == 0 {
 		return nil
 	}
@@ -259,7 +259,7 @@ func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slot
 		return errors.ErrUnsupported
 	}
 	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples,
-		availability: *s.availability, unmodeled: listed(s.unmodeled)}
+		availability: *s.availability, unmodeled: entryLists(s.unmodeled)}
 	merged := own.then(u.notes)
 	s.ref.Target = u.target
 	*s.docs, *s.deprecation, *s.examples, *s.availability = merged.docs, merged.deprecation, merged.examples,

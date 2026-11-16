@@ -242,6 +242,14 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/x-lib/S", "", bind.RawDefinition},
 		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +
 			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S/properties/p", "", bind.RawDefinition},
+		{"a definition of a schema beneath an Encoding Object", "components:\n  requestBodies:\n    B: {content: {m/x: {encoding: " +
+			"{f: {headers: {H: {schema: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}}}}}}}}\n",
+			"/components/requestBodies/B/content/m~1x/encoding/f/headers/H/schema/properties/p",
+			"/components/requestBodies/B/content/m~1x/encoding/f/headers/H/schema/$defs/n", 0},
+		{"no definition of a schema beneath an Encoding Object another nests", "components:\n  requestBodies:\n" +
+			"    B: {content: {m/x: {encoding: {f: {encoding: {g: {headers: {H: {schema: {properties: {p: {$ref: '#/$defs/n'}}, " +
+			"$defs: {n: {}}}}}}}}}}}}\n",
+			"/components/requestBodies/B/content/m~1x/encoding/f/encoding/g/headers/H/schema/properties/p", "", bind.RawDefinition},
 		{"a raw schema's own before its raw ancestor's", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n', $defs: {n: {}}}\n" +
 			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S", "", bind.OwnDefinition},
 		{"raw YAML at the root", "$defs:\n  A: {type: string}\ncomponents:\n  schemas:\n    H: {properties: {p: {$ref: '#/$defs/A'}}}\n",

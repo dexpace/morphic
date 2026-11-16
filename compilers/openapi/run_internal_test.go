@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -31,7 +31,7 @@ func TestRun_ReadsTheFinishedDocumentOnce(t *testing.T) {
 		return whole.New(doc)
 	}
 
-	doc, diags, err := run(t.Context(), loweringtest.Context(t, string(src), lowering.Policy{}), inferences{},
+	doc, diags, err := run(t.Context(), servicetest.Context(t, string(src), service.Policy{}), inferences{},
 		compile.NewTypes(), count)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -62,7 +62,7 @@ func TestRun_AppendsNothingAfterAFirstAsk(t *testing.T) {
 				return kept
 			}
 
-			doc, _, err := run(t.Context(), loweringtest.Context(t, string(src), lowering.Policy{}), inferences{},
+			doc, _, err := run(t.Context(), servicetest.Context(t, string(src), service.Policy{}), inferences{},
 				compile.NewTypes(), keep)
 			require.NoError(t, err)
 			require.NotNil(t, kept)

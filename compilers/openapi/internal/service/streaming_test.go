@@ -1,0 +1,94 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package service_test
+
+import (
+	"testing"
+
+	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+)
+
+// streamingCtx builds a context carrying nothing but the streaming policy.
+func streamingCtx(policy service.StreamingInference) service.Ctx {
+	return service.New(0, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{StreamingInference: policy})
+}
+
+// TestMediaTypeStreams_AnswersFromThePolicy pins every answer the policy gives,
+// because each is a different decision: the default list, a caller's list
+// replacing it rather than extending it, the off switch, and the normalization
+// that makes one media type written two ways match once.
+func TestMediaTypeStreams_AnswersFromThePolicy(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		policy    service.StreamingInference
+		mediaType string
+		want      bool
+	}{
+		{"default list", service.StreamingInference{}, "text/event-stream", true},
+		{"default list, ordinary type", service.StreamingInference{}, "application/json", false},
+		{"parameters ignored", service.StreamingInference{}, "text/event-stream; charset=utf-8", true},
+		{"case ignored", service.StreamingInference{}, "TEXT/Event-Stream", true},
+		{"surrounding space ignored", service.StreamingInference{}, "  text/event-stream  ", true},
+		{"default list, json-seq", service.StreamingInference{}, "application/json-seq", true},
+		{"default suffix", service.StreamingInference{}, "application/geo+json-seq", true},
+		{"default suffix, parameters and case ignored", service.StreamingInference{}, "Application/GEO+JSON-SEQ; charset=utf-8", true},
+		{"the last suffix decides", service.StreamingInference{}, "application/a+json-seq+zip", false},
+		{"and an earlier one does not hide it", service.StreamingInference{}, "application/a+b+json-seq", true},
+		{"a suffix is not a substring", service.StreamingInference{}, "application/x+json-sequence", false},
+		{"another suffix", service.StreamingInference{}, "application/problem+json", false},
+		{"disabled", service.StreamingInference{Disabled: true}, "text/event-stream", false},
+		{"disabled, suffix", service.StreamingInference{Disabled: true}, "application/geo+json-seq", false},
+		{
+			"caller's suffix is honoured",
+			service.StreamingInference{MediaTypes: []string{"+Frames"}},
+			"application/vnd.acme+frames", true,
+		},
+		{
+			"caller's list replaces the default suffix",
+			service.StreamingInference{MediaTypes: []string{"+frames"}},
+			"application/geo+json-seq", false,
+		},
+		{
+			"caller's list replaces the default",
+			service.StreamingInference{MediaTypes: []string{"application/vnd.acme.frames"}},
+			"text/event-stream", false,
+		},
+		{
+			"caller's list is honoured",
+			service.StreamingInference{MediaTypes: []string{"Application/VND.acme.frames"}},
+			"application/vnd.acme.frames", true,
+		},
+		{
+			"a blank entry names no media type",
+			service.StreamingInference{MediaTypes: []string{"  ", "text/event-stream"}},
+			"", false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, streamingCtx(tc.policy).MediaTypeStreams(tc.mediaType))
+		})
+	}
+}
+
+// TestDefaultStreamingMediaTypes_AreAllRecognized holds the exported default
+// list to the set the policy actually applies. Two transcriptions of one set is
+// one of them going stale unnoticed, and the exported one is what a caller
+// extending the list starts from.
+func TestDefaultStreamingMediaTypes_AreAllRecognized(t *testing.T) {
+	t.Parallel()
+	defaults := service.DefaultStreamingMediaTypes()
+	require.NotEmpty(t, defaults, "an empty default list would make every case below vacuous")
+	c := streamingCtx(service.StreamingInference{})
+	for _, mediaType := range defaults {
+		assert.True(t, c.MediaTypeStreams(mediaType), "default media type %q is not recognized", mediaType)
+	}
+}

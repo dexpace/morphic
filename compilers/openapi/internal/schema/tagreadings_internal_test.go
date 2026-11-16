@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,7 +25,7 @@ import (
 // test shares what another read.
 func newReadings(t *testing.T) *tagReadings {
 	t.Helper()
-	return readingsOf(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}))
+	return readingsOf(servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx)
 }
 
 // lit is a string Literal at id.
@@ -444,10 +444,10 @@ func valueAllocs(t *testing.T, width int, set func(ir.TypeID, []ir.EnumMember) i
 // while another run's starts empty.
 func TestReadingsOf_SharesOneStorePerRun(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-	first, again := readingsOf(c), readingsOf(c)
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	first, again := readingsOf(c.Ctx), readingsOf(c.Ctx)
 	assert.Same(t, first, again)
-	assert.NotSame(t, readingsOf(c), readingsOf(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})))
+	assert.NotSame(t, readingsOf(c.Ctx), readingsOf(servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx))
 }
 
 // TestModelFields_ReportsAFoldFollowingAStoredReading pins the order the tag
@@ -465,7 +465,7 @@ func TestModelFields_ReportsAFoldFollowingAStoredReading(t *testing.T) {
 	for _, early := range []bool{false, true} {
 		l, loaded := LoweredFor(t, spec)
 		require.Empty(t, loaded)
-		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 		if early {
 			readingsOf(l.Ctx).refOf(ir.TypeRegistry{}, to("t/elsewhere"))
 		}

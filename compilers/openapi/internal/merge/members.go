@@ -19,17 +19,33 @@ import (
 // (ir.FlattenedProperties), which a model settled before holds folded from
 // every other its composition gives the name. A name one model alone declares
 // never decides a member twice, so a settlement reads none.
-type Table map[string]ir.PropertyDecl
+type Table map[string]Declared
+
+// Declared is the declaration a flattening takes for one name, and where the
+// nodes of its type may be written: at the declaration, or, for a member a
+// fold settled, wherever the fold says (Merger.typeSites). A settled member
+// keeps its first declaration's identity whichever gave its type, so its own
+// pointer does not say (declaration.sites).
+type Declared struct {
+	ir.PropertyDecl
+	TypeAt []ir.Provenance
+}
+
+// DeclaredAt is d as a model's flattening takes it unsettled: its type is
+// written where it is.
+func DeclaredAt(d ir.PropertyDecl) Declared {
+	return Declared{PropertyDecl: d, TypeAt: []ir.Provenance{d.Property.Provenance}}
+}
 
 // Settle folds each member of the model more than one declaration decides,
 // its own and those its entries bring
 // (docs/compilers/openapi.md#allof-redeclared-property), which the flattening
 // would take one of by where it reads it, judging none. Each fold reads them in
 // the order the walk met them, an entry's where it met the entry, so a $ref
-// and the schema it names written inline fold alike. tables holds the Table
-// of each type the model composes (ComposedOf), so the caller settles those
-// first, and shared the names more than one model declares. It returns the
-// model's Table.
+// and the schema it names written inline fold alike, but for a tie the entry
+// settled. tables holds the Table of each type the model composes
+// (ComposedOf), settled first, and shared the names more than one model
+// declares. It returns the model's Table.
 func (idx *PropIndex) Settle(g Merger, tables map[ir.TypeID]Table, shared map[string]bool) ([]ir.Diagnostic, Table) {
 	brought, inherited := idx.brought(g, tables)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
@@ -49,14 +65,21 @@ func (idx *PropIndex) Settle(g Merger, tables map[ir.TypeID]Table, shared map[st
 
 // members returns the model's Table once settled: each name its parts leave
 // one declaration of, and each shared one it declares itself, which stands
-// over theirs.
+// over theirs, its type written where its fold says (Merger.typeSites) or,
+// where one declaration alone decides it, there.
 func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
 	out := make(Table, len(inherited))
 	maps.Copy(out, inherited)
 	for i := range idx.m.Properties {
-		if p := &idx.m.Properties[i]; shared[p.WireName] {
-			out[p.WireName] = ir.PropertyDecl{Owner: idx.m.ID, Property: p}
+		p := &idx.m.Properties[i]
+		if !shared[p.WireName] {
+			continue
 		}
+		d := DeclaredAt(ir.PropertyDecl{Owner: idx.m.ID, Property: p})
+		if at, settled := idx.typeAt[p.WireName]; settled {
+			d.TypeAt = at
+		}
+		out[p.WireName] = d
 	}
 	return out
 }
@@ -77,6 +100,7 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 	if !slices.ContainsFunc(decls, isBrought) {
 		merged, diags := g.fold(decls)
 		idx.place(pos, merged)
+		idx.typeAt[merged.WireName] = g.typeSites(merged, decls)
 		return diags
 	}
 	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
@@ -102,7 +126,69 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 		merged.Required = true
 	}
 	idx.place(pos, merged)
+	idx.typeAt[merged.WireName] = g.typeSites(merged, decls)
 	return naming(diags, merged.ID)
+}
+
+// maxTypeSites bounds the places a settled member records its type's nodes
+// may be written at (Merger.typeSites; styleguide bounded-everything rule): a
+// fold's own declarations and where it mints always fit, with as many again
+// of what its entries bring. A node written at a place past them reads as one
+// a $ref reached.
+const maxTypeSites = 2 * maxFoldDeclarations
+
+// typeSites returns where the nodes of the type of merged, the member decls
+// fold to, may be written, so a later fold tells one hoisted at a declaration
+// from one a $ref reached (hoistedAt). Where the field keeps a declaration's
+// node, they are where each declaration naming it says. Where the fold built
+// one, it holds members of the declarations it met, so they are where the
+// node stands and wherever any declaration says, the nearest maxTypeSites.
+func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provenance {
+	var naming [][]ir.Provenance
+	for _, d := range decls {
+		if d.prop.Type.Target == merged.Type.Target {
+			naming = append(naming, d.sites())
+		}
+	}
+	if len(naming) == 1 {
+		return naming[0]
+	}
+	if len(naming) > 1 {
+		return joinSites(naming...)
+	}
+	all := make([][]ir.Provenance, 0, 1+len(decls))
+	if td, built := g.resolve(merged.Type.Target); built {
+		all = append(all, []ir.Provenance{td.Common().Provenance})
+	}
+	for _, d := range decls {
+		all = append(all, d.sites())
+	}
+	return joinSites(all...)
+}
+
+// joinSites returns the places lists hold, each once by its document and
+// pointer, in order, and no more than maxTypeSites.
+func joinSites(lists ...[]ir.Provenance) []ir.Provenance {
+	type place struct {
+		source  int
+		pointer jsontext.Pointer
+	}
+	seen := map[place]bool{}
+	var out []ir.Provenance
+	for _, list := range lists {
+		for _, at := range list {
+			k := place{source: at.Source, pointer: at.Pointer}
+			if seen[k] {
+				continue
+			}
+			if len(out) == maxTypeSites {
+				return out
+			}
+			seen[k] = true
+			out = append(out, at)
+		}
+	}
+	return out
 }
 
 // composedMember is where m declares a member named wire that takes an
@@ -112,8 +198,13 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 // written at its pointer may settle a member of that name too. No schema is
 // written at an allOf, so neither path is a declaration's.
 func composedMember(d ids.Document, m *ir.Model, wire string) jsontext.Pointer {
+	return settledAt(m, wire, d.ComposedType(m.Provenance.Pointer) == m.ID)
+}
+
+// settledAt is composedMember's path for m, one allOf deeper where deeper.
+func settledAt(m *ir.Model, wire string, deeper bool) jsontext.Pointer {
 	at := m.Provenance.Pointer + ids.Ptr("allOf")
-	if d.ComposedType(m.Provenance.Pointer) == m.ID {
+	if deeper {
 		at += ids.Ptr("allOf")
 	}
 	return at + ids.Ptr("properties", wire)
@@ -176,7 +267,7 @@ func naming(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
 
 // candidate is a declaration one of the model's parts brings, and that part.
 type candidate struct {
-	decl ir.PropertyDecl
+	decl Declared
 	part int
 }
 
@@ -203,7 +294,7 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 	for _, wire := range slices.Sorted(maps.Keys(byWire)) {
 		left := owners.left(byWire[wire])
 		for _, cd := range left {
-			out[wire] = append(out[wire], broughtDeclaration(*cd.decl.Property, &parts[cd.part]))
+			out[wire] = append(out[wire], broughtDeclaration(cd.decl, &parts[cd.part]))
 		}
 		if len(left) == 1 {
 			inherited[wire] = left[0].decl
@@ -367,14 +458,15 @@ func TakenOutside(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool
 	return ir.PropertyDecl{}, false
 }
 
-// broughtDeclaration is p, which another model declares, as an entry, via,
-// brings it. The registry does not say which heuristic set its Secret, so
-// where it is secret its marker is read as covering that too
-// (declaration.secretBy), as foldAnnotations reads one covering a deprecation.
-func broughtDeclaration(p ir.Property, via *composedEntry) declaration {
-	d := declaration{prop: p, order: via.order, via: via}
-	if p.Secret {
-		d.secretBy = p.Provenance.Inferred
+// broughtDeclaration is from, which another model declares, as an entry, via,
+// brings it, its type judged where it may be written (Declared.TypeAt). The
+// registry does not say which heuristic set its Secret, so where it is secret
+// its marker is read as covering that too (declaration.secretBy), as
+// foldAnnotations reads one covering a deprecation.
+func broughtDeclaration(from Declared, via *composedEntry) declaration {
+	d := declaration{prop: *from.Property, order: via.order, via: via, typeAt: from.TypeAt, owner: from.Owner}
+	if d.prop.Secret {
+		d.secretBy = d.prop.Provenance.Inferred
 	}
 	return d
 }

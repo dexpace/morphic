@@ -720,7 +720,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			"        - {type: object, properties: {p: null}}\n"+
 			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"))
 		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
-		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 
 		m := asKind[*ir.Model](t, typeByName(l.Document(t), "A"))
 		require.Len(t, m.Properties, 1)
@@ -762,7 +762,7 @@ components:
       $ref: '#/components/schemas/Target'
       minimum: 5
 `)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 
 	sc, ok := typeByName(l.Document(t), "S").(*ir.Scalar)
 	require.True(t, ok, "S aliases Target and must own a Scalar node")

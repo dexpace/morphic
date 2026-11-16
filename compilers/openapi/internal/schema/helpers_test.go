@@ -69,7 +69,7 @@ func parseFull(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 func lowerSpecOnly(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	l, _ := schema.LoweredFor(t, src)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 	return doc, l.Diags.List()
 }

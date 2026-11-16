@@ -37,7 +37,9 @@ func tableObjects(t *testing.T) map[oas.Kind]oas.Object {
 // TestObjectFields_ReadsEveryObjectOfTheTable holds kindStates to the rule
 // table: each object of it has a state of its own or is one plainKinds names,
 // never both, and each kind with a state is an object of it, so no object is
-// read as a plain one by being left out.
+// read as a plain one by being left out. Each field of a plain one leads to a
+// value or a plain object, so none is left out that places a schema or a
+// reference object.
 func TestObjectFields_ReadsEveryObjectOfTheTable(t *testing.T) {
 	t.Parallel()
 	objects := tableObjects(t)
@@ -50,6 +52,9 @@ func TestObjectFields_ReadsEveryObjectOfTheTable(t *testing.T) {
 	}
 	for _, kind := range plainKinds {
 		assert.Contains(t, objects, kind)
+		for _, f := range objects[kind].Fields {
+			assert.Equal(t, sValue, class(leads(f.Shape, f.Of)), "%s.%s", objects[kind].Name, f.Name)
+		}
 	}
 }
 

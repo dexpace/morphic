@@ -37,7 +37,7 @@ func dynamicRefOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dyn
 		return dynamicRef{keyword: "$dynamicRef", node: n}, true
 	}
 	n := annotation.RawPropertyNode(s, "$recursiveRef")
-	if n == nil || !lowering.SchemaRulesAt(c, pointer).Defines("$recursiveRef") {
+	if n == nil || !c.Rules().At(c.Position(pointer)).Defines("$recursiveRef") {
 		return dynamicRef{}, false
 	}
 	return dynamicRef{keyword: "$recursiveRef", node: n}, true

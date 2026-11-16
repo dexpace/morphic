@@ -67,7 +67,7 @@ func (u Use) Site(s *oas3.Schema) annotation.Site {
 // in spells otherwise, which annotation.Read keeps (dialectIn).
 func (u Use) SiteAt(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) annotation.Site {
 	site := u.Site(s)
-	site.Dialect = dialectIn(lowering.SchemaRulesAt(c, pointer), s)
+	site.Dialect = dialectIn(c.Rules().At(c.Position(pointer)), s)
 	return site
 }
 

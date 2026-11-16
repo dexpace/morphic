@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -41,7 +42,7 @@ type reached struct {
 	tree   provenance.Tree
 	others Others
 	// dialects gives the rows each schema checked is read with.
-	dialects Dialects
+	dialects dialect.Table
 	// seen holds the objects read as their kind, by the source's own check
 	// and by each check of a target since.
 	seen map[objectKey]bool
@@ -81,7 +82,7 @@ func (t reachedTarget) inSource() bool { return t.at.Doc == bind.Source }
 // of the source's check counted, for settle to read the tree by, and the
 // context's error where it cut the checks short.
 func judgeReached(ctx context.Context, sites places, table *bind.Table, doc *soa.OpenAPI, opts Options,
-	self sourceDocument, others Others, dialects Dialects,
+	self sourceDocument, others Others, dialects dialect.Table,
 ) ([]ir.Diagnostic, judgment, error) {
 	checks := newReached(doc, opts, self.tree, self.judged)
 	checks.others, checks.dialects = others, dialects
@@ -279,8 +280,8 @@ func (v *reached) checkAll(ctx context.Context, sites places, targets map[object
 // $ref that reached it.
 func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget) []ir.Diagnostic {
 	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.at.Pointer,
-		Rows:     v.dialects.rowsAt(v.positionOf(t, t.at.Pointer)),
-		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) { return v.dialects.root(v.positionOf(t, at)) },
+		Rows:     v.dialects.At(v.positionOf(t, t.at.Pointer)),
+		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) { return v.dialects.RootAt(v.positionOf(t, at)) },
 		Seen:     v.see,
 		Skip: func(kind oas.Kind, node *yaml.Node) bool {
 			return v.seen[objectKey{node: nodeview.Deref(node), kind: kind}]

@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
@@ -31,62 +32,62 @@ import (
 // The vocabulary is declared once, beneath both walks, and named here rather
 // than restated: two declarations of one strategy set can drift, and a strategy
 // only the public half knew would fall through to the default unreported.
-type GroupingStrategy = lowering.GroupingStrategy
+type GroupingStrategy = service.GroupingStrategy
 
 // Grouping strategies.
 const (
 	// GroupByTags groups operations by their first OpenAPI tag (default).
-	GroupByTags = lowering.GroupByTags
+	GroupByTags = service.GroupByTags
 	// GroupByPathPrefix groups operations by the first path segment.
-	GroupByPathPrefix = lowering.GroupByPathPrefix
+	GroupByPathPrefix = service.GroupByPathPrefix
 	// GroupByExtension groups operations by the group path a vendor extension
 	// states, nesting a group for each segment, and an operation stating none by
 	// GroupingExtension.Fallback.
-	GroupByExtension = lowering.GroupByExtension
+	GroupByExtension = service.GroupByExtension
 )
 
 // GroupingExtension is what GroupByExtension reads: which extension states an
 // operation's group path, what a list there means, and how an operation stating
 // none is grouped. It is named here for the reason GroupingStrategy is.
-type GroupingExtension = lowering.GroupingExtension
+type GroupingExtension = service.GroupingExtension
 
 // ExtensionLists is what a list value of a grouping extension means.
-type ExtensionLists = lowering.ExtensionLists
+type ExtensionLists = service.ExtensionLists
 
 // The readings of a list value.
 const (
 	// ListsAreSegments reads a list as one path, each entry adding its segments.
-	ListsAreSegments = lowering.ListsAreSegments
+	ListsAreSegments = service.ListsAreSegments
 	// ListsAreGroups reads a list as several paths, filing the operation under
 	// the first and making a group for each of the rest.
-	ListsAreGroups = lowering.ListsAreGroups
+	ListsAreGroups = service.ListsAreGroups
 )
 
 // DefaultGroupingExtension returns the extension GroupByExtension reads where
 // the caller names none. It is exported so a caller can start from it.
-func DefaultGroupingExtension() GroupingExtension { return lowering.DefaultGroupingExtension() }
+func DefaultGroupingExtension() GroupingExtension { return service.DefaultGroupingExtension() }
 
 // StreamingInference is the media-type streaming policy: which media types imply
 // that a body is a sequence of frames when the document declares nothing that
 // says so. It is another injectable-policy seam (architecture principle 6), and it is
 // named here rather than restated for the reason GroupingStrategy is.
-type StreamingInference = lowering.StreamingInference
+type StreamingInference = service.StreamingInference
 
 // DefaultStreamingMediaTypes returns the media types and suffixes StreamingInference
 // classifies as streams when the caller names none. It is exported so a caller
 // extending the list can start from it rather than transcribe it.
-func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
+func DefaultStreamingMediaTypes() []string { return service.DefaultStreamingMediaTypes() }
 
 // BinaryInference is the binary media-type policy: which media types mean a body or
 // part is a file when its schema says nothing more than that it is a string. It
 // is another injectable-policy seam (architecture principle 6), named here for
 // the reason GroupingStrategy is.
-type BinaryInference = lowering.BinaryInference
+type BinaryInference = service.BinaryInference
 
 // DefaultBinaryMediaTypes returns the media types BinaryInference classifies as
 // binary when the caller names none, for the reason DefaultStreamingMediaTypes
 // is exported.
-func DefaultBinaryMediaTypes() []string { return lowering.DefaultBinaryMediaTypes() }
+func DefaultBinaryMediaTypes() []string { return service.DefaultBinaryMediaTypes() }
 
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
 // are read into which typed IR field. It is another injectable-policy seam
@@ -611,9 +612,9 @@ func switchOptions(o *Options) map[string]*bool {
 		string(ReplacementInferenceHeuristic):         &o.ReplacementInference.Disabled,
 		string(PaginationInferenceHeuristic):          &o.PaginationInference.Disabled,
 		string(promotion.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
-		string(lowering.StreamingInferenceHeuristic):  &o.StreamingInference.Disabled,
-		string(lowering.BinaryInferenceHeuristic):     &o.BinaryInference.Disabled,
-		"title-names": &o.TitleNames.Disabled,
+		string(service.StreamingInferenceHeuristic):   &o.StreamingInference.Disabled,
+		string(service.BinaryInferenceHeuristic):      &o.BinaryInference.Disabled,
+		"title-names":                                 &o.TitleNames.Disabled,
 	}
 }
 

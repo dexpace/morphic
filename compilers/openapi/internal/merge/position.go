@@ -39,9 +39,13 @@ func (g *Merger) judgePosition(decls []declaration, ms []member, depth int) posi
 		p.rel[i] = make([]relation, n)
 		p.rel[i][i] = relSame
 	}
+	sites := make([][]ir.Provenance, len(decls))
+	for _, m := range ms {
+		sites[m.decl] = decls[m.decl].sites()
+	}
 	for i := range n {
 		for j := i + 1; j < n; j++ {
-			judge := g.judgeAt(decls[ms[i].decl].prop.Provenance, decls[ms[j].decl].prop.Provenance)
+			judge := g.judgeAt(sites[ms[i].decl], sites[ms[j].decl])
 			rel := judge.relateFrom(ms[i].ref, ms[j].ref, depth)
 			p.rel[i][j], p.rel[j][i] = rel, rel.flipped()
 		}

@@ -42,6 +42,9 @@ type PropIndex struct {
 	read int
 	// redeclared reports whether a wire name has been declared twice.
 	redeclared bool
+	// typeAt is where the nodes of the type of each member Settle folded may
+	// be written, by wire name (Merger.typeSites).
+	typeAt map[string][]ir.Provenance
 }
 
 // field is one wire name the model declares: where its property sits, and
@@ -63,7 +66,7 @@ type composedEntry struct {
 // NewPropIndex returns an empty index of m's properties; m holds none yet, so
 // every property reaches it through MergeProperty.
 func NewPropIndex(m *ir.Model) *PropIndex {
-	return &PropIndex{m: m, byWire: map[string]*field{}}
+	return &PropIndex{m: m, byWire: map[string]*field{}, typeAt: map[string][]ir.Provenance{}}
 }
 
 // MergeProperty appends p to the model, or records it as one more declaration

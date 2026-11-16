@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -94,7 +94,7 @@ func TestSlots_EveryKeywordReadsIntoItsSlotAndNoOther(t *testing.T) {
 			if dialect != "" && version != "3.0.3" {
 				head += "jsonSchemaDialect: '" + dialect + "'\n"
 			}
-			c := loweringtest.Context(t, head+"components:\n  schemas:\n"+strings.Join(lines, "\n")+"\n", lowering.Policy{})
+			c := servicetest.Context(t, head+"components:\n  schemas:\n"+strings.Join(lines, "\n")+"\n", service.Policy{})
 			table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rowsOf{rules}})
 			for i, f := range fields {
 				row := version + " " + dialect + " " + f.Name

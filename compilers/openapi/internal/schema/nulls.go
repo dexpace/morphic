@@ -299,7 +299,7 @@ type nullHop struct {
 // definesNullableIn reports whether the dialect the schemas of document doc
 // are read in defines the nullable keyword.
 func definesNullableIn(c lowering.Ctx, doc bind.DocID) bool {
-	return lowering.SchemaRulesIn(c, doc).Defines("nullable")
+	return c.Rules().In(doc).Defines("nullable")
 }
 
 // widenRef is the lenient reading of keywords beside a $ref that admit null

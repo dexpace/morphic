@@ -257,7 +257,9 @@ alias of its chain weigh one node, and a `$ref` merged in through `<<` is weighe
 declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
-schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
+schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, beneath an
+Encoding Object that another nests, which a copy keeps verbatim
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), and wherever the
 grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
 charged, the first to a declaration and one nested in another's among them, since each lowers a
 copy, a link's among them, since each response naming one lowers its own. A schema's `$ref` names
@@ -330,14 +332,14 @@ node bound. An overlay document and a document a reference reads keep the first 
   `openapi.TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder`,
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
   `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
-  `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
-  `lowering.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
-  `lowering.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
+  `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `service.TestExpansion_ChargesEveryCopy`,
+  `service.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
+  `service.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
   `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
-  `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
-  `lowering.TestWeightOf_CountsASchemaAsOneNode`,
-  `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
-  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
+  `service.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
+  `service.TestWeightOf_CountsASchemaAsOneNode`,
+  `service.TestDeclared_ChargesEachDeclarationOfAChain`,
+  `service.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
   `openapi.TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy`,
   `openapi.TestCompile_APathItemsFixedMethodsAreNotCharged`,
   `openapi.TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder`,
@@ -1182,8 +1184,8 @@ the item as what else it writes.
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
   `lowering.TestInDocument_PlacesWhatAnotherDocumentDeclares`,
-  `lowering.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
-  `lowering.TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference`,
+  `service.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
+  `service.TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference`,
   `e2e.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
   `e2e.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
   `e2e.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
@@ -1271,7 +1273,9 @@ the item as what else it writes.
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`,
   `e2e.TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding`,
-  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestHeldRole_ReadsToTheFirstFieldNoModelHolds`
+  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestHeldRole_ReadsToTheFirstFieldNoModelHolds`,
+  `e2e.TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML`,
+  `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`
 - Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947). No deadline bounds a compile's reads together (#1036). A name resolving to several address spaces is answered by the order of asking (#1969).
 
 ### `reference-cycles`
@@ -1779,8 +1783,8 @@ to; and one flat `reference/` scope, which would make a use and an alias writing
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesArePlacedThere`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
   `operation.TestMediaTypeRef_ABodyFoldsAndAParameterKeepsEachPosition`,
-  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`, `lowering.TestBeside_KeysTheUseAndEachAlias`,
-  `lowering.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`, `service.TestBeside_KeysTheUseAndEachAlias`,
+  `service.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
   `operation.TestContentDocs_AKeyIsReadWhole`, `operation.TestCallbacks_AUseKeepsItsDocs`,
   `e2e.TestBeside_AnAliasInAnotherDocumentKeepsItsKeyThere`,
   `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`,
@@ -2735,34 +2739,44 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
 A member a model's composition declares more than once folds the same way, wherever the declarations
-are written, so a `$ref` entry and the schema it names written inline in its place fold alike. The
-flattening ([models](../ir/models.md#the-flattening)) would otherwise take the model's own
-declaration over an entry's, and of two entries the later, and judge none. Once every lowering has
-returned, one settlement folds, on each model, every member its own declarations or its `allOf`
-entries decide more than once. Each entry brings the declaration the flattening of what it names
-takes, which a model settled first holds folded from every other its composition gives the member,
-and one another entry's composition holds, however deep, stands within that entry's, so it brings
-nothing. Each model settles after every model it composes, however deep a hierarchy nests, so the
+are written, so a `$ref` entry and the schema it names written inline in its place fold alike, but
+for a tie inside the entry: an entry brings its member already folded, so a declaration that lost a
+tie there no longer counts toward the type holding the most declarations, as it does where the
+entry's schema is written inline. The flattening ([models](../ir/models.md#the-flattening)) would
+otherwise take the model's own declaration over an entry's, and of two entries the later, and judge
+none. Once every lowering has returned, one settlement folds, on each model, every member its own
+declarations or its `allOf` entries decide more than once, asking the run's context before each
+model. Each entry brings the declaration the flattening of what it names takes, which a model
+settled first holds folded from every other its composition gives the member, and one another
+entry's composition holds, however deep, stands within that entry's, so it brings nothing. A
+declaration an entry brings is judged where its type is written, as an inline one is: a member a
+part settled keeps its first declaration's identity whichever declaration gave its type, so a node
+of its type is an inline copy wherever it is written at a declaration the part folded it from, or
+where the fold built it, the nearest 128 such places, and one written past them reads as a schema a
+`$ref` reached. A value a declaration gives is read against the field's type the same way, at each
+place the type's nodes are written, which for a node the fold built is not the winning declaration's
+alone. Each model settles after every model it composes, however deep a hierarchy nests, so the
 order components are declared in decides nothing, nor, off a cycle, their names. A cycle of
 compositions reads the model it returns to as it stands, and the models' IDs pick which one that is,
 so where two declarations on a cycle admit no value together, the names decide which its models
 keep, and the tie is reported.
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
-variant reads before the body. A declaration an entry brings stays
-declared on its own model, so it is not kept verbatim, and a report about it sits at the entry
-bringing it, naming the member in its `Provenance.Node`, and names a declaration another document
-holds with that document's name. A member the model declares itself keeps the identity of the first
-of its own declarations, unless another model holds that declaration too, as a node interned at the
-`allOf` branch writing it does, or as the variants of a distributed union share their body's; that
-one, and one only entries declare, the model declares in the `composed` namespace at
-`<model>/allOf/properties/<name>`, where no schema is written, so it, and a node its fold mints,
-name an overlay that wrote every entry and declaration it is assembled from. A model the merge
-composes, a distributed variant or a field's composition, shares its pointer with the schema written
-there, which may settle a member of that name too, so it declares one an `allOf` deeper, at
-`<model>/allOf/allOf/properties/<name>`, and no two models name one member. The member is required
-where the model's `required` names it, which the name then leaves, and a discriminator naming the
-model's own declaration, or by its name a member only entries declare, names the member
+variant reads before the body. A declaration an entry brings stays declared on its own model, so it
+is not kept verbatim, and a report about it sits at the entry bringing it, naming the member in its
+`Provenance.Node`, and names a declaration another document holds with that document's name, a
+member a part settled by the one declaration that gave its type, and one written nowhere, as a
+member only a part's entries declare, by the entry bringing it. A member the model declares itself
+keeps the identity of the first of its own declarations, unless another model holds that declaration
+too, as a node interned at the `allOf` branch writing it does, or as the variants of a distributed
+union share their body's; that one, and one only entries declare, the model declares in the
+`composed` namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it, and a
+node its fold mints, name an overlay that wrote every entry and declaration it is assembled from. A
+model the merge composes, a distributed variant or a field's composition, shares its pointer with
+the schema written there, which may settle a member of that name too, so it declares one an `allOf`
+deeper, at `<model>/allOf/allOf/properties/<name>`, and no two models name one member. The member is
+required where the model's `required` names it, which the name then leaves, and a discriminator
+naming the model's own declaration, or by its name a member only entries declare, names the member
 ([`discriminator`](#discriminator)).
 The registry does not record which heuristic made a brought declaration secret, so a secret one's
 `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
@@ -2831,6 +2845,20 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `e2e.TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt`,
   `schema.TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition`,
   `schema.TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike`,
+  `schema.TestMembers_ATieAnEntrySettledIsNotCountedAgain`,
+  `schema.TestMembers_AMemberAPartSettledIsJudgedWhereItsTypeIsWritten`,
+  `schema.TestMembers_AMemberAPartMeetsIsJudgedAtEachDeclarationItHolds`,
+  `schema.TestMembers_AMemberOnlyEntriesDeclareIsJudgedWhereItsTypeIsWritten`,
+  `schema.TestMembers_ABroughtMembersDefaultIsItsOwnTypesWhereThatIsWritten`,
+  `schema.TestMembers_ASettledMembersInlineTypeIsNoBaseOfWhatComposesIt`,
+  `schema.TestMembers_AReportNamesABroughtMemberWhereItSaysWhatItDoes`,
+  `schema.TestMembers_ADeclarationASettledModelHoldsKeepsWhereItsTypeIsWritten`,
+  `schema.TestMembers_TheSettlementAsksItsContextBeforeEachModel`,
+  `schema.TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies`,
+  `merge.TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten`,
+  `merge.TestJoinSites_KeepsEachPlaceOnceUpToItsBound`,
+  `merge.TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType`,
+  `merge.TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes`,
   `schema.TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember`,
   `schema.TestMembers_AModelIsSettledAfterWhatItComposes`,
   `schema.TestMembers_ACycleSettlesTheSameInEitherOrder`,
@@ -3004,7 +3032,9 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   reached through more than 64 alias scalars brings nothing, its member left as the flattening takes
   it, as the type judge, a tag's reading and a multipart body read such a chain no further (#1994);
   and a model the fold composes for a member is minted at the declaration last to widen the field,
-  so swapping two branches renames it, and moves a report on a member it settles (#1921, #1992).
+  so swapping two branches renames it, and moves a report on a member it settles (#1921, #1992); and
+  a type within a variant of a union holding a bound is unrelated to it whatever kind the bound
+  applies to, so the later of the two declarations stands, reported (#2005).
 
 ### `allof-required`
 
@@ -4581,7 +4611,8 @@ no bound ([`string-formats`](#string-formats)).
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
   at its position, with the census's other keywords, not at the keyword. A read counts schemas, not
   their keys, so positions naming a schema of very many keys cost their number times the schemas
-  read times those keys (#1939).
+  read times those keys (#1939). A bound beside an enum a promotion opens, which bounds the values
+  it does not list, is kept verbatim as a closed one's is (#2004).
 
 ### `validation-only`
 
@@ -5256,8 +5287,8 @@ and neither's keys name a group.
   `operation.TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder`,
   `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
   `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
-  `lowering.TestGroupingExtension_PathsReadEachSpelling`,
-  `lowering.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `service.TestGroupingExtension_PathsReadEachSpelling`,
+  `service.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
   `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
   `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`,
   `openapi.TestCompile_GroupingAliasesFollowTheKeysTheyRestate`
@@ -5527,7 +5558,7 @@ written.
 - Codes: `openapi/validation`
 - Tests: `oas.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
-  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
+  `service.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
   `naming.TestAt_NamesASchemaAfterItsOwner`
 
@@ -5629,7 +5660,7 @@ entries separated by commas, and refuses one that is neither a media type nor a 
 `binary-inference=false` sets `Disabled`.
 
 - Cases: `file-media`
-- Tests: `lowering.TestMediaTypeBinary_AnswersFromThePolicy`,
+- Tests: `service.TestMediaTypeBinary_AnswersFromThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ### `example-values`
@@ -5680,7 +5711,7 @@ repeat a structure is no closed set, so nothing else draws one.
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
   `operation.TestStreaming_AnItemSchemaDeclaresItsContentAStream`,
-  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
+  `service.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
   `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`,
   `operation.TestContent_AnItemEncodingOutsideMultipartIsKeptWhole`,
   `operation.TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing`
@@ -5746,7 +5777,7 @@ offers a Content that does not stream beside one that does. Any other key is rep
   `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
   `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
-  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `promotion.TestTextOf_ReadsTheFirstSourceStatingAText`,
+  `service.TestMediaTypeStreams_AnswersFromThePolicy`, `promotion.TestTextOf_ReadsTheFirstSourceStatingAText`,
   `stream.TestPromote_FillsTheTerminator`, `stream.TestPromote_FillsTheTerminatorOfEveryStreamingContent`,
   `stream.TestPromote_TerminatorIsAllOrNone`, `stream.TestPromote_OperationAndContentsMustAgree`,
   `stream.TestPromote_FillsTheCondition`, `stream.TestPromote_AConditionNeedsAStream`,
@@ -6373,7 +6404,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss`,
   `auth.TestNearest_TakesTheFirstReadingThatMatches`,
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
-  `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
+  `service.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
 
 ### `security-scheme-fields`
@@ -6779,7 +6810,7 @@ saying why.
   `promotion.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
   `promotion.TestUnreadExtensions_TheGroupingKeyIsRead`,
   `promotion.TestUnreadExtensions_TheAliasesKeyIsRead`,
-  `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
+  `service.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
   `promotion.TestServerName_ReadsTheDefaultKey`,

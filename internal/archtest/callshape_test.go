@@ -124,15 +124,17 @@ var callShapeBaseline = map[string]map[string]int{
 		// neighbour and where a spelling's finding quotes its partner; the
 		// Relocate a case's Equal hands the spelling oracle, called on each
 		// string and member name of an encoding and on each report's pointer
-		// and node; and the pick CheckCases is handed: designed seams.
+		// and node; and the pick CheckCases is handed: designed seams. The
+		// OpenAPI cases are two products, each answering every call on Cases.
 		"cmd/morphic-harness":           1,
-		"internal/harness/openapicases": 8,
+		"internal/harness/openapicases": 12,
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
 		"compilers/openapi/internal/promotion": 1,
 		"engine/report":                        1,
 		"internal/census":                      1,
+		"internal/harness":                     1,
 		"ir/irfacts":                           4,
 		"ir/irverify":                          2,
 		"pass":                                 18,

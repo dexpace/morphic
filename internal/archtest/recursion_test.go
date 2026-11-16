@@ -556,7 +556,7 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 // changed for — one level up, in the input rather than the graph.
 func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 	t.Parallel()
-	derived := packagesTaking(t, "lowering.Ctx")
+	derived := packagesTaking(t, "lowering.Ctx", "service.Ctx")
 	require.NotEmpty(t, derived, "no package declares a lowering; the walk or the context type moved")
 	listed := slices.Sorted(slices.Values(loweringPackages))
 
@@ -568,10 +568,10 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 // TestWholeDocumentReaders_DoNotRecurse holds the packages that read the
 // finished document, and take it rather than the context, to what the pin
 // above holds the lowerings: no recursion it does not name, and it names none
-// of theirs. Each package is graphed alone, since none imports another and no
-// call between packages closes a cycle, so a name two of them declare, as each
-// policy's Honours is, stays apart. The packages are derived, as the lowerings'
-// are, by the type they take.
+// of theirs. Each package is graphed alone, so a name two of them declare, as
+// each policy's Honours is, stays apart; that loses no cycle, since Go refuses
+// the import that would let a callee's package call back. The packages are
+// derived, as the lowerings' are, by the type they take.
 func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
 	t.Parallel()
 	var readers []string
@@ -591,8 +591,8 @@ func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
 
 // packagesTaking returns, sorted and repo-relative, the directories under
 // compilers whose production files declare a function with a parameter
-// spelled typ, such as "lowering.Ctx".
-func packagesTaking(t *testing.T, typ string) []string {
+// spelled as one of typs, such as "lowering.Ctx".
+func packagesTaking(t *testing.T, typs ...string) []string {
 	t.Helper()
 	root := irtest.RepoRoot(t)
 	found := map[string]bool{}
@@ -604,7 +604,7 @@ func packagesTaking(t *testing.T, typ string) []string {
 		if parseErr != nil {
 			return parseErr
 		}
-		if !declaresParam(f, typ) {
+		if !declaresParam(f, typs) {
 			return nil
 		}
 		rel, relErr := filepath.Rel(root, filepath.Dir(p))
@@ -619,16 +619,17 @@ func packagesTaking(t *testing.T, typ string) []string {
 }
 
 // declaresParam reports whether f declares a function with a parameter
-// spelled typ: "lowering.Ctx" is the lowering context taken by value, which
-// is what every lowering in this compiler is.
-func declaresParam(f *ast.File, typ string) bool {
+// spelled as one of typs: "lowering.Ctx" and "service.Ctx" are the schema
+// and the service lowerings' contexts taken by value, which is what every
+// lowering in this compiler is.
+func declaresParam(f *ast.File, typs []string) bool {
 	for _, d := range f.Decls {
 		fn, isFunc := d.(*ast.FuncDecl)
 		if !isFunc || fn.Type.Params == nil {
 			continue
 		}
 		for _, p := range fn.Type.Params.List {
-			if types.ExprString(p.Type) == typ {
+			if slices.Contains(typs, types.ExprString(p.Type)) {
 				return true
 			}
 		}

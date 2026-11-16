@@ -121,7 +121,7 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
                 - {type: object}
                 - {type: object}
 `))
-	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
+	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
 	comp := allOfBranches(nil, decl.GetSchema(), "/components/schemas/M")
 	entries := comp.branches
@@ -161,7 +161,7 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/A'}
 `))
-	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
+	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
 	m := decl.GetSchema()
 
@@ -189,7 +189,7 @@ func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
 	}
 	assert.Equal(t, 1, refs)
 
-	flatDecl, ok := l.Ctx.Doc.Components.Schemas.Get("Flat")
+	flatDecl, ok := l.Doc.Components.Schemas.Get("Flat")
 	require.True(t, ok)
 	var flatRefs int
 	for range allOfRefBranches(nil, flatDecl.GetSchema()) {

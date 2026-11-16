@@ -16,10 +16,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,15 +30,15 @@ import (
 // one it did declare.
 func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(2, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
+	c := service.New(2, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
 
-	named := commonFor(c, "t/x", "/components/schemas/User")
+	named := commonFor(c.Ctx, "t/x", "/components/schemas/User")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
 	assert.Equal(t, "User", named.Name.Source)
 	assert.Equal(t, "user", named.Name.Canonical, "the framework supplies the neutral words")
 	assert.Empty(t, named.Name.Hint, "a named node needs no hint")
 
-	anon := commonFor(c, "t/y", "/components/schemas/User/properties/id")
+	anon := commonFor(c.Ctx, "t/y", "/components/schemas/User/properties/id")
 	assert.True(t, anon.Anonymous, "an inline position declares no name")
 	assert.Empty(t, anon.Name.Source)
 	assert.Equal(t, "id", anon.Name.Hint, "only the hint survives: the property's key")
@@ -49,8 +49,8 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(5, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	got := commonFor(c, "t/x", "/components/schemas/User")
+	c := service.New(5, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	got := commonFor(c.Ctx, "t/x", "/components/schemas/User")
 
 	assert.Equal(t, ir.TypeID("t/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)
@@ -62,7 +62,7 @@ func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 // schema would do forever.
 func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
@@ -72,8 +72,8 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 		return &ir.Model{TypeCommon: common}
 	}
 
-	first := internNode(c, ts, at, build)
-	second := internNode(c, ts, at, build)
+	first := internNode(c.Ctx, ts, at, build)
+	second := internNode(c.Ctx, ts, at, build)
 
 	assert.Equal(t, ids.Document{}.ForPointer(at), first, "the ID is derived from the pointer")
 	assert.Equal(t, first, second, "a second visit returns the interned ID")
@@ -90,10 +90,10 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 // or preserved constructs to that node, which would vanish without a word.
 func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(4, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
+	c := service.New(4, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
 	ts := compile.NewTypes()
 
-	_, ok, diags := registeredNode(c, ts, "t/absent", "/components/schemas/Ghost")
+	_, ok, diags := registeredNode(c.Ctx, ts, "t/absent", "/components/schemas/Ghost")
 
 	assert.False(t, ok)
 	require.Len(t, diags, 1, "a miss is announced, not swallowed")
@@ -101,10 +101,10 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/components/schemas/Ghost"}, diags[0].Provenance)
 
-	id := internNode(c, ts, "/components/schemas/User", func(cm ir.TypeCommon) ir.TypeDef {
+	id := internNode(c.Ctx, ts, "/components/schemas/User", func(cm ir.TypeCommon) ir.TypeDef {
 		return &ir.Model{TypeCommon: cm}
 	})
-	td, ok, diags := registeredNode(c, ts, id, "/components/schemas/User")
+	td, ok, diags := registeredNode(c.Ctx, ts, id, "/components/schemas/User")
 	assert.True(t, ok)
 	assert.Empty(t, diags, "a hit reports nothing")
 	assert.Equal(t, id, td.Common().ID)
@@ -116,20 +116,20 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 // revisit hands back nothing and reports nothing (GitHub #749).
 func TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
 	var midBuild bool
 	var midBuildDiags []ir.Diagnostic
-	id := internNode(c, ts, at, func(cm ir.TypeCommon) ir.TypeDef {
-		_, midBuild, midBuildDiags = registeredNode(c, ts, cm.ID, at)
+	id := internNode(c.Ctx, ts, at, func(cm ir.TypeCommon) ir.TypeDef {
+		_, midBuild, midBuildDiags = registeredNode(c.Ctx, ts, cm.ID, at)
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.False(t, midBuild, "there is no node to hand back yet")
 	assert.Empty(t, midBuildDiags, "and that is not a broken invariant")
 
-	_, ok, diags := registeredNode(c, ts, id, at)
+	_, ok, diags := registeredNode(c.Ctx, ts, id, at)
 	assert.True(t, ok, "once the build returns, the node is there")
 	assert.Empty(t, diags)
 }

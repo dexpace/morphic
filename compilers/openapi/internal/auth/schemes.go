@@ -13,10 +13,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,7 +29,7 @@ import (
 // whose $ref resolves to nothing, reported at its own components pointer (see
 // unresolvableScheme), and one naming no mechanism, reported the same way (see
 // noMechanismDiag).
-func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
+func LowerSecuritySchemes(c service.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
 	declared := map[ir.AuthID]ir.AuthScheme{}
 	var diags []ir.Diagnostic
 	for name, rs := range c.Doc.Components.GetSecuritySchemes().All() {
@@ -41,7 +41,7 @@ func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Dia
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
 		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](c.Bindings(), rs, scheme.Docs)
-		beside, besideDiags := lowering.Beside[soa.SecurityScheme](c, rs, ids.Ptr("components", "securitySchemes", name), true)
+		beside, besideDiags := service.Beside[soa.SecurityScheme](c, rs, ids.Ptr("components", "securitySchemes", name), true)
 		scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, beside)
 		diags = append(diags, besideDiags...)
 		declared[scheme.ID] = scheme
@@ -57,9 +57,9 @@ func namesNothing(rs *soa.ReferencedSecurityScheme) bool {
 }
 
 // lowerEntry lowers the securitySchemes entry called name, as written in rs.
-func lowerEntry(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
+func lowerEntry(c service.Ctx, name string, rs *soa.ReferencedSecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
 	entry := ids.Ptr("components", "securitySchemes", name)
-	ss, dc, decl := lowering.Declared[soa.SecurityScheme](c, rs, entry)
+	ss, dc, decl := service.Declared[soa.SecurityScheme](c, rs, entry)
 	if ss == nil {
 		return unresolvableScheme(c, name, rs, entry)
 	}
@@ -72,7 +72,7 @@ func lowerEntry(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) (
 // error at the $ref is the one report of it (docs/compilers/openapi.md#references),
 // so keeping it announces nothing. rs is the entry as written; a nil rs is
 // unreachable from a parsed document, so that guard is for a hand-built node.
-func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
+func unresolvableScheme(c service.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := unresolvedScheme(ids.UnresolvedAuth(name), name, c.Place().At(entry))
 	if rs == nil {
@@ -108,7 +108,7 @@ func docsBeside(rs *soa.ReferencedSecurityScheme) ir.Docs {
 // since aliases of one declaration are separate schemes and irverify holds an
 // AuthID to agree with its provenance path. A `$ref` entry holds only the
 // reference, so `<entry>/in` names a position no document holds.
-func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme,
+func lowerSecurityScheme(c, dc service.Ctx, name string, ss *soa.SecurityScheme,
 	entry, decl jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := ir.AuthScheme{
@@ -151,7 +151,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 // Only oauth2 reads inside `flows`: on any other type the whole node is kept
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
-func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
+func applySchemeAnnotations(c service.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
 	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.Place(), decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
@@ -175,7 +175,7 @@ func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Secur
 // kind that says the compiler holds no mechanism, with what it wrote kept beside
 // that, and a requirement naming it stands. An error: what the entry means is
 // missing, and OpenAPI requires both fields.
-func noMechanismDiag(c lowering.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
+func noMechanismDiag(c service.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
 	// "has no", not "declares no": a $ref entry declares only the reference, yet
 	// alias and target are each reported at their own entry, so the wording must
 	// hold for both.
@@ -293,7 +293,7 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 // nothing; an explicit `in: ""` is recorded as written.
 //
 // decl is where the fields are written, the declaration for a $ref entry (#107).
-func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
+func preserveUnreadFields(c service.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
 	decl jsontext.Pointer,
 ) []ir.Diagnostic {
 	unresolved := scheme.Kind == ir.AuthKindUnresolved

@@ -68,8 +68,8 @@ Read the documents for your layer, and skip the rest until you need them.
 - **A helper is written once.** One that several test files of a package share sits in one of
   them or, when it is new, in the package's `helpers_test.go`, or `helpers_internal_test.go` inside
   the package. One that several packages share is in `compilers/openapi/internal/openapitest`,
-  `compilers/openapi/internal/lowering/loweringtest` or `ir/irtest`, as
-  `openapitest.SchemaFromYAML`, `loweringtest.Context` and `irtest.RepoRoot` are, when it builds or
+  `compilers/openapi/internal/service/servicetest` or `ir/irtest`, as
+  `openapitest.SchemaFromYAML`, `servicetest.Context` and `irtest.RepoRoot` are, when it builds or
   reads what those packages serve, a spec and its diagnostics, a lowering context or the IR. One
   that belongs there but cannot live there, as `parseFull`, which compiles through `openapi.New`,
   is written in each package that needs it, and each copy says why. A helper outside what any of

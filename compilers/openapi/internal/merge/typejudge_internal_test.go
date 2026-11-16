@@ -261,7 +261,7 @@ func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateFrom(a, b, 
 
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: atRoot(&stubWalk{})}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 
 	for _, tc := range []struct {
@@ -496,7 +496,7 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 // kind, holds none.
 func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: atRoot(&stubWalk{})}
 	for _, tc := range []struct {
 		id   ir.TypeID
 		want valueKind
@@ -561,7 +561,7 @@ func encodedRegistry() map[ir.TypeID]ir.TypeDef {
 // A WireType or base that is no primitive leaves the base read as it is.
 func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: atRoot(&stubWalk{})}
 	for id, want := range map[ir.TypeID]valueKind{
 		"t/unixtime-int":       {prim: ir.PrimInteger},
 		"t/alias-unixtime-int": {prim: ir.PrimInteger},
@@ -593,7 +593,7 @@ func TestKindOf_AnEncodedScalarIsReadAsItsValuesTravel(t *testing.T) {
 // would refuse the text, while a bare datetime_offset still refuses it.
 func TestTypeJudge_AnEncodedScalarRelatesAsItsValues(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(encodedRegistry()), sites: atRoot(&stubWalk{})}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 	for _, tc := range []struct {
 		a, b ir.TypeID
@@ -656,7 +656,7 @@ func TestKindOf_ANumberAsTextIsAString(t *testing.T) {
 	reg["t/alias-num-text"] = &ir.Scalar{ID: "t/alias-num-text", Base: &ir.TypeRef{Target: "t/num-text"}}
 	reg["t/num"] = &ir.Scalar{ID: "t/num", Base: &i64, Encoding: &ir.Encoding{Name: "string"}}
 	reg["t/bytes-b64"] = &ir.Scalar{ID: "t/bytes-b64", Base: &b, Encoding: wire()}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 	for id, want := range map[ir.TypeID]valueKind{
 		"t/num-text": {prim: ir.PrimString}, "t/alias-num-text": {prim: ir.PrimString}, "t/num": {prim: ir.PrimInt64},
 		"t/bytes-b64": {prim: ir.PrimBytes, unjudged: true},
@@ -684,7 +684,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Constraints: &ir.Constraints{MaxLength: &short}}
 	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
 	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{})}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
@@ -735,7 +735,7 @@ func TestRelation_Flipped(t *testing.T) {
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	j := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: declarationSites{walk: &stubWalk{}}}
+	j := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: atRoot(&stubWalk{})}
 	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
 	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
@@ -1075,7 +1075,7 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	for _, id := range []ir.TypeID{"t/lit-a-abs1", "t/lit-a-abs2"} {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
 	}
-	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{apart: true}}}
+	j := typeJudge{resolve: stubResolve(reg), sites: atRoot(&stubWalk{apart: true})}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")

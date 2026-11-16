@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -104,8 +105,8 @@ func (u *partUnions) itemDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules 
 }
 
 // partUnionsOf returns the run's partUnions, which every copy of c shares.
-func partUnionsOf(c lowering.Ctx) *partUnions {
-	return lowering.Settled(c, newPartUnions)
+func partUnionsOf(c service.Ctx) *partUnions {
+	return lowering.Settled(c.Ctx, newPartUnions)
 }
 
 // membersOf returns the members of union (unionMembers), read once.

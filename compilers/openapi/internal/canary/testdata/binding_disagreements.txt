@@ -83,9 +83,9 @@ shape/object/high-code-point	/components/parameters/A	resolved	unresolved	token-
 shape/object/high-code-point/reversed	/components/parameters/A	resolved	unresolved	token-range
 shape/object/merge-list	/components/parameters/A	resolved	unresolved	merge-list
 shape/object/repeated-raw	/components/parameters/A	resolved	resolved elsewhere	duplicate-key
-suite/dynamicRef.json/2	/components/schemas/T/items	resolved	unresolved	anchor-id
-suite/items.json/3	/components/schemas/T/$defs/item/prefixItems/0	resolved	unresolved	defs-rule
-suite/items.json/3	/components/schemas/T/$defs/item/prefixItems/1	resolved	unresolved	defs-rule
+suite/dynamicRef.json/A $ref to a $dynamicAnchor in the same schema resource behaves like a normal $ref to an $anchor	/components/schemas/T/items	resolved	unresolved	anchor-id
+suite/items.json/items and subitems	/components/schemas/T/$defs/item/prefixItems/0	resolved	unresolved	defs-rule
+suite/items.json/items and subitems	/components/schemas/T/$defs/item/prefixItems/1	resolved	unresolved	defs-rule
 fixture/testdata/conformance/openapi/allof-inline-residue.yaml	/components/schemas/Rebased/allOf/0/allOf/0/not	resolved	unresolved	id-base
 fixture/testdata/conformance/openapi/allof-inline-residue.yaml	/components/schemas/Rebased/allOf/1/not	resolved	unresolved	id-base
 fixture/testdata/conformance/openapi/reference-object-chains.yaml	/paths/~1orders/post/parameters/2	resolved	unresolved	merge-list

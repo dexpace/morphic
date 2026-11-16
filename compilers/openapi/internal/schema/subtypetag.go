@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"strconv"
 
@@ -45,7 +46,7 @@ type subtypeTagReading struct {
 // its name out, tags it by the one it admits, or by none where it admits
 // several or none, as no one tag then routes to it. Either is marked and
 // reported.
-func (t subtypeTagReading) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+func (t subtypeTagReading) Settle(_ context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	m, ok := reg[t.id].(*ir.Model)
 	if !ok || m == nil || m.DiscriminatorValue != t.name {
 		return []ir.Diagnostic{t.c.DiagAt(ir.SeverityError, diag.InternalInvariant, t.pointer,

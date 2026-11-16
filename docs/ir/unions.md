@@ -122,10 +122,11 @@ variants hold the bounds and the union holds none.
 
 Two other homes were weighed. The carrier alone loses the bound for every reference naming the
 position, and `Unmodeled` alone leaves a bound a check reads untyped. An `Enum` and a `Literal` have
-no such field: every value either admits is one the source lists, so a bound beside one only says
-which of those values it admits, which its members would say themselves. A compiler keeps such a
-bound verbatim ([degraded constructs](./boundaries.md#degraded-constructs)). A union whose variants
-are such value sets holds a bound beside it all the same, as it holds every bound written there.
+no such field: every value a closed one admits is one the source lists, so a bound beside one only
+says which of those values it admits, which its members would say themselves. A compiler keeps such
+a bound verbatim ([degraded constructs](./boundaries.md#degraded-constructs)), an open enum's too,
+though it bounds the values that one does not list (#2004). A union whose variants are such value
+sets holds a bound beside it all the same, as it holds every bound written there.
 
 ## Open unions
 

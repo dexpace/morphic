@@ -1014,7 +1014,7 @@ func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
 				"    Node: {$dynamicAnchor: node, type: string}\n    S: "+tc.schema+"\n")
 			for _, off := range []bool{false, true} {
 				l, _ := schema.LoweredWith(t, src, lowering.Policy{NullableInference: lowering.NullableInference{Disabled: off}})
-				js, ok := l.Ctx.Doc.Components.GetSchemas().Get("S")
+				js, ok := l.Doc.Components.GetSchemas().Get("S")
 				require.True(t, ok)
 				want := tc.on
 				if off {

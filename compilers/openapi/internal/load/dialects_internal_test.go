@@ -6,7 +6,6 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
-	"fmt"
 	"io/fs"
 	"strings"
 	"testing"
@@ -133,18 +132,16 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 		return s.GetRootNode()
 	}
 	governed := func(n *yaml.Node) bool {
-		r, ok := doc.Dialects.Of(n)
-		return ok && r.Takes("exclusiveMinimum", oas.Boolean)
+		return doc.Dialects.Of(n).Takes("exclusiveMinimum", oas.Boolean)
 	}
 	assert.True(t, governed(node("T")))
 	assert.True(t, governed(node("T", "a")), "a subschema reads its root's")
-	_, ok = doc.Dialects.Of(node("V"))
-	assert.False(t, ok, "a schema below no root naming one reads its document's")
-	_, ok = doc.Dialects.Of(node("R"))
-	assert.False(t, ok, "a $schema naming no dialect chooses none")
-	r, ok := doc.Dialects.Of(node("U"))
-	assert.True(t, ok)
-	assert.True(t, r.Takes("exclusiveMinimum", oas.Number), "a dialect it cannot read reads as the minor's own")
+	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("V")), "a schema below no root naming one reads its document's")
+	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("R")), "a $schema naming no dialect chooses none")
+	_, root := doc.Dialects.RootAt(bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"})
+	assert.True(t, root, "U names a dialect, if one it cannot read")
+	assert.True(t, doc.Dialects.Of(node("U")).Takes("exclusiveMinimum", oas.Number),
+		"a dialect it cannot read reads as the minor's own")
 
 	table := doc.Bindings.Table()
 	var defs bind.DocID
@@ -158,8 +155,6 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 	require.NotNil(t, e)
 	assert.True(t, governed(e.GetSchema().GetRootNode()), "a document of schemas names its dialect at its root")
 	assert.True(t, other.Rows.Schema.Takes("exclusiveMinimum", oas.Number), "o.yaml's own dialect is unread")
-	_, ok = Dialects{}.Of(nil)
-	assert.False(t, ok, "the zero Dialects governs nothing")
 }
 
 // TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds pins that a
@@ -199,17 +194,10 @@ func TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds(t *testing.T
 		require.FailNow(t, "no document", file)
 		return nil
 	}
-	r, ok := doc.Dialects.Of(node("A", "a.yaml"))
-	require.True(t, ok, "a.yaml's rows are not the source's")
-	assert.True(t, r.Takes("exclusiveMinimum", oas.Boolean))
-	r, ok = doc.Dialects.Of(node("N", "a.yaml"))
-	require.True(t, ok)
-	assert.True(t, r.Takes("exclusiveMinimum", oas.Number), "a root keeps its own")
-	_, ok = doc.Dialects.Of(node("B", "b.yaml"))
-	assert.False(t, ok, "b.yaml's rows are the source's")
-	for n := range doc.Dialects.byNode {
-		assert.NotEqual(t, yaml.ScalarNode, n.Kind, "a scalar is noted: %q", n.Value)
-	}
+	assert.True(t, doc.Dialects.Of(node("A", "a.yaml")).Takes("exclusiveMinimum", oas.Boolean),
+		"a.yaml's rows are not the source's")
+	assert.True(t, doc.Dialects.Of(node("N", "a.yaml")).Takes("exclusiveMinimum", oas.Number), "a root keeps its own")
+	assert.Equal(t, doc.Rows.Schema, doc.Dialects.Of(node("B", "b.yaml")), "b.yaml's rows are the source's")
 }
 
 // customServed answers every request with a document of schemas naming a
@@ -269,58 +257,6 @@ func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
 }
 
-// TestDialects_GovernNotesEachListOnce pins what keeps the walk linear in a
-// tree whose aliases place each list twice in the next, 2^20 placements of the
-// innermost: each list is noted, so it is walked once.
-func TestDialects_GovernNotesEachListOnce(t *testing.T) {
-	t.Parallel()
-	const depth = 20
-	var b strings.Builder
-	b.WriteString("l0: &l0 [{type: integer}]\n")
-	for i := 1; i <= depth; i++ {
-		fmt.Fprintf(&b, "l%d: &l%d [*l%d, *l%d]\n", i, i, i-1, i-1)
-	}
-	var tree yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(b.String()), &tree))
-	rows, _ := oas.Table().SchemaRules("3.1.0", "")
-	d := Dialects{byNode: map[*yaml.Node]oas.SchemaRules{}}
-	d.govern(tree.Content[0], rows)
-	assert.Len(t, d.byNode, depth+3, "the root mapping, each list and the one schema")
-}
-
-// TestDialects_ANodeTwoRootsHoldReadsTheFirsts pins that a node two roots
-// naming a dialect hold reads the rows of the first to govern it, which
-// readDialects asks innermost first, and that each mapping is noted once,
-// however many aliases place it.
-func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
-	t.Parallel()
-	var tree yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("A: {x: &n {type: integer}, y: *n}\nB: {z: *n}\n"), &tree))
-	root := tree.Content[0]
-	a, b := root.Content[1], root.Content[3]
-	first, _ := oas.Table().SchemaRules("3.1.0", draft04)
-	second, _ := oas.Table().SchemaRules("3.1.0", "")
-	d := Dialects{byNode: map[*yaml.Node]oas.SchemaRules{}}
-	d.govern(a, first)
-	d.govern(b, second)
-	shared := a.Content[1]
-	// Identity, not equality: two rows of one dialect are equal, and the claim
-	// is whose rows the node holds.
-	got, ok := d.Of(shared)
-	require.True(t, ok)
-	if got != first {
-		t.Error("the shared node holds the second root's rows, not the first's")
-	}
-	got, ok = d.Of(b)
-	require.True(t, ok)
-	if got != second {
-		t.Error("B holds another root's rows than its own")
-	}
-	assert.Len(t, d.byNode, 3, "A, the shared node and B, and none of their scalars")
-	d.govern(nil, first)
-	assert.Len(t, d.byNode, 3, "no tree governs nothing")
-}
-
 // TestReadDialects_ANestedRootGovernsItsOwnTree pins that a resource an $id
 // embeds in another root reads the dialect its own `$schema` names, the
 // innermost root governing the nodes it holds, while the rest of the outer
@@ -337,9 +273,7 @@ func TestReadDialects_ANestedRootGovernsItsOwnTree(t *testing.T) {
 	tSchema := doc.Doc.Components.GetSchemas().GetOrZero("T").GetSchema()
 	a := tSchema.GetProperties().GetOrZero("a").GetSchema()
 	boolean := func(s interface{ GetRootNode() *yaml.Node }) bool {
-		r, ok := doc.Dialects.Of(s.GetRootNode())
-		require.True(t, ok)
-		return r.Takes("exclusiveMinimum", oas.Boolean)
+		return doc.Dialects.Of(s.GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
 	}
 	assert.True(t, boolean(a), "the embedded root reads its own")
 	assert.True(t, boolean(a.GetProperties().GetOrZero("x").GetSchema()), "and what it holds")
@@ -401,16 +335,4 @@ func TestLoad_TheSourcesRowsAreThoseOfItsJSONSchemaDialect(t *testing.T) {
 	if rows["none.yaml"] == doc.Rows {
 		t.Error("a document naming no dialect shares the rows of the source's")
 	}
-}
-
-// TestDialects_RowsAtFallBackToTheSource pins the rows a schema no root
-// governs is read with: its document's, and the source's for a document the
-// compile did not read beside it.
-func TestDialects_RowsAtFallBackToTheSource(t *testing.T) {
-	t.Parallel()
-	own, _ := oas.Table().SchemaRules("3.1.0", "")
-	d4, _ := oas.Table().SchemaRules("3.1.0", "http://json-schema.org/draft-04/schema#")
-	d := Dialects{byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: own, 1: d4}}
-	assert.True(t, d.rowsAt(bind.Position{Doc: 1}).Takes("exclusiveMinimum", oas.Boolean), "its document's")
-	assert.False(t, d.rowsAt(bind.Position{Doc: 2}).Takes("exclusiveMinimum", oas.Boolean), "the source's")
 }

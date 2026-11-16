@@ -71,7 +71,7 @@ func TestRecordVoicedResidue_NeedsANodeItsPositionOwns(t *testing.T) {
 // declared returns the schema the component name declares.
 func declared(t *testing.T, l *Lowerer, name string) *oas3.Schema {
 	t.Helper()
-	js, ok := l.Ctx.Doc.Components.Schemas.Get(name)
+	js, ok := l.Doc.Components.Schemas.Get(name)
 	require.True(t, ok, name)
 	return js.GetSchema()
 }
@@ -209,7 +209,7 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
     T: {allOf: [{$ref: '#/components/schemas/Str'}, {description: d}]}
 `))
-	js, ok := l.Ctx.Doc.Components.Schemas.Get("T")
+	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
 	first := lentBy(l.Ctx, js).Referents
 	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
@@ -224,7 +224,7 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 func TestAdmission_RendersASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
-	js, ok := l.Ctx.Doc.Components.Schemas.Get("T")
+	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
 	first := newAdmission(l.Ctx)
 	text := first.text(js)

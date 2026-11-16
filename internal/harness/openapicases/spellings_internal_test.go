@@ -61,8 +61,8 @@ func TestRelocation_ErasesEachAllOfIndexAfterTheUse(t *testing.T) {
 	assert.PanicsWithValue(t, "openapicases: a relocation of no use", func() { relocation("") })
 }
 
-// at returns the coordinates of the case naming each axis's value by name.
-func at(t *testing.T, c cases, names ...string) []int {
+// caseAt returns the coordinates of the case naming each axis's value by name.
+func caseAt(t *testing.T, c cases, names ...string) []int {
 	t.Helper()
 	axes := c.Axes()
 	out := make([]int, len(axes))
@@ -99,7 +99,7 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 		{[]string{"3.1.0", "string", "none", "none", "items", "entry"}, false, ""},
 		{[]string{"3.1.0", "string", "none", "none", "items", "nested"}, true, wrap},
 	} {
-		doc, ok := c.Write(at(t, c, tc.at...))
+		doc, ok := c.Write(caseAt(t, c, tc.at...))
 		require.Equal(t, tc.written, ok, "%v", tc.at)
 		if tc.partner == "" {
 			assert.Nil(t, doc.Equal, "%v", tc.at)
@@ -110,7 +110,7 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 	}
 
 	eq := func(names ...string) *harness.Equal {
-		doc, ok := c.Write(at(t, c, names...))
+		doc, ok := c.Write(caseAt(t, c, names...))
 		require.True(t, ok)
 		require.NotNil(t, doc.Equal)
 		return doc.Equal
