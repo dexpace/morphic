@@ -165,6 +165,7 @@ func TestGroups_EachSpellingNamesItsPartner(t *testing.T) {
 			}
 			require.NotNil(t, doc.Equal, s)
 			assert.Equal(t, partner, c.spellings[doc.Equal.To[3]])
+			assert.Equal(t, want[p.name]+"t0", doc.Equal.Relocate(want[p.name]+"t0/allOf/1"), "%s %s", p.name, s)
 		}
 	}
 	_, ok := c.Write([]int{0, 0, 0, len(c.spellings)})

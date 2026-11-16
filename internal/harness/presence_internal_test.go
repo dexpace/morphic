@@ -210,13 +210,19 @@ func TestPresent_DeclinesWhatItCannotCompare(t *testing.T) {
 
 // TestPresent_AnErrorDiagnosticBesideAnUnreadNeighbourIsNotAsked holds the
 // decline to the documents the case compares: a control's other case, which
-// no verdict reads, draws its error unread.
+// no verdict reads, draws its error unread, though the control names it.
 func TestPresent_AnErrorDiagnosticBesideAnUnreadNeighbourIsNotAsked(t *testing.T) {
 	boom := []ir.Diagnostic{{Severity: ir.SeverityError, Code: "x/refused", Message: "refused"}}
 	docs := map[string]*ir.Document{"none": named("a"), "kw": named("a"), "kw~": named("c")}
 	swapDocuments(t, docs, map[string][]ir.Diagnostic{"kw~": boom}, "")
 
-	v := presenceOf(t, presenceProduct(notCarriedDocs))
+	v := presenceOf(t, presenceProduct(func(i int) Document {
+		doc := notCarriedDocs(i)
+		if i == caseWrite {
+			doc.Other = []int{caseOther}
+		}
+		return doc
+	}))
 
 	assert.Equal(t, passed(OraclePresence), v)
 }
