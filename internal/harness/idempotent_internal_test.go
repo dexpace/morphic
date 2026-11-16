@@ -347,11 +347,9 @@ func TestIdempotent_ACompileWithoutThePassesThatFails(t *testing.T) {
 		{"no document", nil, nil, "compile without the passes produced no document"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			orig := compile
-			t.Cleanup(func() { compile = orig })
-			compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+			swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 				return tc.doc, nil, tc.err
-			}
+			})
 
 			detail, ok := idempotent(context.Background(), "spec.yaml", nil, nil)
 

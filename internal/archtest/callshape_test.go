@@ -113,6 +113,12 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/cache":  1,
 		"engine/output": 1,
 	},
+	"internal/harness": {
+		// A format's Cases, which the harness asks for its axes and the document
+		// at a case, and the pick CheckCases is handed: designed seams.
+		"cmd/morphic-harness":           1,
+		"internal/harness/openapicases": 2,
+	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
 		"compilers/openapi/internal/lowering": 1,

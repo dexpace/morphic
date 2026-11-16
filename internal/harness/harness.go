@@ -43,6 +43,14 @@ const (
 	OutcomeSequenceOrderDependent Outcome = "sequence-order-dependent"
 )
 
+// Case oracle outcomes, each the finding of the case oracle Oracle.finds names
+// it for.
+const (
+	OutcomeSpellingDependent Outcome = "spelling-dependent"
+	OutcomeNotCarried        Outcome = "not-carried"
+	OutcomeInstanceExcluded  Outcome = "instance-excluded"
+)
+
 // Result is one spec's outcome plus human-readable detail, and every oracle's
 // verdict on it.
 type Result struct {
@@ -53,8 +61,12 @@ type Result struct {
 	Outcome Outcome
 	// Detail is human-readable context for a non-OK outcome.
 	Detail string
-	// Verdicts holds one Verdict per oracle, in the order Oracles lists them:
-	// what each found, or why it asked nothing.
+	// Like is the name of the core case a case's values project to (Value),
+	// under which a record lists a finding at it (Recorded.Explains); empty
+	// for a spec.
+	Like string
+	// Verdicts holds one Verdict per oracle, in the order Oracles lists them,
+	// or for a case CaseOracles: what each found, or why it asked nothing.
 	Verdicts []Verdict
 }
 
@@ -102,15 +114,22 @@ func ended(spec string, outcome Outcome, detail string, verdicts []Verdict) Resu
 // judge is the Result verdicts make: completed with a not-reached verdict from
 // each oracle that gave none, and the first finding as its outcome.
 func judge(spec string, verdicts []Verdict) Result {
+	return judgeAmong(spec, Oracles(), verdicts, notReached)
+}
+
+// judgeAmong is the Result verdicts make of oracles: completed with a verdict
+// declining for missing's reason from each oracle that gave none, and the first
+// finding, in the order of oracles, as its outcome.
+func judgeAmong(spec string, oracles []Oracle, verdicts []Verdict, missing func(Oracle) Decline) Result {
 	answered := make(map[Oracle]Verdict, len(verdicts))
 	for _, v := range verdicts {
 		answered[v.Oracle] = v
 	}
 	res := Result{Spec: spec, Outcome: OutcomeOK}
-	for _, o := range Oracles() {
+	for _, o := range oracles {
 		v, ok := answered[o]
 		if !ok {
-			v = declined(o, DeclineNotReached)
+			v = declined(o, missing(o))
 		}
 		if v.Found() && res.Outcome == OutcomeOK {
 			res.Outcome, res.Detail = v.Outcome, v.Detail
@@ -198,7 +217,7 @@ var errUnrecognized = errors.New("unrecognized source")
 
 // registered is the compiler set a sweep compiles with: the engine's built-ins,
 // so a compiler registered there is swept with no change here. It is a seam, as
-// compile is, for tests that need a compiler the engine does not carry.
+// compileSources is, for tests that need a compiler the engine does not carry.
 var registered = engine.Compilers
 
 // passes is the pass list a sweep runs: the engine's default, so a pass that
@@ -226,22 +245,30 @@ func newEngine(ps []pass.Pass) (*engine.Engine, error) {
 	return e, nil
 }
 
-// compile runs one in-memory source through the engine as `morphic compile
-// --verify` runs a spec, with ps as the passes: data is held as the file at
-// spec, and what its references name is read from disk beside it. It returns
-// the document and every finding of the run, the compiler's and the passes', or
-// errUnrecognized for a source no registered compiler takes.
+// compile runs one in-memory source through compileSources at the default
+// compiler options: data is held as the file at spec, and what its references
+// name is read from disk beside it.
+func compile(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	return compileSources(ctx, []compilers.Source{{Path: spec, Data: data}}, nil, ps)
+}
+
+// compileSources runs sources through the engine as `morphic compile --verify`
+// runs a spec, with options as the compiler options and ps as the passes, and
+// returns the document and every finding of the run, or errUnrecognized for a
+// source no registered compiler takes. The first source is the spec (runOn
+// says what else a run reads).
 //
-// It is a package-level seam: production always runs the engine, while tests
-// replace it to drive the oracle-failure paths a correct compiler never
-// produces: a panic, structural violations, a non-round-tripping document, or
-// a nondeterministic recompile.
-var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+// It is the package's one seam over the engine: tests replace it to drive the
+// oracle-failure paths a correct compiler never produces, such as a panic, a
+// non-round-tripping document or a nondeterministic recompile.
+var compileSources = func(ctx context.Context, sources []compilers.Source, options map[string]string,
+	ps []pass.Pass,
+) (*ir.Document, []ir.Diagnostic, error) {
 	e, err := newEngine(ps)
 	if err != nil {
 		return nil, nil, err
 	}
-	res, err := e.RunSpec(ctx, compilers.Source{Path: spec, Data: data}, runOptions())
+	res, err := runOn(ctx, e, sources, options)
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: %w", reraise(err))
 	}
@@ -249,6 +276,19 @@ var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass
 		return nil, nil, fmt.Errorf("%s: %w", d.Message, errUnrecognized)
 	}
 	return res.Document, res.Diagnostics, nil
+}
+
+// runOn runs sources through e under runOptions and options. One source is a
+// spec on disk, held in memory: what its references name is read from disk
+// beside it, as a corpus spec split across files needs. More are every
+// document the run may read, held in memory, and nothing else is read.
+func runOn(ctx context.Context, e *engine.Engine, sources []compilers.Source, options map[string]string) (*engine.Result, error) {
+	opts := runOptions()
+	opts.CompilerOptions = options
+	if len(sources) == 1 {
+		return e.RunSpec(ctx, sources[0], opts)
+	}
+	return e.RunSources(ctx, sources, opts)
 }
 
 // undetected reports whether code is one the engine raises, with no document,
@@ -280,7 +320,7 @@ func reraise(err error) error {
 var reserializeJSON = json.Marshal
 
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
-// roundTrips for the same reason compile is one. A test swaps it to drive
+// roundTrips for the same reason compileSources is one. A test swaps it to drive
 // Check's OutcomeRoundtrip classification directly, so that test does not
 // depend on which documents Verify lets through to this oracle.
 var roundTrip = roundTrips

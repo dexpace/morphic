@@ -296,16 +296,15 @@ type planted func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diag
 // edit. A source is the reversed one when it names beta before alpha.
 func plant(t *testing.T, edit planted) {
 	t.Helper()
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	var orig compileFunc
+	orig = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := orig(ctx, spec, data, ps)
 		if err != nil {
 			return doc, diags, err
 		}
 		reversed := bytes.Index(data, []byte("beta")) < bytes.Index(data, []byte("alpha"))
 		return edit(t, reversed, doc, diags)
-	}
+	})
 }
 
 // Fixtures of the detection rows, each passing the oracle as the real
@@ -568,16 +567,15 @@ func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
 // the second compile the oracle makes, the permuted one, which a correct
 // compiler never fails on a source that already compiled.
 func TestSequenceOrderInvariant_CompileFailureIsReported(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
 	compiles := 0
-	compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	var orig compileFunc
+	orig = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		compiles++
 		if compiles == 2 {
 			return nil, nil, errors.New("boom")
 		}
 		return orig(ctx, spec, data, ps)
-	}
+	})
 
 	got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureX), true)
 
@@ -590,12 +588,10 @@ func TestSequenceOrderInvariant_CompileFailureIsReported(t *testing.T) {
 // rewrite cannot permute faithfully, and one whose reversal writes the same
 // bytes.
 func TestSequenceOrderInvariant_DeclinesWhatItCannotPermute(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		require.FailNow(t, "a declined source is never compiled")
 		return nil, nil, nil
-	}
+	})
 	for _, tc := range []struct {
 		name, src string
 		why       Decline

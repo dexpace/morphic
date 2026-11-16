@@ -541,7 +541,7 @@ var rules = map[string][]string{
 	// triage rules a file holds.
 	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
 		module + "/engine/report", module + "/engine/triage", "github.com/spf13/cobra", "github.com/spf13/pflag"},
-	"cmd/morphic-harness": {module + "/internal/harness"},
+	"cmd/morphic-harness": {module + "/internal/harness", module + "/internal/harness/openapicases"},
 	// The census command: tooling outside the pipeline, like the harness command
 	// above. It compiles specs through the engine, lists them as the harness does,
 	// and counts what their documents set.
@@ -619,6 +619,8 @@ var rules = map[string][]string{
 var exempt = map[string]string{
 	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
 		"so it legitimately imports the Layer-3 engine, whose runs it judges",
+	"internal/harness/openapicases": "the cases the harness asks of the OpenAPI compiler, " +
+		"which it reaches through the engine alone",
 }
 
 // unbuilt names the rules entries whose directory does not exist yet, each
