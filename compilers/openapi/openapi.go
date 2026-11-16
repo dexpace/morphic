@@ -294,8 +294,8 @@ func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
 }
 
 // componentStatements yields each component schema of c's document under its
-// name, in source order, as c's table reads it: the one place the schema walk
-// is handed a statement for a value of the parser's.
+// name, in source order, as the statement c's table reads of it, read when the
+// schema walk asks for it.
 func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
 	return func(yield func(string, *statement.Statement) bool) {
 		for name, js := range c.Doc.Components.GetSchemas().All() {

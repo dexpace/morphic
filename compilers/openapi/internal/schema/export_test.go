@@ -146,15 +146,17 @@ func StandaloneSchema(s *oas3.Schema) *statement.Schema {
 	return Standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](s)).Schema
 }
 
-// StatedIn returns the statement of s as l's table reads it, where s is the
-// schema a component of l's document declares, and read alone where it is
-// not: for a test asking twice of one schema a reader that remembers its
-// answer per statement.
+// StatedIn returns the statement of s as l's table reads it, s being the
+// schema a component of l's document declares: for a test holding the
+// parser's schema object and handing a reader the run's statement of it. It
+// panics on any other s, since a statement read alone has no position and no
+// reference binding, so the reader would answer for another schema than the
+// run's without the test saying so.
 func StatedIn(l *Lowerer, s *oas3.Schema) *statement.Schema {
 	for _, js := range l.Doc.Components.Schemas.All() {
 		if js.GetSchema() == s {
 			return l.Ctx.Statements().Of(js).Schema
 		}
 	}
-	return StandaloneSchema(s)
+	panic("schema: StatedIn of a schema no component of the fixture's document declares")
 }

@@ -296,7 +296,8 @@ components:
 }
 
 // TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported holds the census of
-// a schema's xml, discriminator and externalDocs objects to every key their
+// a schema's xml, discriminator and externalDocs objects, and of the
+// discriminator an allOf branch writes for its union, to every key their
 // models name no field for, as
 // annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable
 // holds the schema's own: one merged in through `<<` from past
@@ -316,10 +317,15 @@ components:
       xml: {name: s, <<: `+deep("{attribute2: X}")+`}
       discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
       externalDocs: {url: 'https://d.example', <<: `+deep("{title: E}")+`}
+    U:
+      type: object
+      allOf:
+        - discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
+          oneOf: [{$ref: '#/components/schemas/S'}]
 `)
 	for _, at := range []string{
 		"/components/schemas/S/xml/attribute2", "/components/schemas/S/discriminator/mapping2",
-		"/components/schemas/S/externalDocs/title",
+		"/components/schemas/S/externalDocs/title", "/components/schemas/U/allOf/0/discriminator/mapping2",
 	} {
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.UnknownKeyUnreachable, at),
 			"the key at %s", at)
