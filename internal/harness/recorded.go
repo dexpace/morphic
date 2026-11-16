@@ -107,12 +107,14 @@ func (r Recorded) Write(header string, found []Finding) []byte {
 	return []byte(b.String())
 }
 
-// Findings returns what o found in each of results, in their order.
+// Findings returns what o found in each of results, in their order, and each
+// decline its record lists as it lists a finding (Oracle.records), whose What
+// is "declined: <reason>".
 func Findings(results []Result, o Oracle) []Finding {
 	var found []Finding
 	for _, r := range results {
 		for _, v := range r.Verdicts {
-			if v.Oracle == o && v.Found() {
+			if v.Oracle == o && listed(v) {
 				found = append(found, findingOf(r, v))
 			}
 		}
@@ -120,16 +122,28 @@ func Findings(results []Result, o Oracle) []Finding {
 	return found
 }
 
-// findingOf is the Finding v, a verdict of r that found something, makes.
+// listed reports whether a record lists v: a finding, or a decline its oracle
+// records.
+func listed(v Verdict) bool { return v.Found() || v.Oracle.records(v.Declined) }
+
+// findingOf is the Finding v, a verdict of r a record lists, makes.
 func findingOf(r Result, v Verdict) Finding {
+	if !v.Asked() {
+		return Finding{Name: r.Spec, What: declinedWhat(v.Declined)}
+	}
 	what, _, _ := strings.Cut(v.Detail, "\n")
 	return Finding{Name: r.Spec, What: what}
 }
 
+// declinedWhat is the What of a decline for the reason d.
+func declinedWhat(d Decline) string { return "declined: " + string(d) }
+
 // Unexplained returns, of results, those records does not explain: a result a
 // fault ended (Result.Faulted), whole, and one with a finding its oracle's
 // record does not list at the core case the result projects to (Result.Like),
-// which holds the verdicts of such findings alone, the first its outcome.
+// which holds the verdicts of such findings alone, the first its outcome. A
+// decline the record lists as a finding and does not list here is held as a
+// finding of OutcomeDeclined, so whatever reads findings reads it.
 func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 	var out []Result
 	for _, r := range results {
@@ -139,9 +153,13 @@ func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 		}
 		var left []Verdict
 		for _, v := range r.Verdicts {
-			if v.Found() && !records[v.Oracle].Explains(findingOf(r, v), r.Like) {
-				left = append(left, v)
+			if !listed(v) || records[v.Oracle].Explains(findingOf(r, v), r.Like) {
+				continue
 			}
+			if !v.Asked() {
+				v = Verdict{Oracle: v.Oracle, Outcome: OutcomeDeclined, Detail: declinedWhat(v.Declined)}
+			}
+			left = append(left, v)
 		}
 		if len(left) > 0 {
 			out = append(out, Result{Spec: r.Spec, Like: r.Like, Outcome: left[0].Outcome, Detail: left[0].Detail, Verdicts: left})

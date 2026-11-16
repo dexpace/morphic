@@ -122,15 +122,17 @@ var callShapeBaseline = map[string]map[string]int{
 		// A format's Cases, which the harness asks for its axes, and for the
 		// document at a case both where it checks the case and where a shard
 		// compiles a neighbour, and the pick CheckCases is handed: designed
-		// seams.
+		// seams. The OpenAPI cases are two products, each answering every such
+		// call.
 		"cmd/morphic-harness":           1,
-		"internal/harness/openapicases": 3,
+		"internal/harness/openapicases": 6,
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
 		"compilers/openapi/internal/promotion": 1,
 		"engine/report":                        1,
 		"internal/census":                      1,
+		"internal/harness":                     1,
 		"ir/irfacts":                           4,
 		"ir/irverify":                          2,
 		"pass":                                 18,

@@ -1,0 +1,121 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package harness
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
+)
+
+// Where instanceSpec writes its defaults.
+const (
+	carriedA     = "p/openapi/components/schemas/C/properties/a"
+	carriedB     = "p/openapi/components/schemas/C/properties/b"
+	carriedParam = "param/openapi/paths/~1c/get/parameters/q/query"
+)
+
+// instanceSpec writes a property a defaulting to "x", a property b defaulting
+// to b, both of type string, and a query parameter q of type string
+// defaulting to "p".
+func instanceSpec(b string) []byte {
+	return fmt.Appendf(nil, `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"},
+  "paths": {"/c": {"get": {"parameters": [{"name": "q", "in": "query", "schema": {"type": "string", "default": "p"}}],
+    "responses": {"200": {"description": "ok"}}}}},
+  "components": {"schemas": {"C": {"type": "object", "properties": {
+    "a": {"type": "string", "default": "x"}, "b": {"type": "string", "default": %s}}}}}}`, b)
+}
+
+// instanceCase is a one-case product writing data with instances.
+func instanceCase(data []byte, instances ...Instance) fake {
+	return fake{axes: []Axis{coreAxis("case", "c")}, write: func([]int) (Document, bool) {
+		return Document{Sources: []compilers.Source{{Path: "openapi.json", Data: data}}, Instances: instances}, true
+	}}
+}
+
+// instanceVerdict is the instance oracle's verdict on c's one case.
+func instanceVerdict(t *testing.T, c fake) Verdict {
+	t.Helper()
+	res, ok := CheckCase(t.Context(), c, []int{0})
+	require.True(t, ok)
+	require.False(t, res.Faulted(), "%s: %s", res.Outcome, res.Detail)
+	return res.Verdicts[2]
+}
+
+// TestAdmitted_FindsTheInstancesTheirTypeExcludes asks a string property and
+// parameter: instances inside the type pass; an instance marked valid outside
+// it is found, named alone, the others' carriers drawing no finding; an
+// invalid instance is not asked.
+func TestAdmitted_FindsTheInstancesTheirTypeExcludes(t *testing.T) {
+	inside := []Instance{{Node: carriedA, Valid: true, Name: "a string"}, {Node: carriedParam, Valid: true, Name: "q"}}
+	v := instanceVerdict(t, instanceCase(instanceSpec(`"y"`), inside...))
+	assert.Equal(t, passed(OracleInstance), v)
+
+	outside := slices.Concat(inside, []Instance{{Node: carriedB, Valid: true, Name: "one\tnumber"}})
+	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), outside...))
+	assert.Equal(t, found(OracleInstance, `"one\tnumber"`+"\n"+
+		`"one\tnumber": default is a number, and t/prim/string holds a string`), v)
+
+	notAsked := slices.Concat(inside, []Instance{{Node: carriedB, Valid: false, Name: "one"}})
+	v = instanceVerdict(t, instanceCase(instanceSpec(`1`), notAsked...))
+	assert.Equal(t, passed(OracleInstance), v, "an invalid instance is not asked")
+}
+
+// TestAdmitted_DeclinesWhatItCannotAsk pins each decline: no valid instance,
+// an error diagnostic, and an instance its carrier does not hold as a value,
+// here the compile dropping b's default as a compiler keeping it verbatim
+// would.
+func TestAdmitted_DeclinesWhatItCannotAsk(t *testing.T) {
+	data := instanceSpec(`1`)
+	none := instanceCase(data, Instance{Node: carriedB, Valid: false, Name: "one"})
+	assert.Equal(t, declined(OracleInstance, DeclineNoInstance), instanceVerdict(t, none))
+
+	refused := instanceCase([]byte(`{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {},
+		"components": {"schemas": {"C": {"type": "object", "properties": {"a": {"$ref": "#/components/schemas/X",
+		"default": 1}}}}}}`), Instance{Node: carriedA, Valid: true, Name: "one"})
+	assert.Equal(t, declined(OracleInstance, DeclineErrorDiagnostic), instanceVerdict(t, refused))
+
+	orig := compileSources
+	t.Cleanup(func() { compileSources = orig })
+	compileSources = func(ctx context.Context, sources []compilers.Source, options map[string]string,
+		ps []pass.Pass,
+	) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := orig(ctx, sources, options, ps)
+		require.NoError(t, err)
+		m, ok := doc.Types["t/openapi/components/schemas/C"].(*ir.Model)
+		require.True(t, ok)
+		for i := range m.Properties {
+			m.Properties[i].Default = nil
+		}
+		return doc, diags, nil
+	}
+	kept := instanceCase(data, Instance{Node: carriedB, Valid: true, Name: "one"})
+	assert.Equal(t, declined(OracleInstance, DeclineNotJudged), instanceVerdict(t, kept))
+}
+
+// TestAdmitted_ACompileErrorEndsTheCase pins a Go error compiling a case as
+// the case's fault, not a verdict on the source.
+func TestAdmitted_ACompileErrorEndsTheCase(t *testing.T) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		return nil, nil, errors.New("the engine is misconfigured")
+	})
+	res, ok := CheckCase(t.Context(), instanceCase(nil, Instance{Node: carriedA, Valid: true, Name: "a"}), []int{0})
+	require.True(t, ok)
+	assert.True(t, res.Faulted())
+	assert.Equal(t, OutcomePanic, res.Outcome)
+	assert.Contains(t, res.Detail, "harness: compiling case [0]: the engine is misconfigured")
+}
+
+func TestCarriers_ANilDocumentHoldsNone(t *testing.T) {
+	assert.Empty(t, carriers(nil))
+}

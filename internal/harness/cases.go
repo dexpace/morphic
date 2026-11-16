@@ -337,6 +337,7 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // compares. A case oracle with no entry declines as having nothing to ask.
 var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
 	present,
+	admitted,
 }
 
 // shard is the run of cases sharing their first shardAxes values, and what
