@@ -180,6 +180,23 @@ func TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed(t *testing.T)
 	assert.False(t, spent, "past the step bound")
 }
 
+// TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects holds a
+// position the grammar reads as one kind and a reference lands on as another
+// to the reference's reading: a schema $ref onto a parameter reads its
+// `properties`, raw to the parameter, as a schema's, node by node.
+func TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects(t *testing.T) {
+	t.Parallel()
+	const base = namedHead + "components:\n  parameters:\n    P: {name: n, in: query, properties: {q: " + namedSpine +
+		"}}\n  schemas:\n    A: "
+	unread, c1 := namedTotal(t, base+"{type: string}\n")
+	landed, c2 := namedTotal(t, base+"{$ref: \"#/components/parameters/P\"}\n")
+	inPlace, c3 := namedTotal(t, namedHead+"components:\n  schemas:\n    P: {name: n, in: query, properties: {q: "+namedSpine+"}}\n")
+	empty, c4 := namedTotal(t, namedHead+"components:\n  schemas:\n    P: {name: n, in: query, properties: {}}\n")
+
+	assert.True(t, c1 && c2 && c3 && c4)
+	assert.Greater(t, landed-unread, inPlace-empty, "the spine is named as a schema's property, under the parameter's pointer")
+}
+
 // TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames holds a fragment
 // written with a percent escape to the node its decoding names, as the binder
 // reads it: the same total as the fragment written plain.

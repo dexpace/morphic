@@ -86,7 +86,8 @@ func landed(name string, within func(sites string) string, site func(ref, i stri
 // bringers lists the ways: an alias, a `<<` merge of one source, of a list and
 // of a source that merges, a key written twice in a mapping and in a merged
 // source, a list's entries, and a raw mount each kind of reference lands on,
-// a mapping value tagged null among them, which the binder reads by its text.
+// a mapping value tagged null among them, which the binder reads by its text,
+// and a raw value inside a mount a $ref lands on, a second $ref landing on it.
 var bringers = []bringer{
 	anchored("alias", "", func(a, i string) string { return "q" + i + ": *" + a }),
 	anchored("merge", "", func(a, i string) string { return "q" + i + ": {<<: *" + a + "}" }),
@@ -114,16 +115,50 @@ var bringers = []bringer{
 	landed("mapping tagged null", func(s string) string {
 		return "{type: object, discriminator: {propertyName: t, mapping: {" + s + "}}}"
 	}, func(ref, i string) string { return "m" + i + ": !!null " + ref }),
+	{name: "ref into a landing", bring: func(id string, n int, inner string) brought {
+		mount := func(i string) string { return "x-n" + id + "-" + i }
+		return brought{
+			defs:   "a" + id + ": &a" + id + " {x-in: " + inner + "}",
+			mounts: each(n, "", func(i string) string { return mount(i) + ": *a" + id + "\n" }),
+			schema: "{allOf: [" + each(n, ", ", func(i string) string {
+				// The mount is named on both sides, so it is read before in either order.
+				return "{$ref: '#/" + mount(i) + "'}, {$ref: '#/" + mount(i) + "/x-in'}, {$ref: '#/" + mount(i) + "'}"
+			}) + "]}",
+		}
+	}},
 }
 
 // coreBringers is how many of bringers, from the first, nest three deep.
 const coreBringers = 5
 
+// broughtObjects lists the raw objects a document mounts twice, a $ref of each
+// component map landing on each mount: what it is, the object around the
+// schema it holds at @, and the maps. The last is landed on as two kinds, the
+// one reading its schema and the other its content.
+var broughtObjects = []struct {
+	name, object string
+	components   []string
+}{
+	{"a parameter", "{name: n, in: query, schema: @}", []string{"parameters"}},
+	{"a header", "{schema: @}", []string{"headers"}},
+	{"a response", "{description: d, content: {a/b: {schema: @}}}", []string{"responses"}},
+	{"a path item", "{parameters: [{name: n, in: query, schema: @}]}", []string{"pathItems"}},
+	{"a callback", "{'{$url}': {parameters: [{name: n, in: query, schema: @}]}}", []string{"callbacks"}},
+	{"a media type and a request body", "{schema: @, content: {a/b: {schema: @}}}", []string{"mediaTypes", "requestBodies"}},
+}
+
 // broughtPositions names where a document holds the schema a chain of
 // bringers writes, in the order broughtDocument fills them: an ordinary schema
 // position, beneath an Encoding Object another nests, under an extension a
-// $ref lands on, and in a raw parameter mounted twice, a $ref landing on each.
-var broughtPositions = []string{"a schema", "a nested encoding", "an extension", "a parameter mounted twice"}
+// $ref lands on, and in each raw object mounted twice (broughtObjects).
+func broughtPositions() []string {
+	names := make([]string, 0, 3+len(broughtObjects))
+	names = append(names, "a schema", "a nested encoding", "an extension")
+	for _, o := range broughtObjects {
+		names = append(names, o.name+" mounted twice")
+	}
+	return names
+}
 
 // chainName names chain, the outermost bringer first.
 func chainName(chain []bringer) string {
@@ -168,16 +203,26 @@ func broughtDocument(chain []bringer, at int, wide bool) string {
 		b := by.bring(strconv.Itoa(depth), broughtCopies, schema)
 		defs, mounts, schema = append(defs, b.defs), append(mounts, b.mounts), b.schema
 	}
-	held := []string{"{type: string}", "{type: string}", "{type: string}", "{type: string}"}
+	held := slices.Repeat([]string{"{type: string}"}, len(broughtPositions()))
 	held[at] = schema
+	objects := make([]string, 0, len(broughtObjects))
+	var named []string
+	for i, o := range broughtObjects {
+		id := strconv.Itoa(i)
+		objects = append(objects, "x-o"+id+": &o"+id+" "+strings.ReplaceAll(o.object, "@", held[3+i])+
+			"\nx-o"+id+"-0: *o"+id+"\nx-o"+id+"-1: *o"+id+"\n")
+		for _, c := range o.components {
+			named = append(named, c+": {A: {$ref: '#/x-o"+id+"-0'}, B: {$ref: '#/x-o"+id+"-1'}}")
+		}
+	}
 	return "openapi: 3.2.0\ninfo: {title: t, version: '1'}\nx-defs: {" + strings.Join(defs, ", ") + "}\n" +
 		strings.Join(mounts, "") + "x-held: " + held[2] + "\n" +
-		"x-param: &param {name: n, in: query, schema: " + held[3] + "}\nx-p0: *param\nx-p1: *param\n" +
+		strings.Join(objects, "") +
 		"paths: {/p: {post: {requestBody: {content: {multipart/form-data: {schema: {type: object}, encoding: " +
 		"{f: {encoding: {g: {headers: {H: {schema: " + held[1] + "}}}}}}}}}, " +
 		"responses: {'200': {description: ok}}}}}\n" +
 		"components: {schemas: {T: {type: string}, S: " + held[0] + ", E: {$ref: '#/x-held'}}, " +
-		"parameters: {P0: {$ref: '#/x-p0'}, P1: {$ref: '#/x-p1'}}}\n"
+		strings.Join(named, ", ") + "}\n"
 }
 
 // broughtTotals returns what NamedPointerBytes totals for text, and what a
@@ -201,15 +246,16 @@ func broughtTotals(t *testing.T, text string) (weighed, entries, spelled int) {
 }
 
 // TestNamedPointerBytes_TotalsEachPositionATableReads holds the total to the
-// walk it bounds, over documents built from every way of bringing a schema to
-// several positions, nested up to three deep at each kind of position. A table
-// lists an entry wherever it reads a $ref, so a property more in the schema
-// brought shows each position the table reads a copy at, and the total grows
-// by no less than the property's four nodes spell at each of them. A total
-// that counts a copy the table reads less often than the table reads it fails.
+// walk it bounds, over documents built from the ways bringers lists of
+// bringing a schema to several positions, nested up to three deep at each
+// position broughtPositions names. A table lists an entry wherever it reads a
+// $ref, so a property more in the schema brought shows each position the
+// table reads a copy at, and the total grows by no less than the property's
+// four nodes spell at each of them. It sees no landing that holds no schema,
+// as a Security Scheme Object's, which a requirement's key lands on.
 func TestNamedPointerBytes_TotalsEachPositionATableReads(t *testing.T) {
 	for _, chain := range broughtChains() {
-		for at, position := range broughtPositions {
+		for at, position := range broughtPositions() {
 			name := chainName(chain) + " at " + position
 			weighed, entries, spelled := broughtTotals(t, broughtDocument(chain, at, false))
 			wideWeighed, wideEntries, wideSpelled := broughtTotals(t, broughtDocument(chain, at, true))

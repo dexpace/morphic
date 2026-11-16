@@ -383,6 +383,7 @@ node bound. An overlay document and a document a reference reads keep the first 
   `bind.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
   `bind.TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt`,
   `bind.TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt`,
+  `bind.TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects`,
   `bind.TestNamedPointerBytes_TotalsEachPositionATableReads`,
   `e2e.TestCompile_ARawValueARequirementKeyNamesIsNamedNodeByNode`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
