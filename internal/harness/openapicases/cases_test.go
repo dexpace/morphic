@@ -47,16 +47,73 @@ func TestGroups_EachCoreCaseCompilesWithNoError(t *testing.T) {
 	eachCoreCaseCompilesWithNoError(t, openapicases.Groups())
 }
 
-// eachCoreCaseCompilesWithNoError compiles each core case of c as the
-// harness's first three oracles hold a spec: verified, so a broken invariant
-// or a panic fails the run, and with no error diagnostic. Each case is a valid
-// document of its version, so a case the compiler refuses is the writer's
-// defect. An info or a warning stands: it is the compiler's account of a valid
-// construct, which the case oracles judge.
-func eachCoreCaseCompilesWithNoError(t *testing.T, c harness.Cases) {
+// TestNew_EachValueCompilesAtALaterVersion holds the schema cases to
+// eachValueCompilesAtALaterVersion.
+func TestNew_EachValueCompilesAtALaterVersion(t *testing.T) {
+	t.Parallel()
+	eachValueCompilesAtALaterVersion(t, openapicases.New())
+}
+
+// TestGroups_EachValueCompilesAtALaterVersion holds the test suite's groups to
+// eachValueCompilesAtALaterVersion.
+func TestGroups_EachValueCompilesAtALaterVersion(t *testing.T) {
+	t.Parallel()
+	eachValueCompilesAtALaterVersion(t, openapicases.Groups())
+}
+
+// eachValueCompilesAtALaterVersion compiles, at each version of c the core
+// leaves out, the first case writing each value of each other axis, as
+// eachCoreCaseCompilesWithNoError compiles the core. No other run fails on a
+// document such a version alone makes one the compiler refuses: the presence
+// oracle declines a case drawing an error, and the spelling oracle compares
+// two refusals as it compares two documents.
+func eachValueCompilesAtALaterVersion(t *testing.T, c harness.Cases) {
 	t.Helper()
 	axes := c.Axes()
-	for key, cases := range shards(t, c, harness.Core(c)) {
+	seen := map[[3]int]bool{}
+	first := map[[2]int][][]int{}
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
+		if axes[0].Values[at[0]].Like == "" {
+			continue
+		}
+		fresh := false
+		for k := 1; k < len(at); k++ {
+			fresh = fresh || !seen[[3]int{at[0], k, at[k]}]
+		}
+		if !fresh {
+			continue
+		}
+		if _, ok := c.Write(at); !ok {
+			continue
+		}
+		for k := 1; k < len(at); k++ {
+			seen[[3]int{at[0], k, at[k]}] = true
+		}
+		first[[2]int{at[0], at[1]}] = append(first[[2]int{at[0], at[1]}], at)
+	}
+	require.NotEmpty(t, first, "a version the core leaves out")
+	compilesWithNoError(t, c, first)
+}
+
+// eachCoreCaseCompilesWithNoError compiles each core case of c
+// (compilesWithNoError).
+func eachCoreCaseCompilesWithNoError(t *testing.T, c harness.Cases) {
+	t.Helper()
+	compilesWithNoError(t, c, shards(t, c, harness.Core(c)))
+}
+
+// compilesWithNoError compiles each case of byShard, cases of c by version
+// and target, as the harness's first three oracles hold a spec: verified, so a
+// broken invariant or a panic fails the run, and with no error diagnostic.
+// Each case is a valid document of its version, so a case the compiler refuses
+// is the writer's defect. An info or a warning stands: it is the compiler's
+// account of a valid construct, which the case oracles judge.
+func compilesWithNoError(t *testing.T, c harness.Cases, byShard map[[2]int][][]int) {
+	t.Helper()
+	axes := c.Axes()
+	for key, cases := range byShard {
 		name := axes[0].Values[key[0]].Name + "/" + axes[1].Values[key[1]].Name
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
