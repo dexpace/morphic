@@ -223,7 +223,7 @@ func TestFolded_ADocumentOfNoDecoratorIsItself(t *testing.T) {
 
 // TestFolded_WhatNamesNoDecoratorIsWrittenAsItStands pins the fold's reach: a
 // carrier naming no decorator is written as it stands beside one that does,
-// and a use of a decorator holding nothing writes an empty use.
+// and a use of a decorator holding nothing is a bare reference.
 func TestFolded_WhatNamesNoDecoratorIsWrittenAsItStands(t *testing.T) {
 	plain := carrying("property", false)
 	holder := func(text string) any {
@@ -240,5 +240,6 @@ func TestFolded_WhatNamesNoDecoratorIsWrittenAsItStands(t *testing.T) {
 	got := foldedText(t, plain)
 
 	assert.Empty(t, cmp.Diff(want, holder(got)), "the carrier is written as it stands")
-	assert.Contains(t, got, `"use": {`+"\n"+`          "docs": {}`+"\n"+`        }`, "a use of a bare decorator")
+	assert.NotContains(t, got, `"use"`, "a use of a decorator holding nothing is a bare reference")
+	assert.Contains(t, got, `"elem": {`+"\n"+`        "target": "t/x/Obj",`+"\n"+`        "nullable": false`+"\n"+`      }`)
 }

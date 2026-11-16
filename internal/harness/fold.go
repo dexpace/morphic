@@ -8,6 +8,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"maps"
+	"reflect"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -178,10 +179,15 @@ func mergeDocs(a, b ir.Docs) ir.Docs {
 	return a
 }
 
-// written is a as a reference's use member writes it.
-func (a annotations) written() useMember {
-	return useMember{Docs: a.docs, Deprecation: a.deprecation, Examples: a.examples, Availability: a.availability,
+// written is a as a reference's use member writes it, nil where a holds
+// nothing: a decorator setting no annotation is a bare reference.
+func (a annotations) written() *useMember {
+	u := useMember{Docs: a.docs, Deprecation: a.deprecation, Examples: a.examples, Availability: a.availability,
 		Unmodeled: a.unmodeledMember()}
+	if reflect.ValueOf(u).IsZero() {
+		return nil
+	}
+	return &u
 }
 
 // unmodeledMember is a's Unmodeled as written: an entry by name, as ir.Unmodeled
@@ -224,8 +230,8 @@ type (
 // foldedRef is a reference to a decorator: its own members, the target
 // replaced, and the chain's annotations beside them.
 type foldedRef struct {
-	Ref plainRef  `json:",embed"`
-	Use useMember `json:"use"`
+	Ref plainRef   `json:",embed"`
+	Use *useMember `json:"use,omitzero"`
 }
 
 // carried is a carrier whose type names a decorator: its own members, the
