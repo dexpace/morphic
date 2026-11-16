@@ -41,7 +41,8 @@ func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (read
 			return r.spelledAs(soFar), b.docs.absent(r.at.Doc, r.node), objectKey{}
 		}
 		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
-		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token)}
+		beneath := r.beneathUnheld || unheld[r.state][token]
+		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token), beneathUnheld: beneath}
 	}
 	return r.spelledAs(soFar), NoReason, objectKey{}
 }

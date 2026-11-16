@@ -44,7 +44,7 @@ func (d definitions) definition(site Position, path []*yaml.Node, pointer jsonte
 	r reading, reason Reason,
 ) (reading, Reason) {
 	switch {
-	case reason == NoReason && answers(r):
+	case reason == NoReason && answers(roleOf(r.state), r.node):
 		return r, NoReason
 	case reason == MergeBound:
 		return reading{}, MergeBound
@@ -90,7 +90,7 @@ func (d definitions) ancestorDefinition(site Position, path []*yaml.Node, pointe
 			continue
 		}
 		n, past := d.below(site.Doc, path[i], rest)
-		if r := (reading{node: n, state: stateOf(states[i], rest)}); n != nil && answers(r) {
+		if r := (reading{node: n, state: stateOf(states[i], rest)}); n != nil && answers(roleOf(r.state), n) {
 			r.at = Position{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
 			return r, NoReason
 		}
@@ -124,15 +124,15 @@ func (d definitions) holds(id DocID, n *yaml.Node, tokens []string) bool {
 	return schemaShaped(held)
 }
 
-// answers reports whether a definition read at r answers its pointer: a
+// answers reports whether n, a node a pointer reads, answers it at role: a
 // schema of the model, which the parser builds whatever the YAML there holds,
 // or raw YAML shaped as one.
-func answers(r reading) bool {
-	switch roleOf(r.state) {
+func answers(role Role, n *yaml.Node) bool {
+	switch role {
 	case Schema:
-		return r.node != nil
+		return n != nil
 	case Raw:
-		return schemaShaped(r.node)
+		return schemaShaped(n)
 	default:
 		return false
 	}

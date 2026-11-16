@@ -74,7 +74,7 @@ func TestFragmentName_DeclaresAnyNameDraft4Writes(t *testing.T) {
 // as that field, a schema, raw YAML or the pointer's end, whichever comes
 // first, and charged a step a token read, so a budget short of the tokens it
 // reads stops it unanswered. The document holds nothing: the grammar alone
-// answers.
+// answers. A read that crossed such a field is raw YAML with nothing read.
 func TestHeldRole_ReadsToTheFirstFieldNoModelHolds(t *testing.T) {
 	t.Parallel()
 	const encoding = "/paths/~1a/post/requestBody/content/m~1x/encoding/f"
@@ -109,5 +109,9 @@ func TestHeldRole_ReadsToTheFirstFieldNoModelHolds(t *testing.T) {
 	}
 	role, reason := heldRole(nil, reading{state: sRaw})
 	assert.Equal(t, Raw, role, "a reading at raw YAML reads nothing more")
+	assert.Equal(t, NoReason, reason)
+
+	role, reason = heldRole(nil, reading{state: sSchema, beneathUnheld: true})
+	assert.Equal(t, Raw, role, "a read that crossed such a field reads nothing more")
 	assert.Equal(t, NoReason, reason)
 }

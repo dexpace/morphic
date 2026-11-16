@@ -4,7 +4,9 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -130,6 +133,85 @@ components:
               headers:
                 X-H: {schema: {type: array, items: {type: object, properties: {h: {type: string}}}}}
 `
+
+// TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML pins a
+// pointer read through a component response whose $ref names a response kept
+// as raw YAML, under an extension or in a file beside the source, into a header
+// schema beneath an Encoding Object another nests: it resolves, and the schema
+// is built where the response is written, named by the header's key.
+func TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML(t *testing.T) {
+	t.Parallel()
+	const (
+		below    = "/R/content/multipart~1mixed/encoding/f/encoding/g/headers/H/schema/items"
+		response = "{description: ok, content: {multipart/mixed: {encoding: {f: {encoding: {g: {headers: " +
+			"{H: {schema: {type: array, items: {type: object, properties: {n: {type: string}}}}}}}}}}}}}"
+		spec = `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths:
+  /a: {get: {responses: {'200': {$ref: '#/components/responses/R'}}}}
+components:
+  responses: {R: {$ref: '%s'}}
+  schemas:
+    Into: {$ref: '#/components/responses/R/content/multipart~1mixed/encoding/f/encoding/g/headers/H/schema/items'}
+`
+	)
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{"responses.yaml": "R: " + response + "\n"})
+	beside, besideDiags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), fmt.Sprintf(spec, "./responses.yaml#/R"), false)
+	extension, extensionDiags := parseVerified(t, fmt.Sprintf(spec, "#/x-responses/R")+"x-responses: {R: "+response+"}\n")
+	for at, got := range map[ir.TypeID]struct {
+		doc   *ir.Document
+		diags []ir.Diagnostic
+	}{
+		ids.In("responses.yaml").AnonType(below):        {beside, besideDiags},
+		ids.Document{}.AnonType("/x-responses" + below): {extension, extensionDiags},
+	} {
+		require.NotNil(t, got.doc, at)
+		assertNoErrorDiags(t, got.diags)
+		def, ok := got.doc.Types[at]
+		require.True(t, ok, "a node at %s", at)
+		assert.Equal(t, compile.SubHint("H", "item"), def.Common().Name.Hint, at)
+	}
+}
+
+// TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding pins that the
+// YAML at a schema position beneath an Encoding Object another nests, which no
+// model holds, answers a reference only where it is shaped as a schema, as raw
+// YAML under an extension does: a string at both is refused at the reference,
+// and neither is built.
+func TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding(t *testing.T) {
+	t.Parallel()
+	const at = "/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X/schema"
+	doc, diags := parseVerified(t, `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {doc: {type: object, properties: {inner: {type: string}}}}}
+            encoding: {doc: {encoding: {inner: {headers: {X: {schema: "Part"}}}}}}
+      responses: {'200': {description: ok}}
+components:
+  schemas:
+    Nested: {$ref: '#`+at+`'}
+    Extension: {$ref: '#/x-defs/X/schema'}
+x-defs:
+  X: {schema: "Part"}
+`)
+	require.NotNil(t, doc)
+	refs := unresolvedRefs(diags)
+	got := make([]string, 0, len(refs))
+	for _, d := range refs {
+		assert.Contains(t, d.Message, "holds no schema", d.Provenance.Pointer)
+		got = append(got, string(d.Provenance.Pointer))
+	}
+	assert.ElementsMatch(t, []string{"/components/schemas/Nested", "/components/schemas/Extension"}, got)
+	for _, schema := range []string{at, "/x-defs/X/schema"} {
+		assert.NotContains(t, doc.Types, ids.Document{}.AnonType(jsontext.Pointer(schema)))
+	}
+}
 
 // TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding pins GitHub
 // #1990: a header, or a header's schema, that references nothing is reported
