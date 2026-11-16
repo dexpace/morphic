@@ -28,10 +28,9 @@ import (
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	voices := positionVoices(c, ts, s, pointer, target)
 	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
-	if m != nil {
+	if stated(s) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
 	}
 	diags = append(diags, recordVoicedResidue(c, ts, voices, pointer, home)...)
@@ -52,8 +51,7 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, tar
 // (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
 // cannot judge.
 func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	if home != annotation.HomeOwnNode || m == nil {
+	if home != annotation.HomeOwnNode || !stated(s) {
 		return ref, nil
 	}
 	if !unhomed && !declaresPositionScoped(c, s, pointer) {
@@ -83,7 +81,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 func declaresPositionScoped(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
 		hasAnyKey(s, collectionBoundKeywords) ||
-		declaresValidationOnly(s) || hasAnyKey(s, residueKeywords) ||
+		declaresValidationOnly(c, s) || hasAnyKey(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(statement.ParsedAt(heldAt(c, pointer))) ||
 		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
@@ -104,42 +102,53 @@ func declaresDialectKeyword(s *statement.Schema) bool {
 // redaction, XML hints, vendor extensions, or examples — the TypeCommon fields
 // attachDeclaredAnnotations fills.
 func declaresAnnotations(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if m.GetTitle() != "" || m.GetDescription() != "" || m.GetExternalDocs() != nil {
+	if n := s.Notes; n != nil {
+		if n.Title != "" || n.Description != "" || n.ExternalDocs != nil || n.XML != nil {
+			return true
+		}
+		if n.Example != nil || len(n.Examples) > 0 {
+			return true
+		}
+	}
+	if annotation.EffectiveDeprecated([]*statement.Schema{s}) || annotation.DeclaresRedaction(s) {
 		return true
 	}
-	if annotation.EffectiveDeprecated([]*statement.Schema{s}) || annotation.DeclaresRedaction(s) || m.GetXML() != nil {
-		return true
-	}
-	if ext := m.GetExtensions(); ext != nil && ext.Len() > 0 {
-		return true
-	}
-	return m.GetExample() != nil || len(m.GetExamples()) > 0
+	ext := statement.Parsed(s).GetExtensions()
+	return ext != nil && ext.Len() > 0
 }
 
 // declaresValidationOnly reports whether s writes a validation-only keyword
 // that annotation.Read keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties counts: only a Model, which owns its pointer and so
 // needs no node hoisted, holds it as its openness (closureTyped).
-func declaresValidationOnly(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if annotation.Written(m.GetNot()) || annotation.Written(m.GetContains()) ||
-		annotation.Written(m.GetPropertyNames()) {
+func declaresValidationOnly(c lowering.Ctx, s *statement.Schema) bool {
+	t := c.Statements()
+	if a := s.Array; a != nil {
+		if written(t, a.Contains) || written(t, a.UnevaluatedItems) || a.MinContains != nil || a.MaxContains != nil {
+			return true
+		}
+	}
+	if o := s.Object; o != nil && (written(t, o.PropertyNames) || written(t, o.UnevaluatedProperties)) {
 		return true
 	}
-	if annotation.Written(m.GetIf()) || annotation.Written(m.GetThen()) || annotation.Written(m.GetElse()) {
-		return true
+	if l := s.Logic; l != nil {
+		if written(t, l.Not) || written(t, l.If) || written(t, l.Then) || written(t, l.Else) || len(l.DependentSchemas) > 0 {
+			return true
+		}
 	}
-	if m.GetMinContains() != nil || m.GetMaxContains() != nil {
-		return true
-	}
-	if ds := m.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
-		return true
-	}
-	if hasKey(s, "dependentRequired") {
-		return true
-	}
-	return annotation.Written(m.GetUnevaluatedItems()) || annotation.Written(m.GetUnevaluatedProperties())
+	return hasKey(s, "dependentRequired")
+}
+
+// written reports whether sub is a schema written at its position, which a
+// value written as no schema is not (statement.Unwritten).
+func written(t *statement.Table, sub statement.Sub) bool {
+	return t.Sub(sub).Truth != statement.Unwritten
+}
+
+// stated reports whether s is a schema object, which a nil s, `true`, `false`
+// and a value written as no schema are not.
+func stated(s *statement.Schema) bool {
+	return s != nil && s.Truth == statement.Stated
 }
 
 // closureTyped reports whether td, the node s lowered to, holds s's
@@ -252,11 +261,10 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 // A pointer with no node wrote none (declaresPositionScoped hoists one for any
 // it wrote) or is mid-build, and its builder records them.
 func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
-	m := statement.Parsed(s)
 	// A $ref never lowers a carrier's own schema, which its declaration lowers as
 	// HomeCarrier, so a position reaches here as HomeOwnNode only where nothing
 	// carries it, and the record here is its only one (GitHub #750).
-	if home != annotation.HomeOwnNode || m == nil {
+	if home != annotation.HomeOwnNode || !stated(s) {
 		return nil
 	}
 	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
@@ -314,9 +322,8 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *statement.Schema, p
 // referencing carrier with a field for it, but for a default no ir.Value
 // holds, which no carrier takes (Use.Default, which reports it).
 func residueReach(s *statement.Schema, keyword string) string {
-	m := statement.Parsed(s)
 	if keyword == "default" {
-		if _, err := value.FromNode(m.GetDefault()); err != nil {
+		if _, err := value.FromNode(defaultOf(s)); err != nil {
 			return "applied to no carrier, as no IR value holds it"
 		}
 	}

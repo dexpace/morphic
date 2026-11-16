@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	"github.com/speakeasy-api/openapi/extensions"
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -27,7 +26,7 @@ import (
 // the keyword applying to it is true, and an occurrence false as one omitted,
 // so no schema of a chain withdraws another's.
 func EffectiveDeprecated(chain []*statement.Schema) bool {
-	return anyFlag(chain, func(s *oas3.Schema) *bool { return s.Deprecated })
+	return anyFlag(chain, func(n *statement.Notes) *bool { return n.Deprecated })
 }
 
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
@@ -44,8 +43,8 @@ func EffectiveDeprecated(chain []*statement.Schema) bool {
 // merge.mergeVisibility answers for the pair spread over two allOf branches
 // (GitHub #276).
 func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
-	readOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.ReadOnly })
-	writeOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.WriteOnly })
+	readOnly := anyFlag(chain, func(n *statement.Notes) *bool { return n.ReadOnly })
+	writeOnly := anyFlag(chain, func(n *statement.Notes) *bool { return n.WriteOnly })
 
 	switch {
 	case readOnly && writeOnly:
@@ -63,11 +62,11 @@ func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
 // extracts. It is the one reading of the boolean annotations JSON Schema
 // defines (deprecated, readOnly, writeOnly): each in force where any
 // occurrence is true, and false the same as absent.
-func anyFlag(chain []*statement.Schema, accessor func(*oas3.Schema) *bool) bool {
+func anyFlag(chain []*statement.Schema, accessor func(*statement.Notes) *bool) bool {
 	return slices.ContainsFunc(chain, func(s *statement.Schema) bool {
 		v := (*bool)(nil)
-		if m := statement.Parsed(s); m != nil {
-			v = accessor(m)
+		if n := notesIn(s); n != nil {
+			v = accessor(n)
 		}
 		return v != nil && *v
 	})
@@ -78,15 +77,18 @@ func anyFlag(chain []*statement.Schema, accessor func(*oas3.Schema) *bool) bool 
 // externalDocs, and a pointer read twice (a sub-schema lowered both in place
 // and through a $ref that hoists it) must not end up with two copies of it.
 func FillTypeDocs(d *ir.Docs, s *statement.Schema) {
-	m := statement.Parsed(s)
-	if t := m.GetTitle(); t != "" {
-		d.Summary = t
+	n := notesIn(s)
+	if n == nil {
+		return
 	}
-	if desc := m.GetDescription(); desc != "" {
-		d.Description = desc
+	if n.Title != "" {
+		d.Summary = n.Title
 	}
-	if ed := m.GetExternalDocs(); ed != nil {
-		d.ExternalDocs = []ir.Link{{URL: ed.GetURL(), Description: ed.GetDescription()}}
+	if n.Description != "" {
+		d.Description = n.Description
+	}
+	if ed := n.ExternalDocs; ed != nil {
+		d.ExternalDocs = []ir.Link{{URL: ed.URL, Description: ed.Description}}
 	}
 }
 
@@ -104,9 +106,7 @@ func FillTypeDocs(d *ir.Docs, s *statement.Schema) {
 // copy on its node.
 func FillCarrierDocs(d *ir.Docs, chain []*statement.Schema) {
 	for _, s := range slices.Backward(chain) {
-		if statement.Parsed(s) != nil {
-			FillTypeDocs(d, s)
-		}
+		FillTypeDocs(d, s)
 	}
 }
 
@@ -232,12 +232,12 @@ func (st Site) Chain() []*statement.Schema {
 //
 // At trusts its caller that js is the schema at the position being modeled.
 func At(js *statement.Statement) Site {
-	m := statement.ParsedAt(js)
 	s := Site{Kind: Declaration}
-	if SchemaOf(m) != nil {
-		s.Node = js.Schema
+	if js == nil || js.Truth != statement.Stated {
+		return s
 	}
-	if m != nil && !m.IsBool() && m.IsReference() {
+	s.Node = js.Schema
+	if statement.ParsedAt(js).IsReference() {
 		s.Kind = Reference
 	}
 	return s
@@ -281,8 +281,7 @@ const redactionFormat = "password"
 // safe reading. It is an annotation rather than a (type, format) pairing, so
 // the shape a position lowers to is read without it.
 func DeclaresRedaction(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return m.GetFormat() == redactionFormat
+	return s != nil && s.Format != nil && s.Format.Name == redactionFormat
 }
 
 // Read reads every site-local annotation at st: what its schema writes at
@@ -528,7 +527,6 @@ func dialectAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 // Site-only: an example written beside a $ref describes the position, never the
 // referent, which is the class of annotation the $ref-sibling defect broke.
 func schemaExamplesAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc) ([]ir.Example, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	add := func(node *yaml.Node, seg ...string) {
@@ -536,10 +534,14 @@ func schemaExamplesAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		out, exDiags = AppendExample(out, ir.Example{}, node, doc, pointer, seg...)
 		diags = append(diags, exDiags...)
 	}
-	if node := m.GetExample(); node != nil {
-		add(node, "example")
+	n := notesIn(s)
+	if n == nil {
+		return out, diags
 	}
-	for i, node := range m.GetExamples() {
+	if n.Example != nil {
+		add(n.Example, "example")
+	}
+	for i, node := range n.Examples {
 		add(node, "examples", strconv.Itoa(i))
 	}
 	return out, diags
@@ -574,6 +576,14 @@ func (k Kind) String() string {
 	default:
 		return fmt.Sprintf("Kind(%d)", int(k))
 	}
+}
+
+// notesIn returns what s says of itself, nil for none.
+func notesIn(s *statement.Schema) *statement.Notes {
+	if s == nil {
+		return nil
+	}
+	return s.Notes
 }
 
 // xmlIn returns the xml object s writes, nil for none.
