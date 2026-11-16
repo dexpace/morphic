@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -655,5 +657,43 @@ func assertDiffers(t *testing.T, which string, lines, prefixes []string) {
 	for _, p := range prefixes {
 		require.True(t, slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, p) }),
 			"the %s document alone answers %q...; it answers alone %q", which, p, lines)
+	}
+}
+
+// TestCompile_ANestedEncodingIsChargedAlikeAtEveryLimit compiles a document
+// writing references into, out of and beneath nested Encoding Objects at every
+// reference-expansion budget up to what it is charged, its components in either
+// order: each answer is the unbudgeted one or a refusal past the budget
+// (docs/compilers/openapi.md#source-budgets), alike in both orders.
+func TestCompile_ANestedEncodingIsChargedAlikeAtEveryLimit(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.2.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {post: {requestBody: " +
+		"{$ref: '#/components/requestBodies/B'}, responses: {'200': {$ref: '#/components/responses/R'}}}}\n" +
+		"components:\n"
+	enc := func(key string) string {
+		return "{contentType: multipart/mixed, " + key + ": {g: {headers: {H: {$ref: '#/components/headers/X'}, " +
+			"J: {schema: {type: object, properties: {p: {$ref: '#/components/schemas/T'}}}}}}}}"
+	}
+	blocks := []string{
+		"  schemas:\n    T: {type: string}\n    In: {$ref: '#/components/requestBodies/B/content/" +
+			"multipart~1form-data/encoding/f/encoding/g/headers/J/schema'}\n",
+		"  headers:\n    X: {description: x, schema: {type: integer}}\n    Y: {$ref: '#/components/headers/X'}\n",
+		"  responses:\n    R: {description: r, headers: {Y: {$ref: '#/components/headers/Y'}}, content: {multipart/mixed: " +
+			"{encoding: {f: " + enc("prefixEncoding") + "}}}}\n",
+		"  requestBodies:\n    B: {content: {multipart/form-data: {schema: {type: object, properties: {f: " + partSchema +
+			"}}, encoding: {f: " + enc("encoding") + "}}}}\n",
+	}
+	full, fullFound := assertOneReadingInEitherOrder(t, head, blocks, -1)
+	require.NotNil(t, full, "%v", fullFound)
+	for limit := 1; ; limit++ {
+		require.Less(t, limit, 1<<12, "no budget admits the document")
+		doc, found := assertOneReadingInEitherOrder(t, head, blocks, limit)
+		if doc == nil {
+			assert.Contains(t, found, "error openapi/budget-exceeded ", "refused at %d past the budget alone", limit)
+			continue
+		}
+		assert.Empty(t, cmp.Diff(full, doc, cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash")), "at %d", limit)
+		assert.Equal(t, fullFound, found, "at %d", limit)
+		return
 	}
 }
