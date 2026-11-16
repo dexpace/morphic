@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -204,40 +205,39 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 	}
 }
 
+// TestModel_PatternPropertiesOrder pins that patterns land in the order the
+// source writes them, written in their sorted order and against it, so
+// neither a sort nor a reversal of them passes.
 func TestModel_PatternPropertiesOrder(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    S:
+	cases := []struct {
+		name     string
+		patterns []string
+	}{
+		{name: "written in sorted order", patterns: []string{"^x-", "^y-"}},
+		{name: "written against it", patterns: []string{"^y-", "^x-"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.ComponentSpec(fmt.Sprintf(`    S:
       type: object
       patternProperties:
-        "^x-": {type: string}
-        "^y-": {type: integer}
-`)
-	doc, diags := schema.LowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	require.NotNil(t, m.AdditionalProps)
-	require.Len(t, m.AdditionalProps.Patterns, 2)
-	assert.Equal(t, "^x-", m.AdditionalProps.Patterns[0].Pattern)
-	assert.Equal(t, "^y-", m.AdditionalProps.Patterns[1].Pattern)
-}
-
-// TestModel_PatternPropertiesKeepSourceOrder pins that patterns land in the
-// order the source writes them, which is not their sorted order here.
-func TestModel_PatternPropertiesKeepSourceOrder(t *testing.T) {
-	t.Parallel()
-	spec := openapitest.ComponentSpec(`    S:
-      type: object
-      patternProperties:
-        "^y-": {type: integer}
-        "^x-": {type: string}
-`)
-	doc, diags := schema.LowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	m := doc.Types[componentID("S")].(*ir.Model)
-	require.NotNil(t, m.AdditionalProps)
-	require.Len(t, m.AdditionalProps.Patterns, 2)
-	assert.Equal(t, "^y-", m.AdditionalProps.Patterns[0].Pattern)
-	assert.Equal(t, "^x-", m.AdditionalProps.Patterns[1].Pattern)
+        %q: {type: string}
+        %q: {type: integer}
+`, tc.patterns[0], tc.patterns[1]))
+			doc, diags := schema.LowerSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := doc.Types[componentID("S")].(*ir.Model)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			require.NotNil(t, m.AdditionalProps)
+			var got []string
+			for _, p := range m.AdditionalProps.Patterns {
+				got = append(got, p.Pattern)
+			}
+			assert.Equal(t, tc.patterns, got)
+		})
+	}
 }
 
 // TestModel_UnevaluatedPropertiesClosedAfterComposition pins where
