@@ -106,8 +106,14 @@ func (t *Table) ReadingAt(p Position) Reading {
 // Below returns how the grammar reads the position token names directly
 // beneath r's. Unlike Kinds, it does not read a position as a reference landing
 // there reads it: beneath raw YAML, such as an extension's value, everything
-// is raw YAML.
-func (r Reading) Below(token string) Reading { return Reading{s: step(r.s, token)} }
+// is raw YAML, as it is beneath a field whose content no model holds (unheld),
+// which a copy keeps verbatim, schemas included.
+func (r Reading) Below(token string) Reading {
+	if unheld[r.s][token] {
+		return Reading{}
+	}
+	return Reading{s: step(r.s, token)}
+}
 
 // Schema reports whether r reads a Schema Object.
 func (r Reading) Schema() bool { return r.s == sSchema }

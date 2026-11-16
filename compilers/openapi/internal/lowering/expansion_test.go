@@ -124,6 +124,17 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 	}
 	assert.Greater(t, lowering.WeightOf(withSchema(big), raw, budget.Unbounded()), asOne,
 		"read as raw YAML, the same tree holds no schema")
+
+	headers := ynode.Map(ynode.Scalar("headers"), ynode.Map(ynode.Scalar("H"), withSchema(big)))
+	inContent := func(encoding *yaml.Node) *yaml.Node {
+		return ynode.Map(ynode.Scalar("content"), ynode.Map(ynode.Scalar("multipart/form-data"),
+			ynode.Map(ynode.Scalar("encoding"), ynode.Map(ynode.Scalar("f"), encoding))))
+	}
+	outer, nested := inContent(headers), inContent(ynode.Map(ynode.Scalar("encoding"), ynode.Map(ynode.Scalar("g"), headers)))
+	assert.Less(t, lowering.WeightOf(outer, param, budget.Unbounded()), lowering.WeightOf(outer, raw, budget.Unbounded()),
+		"a header's schema beneath an Encoding Object is one node")
+	assert.Equal(t, lowering.WeightOf(nested, raw, budget.Unbounded()), lowering.WeightOf(nested, param, budget.Unbounded()),
+		"beneath one another nests, which a copy keeps verbatim, it is weighed in full")
 }
 
 // TestWeightOf_CostsTheBudgetNotTheDeclaration pins the bound: weighing a

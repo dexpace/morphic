@@ -257,7 +257,9 @@ alias of its chain weigh one node, and a `$ref` merged in through `<<` is weighe
 declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
-schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
+schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, beneath an
+Encoding Object that another nests, which a copy keeps verbatim
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), and wherever the
 grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
 charged, the first to a declaration and one nested in another's among them, since each lowers a
 copy, a link's among them, since each response naming one lowers its own. A schema's `$ref` names
