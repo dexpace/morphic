@@ -181,6 +181,17 @@ var twinRows = []twinRow{
 	{name: "a $defs pointer", doc: func(p twinPlace) twinDoc {
 		return twinDoc{schemas: in(p), props: ", d: {$ref: '#/$defs/n'}", schema: ", $defs: {n: {type: integer}}"}
 	}},
+	{
+		name: "a $defs pointer beneath an $id", doc: func(p twinPlace) twinDoc {
+			return twinDoc{schemas: in(p), props: ", d: {$ref: '#/$defs/n'}",
+				schema: ", $id: 'https://x.test/h', $defs: {n: {type: integer}}"}
+		},
+		// "Identifiers are read only where a schema is placed" (references):
+		// the grammar places the schema, so its $id makes a resource the
+		// pointer is read in, where an extension's makes none and the $defs
+		// rule finds raw YAML above.
+		nestedOnly: definedInResource, twinOnly: definedInRaw,
+	},
 	{name: "an escaped pointer token", doc: func(p twinPlace) twinDoc {
 		esc := strings.Replace(p.header(), p.key, p.escaped(), 1)
 		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + esc + "/schema'}\n"}
@@ -290,6 +301,20 @@ func otherOpenAPI(p twinPlace, extra string) string {
 	return "openapi: 3.2.0\ninfo: {title: o, version: '1'}\npaths: {}\ncomponents:\n  requestBodies:\n" +
 		"    B: {content: {multipart/form-data: {encoding: {f: " + p.encoding("{schema: {type: object"+extra+"}}") +
 		"}}}}\n"
+}
+
+// definedInResource is d's "#/$defs/n" read in the resource the schema's $id
+// makes, landing on raw YAML.
+func definedInResource(p twinPlace) []string {
+	return []string{"entry spec.yaml#" + encodingAt + p.header() + "/schema/properties/d: hop resolved 0 raw",
+		"landing spec.yaml#" + encodingAt + p.header() + "/schema/$defs/n"}
+}
+
+// definedInRaw is d's "#/$defs/n" read by the $defs rule, which finds the
+// definition only in raw YAML.
+func definedInRaw(p twinPlace) []string {
+	return []string{"entry spec.yaml#" + encodingAt + p.header() + "/schema/properties/d: hop unresolved",
+		"diag error openapi/unresolved-ref 0" + encodingAt + p.header() + "/schema/properties/d:"}
 }
 
 // headerRefused is HRef refused as naming no header.
