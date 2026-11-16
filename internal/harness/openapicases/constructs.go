@@ -20,7 +20,10 @@ type construct struct {
 	// values returns the members each of the two values merges into t's body
 	// at v: the keyword, and what a value needs beside it.
 	values func(t target, v version) [2]object
-	// components are the component schemas the values name.
+	// components are the component schemas the values name. The case leaving
+	// the keyword out writes none of them, so it differs from the keyword's
+	// by them whatever the keyword does: such a keyword is held to its other
+	// value alone.
 	components object
 	// reason says why nothing carries the keyword; empty for one carried.
 	reason string

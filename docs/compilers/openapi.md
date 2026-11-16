@@ -4977,7 +4977,9 @@ the `$ref`, on an entry of the `allOf` after the `$ref`, and on such an entry ne
 deeper), three documents: the keyword absent, written with one value, written with a second.
 It requires the absent form to differ from the first and the first from the second, and an exception
 to equal the absent form, its justification written beside the keyword; where the target writes the
-keyword itself, there is no absent form, and the two values are compared alone. A keyword that stops
+keyword itself, there is no absent form, and the two values are compared alone. So are the values of
+`$ref` and `$dynamicRef` in effect: each names components the absent form does not write, and
+differs from it by them, so one dropped is found as a value discarded. A keyword that stops
 being carried at any one position or in any one spelling fails there rather than waiting for a
 reader to notice, and a finding that stands is listed with its reason in the package's
 `testdata/presence.txt`. The test asks this of the core cases, which the gate runs;
