@@ -869,9 +869,10 @@ it sees. Changes made together in one bump are listed together under it.
   A member an entry brings a declaration of is the model's own property, which the flattening takes:
   one it declares itself keeps that declaration's identity, and one only entries declare, or whose
   declaration another model holds too, takes one in the `composed` namespace; a name it carries as
-  `Required` leaves `Model.Requires`, a discriminator naming the model's own declaration names it,
-  and a report on an entry's declaration names it in `Provenance.Node`. The fold relates a type to
-  an untagged union holding no bounds of its own through its variants. A consumer
-  pinned to 0.68.0 refuses the document; one reading such a carrier finds the bound on its node, one
-  reading such a member took the declaration the flattening reached last, and one reading a tie
+  `Required` leaves `Model.Requires`, a discriminator naming the model's own declaration, or by its
+  name a member only entries declare, names it by `Property`, and a report on an entry's declaration
+  names it in `Provenance.Node`. The fold relates a type to an untagged union holding no bounds of
+  its own through its variants. A consumer pinned to 0.68.0 refuses the document; one reading such a
+  carrier finds the bound on its node, one reading such a member took the declaration the flattening
+  reached last, one reading such a discriminator found it by `PropertyName`, and one reading a tie
   between two inline declarations took the first's.
