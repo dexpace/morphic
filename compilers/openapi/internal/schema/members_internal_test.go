@@ -228,20 +228,20 @@ func twoDeepLeaves(depth int) string {
 func TestMembers_ACutTellingDeclarationsApartFallsAlikeInEveryRun(t *testing.T) {
 	t.Parallel()
 	_, _, all := settledUnder(t, twoDeepLeaves(100), budget.Unbounded())
-	members := func() []string {
+	declared := func() []string {
 		doc, _, _ := settledUnder(t, twoDeepLeaves(100), budget.AtMost(all-60))
 		m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
 		require.True(t, ok)
-		var wires []string
+		wires := make([]string, 0, len(m.Properties))
 		for _, p := range m.Properties {
 			wires = append(wires, p.WireName)
 		}
 		return wires
 	}
-	first := members()
+	first := declared()
 	require.Len(t, first, 1, "the cut walk leaves one name's candidates both in")
 	for range 30 {
-		assert.Equal(t, first, members())
+		assert.Equal(t, first, declared())
 	}
 }
 
