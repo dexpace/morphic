@@ -19,9 +19,10 @@ import (
 
 // TestScope_MappingTarget_WhereTheCompilerResolvedTheValue pins where the
 // lowering places what a discriminator mapping value names, read as a $ref
-// written at the discriminator is: a pointer or a component, a "#/$defs/..." value, which is the definition the nearest
-// ancestor holds, and a value into another document, the position it lands on
-// there. One a document part leaves reading from the root, one naming no
+// written at the discriminator is: a pointer or a component, a "#/$defs/..."
+// value, which is the definition the nearest ancestor holds, and a value into
+// another document, the position it lands on there. One a document part
+// leaves reading from the root, one naming no
 // definition and a bare name land on none, and neither does a missing
 // discriminator, one the bindings do not know or a scope without them.
 func TestScope_MappingTarget_WhereTheCompilerResolvedTheValue(t *testing.T) {
