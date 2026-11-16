@@ -632,6 +632,12 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       properties: {a: {type: array, items: {type: string}, description: d}}
       oneOf: [{required: [a], properties: {a: {type: array, items: {type: string}, description: d}}}]
 `, "openapi:oneOf"},
+		// The body's `items: false` admits no element, so a branch's items
+		// leaves nothing more to say of one.
+		"ElementsTheBodyForbids": {"3.1.0", `      type: object
+      properties: {a: {type: array, items: false}}
+      oneOf: [{required: [a], properties: {a: {items: {type: string}}}}]
+`, "openapi:oneOf"},
 		"RestatesTheNullableType": {"3.0.3", `      type: object
       properties: {a: {type: string, nullable: true, description: d}}
       oneOf: [{required: [a], properties: {a: {type: string, nullable: true}}}]
