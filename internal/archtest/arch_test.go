@@ -122,12 +122,13 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/fragment": {"github.com/speakeasy-api/openapi/references"},
 	// The one reading of the raw source: mappings read the way the parser reads
 	// them, through aliases and `<<` merge keys, and the one bounded walk of a
-	// tree. It reaches the library's yml package for the merge-key predicate the
-	// unmarshaller itself uses, and budget for what its memo may hold, and is
+	// tree. The merge-key predicate is its own, written out and held to the
+	// library's by the canary (docs/parser-library.md#merge-keys), so it reaches
+	// budget for what its memo may hold and the YAML library alone, and is
 	// below every package that reads raw YAML, which reads through it rather
 	// than by a reading of its own.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/budget",
-		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+		"go.yaml.in/yaml/v3"},
 	// Every $ref of the source, a schema's and a reference object's, resolved
 	// into a table over the decoded trees, never through the library's resolver
 	// (GitHub #558). It reads a tree through nodeview and a fragment through

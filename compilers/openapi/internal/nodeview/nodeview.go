@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
@@ -368,10 +367,13 @@ func keepCopy(pairs []Pair, written map[string]int, rule copyRule) []Pair {
 }
 
 // IsMergeKey reports whether raw, a mapping key node as written, is a `<<`
-// merge key, by the library's own predicate (yml.IsMergeKey). An alias
-// standing in for `<<` is an ordinary key. Every reader of the parser's
-// reading of a mapping asks this or KeyOf, never a test of its own.
-func IsMergeKey(raw *yaml.Node) bool { return yml.IsMergeKey(raw) }
+// merge key: a scalar `<<` the YAML reader tags `!!merge`, which a quoted `<<`
+// or an alias standing for one is not (docs/parser-library.md#merge-keys). Every
+// reader of the parser's reading of a mapping asks this or KeyOf, never a test
+// of its own.
+func IsMergeKey(raw *yaml.Node) bool {
+	return raw != nil && raw.Kind == yaml.ScalarNode && raw.Tag == "!!merge" && raw.Value == "<<"
+}
 
 // KeyOf returns the key the parser gives the mapping pair whose raw key node is
 // raw, and whether the pair is one of the mapping's own: a `<<` merge key
