@@ -367,8 +367,9 @@ func newDeclarationSet() declarationSet {
 	return declarationSet{properties: map[string]*place{}}
 }
 
-// add records s and its `items`. A nil s, a boolean schema's, declares
-// nothing, and the getters read it as empty.
+// add records s and its `items`. An s holding no schema object
+// (statement.Parsed), a boolean schema's, declares nothing, and the getters
+// read it as empty.
 func (d *declarationSet) add(s *statement.Schema) {
 	m := statement.Parsed(s)
 	d.schemas = append(d.schemas, m)
