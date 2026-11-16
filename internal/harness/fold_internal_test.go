@@ -263,6 +263,21 @@ func TestFolded_AnIDNamingADecoratorNamesWhatItStandsFor(t *testing.T) {
 	assert.NotContains(t, foldedText(t, doc), string(decID))
 }
 
+// TestWithoutTypes_LeavesTheDocumentAsItWas pins the removal: the decorators
+// leave the copy alone, and an ID the document holds no type at is a panic.
+func TestWithoutTypes_LeavesTheDocumentAsItWas(t *testing.T) {
+	doc := listOf(&ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}})
+
+	own, _ := folded(doc)
+
+	assert.NotContains(t, own.Types, decID)
+	assert.Contains(t, own.Types, holderID)
+	assert.Contains(t, doc.Types, decID, "the document folded keeps its decorator")
+	assert.PanicsWithValue(t,
+		`harness: leave the decorators out: internal: edit: remove rejected: no type "t/x/none" to remove; an edit adds no type`,
+		func() { withoutTypes(doc, []ir.TypeID{"t/x/none"}) })
+}
+
 func TestFolded_ADocumentOfNoDecoratorIsItself(t *testing.T) {
 	doc := listOf(nil)
 	own, more := folded(doc)

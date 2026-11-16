@@ -7,8 +7,10 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -23,14 +25,7 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 	if len(uses) == 0 {
 		return doc, nil
 	}
-	own := *doc
-	own.Types = make(ir.TypeRegistry, len(doc.Types)-len(uses))
-	for id, td := range doc.Types {
-		if _, ok := uses[id]; !ok {
-			own.Types[id] = td
-		}
-	}
-	return &own, json.JoinMarshalers(
+	return withoutTypes(doc, slices.Sorted(maps.Keys(uses))), json.JoinMarshalers(
 		json.MarshalToFunc(func(enc *jsontext.Encoder, id ir.TypeID) error {
 			u, ok := uses[id]
 			if !ok {
@@ -67,6 +62,22 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, false})
 		}),
 	)
+}
+
+// withoutTypes returns doc less the types at ids, removed through an
+// ir.Editor, which leaves doc as it was. What still names a removed type is
+// the fold's marshalers' to rewrite. An ID doc holds no type at, which the
+// editor refuses, is the harness's mistake, and a panic.
+func withoutTypes(doc *ir.Document, ids []ir.TypeID) *ir.Document {
+	e := ir.NewEditor(doc)
+	for _, id := range ids {
+		e.RemoveType(id)
+	}
+	own, refused := e.Finish()
+	if len(refused) > 0 {
+		panic(fmt.Sprintf("harness: leave the decorators out: %s", refused[0].Message))
+	}
+	return own
 }
 
 // use is what a decorator stands for: the first type along its Base chain that
