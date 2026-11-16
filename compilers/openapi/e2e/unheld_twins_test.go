@@ -181,6 +181,17 @@ var twinRows = []twinRow{
 	{name: "a $defs pointer", doc: func(p twinPlace) twinDoc {
 		return twinDoc{schemas: in(p), props: ", d: {$ref: '#/$defs/n'}", schema: ", $defs: {n: {type: integer}}"}
 	}},
+	{
+		name: "a $defs pointer beneath an $id", doc: func(p twinPlace) twinDoc {
+			return twinDoc{schemas: in(p), props: ", d: {$ref: '#/$defs/n'}",
+				schema: ", $id: 'https://x.test/h', $defs: {n: {type: integer}}"}
+		},
+		// "Identifiers are read only where a schema is placed" (references):
+		// the grammar places the schema, so its $id makes a resource the
+		// pointer is read in, where an extension's makes none and the $defs
+		// rule finds raw YAML above.
+		nestedOnly: definedInResource, twinOnly: definedInRaw,
+	},
 	{name: "an escaped pointer token", doc: func(p twinPlace) twinDoc {
 		esc := strings.Replace(p.header(), p.key, p.escaped(), 1)
 		return twinDoc{schemas: "    In: {$ref: '#" + encodingAt + esc + "/schema'}\n"}
@@ -254,6 +265,17 @@ var twinRows = []twinRow{
 		// reference's chain ends" (references); under an extension neither.
 		nestedOnly: readThroughHeader, twinOnly: unreadHeader,
 	},
+	{
+		name: "a header Reference Object to the schema", doc: func(p twinPlace) twinDoc {
+			return twinDoc{headers: "    HRef: {$ref: '#" + encodingAt + p.header() + "/schema'}\n",
+				header: "{schema: {description: d, schema: {type: integer}}}"}
+		},
+		// A reference object "lands on an object of its own kind: a position
+		// the source's grammar reads as another kind, a schema, ... holds
+		// none, and raw YAML, as an extension's value ..., is read as the kind
+		// it is reached as" (references): the grammar places the schema.
+		nestedOnly: headerRefused, twinOnly: headerFromSchema,
+	},
 	{name: "a $ref in from a second document", doc: func(p twinPlace) twinDoc {
 		return twinDoc{other: otherOpenAPI(p, ""),
 			schemas: "    In: {$ref: 'other.yaml#" + encodingAt + p.header() + "/schema'}\n"}
@@ -279,6 +301,34 @@ func otherOpenAPI(p twinPlace, extra string) string {
 	return "openapi: 3.2.0\ninfo: {title: o, version: '1'}\npaths: {}\ncomponents:\n  requestBodies:\n" +
 		"    B: {content: {multipart/form-data: {encoding: {f: " + p.encoding("{schema: {type: object"+extra+"}}") +
 		"}}}}\n"
+}
+
+// definedInResource is d's "#/$defs/n" read in the resource the schema's $id
+// makes, landing on raw YAML.
+func definedInResource(p twinPlace) []string {
+	return []string{"entry spec.yaml#" + encodingAt + p.header() + "/schema/properties/d: hop resolved 0 raw",
+		"landing spec.yaml#" + encodingAt + p.header() + "/schema/$defs/n"}
+}
+
+// definedInRaw is d's "#/$defs/n" read by the $defs rule, which finds the
+// definition only in raw YAML.
+func definedInRaw(p twinPlace) []string {
+	return []string{"entry spec.yaml#" + encodingAt + p.header() + "/schema/properties/d: hop unresolved",
+		"diag error openapi/unresolved-ref 0" + encodingAt + p.header() + "/schema/properties/d:"}
+}
+
+// headerRefused is HRef refused as naming no header.
+func headerRefused(twinPlace) []string {
+	return []string{"reference spec.yaml#/components/headers/HRef header: hop unresolved",
+		"diag error openapi/unresolved-ref 0/components/headers/HRef:"}
+}
+
+// headerFromSchema is HRef landing on the raw YAML at the header's schema,
+// read as a header, whose own schema the weight reads as a schema.
+func headerFromSchema(p twinPlace) []string {
+	return []string{"reference spec.yaml#/components/headers/HRef header: hop resolved 0 raw",
+		"object-landing spec.yaml#" + encodingAt + p.header() + "/schema header",
+		"weighed once spec.yaml#" + encodingAt + p.header() + "/schema/schema"}
 }
 
 // refusedAt is a $ref from In refused as naming no schema.
@@ -332,12 +382,10 @@ func rawHeaderAt(p twinPlace) []string {
 }
 
 // readThroughHeader is the header Reference Object beneath the field, bound,
-// with X, which it names, weighed from it as a copy is, and In's pointer read
-// through it into X's schema.
+// and In's pointer read through it into X's schema.
 func readThroughHeader(p twinPlace) []string {
 	return []string{"reference spec.yaml#" + encodingAt + p.header() + " header",
-		"entry spec.yaml#/components/schemas/In: hop resolved 0 schema spec.yaml#/components/headers/X/schema",
-		"weighed once spec.yaml#/components/headers/X/schema"}
+		"entry spec.yaml#/components/schemas/In: hop resolved 0 schema spec.yaml#/components/headers/X/schema"}
 }
 
 // unreadHeader is In's pointer naming a key the raw mapping does not write.
@@ -363,7 +411,7 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	root := openapitest.YAMLDocument(t, src)
 	table := bind.Bind(t.Context(), root, cfg)
 	lines := bindAnswers(table)
-	lines = append(lines, weightAnswers(table)...)
+	lines = append(lines, weightAnswers(table, encodingAt+p.field())...)
 	// An incomplete total is never read, so its count says nothing.
 	if named, complete := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
 		lines = append(lines, fmt.Sprintf("named pointer bytes %d", named))
@@ -415,13 +463,15 @@ func bindAnswers(table *bind.Table) []string {
 // weightAnswers is how the reference-expansion weight reads each declaration a
 // reference object's chain ends on, and the request body B: from how the
 // grammar reads the reference, a line for each position below read as a
-// schema, which a copy weighs as one node.
-func weightAnswers(table *bind.Table) []string {
+// schema, which a copy weighs as one node. A reference written beneath
+// verbatim, the field, is weighed from nowhere: the lowering keeps the field
+// as written and copies nothing it names.
+func weightAnswers(table *bind.Table, verbatim string) []string {
 	type start struct{ use, decl bind.Position }
 	b := bind.Position{Pointer: "/components/requestBodies/B"}
 	starts := []start{{use: b, decl: b}}
 	for _, r := range table.References() {
-		if r.Chain.Status == bind.Resolved {
+		if r.Chain.Status == bind.Resolved && !strings.HasPrefix(string(r.Site.Pointer), verbatim+"/") {
 			starts = append(starts, start{use: r.Site, decl: r.Chain.End})
 		}
 	}
@@ -502,10 +552,10 @@ func nodeAt(root *yaml.Node, pointer string) (*yaml.Node, bool) {
 // field an Encoding Object nests (unheldFields), one level beneath it and two,
 // to the answers the same schema gets with the field moved under an extension
 // key of its length: each schema $ref's hop and chain, role included, each
-// landing, each `#/$defs` answer, how the expansion weight and the pointer
-// bound weigh what a compile copies or names, and every finding of the
-// compile. They differ only by the field's own finding (rawField) and where a
-// row says, each by the rule sentence its comment quotes.
+// landing, each `#/$defs` answer, how the expansion weight weighs what a
+// compile copies, and every finding of the compile. They differ only by the
+// field's own finding (rawField), the pointer bound's total (namedTotal), and
+// where a row says, each by the rule sentence its comment quotes.
 func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 	t.Parallel()
 	for _, f := range unheldFields {
@@ -514,8 +564,17 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 				t.Run(fmt.Sprintf("%s/deep=%t/%s", f.key, deep, row.name), func(t *testing.T) {
 					t.Parallel()
 					nested, twin := twinPlace{f: f, key: f.key, deep: deep}, twinPlace{f: f, key: f.twin, deep: deep}
-					got := twinAnswers(t, nested, row.doc(nested), f.key)
-					want := twinAnswers(t, twin, row.doc(twin), f.key)
+					got, gotNamed, gotTaken := namedTotal(twinAnswers(t, nested, row.doc(nested), f.key))
+					want, wantNamed, wantTaken := namedTotal(twinAnswers(t, twin, row.doc(twin), f.key))
+					require.Equal(t, wantTaken, gotTaken, "the pointer bound takes a total of both or neither")
+					// The binder reads each node beneath the field for the references
+					// written there, where an extension's value adds its root alone
+					// (source-budgets). The weighing expands no merge key, so a field
+					// an Encoding Object merges in through `<<` adds its root alone in
+					// both.
+					merged := row.doc(nested).encoding != ""
+					assert.Equal(t, gotTaken && !merged, gotNamed > wantNamed,
+						"the nested document names more: %d against %d", gotNamed, wantNamed)
 					onlyNested, onlyTwin := row.nestedOnly, row.twinOnly
 					if onlyNested == nil {
 						onlyNested, onlyTwin = none, none
@@ -526,6 +585,18 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 			}
 		}
 	}
+}
+
+// namedTotal is lines without the pointer bound's total, the total, and
+// whether lines held one.
+func namedTotal(lines []string) ([]string, int, bool) {
+	for i, l := range lines {
+		if n, ok := strings.CutPrefix(l, "named pointer bytes "); ok {
+			total, err := strconv.Atoi(n)
+			return slices.Delete(slices.Clone(lines), i, i+1), total, err == nil
+		}
+	}
+	return lines, 0, false
 }
 
 // minus is each line of a that b lacks.

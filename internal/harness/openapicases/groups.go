@@ -83,8 +83,7 @@ func (c groupCases) Axes() []harness.Axis {
 // Write returns the case at: the group's schema as a source of its own, each
 // schema the group serves held at its URI, and a carrier at the position for
 // each valid instance, its use of the schema defaulting to the instance. It
-// returns false for indices outside the product and for any spelling but
-// inline, as Write of the schema cases does. A group the writer cannot
+// returns false for indices outside the product. A group the writer cannot
 // encode, and a suite that did not read, panic, which CheckCase reports as the
 // case's outcome.
 func (c groupCases) Write(at []int) (harness.Document, bool) {

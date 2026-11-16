@@ -815,8 +815,8 @@ components:
 - Code:
   - `bind/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends` of
     them one below another, once `Build` has built the landings.
-  - `statement/model.go` reads one left past that bound as `statement.Unread`, which the lowering
-    reports and lowers as the top type.
+  - `statement.Truth` holds one left past that bound as `Unread`, which the lowering reports and
+    lowers as the top type.
 
 ### `null-type-is-empty`
 
