@@ -254,6 +254,17 @@ var twinRows = []twinRow{
 		// reference's chain ends" (references); under an extension neither.
 		nestedOnly: readThroughHeader, twinOnly: unreadHeader,
 	},
+	{
+		name: "a header Reference Object to the schema", doc: func(p twinPlace) twinDoc {
+			return twinDoc{headers: "    HRef: {$ref: '#" + encodingAt + p.header() + "/schema'}\n",
+				header: "{schema: {description: d, schema: {type: integer}}}"}
+		},
+		// A reference object "lands on an object of its own kind: a position
+		// the source's grammar reads as another kind, a schema, ... holds
+		// none, and raw YAML, as an extension's value ..., is read as the kind
+		// it is reached as" (references): the grammar places the schema.
+		nestedOnly: headerRefused, twinOnly: headerFromSchema,
+	},
 	{name: "a $ref in from a second document", doc: func(p twinPlace) twinDoc {
 		return twinDoc{other: otherOpenAPI(p, ""),
 			schemas: "    In: {$ref: 'other.yaml#" + encodingAt + p.header() + "/schema'}\n"}
@@ -279,6 +290,20 @@ func otherOpenAPI(p twinPlace, extra string) string {
 	return "openapi: 3.2.0\ninfo: {title: o, version: '1'}\npaths: {}\ncomponents:\n  requestBodies:\n" +
 		"    B: {content: {multipart/form-data: {encoding: {f: " + p.encoding("{schema: {type: object"+extra+"}}") +
 		"}}}}\n"
+}
+
+// headerRefused is HRef refused as naming no header.
+func headerRefused(twinPlace) []string {
+	return []string{"reference spec.yaml#/components/headers/HRef header: hop unresolved",
+		"diag error openapi/unresolved-ref 0/components/headers/HRef:"}
+}
+
+// headerFromSchema is HRef landing on the raw YAML at the header's schema,
+// read as a header, whose own schema the weight reads as a schema.
+func headerFromSchema(p twinPlace) []string {
+	return []string{"reference spec.yaml#/components/headers/HRef header: hop resolved 0 raw",
+		"object-landing spec.yaml#" + encodingAt + p.header() + "/schema header",
+		"weighed once spec.yaml#" + encodingAt + p.header() + "/schema/schema"}
 }
 
 // refusedAt is a $ref from In refused as naming no schema.
