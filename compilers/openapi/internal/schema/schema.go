@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -19,7 +18,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -111,12 +109,11 @@ func CarriedRef(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Stat
 // schemaRefHomed is the shared body of the two entry points above; home only
 // reaches the two places that can hoist an annotation-holding alias.
 func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	m := statement.ParsedAt(js)
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
 	// struct, back when one held the whole compile.
-	if !annotation.Written(m) {
+	if js == nil || js.Truth == statement.Unwritten {
 		// None, or a null, which states nothing: an entry written so — a
 		// property, a branch, a component, items — lowers as the empty schema.
 		// A keyword whose absence differs from the empty schema reads a null as
@@ -130,36 +127,29 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
-	if m.IsBool() {
-		if unmended(js) {
-			return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
-				"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
-					"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
-					"moving the schemas below it into a component reads them",
-				typed.MaxMends)}
-		}
-		if b := m.GetBool(); b != nil && !*b {
-			id, diags := falseSchema(c, ts, pointer)
-			return ir.TypeRef{Target: id}, diags
-		}
+	switch js.Truth {
+	case statement.Unread:
+		// A mapping the parser read as false: the load phase decodes it again
+		// unless it lies past typed.MaxMends
+		// (docs/parser-library.md#failure-beneath-itself), so it says nothing of
+		// the values there.
+		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+			"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
+				"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
+				"moving the schemas below it into a component reads them",
+			typed.MaxMends)}
+	case statement.Nothing:
+		id, diags := falseSchema(c, ts, pointer)
+		return ir.TypeRef{Target: id}, diags
+	case statement.Anything:
 		return ts.PrimRef(ir.PrimAny), nil
+	default:
+		// Stated: a schema object, which a reference site writes too.
 	}
-	// Past the IsBool check, the either's left schema is always set (an empty
-	// either reads as a bool), so GetSchema never returns nil here.
-	if c.Bindings().RefSite(m) {
+	if js.Ref != nil {
 		return refSiteRef(c, ts, js, js.Schema, pointer, home)
 	}
 	return schemaBody(c, ts, depth, js.Schema, pointer, home)
-}
-
-// unmended reports whether js is a boolean the parser read from a mapping the
-// document writes, which the load phase decodes again unless it lies past
-// typed.MaxMends (docs/parser-library.md#failure-beneath-itself), and which
-// says nothing of the values there.
-func unmended(js *statement.Statement) bool {
-	m := statement.ParsedAt(js)
-	n := nodeview.Deref(m.GetCore().GetRootNode())
-	return n != nil && n.Kind == yaml.MappingNode
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
