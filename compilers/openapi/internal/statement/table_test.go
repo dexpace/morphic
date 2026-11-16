@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
@@ -216,21 +220,32 @@ func TestTable_ReadsEachObjectOnce(t *testing.T) {
 // TestTable_AtFindsWhatOfReads pins that a statement is the parser's value's,
 // not its node's: an alias placing one node at two positions is decoded once
 // for each (docs/parser-library.md#alias-expansion), so each position has a
-// statement at it, its entries relative to it.
+// statement at it, its keys in the rows of where it is and its entries
+// relative to it.
 func TestTable_AtFindsWhatOfReads(t *testing.T) {
 	t.Parallel()
-	table, c := tableOver(t, document("3.1.0",
-		"A: &shared {allOf: [{type: object}]}",
+	c := loweringtest.Context(t, document("3.1.0",
+		"A: &shared {allOf: [{type: object}], additionalItems: false}",
 		"B: *shared",
-	), rulesAt(t, "3.1.0", ""))
+	), lowering.Policy{})
+	draft07, own := rulesAt(t, "3.1.0", "http://json-schema.org/draft-07/schema#"), rulesAt(t, "3.1.0", "")
+	table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rowsBy(func(p bind.Position) oas.SchemaRules {
+		if p == component(c, "A") {
+			return draft07
+		}
+		return own
+	})})
 	a, b := table.At(component(c, "A")), table.At(component(c, "B"))
 	assert.NotSame(t, a, b)
 	assert.Same(t, a.Node, b.Node, "one node")
 	for _, tc := range []struct {
 		name string
 		st   *statement.Statement
-	}{{"A", a}, {"B", b}} {
+		slot oas.Slot
+	}{{"A", a, oas.SlotArray}, {"B", b, oas.SlotUnknown}} {
 		assert.Equal(t, component(c, tc.name), tc.st.At, tc.name)
+		k, _ := tc.st.Key("additionalItems")
+		assert.Equal(t, tc.slot, k.Slot, "%s: read in the rows of where it is", tc.name)
 		require.Len(t, tc.st.Entries, 1, tc.name)
 		assert.Equal(t, jsontext.Pointer("/allOf/0"), tc.st.Entries[0].Rel, tc.name)
 		at := component(c, tc.name)

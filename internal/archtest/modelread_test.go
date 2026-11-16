@@ -226,9 +226,11 @@ func pointee(t types.Type) types.Type {
 // modelSelections returns where p selects a member of one of m's types
 // (reaches), by member, whatever type declares the member, so one promoted
 // from an embedded model counts: a field, a method value or call, and a method
-// expression. A call through an interface or a type parameter, and a library
-// function handed a schema, select no member of m's types and are not counted.
-// It leaves out those in the file adapter names and returns how many there were.
+// expression. A call through an interface or a type parameter and a library
+// function handed a schema select no member of m's types, and holds does not
+// recognize a type defined over one, such as `type s oas3.Schema`: none of
+// these is counted. It leaves out those in the file adapter names and returns
+// how many there were.
 func modelSelections(p *decls.Package, m schemaModel, adapter string) (outside map[string][]token.Position, inAdapter int) {
 	outside = map[string][]token.Position{}
 	for expr, sel := range p.Info.Selections {

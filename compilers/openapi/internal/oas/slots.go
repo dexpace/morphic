@@ -49,8 +49,8 @@ func (r SchemaRules) Slot(name string) (slot Slot, later bool) {
 
 // SlotOf returns the slot of the keyword name in whichever dialect defines it,
 // SlotUnknown for a name none does. A draft's spelling shares its twin's slot
-// (`id` with `$id`, `definitions` with `$defs`), so the rows in force alone
-// decide whether a key is read, which SchemaRules.Slot answers.
+// (`id` with `$id`, `definitions` with `$defs`), so whether the dialect in
+// force defines a key is the rows' to say, which SchemaRules.Slot answers.
 func SlotOf(name string) Slot {
 	switch name {
 	case "$ref", "$dynamicRef", "$recursiveRef":

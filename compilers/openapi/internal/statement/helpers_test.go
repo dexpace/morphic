@@ -24,6 +24,12 @@ type rows struct{ rules oas.SchemaRules }
 // At returns r's rows, wherever p is.
 func (r rows) At(bind.Position) oas.SchemaRules { return r.rules }
 
+// rowsBy reads each position with the rows it returns for it.
+type rowsBy func(bind.Position) oas.SchemaRules
+
+// At returns the rows r gives p.
+func (r rowsBy) At(p bind.Position) oas.SchemaRules { return r(p) }
+
 // rulesAt returns the Schema Object's rows at version in dialect.
 func rulesAt(t *testing.T, version, dialect string) oas.SchemaRules {
 	t.Helper()

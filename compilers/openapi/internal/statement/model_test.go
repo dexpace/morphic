@@ -136,7 +136,6 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	assert.Equal(t, []int64{1, 2, 3, 4}, int64s(array.MinContains, array.MaxContains, array.MinItems, array.MaxItems))
 	assert.Equal(t, []string{"true"}, bools(array.UniqueItems))
 	assert.Equal(t, statement.Nothing, table.Sub(array.UnevaluatedItems).Truth)
-	assert.Nil(t, array.AdditionalItems, "3.1 defines no additionalItems")
 
 	object := at("Object").Object
 	require.Len(t, object.Properties, 1)
@@ -217,9 +216,9 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 // TestRead_AKeyTheDialectDoesNotDefineIsUnknown pins that a key's slot is the
 // rows', not its name's: a keyword they do not define is unknown, as an
 // extension is, and one they define later is read in its slot. The value of
-// each is read into its keyword's slot as the parser read it all the same,
-// since a policy reads a 3.0 `nullable` in a 3.1 schema
-// (docs/compilers/openapi.md#nullable), and an extension fills none.
+// each is read into its keyword's slot all the same, since a policy reads a
+// 3.0 `nullable` in a 3.1 schema (docs/compilers/openapi.md#nullable), and an
+// extension fills none.
 func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -235,7 +234,8 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 			return st.Array != nil && text(st.Array.AdditionalItems) == "false"
 		}},
 		{"3.1.0", "x-a", "1", oas.SlotUnknown, false, func(st *statement.Statement) bool {
-			return st.Kinds == nil && st.Array == nil && st.Notes == nil && st.Object == nil
+			return st.Kinds == nil && st.Values == nil && st.Format == nil && st.Number == nil && st.Text == nil &&
+				st.Array == nil && st.Object == nil && st.Choice == nil && st.Logic == nil && st.Notes == nil
 		}},
 		{"3.0.3", "prefixItems", "[{}]", oas.SlotArray, true, func(st *statement.Statement) bool {
 			return st.Array != nil && len(st.Array.PrefixItems) == 1
@@ -247,7 +247,7 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 		require.True(t, read, tc.key)
 		assert.Equal(t, tc.slot, k.Slot, tc.key)
 		assert.Equal(t, tc.later, k.Later, tc.key)
-		assert.True(t, tc.read(st), "%s is read as the parser reads it", tc.key)
+		assert.True(t, tc.read(st), "%s: what the slots hold", tc.key)
 	}
 }
 
