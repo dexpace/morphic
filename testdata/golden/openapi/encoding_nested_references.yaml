@@ -2,8 +2,9 @@
 # another's encoding, prefixEncoding and itemEncoding, and references into
 # them. Each nested field holds a header that references a component header,
 # and headers whose schemas reference a component schema and a schema kept
-# under an extension. A component schema and a response header reference
-# positions beneath a nested Encoding Object.
+# under an extension. Component schemas reference positions beneath a nested
+# Encoding Object: a header a response header references too, and a header
+# only that schema's reference reaches.
 openapi: 3.2.0
 info: {title: Nested encoding references, version: "1"}
 paths:
@@ -15,6 +16,7 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required: [doc, parts]
               properties:
                 doc: {type: object, properties: {inner: {type: string}}}
                 parts: {type: array, items: {type: string}}
@@ -36,6 +38,8 @@ paths:
                       X-Shared: {$ref: '#/components/headers/Shared'}
                       X-Component: {schema: {$ref: '#/components/schemas/Part'}}
                       X-Kept: {schema: {$ref: '#/x-defs/Kept'}}
+                      X-Only:
+                        schema: {type: array, items: {type: object, properties: {o: {type: string}}}}
                 itemEncoding:
                   headers:
                     X-Shared: {$ref: '#/components/headers/Shared'}
@@ -54,5 +58,7 @@ components:
     Part: {type: string}
     Into:
       $ref: '#/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items'
+    Only:
+      $ref: '#/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding/0/headers/X-Only/schema/items'
 x-defs:
   Kept: {type: object, properties: {k: {type: string}}}

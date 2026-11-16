@@ -4,9 +4,14 @@
 package bind
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 )
 
 // TestIsAnchorName pins the names a $anchor can declare, by JSON Schema
@@ -62,4 +67,47 @@ func TestFragmentName_DeclaresAnyNameDraft4Writes(t *testing.T) {
 	}
 	_, ok := fragmentName(draft4, "#a", false)
 	assert.False(t, ok, "an identifier not written declares nothing")
+}
+
+// TestHeldRole_ReadsToTheFirstFieldNoModelHolds pins heldRole for a schema:
+// raw YAML beneath an Encoding Object another nests, read from the root as far
+// as that field, a schema, raw YAML or the pointer's end, whichever comes
+// first, and charged a step a token read, so a budget short of the tokens it
+// reads stops it unanswered. The document holds nothing: the grammar alone
+// answers.
+func TestHeldRole_ReadsToTheFirstFieldNoModelHolds(t *testing.T) {
+	t.Parallel()
+	const encoding = "/paths/~1a/post/requestBody/content/m~1x/encoding/f"
+	tests := []struct {
+		pointer  string
+		role     Role
+		readsFor int
+	}{
+		{encoding + "/encoding/g/headers/H/schema/items", Raw, 9},
+		{encoding + "/prefixEncoding/0/headers/H/schema", Raw, 9},
+		{encoding + "/itemEncoding/encoding/g/headers/H/schema", Raw, 9},
+		{encoding + "/headers/H/schema/encoding/g", Schema, 11},
+		{encoding + "/x-ext/encoding/g", Schema, 9},
+		{encoding + "/contentType/encoding", Schema, 9},
+		{"/components/schemas/A/properties/encoding/encoding", Schema, 3},
+		{encoding, Schema, 8},
+	}
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.2.0\n"), &root))
+	for _, tc := range tests {
+		r := reading{at: Position{Pointer: jsontext.Pointer(tc.pointer)}, state: sSchema}
+		w := &work{ctx: t.Context(), steps: budget.New(budget.Unbounded())}
+		role, reason := heldRole(newDocs(&root, Config{Self: "spec.yaml"}, w), r)
+		assert.Equal(t, NoReason, reason, tc.pointer)
+		assert.Equal(t, tc.role, role, tc.pointer)
+		assert.Equal(t, tc.readsFor, w.steps.Spent(), tc.pointer)
+
+		short := &work{ctx: t.Context(), steps: budget.New(budget.AtMost(tc.readsFor - 1))}
+		role, reason = heldRole(newDocs(&root, Config{Self: "spec.yaml"}, short), r)
+		assert.Equal(t, NoTarget, reason, "%s, a step short", tc.pointer)
+		assert.Equal(t, NoRole, role, "%s, a step short", tc.pointer)
+	}
+	role, reason := heldRole(nil, reading{state: sRaw})
+	assert.Equal(t, Raw, role, "a reading at raw YAML reads nothing more")
+	assert.Equal(t, NoReason, reason)
 }

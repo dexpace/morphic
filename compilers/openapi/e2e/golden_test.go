@@ -77,9 +77,11 @@ func TestGolden_ExtensionGroups(t *testing.T) {
 // TestGolden_EncodingNestedReferences pins the IR of references beneath the
 // Encoding Objects OpenAPI 3.2 nests under another's encoding, prefixEncoding
 // and itemEncoding, and of references into them. Each nested one is kept
-// verbatim, and a component schema and a response header that reference a
-// position beneath one read it where it is written, the header schema's items
-// named by the header's key.
+// verbatim, a schema one references outside the components is lowered as one a
+// kept keyword references is, and component schemas and a response header
+// that reference a position beneath one read it where it is written, a header
+// schema's items named by the header's key, whether or not a reference to the
+// header reaches it too.
 func TestGolden_EncodingNestedReferences(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("../../../testdata/golden/openapi/encoding_nested_references.yaml")
@@ -90,13 +92,19 @@ func TestGolden_EncodingNestedReferences(t *testing.T) {
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	const header = "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema"
-	into, ok := typeByName(doc, "Into").(*ir.Scalar)
-	require.True(t, ok, "Into is a scalar over what it references")
-	assert.Equal(t, ir.TypeID(header+"/items"), into.Base.Target)
-	items, ok := doc.Types[header+"/items"]
-	require.True(t, ok)
-	assert.Equal(t, compile.SubHint("X-Inner", "item"), items.Common().Name.Hint)
+	const encoding = "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding"
+	const header = encoding + "/doc/encoding/inner/headers/X-Inner/schema"
+	for _, ref := range []struct{ name, items, key string }{
+		{"Into", header + "/items", "X-Inner"},
+		{"Only", encoding + "/parts/prefixEncoding/0/headers/X-Only/schema/items", "X-Only"},
+	} {
+		into, ok := typeByName(doc, ref.name).(*ir.Scalar)
+		require.True(t, ok, "%s is a scalar over what it references", ref.name)
+		assert.Equal(t, ir.TypeID(ref.items), into.Base.Target, ref.name)
+		items, ok := doc.Types[ir.TypeID(ref.items)]
+		require.True(t, ok, ref.name)
+		assert.Equal(t, compile.SubHint(ref.key, "item"), items.Common().Name.Hint, ref.name)
+	}
 	op := operationAt(t, doc, "POST", "/parts")
 	back, ok := headerByWire(op.Responses[0].Headers, "X-Back")
 	require.True(t, ok)
@@ -105,6 +113,7 @@ func TestGolden_EncodingNestedReferences(t *testing.T) {
 		entry := unmodeledEntry(t, requestContent(t, op).Unmodeled, "openapi:encoding/"+nested)
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, nested)
 	}
+	assert.Contains(t, doc.Types, ir.TypeID("t/anon/x-defs/Kept"), "a schema a nested header references")
 	// Last: under -update the compare refuses a test whose assertions failed.
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/encoding_nested_references.golden.json", doc)
 }

@@ -60,32 +60,26 @@ const (
 )
 
 // fields maps the fields each object state defines to the state each leads
-// to: every field the rule table gives the object, at any minor, but those
-// unplaced names (objectFields), and the Schema Object's keywords. A field an
-// object leaves out is raw YAML, as is every x- key. A schema's keyword
-// grammar is its dialect's, not the object grammar's, so it stays hand-written
+// to: every field the rule table gives the object, at any minor
+// (objectFields), and the Schema Object's keywords. A field an object leaves
+// out is raw YAML, as is every x- key. A schema's keyword grammar is its
+// dialect's, not the object grammar's, so it stays hand-written
 // (schemaFields, dialectStep).
 var fields = withSchema(objectFields(oas.Table()))
 
-// unplaced holds the fields the rule table defines that the binder does not
-// place: those the parser's model names no member for and nothing else
-// models.
-var unplaced = map[state][]string{
-	sMediaType: {"description"}, sResponse: {"summary"},
-	sEncoding: {"encoding", "prefixEncoding", "itemEncoding"},
-}
-
-// withSchema returns objects, less what unplaced holds, with the Schema
-// Object's keywords beside them.
+// withSchema returns objects with the Schema Object's keywords beside them.
 func withSchema(objects map[state]map[string]state) map[state]map[string]state {
-	for s, names := range unplaced {
-		for _, name := range names {
-			delete(objects[s], name)
-		}
-	}
 	objects[sSchema] = schemaFields()
 	return objects
 }
+
+// unheld holds the fields the grammar places whose content no model holds,
+// the parser's or the load phase's: the Encoding Objects OpenAPI 3.2 nests
+// under another's encoding, prefixEncoding and itemEncoding. The load phase
+// models none, as it models components/mediaTypes, and the IR has no home for
+// one, so the lowering keeps each verbatim. A schema beneath one is raw YAML to
+// the model, which a reference landing on it has the table build (heldRole).
+var unheld = map[state]map[string]bool{sEncoding: {"encoding": true, "prefixEncoding": true, "itemEncoding": true}}
 
 // schemaFields is what a Schema Object holds under each keyword the model
 // reads: a schema, a map or list of them, a literal kept raw, a list of

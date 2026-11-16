@@ -50,8 +50,8 @@ func TestKinds_ReadsEachPositionByTheGrammar(t *testing.T) {
 		{"/paths/~1a/get/responses/200/headers/X/schema", []bind.Kind{kOth, kOth, kOth, kOp, kOth, kRes, kOth, kHdr, kSch}},
 		{"/paths/~1a/post/requestBody/content/multipart~1form-data/encoding/f/headers/X/schema",
 			[]bind.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kOth, kEnc, kOth, kHdr, kSch}},
-		{"/paths/~1a/post/requestBody/content/multipart~1mixed/itemEncoding/encoding/g",
-			[]bind.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kEnc, kRaw, kRaw}},
+		{"/paths/~1a/post/requestBody/content/multipart~1mixed/itemEncoding/encoding/g/headers/X/schema",
+			[]bind.Kind{kOth, kOth, kOth, kOp, kBod, kOth, kMT, kEnc, kOth, kEnc, kOth, kHdr, kSch}},
 		{"/info/title", []bind.Kind{kOth, kOth, kRaw}},
 		{"/x-ext/a", []bind.Kind{kOth, kRaw, kRaw}},
 	}

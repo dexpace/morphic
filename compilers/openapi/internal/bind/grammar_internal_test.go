@@ -167,3 +167,32 @@ func modelContainer(in map[state]state, holds state) state {
 	}
 	return sValue
 }
+
+// loadModels holds the fields of lags the load phase models in the parser's
+// place, so the model holds what they lead to: components/mediaTypes
+// (docs/parser-library.md#media-type-references).
+var loadModels = map[state][]string{sComponents: {"mediaTypes"}}
+
+// TestGrammar_PlacesWhatNoModelHoldsAsUnheld holds unheld to lags: each field
+// it names is one the parser's model lacks and the grammar places, and each
+// lag leading to a schema, a schema container or an object is unheld or one
+// the load phase models, so no schema the grammar places beneath one is read
+// as one the model holds.
+func TestGrammar_PlacesWhatNoModelHoldsAsUnheld(t *testing.T) {
+	t.Parallel()
+	for s, names := range unheld {
+		for name := range names {
+			assert.Contains(t, lags[s], name, "unheld %d.%s", s, name)
+			assert.Contains(t, fields[s], name, "unheld %d.%s is placed", s, name)
+		}
+	}
+	for s, names := range lags {
+		for _, name := range names {
+			if !modelled(fields[s][name]) {
+				continue
+			}
+			assert.NotEqual(t, unheld[s][name], slices.Contains(loadModels[s], name),
+				"lag %d.%s is unheld or modelled by the load phase", s, name)
+		}
+	}
+}

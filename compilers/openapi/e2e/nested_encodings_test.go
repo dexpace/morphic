@@ -4,12 +4,14 @@
 package e2e_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -127,4 +129,79 @@ components:
             itemEncoding:
               headers:
                 X-H: {schema: {type: array, items: {type: object, properties: {h: {type: string}}}}}
+`
+
+// TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding pins GitHub
+// #1990: a header, or a header's schema, that references nothing is reported
+// beneath each Encoding Object OpenAPI 3.2 nests under another's encoding,
+// prefixEncoding and itemEncoding, as it is beneath the one nesting them, at
+// each minor alike, and each nested one is kept verbatim with one info.
+func TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding(t *testing.T) {
+	t.Parallel()
+	const encoding = "/paths/~1a/post/requestBody/content/multipart~1form-data/encoding"
+	headers := []string{
+		encoding + "/doc/headers/X-Outer",
+		encoding + "/doc/encoding/inner/headers/X-Inner",
+		encoding + "/parts/itemEncoding/headers/X-Item",
+		encoding + "/parts/prefixEncoding/0/headers/X-Prefix",
+	}
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, header := range []struct{ body, below string }{
+			{"{$ref: '#/components/headers/Ghost'}", ""},
+			{"{schema: {$ref: '#/components/schemas/Ghost'}}", "/schema"},
+		} {
+			doc, diags := parseVerified(t, fmt.Sprintf(nestedEncodingsSpec, version, header.body))
+			require.NotNil(t, doc)
+			want := make([]string, 0, len(headers))
+			for _, h := range headers {
+				want = append(want, h+header.below)
+			}
+			var got []string
+			for _, d := range unresolvedRefs(diags) {
+				assert.Equal(t, ir.SeverityError, d.Severity, "%s %s", version, d.Provenance.Pointer)
+				got = append(got, string(d.Provenance.Pointer))
+			}
+			assert.ElementsMatch(t, want, got, "%s, each header %s", version, header.body)
+			for _, nested := range []string{"/doc/encoding", "/parts/prefixEncoding", "/parts/itemEncoding"} {
+				assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, encoding+nested),
+					"%s %s", version, nested)
+			}
+		}
+	}
+}
+
+// nestedEncodingsSpec is GitHub #1990's document at the version %[1]s, each
+// header it writes being %[2]s: one beneath an Encoding Object, and one
+// beneath each Encoding Object that one or its sibling nests.
+const nestedEncodingsSpec = `openapi: %[1]s
+info: {title: t, version: "1"}
+paths:
+  /a:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                doc: {type: object, properties: {inner: {type: string}}}
+                parts: {type: array, items: {type: string}}
+            encoding:
+              doc:
+                contentType: multipart/form-data
+                headers:
+                  X-Outer: %[2]s
+                encoding:
+                  inner:
+                    headers:
+                      X-Inner: %[2]s
+              parts:
+                contentType: multipart/mixed
+                itemEncoding:
+                  headers:
+                    X-Item: %[2]s
+                prefixEncoding:
+                  - headers:
+                      X-Prefix: %[2]s
+      responses: {'200': {description: ok}}
 `
