@@ -22,10 +22,10 @@ import (
 type Table map[string]Declared
 
 // Declared is the declaration a flattening takes for one name, and where the
-// nodes of its type may be written: at the declaration, or, for a member a
-// fold settled, wherever the fold says (Merger.typeSites). A settled member
-// keeps its first declaration's identity whichever gave its type, so its own
-// pointer does not say (declaration.sites).
+// nodes of its type are written: at the declaration, or, for a member a fold
+// settled, where the fold says (Merger.typeSites). A settled member keeps its
+// first declaration's identity whichever gave its type, so its own pointer
+// does not say (declaration.sites).
 type Declared struct {
 	ir.PropertyDecl
 	TypeAt []ir.Provenance
@@ -131,18 +131,17 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 }
 
 // maxTypeSites bounds the places a settled member records its type's nodes
-// may be written at (Merger.typeSites; styleguide bounded-everything rule): a
-// fold's own declarations and where it mints always fit, with as many again
-// of what its entries bring. A node written at a place past them reads as one
-// a $ref reached.
+// are written at, and the nodes it reads of a type its fold built to find
+// them (Merger.typeSites, builtSites; styleguide bounded-everything rule). A
+// node past either reads as one a $ref reached.
 const maxTypeSites = 2 * maxFoldDeclarations
 
 // typeSites returns where the nodes of the type of merged, the member decls
-// fold to, may be written, so a later fold tells one hoisted at a declaration
-// from one a $ref reached (hoistedAt). Where the field keeps a declaration's
-// node, they are where each declaration naming it says. Where the fold built
-// one, it holds members of the declarations it met, so they are where the
-// node stands and wherever any declaration says, the nearest maxTypeSites.
+// fold to, are written, so a later fold tells one hoisted at a declaration
+// from one a $ref reached (hoistedAt): where the one declaration naming its
+// node says; nowhere for a named node or a primitive several name, which no
+// declaration writes; where each says, for a hoisted node several name; and
+// builtSites for a node the fold built.
 func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provenance {
 	var naming [][]ir.Provenance
 	for _, d := range decls {
@@ -150,20 +149,88 @@ func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provena
 			naming = append(naming, d.sites())
 		}
 	}
-	if len(naming) == 1 {
+	td, registered := g.resolve(merged.Type.Target)
+	switch {
+	case len(naming) == 1:
 		return naming[0]
-	}
-	if len(naming) > 1 {
+	case !registered || !td.Common().Anonymous:
+		return nil
+	case len(naming) > 1:
 		return joinSites(naming...)
+	default:
+		return g.builtSites(td, decls)
 	}
-	all := make([][]ir.Provenance, 0, 1+len(decls))
-	if td, built := g.resolve(merged.Type.Target); built {
-		all = append(all, []ir.Provenance{td.Common().Provenance})
+}
+
+// builtSites returns where the nodes of td, which a fold of decls built, are
+// written: where td stands, and, for each node it holds (heldTypes), the first
+// place a declaration says that holds it. A node none holds was reached by a
+// $ref, and so was what it holds. A hierarchy building a node at every level
+// so records what each node holds, not its depth. It reads each node once,
+// maxTypeSites of them at most.
+func (g *Merger) builtSites(td ir.TypeDef, decls []declaration) []ir.Provenance {
+	places := make([][]ir.Provenance, len(decls))
+	for i, d := range decls {
+		places[i] = d.sites()
 	}
-	for _, d := range decls {
-		all = append(all, d.sites())
+	out := []ir.Provenance{td.Common().Provenance}
+	seen := map[ir.TypeID]bool{}
+	queue := heldTypes(td)
+	for len(queue) > 0 && len(seen) < maxTypeSites {
+		id := queue[0]
+		queue = queue[1:]
+		node, registered := g.resolve(id)
+		if seen[id] || !registered {
+			continue
+		}
+		seen[id] = true
+		if !hoistedAt(node, out) {
+			at, held := writtenAt(node, places)
+			if !held {
+				continue
+			}
+			out = append(out, at)
+		}
+		queue = append(queue, heldTypes(node)...)
 	}
-	return joinSites(all...)
+	return out
+}
+
+// writtenAt returns the first of places, each declaration's in order, that
+// node is hoisted at or under (hoistedUnder), and false where none is.
+func writtenAt(node ir.TypeDef, places [][]ir.Provenance) (ir.Provenance, bool) {
+	c := node.Common()
+	for _, sites := range places {
+		for _, at := range sites {
+			if hoistedUnder(c, at) {
+				return at, true
+			}
+		}
+	}
+	return ir.Provenance{}, false
+}
+
+// heldTypes returns the types td holds values of: a list's element, a map's
+// value, a tuple's positions and what follows them, and what a model or an
+// alias composes (ComposedOf).
+func heldTypes(td ir.TypeDef) []ir.TypeID {
+	switch t := td.(type) {
+	case *ir.List:
+		return []ir.TypeID{t.Elem.Target}
+	case *ir.MapT:
+		return []ir.TypeID{t.Value.Target}
+	case *ir.Tuple:
+		held := make([]ir.TypeID, 0, len(t.Elems)+1)
+		for _, e := range t.Elems {
+			held = append(held, e.Target)
+		}
+		if t.Rest != nil {
+			held = append(held, t.Rest.Target)
+		}
+		return held
+	default:
+		return ComposedOf(td)
+	}
 }
 
 // joinSites returns the places lists hold, each once by its document and
