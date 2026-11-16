@@ -166,7 +166,8 @@ components:
 // coordinates, and reports each such $ref, and a discriminator mapping naming
 // the same target, unresolved where the source writes it, though the pointer
 // it spells is a source component's. Such a mapping tags no subtype, which
-// takes its own name.
+// takes its own name, and a union beside a body is not distributed over such
+// a branch, which the bindings land but the lowering does not resolve.
 func TestRef_IntoADocumentTheCompileDoesNotListIsUnresolved(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -186,6 +187,10 @@ components:
       properties: {kind: {type: string}}
       discriminator: {propertyName: kind, mapping: {x: './ext.yaml#/components/schemas/Sub'}}
     Sub: {allOf: [{$ref: '#/components/schemas/Base'}]}
+    Mixed:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: './ext.yaml#/components/schemas/Sub'}, {type: object}]
 `)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.Empty(t, diags)
@@ -208,6 +213,8 @@ components:
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
 		unresolved("/components/schemas/Base/discriminator/mapping/x",
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
+		unresolved("/components/schemas/Mixed/oneOf/0",
+			`union branch $ref "./ext.yaml#/components/schemas/Sub" is unresolved; the branch is kept verbatim`),
 	}, withCode(l.Diags.List(), "openapi/unresolved-ref")))
 	sub, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/Sub")].(*ir.Model)
 	require.True(t, ok)
@@ -1077,4 +1084,33 @@ func assertKeptVerbatim(t *testing.T, p ir.Unmodeled, key, raw string) {
 	require.True(t, ok, "%q is kept verbatim; kept instead: %v", key, unmodeledKeys(p))
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, raw, string(entry.Value))
+}
+
+// TestRef_ToANullOrTrueValueIsHoisted pins a $ref landing on a property written
+// as no schema or as `true`, which the parser's model holds a value for: the
+// reference resolves, and the node hoisted where it lands is the top type,
+// whether a component or a union's branch names it
+// (docs/compilers/openapi.md#null-schema).
+func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpecOnly(t, openapitest.ComponentSpecVer("3.1.0", `    H: {type: object, properties: {q: null, t: true}}
+    N: {$ref: '#/components/schemas/H/properties/q'}
+    A: {$ref: '#/components/schemas/H/properties/t'}
+    U: {oneOf: [{$ref: '#/components/schemas/H/properties/q'}, {type: string}]}
+`))
+	assert.Empty(t, withCode(diags, "openapi/unresolved-ref"))
+	top := ir.TypeRef{Target: "t/prim/any"}
+	for name, at := range map[string]string{"N": "H/properties/q", "A": "H/properties/t"} {
+		alias, ok := typeByName(doc, name).(*ir.Scalar)
+		require.True(t, ok, name)
+		require.NotNil(t, alias.Base, name)
+		assert.Equal(t, ids.Document{}.AnonType(jsontext.Pointer("/components/schemas/"+at)), alias.Base.Target, name)
+		hoisted, ok := doc.Types[alias.Base.Target].(*ir.Scalar)
+		require.True(t, ok, "%s: the node hoisted at %s", name, at)
+		assert.Equal(t, &top, hoisted.Base, name)
+	}
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok, "a branch naming the null value resolves")
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, ids.Document{}.AnonType("/components/schemas/H/properties/q"), u.Variants[0].Type.Target)
 }

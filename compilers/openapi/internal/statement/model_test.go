@@ -494,7 +494,8 @@ func TestRead_ListsExtensionsAsTheModelHoldsThem(t *testing.T) {
 // these state nothing, so only the node tells them apart, through an alias
 // too; and it decodes a mapping it fails beneath as a boolean
 // (docs/parser-library.md#failure-beneath-itself). Only a written `false`, and
-// such a mapping, read as the false schema.
+// such a mapping, read as the false schema, and the model holds every value
+// written, so Held tells any of them from a keyword left out.
 func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	t.Parallel()
 	rows := []struct {
@@ -539,7 +540,10 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 		assert.Equal(t, row.want, sub.Truth(), "%s: the Sub", row.name)
 		assert.Equal(t, row.want, table.Sub(sub).Truth, "%s: its statement", row.name)
 		assert.Equal(t, row.want == statement.Nothing, sub.Truth().ReadsFalse(), "%s: read as false", row.name)
+		assert.True(t, table.Sub(sub).Held(), "%s: the model holds a value", row.name)
 	}
+	assert.False(t, table.At(component(c, "Absent")).Held(), "none is held where nothing is written")
+	assert.False(t, (*statement.Schema)(nil).Held())
 
 	above := table.At(c.Position(jsontext.Pointer("/components/schemas/Chain" + strings.Repeat("/items", depth-2))))
 	require.Equal(t, statement.Stated, above.Truth)

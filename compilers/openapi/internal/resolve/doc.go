@@ -2,9 +2,9 @@
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
 // Package resolve answers what a $ref names: the same-document pointer it
-// addresses, the schema declared there and the type interned there, and, for
-// components that are not schemas, the concrete value and declaration site a
-// reference-or-inline entry stands for.
+// addresses and the type interned there, and, for components that are not
+// schemas, the concrete value and declaration site a reference-or-inline entry
+// stands for.
 //
 // It is only that. Following a reference far enough to lower its target
 // recurses into the schema walk, so it stays with the walk. What is here needs

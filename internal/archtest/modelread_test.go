@@ -32,10 +32,6 @@ import (
 // when one falls until the count here is lowered to match, so the map only
 // shrinks as the readers move onto the statement (GitHub #1991).
 var modelReadBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/annotation": {
-		"GetSchema": 1,
-		"IsBool":    1,
-	},
 	"compilers/openapi/internal/bind/typed": {
 		"GetCore":     1,
 		"GetRootNode": 1,
@@ -65,17 +61,13 @@ var modelReadBaseline = map[string]map[string]int{
 		"IsSchema":                 2,
 		"statement.Parsed":         14,
 	},
-	"compilers/openapi/internal/resolve": {
-		"GetSchema": 1,
-		"IsBool":    1,
-	},
 	"compilers/openapi/internal/schema": {
 		"GetIf":            1,
 		"GetNot":           1,
 		"GetProperties":    1,
 		"GetSchema":        1,
 		"IsBool":           1,
-		"statement.Parsed": 27,
+		"statement.Parsed": 24,
 	},
 }
 

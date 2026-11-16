@@ -779,7 +779,7 @@ func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
 		st := c.Statements().Sub(b)
-		return st.Ref != nil && !c.RefScope().NamesReferent(statement.ParsedAt(st))
+		return st.Ref != nil && !namesReferent(c, st)
 	})
 }
 
@@ -838,7 +838,7 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	var diags []ir.Diagnostic
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
-		if st.Ref == nil || c.RefScope().NamesReferent(statement.ParsedAt(st)) || onLoop(st) {
+		if st.Ref == nil || namesReferent(c, st) || onLoop(st) {
 			continue
 		}
 		keyword, ref := refSpelling(st)

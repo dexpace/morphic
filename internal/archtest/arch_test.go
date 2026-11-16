@@ -196,7 +196,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/statement",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// What a schema position writes, read once into one value: each key in the
 	// slot oas gives it, each slot's values typed, and the inline allOf entries
@@ -283,11 +282,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
-	// What a $ref names: the pointer it addresses, the schema declared there and
-	// the type already interned there. It reaches bind for where a $ref lands,
-	// annotation to ask whether a referenced position declares a body at all,
-	// nodeview to read what a reference object writes beside its $ref as the
-	// model reads a mapping, compile for the registry it looks IDs up in, the library's openapi package
+	// What a $ref names: the pointer it addresses and the type already interned
+	// there. It reaches bind for where a $ref lands, nodeview to read what a
+	// reference object writes beside its $ref as the model reads a mapping,
+	// compile for the registry it looks IDs up in, the library's openapi package
 	// and core models to name each kind of reference once (ReferenceEnd), the
 	// one it names no alias for included (ReferencedMediaType), yaml to stop a
 	// walk at raw YAML, which holds none, and compilers for the file a file URI
@@ -295,13 +293,11 @@ var rules = map[string][]string{
 	// reference far enough to lower its target recurses back into the schema
 	// walk, so that stays with the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers",
-		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
-		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/openapi/core",
 		"github.com/speakeasy-api/openapi/references",

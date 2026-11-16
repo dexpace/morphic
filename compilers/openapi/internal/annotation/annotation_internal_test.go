@@ -463,20 +463,6 @@ func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 	assert.Nil(t, got.Referents, "and the schema the $ref names is not read here")
 }
 
-// TestSchemaOf_ReturnsOnlyAWrittenBody pins the one nil-safe reader every site
-// goes through: a position with no body written at it must report none, because
-// a boolean schema and a nil position both admit no annotations at all.
-func TestSchemaOf_ReturnsOnlyAWrittenBody(t *testing.T) {
-	t.Parallel()
-	assert.Nil(t, SchemaOf(nil), "a nil position writes no body")
-	assert.Nil(t, SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "true\n")), "a boolean schema writes no body")
-	assert.Nil(t, SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "false\n")), "including the false one")
-
-	s := SchemaOf(openapitest.SchemaFromYAML(t.Context(), t, "type: string\ntitle: T\n"))
-	require.NotNil(t, s)
-	assert.Equal(t, "T", s.GetTitle())
-}
-
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
 // mapping of docs/ir/properties.md#visibility, the precedence a site holds over
 // its referent, and the answer for the pairing that admits nothing.

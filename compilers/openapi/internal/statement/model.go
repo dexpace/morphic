@@ -88,6 +88,13 @@ func (s Sub) Truth() Truth {
 	return truthOf(s.m)
 }
 
+// Held reports whether the parser's model holds a value here, a value written
+// as no schema among them, which Truth reads Unwritten as it reads none
+// (docs/parser-library.md#null-schema-is-false). It is false for a nil s.
+func (s *Schema) Held() bool {
+	return s != nil && s.m != nil
+}
+
 // truthOf returns what js states. The parser reads a value written as no
 // schema as the `false` schema, which truthOf reads as Unwritten by its node
 // (docs/parser-library.md#null-schema-is-false), and a mapping it fails
