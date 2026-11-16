@@ -28,8 +28,9 @@ const (
 	OracleSequenceOrder     Oracle = "sequence-order-invariance"
 )
 
-// The case oracles, in the order CheckCase applies them, each comparing a
-// case with a neighbour (Document says which).
+// The case oracles, in the order CheckCase applies them: the first two compare
+// a case with a neighbour, the third holds it to the instances it writes
+// (Document says which).
 const (
 	// OracleSpelling holds a case to the partner spelling it must equal.
 	OracleSpelling Oracle = "spelling"

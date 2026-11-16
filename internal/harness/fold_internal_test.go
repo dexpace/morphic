@@ -166,13 +166,15 @@ func TestFolded_ACarrierLeavesWhatTheCollapseLeaves(t *testing.T) {
 }
 
 // TestFolded_TheCarriersOwnComeFirst pins the merge onto a carrier: a field it
-// sets is its own, one it leaves empty the decorator's, a description and its
-// references as one, and an unmodeled name both hold kept on each.
+// sets is its own, one it leaves empty the decorator's, of its deprecation
+// too, a description and its references as one, and an unmodeled name both
+// hold kept on each.
 func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	doc := carrying("property", true)
 	p := &doc.Types[holderID].(*ir.Model).Properties[0]
 	p.Docs = ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}}}
 	p.Examples = []ir.Example{{Name: "own"}}
+	p.Deprecation = &ir.Deprecation{Since: "own"}
 	p.Unmodeled = ir.Unmodeled{"openapi:x": {Reason: ir.ReasonOutOfScope, Value: ir.RawValue(`1`)}}
 	dec := doc.Types[decID].Common()
 	dec.Docs.Summary, dec.Docs.ExternalDocs = "theirs", []ir.Link{{URL: "https://example.com"}}
@@ -180,10 +182,11 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 
 	var got struct {
 		Properties []struct {
-			Docs      ir.Docs                      `json:"docs"`
-			Examples  []ir.Example                 `json:"examples"`
-			Unmodeled map[string]ir.UnmodeledEntry `json:"unmodeled"`
-			Decorator struct {
+			Docs        ir.Docs                      `json:"docs"`
+			Deprecation *ir.Deprecation              `json:"deprecation"`
+			Examples    []ir.Example                 `json:"examples"`
+			Unmodeled   map[string]ir.UnmodeledEntry `json:"unmodeled"`
+			Decorator   struct {
 				Unmodeled map[string]ir.UnmodeledEntry `json:"unmodeled"`
 			} `json:"decorator"`
 		} `json:"properties"`
@@ -196,6 +199,7 @@ func TestFolded_TheCarriersOwnComeFirst(t *testing.T) {
 	require.Len(t, got.Properties, 1)
 	assert.Equal(t, ir.Docs{Summary: "own", Refs: []ir.DocRef{{Type: objID}},
 		ExternalDocs: []ir.Link{{URL: "https://example.com"}}}, got.Properties[0].Docs)
+	assert.Equal(t, &ir.Deprecation{Message: "d", Since: "own"}, got.Properties[0].Deprecation)
 	assert.Equal(t, []ir.Example{{Name: "own"}}, got.Properties[0].Examples)
 	assert.Equal(t, p.Unmodeled, ir.Unmodeled(got.Properties[0].Unmodeled), "the carrier's own")
 	assert.Equal(t, dec.Unmodeled, ir.Unmodeled(got.Properties[0].Decorator.Unmodeled), "the decorator's, beside it")
@@ -264,6 +268,30 @@ func TestMergeDocs_TakesEveryField(t *testing.T) {
 	assert.Equal(t, full, mergeDocs(ir.Docs{}, full))
 	assert.Equal(t, ir.Docs{Summary: "s", Refs: []ir.DocRef{{Type: objID}}, ExternalDocs: []ir.Link{{URL: "u"}}},
 		mergeDocs(ir.Docs{Refs: []ir.DocRef{{Type: objID}}}, full), "references hold their description's place")
+}
+
+// TestMergeDeprecation_TakesEveryField holds mergeDeprecation to
+// ir.Deprecation's fields: each is taken from the second where the first
+// leaves it empty, and either stands where the other is nil.
+func TestMergeDeprecation_TakesEveryField(t *testing.T) {
+	fields := reflect.VisibleFields(reflect.TypeFor[ir.Deprecation]())
+	names := make([]string, 0, len(fields))
+	for _, f := range fields {
+		names = append(names, f.Name)
+	}
+	assert.Equal(t, []string{"Message", "Since", "RemovalVersion", "RemovalDate", "ReplacedBy"}, names,
+		"mergeDeprecation merges these")
+
+	full := &ir.Deprecation{Message: "m", Since: "s", RemovalVersion: "v", RemovalDate: "d",
+		ReplacedBy: []ir.EntityRef{{}}}
+	own := &ir.Deprecation{Since: "own"}
+	assert.Equal(t, full, mergeDeprecation(&ir.Deprecation{}, full))
+	assert.Equal(t, &ir.Deprecation{Message: "m", Since: "own", RemovalVersion: "v", RemovalDate: "d",
+		ReplacedBy: []ir.EntityRef{{}}}, mergeDeprecation(own, full), "a field the first sets is its own")
+	assert.Equal(t, &ir.Deprecation{Since: "own"}, own, "the first is left as it was")
+	assert.Same(t, full, mergeDeprecation(nil, full))
+	assert.Same(t, own, mergeDeprecation(own, nil))
+	assert.Nil(t, mergeDeprecation(nil, nil))
 }
 
 // TestDecoratorUses_FollowsAChainAndLeavesACycle pins the walk: a chain of two

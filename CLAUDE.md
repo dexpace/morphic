@@ -290,19 +290,22 @@ These all exist already — extend them rather than building a parallel mechanis
   separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Case oracles**: `internal/harness/openapicases` writes the OpenAPI compiler's schema cases, one
   document per case, as products of axes its `Axes` names: version, target schema, construct (each
-  keyword of the rule table at two values), position and spelling, and the JSON Schema Test Suite's
-  groups written as defaults. `internal/harness`'s case
-  oracles compare each case with a neighbour: spelling (a use spelt another way lowers alike, up to
-  decorators), presence (a keyword changes what compiles, and again when its value changes, unless
-  it says why nothing carries it) and instance (the suite's valid instances are admitted). The gate
-  checks the core cases, each axis value whose `Like` is empty, in
+  keyword of the rule table at two values), a second construct, `none` in every case, position and
+  spelling, and the JSON Schema Test Suite's groups written as defaults. `internal/harness`'s case
+  oracles judge each case, the first two against a neighbour: spelling (a use spelt another way
+  lowers alike, up to decorators), presence (a keyword changes what compiles, and again when its
+  value changes, unless it says why nothing carries it) and instance (the suite's valid instances
+  are admitted). The gate checks the core cases, each axis value whose `Like` is empty, in
   `go test ./internal/harness/openapicases`; `make cases` checks every case, as the nightly job
-  does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by index. A finding that
-  stands is a line of that package's `testdata/spelling.txt`, `presence.txt` or `instances.txt`:
-  case name, what was found, and a reason that `Reasons` maps to its issue. `-update` writes a new
-  finding as `unclassified`, which fails until it is given a reason, and deletes the lines a fix
-  leaves naming no finding, which fail as stale until it does. A case outside the core is explained
-  by the line of the core case it projects to, with the same finding.
+  does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by index. The presence
+  oracle declines a document drawing an error diagnostic and the spelling oracle compares it like
+  any other, so the same tests also compile each core case, and each axis value at a version
+  outside the core, and fail on one. A finding that stands is a line of that package's
+  `testdata/spelling.txt`, `presence.txt` or `instances.txt`: case name, what was found, and a
+  reason that `Reasons` maps to its issue. `-update` writes a new finding as `unclassified`, which
+  fails until it is given a reason, and deletes the lines a fix leaves naming no finding, which
+  fail as stale until it does. A case outside the core is explained by the line of the core case
+  it projects to, with the same finding.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use

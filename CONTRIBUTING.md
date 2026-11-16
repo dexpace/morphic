@@ -181,9 +181,9 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 
    A keyword the Schema Object gains also gets a construct row in
    `internal/harness/openapicases/constructs.go`: its two values, the versions writing it and the
-   targets it is said of, or, for a keyword nothing carries, why not. The case oracles then write it
-   at every position and in every spelling (the root guidance's Testing strategy says what each
-   holds).
+   targets it is said of, or, for a keyword nothing carries, why not. The schema cases then write it
+   at every position, in each spelling that moves it, for the case oracles (the root guidance's
+   Testing strategy says what each holds).
    *Fails if missed:* `TestCases_CoverTheRuleTable`, for a keyword of the rule table no construct
    row writes at a version that defines it.
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
