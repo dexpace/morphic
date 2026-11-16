@@ -133,7 +133,8 @@ type settleFrame struct {
 // lists a model once its parts are listed, run on an explicit stack, as a
 // hierarchy may nest as deep as a document is long. A part already on the path
 // closes a cycle of compositions, so the model naming it reads it as it
-// stands, the same whichever the walk meets first.
+// stands; which model of a cycle settles first follows their IDs, not the
+// order the source declares them in.
 func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.TypeID {
 	order := make([]ir.TypeID, 0, len(pending))
 	seen := make(map[ir.TypeID]bool, len(pending))
