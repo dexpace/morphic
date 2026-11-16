@@ -2843,7 +2843,6 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies`,
   `merge.TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten`,
   `merge.TestBuiltSites_ReadsNoMoreNodesThanItsBound`,
-  `merge.TestJoinSites_KeepsEachPlaceOnceUpToItsBound`,
   `merge.TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType`,
   `merge.TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes`,
   `schema.TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember`,

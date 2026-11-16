@@ -130,18 +130,17 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 	return naming(diags, merged.ID)
 }
 
-// maxTypeSites bounds the places a settled member records its type's nodes
-// are written at, and the nodes it reads of a type its fold built to find
-// them (Merger.typeSites, builtSites; styleguide bounded-everything rule). A
-// node past either reads as one a $ref reached.
+// maxTypeSites bounds the nodes a settled member reads of a type its fold
+// built, to record where they are written (Merger.builtSites; styleguide
+// bounded-everything rule). A node past them reads as one a $ref reached.
 const maxTypeSites = 2 * maxFoldDeclarations
 
 // typeSites returns where the nodes of the type of merged, the member decls
 // fold to, are written, so a later fold tells one hoisted at a declaration
 // from one a $ref reached (hoistedAt): where the one declaration naming its
 // node says; nowhere for a named node or a primitive several name, which no
-// declaration writes; where each says, for a hoisted node several name; and
-// builtSites for a node the fold built.
+// declaration writes; for a hoisted node several name, where the first whose
+// places hold it says; and builtSites for a node the fold built.
 func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provenance {
 	var naming [][]ir.Provenance
 	for _, d := range decls {
@@ -156,7 +155,8 @@ func (g *Merger) typeSites(merged ir.Property, decls []declaration) []ir.Provena
 	case !registered || !td.Common().Anonymous:
 		return nil
 	case len(naming) > 1:
-		return joinSites(naming...)
+		at := slices.IndexFunc(naming, func(sites []ir.Provenance) bool { return hoistedAt(td, sites) })
+		return naming[max(at, 0)]
 	default:
 		return g.builtSites(td, decls)
 	}
@@ -231,31 +231,6 @@ func heldTypes(td ir.TypeDef) []ir.TypeID {
 	default:
 		return ComposedOf(td)
 	}
-}
-
-// joinSites returns the places lists hold, each once by its document and
-// pointer, in order, and no more than maxTypeSites.
-func joinSites(lists ...[]ir.Provenance) []ir.Provenance {
-	type place struct {
-		source  int
-		pointer jsontext.Pointer
-	}
-	seen := map[place]bool{}
-	var out []ir.Provenance
-	for _, list := range lists {
-		for _, at := range list {
-			k := place{source: at.Source, pointer: at.Pointer}
-			if seen[k] {
-				continue
-			}
-			if len(out) == maxTypeSites {
-				return out
-			}
-			seen[k] = true
-			out = append(out, at)
-		}
-	}
-	return out
 }
 
 // composedMember is where m declares a member named wire that takes an

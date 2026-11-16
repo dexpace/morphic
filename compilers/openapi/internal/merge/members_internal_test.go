@@ -382,11 +382,11 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 // TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten pins where a settled
 // member says the nodes of its type are written: where the one declaration
 // naming its node says, as that declaration's own list; nowhere for a
-// primitive several name, or a node the registry lacks; where each says, for a
-// hoisted node several name; and, for a node the fold built, where it stands
-// and where each node it holds is written, through a node built beneath it or
-// one holding itself, however many places a declaration brings, leaving out a
-// node a $ref reached and what that one holds.
+// primitive several name, or a node the registry lacks; for a hoisted node
+// several name, where the first holding it says, else the first. For a node
+// the fold built: where it stands and where each node it holds is written,
+// through a node built beneath it or one holding itself, however many places
+// a declaration brings, but for a node a $ref reached and what that holds.
 func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 	t.Parallel()
 	hoisted := func(id ir.TypeID, at jsontext.Pointer) ir.TypeCommon {
@@ -424,8 +424,10 @@ func TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten(t *testing.T) {
 	assert.Nil(t, g.typeSites(field("t/unregistered"), []declaration{own}))
 
 	named := func(pointer string) declaration { return declaration{prop: declared("p", "t/enum", pointer)} }
-	assert.Equal(t, []ir.Provenance{ptrAt("/M/a"), ptrAt("/M/b")},
-		g.typeSites(field("t/enum"), []declaration{named("/M/a"), own, named("/M/b"), named("/M/a")}), "each naming a hoisted node, once")
+	assert.Equal(t, sitesAt("/part/allOf/1/p"),
+		g.typeSites(field("t/enum"), []declaration{named("/M/a"), own, named("/part/allOf/1/p")}), "the one whose place holds the node")
+	assert.Equal(t, sitesAt("/M/a"),
+		g.typeSites(field("t/enum"), []declaration{named("/M/a"), named("/M/b")}), "the first, where a $ref brought it to each")
 	for _, built := range []ir.TypeID{"t/built", "t/built-list", "t/built-map", "t/built-rest", "t/built-model",
 		"t/built-nested", "t/built-cycle"} {
 		assert.Equal(t, []ir.Provenance{ptrAt("/M/p"), ptrAt("/part/allOf/1/p")},
@@ -496,27 +498,6 @@ func TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes(t *testing.T) {
 		"/M/allOf/0", "/part/allOf/0/p", "/part/allOf/properties/p", "/M/allOf/properties/p"} {
 		assert.Equal(t, want, f.at(i), "declaration %d", i)
 	}
-}
-
-// TestJoinSites_KeepsEachPlaceOnceUpToItsBound pins the places a settled
-// member records: each once by its document and pointer, in order, and no
-// more than maxTypeSites, so the place past the bound is the one left out.
-func TestJoinSites_KeepsEachPlaceOnceUpToItsBound(t *testing.T) {
-	t.Parallel()
-	places := func(n int) []ir.Provenance {
-		out := make([]ir.Provenance, n)
-		for i := range out {
-			out[i] = ptrAt(jsontext.Pointer(fmt.Sprintf("/d%d", i)))
-		}
-		return out
-	}
-	elsewhere := ir.Provenance{Source: 1, Pointer: "/d0"}
-
-	assert.Equal(t, []ir.Provenance{ptrAt("/d0"), ptrAt("/d1"), elsewhere},
-		joinSites(places(2), []ir.Provenance{ptrAt("/d1"), elsewhere, ptrAt("/d0")}), "one pointer in two documents is two places")
-	assert.Equal(t, places(maxTypeSites), joinSites(places(maxTypeSites)), "at the bound")
-	assert.Equal(t, places(maxTypeSites), joinSites(places(maxTypeSites+1)), "one past it")
-	assert.Equal(t, places(maxTypeSites), joinSites(places(maxTypeSites), places(1)), "a place already held costs nothing")
 }
 
 // TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType pins a hoisted node as
