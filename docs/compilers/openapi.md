@@ -1271,7 +1271,9 @@ the item as what else it writes.
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`,
   `e2e.TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding`,
-  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestHeldRole_ReadsToTheFirstFieldNoModelHolds`
+  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestHeldRole_ReadsToTheFirstFieldNoModelHolds`,
+  `e2e.TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML`,
+  `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`
 - Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947). No deadline bounds a compile's reads together (#1036). A name resolving to several address spaces is answered by the order of asking (#1969).
 
 ### `reference-cycles`
