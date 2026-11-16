@@ -8,6 +8,7 @@ import (
 	"encoding/json/jsontext"
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 
@@ -261,7 +262,25 @@ func Core(c Cases) func(at []int) bool {
 	}
 }
 
-// Coordinates returns the value index per axis of c's case at index i.
+// Each returns every case of c, its index and its value index per axis, in
+// index order, reading c's axes once: a walk of the product calls Axes once,
+// where a Coordinates per index would rebuild them each time.
+func Each(c Cases) (iter.Seq2[int, []int], error) {
+	axes, n, err := product(c)
+	if err != nil {
+		return nil, err
+	}
+	return func(yield func(int, []int) bool) {
+		for i := range n {
+			if !yield(i, coordinates(axes, i)) {
+				return
+			}
+		}
+	}, nil
+}
+
+// Coordinates returns the value index per axis of c's case at index i. It
+// reads c's axes, so a walk of every case takes Each.
 func Coordinates(c Cases, i int) ([]int, error) {
 	axes, n, err := product(c)
 	if err != nil {

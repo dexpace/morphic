@@ -21,12 +21,10 @@ import (
 // case's version and target.
 func shards(t *testing.T, c harness.Cases, pick func([]int) bool) map[[2]int][][]int {
 	t.Helper()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 	out := map[[2]int][][]int{}
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		if pick(at) {
 			out[[2]int{at[0], at[1]}] = append(out[[2]int{at[0], at[1]}], at)
 		}
@@ -105,17 +103,15 @@ func TestGroups_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources int) {
 	t.Helper()
 	axes := c.Axes()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 
 	writers := map[[sha256.Size]byte][]int{}
 	written := make([][]bool, len(axes))
 	for k, a := range axes {
 		written[k] = make([]bool, len(a.Values))
 	}
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		doc, ok := c.Write(at)
 		if !ok {
 			continue

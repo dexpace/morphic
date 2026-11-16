@@ -118,12 +118,10 @@ func keywords(t *testing.T) []string {
 func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 	c := openapicases.New()
 	axes := c.Axes()
-	n, err := harness.CaseCount(c)
-	require.NoError(t, err)
 	var kept, replaced []string
-	for i := range n {
-		at, err := harness.Coordinates(c, i)
-		require.NoError(t, err)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	for _, at := range each {
 		doc, ok := c.Write(at)
 		if !ok {
 			continue
