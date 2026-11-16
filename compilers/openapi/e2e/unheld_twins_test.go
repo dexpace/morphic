@@ -332,12 +332,10 @@ func rawHeaderAt(p twinPlace) []string {
 }
 
 // readThroughHeader is the header Reference Object beneath the field, bound,
-// with X, which it names, weighed from it as a copy is, and In's pointer read
-// through it into X's schema.
+// and In's pointer read through it into X's schema.
 func readThroughHeader(p twinPlace) []string {
 	return []string{"reference spec.yaml#" + encodingAt + p.header() + " header",
-		"entry spec.yaml#/components/schemas/In: hop resolved 0 schema spec.yaml#/components/headers/X/schema",
-		"weighed once spec.yaml#/components/headers/X/schema"}
+		"entry spec.yaml#/components/schemas/In: hop resolved 0 schema spec.yaml#/components/headers/X/schema"}
 }
 
 // unreadHeader is In's pointer naming a key the raw mapping does not write.
@@ -363,7 +361,7 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	root := openapitest.YAMLDocument(t, src)
 	table := bind.Bind(t.Context(), root, cfg)
 	lines := bindAnswers(table)
-	lines = append(lines, weightAnswers(table)...)
+	lines = append(lines, weightAnswers(table, encodingAt+p.field())...)
 	// An incomplete total is never read, so its count says nothing.
 	if named, complete := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
 		lines = append(lines, fmt.Sprintf("named pointer bytes %d", named))
@@ -415,13 +413,15 @@ func bindAnswers(table *bind.Table) []string {
 // weightAnswers is how the reference-expansion weight reads each declaration a
 // reference object's chain ends on, and the request body B: from how the
 // grammar reads the reference, a line for each position below read as a
-// schema, which a copy weighs as one node.
-func weightAnswers(table *bind.Table) []string {
+// schema, which a copy weighs as one node. A reference written beneath
+// verbatim, the field, is weighed from nowhere: the lowering keeps the field
+// as written and copies nothing it names.
+func weightAnswers(table *bind.Table, verbatim string) []string {
 	type start struct{ use, decl bind.Position }
 	b := bind.Position{Pointer: "/components/requestBodies/B"}
 	starts := []start{{use: b, decl: b}}
 	for _, r := range table.References() {
-		if r.Chain.Status == bind.Resolved {
+		if r.Chain.Status == bind.Resolved && !strings.HasPrefix(string(r.Site.Pointer), verbatim+"/") {
 			starts = append(starts, start{use: r.Site, decl: r.Chain.End})
 		}
 	}
