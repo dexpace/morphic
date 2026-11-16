@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -62,7 +60,7 @@ type chainFrom struct {
 // names as a URI reference written at d (resolve.Scope.MappingTarget). It is
 // false for a value that resolves to no schema, which the caller reports. The
 // chain from a position is read once a run, as many values may name it.
-func chainOf(c lowering.Ctx, d *oas3.Discriminator, value string) (valueChain, bool) {
+func chainOf(c lowering.Ctx, d *statement.Discriminator, value string) (valueChain, bool) {
 	at, decl, ok := valuePosition(c, d, value)
 	if !ok {
 		return valueChain{}, false
@@ -79,12 +77,12 @@ func chainOf(c lowering.Ctx, d *oas3.Discriminator, value string) (valueChain, b
 // valuePosition is the position value, a value of d's mapping, names, and the
 // schema held there: the entry document's component it is the name of, else
 // where it lands read as a URI reference, false where it lands on no schema.
-func valuePosition(c lowering.Ctx, d *oas3.Discriminator, value string) (bind.Position, *statement.Statement, bool) {
+func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bind.Position, *statement.Statement, bool) {
 	if c.DeclaresSchema(value) {
 		at := bind.Position{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
 		return at, c.Statements().Of(c.Bindings().At(at)), true
 	}
-	at, js, ok := c.RefScope().MappingTarget(d, value)
+	at, js, ok := c.RefScope().MappingTarget(d.At, value)
 	return at, c.Statements().Of(js), ok
 }
 
@@ -210,19 +208,18 @@ func (x *branchIndex) route(chain valueChain) (int, []int, bool) {
 // tag routes to (routeEntry). An entry that routes nowhere is left out, never
 // given an ID nothing backs (GitHub #14); a mapping left with none is nil,
 // which routes by type name, and round-trips as written.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, x *branchIndex, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
-	m := d.GetMapping()
-	if m == nil || m.Len() == 0 {
+func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *statement.Discriminator, x *branchIndex, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
+	if len(d.Mapping) == 0 {
 		return nil, nil
 	}
 	var diags []ir.Diagnostic
-	out := make(map[string]ir.TypeID, m.Len())
-	for tag, value := range m.All() {
-		id, ok, entryDiags := routeEntry(c, ts, d, x, value, "discriminator mapping "+strconv.Quote(tag),
-			pointer+ids.Ptr("discriminator", "mapping", tag))
+	out := make(map[string]ir.TypeID, len(d.Mapping))
+	for _, e := range d.Mapping {
+		id, ok, entryDiags := routeEntry(c, ts, d, x, e.Target, "discriminator mapping "+strconv.Quote(e.Value),
+			pointer+ids.Ptr("discriminator", "mapping", e.Value))
 		diags = append(diags, entryDiags...)
 		if ok {
-			out[tag] = id
+			out[e.Value] = id
 		}
 	}
 	if len(out) == 0 {
@@ -233,8 +230,8 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to the type it
 // routes to, as discriminatorMapping resolves an entry.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, x *branchIndex, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	dm := d.GetDefaultMapping()
+func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *statement.Discriminator, x *branchIndex, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	dm := d.DefaultMapping
 	if dm == "" {
 		return "", nil
 	}
@@ -251,7 +248,7 @@ func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 // which pass.Validate holds to being a subtype or a variant. A value that
 // resolves to no schema is reported here, once; one whose chain breaks routes
 // nowhere, unreported, as its failing $ref is reported where it is written.
-func routeEntry(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, x *branchIndex, value, subject string,
+func routeEntry(c lowering.Ctx, ts *compile.Types, d *statement.Discriminator, x *branchIndex, value, subject string,
 	at jsontext.Pointer,
 ) (ir.TypeID, bool, []ir.Diagnostic) {
 	chain, ok := chainOf(c, d, value)
@@ -288,9 +285,9 @@ func routeEntry(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, x *bra
 // it, as unresolvedWhy says for a $ref. A value holding no '#' may have been
 // meant as a component's name, which is read first, so its reason says both
 // readings failed.
-func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, value string) string {
+func mappingWhy(c lowering.Ctx, d *statement.Discriminator, value string) string {
 	why := unreadWhy(c.Bindings())
-	if m, ok := c.Bindings().Mapping(d, value); ok {
+	if m, ok := c.Bindings().Mapping(d.At, value); ok {
 		why = hopWhy(m.Hop)
 	}
 	if strings.Contains(value, "#") {
@@ -306,8 +303,7 @@ func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, value string) string {
 // the type each chain ends on is promised a node, and one naming no schema is
 // reported at its entry, as on a model.
 func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	m := statement.Parsed(s)
-	d := m.GetDiscriminator()
+	d := discriminatorIn(s)
 	if d == nil {
 		return nil
 	}
@@ -319,7 +315,7 @@ func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *statement.
 // tagsOf keys the keys each type a discriminator's mapping routes to on a model
 // (mappingTagsFor).
 type tagsOf struct {
-	d *oas3.Discriminator
+	d *statement.Discriminator
 }
 
 // mappingTagsFor returns every key d's mapping spells for the type id, sorted
@@ -329,15 +325,15 @@ type tagsOf struct {
 // subtypes' tags cannot disagree. Nothing sends the caller to the implicit
 // name, unlike the empty key, which is a tag. The mapping is read once a run,
 // not once for each subtype asking.
-func mappingTagsFor(c lowering.Ctx, d *oas3.Discriminator, id ir.TypeID) []string {
-	if d.GetMapping().Len() == 0 {
+func mappingTagsFor(c lowering.Ctx, d *statement.Discriminator, id ir.TypeID) []string {
+	if len(d.Mapping) == 0 {
 		return nil
 	}
 	return slices.Clone(lowering.Remembered(c, tagsOf{d}, func() map[ir.TypeID][]string {
 		tags := map[ir.TypeID][]string{}
-		for tag, value := range d.GetMapping().All() {
-			if chain, ok := chainOf(c, d, value); ok && !chain.broken {
-				tags[chain.end().id] = append(tags[chain.end().id], tag)
+		for _, e := range d.Mapping {
+			if chain, ok := chainOf(c, d, e.Target); ok && !chain.broken {
+				tags[chain.end().id] = append(tags[chain.end().id], e.Value)
 			}
 		}
 		for _, keys := range tags {

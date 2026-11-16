@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -20,7 +19,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -51,7 +49,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, sM.GetDiscriminator(), pointer, m, nil)
+			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -410,8 +408,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *statement.Schema, comp a
 // where comp says it speaks.
 func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, i int) []ir.Diagnostic {
 	e := comp.branches[i]
-	bs := statement.ParsedAt(e.schema).GetSchema()
-	if bs == nil {
+	if e.schema.Truth != statement.Stated {
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	speaks := comp.branchSpeaks(i)
@@ -424,7 +421,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil
 	}
 	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
-		bs.GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
+		e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 	if !kept {
 		return keptDiags
 	}
@@ -497,19 +494,17 @@ func unmergedWhy(residue []string, e allOfBranch) string {
 // unmergedBranchKeys returns the keywords the branch declares that consumes does
 // not claim, in the order the parser's model holds them.
 //
-// The keys come off the branch's own raw mapping rather than from a list of
+// The keys are the branch's own (statement.Schema.Keys) rather than a list of
 // keywords worth preserving, which is what keeps this from rotting: a keyword a
 // later dialect adds counts as unconsumed the moment a source writes it, with
 // nobody to remember it here.
 func unmergedBranchKeys(bs *statement.Schema, consumes func(key string) bool) []string {
-	m := statement.Parsed(bs)
-	declared := rawMappingKeys(m.GetRootNode())
-	out := make([]string, 0, len(declared))
-	for _, key := range declared {
-		if consumes(key) || annotation.WritesKeywordLeftOut(bs, key) {
+	out := make([]string, 0, len(bs.Keys))
+	for _, k := range bs.Keys {
+		if consumes(k.Name) || annotation.WritesKeywordLeftOut(bs, k.Name) {
 			continue
 		}
-		out = append(out, key)
+		out = append(out, k.Name)
 	}
 	return out
 }
@@ -559,29 +554,6 @@ func branchExcludesObject(bs *statement.Schema) bool {
 	return writesType(bs) && !slices.Contains(m.GetType(), oas3.SchemaTypeObject)
 }
 
-// rawMappingKeys returns the keys a YAML mapping effectively writes, a
-// document node unwrapped first, in the order the parser's model holds them,
-// or nil when the node is no mapping. It enumerates what nodeview.Child looks
-// up one key at a time.
-//
-// Effective, not literal: a branch spelled `*anchor` writes the anchored
-// mapping's keys, and `<<: *anchor` the merged-in keys. A residue derived from
-// the literal text would report `<<`, or for a whole-branch alias no keys at
-// all, which reads as "the merge consumed everything" and drops the branch
-// silently. nodeview.View defines how a mapping is read and bounds the
-// expansion (nodeview.MergeDepthLimit).
-func rawMappingKeys(root *yaml.Node) []string {
-	pairs := nodeview.Pairs(root)
-	if len(pairs) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(pairs))
-	for _, p := range pairs {
-		keys = append(keys, p.Key)
-	}
-	return keys
-}
-
 // selectAllOfBase returns the index into branches of the one that becomes
 // Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
 // Mixins): of several, the first whose $ref lands on a schema taking part in a
@@ -610,8 +582,7 @@ type inHierarchyOf struct {
 // reads the source, so no lowering order decides it, and every composition
 // naming s asks, so it is read once a run.
 func inHierarchy(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
 	return lowering.Remembered(c, inHierarchyOf{s}, func() bool {
-		return m.GetDiscriminator() != nil || len(discriminatedAncestors(c, s)) > 0
+		return discriminatorIn(s) != nil || len(discriminatedAncestors(c, s)) > 0
 	})
 }

@@ -332,7 +332,7 @@ func unhomedKeywords(s *statement.Schema, td ir.TypeDef, handled []string) []str
 func unhomedAcross(s *statement.Schema, nodes []ir.TypeDef, handled []string) []string {
 	out := make([]string, 0, len(censusKeywords))
 	for _, keyword := range censusKeywords {
-		if annotation.RawPropertyNode(s, keyword) == nil || slices.Contains(handled, keyword) {
+		if !hasKey(s, keyword) || slices.Contains(handled, keyword) {
 			continue
 		}
 		if !slices.ContainsFunc(nodes, func(td ir.TypeDef) bool { return keywordHome(td, s, keyword) }) {
@@ -395,7 +395,7 @@ const (
 // lowered to, naming the keyword it expanded through: a $dynamicRef wherever s
 // writes one, as dynamicRefOf reads it, else its $recursiveRef.
 func expandedShapeOf(s *statement.Schema) string {
-	if annotation.RawPropertyNode(s, "$dynamicRef") != nil {
+	if hasKey(s, "$dynamicRef") {
 		return expandedShape
 	}
 	return "a reference to the type its $recursiveRef expands to"
@@ -521,8 +521,7 @@ func positionShape(td ir.TypeDef, s *statement.Schema) string {
 // holds none: then it says so, as shape alone would deny a node of that kind
 // the field.
 func taglessShape(m *ir.Model, s *statement.Schema, shape string) string {
-	sM := statement.Parsed(s)
-	d := sM.GetDiscriminator()
+	d := discriminatorIn(s)
 	if d == nil || tagLocated(d, m) {
 		return shape
 	}

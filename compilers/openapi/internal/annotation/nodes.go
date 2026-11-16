@@ -4,54 +4,18 @@
 package annotation
 
 import (
-	"slices"
-
-	"github.com/speakeasy-api/openapi/yml"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
-// RawPropertyNode returns the raw YAML value node of a top-level schema
-// keyword, its alias followed, or nil when absent. The library's
-// GetPropertyNode resolves Go core field names and returns key nodes; this
-// reads the schema's root mapping for the on-wire keyword as the parser reads
-// it (nodeview.Child), through its `<<` merges, and returns its value node,
-// which is where exact literals live.
-//
-// A null reads as absent, since no keyword admits one, unless the keyword's
-// value is an instance (holdsInstance), so every reader sees one keyword left
-// out (docs/compilers/openapi.md#null-keywords).
-func RawPropertyNode(s *statement.Schema, key string) *yaml.Node {
-	m := statement.Parsed(s)
-	if m == nil {
+// keyNode returns the value of the keyword key s writes, its alias followed,
+// as s.Key reads it: nil where s does not write it, or writes a null for a
+// keyword whose value is no instance (docs/compilers/openapi.md#null-keywords).
+func keyNode(s *statement.Schema, key string) *yaml.Node {
+	k, read := s.Key(key)
+	if !read {
 		return nil
 	}
-	n := nodeview.Child(m.GetRootNode(), key)
-	if IsNullNode(n) && !holdsInstance(key) {
-		return nil
-	}
-	return n
-}
-
-// holdsInstance reports whether keyword's value is a JSON instance rather than
-// a value of the keyword's own type, so that a null is that value.
-func holdsInstance(keyword string) bool {
-	return keyword == "const" || keyword == "default" || keyword == "example"
-}
-
-// DeclaresAny reports whether s writes any of keywords. It reads the raw nodes
-// rather than the model fields because the recorders reading the same keyword
-// lists read them there (recordResidue, dialectAt, declaredConstraints), and a
-// predicate consulting a different source could disagree with them in either
-// direction.
-func DeclaresAny(s *statement.Schema, keywords []string) bool {
-	return slices.ContainsFunc(keywords, func(keyword string) bool { return RawPropertyNode(s, keyword) != nil })
-}
-
-// IsNullNode reports whether n, read through an alias, is a YAML null.
-func IsNullNode(n *yaml.Node) bool {
-	n = yml.ResolveAlias(n)
-	return n != nil && n.Kind == yaml.ScalarNode && n.ShortTag() == "!!null"
+	return k.Node
 }

@@ -94,7 +94,7 @@ func writesBound(c lowering.Ctx, s *statement.Schema) bool {
 
 // declaresBound reports whether s writes a value bound or a collection bound.
 func declaresBound(s *statement.Schema) bool {
-	return declaresValueConstraints(s) || annotation.DeclaresAny(s, collectionBoundKeywords)
+	return declaresValueConstraints(s) || hasAnyKey(s, collectionBoundKeywords)
 }
 
 // namedTypes reads what the schemas s, written at pointer, names admit

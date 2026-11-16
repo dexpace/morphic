@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -43,7 +42,8 @@ func TestPreserveParamXML_ModelSetWithoutRawSourceRecordsNothing(t *testing.T) {
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    A: {type: string}\n"))
 	s := &oas3.Schema{XML: &oas3.XML{}}
 	require.NotNil(t, s.GetXML(), "the model reports the hint as set")
-	require.Nil(t, annotation.RawPropertyNode(standaloneSchema(s), "xml"), "and no raw node backs it")
+	_, backed := standaloneSchema(s).Key("xml")
+	require.False(t, backed, "and no raw node backs it")
 
 	var written ir.Unmodeled
 	diags := preserveParamXML(l.ctx, &written, standaloneSchema(s), "/paths/~1x/get/parameters/0/schema")

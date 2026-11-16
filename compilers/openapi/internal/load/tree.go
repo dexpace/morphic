@@ -15,10 +15,6 @@ import (
 // schemaRef is a schema of the parser's model, as each position holds one.
 type schemaRef = oas3.JSONSchema[oas3.Referenceable]
 
-// oasDiscriminator is a schema's discriminator, as the parser's model holds
-// one.
-type oasDiscriminator = oas3.Discriminator
-
 // anyNode reports whether any node but an alias in the tree under root
 // satisfies match. It walks each node once, never through an alias, so its
 // cost is the node count the source budget already bounds.

@@ -286,8 +286,11 @@ func keepBranchDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Di
 	if rest, beneath := strings.CutPrefix(string(owner), string(n.Provenance.Pointer)+"/"); beneath {
 		scope = rest
 	}
-	kept, diags := annotation.ExtensionsUnder(u.disc.GetExtensions(), c.Place(), owner, scope)
-	diags = append(diags, annotation.UnknownKeysUnder(&kept, u.disc, c.Place(), owner, scope)...)
+	// u.disc is the holder's, as discAt is at, and the census of its keys reads
+	// the parser's object.
+	disc := statement.Parsed(u.holder).GetDiscriminator()
+	kept, diags := annotation.ExtensionsUnder(disc.GetExtensions(), c.Place(), owner, scope)
+	diags = append(diags, annotation.UnknownKeysUnder(&kept, disc, c.Place(), owner, scope)...)
 	n.Unmodeled = annotation.MergeUnmodeled(n.Unmodeled, kept)
 	return diags
 }
@@ -303,7 +306,7 @@ type unionAt struct {
 	at     jsontext.Pointer
 	// disc is the discriminator the union is routed by, nil for none: one written
 	// beside it, else one beside the allOf holding its branch (branchUnion).
-	disc   *oas3.Discriminator
+	disc   *statement.Discriminator
 	discAt jsontext.Pointer
 	// branch marks a holder that is an allOf branch, no schema at a position.
 	branch bool
@@ -312,8 +315,7 @@ type unionAt struct {
 // besideUnion is the union s, written at pointer, writes itself, with the
 // discriminator written beside it.
 func besideUnion(s *statement.Schema, pointer jsontext.Pointer) unionAt {
-	m := statement.Parsed(s)
-	return unionAt{holder: s, at: pointer, disc: m.GetDiscriminator(), discAt: pointer}
+	return unionAt{holder: s, at: pointer, disc: discriminatorIn(s), discAt: pointer}
 }
 
 // branchUnionOf keys what branchUnion read of one schema.
@@ -336,14 +338,13 @@ type branchUnionIndex struct {
 // (classifyConjoined): ok is false where s is the base of the hierarchy the
 // discriminator routes, which leaves the union with its branch.
 func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
-	m := statement.Parsed(s)
 	at := branchUnionIndexOf(c, s)
 	if !at.ok {
 		return unionAt{}, 0, false
 	}
 	e := allOfBranches(c, s, pointer).branches[at.index]
-	u := unionAt{holder: e.schema.Schema, at: e.pointer, disc: m.GetDiscriminator(), discAt: pointer, branch: true}
-	if d := statement.Parsed(u.holder).GetDiscriminator(); d != nil {
+	u := unionAt{holder: e.schema.Schema, at: e.pointer, disc: discriminatorIn(s), discAt: pointer, branch: true}
+	if d := discriminatorIn(u.holder); d != nil {
 		u.disc, u.discAt = d, e.pointer
 	}
 	how := classifyConjoined(c, s, u, pointer)
@@ -366,7 +367,6 @@ func branchUnionIndexOf(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 // which routes it. A $ref site or a union beside the allOf lowers first
 // (lowerSchemaBody), and is no reading of a branch's.
 func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
-	m := statement.Parsed(s)
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
@@ -382,7 +382,7 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	if count != 1 || branches[index].capped {
 		return branchUnionIndex{}
 	}
-	if holder := statement.ParsedAt(branches[index].schema).GetSchema(); holder.GetDiscriminator() != nil && m.GetDiscriminator() != nil ||
+	if discriminatorIn(branches[index].schema.Schema) != nil && discriminatorIn(s) != nil ||
 		classifyBranchSet(c, branches[index].schema.Schema) != unionDistributed {
 		return branchUnionIndex{}
 	}
@@ -602,7 +602,7 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		}
 		var out []string
 		for _, key := range restatableKeywords {
-			if annotation.RawPropertyNode(s, key) == nil {
+			if !hasKey(s, key) {
 				continue
 			}
 			if !slices.ContainsFunc(reads, func(r admitted) bool { return !branchSays(&w, r, s, key) }) {

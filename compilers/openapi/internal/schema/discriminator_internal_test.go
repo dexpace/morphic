@@ -6,7 +6,6 @@ package schema
 import (
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -141,11 +141,11 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 
 // petDiscriminator returns the discriminator the component schema Pet holds
 // in l's document.
-func petDiscriminator(t *testing.T, l *Lowerer) *oas3.Discriminator {
+func petDiscriminator(t *testing.T, l *Lowerer) *statement.Discriminator {
 	t.Helper()
 	js, ok := l.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
-	d := js.GetSchema().GetDiscriminator()
+	d := discriminatorIn(l.Ctx.Statements().Of(js).Schema)
 	require.NotNil(t, d)
 	return d
 }

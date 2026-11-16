@@ -33,10 +33,10 @@ type dynamicRef struct {
 // where the rows of the dialect s is read in define it, as 2019-09's do
 // (docs/compilers/openapi.md#dynamic-ref).
 func dynamicRefOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
-	if n := annotation.RawPropertyNode(s, "$dynamicRef"); n != nil {
+	if n := keyNode(s, "$dynamicRef"); n != nil {
 		return dynamicRef{keyword: "$dynamicRef", node: n}, true
 	}
-	n := annotation.RawPropertyNode(s, "$recursiveRef")
+	n := keyNode(s, "$recursiveRef")
 	if n == nil || !c.Rules().At(c.Position(pointer)).Defines("$recursiveRef") {
 		return dynamicRef{}, false
 	}
@@ -338,5 +338,5 @@ func dynamicExpanded(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // as dynamic too, which each errs safely on: it keeps a composition it would
 // refine, or a node it would leave the alias to.
 func declaresDynamicRef(s *statement.Schema) bool {
-	return annotation.RawPropertyNode(s, "$dynamicRef") != nil || annotation.RawPropertyNode(s, "$recursiveRef") != nil
+	return hasKey(s, "$dynamicRef") || hasKey(s, "$recursiveRef")
 }

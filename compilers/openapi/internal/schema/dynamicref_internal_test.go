@@ -196,8 +196,8 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 		return js
 	}
 	branch := func(name string) allOfBranch {
-		s := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).GetSchema()
-		return allOfBranches(l.Ctx, StandaloneSchema(s), "").branches[0]
+		s := l.Ctx.Statements().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).Schema
+		return allOfBranches(l.Ctx, s, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
 		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
@@ -205,8 +205,8 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	w := newAdmission(l.Ctx)
 	fields := modelFields{c: l.Ctx}
 
-	assert.True(t, w.sameText(Standalone(at("Plain")), Standalone(at("Twin"))))
-	assert.False(t, w.sameText(Standalone(at("Plain")), Standalone(at("Deep"))))
+	assert.True(t, w.sameText(l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Twin"))))
+	assert.False(t, w.sameText(l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Deep"))))
 	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
 	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))

@@ -597,16 +597,14 @@ func (w *admission) itemsWithin(a, b admitted) bool {
 // at all, which is within anything. A keyword no reading compares, a $ref among
 // them, says what it cannot tell, and a null one says nothing.
 func (w *admission) restates(held admitted, from, js *statement.Statement) bool {
-	jsM := statement.ParsedAt(js)
 	if !held.reachable() || w.sameText(from, js) {
 		return true
 	}
-	s := jsM.GetSchema()
-	if s == nil || w.reads.Exhausted() {
+	if js.Truth != statement.Stated || w.reads.Exhausted() {
 		return false
 	}
-	return !slices.ContainsFunc(rawMappingKeys(s.GetRootNode()), func(key string) bool {
-		return !annotation.WritesKeywordLeftOut(js.Schema, key) && !w.holds(held, js.Schema, key)
+	return !slices.ContainsFunc(js.Keys, func(k statement.Key) bool {
+		return !annotation.WritesKeywordLeftOut(js.Schema, k.Name) && !w.holds(held, js.Schema, k.Name)
 	})
 }
 
@@ -646,9 +644,8 @@ type textOf struct {
 // text renders js, nil where it cannot be rendered. Every position restating a
 // shared schema asks, so it is rendered once a run.
 func (w *admission) text(js *statement.Statement) ir.RawValue {
-	m := statement.ParsedAt(js)
 	return lowering.Remembered(w.c, textOf{js}, func() ir.RawValue {
-		raw, err := annotation.RawFromNode(m.GetCore().GetRootNode())
+		raw, err := annotation.RawFromNode(js.Node)
 		if err != nil {
 			return nil
 		}

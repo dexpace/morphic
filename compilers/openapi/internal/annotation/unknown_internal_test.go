@@ -522,6 +522,7 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 			assert.Equal(t, tc.want, len(kept) > 0)
 		})
 	}
+	assert.False(t, WritesUnknownKeyword(nil), "a position with no schema object writes none")
 }
 
 // TestWritesKeywordLeftOut_TellsANullThatStatesNothing pins what a reader

@@ -86,7 +86,7 @@ func refinementOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer)
 
 // decide reads the decision refinementOf remembers.
 func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
-	if annotation.DeclaresAny(s, objectKeywords) {
+	if hasAnyKey(s, objectKeywords) {
 		return decision{}
 	}
 	comp := allOfBranches(c, s, pointer)
@@ -124,7 +124,7 @@ func refinableBranches(c lowering.Ctx, comp allOfComposition) bool {
 	named := 0
 	for _, e := range comp.branches {
 		if e.capped || annotation.IsFalseSchema(statement.ParsedAt(e.schema)) ||
-			declaresDynamicRef(e.schema.Schema) && !c.Bindings().RefSite(statement.ParsedAt(e.schema)) || annotation.DeclaresAny(e.schema.Schema, objectKeywords) {
+			declaresDynamicRef(e.schema.Schema) && !c.Bindings().RefSite(statement.ParsedAt(e.schema)) || hasAnyKey(e.schema.Schema, objectKeywords) {
 			return false
 		}
 		if c.Bindings().RefSite(statement.ParsedAt(e.schema)) {
@@ -440,7 +440,7 @@ func keptUnion(c lowering.Ctx, r refinement, s *statement.Schema) (degraded, val
 	w := newAdmission(c)
 	for _, key := range []string{"oneOf", "anyOf"} {
 		switch {
-		case annotation.RawPropertyNode(s, key) == nil || unionHeld(&w, r, s, key):
+		case !hasKey(s, key) || unionHeld(&w, r, s, key):
 		case shapeless:
 			validation = append(validation, key)
 		default:
@@ -517,7 +517,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
 	for _, b := range k.branches {
 		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
-			statement.ParsedAt(b.entry.schema).GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))
+			b.entry.schema.Node, ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))

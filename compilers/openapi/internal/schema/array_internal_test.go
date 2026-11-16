@@ -69,20 +69,20 @@ components:
 		return out
 	}
 	for _, name := range []string{"Pair", "Ref"} {
-		entries, rest, ok := ListedTuple(l.Ctx, Standalone(component(name)))
+		entries, rest, ok := ListedTuple(l.Ctx, l.Ctx.Statements().Of(component(name)))
 		require.True(t, ok, "%s is a tuple", name)
 		assert.Equal(t, []string{"a", "b"}, descriptions(entries), "%s's entries", name)
 		assert.Equal(t, "rest", statement.ParsedAt(rest).GetSchema().GetDescription(), "%s's rest", name)
 	}
-	entries, rest, ok := ListedTuple(l.Ctx, Standalone(component("Closed")))
+	entries, rest, ok := ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Closed")))
 	require.True(t, ok, "a closed tuple is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "a closed tuple's entries")
 	assert.True(t, annotation.IsFalseSchema(statement.ParsedAt(rest)), "a closed tuple's rest admits nothing")
-	entries, rest, ok = ListedTuple(l.Ctx, Standalone(component("Open")))
+	entries, rest, ok = ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Open")))
 	require.True(t, ok, "a tuple writing no rest is one")
 	assert.Equal(t, []string{"a"}, descriptions(entries), "an open tuple's entries")
 	assert.Nil(t, statement.ParsedAt(rest), "a tuple writing no rest has none")
-	_, _, ok = ListedTuple(l.Ctx, Standalone(component("Prefixed")))
+	_, _, ok = ListedTuple(l.Ctx, l.Ctx.Statements().Of(component("Prefixed")))
 	assert.False(t, ok, "a tuple of prefixItems is no list of items")
 	other, _ := LoweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}

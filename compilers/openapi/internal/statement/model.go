@@ -103,156 +103,127 @@ func truthOf(js *model) Truth {
 	}
 }
 
-// fill reads each slot's values from m, a key at a time, each keyword into
-// its own slot (oas.SlotOf) whatever the rows say of it, as the walk reads the
-// model: a policy reads a 3.0 `nullable` in a 3.1 schema
+// fill reads each slot's values. A typed value is m's, the parser's model,
+// wherever it holds one, as the walk reads the model, whether or not s's keys
+// list its keyword, which they do not past nodeview.MergeDepthLimit
+// (docs/parser-library.md#merge-keys); a value kept as the node it was written
+// as is its key's. Each keyword lands in its own slot (oas.SlotOf) whatever
+// the rows say: a policy reads a 3.0 `nullable` in a 3.1 schema
 // (docs/compilers/openapi.md#nullable), and the key's Slot carries the rows'
-// verdict. A key whose value is not read opens its slot and fills nothing.
+// verdict. A listed key whose value is not read opens its slot and fills
+// nothing.
 func fill(s *Schema, m *oas3.Schema) {
+	s.AllOf = listed(m.AllOf)
+	s.Kinds = kindsOf(m)
+	s.Values = valuesOf(m)
+	s.Format = formatOf(m)
+	s.Text = textOf(m)
+	s.Array = arrayOf(m)
+	s.Object = objectOf(m, s.At)
+	s.Choice = choiceOf(m)
+	s.Logic = logicOf(m)
+	s.Notes = notesOf(m)
 	for _, k := range s.Keys {
-		slot := oas.SlotOf(k.Name)
-		open(s, slot)
-		if !k.read() {
-			continue
-		}
-		switch slot {
-		case oas.SlotConjunction:
-			s.AllOf = listed(m.GetAllOf())
-		case oas.SlotKinds:
-			fillKinds(s.Kinds, k, m)
-		case oas.SlotValues:
-			fillValues(s.Values, k, m)
-		case oas.SlotFormat:
-			s.Format.Name = m.GetFormat()
-		case oas.SlotNumber:
-			fillNumber(s.Number, k)
-		case oas.SlotText:
-			fillText(s.Text, k, m)
-		case oas.SlotArray:
-			fillArray(s.Array, k, m)
-		case oas.SlotObject:
-			fillObject(s.Object, k, m, s.At)
-		case oas.SlotChoice:
-			fillChoice(s.Choice, k, m)
-		case oas.SlotLogic:
-			fillLogic(s.Logic, k, m)
-		case oas.SlotNotes:
-			fillNotes(s.Notes, k, m)
-		default:
-			// A reference is the bindings' reading, and the resource and an
-			// unknown key are their keys alone.
+		open(s, oas.SlotOf(k.Name))
+		if k.read() {
+			fillNode(s, k)
 		}
 	}
 }
 
-// fillKinds reads k, a key of the kinds slot, into kinds.
-func fillKinds(kinds *Kinds, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "type":
-		for _, t := range m.GetType() {
-			kinds.Types = append(kinds.Types, Kind(t))
-		}
-	case "nullable":
-		kinds.Nullable = m.Nullable
-	}
-}
-
-// fillValues reads k, a key of the values slot, into v.
-func fillValues(v *Values, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "enum":
-		v.Enum = m.GetEnum()
-	case "const":
-		v.Const = m.GetConst()
-	}
-}
-
-// fillNumber reads k, a key of the number slot, into n, as the node it was
-// written as, which the parser's model holds as a float.
-func fillNumber(n *Number, k Key) {
+// fillNode reads k, a key of a slot open in s, into the field the statement
+// keeps as the node it was written as: a numeric bound, which the model holds
+// as a float, and a keyword the model holds no field for. A key of no such
+// field fills nothing.
+func fillNode(s *Schema, k Key) {
 	switch k.Name {
 	case "minimum":
-		n.Minimum = k.Node
+		s.Number.Minimum = k.Node
 	case "maximum":
-		n.Maximum = k.Node
+		s.Number.Maximum = k.Node
 	case "exclusiveMinimum":
-		n.ExclusiveMinimum = k.Node
+		s.Number.ExclusiveMinimum = k.Node
 	case "exclusiveMaximum":
-		n.ExclusiveMaximum = k.Node
+		s.Number.ExclusiveMaximum = k.Node
 	case "multipleOf":
-		n.MultipleOf = k.Node
-	}
-}
-
-// fillText reads k, a key of the text slot, into text.
-func fillText(text *Text, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "minLength":
-		text.MinLength = m.GetMinLength()
-	case "maxLength":
-		text.MaxLength = m.GetMaxLength()
-	case "pattern":
-		text.Pattern = m.GetPattern()
-	case "contentEncoding":
-		text.ContentEncoding = m.GetContentEncoding()
-	case "contentMediaType":
-		text.ContentMediaType = m.GetContentMediaType()
-	case "contentSchema":
-		text.ContentSchema = Sub{m: m.GetContentSchema()}
-	}
-}
-
-// fillArray reads k, a key of the array slot, into a.
-func fillArray(a *Array, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "items":
-		a.Items = Sub{m: m.GetItems()}
-	case "prefixItems":
-		a.PrefixItems = listed(m.GetPrefixItems())
+		s.Number.MultipleOf = k.Node
 	case "additionalItems":
-		a.AdditionalItems = k.Node
-	case "contains":
-		a.Contains = Sub{m: m.GetContains()}
-	case "minContains":
-		a.MinContains = m.GetMinContains()
-	case "maxContains":
-		a.MaxContains = m.GetMaxContains()
-	case "minItems":
-		a.MinItems = m.MinItems
-	case "maxItems":
-		a.MaxItems = m.GetMaxItems()
-	case "uniqueItems":
-		a.UniqueItems = m.UniqueItems
-	case "unevaluatedItems":
-		a.UnevaluatedItems = Sub{m: m.GetUnevaluatedItems()}
+		s.Array.AdditionalItems = k.Node
+	case "dependentRequired":
+		s.Object.DependentRequired = k.Node
+	case "dependencies":
+		s.Logic.Dependencies = k.Node
+	case "$comment":
+		s.Notes.Comment = k.Node
 	}
 }
 
-// fillObject reads k, a key of the object slot of the schema read at at, into
-// o.
-func fillObject(o *Object, k Key, m *oas3.Schema, at bind.Position) {
-	switch k.Name {
-	case "properties":
-		o.Properties = named(m.GetProperties().Len(), m.GetProperties().All())
-	case "patternProperties":
-		o.PatternProperties = named(m.GetPatternProperties().Len(), m.GetPatternProperties().All())
-	case "additionalProperties":
-		o.AdditionalProperties = Sub{m: m.GetAdditionalProperties()}
-	case "propertyNames":
-		o.PropertyNames = Sub{m: m.GetPropertyNames()}
-	case "unevaluatedProperties":
-		o.UnevaluatedProperties = Sub{m: m.GetUnevaluatedProperties()}
-	case "required":
-		o.Required = m.GetRequired()
-	case "dependentRequired":
-		o.DependentRequired = k.Node
-	case "minProperties":
-		o.MinProperties = m.GetMinProperties()
-	case "maxProperties":
-		o.MaxProperties = m.GetMaxProperties()
-	case "discriminator":
-		o.Discriminator = discriminatorOf(m.GetDiscriminator(), at)
+// kindsOf returns what m's type and nullable say, nil where it holds neither.
+func kindsOf(m *oas3.Schema) *Kinds {
+	if m.Type == nil && m.Nullable == nil {
+		return nil
 	}
+	kinds := &Kinds{Nullable: m.Nullable}
+	for _, t := range m.GetType() {
+		kinds.Types = append(kinds.Types, Kind(t))
+	}
+	return kinds
+}
+
+// valuesOf returns what m's enum and const say, nil where it holds neither.
+func valuesOf(m *oas3.Schema) *Values {
+	if m.Enum == nil && m.Const == nil {
+		return nil
+	}
+	return &Values{Enum: m.Enum, Const: m.Const}
+}
+
+// formatOf returns the format m names, nil where it names none.
+func formatOf(m *oas3.Schema) *Format {
+	if m.Format == nil {
+		return nil
+	}
+	return &Format{Name: *m.Format}
+}
+
+// textOf returns what m's keywords asserting about a string say, nil where
+// it holds none of them.
+func textOf(m *oas3.Schema) *Text {
+	if m.MinLength == nil && m.MaxLength == nil && m.Pattern == nil && m.ContentEncoding == nil &&
+		m.ContentMediaType == nil && m.ContentSchema == nil {
+		return nil
+	}
+	return &Text{MinLength: m.MinLength, MaxLength: m.MaxLength, Pattern: m.GetPattern(),
+		ContentEncoding: m.GetContentEncoding(), ContentMediaType: m.GetContentMediaType(),
+		ContentSchema: Sub{m: m.ContentSchema}}
+}
+
+// arrayOf returns what m's keywords asserting about an array say, nil where
+// it holds none of them.
+func arrayOf(m *oas3.Schema) *Array {
+	if m.Items == nil && m.PrefixItems == nil && m.Contains == nil && m.MinContains == nil &&
+		m.MaxContains == nil && m.MinItems == nil && m.MaxItems == nil && m.UniqueItems == nil &&
+		m.UnevaluatedItems == nil {
+		return nil
+	}
+	return &Array{Items: Sub{m: m.Items}, PrefixItems: listed(m.PrefixItems), Contains: Sub{m: m.Contains},
+		MinContains: m.MinContains, MaxContains: m.MaxContains, MinItems: m.MinItems, MaxItems: m.MaxItems,
+		UniqueItems: m.UniqueItems, UnevaluatedItems: Sub{m: m.UnevaluatedItems}}
+}
+
+// objectOf returns what m's keywords asserting about an object say, m being
+// read at at, nil where it holds none of them.
+func objectOf(m *oas3.Schema, at bind.Position) *Object {
+	if m.Properties == nil && m.PatternProperties == nil && m.AdditionalProperties == nil &&
+		m.PropertyNames == nil && m.UnevaluatedProperties == nil && m.Required == nil &&
+		m.MinProperties == nil && m.MaxProperties == nil && m.Discriminator == nil {
+		return nil
+	}
+	return &Object{Properties: named(m.GetProperties().Len(), m.GetProperties().All()),
+		PatternProperties:    named(m.GetPatternProperties().Len(), m.GetPatternProperties().All()),
+		AdditionalProperties: Sub{m: m.AdditionalProperties}, PropertyNames: Sub{m: m.PropertyNames},
+		UnevaluatedProperties: Sub{m: m.UnevaluatedProperties}, Required: m.Required,
+		MinProperties: m.MinProperties, MaxProperties: m.MaxProperties, Discriminator: discriminatorOf(m.Discriminator, at)}
 }
 
 // discriminatorOf returns what d says, read where the walk reads it: under
@@ -276,60 +247,33 @@ func discriminatorOf(d *oas3.Discriminator, at bind.Position) *Discriminator {
 	return out
 }
 
-// fillChoice reads k, a key of the choice slot, into c.
-func fillChoice(c *Choice, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "oneOf":
-		c.OneOf = listed(m.GetOneOf())
-	case "anyOf":
-		c.AnyOf = listed(m.GetAnyOf())
+// choiceOf returns what m's oneOf and anyOf say, nil where it holds neither.
+func choiceOf(m *oas3.Schema) *Choice {
+	if m.OneOf == nil && m.AnyOf == nil {
+		return nil
 	}
+	return &Choice{OneOf: listed(m.OneOf), AnyOf: listed(m.AnyOf)}
 }
 
-// fillLogic reads k, a key of the logic slot, into l.
-func fillLogic(l *Logic, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "not":
-		l.Not = Sub{m: m.GetNot()}
-	case "if":
-		l.If = Sub{m: m.GetIf()}
-	case "then":
-		l.Then = Sub{m: m.GetThen()}
-	case "else":
-		l.Else = Sub{m: m.GetElse()}
-	case "dependentSchemas":
-		l.DependentSchemas = named(m.GetDependentSchemas().Len(), m.GetDependentSchemas().All())
-	case "dependencies":
-		l.Dependencies = k.Node
+// logicOf returns what m's in-place applicators say, nil where it holds none
+// of them.
+func logicOf(m *oas3.Schema) *Logic {
+	if m.Not == nil && m.If == nil && m.Then == nil && m.Else == nil && m.DependentSchemas == nil {
+		return nil
 	}
+	return &Logic{Not: Sub{m: m.Not}, If: Sub{m: m.If}, Then: Sub{m: m.Then}, Else: Sub{m: m.Else},
+		DependentSchemas: named(m.GetDependentSchemas().Len(), m.GetDependentSchemas().All())}
 }
 
-// fillNotes reads k, a key of the notes slot, into n.
-func fillNotes(n *Notes, k Key, m *oas3.Schema) {
-	switch k.Name {
-	case "title":
-		n.Title = m.GetTitle()
-	case "description":
-		n.Description = m.GetDescription()
-	case "default":
-		n.Default = m.GetDefault()
-	case "example":
-		n.Example = m.GetExample()
-	case "examples":
-		n.Examples = m.GetExamples()
-	case "deprecated":
-		n.Deprecated = m.Deprecated
-	case "readOnly":
-		n.ReadOnly = m.ReadOnly
-	case "writeOnly":
-		n.WriteOnly = m.WriteOnly
-	case "xml":
-		n.XML = xmlOf(m.GetXML())
-	case "externalDocs":
-		n.ExternalDocs = externalDocsOf(m.GetExternalDocs())
-	case "$comment":
-		n.Comment = k.Node
+// notesOf returns what m says of itself, nil where it holds none of it.
+func notesOf(m *oas3.Schema) *Notes {
+	if m.Title == nil && m.Description == nil && m.Default == nil && m.Example == nil && m.Examples == nil &&
+		m.Deprecated == nil && m.ReadOnly == nil && m.WriteOnly == nil && m.XML == nil && m.ExternalDocs == nil {
+		return nil
 	}
+	return &Notes{Title: m.GetTitle(), Description: m.GetDescription(), Default: m.Default, Example: m.Example,
+		Examples: m.Examples, Deprecated: m.Deprecated, ReadOnly: m.ReadOnly, WriteOnly: m.WriteOnly,
+		XML: xmlOf(m.XML), ExternalDocs: externalDocsOf(m.ExternalDocs)}
 }
 
 // xmlOf returns what x says.

@@ -63,7 +63,7 @@ func listedTuple(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 // as the drafts before 2020-12 spell one, and false where it writes no list.
 // The parser's model has no form for such a list, so only its node tells.
 func listedItems(s *statement.Schema) (int, bool) {
-	n := annotation.RawPropertyNode(s, "items")
+	n := keyNode(s, "items")
 	if n == nil || n.Kind != yaml.SequenceNode {
 		return 0, false
 	}
@@ -115,7 +115,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 // spelling of one, where no text makes the two one tuple
 // (docs/compilers/openapi.md#tuples), and reports it once.
 func keepPrefixItems(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if annotation.RawPropertyNode(s, "prefixItems") == nil {
+	if !hasKey(s, "prefixItems") {
 		return nil
 	}
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, "prefixItems", ir.ReasonDegradedLowering, pointer, c.Place())

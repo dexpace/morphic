@@ -24,12 +24,12 @@ func (s Scope) Target(js *oas3.JSONSchema[oas3.Referenceable]) (bind.Position, b
 }
 
 // MappingTarget returns where the lowering places what the mapping value of
-// the discriminator d names, read as a $ref written at d is (bind.Mapping),
-// and the schema written there. ok is false for a value that lands on no
+// the discriminator read at at names, read as a $ref written there is
+// (bind.Mapping), and the schema written there. ok is false for a value that lands on no
 // schema.
-func (s Scope) MappingTarget(d *oas3.Discriminator, value string,
+func (s Scope) MappingTarget(at bind.Position, value string,
 ) (bind.Position, *oas3.JSONSchema[oas3.Referenceable], bool) {
-	m, ok := s.Bindings.Mapping(d, value)
+	m, ok := s.Bindings.Mapping(at, value)
 	if !ok || m.Hop.Status != bind.Resolved {
 		return bind.Position{}, nil, false
 	}

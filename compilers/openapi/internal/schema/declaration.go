@@ -82,18 +82,18 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 // which recordUnexpandedDynamicRef keeps nowhere, as a $ref.
 func declaresPositionScoped(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
-		annotation.DeclaresAny(s, collectionBoundKeywords) ||
-		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
+		hasAnyKey(s, collectionBoundKeywords) ||
+		declaresValidationOnly(s) || hasAnyKey(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(statement.ParsedAt(heldAt(c, pointer))) ||
 		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
 }
 
 // declaresDialectKeyword reports whether s writes one of the dialect keywords
-// annotation keeps out of scope, read from the raw node as DeclaresAny reads.
+// annotation keeps out of scope, read from its keys as hasAnyKey reads.
 func declaresDialectKeyword(s *statement.Schema) bool {
 	for keyword := range annotation.DialectKeywords() {
-		if annotation.RawPropertyNode(s, keyword) != nil {
+		if hasKey(s, keyword) {
 			return true
 		}
 	}
@@ -136,7 +136,7 @@ func declaresValidationOnly(s *statement.Schema) bool {
 	if ds := m.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
 		return true
 	}
-	if annotation.RawPropertyNode(s, "dependentRequired") != nil {
+	if hasKey(s, "dependentRequired") {
 		return true
 	}
 	return annotation.Written(m.GetUnevaluatedItems()) || annotation.Written(m.GetUnevaluatedProperties())
@@ -272,7 +272,7 @@ func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *statement.Sc
 // readOnly/writeOnly (Property.Visibility is theirs).
 //
 // One list, read by both the predicate that hoists a node for them
-// (declaresPositionScoped, via annotation.DeclaresAny) and the recorder that
+// (declaresPositionScoped, via hasAnyKey) and the recorder that
 // fills it (recordResidue), so the two can never drift into either half of
 // declaresPositionScoped's trap.
 var residueKeywords = []string{"default", "readOnly", "writeOnly"}

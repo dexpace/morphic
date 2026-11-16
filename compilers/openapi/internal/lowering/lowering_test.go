@@ -186,10 +186,9 @@ x-lib:
 	c := servicetest.Context(t, spec, service.Policy{})
 	pet, ok := c.Doc.Components.Schemas.Get("Pet")
 	require.True(t, ok)
-	d := pet.GetSchema().GetDiscriminator()
-	require.NotNil(t, d)
+	require.NotNil(t, pet.GetSchema().GetDiscriminator())
 
-	at, built, ok := c.RefScope().MappingTarget(d, "#/x-lib/Cat")
+	at, built, ok := c.RefScope().MappingTarget(bind.Position{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
 	require.NotNil(t, built, "the load phase built a schema there")

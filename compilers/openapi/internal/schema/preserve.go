@@ -48,7 +48,7 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 		// where no $dynamicRef stands beside it, and the anchor it reads, which
 		// the binder consumes as a $dynamicAnchor.
 		taken = append(taken, "$recursiveAnchor")
-		if annotation.RawPropertyNode(s, "$dynamicRef") == nil {
+		if !hasKey(s, "$dynamicRef") {
 			taken = append(taken, "$recursiveRef")
 		}
 	}
@@ -65,7 +65,7 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 // everywhere.
 func undefinedKeywords(c lowering.Ctx, s *statement.Schema) []string {
 	if c.NullableInference.Honours() || c.SchemaRules().Defines("nullable") ||
-		annotation.RawPropertyNode(s, "nullable") == nil {
+		!hasKey(s, "nullable") {
 		return nil
 	}
 	return []string{"nullable"}
