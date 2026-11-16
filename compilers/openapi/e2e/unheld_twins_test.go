@@ -502,10 +502,10 @@ func nodeAt(root *yaml.Node, pointer string) (*yaml.Node, bool) {
 // field an Encoding Object nests (unheldFields), one level beneath it and two,
 // to the answers the same schema gets with the field moved under an extension
 // key of its length: each schema $ref's hop and chain, role included, each
-// landing, each `#/$defs` answer, how the expansion weight and the pointer
-// bound weigh what a compile copies or names, and every finding of the
-// compile. They differ only by the field's own finding (rawField) and where a
-// row says, each by the rule sentence its comment quotes.
+// landing, each `#/$defs` answer, how the expansion weight weighs what a
+// compile copies, and every finding of the compile. They differ only by the
+// field's own finding (rawField), the pointer bound's total (namedTotal), and
+// where a row says, each by the rule sentence its comment quotes.
 func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 	t.Parallel()
 	for _, f := range unheldFields {
@@ -514,8 +514,17 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 				t.Run(fmt.Sprintf("%s/deep=%t/%s", f.key, deep, row.name), func(t *testing.T) {
 					t.Parallel()
 					nested, twin := twinPlace{f: f, key: f.key, deep: deep}, twinPlace{f: f, key: f.twin, deep: deep}
-					got := twinAnswers(t, nested, row.doc(nested), f.key)
-					want := twinAnswers(t, twin, row.doc(twin), f.key)
+					got, gotNamed, gotTaken := namedTotal(twinAnswers(t, nested, row.doc(nested), f.key))
+					want, wantNamed, wantTaken := namedTotal(twinAnswers(t, twin, row.doc(twin), f.key))
+					require.Equal(t, wantTaken, gotTaken, "the pointer bound takes a total of both or neither")
+					// The binder reads each node beneath the field for the references
+					// written there, where an extension's value adds its root alone
+					// (source-budgets). The weighing expands no merge key, so a field
+					// an Encoding Object merges in through `<<` adds its root alone in
+					// both.
+					merged := row.doc(nested).encoding != ""
+					assert.Equal(t, gotTaken && !merged, gotNamed > wantNamed,
+						"the nested document names more: %d against %d", gotNamed, wantNamed)
 					onlyNested, onlyTwin := row.nestedOnly, row.twinOnly
 					if onlyNested == nil {
 						onlyNested, onlyTwin = none, none
@@ -526,6 +535,18 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 			}
 		}
 	}
+}
+
+// namedTotal is lines without the pointer bound's total, the total, and
+// whether lines held one.
+func namedTotal(lines []string) ([]string, int, bool) {
+	for i, l := range lines {
+		if n, ok := strings.CutPrefix(l, "named pointer bytes "); ok {
+			total, err := strconv.Atoi(n)
+			return slices.Delete(slices.Clone(lines), i, i+1), total, err == nil
+		}
+	}
+	return lines, 0, false
 }
 
 // minus is each line of a that b lacks.

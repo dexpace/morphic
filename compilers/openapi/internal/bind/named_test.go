@@ -56,28 +56,37 @@ func TestNamedPointerBytes_AValueKeptRawAddsItsRootAlone(t *testing.T) {
 	assert.Greater(t, asSchema-asSchemaBase, 5*(asExample-without), "mounted as a schema, every node of it is named")
 }
 
-// TestNamedPointerBytes_AFieldNoModelHoldsAddsItsRootAlone holds a schema
-// beneath an Encoding Object another nests to the total its twin under an
-// extension key of the same length gives: the lowering keeps the field
-// verbatim, so only its root is named. A $ref written beneath it is bound all
-// the same, so the raw value it lands in is named node by node, as the twin
-// names it once a $ref reaches the schema writing it.
-func TestNamedPointerBytes_AFieldNoModelHoldsAddsItsRootAlone(t *testing.T) {
+// TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode holds a schema
+// beneath an Encoding Object another nests to being named node by node, where
+// its twin under an extension key of the same length adds its root alone: the
+// lowering keeps the field verbatim, but the binder reads each node beneath it,
+// spelling its pointer, to bind the references written there. A $ref reaching
+// the schema names nothing the walk has not, and one written beneath the field
+// names the raw value it lands in.
+func TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode(t *testing.T) {
 	t.Parallel()
-	doc := func(key, ref string) string {
-		return namedHead + "x-data: " + namedSpine + "\ncomponents:\n  schemas:\n    T: {type: string}\n    In: {$ref: '" + ref + "'}\n" +
+	doc := func(key, in, out string) string {
+		return namedHead + "x-data: " + namedSpine + "\ncomponents:\n  schemas:\n    T: {type: string}\n    In: {$ref: '" + in + "'}\n" +
 			"  requestBodies:\n    B: {content: {m/x: {encoding: {f: {" + key + ": {g: {headers: {H: {schema: " +
-			"{type: object, properties: {o: {$ref: '#/x-data'}, k: " + namedSpine + "}}}}}}}}}}}\n"
+			"{type: object, properties: {o: {$ref: '" + out + "'}, k: " + namedSpine + "}}}}}}}}}}}\n"
 	}
 	const at = "#/components/requestBodies/B/content/m~1x/encoding/f/"
-	nested, c1 := namedTotal(t, doc("encoding", "#/components/schemas/T"))
-	twin, c2 := namedTotal(t, doc("x-coding", "#/components/schemas/T"))
-	reached, c3 := namedTotal(t, doc("encoding", at+"encoding/g/headers/H/schema"))
-	reachedTwin, c4 := namedTotal(t, doc("x-coding", at+"x-coding/g/headers/H/schema"))
+	totals := map[string]int{}
+	for name, text := range map[string]string{
+		"nested":         doc("encoding", "#/components/schemas/T", "#/x-data"),
+		"nested, no raw": doc("encoding", "#/components/schemas/T", "#/components/schemas/T"),
+		"reached":        doc("encoding", at+"encoding/g/headers/H/schema", "#/x-data"),
+		"reached twin":   doc("x-coding", at+"x-coding/g/headers/H/schema", "#/x-data"),
+	} {
+		total, complete := namedTotal(t, text)
+		require.True(t, complete, name)
+		totals[name] = total
+	}
 
-	assert.True(t, c1 && c2 && c3 && c4)
-	assert.Greater(t, nested, twin+100, "the $ref beneath the field names the raw value it lands in")
-	assert.Equal(t, reachedTwin, reached, "a $ref reaching the schema names it, and all it lands in, as the twin's")
+	assert.Greater(t, totals["nested"], totals["reached twin"],
+		"every node beneath the field is named, the schema the twin's $ref names among them")
+	assert.Equal(t, totals["nested"], totals["reached"], "a $ref reaching the schema names nothing more")
+	assert.Greater(t, totals["nested"], totals["nested, no raw"]+100, "the $ref beneath the field names the raw value it lands in")
 }
 
 // TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst holds a
