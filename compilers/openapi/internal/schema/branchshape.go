@@ -231,7 +231,7 @@ func (r *bodyReading) restates(top claim) bool {
 // which hold the keywords the model has no field for
 // (docs/parser-library.md#unmodeled-keywords).
 func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
-	if !statesSchema(c.written.Schema) {
+	if !stated(c.written.Schema) {
 		return nil, nil, true
 	}
 	t := r.w.c.Statements()
@@ -252,7 +252,7 @@ func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
-			inner = append(inner, nested{written: t.Sub(writtenArray(c.written.Schema).Items), at: r.declarationsAt(c).items})
+			inner = append(inner, nested{written: t.Sub(arrayIn(c.written.Schema).Items), at: r.declarationsAt(c).items})
 		case k.Name == refKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false

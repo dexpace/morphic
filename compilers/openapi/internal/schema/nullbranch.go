@@ -29,7 +29,7 @@ func nullBranch(c lowering.Ctx, js *statement.Statement) bool {
 // inlineBranch reports whether js is a schema written in place: no boolean,
 // and no reference site (typed.Bindings.RefSite).
 func inlineBranch(js *statement.Statement) bool {
-	return js != nil && statesSchema(js.Schema) && js.Ref == nil
+	return js != nil && stated(js.Schema) && js.Ref == nil
 }
 
 // liftedNull is a null branch (nullBranch) of a union, where it is written,

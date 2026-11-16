@@ -53,9 +53,9 @@ func namedFormat(s *statement.Schema) string {
 	return s.Format.Name
 }
 
-// writtenText returns what s writes of the keywords asserting about a string,
-// the zero Text where it writes none.
-func writtenText(s *statement.Schema) statement.Text {
+// textIn returns what s's string keywords say, the zero Text where it writes
+// none.
+func textIn(s *statement.Schema) statement.Text {
 	if s == nil || s.Text == nil {
 		return statement.Text{}
 	}
@@ -196,7 +196,7 @@ func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	}
 	name, diags := encodingName(c, s, formatName, common, pointer)
 	content, contentDiags := contentSchemaRef(c, ts, depth, s, pointer)
-	enc := &ir.Encoding{Name: name, MediaType: writtenText(s).ContentMediaType, Schema: content}
+	enc := &ir.Encoding{Name: name, MediaType: textIn(s).ContentMediaType, Schema: content}
 	return enc, append(diags, contentDiags...)
 }
 
@@ -208,7 +208,7 @@ func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 // named a *different* encoding is kept verbatim on the node rather than
 // overwritten away.
 func encodingName(c lowering.Ctx, s *statement.Schema, formatName string, common *ir.TypeCommon, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
-	content := writtenText(s).ContentEncoding
+	content := textIn(s).ContentEncoding
 	if content == "" || content == formatName {
 		return formatName, nil
 	}
@@ -229,7 +229,7 @@ func encodingName(c lowering.Ctx, s *statement.Schema, formatName string, common
 // other than formatName, the one its format names, which encodingName lowers
 // in the format's place.
 func contentOverridesFormat(s *statement.Schema, formatName string) bool {
-	content := writtenText(s).ContentEncoding
+	content := textIn(s).ContentEncoding
 	return formatName != "" && content != "" && content != formatName
 }
 
@@ -243,7 +243,7 @@ func contentOverridesFormat(s *statement.Schema, formatName string) bool {
 // declaration can name, so the node needs no namespace of its own
 // (docs/ir/identity.md#the-id-grammar).
 func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (*ir.TypeRef, []ir.Diagnostic) {
-	cs := c.Statements().Sub(writtenText(s).ContentSchema)
+	cs := c.Statements().Sub(textIn(s).ContentSchema)
 	if cs.Truth == statement.Unwritten {
 		return nil, nil
 	}
@@ -271,7 +271,7 @@ func takesContent(takes kindSet) bool {
 // contentSchema is written is still the parser's value's to say, as a
 // statement's reading of it needs the table this takes none of.
 func declaresContentVocabulary(s *statement.Schema) bool {
-	text := writtenText(s)
+	text := textIn(s)
 	return text.ContentEncoding != "" || text.ContentMediaType != "" ||
 		annotation.Written(statement.Parsed(s).GetContentSchema())
 }

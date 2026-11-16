@@ -141,7 +141,7 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) []conj
 	for i := range comp.branches {
 		e := &comp.branches[i]
 		switch {
-		case !statesSchema(e.schema.Schema):
+		case !stated(e.schema.Schema):
 		case e.schema.Ref != nil:
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
@@ -350,7 +350,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		switch {
 		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e})
-		case statesSchema(e.schema.Schema):
+		case stated(e.schema.Schema):
 			residue := unmergedBranchKeys(e.schema.Schema, func(key string) bool {
 				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) || said(&w, r, typed, e.schema.Schema, key)
 			})

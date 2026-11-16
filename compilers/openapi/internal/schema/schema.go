@@ -66,7 +66,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.State
 	diags = append(diags, aliasDiags...)
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
-	if statesSchema(s.Node) {
+	if stated(s.Node) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
@@ -625,7 +625,7 @@ var narrowingKeywords = []siblingKeyword{
 		_, listed := listedItems(s)
 		return listed || annotation.Written(statement.Parsed(s).GetItems())
 	}},
-	{"prefixItems", func(s *statement.Schema) bool { return len(writtenArray(s).PrefixItems) > 0 }},
+	{"prefixItems", func(s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }},
 }
 
 // siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords

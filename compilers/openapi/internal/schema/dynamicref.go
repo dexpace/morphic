@@ -283,7 +283,7 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 		return e.Chain.End, e.Chain.Status == bind.Resolved
 	}
 	s := annotation.At(c.Statements().Of(c.Bindings().At(at))).Node
-	if !statesSchema(s) {
+	if !stated(s) {
 		return bind.Position{}, false
 	}
 	ref, _, ok := expandableRef(c, s, at.Pointer)

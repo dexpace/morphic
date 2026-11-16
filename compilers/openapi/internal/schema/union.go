@@ -400,7 +400,7 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 // beside either too. The node t keeps the branch's own.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *statement.Statement, vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
-	if !statesSchema(b.Schema) || b.Ref != nil {
+	if !stated(b.Schema) || b.Ref != nil {
 		return own
 	}
 	if _, titled := lowering.NameTitle(c, vptr); titled {

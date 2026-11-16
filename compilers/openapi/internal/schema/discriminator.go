@@ -245,7 +245,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 			if st.Ref != nil {
 				target = refBranchTarget(c, st)
 			}
-			return target != nil && target.Truth == statement.Stated && slices.ContainsFunc(discriminatedAncestors(c, target),
+			return stated(target) && slices.ContainsFunc(discriminatedAncestors(c, target),
 				func(a *statement.Schema) bool { return discriminatorIn(a) == d })
 		})
 	})
@@ -259,7 +259,7 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 	var out []*statement.Schema
 	for b := range allOfRefBranches(c, s) {
 		target := refBranchTarget(c, b)
-		if target == nil || target.Truth != statement.Stated || visited[target] {
+		if !stated(target) || visited[target] {
 			continue
 		}
 		visited[target] = true

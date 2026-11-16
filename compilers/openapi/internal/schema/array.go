@@ -217,7 +217,7 @@ func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *statement.Schem
 // ownCollectionConstraints reads the collection bounds s itself writes, and nil
 // where it states none.
 func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
-	array := writtenArray(s)
+	array := arrayIn(s)
 	minItems, maxItems := annotation.ExactCount(s, "minItems", array.MinItems), annotation.ExactCount(s, "maxItems", array.MaxItems)
 	if minItems == nil && maxItems == nil && array.UniqueItems == nil {
 		return nil
@@ -229,9 +229,9 @@ func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
 	return cons
 }
 
-// writtenArray returns what s writes of the keywords asserting about an array,
-// the zero Array where it writes none.
-func writtenArray(s *statement.Schema) statement.Array {
+// arrayIn returns what s's array keywords say, the zero Array where it writes
+// none.
+func arrayIn(s *statement.Schema) statement.Array {
 	if s == nil || s.Array == nil {
 		return statement.Array{}
 	}
@@ -253,7 +253,7 @@ func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 	if !slices.Contains(kindsIn(s), statement.KindArray) {
 		return nil
 	}
-	if _, listed := listedItems(s); listed || c.Statements().Sub(writtenArray(s).Items).Truth != statement.Unwritten {
+	if _, listed := listedItems(s); listed || written(c.Statements(), arrayIn(s).Items) {
 		return nil
 	}
 	if !c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {

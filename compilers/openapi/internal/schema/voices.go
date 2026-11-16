@@ -160,7 +160,7 @@ func readVoices(c lowering.Ctx, s *statement.Schema) voicing {
 	writes := make([][]string, n)
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
-		if statesSchema(e.schema.Schema) && e.schema.Ref == nil {
+		if stated(e.schema.Schema) && e.schema.Ref == nil {
 			if out.rebased[i] = underID(e, e.schema.Schema, ids) && foldsReference(c, e.schema.Schema) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(e.schema.Schema)
 			}

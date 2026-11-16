@@ -190,7 +190,7 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 // its keyword families says (keywords), then widening it where it writes
 // `nullable: true` or an inline allOf branch speaking for it does.
 func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
-	if !statesSchema(s) || !n.conjuncts.Spend(1) {
+	if !stated(s) || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
 	own := n.keywords(s, site)
@@ -201,7 +201,7 @@ func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 // conjoined with what it lands on (lands). The target is read here because one
 // interned at its own ID discards the reference its definition produced.
 func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
-	if !statesSchema(js.Schema) || !n.conjuncts.Spend(1) {
+	if !stated(js.Schema) || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
 	return n.usage(js.Schema, n.lands(js), site)
@@ -563,7 +563,7 @@ func nullAloneReading(c lowering.Ctx, s *statement.Schema) (nullReading, bool) {
 // which lowers to the top type (lowerEnum); and it writes a const, which the
 // null reading holds to null, such an enum, or a type naming null alone.
 func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
-	if !statesSchema(s) || refWritten(s) || len(s.AllOf) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
+	if !stated(s) || refWritten(s) || len(s.AllOf) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
 		return false
 	}
 	if enumWritten(s) {

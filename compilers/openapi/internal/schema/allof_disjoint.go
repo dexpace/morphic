@@ -96,7 +96,7 @@ type conjunctTypes struct {
 // is a reference site under (typed.Bindings.RefKeyword), which the read leaves
 // to branch, as it leaves a $ref.
 func (r *conjunctTypes) schema(s *statement.Schema, reference string) kindSet {
-	if !statesSchema(s) || !r.steps.Spend(1) {
+	if !stated(s) || !r.steps.Spend(1) {
 		return anyInstance
 	}
 	r.passedOver = r.passedOver || passesOver(s, reference)
@@ -121,7 +121,7 @@ func (r *conjunctTypes) schema(s *statement.Schema, reference string) kindSet {
 func (r *conjunctTypes) branch(b *statement.Statement) kindSet {
 	if b.Ref != nil {
 		target := refBranchTarget(r.c, b)
-		r.passedOver = r.passedOver || !statesSchema(target) || r.besideChain(b)
+		r.passedOver = r.passedOver || !stated(target) || r.besideChain(b)
 		return r.schema(target, "")
 	}
 	r.passedOver = r.passedOver || b.Truth.ReadsFalse()
@@ -163,7 +163,7 @@ func passesOver(s *statement.Schema, reference string) bool {
 // writesBesideRef reports whether s, a reference site under reference, writes
 // beside it anything that can refuse a value of some instance type.
 func writesBesideRef(s *statement.Schema, reference string) bool {
-	return statesSchema(s) && (writesType(s) || len(s.AllOf) > 0 || passesOver(s, reference))
+	return stated(s) && (writesType(s) || len(s.AllOf) > 0 || passesOver(s, reference))
 }
 
 // entry is what one flattened entry adds. A wrapper adds only its own `type`,

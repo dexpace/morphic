@@ -77,7 +77,7 @@ func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*state
 		if e.schema.Ref != nil {
 			bs = DecidingSchema(c, refBranchTarget(c, e.schema))
 		}
-		if statesSchema(bs) {
+		if stated(bs) {
 			out = append(out, bs)
 		}
 	}

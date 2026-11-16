@@ -64,7 +64,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 ) []ir.Diagnostic {
 	// The one check covers an absent position, a boolean one, and a caller
 	// passing nil.
-	if js == nil || !statesSchema(js.Schema) || LoweredToOwnNode(c, ts, pointer, t) {
+	if js == nil || !stated(js.Schema) || LoweredToOwnNode(c, ts, pointer, t) {
 		return nil
 	}
 	if js.Ref == nil {

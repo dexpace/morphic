@@ -472,7 +472,7 @@ func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	}
 	return merge.SelectBase(refIdxs, func(i int) bool {
 		target := refBranchTarget(c, branches[i].schema)
-		return statesSchema(target) && inHierarchy(c, target)
+		return stated(target) && inHierarchy(c, target)
 	})
 }
 
