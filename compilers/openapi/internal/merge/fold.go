@@ -119,10 +119,10 @@ func (d declaration) keptAs() string {
 // (docs/compilers/openapi.md#allof-redeclared-property), and what it reports.
 // decls is every declaration of one wire name, at least two, in declaration
 // order; the field keeps the first one's identity unless another model carries
-// that declaration (identify). Declaration order decides only a tie, which
-// goes to the later declaration, as the flattening's override does, and is
-// reported. What a declaration says that the field does not carry is reported
-// at that declaration, which is kept verbatim beside the field.
+// that declaration (identify). Declaration order decides only a tie, reported,
+// which goes to the later declaration as the flattening's override does. What
+// a declaration says that the field does not carry is reported at that
+// declaration, which is kept verbatim beside the field.
 //
 // A fold judges every pair of declarations, so it judges at most
 // maxFoldDeclarations of them (keepUnjudged).
