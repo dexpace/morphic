@@ -93,6 +93,17 @@ func (r *reporter) readAs(d ir.Diagnostic, read jsontext.Pointer) ir.Diagnostic 
 	return d
 }
 
+// placed returns the pointer a finding about the node at ptr is placed at, for
+// a message naming that node: where its document holds it, the same whichever
+// position or $ref read it, or, where no pointer places the node, the position
+// that read it.
+func (r *reporter) placed(ptr jsontext.Pointer) jsontext.Pointer {
+	if p := r.locate(ptr).Pointer; p != "" {
+		return p
+	}
+	return r.rootAt + ptr
+}
+
 // lessPointer reports whether a comes before b, token by token, each token
 // compared by its bytes, and a pointer that is a prefix of another first.
 func lessPointer(a, b jsontext.Pointer) bool {

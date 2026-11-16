@@ -316,7 +316,7 @@ func (r ruler) unique(rule Rule) {
 		what = func(s string) string { return "the " + rule.Key + " " + strconv.Quote(s) }
 	}
 	repeats(list, text, func(i, first int, s string) {
-		r.fail(rule, classDuplicate, at(i), `field "`+rule.Field+`" repeats `+what(s)+" first written at "+string(at(first)))
+		r.fail(rule, classDuplicate, at(i), `field "`+rule.Field+`" repeats `+what(s)+" first written at "+string(r.w.placed(at(first))))
 	})
 }
 

@@ -487,7 +487,7 @@ func dependentRequired(r ruler, rule Rule) {
 		}
 		repeats(list, textOf, func(i, first int, s string) {
 			r.fail(rule, classDuplicate, itemPointer(ptr, i), "field \"dependentRequired\" entry "+quote(p.Key)+
-				" repeats "+quote(s)+" first written at "+string(itemPointer(ptr, first)))
+				" repeats "+quote(s)+" first written at "+string(r.w.placed(itemPointer(ptr, first))))
 		})
 	}
 }
@@ -541,6 +541,6 @@ func propertyDependency(r ruler, rule Rule, key string, list *yaml.Node, ptr jso
 	}
 	repeats(list, textOf, func(i, first int, s string) {
 		r.fail(rule, classDuplicate, itemPointer(ptr, i), what+" repeats "+quote(s)+" first written at "+
-			string(itemPointer(ptr, first)))
+			string(r.w.placed(itemPointer(ptr, first))))
 	})
 }
