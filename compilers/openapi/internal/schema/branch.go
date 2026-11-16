@@ -9,9 +9,10 @@ import (
 )
 
 // refBranchTarget returns the schema the chain of references from a
-// composition branch ends on, as refs resolved it, or nil when the branch is
-// no reference site (typed.Bindings.RefSite), its chain ends on no schema, or
-// on a bare boolean schema (which has no *oas3.Schema of its own).
+// composition branch ends on, as refs resolved it, and nil when the branch is
+// no reference site (typed.Bindings.RefSite). Where the chain ends on no
+// schema, or on a bare boolean schema, it returns one statement.Parsed reads
+// no schema object of.
 func refBranchTarget(c lowering.Ctx, b *statement.Statement) *statement.Schema {
 	m := statement.ParsedAt(b)
 	if !c.Bindings().RefSite(m) {

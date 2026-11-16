@@ -138,10 +138,10 @@ func writtenAt(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (l
 
 // ListedTuple returns the entries the array js writes as a tuple in a list of
 // `items`, its $ref followed, where the dialect of where it is reads that list
-// so (listedTuple), and the `additionalItems` beside them, nil where none is
-// written: the schemas the load phase built there, as the parser's model holds
-// neither. It is false where js is no such tuple, or the bindings place it in
-// no document the compile read.
+// so (listedTuple), and the `additionalItems` beside them, Unwritten where
+// none is written: the schemas the load phase built there, as the parser's
+// model holds neither. It is false where js is no such tuple, or the bindings
+// place it in no document the compile read.
 func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 	entries []*statement.Statement, rest *statement.Statement, ok bool,
 ) {
@@ -165,9 +165,9 @@ func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 	return entries, heldAt(there, at.Pointer+ids.Ptr("additionalItems")), true
 }
 
-// heldAt returns the schema the bindings hold at pointer of c's document, the
-// one the parser modelled or the load phase built there, and nil where they
-// hold none.
+// heldAt returns the statement of the schema the bindings hold at pointer of
+// c's document, the one the parser modelled or the load phase built there,
+// and an Unwritten one where they hold none.
 func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
 	return c.Statements().Of(c.Bindings().At(c.Position(pointer)))
 }
