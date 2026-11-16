@@ -89,7 +89,8 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 // compile to, in the order of the group's valid instances, and holds each to
 // the compiler: the instance oracle asks the case, where it declines one
 // naming an instance at a node no carrier compiles to. The core runs the
-// property position alone, so no other gate test compiles the other two.
+// property position alone, so nothing else in the gate holds the other two
+// positions' nodes to the compiler.
 func TestGroups_NamesEachCarriersNode(t *testing.T) {
 	c := openapicases.Groups()
 	for position, want := range map[string][]string{
