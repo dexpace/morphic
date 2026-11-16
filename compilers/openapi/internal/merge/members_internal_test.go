@@ -121,6 +121,27 @@ func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	}
 }
 
+// TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper pins where a
+// model the merge composed declares a member its entries declare apart: an
+// allOf deeper than a model a schema names, since the schema written at its
+// pointer may settle a member of that name too.
+func TestPropIndex_AComposedModelDeclaresItsMemberAnAllOfDeeper(t *testing.T) {
+	t.Parallel()
+	reg := membersRegistry()
+	id := ids.Document{}.ComposedType("/M")
+	m := &ir.Model{ID: id, Provenance: ptrAt("/M")}
+	reg[id] = m
+	idx := NewPropIndex(m)
+	composes("t/A", "0")(idx)
+	composes("t/B", "1")(idx)
+	g, _ := stubMerger(reg)
+
+	settleFlat(g, idx, reg)
+
+	require.Len(t, m.Properties, 1)
+	assert.Equal(t, ids.Document{}.ComposedProp("/M/allOf/allOf/properties/p"), m.Properties[0].ID)
+}
+
 // TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt pins a model's own
 // declaration beside an entry's, read where the walk met each: the later wins
 // a tie, and the result replaces the own declaration at the composed identity,

@@ -782,6 +782,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		"t/routes":      &ir.Union{ID: "t/routes", Variants: variantsOf("t/model"), Discriminator: &ir.Discriminator{PropertyName: "k"}},
 		"t/keyed":       &ir.Union{ID: "t/keyed", Variants: variantsOf("t/model"), WireTagged: true},
 		"t/of-models":   &ir.Union{ID: "t/of-models", Closed: true, Variants: variantsOf("t/model", "t/derived")},
+		"t/closed-mix":  &ir.Union{ID: "t/closed-mix", Closed: true, Variants: variantsOf("t/model", "t/list")},
 		"t/open-models": &ir.Union{ID: "t/open-models", Variants: variantsOf("t/model", "t/derived")},
 		"t/routed":      &ir.Union{ID: "t/routed", Closed: true, Variants: variantsOf("t/model", "t/derived"), Discriminator: &ir.Discriminator{PropertyName: "k"}},
 		"t/bounded":     &ir.Union{ID: "t/bounded", Variants: variantsOf("t/list", "t/model"), Constraints: &ir.Constraints{MinProps: new(int64(1))}},
@@ -824,6 +825,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"an open union every variant it lists of which is", "t/open-models", "t/bare", relUnrelated},
 		{"a model and an open union one variant of which holds it", "t/model", "t/open-models", relANarrower},
 		{"a union some variant of which is not", "t/holds", "t/bare", relUnrelated},
+		{"a closed union some variant of which is not", "t/closed-mix", "t/bare", relUnrelated},
 		{"a discriminated union every variant of which is", "t/routed", "t/bare", relUnrelated},
 		{"a union of no variant", "t/union", "t/bare", relUnrelated},
 		{"a model and a union one variant of which holds it, bounded beside", "t/model", "t/bounded", relUnrelated},
@@ -1110,5 +1112,30 @@ func TestTypeJudge_UnionVariantsStopAtTheirBudget(t *testing.T) {
 			want = relUnrelated
 		}
 		assert.Equal(t, want, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/u"}), "%d variants", n)
+	}
+}
+
+// TestTypeJudge_AUnionWithinATypeStopsAtTheBudget pins maxVariantReads for a
+// closed union every variant of which is within a type: one judgment reads
+// each variant once to ask whether the type is within it, and again to ask
+// whether it is within the type, so a union of half the budget's variants is
+// narrower and one more is unrelated.
+func TestTypeJudge_AUnionWithinATypeStopsAtTheBudget(t *testing.T) {
+	t.Parallel()
+	for _, n := range []int{maxVariantReads / 2, maxVariantReads/2 + 1} {
+		targets := make([]ir.TypeID, n)
+		for i := range targets {
+			targets[i] = "t/model"
+		}
+		g, _ := stubMerger(ir.TypeRegistry{
+			"t/model": declaring("t/model"),
+			"t/bare":  &ir.Model{ID: "t/bare"},
+			"t/u":     &ir.Union{ID: "t/u", Closed: true, Variants: variantsOf(targets...)},
+		})
+		want := relANarrower
+		if n > maxVariantReads/2 {
+			want = relUnrelated
+		}
+		assert.Equal(t, want, judge(g).relate(ir.TypeRef{Target: "t/u"}, ir.TypeRef{Target: "t/bare"}), "%d variants", n)
 	}
 }
