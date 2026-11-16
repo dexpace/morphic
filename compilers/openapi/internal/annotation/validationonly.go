@@ -25,7 +25,10 @@ func IfThenElseRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
 // object, and names the keywords it combines.
 func ContainsRaw(s *statement.Schema) (ir.RawValue, []string, error) {
-	if s == nil || s.Array == nil || s.Array.Contains == (statement.Sub{}) && s.Array.MinContains == nil && s.Array.MaxContains == nil {
+	if s == nil || s.Array == nil {
+		return nil, nil, nil
+	}
+	if a := s.Array; a.Contains == (statement.Sub{}) && a.MinContains == nil && a.MaxContains == nil {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")

@@ -145,8 +145,9 @@ func written(t *statement.Table, sub statement.Sub) bool {
 	return t.Sub(sub).Truth != statement.Unwritten
 }
 
-// stated reports whether s is a schema object, which a nil s, `true`, `false`
-// and a value written as no schema are not.
+// stated reports whether s is a schema object, which alone has keys and slots
+// to read: a nil s, a boolean schema, a value written as no schema and a
+// mapping the parser read as a boolean are none (statement.Truth).
 func stated(s *statement.Schema) bool {
 	return s != nil && s.Truth == statement.Stated
 }

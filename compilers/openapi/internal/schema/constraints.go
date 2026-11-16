@@ -91,7 +91,7 @@ func exclusiveIsBoolean(c lowering.Ctx, s *statement.Schema) bool {
 // constraintsAt reads what s, written at pointer, bounds of the groups take
 // names.
 func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, take annotation.Bounds) (*ir.Constraints, []ir.Diagnostic) {
-	if !statesSchema(s) {
+	if !stated(s) {
 		return nil, nil
 	}
 	cons, kept, diags := annotation.Constraints(s, take, exclusiveIsBoolean(c, s), pointer, c.Place())
@@ -263,35 +263,23 @@ func isCount(keyword string) bool {
 	return slices.Contains(valueCountKeywords, keyword) || keyword == "maxItems" || keyword == "minItems"
 }
 
-// statesSchema reports whether s is a schema object, which alone has keywords
-// to read: not nil, not a boolean schema and not a value written as no schema.
-func statesSchema(s *statement.Schema) bool {
-	return s != nil && s.Truth == statement.Stated
-}
-
 // countOf returns the model's reading of keyword, one of the six counts, that
 // s writes, as its statement holds it, and nil for no schema.
 func countOf(s *statement.Schema, keyword string) *int64 {
-	if !statesSchema(s) {
-		return nil
-	}
 	switch keyword {
 	case "minLength":
-		return writtenText(s).MinLength
+		return textIn(s).MinLength
 	case "maxLength":
-		return writtenText(s).MaxLength
+		return textIn(s).MaxLength
 	case "minItems":
-		return writtenArray(s).MinItems
+		return arrayIn(s).MinItems
 	case "maxItems":
-		return writtenArray(s).MaxItems
+		return arrayIn(s).MaxItems
+	case "minProperties":
+		return objectIn(s).MinProperties
+	default:
+		return objectIn(s).MaxProperties
 	}
-	if s.Object == nil {
-		return nil
-	}
-	if keyword == "minProperties" {
-		return s.Object.MinProperties
-	}
-	return s.Object.MaxProperties
 }
 
 // stampConstraintDiags gives every constraint diagnostic the provenance of the
@@ -322,7 +310,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 		return nil, nil
 	}
 	var takes kindSet
-	if statesSchema(s) && !lowersTypeArray(c, s, pointer) {
+	if stated(s) && !lowersTypeArray(c, s, pointer) {
 		takes = positionTypes(c, s, pointer)
 	}
 	return ConstraintsOf(c, p, s, voices, pointer, takes)
@@ -338,7 +326,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // so a collection bound is held only where they admit an array, and the census
 // keeps one they do not (referenceUnhomed).
 func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	if !statesSchema(s) {
+	if !stated(s) {
 		return nil, nil
 	}
 	takes := positionTypes(c, s, pointer)
@@ -370,10 +358,10 @@ func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
 	}
 	cons := &ir.Constraints{UniqueItems: referenceHolds(s, "uniqueItems")}
 	if referenceHolds(s, "minItems") {
-		cons.MinItems = writtenArray(s).MinItems
+		cons.MinItems = arrayIn(s).MinItems
 	}
 	if referenceHolds(s, "maxItems") {
-		cons.MaxItems = writtenArray(s).MaxItems
+		cons.MaxItems = arrayIn(s).MaxItems
 	}
 	return cons
 }
@@ -384,7 +372,7 @@ func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
 // (annotation.CountIsExact), and a false uniqueItems, which a plain bool cannot
 // tell from unset and which would stop an alias being a decorator.
 func referenceHolds(s *statement.Schema, keyword string) bool {
-	array := writtenArray(s)
+	array := arrayIn(s)
 	switch keyword {
 	case "minItems":
 		return annotation.CountIsExact(s, keyword, array.MinItems)
