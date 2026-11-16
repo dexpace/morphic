@@ -587,7 +587,8 @@ func TestRead_AReferenceHoldsTheModelsText(t *testing.T) {
 
 // TestRead_AnExclusiveBoundHoldsTheArmTheModelRead pins Number's forms to the
 // arm the parser's model read each exclusive bound as: a flag, true where the
-// model reads a string such as `yes` as true, or a bound.
+// model reads a string such as `yes` as true and false where it holds a
+// value in neither arm, or a bound.
 func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
 	t.Parallel()
 	flags, fc := tableOver(t, document("3.0.3",
@@ -609,6 +610,14 @@ func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
 	assert.Equal(t, statement.ExclusiveBound, b.Number.ExclusiveMinimumForm)
 	assert.Equal(t, statement.NoExclusive, b.Number.ExclusiveMaximumForm)
 	assert.Equal(t, "5", text(b.Number.ExclusiveMinimum))
+
+	neither := oas3.NewExclusiveMaximumFromBool(true)
+	neither.Left = nil
+	built := statement.NewTable(statement.Source{}).Of(
+		oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{ExclusiveMaximum: neither}))
+	require.NotNil(t, built.Number, "the model's value opens the slot")
+	assert.Equal(t, statement.ExclusiveFalse, built.Number.ExclusiveMaximumForm, "a flag holding no value")
+	assert.Equal(t, statement.NoExclusive, built.Number.ExclusiveMinimumForm)
 }
 
 // TestSchema_PropertyIsTheSubPropertiesLists pins Property to the parser's

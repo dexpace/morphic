@@ -279,3 +279,22 @@ func TestTable_ReadsABuiltStatementWithoutALookup(t *testing.T) {
 		assert.Same(t, built[i+1].Schema, e.Schema, "entry %d: the statement Read built is the entry's", i)
 	}
 }
+
+// TestTable_ReadAnswersForASchemaItDidNotRead pins what Read answers for a
+// schema the table asked did not read: one another table built a statement
+// over keeps that statement, so the table asked reads nothing, and one no
+// table read holds no value, so it reads as Unwritten.
+func TestTable_ReadAnswersForASchemaItDidNotRead(t *testing.T) {
+	t.Parallel()
+	first, c := tableOver(t, document("3.1.0", `S: {type: string}`), rulesAt(t, "3.1.0", ""))
+	s := first.At(component(c, "S"))
+	require.Equal(t, statement.Stated, s.Truth)
+
+	second := statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: everywhere(rulesAt(t, "3.1.0", ""))})
+	assert.Same(t, s, second.Read(s.Schema), "the statement the first table built")
+	assert.Zero(t, statement.Reads(second), "the table asked reads nothing")
+
+	unread := second.Read(&statement.Schema{Truth: statement.Stated})
+	assert.Equal(t, statement.Unwritten, unread.Truth, "a schema no table read holds no value")
+	assert.Same(t, second.Read(nil), unread)
+}
