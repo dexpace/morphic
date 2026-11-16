@@ -44,8 +44,9 @@ type Axis struct {
 // the core value of the same axis a finding at it is recorded under.
 type Value struct{ Name, Like string }
 
-// Document is what one case writes, and the neighbours each case oracle
-// compares it with. A neighbour is named by its value index per axis.
+// Document is what one case writes, and what the case oracles hold it to: the
+// neighbours two compare it with, each named by its value index per axis, and
+// its instances.
 type Document struct {
 	// Sources are the root first, and the rest what its references name.
 	Sources []compilers.Source
