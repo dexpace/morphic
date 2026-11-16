@@ -5,6 +5,7 @@ package openapicases
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/internal/harness"
@@ -133,10 +134,35 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
-	return harness.Document{
+	doc := harness.Document{
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
 		Equal:   c.equal(at, members),
-	}, true
+	}
+	c.neighbours(&doc, t, at)
+	return doc, true
+}
+
+// neighbours names, in doc, the cases the presence oracle compares the case at
+// with: the case leaving the construct out, and, for a keyword something
+// carries, the case writing its other value. The none construct and a
+// keyword's other value name none: the latter is asked through its keyword.
+// Left out of an entry spelling, the construct leaves wrap's document.
+// A keyword the target's body writes already is replaced by the construct, so
+// no case leaves it out (Document.Replaces).
+func (c cases) neighbours(doc *harness.Document, t target, at []int) {
+	if at[2] == 0 || (at[2]-1)%2 != 0 {
+		return
+	}
+	k := c.constructs[(at[2]-1)/2]
+	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
+	if s := c.spellings[at[5]]; s == entry || s == entryFirst {
+		doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
+	}
+	doc.Carried, doc.Reason = k.reason == "", k.reason
+	if doc.Carried {
+		doc.Other = slices.Concat(at[:2], []int{at[2] + 1}, at[3:])
+	}
+	doc.Replaces = slices.ContainsFunc(t.body, func(m member) bool { return m.name == k.keyword })
 }
 
 // holds reports whether at names a case of c: one index per axis, each within
