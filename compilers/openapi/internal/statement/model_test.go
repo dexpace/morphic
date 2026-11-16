@@ -540,7 +540,8 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 		assert.Equal(t, row.want, sub.Truth(), "%s: the Sub", row.name)
 		assert.Equal(t, row.want, table.Sub(sub).Truth, "%s: its statement", row.name)
 		assert.Equal(t, row.want == statement.Nothing, sub.Truth().ReadsFalse(), "%s: read as false", row.name)
-		assert.True(t, table.Sub(sub).Held(), "%s: the model holds a value", row.name)
+		assert.True(t, sub.Held(), "%s: the model holds a value", row.name)
+		assert.True(t, table.Sub(sub).Held(), "%s: and its statement says so", row.name)
 	}
 	assert.False(t, table.At(component(c, "Absent")).Held(), "none is held where nothing is written")
 	assert.False(t, (*statement.Schema)(nil).Held())
@@ -553,6 +554,7 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	assert.True(t, items.Truth().ReadsFalse(), "the parser reads it as false")
 
 	assert.Equal(t, statement.Unwritten, statement.Sub{}.Truth(), "no value at all")
+	assert.False(t, statement.Sub{}.Held(), "which the model holds none of")
 	built := statement.NewTable(statement.Source{}).Of(oas3.NewJSONSchemaFromBool(false))
 	assert.Equal(t, statement.Nothing, built.Truth, "a false schema built in memory, which has no node")
 }
@@ -608,4 +610,43 @@ func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
 	assert.Equal(t, statement.ExclusiveBound, b.Number.ExclusiveMinimumForm)
 	assert.Equal(t, statement.NoExclusive, b.Number.ExclusiveMaximumForm)
 	assert.Equal(t, "5", text(b.Number.ExclusiveMinimum))
+}
+
+// TestSchema_PropertyIsTheSubPropertiesLists pins Property to the parser's
+// model: on a schema writing forty properties, one of them written twice, once
+// through a merge, each name finds the Sub Object.Properties lists under it,
+// and a name the schema does not write, or any name on no schema object,
+// finds none.
+func TestSchema_PropertyIsTheSubPropertiesLists(t *testing.T) {
+	t.Parallel()
+	var props strings.Builder
+	for i := range 40 {
+		fmt.Fprintf(&props, ", p%d: {title: t%d}", i, i)
+	}
+	table, c := tableOver(t, document("3.1.0",
+		"W: {properties: {<<: {p7: {title: merged}}"+props.String()+"}}",
+		"B: true",
+	), rulesAt(t, "3.1.0", ""))
+	w := table.At(component(c, "W"))
+	require.Len(t, w.Object.Properties, 40)
+	for i, listed := range w.Object.Properties {
+		name := fmt.Sprintf("p%d", i)
+		got, ok := w.Property(name)
+		require.True(t, ok, name)
+		assert.Equal(t, name, got.Name)
+		assert.Same(t, table.Sub(listed), table.Sub(got), "%s: the Sub the list holds", name)
+	}
+	p7, _ := w.Property("p7")
+	assert.Equal(t, "t7", table.Sub(p7).Notes.Title, "a key written beside a merge is its own")
+
+	_, ok := w.Property("q")
+	assert.False(t, ok, "a name not written")
+	for name, s := range map[string]*statement.Schema{
+		"a boolean schema": table.At(component(c, "B")).Schema,
+		"no schema":        table.At(component(c, "Absent")).Schema,
+		"a nil schema":     nil,
+	} {
+		_, ok := s.Property("p0")
+		assert.False(t, ok, name)
+	}
 }

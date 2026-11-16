@@ -8,11 +8,11 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -151,11 +151,12 @@ func writtenAt(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (l
 func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 	entries []*statement.Statement, rest *statement.Statement, ok bool,
 ) {
-	b := c.Bindings()
-	if end := b.End(statement.ParsedAt(js)); end != nil {
-		js = c.Statements().Of(end)
+	if r := js.Ref; r != nil && r.Bound && r.Entry.Chain.Status == bind.Resolved {
+		if end := c.Statements().At(r.Entry.Chain.End); end.Held() {
+			js = end
+		}
 	}
-	at, placed := b.Site(statement.ParsedAt(js))
+	at, placed := siteOf(js.Schema)
 	there, read := lowering.InDocument(c, at.Doc)
 	if !placed || !read {
 		return nil, nil, false
@@ -256,7 +257,7 @@ func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 	if _, listed := listedItems(s); listed || written(arrayIn(s).Items) {
 		return nil
 	}
-	if !c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {
+	if !c.SchemaRules().RequiredWhen("items", "type", string(statement.KindArray)) {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,

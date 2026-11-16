@@ -50,12 +50,11 @@ func rulesOf(c lowering.Ctx, s *statement.Schema) oas.SchemaRules {
 	return c.Rules().Of(s.Node)
 }
 
-// placedAt returns where the bindings place s (typed.Bindings.SiteOf), in the
+// placedAt returns where the bindings place s (statement.Schema.At), in the
 // context of its document, whichever c reads, and false where they place it
 // nowhere or in a document the compile did not read.
 func placedAt(c lowering.Ctx, s *statement.Schema) (lowering.Ctx, jsontext.Pointer, bool) {
-	m := statement.Parsed(s)
-	if at, placed := c.Bindings().SiteOf(m); placed {
+	if at, placed := siteOf(s); placed {
 		if there, read := lowering.InDocument(c, at.Doc); read {
 			return there, at.Pointer, true
 		}

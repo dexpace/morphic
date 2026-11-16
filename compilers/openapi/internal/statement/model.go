@@ -95,6 +95,29 @@ func (s *Schema) Held() bool {
 	return s != nil && s.m != nil
 }
 
+// Held reports whether the parser's model holds a value for the keyword s is
+// written under, a value written as no schema among them, which Truth reads
+// Unwritten as it reads none, so Held tells a keyword holding one from a
+// keyword left out (docs/parser-library.md#null-schema-is-false).
+func (s Sub) Held() bool {
+	return s.m != nil
+}
+
+// Property returns the schema s writes for the property name, as the parser's
+// model holds it, by one lookup in the model's map: the Sub
+// Object.Properties lists under that name. It is false for a name s does not
+// write and for a nil or unstated s.
+func (s *Schema) Property(name string) (Sub, bool) {
+	if s == nil {
+		return Sub{}, false
+	}
+	p, ok := s.m.GetSchema().GetProperties().Get(name)
+	if !ok {
+		return Sub{}, false
+	}
+	return Sub{Name: name, m: p}, true
+}
+
 // truthOf returns what js states. The parser reads a value written as no
 // schema as the `false` schema, which truthOf reads as Unwritten by its node
 // (docs/parser-library.md#null-schema-is-false), and a mapping it fails

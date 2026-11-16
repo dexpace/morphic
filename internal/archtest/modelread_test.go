@@ -33,11 +33,10 @@ import (
 // shrinks as the readers move onto the statement (GitHub #1991).
 var modelReadBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/bind/typed": {
-		"GetCore":     1,
-		"GetRootNode": 1,
-		"GetSchema":   2,
-		"IsBool":      3,
-		"Ref":         1,
+		"GetCore":   1,
+		"GetSchema": 1,
+		"IsBool":    3,
+		"Ref":       1,
 	},
 	"compilers/openapi/internal/operation": {
 		"GetAdditionalProperties":  2,
@@ -60,13 +59,6 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetUnevaluatedProperties": 2,
 		"IsSchema":                 2,
 		"statement.Parsed":         14,
-	},
-	"compilers/openapi/internal/schema": {
-		"GetIf":            1,
-		"GetNot":           1,
-		"GetProperties":    1,
-		"IsBool":           1,
-		"statement.Parsed": 10,
 	},
 }
 

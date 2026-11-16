@@ -13,7 +13,7 @@ import (
 // composition branch ends on, as the bindings resolved it (Reference.Entry),
 // and nil when the branch is no reference site (typed.Bindings.RefSite).
 // Where the chain ends on no schema, or on a bare boolean schema, it returns
-// one statement.Parsed reads no schema object of.
+// one that is no schema object (stated).
 func refBranchTarget(c lowering.Ctx, b *statement.Statement) *statement.Schema {
 	if b.Ref == nil {
 		return nil

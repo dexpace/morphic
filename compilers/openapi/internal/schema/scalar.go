@@ -6,8 +6,6 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -117,10 +115,10 @@ const numberTextEncoding = "string"
 // says the string is that encoding's text instead, so the format, which
 // encodingName then keeps verbatim, selects nothing.
 func numberAsText(s *statement.Schema, st statement.Kind, format string) (ir.PrimKind, bool) {
-	if oas3.SchemaType(st) != oas3.SchemaTypeString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
+	if st != statement.KindString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
 		return "", false
 	}
-	return spelling.Lookup(string(oas3.SchemaTypeNumber) + "/" + format)
+	return spelling.Lookup(string(statement.KindNumber) + "/" + format)
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its

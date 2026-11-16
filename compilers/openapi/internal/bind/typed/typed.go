@@ -29,10 +29,6 @@ type Bindings struct {
 	table *bind.Table
 	// at is where each schema the lowering can hold was read.
 	at map[*schemaRef]bind.Position
-	// of is where each schema at knows was read, by the model it holds, which
-	// decoding builds afresh for every path to a node (SiteOf): each where a
-	// schema names a dialect, else each writing a list of items (index).
-	of map[*oas3.Schema]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
 	// objectSites is where each wrapper was read, and as which kind, and
@@ -63,20 +59,6 @@ func (b *Bindings) Site(js *schemaRef) (bind.Position, bool) {
 		return bind.Position{}, false
 	}
 	p, ok := b.at[js]
-	return p, ok
-}
-
-// SiteOf is Site for a reading that holds the model js holds and not js, as
-// one of an allOf's conjuncts does: each is decoded afresh for every path to
-// its node (docs/parser-library.md#alias-expansion), so it names one position
-// where its node may stand at several. It is false before Builder.Build, and,
-// where no schema names a dialect, for one writing no list of items (index),
-// as each node then reads one dialect and no other reading needs its place.
-func (b *Bindings) SiteOf(s *oas3.Schema) (bind.Position, bool) {
-	if b == nil || s == nil {
-		return bind.Position{}, false
-	}
-	p, ok := b.of[s]
 	return p, ok
 }
 
@@ -381,46 +363,7 @@ func (bd *Builder) Build(ctx context.Context) []Built {
 		out = append(out, bd.build(ctx, l))
 	}
 	bd.mend(ctx)
-	bd.index()
 	return out
-}
-
-// index places each schema recorded by the model it holds (Bindings.SiteOf):
-// every one where a schema names a dialect (dialectRooted), as a node an alias
-// places twice may then stand under two, and else each writing a list of
-// items, whose entries are read where the schema is written (listsItems).
-func (bd *Builder) index() {
-	rooted := dialectRooted(bd.b.table)
-	for js, p := range bd.b.at {
-		s := js.GetSchema()
-		if s == nil || !rooted && !listsItems(s) {
-			continue
-		}
-		if bd.b.of == nil {
-			bd.b.of = map[*oas3.Schema]bind.Position{}
-		}
-		bd.b.of[s] = p
-	}
-}
-
-// listsItems reports whether s writes `items` as a list, a tuple as the
-// JSON Schema drafts before 2020-12 spell one, whose entries the parser's
-// model holds none of: the load phase builds them at their positions.
-func listsItems(s *oas3.Schema) bool {
-	n := nodeview.Child(s.GetRootNode(), "items")
-	return n != nil && n.Kind == yaml.SequenceNode
-}
-
-// dialectRooted reports whether a schema of a document t read names a
-// dialect by `$schema`, the one way a node an alias places twice stands under
-// two: with none, each node reads its own document's, which its node tells.
-func dialectRooted(t *bind.Table) bool {
-	for id := range bind.DocID(t.Documents()) {
-		if len(t.Document(id).Dialects) > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // build builds the schema at l, unless one is held there already: one inside

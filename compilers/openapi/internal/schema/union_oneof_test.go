@@ -1691,3 +1691,28 @@ func comboDiscriminatedSpec(baseFirst bool) string {
 	}
 	return openapitest.ComponentSpec(rest + base)
 }
+
+// TestOneOf_ABranchPropertyWrittenNullDeclaresNoShape pins a union branch
+// writing a property as no schema, which states nothing of its values
+// (docs/compilers/openapi.md#null-schema), beside a body declaring the
+// property: the branch leaves nothing more to say of it, so the union is kept
+// verbatim as validation-only, and the load phase's error at the null is the
+// only one.
+func TestOneOf_ABranchPropertyWrittenNullDeclaresNoShape(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    S:
+      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: null}}]
+`))
+	entry, ok := typeByName(doc, "S").Common().Unmodeled["openapi:oneOf"]
+	require.True(t, ok, "the union is kept verbatim")
+	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
+	var errs []jsontext.Pointer
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			errs = append(errs, d.Provenance.Pointer)
+		}
+	}
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/S/oneOf/0/properties/a"}, errs)
+}
