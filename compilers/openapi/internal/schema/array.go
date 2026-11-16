@@ -175,7 +175,7 @@ func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 // c's document, the one the parser modelled or the load phase built there,
 // and an Unwritten one where they hold none.
 func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
-	return c.Statements().Of(c.Bindings().At(c.Position(pointer)))
+	return c.Statements().At(c.Position(pointer))
 }
 
 // buildTuple lowers prefixItems into a Tuple's Elems, the items beside them

@@ -230,7 +230,7 @@ func (r *boundTypes) ref(c lowering.Ctx, js *statement.Statement) kindSet {
 // InDocument leaves c as it is, so that schema reads as nil.
 func (r *boundTypes) at(c lowering.Ctx, p bind.Position) kindSet {
 	in, _ := lowering.InDocument(c, p.Doc)
-	return r.schema(in, c.Statements().Of(in.Bindings().At(p)).Schema, p.Pointer)
+	return r.schema(in, c.Statements().At(p).Schema, p.Pointer)
 }
 
 // writerTakes returns the kinds whose value bounds a reader of the kinds takes

@@ -82,7 +82,7 @@ func declaresPositionScoped(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
 		hasAnyKey(s, collectionBoundKeywords) ||
 		declaresValidationOnly(s) || hasAnyKey(s, residueKeywords) ||
-		declaresContentVocabulary(s) || declaresDynamicRef(s) && !c.Bindings().RefSite(statement.ParsedAt(heldAt(c, pointer))) ||
+		declaresContentVocabulary(s) || declaresDynamicRef(s) && heldAt(c, pointer).Ref == nil ||
 		declaresDialectKeyword(s) ||
 		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
 }

@@ -35,6 +35,16 @@ func declaredOf(c lowering.Ctx, st *statement.Statement) (*statement.Statement, 
 	return c.Statements().At(st.Ref.Entry.Hop.Target), st.Ref.Entry.Hop.Target
 }
 
+// declared returns the statement of the schema written where x's $ref lands,
+// as declaredOf reads it, and an Unwritten one where it lands on none, for a
+// reader taking the statement of none (lentBy).
+func declared(c lowering.Ctx, x *statement.Statement) *statement.Statement {
+	if st, _ := declaredOf(c, x); st != nil {
+		return st
+	}
+	return c.Statements().Read(nil)
+}
+
 // siteOf returns the position the bindings read s at, and false for a schema
 // they do not place, which the statement reads at the zero position.
 func siteOf(s *statement.Schema) (bind.Position, bool) {

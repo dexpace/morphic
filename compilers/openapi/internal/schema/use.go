@@ -221,7 +221,7 @@ func passageOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (p
 		return p, true
 	}
 	ref := throughRef(c, s)
-	if statement.ParsedAt(ref) == nil {
+	if ref == nil {
 		return passage{}, false
 	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
@@ -258,7 +258,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 func (p passage) speakers(c lowering.Ctx) Use {
 	var u Use
 	u.lend(p.ref.Schema, placeOf(c, p.ref))
-	u.lendAll(lentBy(c, c.Statements().Of(c.Bindings().Declared(statement.ParsedAt(p.ref)))))
+	u.lendAll(lentBy(c, declared(c, p.ref)))
 	return u
 }
 
@@ -274,9 +274,8 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 // composition throughRef reads no $ref through lends nothing: its Model holds what
 // it composes as Base and Mixins.
 func UseOf(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
-	m := statement.ParsedAt(js)
-	if c.Bindings().RefSite(m) {
-		u := lentBy(c, c.Statements().Of(c.Bindings().Declared(m)))
+	if js.Ref != nil {
+		u := lentBy(c, declared(c, js))
 		u.nullable = t.Nullable
 		return u
 	}
@@ -289,7 +288,7 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.Type
 		u.Principal = &annotation.Voice{Node: p.principal.schema.Schema, At: p.principal.pointer}
 		u.lend(u.Principal.Node, placeIn(c, p.principal.pointer))
 	}
-	if statement.ParsedAt(p.ref) == nil {
+	if p.ref == nil {
 		return u
 	}
 	u.narrowedFrom = len(u.Referents)
@@ -312,7 +311,7 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jso
 	case !ok:
 	case p.lost:
 		u.lendAll(p.speakers(c))
-	case statement.ParsedAt(p.ref) != nil:
+	case p.ref != nil:
 		u.deprecatedBase = slices.ContainsFunc(p.speakers(c).Referents, func(r *statement.Schema) bool {
 			return deprecates(r) || keysOf(c, r).Deprecated
 		})
@@ -349,11 +348,11 @@ func readLent(c lowering.Ctx, js *statement.Statement) Use {
 			u.narrowTo(c, s)
 		}
 		through := throughRef(c, s)
-		if statement.ParsedAt(through) == nil {
+		if through == nil {
 			break
 		}
 		u.lend(through.Schema, placeOf(c, through))
-		js = c.Statements().Of(c.Bindings().Declared(statement.ParsedAt(through)))
+		js = declared(c, through)
 	}
 	return u
 }
@@ -364,16 +363,19 @@ func readLent(c lowering.Ctx, js *statement.Statement) Use {
 // what it appended, where the run ends on no schema, as a chain that loops or
 // fails does. The table's count of the chain's hops bounds the run.
 func (u *Use) lendRun(c lowering.Ctx, js *statement.Statement) (*statement.Schema, bool) {
-	e, ref := c.Bindings().Entry(statement.ParsedAt(js))
-	if ref && e.Chain.Status != bind.Resolved {
-		return nil, false
+	var e bind.Entry
+	if js.Ref != nil && js.Ref.Bound {
+		e = js.Ref.Entry
+		if e.Chain.Status != bind.Resolved {
+			return nil, false
+		}
 	}
 	for range e.Chain.Hops + 1 {
 		if js.Truth != statement.Stated {
 			return nil, false
 		}
 		at := placeOf(c, js)
-		if !c.Bindings().RefSite(statement.ParsedAt(js)) {
+		if js.Ref == nil {
 			u.lend(js.Schema, at)
 			u.lendBranches(c, js.Schema, at)
 			return js.Schema, true
@@ -382,7 +384,7 @@ func (u *Use) lendRun(c lowering.Ctx, js *statement.Statement) (*statement.Schem
 			u.lend(js.Schema, at)
 			u.lendBranches(c, js.Schema, at)
 		}
-		js = c.Statements().Of(c.Bindings().Declared(statement.ParsedAt(js)))
+		js = declared(c, js)
 	}
 	return nil, false
 }
@@ -437,8 +439,7 @@ type referentPlace struct {
 // placeOf returns where the bindings read js, unknown for a schema they do not
 // know or a document the compile did not read.
 func placeOf(c lowering.Ctx, js *statement.Statement) referentPlace {
-	m := statement.ParsedAt(js)
-	p, known := c.Bindings().Site(m)
+	p, known := siteOf(js.Schema)
 	in, read := lowering.InDocument(c, p.Doc)
 	return referentPlace{doc: in.Place(), pointer: p.Pointer, known: known && read}
 }
@@ -465,8 +466,8 @@ func DecidingSchema(c lowering.Ctx, s *statement.Schema) *statement.Schema {
 			break
 		}
 		s = r.principal.schema.Schema
-		if c.Bindings().RefSite(statement.ParsedAt(r.principal.schema)) {
-			s = c.Statements().Of(c.Bindings().End(statement.ParsedAt(r.principal.schema))).Schema
+		if r.principal.schema.Ref != nil {
+			s = refBranchTarget(c, r.principal.schema)
 		}
 	}
 	return s

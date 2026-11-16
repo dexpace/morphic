@@ -65,9 +65,8 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetIf":            1,
 		"GetNot":           1,
 		"GetProperties":    1,
-		"GetSchema":        1,
 		"IsBool":           1,
-		"statement.Parsed": 24,
+		"statement.Parsed": 10,
 	},
 }
 

@@ -220,7 +220,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		// would drop the reference unrecorded, as recordUnexpandedDynamicRef
 		// keeps only one that does not expand, where an empty target fails
 		// irverify.
-		target, _ := resolveAt(c, ts, at, c.Statements().Of(c.Bindings().At(at)))
+		target, _ := resolveAt(c, ts, at, c.Statements().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
 	}
