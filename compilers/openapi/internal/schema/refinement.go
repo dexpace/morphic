@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -159,9 +157,9 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) []conj
 // whose branches name the kinds it admits. Its allOf is read apart, since its
 // entries are conjuncts of their own.
 func inlineConjunct(w *admission, bs *statement.Schema) admitted {
-	m := statement.Parsed(bs)
+	choice := choiceIn(bs)
 	read := w.written(bs, w.nullable)
-	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{m.GetOneOf(), m.GetAnyOf()} {
+	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
 			read = read.and(w.union(branches))
 		}
@@ -468,26 +466,26 @@ func said(w *admission, r refinement, typed ir.TypeDef, s *statement.Schema, key
 // keyword by keyword, as what it admits leaves its bounds and annotations unread,
 // and one writing what no reading compares says more. A read cut short says no.
 func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool {
-	m := statement.Parsed(s)
-	var branches []*oas3.JSONSchema[oas3.Referenceable]
+	var branches []statement.Sub
 	switch key {
 	case "oneOf":
-		branches = m.GetOneOf()
+		branches = choiceIn(s).OneOf
 	case "anyOf":
-		branches = m.GetAnyOf()
+		branches = choiceIn(s).AnyOf
 	default:
 		return false
 	}
-	var principal *oas3.JSONSchema[oas3.Referenceable]
+	principal := w.c.Statements().Read(nil)
 	if r.principal != nil {
-		principal = statement.ParsedAt(r.principal.schema)
+		principal = r.principal.schema
 	}
 	within, overlaps := 0, 0
 	for _, b := range branches {
+		branch := w.c.Statements().Sub(b)
 		switch {
-		case w.restates(r.held, w.c.Statements().Of(principal), w.c.Statements().Of(b)):
+		case w.restates(r.held, principal, branch):
 			within++
-		case r.held.kinds&w.whole(w.c.Statements().Of(b)).kinds != 0:
+		case r.held.kinds&w.whole(branch).kinds != 0:
 			overlaps++
 		}
 	}

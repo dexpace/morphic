@@ -195,8 +195,7 @@ func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
 // former record: an expansion takes the target whole, so a keyword it cannot
 // carry is lost whether or not it declares a shape by itself.
 func dynamicRefSiblings(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	if refWritten(s) || len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0 {
+	if refWritten(s) || declaresUnion(s) {
 		return true
 	}
 	return writesSiblingKeyword(s)

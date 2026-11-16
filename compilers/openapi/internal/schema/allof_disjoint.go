@@ -156,7 +156,7 @@ func (r *conjunctTypes) besideChain(b *statement.Statement) bool {
 // (typed.Bindings.RefKeyword), which conjunctTypes follows.
 func passesOver(s *statement.Schema, reference string) bool {
 	m := statement.Parsed(s)
-	return len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0 || m.GetNot() != nil || m.GetIf() != nil ||
+	return declaresUnion(s) || m.GetNot() != nil || m.GetIf() != nil ||
 		enumWritten(s) || constIn(s) != nil ||
 		reference != "$dynamicRef" && hasKey(s, "$dynamicRef") ||
 		hasKey(s, "$recursiveRef")

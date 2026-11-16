@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
@@ -313,7 +312,6 @@ func (w *admission) whole(js *statement.Statement) admitted {
 		}
 		return admitted{kinds: kindAny}
 	}
-	s := statement.Parsed(js.Schema)
 	if declaresDynamicRef(js.Schema) && js.Ref == nil {
 		w.reads.Exhaust()
 	}
@@ -321,11 +319,12 @@ func (w *admission) whole(js *statement.Statement) admitted {
 	for _, b := range js.AllOf {
 		out = out.and(w.whole(w.c.Statements().Sub(b)))
 	}
-	if branches := s.GetOneOf(); len(branches) > 0 {
-		out = out.and(w.union(branches))
+	choice := choiceIn(js.Schema)
+	if len(choice.OneOf) > 0 {
+		out = out.and(w.union(choice.OneOf))
 	}
-	if branches := s.GetAnyOf(); len(branches) > 0 {
-		out = out.and(w.union(branches))
+	if len(choice.AnyOf) > 0 {
+		out = out.and(w.union(choice.AnyOf))
 	}
 	if js.Ref == nil {
 		return out
@@ -462,10 +461,10 @@ func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
 }
 
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
-func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admitted {
-	out := w.whole(w.c.Statements().Of(branches[0]))
+func (w *admission) union(branches []statement.Sub) admitted {
+	out := w.whole(w.c.Statements().Sub(branches[0]))
 	for _, b := range branches[1:] {
-		out = out.or(w.whole(w.c.Statements().Of(b)))
+		out = out.or(w.whole(w.c.Statements().Sub(b)))
 	}
 	return out
 }

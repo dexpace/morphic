@@ -87,7 +87,6 @@ var modelReadBaseline = map[string]map[string]int{
 	},
 	"compilers/openapi/internal/schema": {
 		"GetAdditionalProperties":  1,
-		"GetAnyOf":                 14,
 		"GetContentSchema":         1,
 		"GetDiscriminator":         1,
 		"GetExtensions":            2,
@@ -95,17 +94,16 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetIf":                    1,
 		"GetItems":                 2,
 		"GetNot":                   1,
-		"GetOneOf":                 14,
 		"GetPatternProperties":     1,
 		"GetPrefixItems":           1,
 		"GetProperties":            6,
 		"GetRef":                   1,
 		"GetRequired":              5,
-		"GetSchema":                9,
+		"GetSchema":                8,
 		"GetUnevaluatedProperties": 1,
 		"IsBool":                   2,
 		"IsSchema":                 1,
-		"statement.Parsed":         110,
+		"statement.Parsed":         95,
 	},
 }
 

@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
@@ -174,21 +172,21 @@ func (r *boundTypes) conjuncts(c lowering.Ctx, s *statement.Schema, pointer json
 // though it may write no type, and is read at a step like any other branch. It
 // is anyInstance once the budget is exhausted, reading no branch past it.
 func (r *boundTypes) unions(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) kindSet {
-	m := statement.Parsed(s)
+	choice := choiceIn(s)
 	out := anyInstance
 	for _, union := range [...]struct {
 		key      string
-		branches []*oas3.JSONSchema[oas3.Referenceable]
-	}{{"oneOf", m.GetOneOf()}, {"anyOf", m.GetAnyOf()}} {
+		branches []statement.Sub
+	}{{"oneOf", choice.OneOf}, {"anyOf", choice.AnyOf}} {
 		if len(union.branches) == 0 {
 			continue
 		}
 		var some kindSet
-		for i, b := range union.branches {
-			if nullBranch(c, c.Statements().Of(b)) {
+		for _, b := range union.branches {
+			if st := c.Statements().Sub(b); nullBranch(c, st) {
 				r.steps.Spend(1)
 			} else {
-				some |= r.entry(c, c.Statements().Of(b), pointer, union.key, i)
+				some |= r.entry(c, st, pointer, union.key, b.Index)
 			}
 			if r.steps.Exhausted() {
 				return anyInstance

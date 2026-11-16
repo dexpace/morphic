@@ -69,8 +69,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 // conjoins, so the position is not nullable X. The Union keeps the unused
 // combinator (preserveUnusedCombinator), which X's shared node cannot.
 func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (*statement.Statement, jsontext.Pointer, bool) {
-	m := statement.Parsed(s)
-	if len(m.GetOneOf()) > 0 && len(m.GetAnyOf()) > 0 {
+	if choice := choiceIn(s); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return nil, "", false
 	}
 	variants, key, _ := unionBranches(s)
@@ -178,10 +177,7 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // (preserveUnionSiblings). Reading the preference as one only that last lowering
 // could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *statement.Schema) ([]statement.Sub, string, bool) {
-	var choice statement.Choice
-	if s != nil && s.Choice != nil {
-		choice = *s.Choice
-	}
+	choice := choiceIn(s)
 	if len(choice.OneOf) > 0 {
 		return choice.OneOf, "oneOf", true
 	}
@@ -206,8 +202,7 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // distributes the schema, so neither set is elected and both are kept beside
 // the body (lowerBesideUnmodeledUnion).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
-	m := statement.Parsed(s)
-	if len(m.GetOneOf()) == 0 || len(m.GetAnyOf()) == 0 {
+	if choice := choiceIn(s); len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
 	unused := otherCombinator[won]
@@ -376,8 +371,8 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	branches := allOfBranches(c, s, "").branches
 	index, count := 0, 0
 	for i, e := range branches {
-		bs := statement.ParsedAt(e.schema).GetSchema()
-		if c.Bindings().RefSite(statement.ParsedAt(e.schema)) || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, bs.GetOneOf(), bs.GetAnyOf()) {
+		choice := choiceIn(e.schema.Schema)
+		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 			continue
 		}
 		index, count = i, count+1
@@ -589,16 +584,16 @@ type branchesSayOf struct {
 // none, and so does a schema writing no union, of which "every branch" would
 // say anything. Every reader of the position asks, so it is read once a run.
 func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
-	m := statement.Parsed(s)
 	return lowering.Remembered(c, branchesSayOf{s}, func() []string {
-		branches := slices.Concat(m.GetOneOf(), m.GetAnyOf())
+		choice := choiceIn(s)
+		branches := slices.Concat(choice.OneOf, choice.AnyOf)
 		if len(branches) == 0 {
 			return nil
 		}
 		w := newAdmission(c)
 		reads := make([]admitted, len(branches))
 		for i, b := range branches {
-			reads[i] = w.whole(c.Statements().Of(b))
+			reads[i] = w.whole(c.Statements().Sub(b))
 		}
 		if w.incomplete() {
 			return nil
@@ -729,8 +724,7 @@ func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // one on a branch of its allOf the body distributes (branchUnion), it does so
 // only where this says unionDistributed.
 func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
-	m := statement.Parsed(holder)
-	if len(m.GetOneOf()) > 0 && len(m.GetAnyOf()) > 0 {
+	if choice := choiceIn(holder); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return unionBothCombinators
 	}
 	branches, _, _ := unionBranches(holder)
@@ -915,8 +909,17 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 // as a $ref (fillAllOf) — gates hoisting a home for the union on, so the
 // three cannot drift into checking it three different ways.
 func declaresUnion(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0
+	choice := choiceIn(s)
+	return len(choice.OneOf) > 0 || len(choice.AnyOf) > 0
+}
+
+// choiceIn returns what s's oneOf and anyOf list, the zero Choice where it
+// writes neither.
+func choiceIn(s *statement.Schema) statement.Choice {
+	if s == nil || s.Choice == nil {
+		return statement.Choice{}
+	}
+	return *s.Choice
 }
 
 // buildsVariants reports whether a Union s lowers to holds variants s builds

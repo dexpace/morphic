@@ -499,13 +499,14 @@ func isNullValue(node *yaml.Node) bool {
 // and block its distribution. It never forbids: a union with no null branch
 // says nothing of a null a sibling admits, as in `{nullable: true, oneOf: …}`.
 func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
-	m := statement.Parsed(s)
+	choice := choiceIn(s)
 	out := alike(nullSilent)
-	for _, b := range slices.Concat(m.GetOneOf(), m.GetAnyOf()) {
-		if !inlineBranch(c.Bindings(), c.Statements().Of(b)) {
+	for _, b := range slices.Concat(choice.OneOf, choice.AnyOf) {
+		st := c.Statements().Sub(b)
+		if !inlineBranch(c.Bindings(), st) {
 			continue
 		}
-		r, ok := nullAloneReading(c, c.Statements().Of(b).Schema)
+		r, ok := nullAloneReading(c, st.Schema)
 		if !ok {
 			continue
 		}

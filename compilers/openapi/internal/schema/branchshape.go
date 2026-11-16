@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -92,8 +90,8 @@ func (r *bodyReading) declared() declarationSet {
 // declares shape, so the body is read only once an inline branch needs it, and
 // a reading its budget cut short says nothing, so it counts as one that does.
 func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return setsDeclareShape(c, s, m.GetOneOf(), m.GetAnyOf())
+	choice := choiceIn(s)
+	return setsDeclareShape(c, s, choice.OneOf, choice.AnyOf)
 }
 
 // setsDeclareShape is unionBranchesDeclareShape for the branches of sets, a
@@ -101,9 +99,9 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
 // body's own reading settles first each branch restating what s itself writes
 // (ownRestatements), and only the rest are judged against the whole reading,
 // which they would restate under too, as more declarations admit less.
-func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]*oas3.JSONSchema[oas3.Referenceable]) bool {
-	branches := slices.Concat(sets...)
-	if slices.ContainsFunc(branches, c.Bindings().RefSite) {
+func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]statement.Sub) bool {
+	branches := statementsOf(c, slices.Concat(sets...))
+	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return b.Ref != nil }) {
 		return true
 	}
 	settled := ownRestatements(c, s, branches)
@@ -114,17 +112,21 @@ func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]*oas3.JSONS
 		}
 		return r
 	}
-	found := slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return !settled[b] && branchDeclaresShape(body, c.Statements().Of(b))
-	})
+	found := false
+	for i, b := range branches {
+		if (settled == nil || !settled[i]) && branchDeclaresShape(body, b) {
+			found = true
+			break
+		}
+	}
 	return found || r != nil && r.w.incomplete()
 }
 
-// ownRestatements returns the inline branches of branches that restate s read
-// alone (readOwnBody), judged all, and none where that reading ran out: which
-// branches it settled before running out would follow their order, and with it
-// what the whole reading is left to read (GitHub #1423).
-func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*oas3.JSONSchema[oas3.Referenceable]) map[*oas3.JSONSchema[oas3.Referenceable]]bool {
+// ownRestatements marks, by index, the inline branches of branches that
+// restate s read alone (readOwnBody), judged all, and none where that reading
+// ran out: which branches it settled before running out would follow their
+// order, and with it what the whole reading is left to read (GitHub #1423).
+func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*statement.Statement) []bool {
 	var r *bodyReading
 	body := func() *bodyReading {
 		if r == nil {
@@ -132,10 +134,10 @@ func ownRestatements(c lowering.Ctx, s *statement.Schema, branches []*oas3.JSONS
 		}
 		return r
 	}
-	settled := make(map[*oas3.JSONSchema[oas3.Referenceable]]bool, len(branches))
-	for _, b := range branches {
-		if !branchDeclaresShape(body, c.Statements().Of(b)) {
-			settled[b] = true
+	settled := make([]bool, len(branches))
+	for i, b := range branches {
+		if !branchDeclaresShape(body, b) {
+			settled[i] = true
 		}
 	}
 	if r != nil && r.w.incomplete() {

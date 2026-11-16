@@ -168,7 +168,7 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 	require.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)))
 
 	StatedIn(l, v).Values = nil
-	u.OneOf = nil
+	StatedIn(l, u).Choice = nil
 	assert.Equal(t, values, valueNulls(l.Ctx, StatedIn(l, v)), "the second ask reads what the first read")
 	assert.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)), "the second ask reads what the first read")
 }
