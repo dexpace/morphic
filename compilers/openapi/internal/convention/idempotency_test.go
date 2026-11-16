@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -139,7 +138,7 @@ func TestIdempotency_ReportsWhatItCannotSettle(t *testing.T) {
 // document states, and no mark, and one it would report is not reported.
 func TestIdempotency_DisabledReadsNoToken(t *testing.T) {
 	t.Parallel()
-	off := convention.Policy{Idempotency: lowering.IdempotencyInference{Disabled: true}}
+	off := convention.Policy{Idempotency: convention.IdempotencyInference{Disabled: true}}
 	for _, op := range []ir.Operation{keyed(http.MethodPost, header("Idempotency-Key")),
 		keyed("LINK", header("Idempotency-Key"))} {
 		doc := oneOperation(op, registry(nil))

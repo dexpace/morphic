@@ -7118,7 +7118,7 @@ declaration both mounts share.
   `pagination.TestInferWalks_AllocatesLinearInTheBodiesItReads`,
   `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
   `whole.TestDocument_ListsEveryOperationOnce`,
-  `lowering.TestPaginationInference_TheZeroValueHonoursThePolicy`,
+  `pagination.TestInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ## 16. Swagger 2.0

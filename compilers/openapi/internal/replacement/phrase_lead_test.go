@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 )
@@ -29,7 +28,7 @@ func TestMessage_UseOpensItsSentence(t *testing.T) {
 		"Callers should, instead, use `a`.": {"a"},
 	} {
 		doc, _, member := phraseDocument(message)
-		assert.Empty(t, replacement.Infer(lowering.ReplacementInference{}, inferring(), whole.New(doc)), message)
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), message)
 		_, wantMembers := entities(want)
 		assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, message)
 	}

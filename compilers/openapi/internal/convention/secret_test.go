@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -79,7 +78,7 @@ func TestRedact_ReadsTheNamesTail(t *testing.T) {
 			assert.Empty(t, convention.Apply(convention.Policy{}, defaults(), whole.New(doc)))
 			p := propertyOf(t, doc)
 			assert.Equal(t, secret, p.Secret)
-			assert.Equal(t, secret, p.Provenance.Inferred == lowering.SecretInferenceHeuristic, "marked where set")
+			assert.Equal(t, secret, p.Provenance.Inferred == convention.SecretInferenceHeuristic, "marked where set")
 		})
 	}
 }
@@ -150,7 +149,7 @@ func TestRedact_LeavesWhatTheDocumentSays(t *testing.T) {
 			scalar(ir.TypeCommon{Unmodeled: sensitiveKey(`false`)}), false, ""},
 		{"a key under another target", ir.Property{Type: prim(ir.PrimString), Unmodeled: ir.Unmodeled{
 			"openapi:x-stability": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"beta"`)},
-		}}, nil, true, lowering.SecretInferenceHeuristic},
+		}}, nil, true, convention.SecretInferenceHeuristic},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -203,7 +202,7 @@ func TestRedact_ReachesEveryUse(t *testing.T) {
 		"p/default", "p/default-body/item", "p/default-body/part", "p/member"}, got)
 
 	off := build()
-	assert.Empty(t, convention.Apply(convention.Policy{Secret: lowering.SecretInference{Disabled: true}}, defaults(),
+	assert.Empty(t, convention.Apply(convention.Policy{Secret: convention.SecretInference{Disabled: true}}, defaults(),
 		whole.New(off)))
 	assert.Empty(t, redacted(off))
 }
@@ -213,7 +212,7 @@ func TestRedact_ReachesEveryUse(t *testing.T) {
 func redacted(doc *ir.Document) []string {
 	var ids []string
 	mark := func(id string, secret bool, prov ir.Provenance) {
-		if secret && prov.Inferred == lowering.SecretInferenceHeuristic {
+		if secret && prov.Inferred == convention.SecretInferenceHeuristic {
 			ids = append(ids, id)
 		}
 	}

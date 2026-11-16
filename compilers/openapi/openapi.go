@@ -354,8 +354,8 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 // inferences holds the policies of what run infers once the document is whole,
 // each handed to the one step that honours it.
 type inferences struct {
-	pagination  lowering.PaginationInference
-	replacement lowering.ReplacementInference
+	pagination  pagination.Inference
+	replacement replacement.Inference
 	convention  convention.Policy
 }
 

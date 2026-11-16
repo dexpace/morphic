@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
@@ -86,7 +85,7 @@ func TestMessage_AnOperationsNamesItsReplacementByRoute(t *testing.T) {
 				route("op/v2-post", http.MethodPost, "/v2/zones", nil),
 				ir.Operation{ID: "op/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "FETCH", WebhookName: "/v2/zones"}}}})
 			assert.Equal(t, undecided(tc.why, ir.Provenance{Pointer: "/paths/~1v1~1zones/get"}),
-				replacement.Infer(lowering.ReplacementInference{}, inferring(), whole.New(doc)))
+				replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)))
 			op := doc.Services[0].Groups[0].Operations[0]
 			assert.Equal(t, tc.want, op.Deprecation.ReplacedBy)
 			want := ir.Inferred("extension-promotion")
@@ -120,7 +119,7 @@ func TestMessage_ARouteTwoOperationsShareNamesNone(t *testing.T) {
 		}
 		doc := routes(route("op/v1", http.MethodGet, "/v1", says("Use GET /v2.")), a, b)
 		assert.Equal(t, undecided(`"GET /v2." names more than one operation`, ir.Provenance{}),
-			replacement.Infer(lowering.ReplacementInference{}, inferring(), whole.New(doc)), "first %t", first)
+			replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), "first %t", first)
 		assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy, "first %t", first)
 	}
 }
@@ -172,7 +171,7 @@ func TestMessage_AMembersAndAParametersNameSiblingsInCode(t *testing.T) {
 				want = slices.Concat(undecided(fmt.Sprintf(tc.why, "parameter"), atParam),
 					undecided(fmt.Sprintf(tc.why, "property"), atMember))
 			}
-			assert.Equal(t, want, replacement.Infer(lowering.ReplacementInference{}, inferring(), whole.New(doc)))
+			assert.Equal(t, want, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)))
 
 			members := make([]ir.EntityRef, 0, len(tc.want))
 			params := make([]ir.EntityRef, 0, len(tc.want))
@@ -218,7 +217,7 @@ func TestMessage_ANameTwoParametersCarryIsReported(t *testing.T) {
 			}
 			doc := routes(op)
 			doc.Types = ir.TypeRegistry{"t/nil": (*ir.Model)(nil), "t/s": &ir.Scalar{ID: "t/s"}}
-			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(lowering.ReplacementInference{}, inferring(), whole.New(doc)))
+			assert.Equal(t, undecided(tc.why, ir.Provenance{}), replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)))
 			assert.Equal(t, tc.want, doc.Services[0].Groups[0].Operations[0].Params[0].Deprecation.ReplacedBy)
 		})
 	}
@@ -246,23 +245,23 @@ func TestMessage_YieldsToWhatTheDocumentSays(t *testing.T) {
 		}
 		return nil
 	}
-	off := lowering.ReplacementInference{Disabled: true}
+	off := replacement.Inference{Disabled: true}
 	for _, tc := range []struct {
 		name   string
 		p      promotion.Promoter
-		policy lowering.ReplacementInference
+		policy replacement.Inference
 		own    ir.Unmodeled
 		dep    *ir.Deprecation
 		want   []ir.EntityRef
 	}{
-		{"a key naming a replacement", mapped(), lowering.ReplacementInference{}, names(`"getV2"`),
+		{"a key naming a replacement", mapped(), replacement.Inference{}, names(`"getV2"`),
 			says("Use GET /v3 or GET /v9."), []ir.EntityRef{{Operation: "op/v2"}}},
-		{"a key naming nothing", mapped(), lowering.ReplacementInference{}, names(`"gone"`), says("Use GET /v3 or GET /v9."), nil},
-		{"a key writing false", mapped(), lowering.ReplacementInference{}, names(`false`), says("Use GET /v3."), nil},
-		{"a key writing an empty list", mapped(), lowering.ReplacementInference{}, names(`[]`), says("Use GET /v3."), nil},
-		{"no key", mapped(), lowering.ReplacementInference{}, nil, says("Use GET /v3."), []ir.EntityRef{{Operation: "op/v3"}}},
-		{"no deprecation", inferring(), lowering.ReplacementInference{}, nil, nil, nil},
-		{"no message", inferring(), lowering.ReplacementInference{}, nil, &ir.Deprecation{}, nil},
+		{"a key naming nothing", mapped(), replacement.Inference{}, names(`"gone"`), says("Use GET /v3 or GET /v9."), nil},
+		{"a key writing false", mapped(), replacement.Inference{}, names(`false`), says("Use GET /v3."), nil},
+		{"a key writing an empty list", mapped(), replacement.Inference{}, names(`[]`), says("Use GET /v3."), nil},
+		{"no key", mapped(), replacement.Inference{}, nil, says("Use GET /v3."), []ir.EntityRef{{Operation: "op/v3"}}},
+		{"no deprecation", inferring(), replacement.Inference{}, nil, nil, nil},
+		{"no message", inferring(), replacement.Inference{}, nil, &ir.Deprecation{}, nil},
 		{"the policy off", inferring(), off, nil, says("Use GET /v3 or GET /v9."), nil},
 		{"the policy off beside a mapping", mapped(), off, nil, says("Use GET /v3 or GET /v9."), nil},
 	} {

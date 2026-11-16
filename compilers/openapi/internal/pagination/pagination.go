@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -22,7 +21,7 @@ import (
 // parameters name a walk it cannot settle keeps none, reported as an info
 // diagnostic. It reads no operation in stated, whose extensions speak of a
 // pagination, nor any while policy is off. w is the whole document.
-func InferWalks(policy lowering.PaginationInference, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
+func InferWalks(policy Inference, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}
@@ -50,7 +49,7 @@ func (r *reader) infer(op *ir.Operation) (why string, undecided bool) {
 	walk, why := r.walk(op)
 	if walk != nil {
 		op.Pagination = walk
-		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.PaginationInferenceHeuristic)
+		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, InferenceHeuristic)
 	}
 	return why, why != ""
 }

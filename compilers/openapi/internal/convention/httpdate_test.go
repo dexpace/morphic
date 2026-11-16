@@ -11,7 +11,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -129,7 +128,7 @@ func TestHTTPDate_ReadsEveryResponseAndNoPart(t *testing.T) {
 	assert.Equal(t, []ir.PropID{"p/response", "p/error", "p/default"}, encoded(on))
 
 	off := build()
-	assert.Empty(t, convention.Apply(convention.Policy{HTTPDate: lowering.HTTPDateInference{Disabled: true}}, defaults(),
+	assert.Empty(t, convention.Apply(convention.Policy{HTTPDate: convention.HTTPDateInference{Disabled: true}}, defaults(),
 		whole.New(off)))
 	assert.Empty(t, encoded(off))
 }

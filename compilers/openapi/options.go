@@ -15,9 +15,12 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
@@ -189,45 +192,45 @@ const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 // declaring an `Idempotency-Key` header parameter, and no idempotency, takes it
 // as its idempotency token. It is another injectable-policy seam (architecture
 // principle 6), named here for the reason GroupingStrategy is.
-type IdempotencyInference = lowering.IdempotencyInference
+type IdempotencyInference = convention.IdempotencyInference
 
 // IdempotencyInferenceHeuristic is the name an operation's Provenance.Inferred
 // carries where the idempotency policy read its token.
-const IdempotencyInferenceHeuristic = lowering.IdempotencyInferenceHeuristic
+const IdempotencyInferenceHeuristic = convention.IdempotencyInferenceHeuristic
 
 // SecretInference is the secret policy: whether a parameter, a header or a
 // property whose name says it holds a credential, and whose value is text, is
 // redacted where the document asks for no redaction. It is another
 // injectable-policy seam (architecture principle 6), named here for the reason
 // GroupingStrategy is.
-type SecretInference = lowering.SecretInference
+type SecretInference = convention.SecretInference
 
 // SecretInferenceHeuristic is the name a parameter's, a header's or a
 // property's Provenance.Inferred carries where the secret policy set its
 // Secret.
-const SecretInferenceHeuristic = lowering.SecretInferenceHeuristic
+const SecretInferenceHeuristic = convention.SecretInferenceHeuristic
 
 // HTTPDateInference is the HTTP-date policy: whether a response header whose
 // field an RFC defines as an HTTP-date, and whose schema declares a date-time
 // with no encoding, is written and read as an HTTP-date. It is another
 // injectable-policy seam (architecture principle 6), named here for the reason
 // GroupingStrategy is.
-type HTTPDateInference = lowering.HTTPDateInference
+type HTTPDateInference = convention.HTTPDateInference
 
 // HTTPDateInferenceHeuristic is the name a header's Provenance.Inferred
 // carries where the HTTP-date policy set its Encoding.
-const HTTPDateInferenceHeuristic = lowering.HTTPDateInferenceHeuristic
+const HTTPDateInferenceHeuristic = convention.HTTPDateInferenceHeuristic
 
 // ReplacementInference is the replacement policy: whether a deprecation whose
 // message names what to use instead, in a form the document's entities
 // resolve, names it in ReplacedBy too. It is another injectable-policy seam
 // (architecture principle 6), named here for the reason GroupingStrategy is.
-type ReplacementInference = lowering.ReplacementInference
+type ReplacementInference = replacement.Inference
 
 // ReplacementInferenceHeuristic is the name a deprecated node's
 // Provenance.Inferred carries where the replacement policy read its
 // replacements out of the message.
-const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
+const ReplacementInferenceHeuristic = replacement.InferenceHeuristic
 
 // TitleNames is the title-names policy: whether a schema's title names the
 // anonymous node built from it, in place of the hint its position composes.
@@ -240,11 +243,11 @@ type TitleNames = lowering.TitleNames
 // its success responses' members. It is another injectable-policy seam
 // (architecture principle 6), and is named here rather than restated for the
 // reason GroupingStrategy is.
-type PaginationInference = lowering.PaginationInference
+type PaginationInference = pagination.Inference
 
 // PaginationInferenceHeuristic is the name an operation's Provenance.Inferred
 // carries where the pagination-inference policy filled its Pagination.
-const PaginationInferenceHeuristic = lowering.PaginationInferenceHeuristic
+const PaginationInferenceHeuristic = pagination.InferenceHeuristic
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping

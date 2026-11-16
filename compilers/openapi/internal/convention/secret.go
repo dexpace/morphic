@@ -6,14 +6,13 @@ package convention
 import (
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
 // redact asks for p's redaction where its name says it holds a credential
 // (redactUse): a model's member or a header.
-func redact(policy lowering.SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, p *ir.Property) {
+func redact(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, p *ir.Property) {
 	redactUse(policy, promoter, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
 }
 
@@ -24,7 +23,7 @@ func redact(policy lowering.SecretInference, promoter promotion.Promoter, reg ir
 // it, and one where the document writes a key the policy reads redaction from,
 // at the use or along its type, whatever the key says: the document has spoken
 // there. The rule is docs/compilers/openapi.md#secret-inference.
-func redactUse(policy lowering.SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, name ir.Naming,
+func redactUse(policy SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, name ir.Naming,
 	t ir.TypeRef, own ir.Unmodeled, secret *bool, prov *ir.Provenance,
 ) {
 	if !policy.Honours() || *secret || !credentialName(name.Canonical) {
@@ -38,7 +37,7 @@ func redactUse(policy lowering.SecretInference, promoter promotion.Promoter, reg
 		return
 	}
 	*secret = true
-	prov.Inferred = ir.JoinInferred(prov.Inferred, lowering.SecretInferenceHeuristic)
+	prov.Inferred = ir.JoinInferred(prov.Inferred, SecretInferenceHeuristic)
 }
 
 // credentialName reports whether canonical, a name's canonical words, ends in

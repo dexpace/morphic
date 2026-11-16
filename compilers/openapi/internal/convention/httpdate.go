@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -23,7 +22,7 @@ const httpDateEncoding = "http-date"
 // field, and its type reads, through its scalars, as a datetime_offset none of
 // them names an encoding for. It reports each such header, whose format says
 // RFC 3339's text. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDate(policy lowering.HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic {
+func httpDate(policy HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic {
 	if !policy.Honours() || h.Encoding != nil || h.Prefix != nil ||
 		!httpDateField(h.EffectiveWireName()) {
 		return nil
@@ -34,7 +33,7 @@ func httpDate(policy lowering.HTTPDateInference, p promotion.Promoter, reg ir.Ty
 	h.Encoding = &ir.Encoding{Name: httpDateEncoding}
 	at := h.Provenance
 	at.Inferred = ""
-	h.Provenance.Inferred = ir.JoinInferred(h.Provenance.Inferred, lowering.HTTPDateInferenceHeuristic)
+	h.Provenance.Inferred = ir.JoinInferred(h.Provenance.Inferred, HTTPDateInferenceHeuristic)
 	return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.InferredHTTPDate, at,
 		"header %q is a field its RFC defines as an HTTP-date, so its date-time is written and read as one (%s) "+
 			"rather than in RFC 3339's text, which its format names", h.EffectiveWireName(), httpDateEncoding)}
@@ -46,7 +45,7 @@ func httpDate(policy lowering.HTTPDateInference, p promotion.Promoter, reg ir.Ty
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDateParam(policy lowering.HTTPDateInference, promoter promotion.Promoter, w *whole.Document,
+func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *whole.Document,
 	op *ir.Operation,
 ) []ir.Diagnostic {
 	if !policy.Honours() || len(op.Params) == 0 {
@@ -63,7 +62,7 @@ func httpDateParam(policy lowering.HTTPDateInference, promoter promotion.Promote
 		p.Encoding = &ir.Encoding{Name: httpDateEncoding}
 		at := p.Provenance
 		at.Inferred = ""
-		p.Provenance.Inferred = ir.JoinInferred(p.Provenance.Inferred, lowering.HTTPDateInferenceHeuristic)
+		p.Provenance.Inferred = ir.JoinInferred(p.Provenance.Inferred, HTTPDateInferenceHeuristic)
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.InferredHTTPDate, at,
 			"header parameter %q is a field its RFC defines as an HTTP-date, so its date-time is written as one (%s) "+
 				"rather than in RFC 3339's text, which its format names", name, httpDateEncoding))

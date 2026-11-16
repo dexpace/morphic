@@ -361,24 +361,22 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, by a key or in its message,
-	// read once the document is whole. It reaches lowering for the policy,
-	// promotion for the promotion that reads the names, whole for the document
-	// they name, ids for the ID a schema's name gives it, and diag for what it
-	// reports, and nothing of the walks (docs/compilers/openapi.md#policies).
+	// read once the document is whole. It reaches promotion for the promotion
+	// that reads the names, whole for the document they name, ids for the ID a
+	// schema's name gives it, and diag for what it reports, and nothing of the
+	// walks (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
 	// What a document's names imply, read once the document is whole: an
 	// operation's idempotency token, a credential's redaction and a header's
-	// HTTP-date text. It reaches lowering for the policies, promotion for the
-	// promotion whose keys it defers to, whole for the document it reads, and
-	// diag for what it reports, and nothing of the walks.
+	// HTTP-date text. It reaches promotion for the promotion whose keys it
+	// defers to, whole for the document it reads, and diag for what it reports,
+	// and nothing of the walks.
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
 	// A compiled document as the steps after the walks read it: its
@@ -396,13 +394,12 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/runtimeexpr": {module + "/ir",
 		module + "/compilers/openapi/internal/whole"},
 	// The pagination an operation's extensions declare, and the pagination the
-	// names it uses say, read once the document is whole. It reaches lowering
-	// for the policy, promotion for the keys an operation writes, whole for the
-	// document it reads, and runtimeexpr for the expressions an extension
-	// writes, and nothing of the walks.
+	// names it uses say, read once the document is whole. It reaches promotion
+	// for the keys an operation writes, whole for the document it reads, and
+	// runtimeexpr for the expressions an extension writes, and nothing of the
+	// walks.
 	"compilers/openapi/internal/pagination": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/whole"},
