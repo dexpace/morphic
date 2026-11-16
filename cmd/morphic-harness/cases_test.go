@@ -183,3 +183,55 @@ func TestCheckOne_CountsOneFormatAfterAnother(t *testing.T) {
 	assert.Equal(t, 2, checkOne(context.Background(), []format{{cases: nil, record: emptyRecord}}, 0, &stdout, &stderr))
 	assert.Contains(t, stderr.String(), "no cases")
 }
+
+// spelt is a fake product of three cases, each a spelling the oracle holds to
+// the second, which retitles testspec.Tiny: the first writes Tiny, and the
+// last, like the first, writes Tiny again, or, when other, Tiny under another
+// path, which the oracle finds as another difference.
+type spelt struct{ other bool }
+
+func (spelt) Axes() []harness.Axis {
+	return []harness.Axis{{Name: "n", Values: []harness.Value{{Name: "zero"}, {Name: "one"}, {Name: "two", Like: "zero"}}}}
+}
+
+func (c spelt) Write(at []int) (harness.Document, bool) {
+	spec := testspec.Tiny
+	switch {
+	case at[0] == 1:
+		return harness.Document{Sources: []compilers.Source{{Path: "spec.yaml",
+			Data: []byte(strings.Replace(spec, "title: Tiny", "title: Other", 1))}}}, true
+	case at[0] == 2 && c.other:
+		spec = strings.Replace(spec, "/ping", "/pong", 1)
+	}
+	return harness.Document{
+		Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		Equal: &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
+			Relocate: func(s string) string { return s }},
+	}, true
+}
+
+// TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection pins -cases
+// full over a case like a core one: its finding is explained by the line the
+// record holds at the core case, so the run exits 0, unless the finding
+// differs from the line's, when it is left to report and the run exits 1.
+func TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection(t *testing.T) {
+	t.Parallel()
+	results, err := harness.CheckCases(context.Background(), spelt{}, harness.Core(spelt{}))
+	require.NoError(t, err)
+	found := harness.Findings(results, harness.OracleSpelling)
+	require.Len(t, found, 1, "the core case differs from its partner")
+	record := func(o harness.Oracle) (harness.Recorded, error) {
+		if o != harness.OracleSpelling {
+			return harness.Recorded{}, nil
+		}
+		return harness.ReadRecorded([]byte(found[0].Name + "\t" + found[0].What + "\treason\n"))
+	}
+
+	code, stdout, stderr := runArgs(t, []format{{spelt{}, record}}, "-cases", "full")
+	assert.Equal(t, 0, code, "the case like zero finds what zero's line lists: %s%s", stdout, stderr)
+
+	code, stdout, _ = runArgs(t, []format{{spelt{other: true}, record}}, "-cases", "full")
+	assert.Equal(t, 1, code, "the case like zero finds another difference")
+	assert.True(t, strings.HasPrefix(stdout, "two "), stdout)
+	assert.NotContains(t, stdout, "\nzero ", "the core case's finding is listed")
+}

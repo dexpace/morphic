@@ -5,7 +5,9 @@ package bind
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -19,11 +21,12 @@ import (
 // NamedPointerBytes totals the JSON pointers, keys as written, of the nodes a
 // compile of root names one by one (docs/compilers/openapi.md#source-budgets):
 // a value the grammar keeps raw adds its root alone, and a raw value a
-// reference lands in is named as the kind it expects, once. It reads a schema
-// by the minor's grammar; its caller answers for a dialect. complete is false
-// where the total cannot be taken: a reference leaves the document, names
-// nothing its pointer finds, or is read under an `$id`; a fragment is no JSON
-// pointer; merges nest past nodeview.MergeDepthLimit; or past maxSteps.
+// reference lands in is named as the kind it expects, once per landing
+// position. It reads schemas by the minor's grammar, its caller answering for
+// dialects. complete is false where the total cannot be taken: a reference
+// leaves the document, names nothing its pointer finds, or is read under an
+// `$id`; a fragment is no JSON pointer; merges nest past
+// nodeview.MergeDepthLimit; or past maxSteps.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
 	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
 		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
@@ -31,16 +34,27 @@ func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (byte
 		return 0, true
 	}
 	total := w.shapeOf(ctx, namedKey{n: w.root, s: sDocument}).pointers
+	landed := map[namedLanding]bool{}
 	for i := 0; i < len(w.refs) && w.complete; i++ {
-		target, base, ok := w.landing(w.refs[i].ref)
-		key := namedKey{n: nodeview.Deref(target), s: w.refs[i].s}
-		if _, named := w.memo[key]; !ok || named {
+		target, pointer, ok := w.landing(w.refs[i].ref)
+		at := namedLanding{pointer: pointer, s: w.refs[i].s}
+		if !ok || landed[at] || stateOf(sDocument, slices.Collect(pointer.Tokens())) == at.s {
 			continue
 		}
-		got := w.shapeOf(ctx, key)
-		total = sat(total, sat(got.pointers, satMul(got.nodes, base)))
+		landed[at] = true
+		got := w.shapeOf(ctx, namedKey{n: target, s: at.s})
+		total = sat(total, sat(got.pointers, satMul(got.nodes, pointerBytes(pointer))))
 	}
 	return total, w.complete && !w.view.Exhausted()
+}
+
+// pointerBytes is the bytes of pointer as its tokens are written.
+func pointerBytes(pointer jsontext.Pointer) int {
+	n := 0
+	for token := range pointer.Tokens() {
+		n = sat(n, len(token)+1)
+	}
+	return n
 }
 
 // namedKey is a node read at a state of the grammar.
@@ -57,6 +71,14 @@ type namedShape struct{ nodes, pointers int }
 type namedRef struct {
 	ref string
 	s   state
+}
+
+// namedLanding is a position a reference lands at, read as the kind s reads.
+// The binder walks each from where it lands, and an anchor can place one node
+// at many, so a landing is told apart by its pointer, not by its node.
+type namedLanding struct {
+	pointer jsontext.Pointer
+	s       state
 }
 
 // named is one NamedPointerBytes in progress: each (node, state) measured,
@@ -196,27 +218,23 @@ func (w *named) noteRefs(k namedKey) {
 	}
 }
 
-// landing returns the node ref names in the document, its fragment read as the
-// binder reads one (fragment.Pointer), and the bytes of its pointer. It is
-// false, and the total incomplete, for a reference leaving the document,
-// whose fragment is no JSON pointer, or naming nothing the pointer finds,
-// which the binder may still answer by a rule of its own.
-func (w *named) landing(ref string) (*yaml.Node, int, bool) {
+// landing returns the node ref names in the document and its pointer, its
+// fragment read as the binder reads one (fragment.Pointer). It is false, and
+// the total incomplete, for a reference leaving the document, whose fragment
+// is no JSON pointer, or naming nothing the pointer finds, which the binder may
+// still answer by a rule of its own.
+func (w *named) landing(ref string) (*yaml.Node, jsontext.Pointer, bool) {
 	pointer := fragment.Pointer(ref)
 	if !strings.HasPrefix(ref, "#") || pointer != "" && !strings.HasPrefix(string(pointer), "/") || !pointer.IsValid() {
 		w.complete = false
-		return nil, 0, false
+		return nil, "", false
 	}
 	path, found := w.view.DocumentPath(w.root, pointer)
 	if !found || len(path) == 0 {
 		w.complete = false
-		return nil, 0, false
+		return nil, "", false
 	}
-	base := 0
-	for token := range pointer.Tokens() {
-		base = sat(base, len(token)+1)
-	}
-	return path[len(path)-1], base, true
+	return path[len(path)-1], pointer, true
 }
 
 // scalarText is the text of n, its alias followed, when it is a scalar that
