@@ -67,8 +67,8 @@ func extDoc(t *testing.T, c lowering.Ctx) bind.DocID {
 // of another document's content runs in: its references read in that
 // document's scope, each Provenance naming its Document.Sources entry, and its
 // IDs qualified by its label. The source's own number returns to the source's
-// coordinates, as InScope does in any scope, and a context given no document
-// holding that one cannot place it.
+// coordinates, and a context given no document holding that one cannot place
+// it.
 func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	t.Parallel()
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
@@ -91,12 +91,10 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.Equal(t, ids.Document{}, back.IDs())
 	assert.Equal(t, ir.Provenance{Pointer: "/X"}, back.Place().At("/X"))
 	assert.False(t, back.RefScope().Foreign)
-	assert.Equal(t, ids.Document{}, there.InScope(there.RefScope().InSource()).IDs(),
-		"the source's scope is read at the source's coordinates")
-	kept := there.InScope(there.RefScope())
-	assert.True(t, kept.RefScope().Foreign)
-	assert.Equal(t, ir.Provenance{Pointer: "/X"}, kept.Place().At("/X"),
-		"InScope reads at the source's coordinates, in whichever scope")
+	assert.Empty(t, back.RefScope().Holder)
+	assert.Equal(t, there.Position("/X").Pointer, back.Position("/X").Pointer)
+	assert.Equal(t, bind.Source, back.Position("/X").Doc)
+	assert.Equal(t, id, there.Position("/X").Doc)
 
 	none := *doc
 	none.Others = load.Others{}
@@ -108,7 +106,7 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
 // context reads a schema with: that of the document its scope reads, through
-// InDocument and InScope alike, and back to the source's. Rules().In answers
+// InDocument, and back to the source's. Rules().In answers
 // for a document of the bindings' table, and with the source's for one the
 // compile did not read.
 func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
@@ -176,9 +174,8 @@ func TestRules_OfReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 // TestRules_AtReadsTheDialectOfWhereASchemaIs pins whose rows a schema
 // is read with by where it is: those of the dialect the root at or above it
 // names, here a document of schemas naming draft 4 at its root, read in that
-// document's context; the context's own where none is, as for the source's A;
-// and the context's where it places no position, as InScope reads another
-// document's content at the source's.
+// document's context; and the context's own where none is, as for the
+// source's A.
 func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
@@ -189,7 +186,6 @@ func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	}
 	assert.True(t, boolean(there, "/X"), "ext.yaml's root names draft 4")
 	assert.False(t, boolean(c, "/components/schemas/A"), "the source's own schema reads its document's")
-	assert.False(t, boolean(there.InScope(there.RefScope()), "/X"), "no position, the scope's document's rows")
 }
 
 // TestNew_ReadsTheSourcesRowsFromTheLoad pins where a context over a loaded
@@ -222,8 +218,7 @@ func TestOtherIDs_NamesEachDocumentReadBesideTheSource(t *testing.T) {
 // TestNameAt_NamesAPositionInTheContextsDocument pins that one pointer in two
 // documents is two positions: ext.yaml's /P/schema is a parameter's schema,
 // named by the parameter's name, while the source's /P/schema is no schema the
-// grammar reads, named from its pointer. ext.yaml's content read in its scope
-// at the source's coordinates (InScope) names the source's.
+// grammar reads, named from its pointer.
 func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query, schema: {type: string}}\n")
@@ -232,7 +227,6 @@ func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 
 	assert.Equal(t, "p", lowering.NameAt(there, "/P/schema"))
 	assert.Equal(t, "schema", lowering.NameAt(c, "/P/schema"))
-	assert.Equal(t, "schema", lowering.NameAt(there.InScope(there.RefScope()), "/P/schema"))
 }
 
 // TestNameThrough_NamesWhereAReferenceLands pins that the name a $ref suggests

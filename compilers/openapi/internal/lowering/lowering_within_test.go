@@ -18,13 +18,13 @@ import (
 	"github.com/dexpace/morphic/engine/reader"
 )
 
-// TestInScope_ReadsWhereTheBindingsPlaceASchema pins the copy InScope returns
-// for lowering what a schema the bindings know holds (resolve.Scope.InDocumentOf):
-// the source's own content for one the source holds, whatever copy it is taken
-// from, and ext.yaml's for one a $ref reaches past /ext's $ref into ext.yaml.
-// A schema the bindings do not know is read as the source's. The context it
-// was taken from is left as it was.
-func TestInScope_ReadsWhereTheBindingsPlaceASchema(t *testing.T) {
+// TestRefScope_ReadsWhereTheBindingsPlaceASchema pins the scope a context's
+// own gives for reading what a schema the bindings know holds
+// (resolve.Scope.InDocumentOf): ext.yaml's for one a $ref reaches past /ext's
+// $ref into ext.yaml, and the source's own content for one the source holds,
+// whatever scope it is taken from. A schema the bindings do not know is read
+// as the source's. The scope it was taken from is left as it was.
+func TestRefScope_ReadsWhereTheBindingsPlaceASchema(t *testing.T) {
 	t.Parallel()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -53,17 +53,16 @@ components:
 		return decl
 	}
 
-	past := c.InScope(c.RefScope().InDocumentOf(declared("Past"))).RefScope()
+	past := c.RefScope().InDocumentOf(declared("Past"))
 	assert.True(t, past.Foreign, "past /ext's $ref, the schema is ext.yaml's content")
 	assert.Equal(t, filepath.Join(dir, "ext.yaml"), past.Holder)
-	assert.False(t, c.RefScope().Foreign, "the context it was taken from is left as it was")
+	assert.False(t, c.RefScope().Foreign, "the scope it was taken from is left as it was")
 
-	foreign := c.InScope(past)
-	home := foreign.InScope(foreign.RefScope().InDocumentOf(declared("Home"))).RefScope()
+	home := past.InDocumentOf(declared("Home"))
 	assert.False(t, home.Foreign, "what the source holds is read as the source's")
 	assert.Empty(t, home.Holder)
-	assert.True(t, foreign.RefScope().Foreign, "the context it was taken from is left as it was")
+	assert.True(t, past.Foreign, "the scope it was taken from is left as it was")
 
-	unknown := foreign.RefScope().InDocumentOf(&oas3.JSONSchema[oas3.Referenceable]{})
+	unknown := past.InDocumentOf(&oas3.JSONSchema[oas3.Referenceable]{})
 	assert.False(t, unknown.Foreign, "a schema the bindings do not know is read as the source's")
 }

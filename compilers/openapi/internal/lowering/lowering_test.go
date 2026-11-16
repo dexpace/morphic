@@ -158,7 +158,7 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	t.Parallel()
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
 	require.NotNil(t, c.RefScope().Reached)
-	assert.Same(t, c.RefScope().Reached, c.InScope(c.RefScope()).RefScope().Reached, "copies share one record")
+	assert.Same(t, c.RefScope().Reached, atSource(t, c).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
 }
 
@@ -225,7 +225,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	carrying := lowering.New(0, loaded, lowering.Policy{})
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
-	assert.Same(t, loaded.Bindings, carrying.InScope(carrying.RefScope()).Bindings(), "a copy shares it")
+	assert.Same(t, loaded.Bindings, atSource(t, carrying).Bindings(), "a copy shares it")
 	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
@@ -275,7 +275,7 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
 
 	assert.Equal(t, 1, lowering.Remembered(c, "k", read))
-	assert.Equal(t, 1, lowering.Remembered(c.InScope(c.RefScope().InSource()), "k", read), "a copy shares what c read")
+	assert.Equal(t, 1, lowering.Remembered(atSource(t, c), "k", read), "a copy shares what c read")
 	assert.Equal(t, 2, lowering.Remembered(c, "other", read), "another key is another reading")
 	other := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
 	assert.Equal(t, 3, lowering.Remembered(other, "k", read), "another context remembers nothing of c's")
@@ -339,7 +339,7 @@ func TestSettled_BuildsOneStorePerRun(t *testing.T) {
 	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
 
 	first := lowering.Settled(c, build)
-	assert.Same(t, first, lowering.Settled(c.InScope(c.RefScope().InSource()), build), "a copy shares c's store")
+	assert.Same(t, first, lowering.Settled(atSource(t, c), build), "a copy shares c's store")
 	assert.Equal(t, &names{s: "n"}, lowering.Settled(c, func() *names { return &names{s: "n"} }),
 		"another type of store is another store")
 	assert.Same(t, first, lowering.Settled(c, build), "a store of another type replaces none")
@@ -613,7 +613,7 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 	}
 	at := bind.Position{Pointer: "/components/schemas/S"}
 	assert.True(t, c.Promoter().Referent(at, false, entries).Redacted)
-	assert.True(t, c.InScope(c.RefScope().InSource()).Promoter().Referent(at, false, entries).Redacted)
+	assert.True(t, atSource(t, c).Promoter().Referent(at, false, entries).Redacted)
 	assert.Equal(t, 1, reads, "a copy of the context reads the promoter the context does")
 
 	off := loweringtest.Context(t, bindingsSpec, lowering.Policy{Promotions: promotion.ExtensionPromotions{Disabled: true}})
@@ -627,4 +627,12 @@ func overlayDoc(t testing.TB, ov string) *yaml.Node {
 	doc, err := doctree.Read(t.Context(), []byte(ov), budget.Unbounded())
 	require.NoError(t, err)
 	return doc.Root
+}
+
+// atSource returns the copy of c InDocument takes to the source's coordinates.
+func atSource(t *testing.T, c lowering.Ctx) lowering.Ctx {
+	t.Helper()
+	at, ok := lowering.InDocument(c, bind.Source)
+	require.True(t, ok)
+	return at
 }

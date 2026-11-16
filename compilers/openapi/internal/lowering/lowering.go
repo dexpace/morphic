@@ -12,7 +12,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -36,6 +35,9 @@ import (
 //
 // Call sites bind it to c: ctx names the context.Context a Compile takes.
 type Ctx struct {
+	// Site is the document whose content the context reads (InDocument).
+	Site
+
 	// Doc is the parsed, reference-resolved source document. Lowering reads it
 	// and never writes through it.
 	Doc *soa.OpenAPI
@@ -85,34 +87,18 @@ type Ctx struct {
 	schemas resolve.Names
 
 	// NullableInference is the nullable-inference policy, and
-	// DiscriminatorInference the discriminator-inference policy. They sit
-	// before foreign so all of them share a word.
+	// DiscriminatorInference the discriminator-inference policy.
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
-
-	// foreign marks a lowering of content another document holds, read in that
-	// document's scope, and holder is the name the bindings read it by (see
-	// InDocument). Unexported and set only by InScope and InDocument, which
-	// scope them to the subtree that copy is threaded through.
-	foreign bool
-	holder  string
-
-	// home is the Document.Sources index of the document other than the
-	// source whose positions this lowering reads, or zero for the source's
-	// own, and homeDoc that document in the bindings' table. Set only by
-	// InDocument, beside the scope it reads that document's references in, and
-	// cleared by InScope, which reads at the source's.
-	home    int
-	homeDoc bind.DocID
 
 	// overlay attributes a position to the overlay document that introduced it,
 	// where one was applied. Its zero value answers for every compile without an
 	// overlay, so nothing below has to ask whether there was one.
 	//
 	// It is unexported for the reason streaming is — it holds a map, which a
-	// struct copy would share — and it is read only through Place and Sources,
-	// which keeps "provenance is built in exactly one place" true of the source
-	// index as well as of the pointer.
+	// struct copy would share — and it is read only through the source's Site
+	// and Sources, which keeps "provenance is built in exactly one place" true
+	// of the source index as well as of the pointer.
 	overlay overlay.Origin
 
 	// loaded is what the load phase resolved with the document. It sits behind
@@ -153,14 +139,18 @@ type loadResult struct {
 	// purpose: a name reads only those documents, which no lowering changes,
 	// so what one copy remembers is what another would read.
 	names *naming.Namer
-	// others is every document a reference read beside the source, rows what
-	// the table says at the source's minor in its dialect (load.Document.Rows),
-	// and dialects the rows each schema is read with: the load phase read them
-	// all off the one table it built, so no context builds another. Copies share them on purpose: nothing writes any
-	// after the load, so no lowering changes what another reads.
-	others   load.Others
-	rows     load.Rows
-	dialects dialect.Table
+	// documents is each document of the bindings' table the compile read, as
+	// a lowering places and names what it reads there (InDocument), others
+	// every document a reference read beside the source, encoding the rows
+	// each document's Encoding Objects are read with, and dialects those each
+	// schema is read with: the load phase read them all off the one table it
+	// built, so no context builds another. Copies share them on purpose:
+	// nothing writes any after the load, so no lowering changes what another
+	// reads.
+	documents map[bind.DocID]Document
+	others    load.Others
+	encoding  map[bind.DocID]oas.EncodingRules
+	dialects  dialect.Table
 	// reads holds those readings in the scope fields they fill: SelfPath, and
 	// Bindings over every $ref.
 	reads resolve.Scope
@@ -201,7 +191,9 @@ type Policy struct {
 // is copied so no lowering can write through the context into the caller's map.
 func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 	promoter := promotion.New(p.Promotions)
+	documents := documentsOf(srcIndex, doc)
 	return Ctx{
+		Site:                   siteOf(bind.Source, documents[bind.Source]),
 		Doc:                    doc.Doc,
 		Source:                 doc.Source,
 		SrcIndex:               srcIndex,
@@ -216,13 +208,64 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		DiscriminatorInference: p.DiscriminatorInference,
 		overlay:                doc.Overlay,
 
-		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
-			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table(), p.TitleNames.Honours()),
+		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, documents: documents, others: doc.Others,
+			encoding: encodingOf(doc), dialects: doc.Dialects, names: naming.New(doc.Bindings.Table(), p.TitleNames.Honours()),
 			reads:    resolve.Scope{SelfPath: doc.Location, Places: doc.Places, Bindings: doc.Bindings},
 			readings: map[any]any{}, settled: map[any]any{}},
 		reached:   resolve.NewReached(),
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
+}
+
+// Document is one document of the bindings' table the compile read, as a
+// lowering places and names what it reads there (Site): the name the bindings
+// read it by, which a reference in it is resolved against, where its positions
+// are recorded, and how the IDs of what it declares name it.
+type Document struct {
+	Name  string
+	Place provenance.Doc
+	IDs   ids.Document
+}
+
+// documentsOf returns each document of doc's bindings' table the compile
+// read: the source at srcIndex, where the overlay is named as the writer of a
+// position it introduced or rewrote, and each other whose name the documents
+// a reference read beside the source know (load.Others.Named).
+func documentsOf(srcIndex int, doc *load.Document) map[bind.DocID]Document {
+	out := map[bind.DocID]Document{bind.Source: {Place: provenance.Doc{Source: srcIndex, Overlay: doc.Overlay.Attribution()}}}
+	table := doc.Bindings.Table()
+	if table == nil {
+		return out
+	}
+	for id := range bind.DocID(table.Documents()) {
+		name := table.Document(id).Name
+		if o, ok := doc.Others.Named(name); ok && id != bind.Source {
+			out[id] = Document{Name: name, Place: provenance.Doc{Source: o.Index}, IDs: ids.In(o.Label)}
+		}
+	}
+	return out
+}
+
+// encodingOf returns the rows each document of doc's bindings' table the
+// compile read reads its Encoding Objects with: the source's own, and each
+// other's at the minor and in the dialect it is read in (load.Other.Rows).
+func encodingOf(doc *load.Document) map[bind.DocID]oas.EncodingRules {
+	out := map[bind.DocID]oas.EncodingRules{bind.Source: doc.Rows.Encoding}
+	table := doc.Bindings.Table()
+	if table == nil {
+		return out
+	}
+	for id := range bind.DocID(table.Documents()) {
+		if o, ok := doc.Others.Named(table.Document(id).Name); ok && id != bind.Source {
+			out[id] = o.Rows.Encoding
+		}
+	}
+	return out
+}
+
+// siteOf returns the site of document id, which d is.
+func siteOf(id bind.DocID, d Document) Site {
+	return Site{place: d.Place, ids: d.IDs, doc: id}
 }
 
 // ExpansionRefusal returns the error refusing the document when the copies its
@@ -349,7 +392,7 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	if _, isRef := c.Bindings().Reference(ref); isRef && ExpansionCrossed(c) {
 		return nil, c, usePtr
 	}
-	use := bind.Position{Doc: c.homeDoc, Pointer: usePtr}
+	use := c.Position(usePtr)
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, use)
 	if obj == nil || decl == use {
 		return obj, c, usePtr
@@ -370,14 +413,6 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	return obj, there, decl.Pointer
 }
 
-// InScope returns c for lowering at the source's coordinates what is read in
-// scope, the source's own content (resolve.Scope.InSource). What another
-// document declares is lowered in its coordinates instead (InDocument).
-func (c Ctx) InScope(scope resolve.Scope) Ctx {
-	c.foreign, c.holder, c.home, c.homeDoc = scope.Foreign, scope.Holder, 0, bind.Source
-	return c
-}
-
 // declaredSchemaNames collects the names under components/schemas, none when
 // the document declares none.
 func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
@@ -393,26 +428,17 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 // minor decides, such as a required `items` or the effect `nullable` has, asks
 // these rather than the version; a keyword's shape, which a schema's dialect
 // decides, asks Rules.
-func (c Ctx) SchemaRules() oas.SchemaRules { return c.Rules().In(c.homeDoc) }
+func (c Ctx) SchemaRules() oas.SchemaRules { return c.Rules().In(c.doc) }
 
 // Rules returns the rows each schema of the compile is read with, which the
 // load phase read off the one table it judged the documents against.
 func (c Ctx) Rules() dialect.Table { return c.loaded.dialects }
 
 // EncodingRules returns the Encoding Object's rows an encoding c lowers is read
-// with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
-// where its encoding leaves a field unwritten.
-func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
-
-// rowsOf returns what the table says at the minor of the document whose
-// content c reads, in the dialect its jsonSchemaDialect names
-// (load.Other.Rows), the source's for its own (load.Document.Rows).
-func rowsOf(c Ctx) load.Rows {
-	if o, ok := homeOf(c); ok {
-		return o.Rows
-	}
-	return c.loaded.rows
-}
+// with, those of the document whose content c reads, as SchemaRules returns
+// the Schema Object's: what a part takes where its encoding leaves a field
+// unwritten.
+func EncodingRules(c Ctx) oas.EncodingRules { return c.loaded.encoding[c.doc] }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
@@ -423,32 +449,12 @@ func rowsOf(c Ctx) load.Rows {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	r := c.loaded.reads
-	return resolve.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Foreign: c.foreign,
-		Holder: c.holder, Reached: c.reached, Bindings: r.Bindings}
-}
-
-// DiagAt builds one diagnostic at pointer, stamped with this compile's source
-// index.
-//
-// It returns rather than records. Those are two different jobs, and separating
-// them is what lets both rules hold at once: GitHub #86 wants provenance built
-// in exactly one place, because hand-writing it is how a diagnostic shipped with
-// none (GitHub #43); micro-compiler-design §4 wants diagnostics returned rather
-// than accumulated through a handle, because accumulation is the side effect the
-// conversion exists to remove. A constructor that stamps and hands back satisfies
-// both, and a lowering that has no accumulator yet can still be sure of its
-// provenance.
-func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) ir.Diagnostic {
-	return diag.Newf(sev, code, c.Place().At(pointer), format, args...)
-}
-
-// IDs returns the document c's positions are in, as the IDs of what it
-// declares name it (see InDocument).
-func (c Ctx) IDs() ids.Document {
-	if o, ok := homeOf(c); ok {
-		return ids.In(o.Label)
+	scope := resolve.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Reached: c.reached,
+		Bindings: r.Bindings}
+	if c.doc != bind.Source {
+		scope.Foreign, scope.Holder = true, c.loaded.documents[c.doc].Name
 	}
-	return ids.Document{}
+	return scope
 }
 
 // OtherIDs returns how the IDs of what each document a reference read beside
@@ -467,20 +473,20 @@ func OtherIDs(c Ctx) []ids.Document {
 // by (naming.Namer.At): a function of the documents and the coordinate alone,
 // whichever lowering builds the node, read once for every copy of c.
 func NameAt(c Ctx, pointer jsontext.Pointer) string {
-	return c.loaded.names.At(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+	return c.loaded.names.At(c.Position(pointer))
 }
 
 // NameTitle returns the name the title of the schema at pointer in c's
 // document gives the node built there (naming.Namer.Title), and false where it
 // gives none.
 func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
-	return c.loaded.names.Title(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+	return c.loaded.names.Title(c.Position(pointer))
 }
 
 // NameThrough returns the name the $ref written at pointer in c's document
 // suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(c Ctx, pointer jsontext.Pointer) string {
-	return c.loaded.names.Through(bind.Position{Doc: c.homeDoc, Pointer: pointer})
+	return c.loaded.names.Through(c.Position(pointer))
 }
 
 // NameOfDocument returns the hint what is declared at the root of document doc
@@ -489,63 +495,23 @@ func NameOfDocument(c Ctx, doc bind.DocID) string {
 	return c.loaded.names.Document(doc)
 }
 
-// homeOf returns the document other than the source whose positions c reads,
-// and false for the source's own.
-func homeOf(c Ctx) (load.Other, bool) {
-	if c.home == 0 {
-		return load.Other{}, false
-	}
-	return c.loaded.others.At(c.home)
-}
-
 // InDocument returns c for lowering what document id of the bindings' table
-// declares, at that document's own coordinates: the source's (InScope), or
+// declares, at that document's own coordinates (Site): the source's, or
 // another's, whose references are read in its scope, whose positions are its
-// own, so each Provenance names it, and whose IDs it qualifies. It is false, c
-// unchanged, for a document the compile did not read beside the source.
+// own, so each Provenance names it, and whose IDs it qualifies. It is the one
+// way to another document, or back to the source. It is false, c unchanged,
+// for a document the compile did not read beside the source.
 func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
-	if id == bind.Source {
-		return c.InScope(c.RefScope().InSource()), true
-	}
-	name, o, ok := otherIn(c, id)
+	d, ok := c.loaded.documents[id]
 	if !ok {
 		return c, false
 	}
-	c.foreign, c.holder, c.home, c.homeDoc = true, name, o.Index, id
+	c.Site = siteOf(id, d)
 	return c, true
-}
-
-// otherIn returns the name document id of the bindings' table is read by, and
-// the document the compile read beside the source under it, and false for a
-// document the compile did not read beside the source. id is not the source's.
-func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
-	name := c.Bindings().Table().Document(id).Name
-	o, ok := c.loaded.others.Named(name)
-	return name, o, ok
-}
-
-// Place returns where c places a pointer of its document: in another document's
-// own Document.Sources entry, for one InDocument reads, and otherwise in the
-// source's, the overlay named as its writer for a position the overlay
-// introduced or rewrote.
-//
-// Every lowering places a pointer through it, entities and diagnostics alike
-// (GitHub #86), so no lowering spells a source index, and an overlay's
-// contribution is traced without touching any of them.
-func (c Ctx) Place() provenance.Doc {
-	if o, ok := homeOf(c); ok {
-		return provenance.Doc{Source: o.Index}
-	}
-	return provenance.Doc{Source: c.SrcIndex, Overlay: c.overlay.Attribution()}
-}
-
-// Position returns where pointer of c's document is in the bindings' table.
-func (c Ctx) Position(pointer jsontext.Pointer) bind.Position {
-	return bind.Position{Doc: c.homeDoc, Pointer: pointer}
 }
 
 // DynamicAnchor returns what c's document's declarations of the
 // $dynamicAnchor name say (bind.Table.DynamicAnchor).
 func (c Ctx) DynamicAnchor(name string) bind.DynamicAnchor {
-	return c.Bindings().Table().DynamicAnchor(c.homeDoc, name)
+	return c.Bindings().Table().DynamicAnchor(c.doc, name)
 }
