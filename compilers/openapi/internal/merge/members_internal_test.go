@@ -657,6 +657,33 @@ func TestOwnership_ReadsPastAPartNamingNoType(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/Leaf"), left[0].decl.Owner)
 }
 
+// TestOwnership_AWalkReturningToItsModelReadsOnToTheOthers pins a walk whose
+// model's composition leads back to the model: it is none of the others the
+// walk reads on for, so the walk passes it and reaches a candidate's model
+// read after it, whose declaration then stands within the walk's own.
+func TestOwnership_AWalkReturningToItsModelReadsOnToTheOthers(t *testing.T) {
+	t.Parallel()
+	reg := map[ir.TypeID]ir.TypeDef{}
+	declaring := func(id ir.TypeID, parts ...ir.TypeID) candidate {
+		m := &ir.Model{ID: id, Properties: []ir.Property{declared("p", "t/prim/string", "/"+string(id)+"/p")}}
+		for _, part := range parts {
+			m.Mixins = append(m.Mixins, ir.TypeRef{Target: part})
+		}
+		reg[id] = m
+		return candidate{decl: DeclaredAt(ir.PropertyDecl{Owner: id, Property: &m.Properties[0]})}
+	}
+	top := declaring("t/top", "t/loop")
+	reg["t/loop"] = &ir.Model{ID: "t/loop", Mixins: []ir.TypeRef{{Target: "t/top"}, {Target: "t/near"}, {Target: "t/mid"}}}
+	reg["t/mid"] = &ir.Model{ID: "t/mid", Base: &ir.TypeRef{Target: "t/far"}}
+	near, far := declaring("t/near"), declaring("t/far")
+	near.part, far.part = 1, 2
+
+	left := newOwnership(registry{resolve: stubResolve(reg)}, nil).left([]candidate{top, near, far})
+
+	require.Len(t, left, 1, "each other declaration stands within the first's composition")
+	assert.Equal(t, ir.TypeID("t/top"), left[0].decl.Owner)
+}
+
 // TestOwnership_StopsOnceItReachesEveryOtherModel pins what telling one
 // candidate from another costs where one model composes the other directly
 // beside a deep hierarchy: the walk stops at the first level, so a hierarchy
