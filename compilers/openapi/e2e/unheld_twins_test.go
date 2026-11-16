@@ -568,12 +568,9 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 					want, wantNamed, wantTaken := namedTotal(twinAnswers(t, twin, row.doc(twin), f.key))
 					require.Equal(t, wantTaken, gotTaken, "the pointer bound takes a total of both or neither")
 					// The binder reads each node beneath the field for the references
-					// written there, where an extension's value adds its root alone
-					// (source-budgets). The weighing expands no merge key, so a field
-					// an Encoding Object merges in through `<<` adds its root alone in
-					// both.
-					merged := row.doc(nested).encoding != ""
-					assert.Equal(t, gotTaken && !merged, gotNamed > wantNamed,
+					// written there, merged in through `<<` or written, where an
+					// extension's value adds its root alone (source-budgets).
+					assert.Equal(t, gotTaken, gotNamed > wantNamed,
 						"the nested document names more: %d against %d", gotNamed, wantNamed)
 					onlyNested, onlyTwin := row.nestedOnly, row.twinOnly
 					if onlyNested == nil {
