@@ -1,14 +1,14 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package promotion_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,14 +29,14 @@ func TestServerName_ReadsTheDefaultKey(t *testing.T) {
 		t.Run(tc.value, func(t *testing.T) {
 			t.Parallel()
 			var prov ir.Provenance
-			name, diags := lowering.ServerName(promoter(lowering.ExtensionPromotions{}),
+			name, diags := promotion.ServerName(promotion.New(promotion.ExtensionPromotions{}),
 				ir.Unmodeled{"openapi:x-fern-server-name": vendorExtension(tc.value)}, &prov)
 			assert.Equal(t, tc.want, name)
-			assert.Equal(t, tc.want != "", prov.Inferred == lowering.ExtensionPromotionHeuristic)
+			assert.Equal(t, tc.want != "", prov.Inferred == promotion.ExtensionPromotionHeuristic)
 			assert.Equal(t, tc.reported, len(diags) == 1, "reports: %+v", diags)
 		})
 	}
-	name, diags := lowering.ServerName(promoter(lowering.ExtensionPromotions{}),
+	name, diags := promotion.ServerName(promotion.New(promotion.ExtensionPromotions{}),
 		ir.Unmodeled{"openapi:x-fern-server-name": vendorExtension(`"s"`)}, nil)
 	assert.Empty(t, name, "nowhere to record the guess, so none is made")
 	assert.Empty(t, diags)
@@ -48,7 +48,7 @@ func TestServerName_ReadsTheDefaultKey(t *testing.T) {
 // blank or a repeat, which no set holds, is reported as any other shape is.
 func TestTokenEndpointAuthMethods_ReadsASet(t *testing.T) {
 	t.Parallel()
-	policy := mapping(lowering.TargetTokenEndpointAuthMethods, lowering.ExtensionSource{Key: "x-auth"})
+	policy := mapping(promotion.TargetTokenEndpointAuthMethods, promotion.ExtensionSource{Key: "x-auth"})
 	for _, tc := range []struct {
 		value    string
 		want     []string
@@ -64,14 +64,14 @@ func TestTokenEndpointAuthMethods_ReadsASet(t *testing.T) {
 		t.Run(tc.value, func(t *testing.T) {
 			t.Parallel()
 			var inferred ir.Inferred
-			methods, diags := lowering.TokenEndpointAuthMethods(promoter(policy),
+			methods, diags := promotion.TokenEndpointAuthMethods(promotion.New(policy),
 				ir.Unmodeled{"openapi:x-auth": vendorExtension(tc.value)}, &inferred)
 			assert.Equal(t, tc.want, methods)
-			assert.Equal(t, tc.want != nil, inferred == lowering.ExtensionPromotionHeuristic)
+			assert.Equal(t, tc.want != nil, inferred == promotion.ExtensionPromotionHeuristic)
 			assert.Equal(t, tc.reported, len(diags) == 1, "reports: %+v", diags)
 		})
 	}
-	methods, diags := lowering.TokenEndpointAuthMethods(promoter(policy),
+	methods, diags := promotion.TokenEndpointAuthMethods(promotion.New(policy),
 		ir.Unmodeled{"openapi:x-auth": vendorExtension(`"a"`)}, nil)
 	assert.Nil(t, methods, "nowhere to record the guess, so none is made")
 	assert.Empty(t, diags)
@@ -83,10 +83,10 @@ func TestTokenEndpointAuthMethods_ReadsASet(t *testing.T) {
 // other shape is reported.
 func TestAllowReserved_OnlyTrueAsksForIt(t *testing.T) {
 	t.Parallel()
-	plain := mapping(lowering.TargetAllowReserved, lowering.ExtensionSource{Key: "x-raw"})
-	listed := mapping(lowering.TargetAllowReserved, lowering.ExtensionSource{Key: "x-raw", Values: []string{"yes"}})
+	plain := mapping(promotion.TargetAllowReserved, promotion.ExtensionSource{Key: "x-raw"})
+	listed := mapping(promotion.TargetAllowReserved, promotion.ExtensionSource{Key: "x-raw", Values: []string{"yes"}})
 	for _, tc := range []struct {
-		policy   lowering.ExtensionPromotions
+		policy   promotion.ExtensionPromotions
 		value    string
 		want     bool
 		reported bool
@@ -98,12 +98,12 @@ func TestAllowReserved_OnlyTrueAsksForIt(t *testing.T) {
 		{listed, `true`, false, true},
 	} {
 		var prov ir.Provenance
-		reserved, diags := lowering.AllowReserved(promoter(tc.policy), ir.Unmodeled{"openapi:x-raw": vendorExtension(tc.value)}, &prov)
+		reserved, diags := promotion.AllowReserved(promotion.New(tc.policy), ir.Unmodeled{"openapi:x-raw": vendorExtension(tc.value)}, &prov)
 		assert.Equal(t, tc.want, reserved, tc.value)
-		assert.Equal(t, tc.want, prov.Inferred == lowering.ExtensionPromotionHeuristic, tc.value)
+		assert.Equal(t, tc.want, prov.Inferred == promotion.ExtensionPromotionHeuristic, tc.value)
 		assert.Equal(t, tc.reported, len(diags) == 1, "%s reports: %+v", tc.value, diags)
 	}
-	reserved, diags := lowering.AllowReserved(promoter(plain), ir.Unmodeled{"openapi:x-raw": vendorExtension(`true`)}, nil)
+	reserved, diags := promotion.AllowReserved(promotion.New(plain), ir.Unmodeled{"openapi:x-raw": vendorExtension(`true`)}, nil)
 	assert.False(t, reserved, "nowhere to record the guess, so none is made")
 	assert.Empty(t, diags)
 }

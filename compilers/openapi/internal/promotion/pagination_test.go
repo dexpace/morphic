@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package promotion_test
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,27 +21,27 @@ import (
 // keep is not.
 func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 	t.Parallel()
-	expression := lowering.ExtensionSource{Key: "x-page", Member: "cursor"}
-	mark := lowering.ExtensionSource{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}
-	p := promoter(mapping(lowering.TargetPaginationCursor, expression, mark))
-	assert.Equal(t, []lowering.ExtensionSource{expression, mark}, p.Sources(lowering.TargetPaginationCursor))
+	expression := promotion.ExtensionSource{Key: "x-page", Member: "cursor"}
+	mark := promotion.ExtensionSource{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}
+	p := promotion.New(mapping(promotion.TargetPaginationCursor, expression, mark))
+	assert.Equal(t, []promotion.ExtensionSource{expression, mark}, p.Sources(promotion.TargetPaginationCursor))
 
 	for _, tc := range []struct {
 		name  string
-		src   lowering.ExtensionSource
+		src   promotion.ExtensionSource
 		value string
-		want  lowering.PageStatement
+		want  promotion.PageStatement
 	}{
 		{"an expression", expression, `{"cursor":"$request.c"}`,
-			lowering.PageStatement{Expression: "$request.c", Stated: true, Written: true}},
-		{"an expression key written false", expression, `false`, lowering.PageStatement{Written: true}},
-		{"a mark", mark, `{"purpose":"cursor"}`, lowering.PageStatement{Stated: true, Written: true}},
-		{"a mark key written false", mark, `false`, lowering.PageStatement{Written: true}},
+			promotion.PageStatement{Expression: "$request.c", Stated: true, Written: true}},
+		{"an expression key written false", expression, `false`, promotion.PageStatement{Written: true}},
+		{"a mark", mark, `{"purpose":"cursor"}`, promotion.PageStatement{Stated: true, Written: true}},
+		{"a mark key written false", mark, `false`, promotion.PageStatement{Written: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			entries := ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}
-			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, tc.src, entries, nil)
+			got, diags := promotion.PageStatementOf(p, promotion.TargetPaginationCursor, tc.src, entries, nil)
 			assert.Equal(t, tc.want.Expression, got.Expression)
 			assert.Equal(t, tc.want.Stated, got.Stated)
 			assert.Equal(t, tc.want.Written, got.Written)
@@ -53,10 +53,10 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 			assert.Equal(t, want, string(got.At.Pointer))
 		})
 	}
-	for _, src := range []lowering.ExtensionSource{expression, mark} {
-		got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, src,
+	for _, src := range []promotion.ExtensionSource{expression, mark} {
+		got, diags := promotion.PageStatementOf(p, promotion.TargetPaginationCursor, src,
 			ir.Unmodeled{"openapi:x-other": vendorExtension(`{"cursor":"$request.c","purpose":"cursor"}`)}, nil)
-		assert.Equal(t, lowering.PageStatement{}, got, "a node keeping another key: %s", src)
+		assert.Equal(t, promotion.PageStatement{}, got, "a node keeping another key: %s", src)
 		assert.Empty(t, diags)
 	}
 }
@@ -67,17 +67,17 @@ func TestPageStatementOf_ReadsAnExpressionOrAMark(t *testing.T) {
 // x-flag's. x-page's description fills a deprecation's message, x-role's next
 // member and x-page whole each a page value, and x-role's kind marks the page
 // count, so a judgement across the sources of one key shows which it reads.
-func pageValuesPolicy() lowering.ExtensionPromotions {
-	return lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-		lowering.TargetPaginationCursor: {{Key: "x-page", Member: "cursor"},
+func pageValuesPolicy() promotion.ExtensionPromotions {
+	return promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+		promotion.TargetPaginationCursor: {{Key: "x-page", Member: "cursor"},
 			{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}, {Key: "x-mark", Values: []string{"cursor"}}},
-		lowering.TargetPaginationLimit: {{Key: "x-page", Member: "limit"},
+		promotion.TargetPaginationLimit: {{Key: "x-page", Member: "limit"},
 			{Key: "x-role", Member: "purpose", Values: []string{"limit"}}, {Key: "x-flag", Values: []string{"false"}}},
-		lowering.TargetPaginationNextLink:   {{Key: "x-link"}},
-		lowering.TargetPaginationNextCursor: {{Key: "x-role", Member: "next"}},
-		lowering.TargetPaginationTotalCount: {{Key: "x-page"}},
-		lowering.TargetPaginationTotalPages: {{Key: "x-role", Member: "kind", Values: []string{"total"}}},
-		lowering.TargetDeprecationMessage:   {{Key: "x-page", Member: "description"}},
+		promotion.TargetPaginationNextLink:   {{Key: "x-link"}},
+		promotion.TargetPaginationNextCursor: {{Key: "x-role", Member: "next"}},
+		promotion.TargetPaginationTotalCount: {{Key: "x-page"}},
+		promotion.TargetPaginationTotalPages: {{Key: "x-role", Member: "kind", Values: []string{"total"}}},
+		promotion.TargetDeprecationMessage:   {{Key: "x-page", Member: "description"}},
 	}}
 }
 
@@ -97,17 +97,17 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 		noWalk      = ", so it states no value of a walk"
 	)
 	var (
-		cursor = lowering.ExtensionSource{Key: "x-page", Member: "cursor"}
-		role   = lowering.ExtensionSource{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}
-		link   = lowering.ExtensionSource{Key: "x-link"}
-		mark   = lowering.ExtensionSource{Key: "x-mark", Values: []string{"cursor"}}
-		flag   = lowering.ExtensionSource{Key: "x-flag", Values: []string{"false"}}
+		cursor = promotion.ExtensionSource{Key: "x-page", Member: "cursor"}
+		role   = promotion.ExtensionSource{Key: "x-role", Member: "purpose", Values: []string{"cursor"}}
+		link   = promotion.ExtensionSource{Key: "x-link"}
+		mark   = promotion.ExtensionSource{Key: "x-mark", Values: []string{"cursor"}}
+		flag   = promotion.ExtensionSource{Key: "x-flag", Values: []string{"false"}}
 	)
-	p := promoter(pageValuesPolicy())
+	p := promotion.New(pageValuesPolicy())
 	for _, tc := range []struct {
 		name   string
 		member bool // the report sits at the member the source reads
-		src    lowering.ExtensionSource
+		src    promotion.ExtensionSource
 		value  string
 		stated bool
 		report string
@@ -165,11 +165,11 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			target := lowering.TargetPaginationCursor
+			target := promotion.TargetPaginationCursor
 			if tc.src.Key == link.Key {
-				target = lowering.TargetPaginationNextLink
+				target = promotion.TargetPaginationNextLink
 			}
-			got, diags := lowering.PageStatementOf(p, target, tc.src,
+			got, diags := promotion.PageStatementOf(p, target, tc.src,
 				ir.Unmodeled{"openapi:" + tc.src.Key: vendorExtension(tc.value)}, nil)
 			assert.True(t, got.Written, "a key the node keeps is written, whatever it holds")
 			assert.Equal(t, tc.stated, got.Stated)
@@ -199,8 +199,8 @@ func TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk(t *testing.T) {
 // reads its true as before.
 func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 	t.Parallel()
-	src := lowering.ExtensionSource{Key: "x-page", Member: "cursor"}
-	p := promoter(mapping(lowering.TargetPaginationCursor, src))
+	src := promotion.ExtensionSource{Key: "x-page", Member: "cursor"}
+	p := promotion.New(mapping(promotion.TargetPaginationCursor, src))
 	onTrue := ir.Unmodeled{"openapi:x-page": opKey(`true`)}
 	rootKey := func(value string) ir.Unmodeled {
 		return ir.Unmodeled{"openapi:x-page": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(value),
@@ -209,26 +209,26 @@ func TestPageStatementOf_ReadsTheRootForTrue(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		own, root     ir.Unmodeled
-		want          lowering.PageStatement
+		want          promotion.PageStatement
 		code, pointer string
 	}{
 		{"a root stating the walk", onTrue, rootKey(`{"cursor":"$request.c"}`),
-			lowering.PageStatement{Expression: "$request.c", At: ir.Provenance{Pointer: "/x-page/cursor"}, Stated: true,
+			promotion.PageStatement{Expression: "$request.c", At: ir.Provenance{Pointer: "/x-page/cursor"}, Stated: true,
 				Written: true}, "", ""},
 		{"a root writing none", onTrue, ir.Unmodeled{},
-			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
+			promotion.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/paths/~1x/get/x-page"},
 		{"a root writing true", onTrue, rootKey(`true`),
-			lowering.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/x-page"},
+			promotion.PageStatement{At: opAt(), Written: true}, "openapi/unpromoted-extension", "/x-page"},
 		{"a path item's statement beside the true, nearer than the root's", ir.Unmodeled{"openapi:x-page": opKey(`true`),
 			"openapi:pathItem/x-page": opKey(`{"cursor":"$request.d"}`)}, rootKey(`{"cursor":"$request.c"}`),
-			lowering.PageStatement{Expression: "$request.d", At: ir.Provenance{Pointer: "/paths/~1x/get/x-page/cursor"},
+			promotion.PageStatement{Expression: "$request.d", At: ir.Provenance{Pointer: "/paths/~1x/get/x-page/cursor"},
 				Stated: true, Written: true}, "", ""},
 		{"no root, as for a node that is no operation", onTrue, nil,
-			lowering.PageStatement{At: opAt(), Written: true}, "openapi/degraded-construct", "/paths/~1x/get/x-page"},
+			promotion.PageStatement{At: opAt(), Written: true}, "openapi/degraded-construct", "/paths/~1x/get/x-page"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, diags := lowering.PageStatementOf(p, lowering.TargetPaginationCursor, src, tc.own, tc.root)
+			got, diags := promotion.PageStatementOf(p, promotion.TargetPaginationCursor, src, tc.own, tc.root)
 			assert.Equal(t, tc.want, got)
 			if tc.code == "" {
 				assert.Empty(t, diags)

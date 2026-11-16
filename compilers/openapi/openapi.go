@@ -25,6 +25,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/paramchoice"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
@@ -270,7 +271,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	acc.AppendAll(metaDiags)
 	// An extension under a prefix the policy owns is judged once every node
 	// that could keep one is built, the document's own Unmodeled included.
-	acc.AppendAll(lowering.UnreadExtensions(c, out))
+	acc.AppendAll(promotion.UnreadExtensions(c.Promoter(), c.GroupingExtension.Keys(c.Grouping), out))
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is
 	// reported alone, the same in any order. It is asked once every lowering has

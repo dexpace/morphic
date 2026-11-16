@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -90,7 +91,7 @@ const (
 // DefaultGroupingExtension returns the extension GroupByExtension reads where
 // the caller names none: x-fern-sdk-group-name, whose list is one path, beside
 // x-forge-aliases, whose entries restate it for each alias. It is a default and
-// not a standard, as DefaultExtensionPromotions is.
+// not a standard, as promotion.DefaultExtensionPromotions is.
 func DefaultGroupingExtension() GroupingExtension {
 	return GroupingExtension{Key: "x-fern-sdk-group-name", Lists: ListsAreSegments, Aliases: "x-forge-aliases"}
 }
@@ -98,7 +99,7 @@ func DefaultGroupingExtension() GroupingExtension {
 // Keys returns the extensions grouping reads under strategy: Key and Aliases,
 // each where it names one, under GroupByExtension, and none under any other
 // strategy. It is the one list of them, so the lowering filing operations and
-// the audit of an owned prefix (UnreadExtensions) read the same keys.
+// the audit of an owned prefix (promotion.UnreadExtensions) read the same keys.
 func (g GroupingExtension) Keys(strategy GroupingStrategy) []string {
 	if strategy != GroupByExtension {
 		return nil
@@ -129,7 +130,7 @@ const MaxGroupPathDepth = 16
 // is named by, or one deeper than MaxGroupPathDepth. A list is a misfit if any
 // entry is, since the value is the document's whole statement.
 func (g GroupingExtension) Paths(raw ir.RawValue) ([][]string, bool) {
-	entries, ok := listedText(raw)
+	entries, ok := promotion.ListedText(raw)
 	if !ok {
 		return nil, false
 	}

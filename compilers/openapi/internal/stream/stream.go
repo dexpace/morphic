@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -19,8 +20,8 @@ const (
 )
 
 // PromoteDetail fills each operation's ResponseStream.Terminator and Condition from
-// the keys the policy's sources of lowering.TargetStreamTerminator and
-// lowering.TargetStreamCondition name, marking the node whose key filled it,
+// the keys the policy's sources of promotion.TargetStreamTerminator and
+// promotion.TargetStreamCondition name, marking the node whose key filled it,
 // and reports each key that fills nothing as info
 // diag.UnpromotedExtension. Every key stays as written.
 func PromoteDetail(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
@@ -36,18 +37,18 @@ func PromoteDetail(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
 // of the terminator.
 type keyed struct {
 	content *ir.Content
-	st      lowering.TextStatement
+	st      promotion.TextStatement
 }
 
 // terminator fills op's terminator, all or none: from the operation's key
 // where it states one and no streaming content states another, else from the
 // streaming contents of its success responses where every one states the same
 // text. Where they disagree, one report names the later key by pointer.
-func terminator(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
-	own, diags := p.TextOf(lowering.TargetStreamTerminator, op.Unmodeled)
+func terminator(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
+	own, diags := p.TextOf(promotion.TargetStreamTerminator, op.Unmodeled)
 	if op.ResponseStream == nil {
 		if own.Text != "" {
-			diags = append(diags, lowering.Unpromoted(own.Source.String(), own.At,
+			diags = append(diags, promotion.Unpromoted(own.Source.String(), own.At,
 				"states a terminator of operation "+strconv.Quote(string(op.ID))+", which streams no response",
 				noTerminator))
 		}
@@ -63,7 +64,7 @@ func terminator(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
 
 // streamingContents reads the terminator each streaming content of op's
 // success responses states.
-func streamingContents(p lowering.Promoter, op *ir.Operation) ([]keyed, []ir.Diagnostic) {
+func streamingContents(p promotion.Promoter, op *ir.Operation) ([]keyed, []ir.Diagnostic) {
 	var out []keyed
 	var diags []ir.Diagnostic
 	for i := range op.Responses {
@@ -75,7 +76,7 @@ func streamingContents(p lowering.Promoter, op *ir.Operation) ([]keyed, []ir.Dia
 			if cs[j].Stream == nil {
 				continue
 			}
-			st, readDiags := p.TextOf(lowering.TargetStreamTerminator, cs[j].Unmodeled)
+			st, readDiags := p.TextOf(promotion.TargetStreamTerminator, cs[j].Unmodeled)
 			out = append(out, keyed{content: &cs[j], st: st})
 			diags = append(diags, readDiags...)
 		}
@@ -86,11 +87,11 @@ func streamingContents(p lowering.Promoter, op *ir.Operation) ([]keyed, []ir.Dia
 // fromOperation fills the terminator own states, the operation's, where no
 // content states another, reporting each that does. A content stating the
 // same text is marked beside the operation.
-func fromOperation(op *ir.Operation, own lowering.TextStatement, contents []keyed) []ir.Diagnostic {
+func fromOperation(op *ir.Operation, own promotion.TextStatement, contents []keyed) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, k := range contents {
 		if k.st.Text != "" && k.st.Text != own.Text {
-			diags = append(diags, lowering.Unpromoted(k.st.Source.String(), k.st.At,
+			diags = append(diags, promotion.Unpromoted(k.st.Source.String(), k.st.At,
 				"states "+strconv.Quote(k.st.Text)+" where operation "+strconv.Quote(string(op.ID))+
 					" states "+strconv.Quote(own.Text), noTerminator))
 		}
@@ -99,7 +100,7 @@ func fromOperation(op *ir.Operation, own lowering.TextStatement, contents []keye
 		return diags
 	}
 	fillTerminator(op, own.Text, contents)
-	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.ExtensionPromotionHeuristic)
+	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 	return nil
 }
 
@@ -108,7 +109,7 @@ func fromOperation(op *ir.Operation, own lowering.TextStatement, contents []keye
 // one states another or none beside one that states it.
 func fromContents(op *ir.Operation, contents []keyed) []ir.Diagnostic {
 	var text string
-	var later *lowering.TextStatement
+	var later *promotion.TextStatement
 	agree := true
 	for i := range contents {
 		st := &contents[i].st
@@ -129,7 +130,7 @@ func fromContents(op *ir.Operation, contents []keyed) []ir.Diagnostic {
 		return nil
 	}
 	if !agree {
-		return []ir.Diagnostic{lowering.Unpromoted(later.Source.String(), later.At,
+		return []ir.Diagnostic{promotion.Unpromoted(later.Source.String(), later.At,
 			"states "+strconv.Quote(later.Text)+", but the streaming contents of operation "+
 				strconv.Quote(string(op.ID))+" do not all state one text", noTerminator)}
 	}
@@ -143,7 +144,7 @@ func fillTerminator(op *ir.Operation, text string, contents []keyed) {
 	op.ResponseStream.Terminator = &text
 	for _, k := range contents {
 		if k.st.Text == text {
-			k.content.Inferred = ir.JoinInferred(k.content.Inferred, lowering.ExtensionPromotionHeuristic)
+			k.content.Inferred = ir.JoinInferred(k.content.Inferred, promotion.ExtensionPromotionHeuristic)
 		}
 	}
 }
@@ -152,8 +153,8 @@ func fillTerminator(op *ir.Operation, text string, contents []keyed) {
 // expression naming a boolean input of the request, which asks for the stream
 // when true, where op streams a success response that also offers a content
 // that does not stream. Any other key is reported and fills nothing.
-func condition(p lowering.Promoter, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
-	st, diags := p.TextOf(lowering.TargetStreamCondition, op.Unmodeled)
+func condition(p promotion.Promoter, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+	st, diags := p.TextOf(promotion.TargetStreamCondition, op.Unmodeled)
 	if st.Text == "" {
 		return diags
 	}
@@ -167,10 +168,10 @@ func condition(p lowering.Promoter, w *whole.Document, op *ir.Operation) []ir.Di
 			", which offers no success response a choice between a stream and a content that does not stream"
 	default:
 		op.ResponseStream.Condition = &ir.StreamCondition{Input: *in, Value: ir.Value{Kind: ir.ValueBool, Bool: true}}
-		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.ExtensionPromotionHeuristic)
+		op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 		return diags
 	}
-	return append(diags, lowering.Unpromoted(st.Source.String(), st.At, why, noCondition))
+	return append(diags, promotion.Unpromoted(st.Source.String(), st.At, why, noCondition))
 }
 
 // namesBoolean reports whether id stands for the boolean primitive.

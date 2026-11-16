@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering
+package promotion
 
 import (
 	"encoding/json/v2"
@@ -21,7 +21,7 @@ func (p Promoter) Replacements(own ir.Unmodeled) ([]string, ir.Provenance, []ir.
 	if !stated {
 		return nil, ir.Provenance{}, diags
 	}
-	names, _ := listedText(ir.RawValue(text))
+	names, _ := ListedText(ir.RawValue(text))
 	return names, at, diags
 }
 
@@ -50,7 +50,7 @@ func replacementReading() reading[string] {
 		target: TargetDeprecationReplacedBy,
 		want:   "is neither a name nor a list of names",
 		read: func(_ ExtensionSource, raw ir.RawValue) (string, statement) {
-			names, ok := listedText(raw)
+			names, ok := ListedText(raw)
 			switch {
 			case !ok:
 				return "", misfit
@@ -73,11 +73,11 @@ func asList(raw ir.RawValue) ir.RawValue {
 	return slices.Concat(ir.RawValue("["), raw, ir.RawValue("]"))
 }
 
-// listedText decodes raw as one text or a list of texts, false for any other
+// ListedText decodes raw as one text or a list of texts, false for any other
 // value or a list holding empty text. Empty text, an empty list and null state
 // none. It is how a value naming one entity or several is read: replacements'
 // names, and group paths.
-func listedText(raw ir.RawValue) ([]string, bool) {
+func ListedText(raw ir.RawValue) ([]string, bool) {
 	if text, ok := extensionText(raw); ok {
 		if text == "" {
 			return nil, true

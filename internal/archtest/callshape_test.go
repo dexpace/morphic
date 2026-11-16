@@ -64,11 +64,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent, Remembered and Settled each call the function they
-		// are handed before they return: immediate callbacks. operation's are a
-		// union's file reading and the store of what parts read of unions.
+		// Remembered and Settled each call the function they are handed before
+		// they return: immediate callbacks. operation's are a union's file reading
+		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    20,
+		"compilers/openapi/internal/schema":    19,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -94,6 +94,11 @@ var callShapeBaseline = map[string]map[string]int{
 		// it enters and Later taking each it leaves unread: traversal callbacks.
 		"compilers/openapi/internal/load": 28,
 	},
+	"compilers/openapi/internal/promotion": {
+		// Promoter.Referent calls the function it is handed before it returns: an
+		// immediate callback.
+		"compilers/openapi/internal/schema": 1,
+	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read
 		// off an index built on the first node asked about, under the context of
@@ -115,12 +120,12 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
-		"compilers/openapi/internal/lowering": 1,
-		"engine/report":                       1,
-		"internal/census":                     1,
-		"ir/irfacts":                          4,
-		"ir/irverify":                         2,
-		"pass":                                18,
+		"compilers/openapi/internal/promotion": 1,
+		"engine/report":                        1,
+		"internal/census":                      1,
+		"ir/irfacts":                           4,
+		"ir/irverify":                          2,
+		"pass":                                 18,
 	},
 }
 

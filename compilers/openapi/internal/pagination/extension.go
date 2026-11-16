@@ -9,23 +9,24 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // requestTargets are the pagination targets naming a value the request carries.
-func requestTargets() []lowering.ExtensionTarget {
-	return []lowering.ExtensionTarget{
-		lowering.TargetPaginationCursor, lowering.TargetPaginationOffset, lowering.TargetPaginationPage,
-		lowering.TargetPaginationLimit,
+func requestTargets() []promotion.ExtensionTarget {
+	return []promotion.ExtensionTarget{
+		promotion.TargetPaginationCursor, promotion.TargetPaginationOffset, promotion.TargetPaginationPage,
+		promotion.TargetPaginationLimit,
 	}
 }
 
 // responseTargets are the pagination targets naming a value a page carries.
-func responseTargets() []lowering.ExtensionTarget {
-	return []lowering.ExtensionTarget{
-		lowering.TargetPaginationItems, lowering.TargetPaginationNextCursor, lowering.TargetPaginationNextLink,
-		lowering.TargetPaginationTotalCount, lowering.TargetPaginationTotalPages, lowering.TargetPaginationHasMore,
+func responseTargets() []promotion.ExtensionTarget {
+	return []promotion.ExtensionTarget{
+		promotion.TargetPaginationItems, promotion.TargetPaginationNextCursor, promotion.TargetPaginationNextLink,
+		promotion.TargetPaginationTotalCount, promotion.TargetPaginationTotalPages, promotion.TargetPaginationHasMore,
 	}
 }
 
@@ -38,7 +39,7 @@ func responseTargets() []lowering.ExtensionTarget {
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those an inference leaves alone, by that rule's precedence.
 // root is the document root's Unmodeled, which an operation's key written
-// true reads (lowering.PageStatementOf).
+// true reads (promotion.PageStatementOf).
 func Promote(c lowering.Ctx, w *whole.Document, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
 	if root == nil {
 		root = ir.Unmodeled{} // the nodes read are operations, whose root states nothing
@@ -66,7 +67,7 @@ func Promote(c lowering.Ctx, w *whole.Document, root ir.Unmodeled) (stated map[i
 // (pager.reaching).
 type pager struct {
 	c     lowering.Ctx
-	p     lowering.Promoter
+	p     promotion.Promoter
 	w     *whole.Document
 	root  ir.Unmodeled
 	reach map[string]map[ir.TypeID]bool
@@ -81,8 +82,8 @@ func (pg *pager) maps() bool {
 // field by the target naming it, the nodes whose keys stated them, and whether
 // a source's key is written where it is read, whatever it states.
 type pageFields struct {
-	inputs  map[lowering.ExtensionTarget]*ir.InputPath
-	outputs map[lowering.ExtensionTarget]*ir.PropPath
+	inputs  map[promotion.ExtensionTarget]*ir.InputPath
+	outputs map[promotion.ExtensionTarget]*ir.PropPath
 	read    []*ir.Provenance
 	written bool
 }
@@ -92,8 +93,8 @@ type pageFields struct {
 // key is written where it is read, whatever its value, filling a pagination,
 // failing to or stating nothing.
 func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
-	fields := pageFields{inputs: map[lowering.ExtensionTarget]*ir.InputPath{},
-		outputs: map[lowering.ExtensionTarget]*ir.PropPath{}}
+	fields := pageFields{inputs: map[promotion.ExtensionTarget]*ir.InputPath{},
+		outputs: map[promotion.ExtensionTarget]*ir.PropPath{}}
 	var diags []ir.Diagnostic
 	for _, target := range requestTargets() {
 		in, failed, readDiags := pg.input(op, target)
@@ -127,7 +128,7 @@ func (pg *pager) operation(op *ir.Operation) (bool, []ir.Diagnostic) {
 	}
 	op.Pagination = walk
 	for _, prov := range fields.read {
-		prov.Inferred = ir.JoinInferred(prov.Inferred, lowering.ExtensionPromotionHeuristic)
+		prov.Inferred = ir.JoinInferred(prov.Inferred, promotion.ExtensionPromotionHeuristic)
 	}
 	return fields.written, diags
 }
@@ -145,17 +146,17 @@ func (pg *pager) report(op *ir.Operation, format string, args ...any) ir.Diagnos
 // (docs/emitters/operations/pagination.md), or nothing reaching the next page
 // at all. A walk naming its flag ends by it alone (ir.PageStopNoMore).
 func assemble(f pageFields) (*ir.Pagination, string) {
-	var continues []lowering.ExtensionTarget
-	for _, t := range []lowering.ExtensionTarget{lowering.TargetPaginationCursor, lowering.TargetPaginationOffset,
-		lowering.TargetPaginationPage} {
+	var continues []promotion.ExtensionTarget
+	for _, t := range []promotion.ExtensionTarget{promotion.TargetPaginationCursor, promotion.TargetPaginationOffset,
+		promotion.TargetPaginationPage} {
 		if f.inputs[t] != nil {
 			continues = append(continues, t)
 		}
 	}
-	_, cursor := f.inputs[lowering.TargetPaginationCursor]
-	_, next := f.outputs[lowering.TargetPaginationNextCursor]
-	_, link := f.outputs[lowering.TargetPaginationNextLink]
-	_, items := f.outputs[lowering.TargetPaginationItems]
+	_, cursor := f.inputs[promotion.TargetPaginationCursor]
+	_, next := f.outputs[promotion.TargetPaginationNextCursor]
+	_, link := f.outputs[promotion.TargetPaginationNextLink]
+	_, items := f.outputs[promotion.TargetPaginationItems]
 	switch {
 	case len(continues) > 1:
 		return nil, "names more than one input continuing it (" + joinTargets(continues) + ")"
@@ -171,13 +172,13 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 	walk := &ir.Pagination{
 		Strategy:   ir.PageStrategyNextLink,
 		Inferred:   true,
-		InputLimit: f.inputs[lowering.TargetPaginationLimit],
-		Items:      f.outputs[lowering.TargetPaginationItems],
-		NextCursor: f.outputs[lowering.TargetPaginationNextCursor],
-		NextLink:   f.outputs[lowering.TargetPaginationNextLink],
-		TotalCount: f.outputs[lowering.TargetPaginationTotalCount],
-		TotalPages: f.outputs[lowering.TargetPaginationTotalPages],
-		HasMore:    f.outputs[lowering.TargetPaginationHasMore],
+		InputLimit: f.inputs[promotion.TargetPaginationLimit],
+		Items:      f.outputs[promotion.TargetPaginationItems],
+		NextCursor: f.outputs[promotion.TargetPaginationNextCursor],
+		NextLink:   f.outputs[promotion.TargetPaginationNextLink],
+		TotalCount: f.outputs[promotion.TargetPaginationTotalCount],
+		TotalPages: f.outputs[promotion.TargetPaginationTotalPages],
+		HasMore:    f.outputs[promotion.TargetPaginationHasMore],
 	}
 	if walk.HasMore != nil {
 		// The source states the flag, which is where the walk ends.
@@ -190,11 +191,11 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 }
 
 // strategyOf is the strategy of a walk an input of target continues.
-func strategyOf(target lowering.ExtensionTarget) ir.PageStrategy {
+func strategyOf(target promotion.ExtensionTarget) ir.PageStrategy {
 	switch target {
-	case lowering.TargetPaginationOffset:
+	case promotion.TargetPaginationOffset:
 		return ir.PageStrategyOffset
-	case lowering.TargetPaginationPage:
+	case promotion.TargetPaginationPage:
 		return ir.PageStrategyPage
 	default:
 		return ir.PageStrategyCursor
@@ -202,7 +203,7 @@ func strategyOf(target lowering.ExtensionTarget) ir.PageStrategy {
 }
 
 // joinTargets spells targets for a report.
-func joinTargets(targets []lowering.ExtensionTarget) string {
+func joinTargets(targets []promotion.ExtensionTarget) string {
 	names := make([]string, len(targets))
 	for i, t := range targets {
 		names[i] = string(t)

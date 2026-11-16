@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -127,7 +128,7 @@ type chain struct {
 // readChain reads the chain from id through each scalar's Base, to
 // maxScalarHops of them, and reports false where it ends at a type that is no
 // primitive, at a type the registry does not hold, or past the bound.
-func readChain(p lowering.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
+func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
 	var ch chain
 	for range maxScalarHops {
 		td := reg[id]
@@ -136,7 +137,7 @@ func readChain(p lowering.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, b
 		}
 		common := td.Common()
 		ch.sensitive = ch.sensitive || common.Sensitive
-		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, lowering.TargetRedaction)
+		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, promotion.TargetRedaction)
 		switch n := td.(type) {
 		case *ir.Primitive:
 			ch.prim = n.Prim

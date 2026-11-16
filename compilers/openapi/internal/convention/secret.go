@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,7 +31,7 @@ func redactUse(c lowering.Ctx, reg ir.TypeRegistry, name ir.Naming, t ir.TypeRef
 		return
 	}
 	promoter := c.Promoter()
-	if promoter.Writes(own, lowering.TargetRedaction) {
+	if promoter.Writes(own, promotion.TargetRedaction) {
 		return
 	}
 	ch, ok := readChain(promoter, reg, t.Target)

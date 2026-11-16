@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,7 +26,7 @@ import (
 // and w the document, which is whole.
 func Resolve(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 	r := resolver{c: c, p: c.Promoter(), w: w}
-	if !r.p.Maps(lowering.TargetDeprecationReplacedBy) {
+	if !r.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
 	diags := r.service()
@@ -52,7 +53,7 @@ func Resolve(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 // (whole.Document.Member), which indexes a model's own properties once.
 type resolver struct {
 	c lowering.Ctx
-	p lowering.Promoter
+	p promotion.Promoter
 	w *whole.Document
 }
 
@@ -76,19 +77,19 @@ func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenan
 		switch {
 		case matched == 0:
 			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"replacement %q names no %s, so it does not fill %s", name, class, lowering.TargetDeprecationReplacedBy))
+				"replacement %q names no %s, so it does not fill %s", name, class, promotion.TargetDeprecationReplacedBy))
 		case matched > 1:
 			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"replacement %q names more than one %s, so it does not fill %s", name, class,
-				lowering.TargetDeprecationReplacedBy))
+				promotion.TargetDeprecationReplacedBy))
 		case ref == self:
 			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
-				"replacement %q names the %s it sits on, so it does not fill %s", name, class, lowering.TargetDeprecationReplacedBy))
+				"replacement %q names the %s it sits on, so it does not fill %s", name, class, promotion.TargetDeprecationReplacedBy))
 		}
 		refs = append(refs, ref)
 	}
 	dep.ReplacedBy = refs
-	prov.Inferred = ir.JoinInferred(prov.Inferred, lowering.ExtensionPromotionHeuristic)
+	prov.Inferred = ir.JoinInferred(prov.Inferred, promotion.ExtensionPromotionHeuristic)
 	return diags
 }
 

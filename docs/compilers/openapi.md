@@ -4265,7 +4265,7 @@ apart (spec @86556f6f).
 - Cases: `secret-inference`
 - Tests: `convention.TestRedact_ReadsTheNamesTail`, `convention.TestRedact_ReadsTheValuesType`,
   `convention.TestRedact_LeavesWhatTheDocumentSays`, `convention.TestRedact_ReachesEveryUse`,
-  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `promotion.TestPromoter_WritesSeesAKeyWhateverItSays`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `whole-schema-fallbacks`
@@ -5129,7 +5129,7 @@ each key read into one is reported the same way, once, whether the tag forms a g
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`, `repeated-tags-and-scopes`
 - Codes: `openapi/repeated-entry`, `openapi/unpromoted-extension`
 - Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`, `operation.TestGroups_ARepeatedTagNameTakesItsFirstDeclaration`,
-  `operation.TestGroups_ADeprecationOnATagIsReported`, `lowering.TestUnheldDeprecation_ReportsEachKeyStatingOne`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
+  `operation.TestGroups_ADeprecationOnATagIsReported`, `promotion.TestUnheldDeprecation_ReportsEachKeyStatingOne`, `e2e.TestCarriedKeys_ATagKeepsItsKeysAndItsGroupTakesTheTier`, `e2e.TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd`,
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
@@ -5471,8 +5471,8 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`,
   `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
-  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `lowering.TestDropContained_KeepsWhatIsNotInside`,
-  `lowering.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
+  `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `promotion.TestDropContained_KeepsWhatIsNotInside`,
+  `promotion.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
   `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptWholeOnce`,
   `schema.TestDiscriminator_KeptWholeOnce`
 
@@ -5728,7 +5728,7 @@ offers a Content that does not stream beside one that does. Any other key is rep
   `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
   `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
-  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `lowering.TestTextOf_ReadsTheFirstSourceStatingAText`,
+  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `promotion.TestTextOf_ReadsTheFirstSourceStatingAText`,
   `stream.TestPromote_FillsTheTerminator`, `stream.TestPromote_FillsTheTerminatorOfEveryStreamingContent`,
   `stream.TestPromote_TerminatorIsAllOrNone`, `stream.TestPromote_OperationAndContentsMustAgree`,
   `stream.TestPromote_FillsTheCondition`, `stream.TestPromote_AConditionNeedsAStream`,
@@ -6551,8 +6551,8 @@ how operations are arranged rather than filling a fact a node holds.
    there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
-  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`, `lowering.TestPromoter_WritesKnowsEveryTarget`,
-  `lowering.TestPromoter_WritesSeesEveryDefaultKey`,
+  `promotion.TestPromoter_WritesSeesAKeyWhateverItSays`, `promotion.TestPromoter_WritesKnowsEveryTarget`,
+  `promotion.TestPromoter_WritesSeesEveryDefaultKey`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`,
@@ -6745,47 +6745,47 @@ saying why.
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`, `extension-server-name`, `carried-keys`
 - Codes: `openapi/degraded-construct`, `openapi/unread-extension`, `openapi/unpromoted-extension`
-- Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
-  `lowering.TestShadowed_ReturnsWhatCarriedPassesOver`,
+- Tests: `promotion.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `promotion.TestShadowed_ReturnsWhatCarriedPassesOver`,
   `operation.TestPromotion_AMisfitBehindANearerKeyIsReported`,
-  `lowering.TestPromoter_ValuesNameWhatStatesTheFact`,
-  `lowering.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
-  `lowering.TestPromoter_ACallersValuesAreCopied`,
-  `lowering.TestPromoter_AReferentsKeyDeprecatesTheUse`,
-  `lowering.TestPromoter_ADeprecatedBaseHomesTheNodesMembers`,
-  `lowering.TestTargets_ListsEveryDeclaredTarget`,
-  `lowering.TestExtensionPromotionsCheck_Refusals`,
-  `lowering.TestExtensionPromotionsCheck_AcceptsWhatReadsAsWritten`,
-  `lowering.TestListsValues_NamesTheTargetsStatingAFact`,
-  `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
-  `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
-  `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
-  `lowering.TestUnreadExtensions_TheAliasesKeyIsRead`,
+  `promotion.TestPromoter_ValuesNameWhatStatesTheFact`,
+  `promotion.TestPromoter_AValueAnotherTargetReadsIsItsToReport`,
+  `promotion.TestPromoter_ACallersValuesAreCopied`,
+  `promotion.TestPromoter_AReferentsKeyDeprecatesTheUse`,
+  `promotion.TestPromoter_ADeprecatedBaseHomesTheNodesMembers`,
+  `promotion.TestTargets_ListsEveryDeclaredTarget`,
+  `promotion.TestExtensionPromotionsCheck_Refusals`,
+  `promotion.TestExtensionPromotionsCheck_AcceptsWhatReadsAsWritten`,
+  `promotion.TestListsValues_NamesTheTargetsStatingAFact`,
+  `promotion.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
+  `promotion.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
+  `promotion.TestUnreadExtensions_TheGroupingKeyIsRead`,
+  `promotion.TestUnreadExtensions_TheAliasesKeyIsRead`,
   `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
-  `lowering.TestServerName_ReadsTheDefaultKey`,
-  `lowering.TestTokenEndpointAuthMethods_ReadsASet`,
-  `lowering.TestAllowReserved_OnlyTrueAsksForIt`,
+  `promotion.TestServerName_ReadsTheDefaultKey`,
+  `promotion.TestTokenEndpointAuthMethods_ReadsASet`,
+  `promotion.TestAllowReserved_OnlyTrueAsksForIt`,
   `operation.TestLowerParameter_AKeyAsksForReservedExpansion`,
   `servers.TestLowerServer_AKeyNamesAServerTheDocumentNamesNot`,
   `auth.TestLowerSecuritySchemes_AMappedKeyStatesTheTokenEndpointsAuthentication`,
   `schema.TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers`,
   `openapi.TestCompile_RefusesAPromotionPolicyItCannotRead`,
   `openapi.TestDecodeOptions_TextReachesEveryField`,
-  `lowering.TestPromoterDeprecation_KeyStatesIt`,
-  `lowering.TestStability_ReadsEachWord`,
-  `lowering.TestPromoterRedaction_OnlyTrueWrites`,
-  `lowering.TestEnumOpenness_WritesNothing`,
-  `lowering.TestUnionOpenness_OpensOnAMappedKey`,
+  `promotion.TestPromoterDeprecation_KeyStatesIt`,
+  `promotion.TestStability_ReadsEachWord`,
+  `promotion.TestPromoterRedaction_OnlyTrueWrites`,
+  `promotion.TestEnumOpenness_WritesNothing`,
+  `promotion.TestUnionOpenness_OpensOnAMappedKey`,
   `e2e.TestPromotion_AMappedKeyOpensAUnion`,
   `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
-  `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
-  `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
-  `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
-  `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
-  `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
-  `lowering.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
+  `promotion.TestPromoter_ReadsSourcesInPolicyOrder`,
+  `promotion.TestPromoter_MemberReadsOneFactOfAnObject`,
+  `promotion.TestPromoter_ReferentLendsBeneathOwnKeys`,
+  `promotion.TestPromoter_ReferentReadsWhatASchemaLends`,
+  `promotion.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
+  `promotion.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
   `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
   `replacement.TestResolve_ANameNamingNothingFillsNothing`,
   `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
@@ -6796,8 +6796,8 @@ saying why.
   `e2e.TestPromotion_ALostRefLendsTheNodeItSpeaksOn`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
-  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `lowering.TestCarried_ReturnsOwnWhereNothingIsCarried`,
-  `lowering.TestCarried_TheOwnKeyBeatsTheScopedOne`, `lowering.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
+  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
+  `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`, `promotion.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
 - Status: partly built: a redaction key beside an `allOf` over an
   object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
@@ -6853,7 +6853,7 @@ read.
   `paramchoice.TestPromote_FillsAChoiceEveryVariantOfWhichCarriesARequiredParameter`,
   `paramchoice.TestPromote_ReadsNoKeyThatIsNoObject`,
   `paramchoice.TestPromote_ReadsNothingWhereNoKeyIsWritten`,
-  `lowering.TestStatementOf_ReadsTheFirstSourceWritten`
+  `promotion.TestStatementOf_ReadsTheFirstSourceWritten`
 
 ### `extension-pagination`
 
@@ -6956,11 +6956,11 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `whole.TestDocument_APromotionNoMemberMarksFlattensNoModel`,
   `whole.TestDocument_ListsEveryOperationOnce`,
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
-  `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
-  `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
+  `promotion.TestPageStatementOf_ReadsAnExpressionOrAMark`,
+  `promotion.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
   `pagination.TestInferWalks_LeavesWhatAnExtensionSpeaksOf`, `pagination.TestPromote_FillsTheFlag`,
   `pagination.TestPromote_ReadsTheRootForTrue`, `pagination.TestPromote_TrueWithNoRootStatement`,
-  `lowering.TestPageStatementOf_ReadsTheRootForTrue`, `pagination.TestPromote_TrueReadsThePathItemFirst`,
+  `promotion.TestPageStatementOf_ReadsTheRootForTrue`, `pagination.TestPromote_TrueReadsThePathItemFirst`,
   `pagination.TestPromote_ASilentOperationReadsNeitherItsPathItemNorTheRoot`
 
 ### `pagination-policy`

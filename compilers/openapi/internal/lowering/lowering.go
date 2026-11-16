@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -75,7 +76,7 @@ type Ctx struct {
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
 	// map. It sits behind one pointer for the reason loaded does.
-	promoter *Promoter
+	promoter *promotion.Promoter
 
 	// schemas is the set of component-schema names the document declares, read
 	// through DeclaresSchema and handed to each scope RefScope builds. Every copy
@@ -190,7 +191,7 @@ type Policy struct {
 	Limits                 Limits
 	StreamingInference     StreamingInference
 	BinaryInference        BinaryInference
-	Promotions             ExtensionPromotions
+	Promotions             promotion.ExtensionPromotions
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
 	IdempotencyInference   IdempotencyInference
@@ -210,6 +211,7 @@ type Policy struct {
 // here so readers cannot disagree about a media type, and the promotion policy
 // is copied so no lowering can write through the context into the caller's map.
 func New(srcIndex int, doc *load.Document, p Policy) Ctx {
+	promoter := promotion.New(p.Promotions)
 	return Ctx{
 		Doc:                    doc.Doc,
 		Source:                 doc.Source,
@@ -220,7 +222,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		schemas:                declaredSchemaNames(doc.Doc),
 		streaming:              streamingSet(p.StreamingInference),
 		binary:                 binarySet(p.BinaryInference),
-		promoter:               newPromoter(p.Promotions),
+		promoter:               &promoter,
 		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
 		IdempotencyInference:   p.IdempotencyInference,
@@ -249,7 +251,7 @@ func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries.
-func (c Ctx) Promoter() Promoter {
+func (c Ctx) Promoter() promotion.Promoter {
 	return *c.promoter
 }
 

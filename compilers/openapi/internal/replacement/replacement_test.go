@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -26,9 +27,9 @@ func mapped() lowering.Ctx {
 }
 
 // replacedBy is a promotion mapping reading replacements from x-replaced-by.
-func replacedBy() lowering.ExtensionPromotions {
-	return lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-		lowering.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
+func replacedBy() promotion.ExtensionPromotions {
+	return promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+		promotion.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
 	}}
 }
 
@@ -139,7 +140,7 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	} {
 		require.NotNil(t, tc.dep, tc.name)
 		assert.Equal(t, []ir.EntityRef{tc.want}, tc.dep.ReplacedBy, tc.name)
-		assert.Equal(t, lowering.ExtensionPromotionHeuristic, tc.prov.Inferred, "%s is marked promoted", tc.name)
+		assert.Equal(t, promotion.ExtensionPromotionHeuristic, tc.prov.Inferred, "%s is marked promoted", tc.name)
 	}
 }
 

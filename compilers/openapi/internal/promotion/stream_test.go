@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package promotion_test
 
 import (
 	"testing"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,46 +21,46 @@ import (
 // names the target it does not fill.
 func TestTextOf_ReadsTheFirstSourceStatingAText(t *testing.T) {
 	t.Parallel()
-	terminator := mapping(lowering.TargetStreamTerminator,
-		lowering.ExtensionSource{Key: "x-a"}, lowering.ExtensionSource{Key: "x-b"},
-		lowering.ExtensionSource{Key: "x-c", Member: "data"})
+	terminator := mapping(promotion.TargetStreamTerminator,
+		promotion.ExtensionSource{Key: "x-a"}, promotion.ExtensionSource{Key: "x-b"},
+		promotion.ExtensionSource{Key: "x-c", Member: "data"})
 	for _, tc := range []struct {
 		name    string
 		keys    map[string]string
-		target  lowering.ExtensionTarget
+		target  promotion.ExtensionTarget
 		want    string
 		reports []string
 	}{
-		{"no key", map[string]string{}, lowering.TargetStreamTerminator, "", nil},
+		{"no key", map[string]string{}, promotion.TargetStreamTerminator, "", nil},
 		{"the first stating one", map[string]string{"x-b": `"[DONE]"`, "x-a": `"[DONE]"`},
-			lowering.TargetStreamTerminator, "[DONE]", nil},
+			promotion.TargetStreamTerminator, "[DONE]", nil},
 		{"a later source stating another", map[string]string{"x-a": `"[DONE]"`, "x-b": `"[END]"`},
-			lowering.TargetStreamTerminator, "[DONE]",
+			promotion.TargetStreamTerminator, "[DONE]",
 			[]string{`extension "x-b" states another value than "x-a", which the policy reads first, so it does ` +
 				`not fill stream.terminator`}},
-		{"no text", map[string]string{"x-a": `1`}, lowering.TargetStreamTerminator, "",
+		{"no text", map[string]string{"x-a": `1`}, promotion.TargetStreamTerminator, "",
 			[]string{`extension "x-a" is no text, so it does not fill stream.terminator`}},
 		{"an empty text before a text", map[string]string{"x-a": `""`, "x-b": `"[END]"`},
-			lowering.TargetStreamTerminator, "[END]",
+			promotion.TargetStreamTerminator, "[END]",
 			[]string{`extension "x-a" is an empty text, so it does not fill stream.terminator`}},
-		{"a member of no object", map[string]string{"x-c": `"[DONE]"`}, lowering.TargetStreamTerminator, "",
+		{"a member of no object", map[string]string{"x-c": `"[DONE]"`}, promotion.TargetStreamTerminator, "",
 			[]string{`extension "x-c" is not an object, so no member of it is read`}},
-		{"a member of an object", map[string]string{"x-c": `{"data": "[DONE]"}`}, lowering.TargetStreamTerminator,
+		{"a member of an object", map[string]string{"x-c": `{"data": "[DONE]"}`}, promotion.TargetStreamTerminator,
 			"[DONE]", nil},
-		{"the condition", map[string]string{"x-w": `""`}, lowering.TargetStreamCondition, "",
+		{"the condition", map[string]string{"x-w": `""`}, promotion.TargetStreamCondition, "",
 			[]string{`extension "x-w" is an empty text, so it does not fill stream.condition`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			policy := terminator
-			if tc.target == lowering.TargetStreamCondition {
-				policy = mapping(lowering.TargetStreamCondition, lowering.ExtensionSource{Key: "x-w"})
+			if tc.target == promotion.TargetStreamCondition {
+				policy = mapping(promotion.TargetStreamCondition, promotion.ExtensionSource{Key: "x-w"})
 			}
 			own := ir.Unmodeled{}
 			for key, value := range tc.keys {
 				own["openapi:"+key] = vendorExtension(value)
 			}
-			st, diags := promoter(policy).TextOf(tc.target, own)
+			st, diags := promotion.New(policy).TextOf(tc.target, own)
 			assert.Equal(t, tc.want, st.Text)
 			assert.Equal(t, tc.want != "", st.At.Pointer != "", "a key stating a text is where it sits")
 			got := make([]string, 0, len(diags))
@@ -81,8 +81,8 @@ func TestTextOf_ReadsTheFirstSourceStatingAText(t *testing.T) {
 // writes nothing.
 func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 	t.Parallel()
-	p := promoter(mapping(lowering.TargetParamChoices, lowering.ExtensionSource{Key: "x-m", Member: "groups"},
-		lowering.ExtensionSource{Key: "x-a"}, lowering.ExtensionSource{Key: "x-b"}))
+	p := promotion.New(mapping(promotion.TargetParamChoices, promotion.ExtensionSource{Key: "x-m", Member: "groups"},
+		promotion.ExtensionSource{Key: "x-a"}, promotion.ExtensionSource{Key: "x-b"}))
 	for _, tc := range []struct {
 		name, later string
 		reports     []string
@@ -93,7 +93,7 @@ func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			st, written, diags := p.StatementOf(lowering.TargetParamChoices, ir.Unmodeled{
+			st, written, diags := p.StatementOf(promotion.TargetParamChoices, ir.Unmodeled{
 				"openapi:x-m": vendorExtension(`{}`), "openapi:x-a": vendorExtension(`[1]`),
 				"openapi:x-b": vendorExtension(tc.later),
 			})
@@ -109,7 +109,7 @@ func TestStatementOf_ReadsTheFirstSourceWritten(t *testing.T) {
 		})
 	}
 
-	_, written, diags := p.StatementOf(lowering.TargetParamChoices, ir.Unmodeled{})
+	_, written, diags := p.StatementOf(promotion.TargetParamChoices, ir.Unmodeled{})
 	assert.False(t, written)
 	assert.Empty(t, diags)
 }

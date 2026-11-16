@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -407,9 +408,9 @@ func TestDocument_APromotionNoMemberMarksFlattensNoModel(t *testing.T) {
 		Types:    irtest.DocOf(page, &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/text"}}, &ir.Scalar{ID: "t/text"}).Types,
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}},
 	})
-	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: lowering.ExtensionPromotions{
-		Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-			lowering.TargetPaginationItems: {{Key: "x-k", Member: "purpose", Values: []string{"items"}}},
+	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: promotion.ExtensionPromotions{
+		Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+			promotion.TargetPaginationItems: {{Key: "x-k", Member: "purpose", Values: []string{"items"}}},
 		},
 	}})
 	flattenings := whole.CountFlattenings(w)

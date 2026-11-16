@@ -1,23 +1,22 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package promotion_test
 
 import (
 	"reflect"
-	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
 // stabilityPolicy reads a tier from x-stability alone.
-func stabilityPolicy() lowering.Promoter {
-	return promoter(mapping(lowering.TargetStability, lowering.ExtensionSource{Key: "x-stability"}))
+func stabilityPolicy() promotion.Promoter {
+	return promotion.New(mapping(promotion.TargetStability, promotion.ExtensionSource{Key: "x-stability"}))
 }
 
 // TestCarried_ReturnsOwnWhereNothingIsCarried holds the common case to no cost:
@@ -30,9 +29,9 @@ func TestCarried_ReturnsOwnWhereNothingIsCarried(t *testing.T) {
 		"an unrelated key": {"openapi:x-other": vendorExtension(`1`), "openapi:pathItem/x-other": vendorExtension(`2`)},
 		"the key unscoped": {"openapi:x-stability": vendorExtension(`"beta"`)},
 	} {
-		got := lowering.Carried(p, own, "pathItem")
+		got := promotion.Carried(p, own, "pathItem")
 		assert.Equal(t, reflect.ValueOf(own).Pointer(), reflect.ValueOf(got).Pointer(), name)
-		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = lowering.Carried(p, own, "pathItem") }), name)
+		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = promotion.Carried(p, own, "pathItem") }), name)
 	}
 }
 
@@ -49,10 +48,10 @@ func TestCarried_TheOwnKeyBeatsTheScopedOne(t *testing.T) {
 		"openapi:pathItem/x-stability": vendorExtension(`"beta"`),
 	}
 
-	assert.Empty(t, cmp.Diff(merged, lowering.Carried(p, merged, "pathItem")), "the own key wins")
+	assert.Empty(t, cmp.Diff(merged, promotion.Carried(p, merged, "pathItem")), "the own key wins")
 	assert.Len(t, own, 1)
 
-	got := lowering.Carried(p, scoped, "pathItem")
+	got := promotion.Carried(p, scoped, "pathItem")
 	assert.Equal(t, vendorExtension(`"beta"`), got["openapi:x-stability"], "the scoped statement, unscoped")
 	assert.Len(t, scoped, 1, "the input is not written")
 
@@ -61,7 +60,7 @@ func TestCarried_TheOwnKeyBeatsTheScopedOne(t *testing.T) {
 		"openapi:content/m/x-stability": vendorExtension(`"beta"`),
 	}
 	assert.Equal(t, vendorExtension(`"beta"`),
-		lowering.Carried(p, two, "content/m", "schema")["openapi:x-stability"], "the first scope of those given")
+		promotion.Carried(p, two, "content/m", "schema")["openapi:x-stability"], "the first scope of those given")
 }
 
 // TestLent_ASingleSidedFactHoldsWhereAnyStatesIt holds redaction and deprecation
@@ -70,10 +69,10 @@ func TestCarried_TheOwnKeyBeatsTheScopedOne(t *testing.T) {
 // stating them, a scope stating nothing lends nothing, and every fact the $ref
 // target lends stays, its members filling what no scope states.
 func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
-	p := promoter(lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-		lowering.TargetRedaction:          {{Key: "x-sensitive"}},
-		lowering.TargetDeprecation:        {{Key: "x-deprecated"}},
-		lowering.TargetDeprecationMessage: {{Key: "x-why"}},
+	p := promotion.New(promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+		promotion.TargetRedaction:          {{Key: "x-sensitive"}},
+		promotion.TargetDeprecation:        {{Key: "x-deprecated"}},
+		promotion.TargetDeprecationMessage: {{Key: "x-why"}},
 	}})
 	own := ir.Unmodeled{
 		"openapi:x-sensitive":         vendorExtension(`false`),
@@ -81,15 +80,15 @@ func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 		"openapi:schema/x-deprecated": vendorExtension(`true`),
 		"openapi:schema/x-why":        vendorExtension(`"old"`),
 	}
-	got := p.Lent(lowering.Referent{}, own, "schema")
+	got := p.Lent(promotion.Referent{}, own, "schema")
 	assert.True(t, got.Redacted, "the carrier's false withdraws nothing the schema states")
 	assert.True(t, got.Deprecated)
 	assert.Equal(t, "old", got.Members.Message)
 
-	assert.Equal(t, lowering.Referent{}, p.Lent(lowering.Referent{}, ir.Unmodeled{}, "schema"))
-	assert.Equal(t, lowering.Referent{}, p.Lent(lowering.Referent{}, ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, "schema"),
+	assert.Equal(t, promotion.Referent{}, p.Lent(promotion.Referent{}, ir.Unmodeled{}, "schema"))
+	assert.Equal(t, promotion.Referent{}, p.Lent(promotion.Referent{}, ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, "schema"),
 		"the carrier's own key is the caller's to read, not a scope's")
-	from := lowering.Referent{Deprecated: true, Redacted: true, Homes: true,
+	from := promotion.Referent{Deprecated: true, Redacted: true, Homes: true,
 		Members: ir.Deprecation{Message: "gone", Since: "1", RemovalVersion: "2", RemovalDate: "2099-01-01"}}
 	assert.Equal(t, from, p.Lent(from, ir.Unmodeled{}, "schema"), "what the $ref target lends stays, every fact")
 	scoped := p.Lent(from, ir.Unmodeled{"openapi:schema/x-why": vendorExtension(`"near"`)}, "schema")
@@ -103,18 +102,8 @@ func TestLent_ASingleSidedFactHoldsWhereAnyStatesIt(t *testing.T) {
 // nearest first, a media type escaped as one segment.
 func TestCarrierScopes_NamesTheSchemaOrTheContentEntryThenItsSchema(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, []string{"schema"}, lowering.CarrierScopes(""))
-	assert.Equal(t, []string{"content/text~1plain", "content/text~1plain/schema"}, lowering.CarrierScopes("text/plain"))
-}
-
-// sortedKeys returns the keys of u in order.
-func sortedKeys(u ir.Unmodeled) []string {
-	out := make([]string, 0, len(u))
-	for k := range u {
-		out = append(out, k)
-	}
-	slices.Sort(out)
-	return out
+	assert.Equal(t, []string{"schema"}, promotion.CarrierScopes(""))
+	assert.Equal(t, []string{"content/text~1plain", "content/text~1plain/schema"}, promotion.CarrierScopes("text/plain"))
 }
 
 // TestGroupStability_RecordsTheHeuristicInInferred holds a group's tier to the
@@ -125,12 +114,12 @@ func TestGroupStability_RecordsTheHeuristicInInferred(t *testing.T) {
 	p := stabilityPolicy()
 	var tier ir.Stability
 	var inferred ir.Inferred
-	assert.Empty(t, lowering.GroupStability(p, ir.Unmodeled{"openapi:x-stability": vendorExtension(`"beta"`)}, &tier, &inferred))
+	assert.Empty(t, promotion.GroupStability(p, ir.Unmodeled{"openapi:x-stability": vendorExtension(`"beta"`)}, &tier, &inferred))
 	assert.Equal(t, ir.StabilityBeta, tier)
 	assert.Equal(t, ir.Inferred("extension-promotion"), inferred)
 
 	tier, inferred = "", ""
-	assert.Empty(t, lowering.GroupStability(p, ir.Unmodeled{}, &tier, &inferred))
+	assert.Empty(t, promotion.GroupStability(p, ir.Unmodeled{}, &tier, &inferred))
 	assert.Empty(t, tier)
 	assert.Empty(t, inferred)
 }
@@ -141,12 +130,12 @@ func TestGroupStability_RecordsTheHeuristicInInferred(t *testing.T) {
 func TestUnformedTier_ReportsATierOnATagFormingNoGroup(t *testing.T) {
 	t.Parallel()
 	p := stabilityPolicy()
-	diags := lowering.UnformedTier(p, "Lone", ir.Unmodeled{"openapi:x-stability": vendorExtension(`"alpha"`)})
+	diags := promotion.UnformedTier(p, "Lone", ir.Unmodeled{"openapi:x-stability": vendorExtension(`"alpha"`)})
 	if assert.Len(t, diags, 1) {
 		assert.Equal(t, "openapi/unpromoted-extension", diags[0].Code)
 		assert.Contains(t, diags[0].Message, `on tag "Lone", which forms no operation group`)
 	}
-	assert.Empty(t, lowering.UnformedTier(p, "Lone", ir.Unmodeled{}))
+	assert.Empty(t, promotion.UnformedTier(p, "Lone", ir.Unmodeled{}))
 }
 
 // TestShadowed_ReturnsWhatCarriedPassesOver holds Shadowed to the scoped
@@ -164,7 +153,7 @@ func TestShadowed_ReturnsWhatCarriedPassesOver(t *testing.T) {
 		"openapi:schema/x-stability":           vendorExtension(`7`),
 		"openapi:content/m/schema/x-other":     vendorExtension(`8`),
 	}
-	got := lowering.Shadowed(p, own, "content/m", "content/m/schema")
+	got := promotion.Shadowed(p, own, "content/m", "content/m/schema")
 	assert.Empty(t, cmp.Diff([]ir.Unmodeled{
 		{"openapi:x-stability": vendorExtension(`5`)},
 		{"openapi:x-stability": vendorExtension(`6`)},
@@ -172,6 +161,6 @@ func TestShadowed_ReturnsWhatCarriedPassesOver(t *testing.T) {
 
 	delete(own, "openapi:x-stability")
 	assert.Empty(t, cmp.Diff([]ir.Unmodeled{{"openapi:x-stability": vendorExtension(`6`)}},
-		lowering.Shadowed(p, own, "content/m", "content/m/schema")), "the nearest scope is Carried's")
-	assert.Nil(t, lowering.Shadowed(p, own, "schema"), "nothing nearer writes the key")
+		promotion.Shadowed(p, own, "content/m", "content/m/schema")), "the nearest scope is Carried's")
+	assert.Nil(t, promotion.Shadowed(p, own, "schema"), "nothing nearer writes the key")
 }

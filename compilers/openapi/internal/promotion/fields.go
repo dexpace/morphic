@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering
+package promotion
 
 import (
 	"slices"
@@ -63,7 +63,7 @@ func TokenEndpointAuthMethods(p Promoter, unmodeled ir.Unmodeled, inferred *ir.I
 		target: TargetTokenEndpointAuthMethods,
 		want:   "is neither a method nor a list of distinct methods",
 		read: func(_ ExtensionSource, raw ir.RawValue) (string, statement) {
-			methods, ok := listedText(raw)
+			methods, ok := ListedText(raw)
 			switch {
 			case !ok || len(slices.Compact(slices.Sorted(slices.Values(methods)))) != len(methods):
 				return "", misfit
@@ -77,7 +77,7 @@ func TokenEndpointAuthMethods(p Promoter, unmodeled ir.Unmodeled, inferred *ir.I
 	if !found {
 		return nil, diags
 	}
-	methods, _ := listedText(ir.RawValue(text))
+	methods, _ := ListedText(ir.RawValue(text))
 	*inferred = ir.JoinInferred(*inferred, ExtensionPromotionHeuristic)
 	return methods, diags
 }

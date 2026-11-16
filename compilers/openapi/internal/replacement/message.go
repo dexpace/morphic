@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -99,7 +100,7 @@ type scope struct {
 // marked where they fill it. The rule is
 // docs/compilers/openapi.md#replacement-inference.
 func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
-	if n.dep == nil || r.p.Writes(n.own, lowering.TargetDeprecationReplacedBy) {
+	if n.dep == nil || r.p.Writes(n.own, promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
 	names := introducedNames(n.dep.Message, s.named(n.dep.Message))

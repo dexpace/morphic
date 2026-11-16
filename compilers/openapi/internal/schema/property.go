@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -133,7 +134,7 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // a header or a parameter means after the object around the schema: that object
 // decides what is deprecated, and so what a member can fill. A key both write is
 // one entry, the object's, so the schema's is not read (GitHub #396).
-func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
+func PromoteUse(c lowering.Ctx, from promotion.Referent, unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
 	diags := c.Promoter().Deprecation(unmodeled, from, dep, prov)
 	return append(diags, c.Promoter().Redaction(unmodeled, from, redact, prov)...)
 }
@@ -142,10 +143,10 @@ func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, 
 // lend it, js written at pointer and lowered to t (Use.lentKeys). A position
 // owning a node lends its carrier none, as it lends no keyword: the node takes
 // them (attachDeclaredAnnotations).
-func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) lowering.Referent {
+func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
 	s := annotation.SchemaOf(js)
 	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
-		return lowering.Referent{}
+		return promotion.Referent{}
 	}
 	return UseOf(c, ts, js, t, pointer).lentKeys(c)
 }

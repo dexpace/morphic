@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -144,13 +145,13 @@ func TestPromote_SaysWhichOperationsSpeakOfAPagination(t *testing.T) {
 	}, spoke)
 
 	require.NotNil(t, ops["filled"].Pagination, "a stated pagination that resolves still fills")
-	assert.Contains(t, ops["filled"].Provenance.Inferred, lowering.ExtensionPromotionHeuristic)
+	assert.Contains(t, ops["filled"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 	for name, op := range ops {
 		if name == "filled" {
 			continue
 		}
 		assert.Nil(t, op.Pagination, name)
-		assert.NotContains(t, op.Provenance.Inferred, lowering.ExtensionPromotionHeuristic,
+		assert.NotContains(t, op.Provenance.Inferred, promotion.ExtensionPromotionHeuristic,
 			"%s: nothing filled, so nothing is marked", name)
 	}
 }
@@ -260,7 +261,7 @@ paths:
 				spoke, ops, reports := promoteStated(t, spec, pagePolicy())
 				assert.Equal(t, []string{"x"}, spoke, "a key written speaks, whatever it holds")
 				assert.Nil(t, ops["x"].Pagination)
-				assert.NotContains(t, ops["x"].Provenance.Inferred, lowering.ExtensionPromotionHeuristic)
+				assert.NotContains(t, ops["x"].Provenance.Inferred, promotion.ExtensionPromotionHeuristic)
 
 				want, pointer := v.expression, at.at
 				reach := ", and as the key is written, no pagination is inferred for the operation"
@@ -290,7 +291,7 @@ paths:
 // returns the operationIds Promote says spoke, the operations by
 // operationId, and its reports, each once, as its pointer and its message,
 // since a compile drops the repeats of one report the sources of a key make.
-func promoteStated(t *testing.T, spec string, policy lowering.ExtensionPromotions) ([]string, map[string]*ir.Operation, []string) {
+func promoteStated(t *testing.T, spec string, policy promotion.ExtensionPromotions) ([]string, map[string]*ir.Operation, []string) {
 	t.Helper()
 	doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(spec)},
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
@@ -339,9 +340,9 @@ func TestPromote_StatedIsIndependentOfDeclarationOrder(t *testing.T) {
 // operation it states though it states nothing.
 func TestPromote_StatedReadsEitherSidesKey(t *testing.T) {
 	t.Parallel()
-	policy := lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-		lowering.TargetPaginationCursor:   {{Key: "x-in", Member: "cursor"}},
-		lowering.TargetPaginationNextLink: {{Key: "x-out", Member: "link"}},
+	policy := promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+		promotion.TargetPaginationCursor:   {{Key: "x-in", Member: "cursor"}},
+		promotion.TargetPaginationNextLink: {{Key: "x-out", Member: "link"}},
 	}}
 	spoke, _, _ := promoteStated(t, statedSpec(t, []string{`  /in:
     get:
@@ -379,9 +380,9 @@ func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 // reads no key, so no operation is stated, whatever its keys.
 func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 	t.Parallel()
-	for name, policy := range map[string]lowering.ExtensionPromotions{
-		"no pagination target": {Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
-			lowering.TargetDeprecationMessage: {{Key: "x-page"}},
+	for name, policy := range map[string]promotion.ExtensionPromotions{
+		"no pagination target": {Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
+			promotion.TargetDeprecationMessage: {{Key: "x-page"}},
 		}},
 		"off": {Disabled: true},
 	} {

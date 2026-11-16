@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -518,7 +519,7 @@ func TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 // mapping to the one a compile promotes by when Options names none.
 func TestDefaultExtensionPromotions_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultExtensionPromotions(), openapi.DefaultExtensionPromotions())
+	assert.Equal(t, promotion.DefaultExtensionPromotions(), openapi.DefaultExtensionPromotions())
 }
 
 // TestCompile_RefusesAPromotionPolicyItCannotRead pins the check where a Go
