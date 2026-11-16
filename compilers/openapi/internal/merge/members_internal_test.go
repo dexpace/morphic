@@ -306,7 +306,7 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	decls = append(decls, declaration{prop: past, via: &composedEntry{target: "t/B", at: "/M/allOf/9"}})
 	g, _ := stubMerger(membersRegistry())
 
-	got, diags := g.foldAt(decls, "/M/allOf/properties/data")
+	got, diags := g.foldAt(decls, "/M/allOf/properties/data", nil)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
@@ -372,7 +372,7 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 		{prop: declared("p", "t/prim/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
 	}
 
-	_, diags := g.foldAt(decls, "/M/allOf/1/properties/p")
+	_, diags := g.foldAt(decls, "/M/allOf/1/properties/p", nil)
 
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
@@ -397,7 +397,7 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 
 	for _, sources := range [][2]int{{1, 2}, {2, 1}} {
 		g, _ := stubMerger(membersRegistry())
-		got, diags := g.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p")
+		got, diags := g.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p", nil)
 
 		assert.Empty(t, diags, "entries written alike say one thing")
 		assert.Equal(t, 1, got.Unmodeled["openapi:x-tag"].Provenance.Source, "entries from %v", sources)

@@ -25,13 +25,14 @@ type builder struct {
 	failed bool
 }
 
-// mint registers node at pointer, its parts brought where brought says
-// (Walk.Mint), or in a dry run names nothing.
+// mint registers node at pointer, its parts brought where brought says and
+// placed as the field is (folding.assembled; Walk.Mint), or in a dry run names
+// nothing.
 func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
 	if b.dry {
 		return ""
 	}
-	return b.f.g.Walk.Mint(pointer, node, brought)
+	return b.f.g.Walk.Mint(pointer, node, brought, b.f.assembled)
 }
 
 // meetNode returns the node base and partners, members that meet it, stand on:

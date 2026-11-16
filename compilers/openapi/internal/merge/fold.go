@@ -49,12 +49,13 @@ type Walk interface {
 	// Mint registers node, which stands for the declarations of the field
 	// pointer names (fieldSpan), or for what their types hold at a position
 	// below it, and returns the ID it is registered under. It fills what in
-	// node's TypeCommon names the node, and an enum's member IDs, which live
-	// beneath it: the lowering's to derive. It keeps the rest. The fold reads
-	// what it mints, so it registers at once. For a model composing the
-	// declarations' types, brought holds where each of its parts, Base first
-	// (ComposedOf), was brought; it is nil for any other node.
-	Mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID
+	// node's TypeCommon names and places the node, and an enum's member IDs:
+	// the lowering's to derive. The fold reads what it mints, so it registers
+	// at once. brought holds where each part of a model composing the
+	// declarations' types, Base first (ComposedOf), was brought, and assembled
+	// what a node no schema is written at is assembled from
+	// (folding.assembled); each is nil otherwise.
+	Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, assembled []jsontext.Pointer) ir.TypeID
 	// Interned reports whether a node stands at pointer, which only the
 	// finished registry can answer.
 	Interned(pointer jsontext.Pointer) bool
@@ -135,18 +136,21 @@ func (d declaration) keptAs() string {
 func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 	judged := decls[:min(len(decls), maxFoldDeclarations)]
 	schema, field := fieldSpan(judged)
-	merged, diags := g.foldAt(decls, field)
+	merged, diags := g.foldAt(decls, field, nil)
 	g.identify(&merged, schema, field)
 	return merged, diags
 }
 
-// foldAt is fold with no identity of its own, minting what it must under field.
-func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
+// foldAt is fold with no identity of its own, minting what it must under
+// field, placed by assembled where no declaration names field
+// (folding.assembled).
+func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled []jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
 	judged, past := decls, []declaration(nil)
 	if len(decls) > maxFoldDeclarations {
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
 	}
 	f := newFolding(g, judged, field)
+	f.assembled = assembled
 	f.foldType()
 	f.foldConstraints()
 	f.foldValues()
@@ -202,8 +206,11 @@ type folding struct {
 	decls []declaration
 	// field is the pointer the nodes the fold mints are named for: the
 	// declaration naming the field (fieldSpan), or the member a composing model
-	// declares.
-	field jsontext.Pointer
+	// declares, which no schema is written at, so assembled holds the
+	// positions it is assembled from, which place what it mints (Walk.Mint);
+	// nil where a declaration names the field.
+	field     jsontext.Pointer
+	assembled []jsontext.Pointer
 	// pos is the declarations' types judged against each other, and rel, winner
 	// and conjuncts what it holds.
 	pos position

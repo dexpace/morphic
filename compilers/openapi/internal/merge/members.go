@@ -67,7 +67,8 @@ func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
 // declares beside an entry's where no other model holds the own declaration
 // the walk met first (heldAlone), so two at different depths follow their
 // order (GitHub #1931). Any other takes an identity in the composed namespace
-// (composedMember). Where an entry brings a declaration, each report names the
+// (composedMember), placed by where its declarations are written
+// (assembledFrom). Where an entry brings a declaration, each report names the
 // member (naming).
 func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
 	if len(decls) < 2 {
@@ -84,12 +85,16 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 	if kept {
 		_, field = fieldSpan(own[:min(len(own), maxFoldDeclarations)])
 	}
-	merged, diags := g.foldAt(decls, field)
+	var assembled []jsontext.Pointer
+	if !kept {
+		assembled = assembledFrom(decls)
+	}
+	merged, diags := g.foldAt(decls, field, assembled)
 	inferred := merged.Provenance.Inferred
 	if kept {
 		merged.ID, merged.Provenance = own[0].prop.ID, own[0].prop.Provenance
 	} else {
-		merged.ID, merged.Provenance = g.IDs.ComposedProp(field), g.Doc.At(field)
+		merged.ID, merged.Provenance = g.IDs.ComposedProp(field), g.Doc.At(field, assembled...)
 	}
 	merged.Provenance.Inferred = inferred
 	if i := slices.Index(idx.m.Requires, merged.WireName); i >= 0 {
@@ -112,6 +117,18 @@ func composedMember(d ids.Document, m *ir.Model, wire string) jsontext.Pointer {
 		at += ids.Ptr("allOf")
 	}
 	return at + ids.Ptr("properties", wire)
+}
+
+// assembledFrom returns where the model writes each of decls, a member's
+// declarations: an entry bringing one, or its own. A member declared where no
+// schema is written is assembled from them, so it is credited to an overlay
+// that wrote each (provenance.Attribution.WriterOf).
+func assembledFrom(decls []declaration) []jsontext.Pointer {
+	out := make([]jsontext.Pointer, len(decls))
+	for i, d := range decls {
+		out[i] = d.reportAt()
+	}
+	return out
 }
 
 // isBrought reports whether d is a declaration an entry brings, which another

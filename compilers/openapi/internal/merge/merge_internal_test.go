@@ -93,7 +93,7 @@ type stubWalk struct {
 }
 
 // Mint is Walk.Mint.
-func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
+func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, _ []jsontext.Pointer) ir.TypeID {
 	common := node.Common()
 	common.ID = composedAt(pointer)
 	w.reg[common.ID] = node

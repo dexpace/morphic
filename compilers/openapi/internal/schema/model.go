@@ -153,10 +153,12 @@ func (f modelFields) Untyped(p ir.Provenance) bool {
 // at it, as a distributed variant points at its branch. The variants of one
 // distributed union fold the same declarations, so each mints this one node,
 // alike. A model composes each part where brought says, and is noted so its
-// members settle (Members).
-func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought []jsontext.Pointer) ir.TypeID {
+// members settle (Members). A node minted where no schema is written is placed
+// by the positions it is assembled from (assembled).
+func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef, brought, assembled []jsontext.Pointer) ir.TypeID {
 	id := f.c.IDs().ComposedType(pointer)
 	site, common := commonFor(f.c, id, pointer), node.Common()
+	site.Provenance = f.c.Place().At(pointer, assembled...)
 	from := common.ID
 	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
 	if e, ok := node.(*ir.Enum); ok {
