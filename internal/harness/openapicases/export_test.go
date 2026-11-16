@@ -29,8 +29,8 @@ func Reasons() map[string]string {
 			"excludes the instances of other kinds the schema admits",
 		"dynamic-ref-beside": "#2009: a $dynamicRef beside a $ref is dropped where the position has no carrier, " +
 			"and beside an allOf of it keeps a model over a target that is no object",
-		"dynamic-ref-read": "#2009: a $dynamicRef in a schema an allOf names ends the read of what the schema " +
-			"admits, so the allOf keeps a model over a target that is no object",
+		"dynamic-ref-read": "#2015: an allOf over a schema naming a kind lowers to a Model when the schema holds " +
+			"a $dynamicRef it does not expand",
 		"union-beside-ref": "#2010: a union beside a $ref is kept verbatim where beside an allOf of that $ref it is " +
 			"consumed, distributed or read as validation logic",
 	}
