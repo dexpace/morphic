@@ -135,7 +135,7 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 			// The branch pins kind, narrower than the body's string, so the
 			// variant declares the member as its branch does, under an identity
 			// of its own (docs/compilers/openapi.md#allof-redeclared-property).
-			assert.Equal(t, ir.PropID("p/composed/components/schemas/Shape/oneOf/1/allOf/properties/kind"), kind.ID)
+			assert.Equal(t, ir.PropID("p/composed/components/schemas/Shape/oneOf/1/allOf/allOf/properties/kind"), kind.ID)
 			assert.Equal(t, ir.TypeID("t/anon/components/schemas/Shape/oneOf/1/properties/kind"), kind.Type.Target)
 		} else {
 			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Shape/properties/kind"), kind.ID,

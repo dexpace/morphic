@@ -297,7 +297,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/RenderTagged/oneOf/0/allOf/properties/kind",
+          "id": "p/composed/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
@@ -320,7 +320,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RenderTagged/oneOf/0/allOf/properties/kind"
+            "pointer": "/components/schemas/RenderTagged/oneOf/0/allOf/allOf/properties/kind"
           }
         }
       ],
@@ -347,7 +347,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/RenderTagged/oneOf/1/allOf/properties/kind",
+          "id": "p/composed/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
@@ -370,7 +370,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RenderTagged/oneOf/1/allOf/properties/kind"
+            "pointer": "/components/schemas/RenderTagged/oneOf/1/allOf/allOf/properties/kind"
           }
         }
       ],

@@ -5,6 +5,7 @@ package merge
 
 import (
 	"cmp"
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
 
@@ -64,9 +65,9 @@ func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
 // the model declares keeps its identity (Merger.fold), and so does one it
 // declares beside an entry's where no other model holds the own declaration
 // the walk met first (heldAlone), so two at different depths follow their
-// order (GitHub #1931). Any other takes <model>/allOf/properties/<name> in the
-// composed namespace, which no schema occupies. Where an entry brings a
-// declaration, each report names the member (naming).
+// order (GitHub #1931). Any other takes an identity in the composed namespace
+// (composedMember). Where an entry brings a declaration, each report names the
+// member (naming).
 func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
 	if len(decls) < 2 {
 		return nil
@@ -77,7 +78,7 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 		return diags
 	}
 	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
-	field := idx.m.Provenance.Pointer + ids.Ptr("allOf", "properties", decls[0].prop.WireName)
+	field := composedMember(g.IDs, idx.m, decls[0].prop.WireName)
 	kept := len(own) > 0 && idx.heldAlone(g, own[0])
 	if kept {
 		_, field = fieldSpan(own[:min(len(own), maxFoldDeclarations)])
@@ -96,6 +97,20 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 	}
 	idx.place(pos, merged)
 	return naming(diags, merged.ID)
+}
+
+// composedMember is where m declares a member named wire that takes an
+// identity in the composed namespace, which no schema occupies:
+// <model>/allOf/properties/<name>, and one allOf deeper for a model the merge
+// composed, a field's composition or a distributed variant, since the schema
+// written at its pointer may settle a member of that name too. No schema is
+// written at an allOf, so neither path is a declaration's.
+func composedMember(d ids.Document, m *ir.Model, wire string) jsontext.Pointer {
+	at := m.Provenance.Pointer + ids.Ptr("allOf")
+	if d.ComposedType(m.Provenance.Pointer) == m.ID {
+		at += ids.Ptr("allOf")
+	}
+	return at + ids.Ptr("properties", wire)
 }
 
 // isBrought reports whether d is a declaration an entry brings, which another

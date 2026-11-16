@@ -364,7 +364,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Check/oneOf/0/allOf/properties/transferable",
+          "id": "p/composed/components/schemas/Check/oneOf/0/allOf/allOf/properties/transferable",
           "name": {
             "source": "transferable",
             "canonical": "transferable"
@@ -387,7 +387,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Check/oneOf/0/allOf/properties/transferable"
+            "pointer": "/components/schemas/Check/oneOf/0/allOf/allOf/properties/transferable"
           }
         }
       ],
@@ -414,7 +414,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Check/oneOf/1/allOf/properties/transferable",
+          "id": "p/composed/components/schemas/Check/oneOf/1/allOf/allOf/properties/transferable",
           "name": {
             "source": "transferable",
             "canonical": "transferable"
@@ -437,7 +437,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Check/oneOf/1/allOf/properties/transferable"
+            "pointer": "/components/schemas/Check/oneOf/1/allOf/allOf/properties/transferable"
           }
         }
       ],

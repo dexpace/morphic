@@ -286,3 +286,44 @@ func TestMembers_AUnionBoundedBesideItIsNotTakenForAVariant(t *testing.T) {
 		assert.Contains(t, found[0].Message, "that the merge does not compare", at)
 	}
 }
+
+// TestMembers_AModelTheMergeComposesNamesItsMembersApart pins the members a
+// model the merge composes settles, a field's composition and a distributed
+// variant, each at the pointer of the schema written there, which settles a
+// member of that name too: the two are different properties, so each takes an
+// identity of its own, and the document verifies.
+func TestMembers_AModelTheMergeComposesNamesItsMembersApart(t *testing.T) {
+	t.Parallel()
+	const parts = `    X1: {type: object, properties: {y: {type: integer, enum: [1, 2]}}}
+    X2: {type: object, properties: {y: {type: number}}}
+    X3: {type: object, properties: {y: {type: integer}}}
+`
+	for name, tc := range map[string]struct{ schemas, at string }{
+		"a field's composition": {schemas: parts + `    A: {type: object, properties: {x: {$ref: '#/components/schemas/X1'}}}
+    M:
+      allOf: [{$ref: '#/components/schemas/A'}]
+      properties:
+        x: {allOf: [{$ref: '#/components/schemas/X2'}, {$ref: '#/components/schemas/X3'}]}
+`, at: "components/schemas/M/properties/x"},
+		"a distributed variant": {schemas: parts + `    C: {type: object, properties: {w: {type: string}}}
+    U:
+      allOf: [{$ref: '#/components/schemas/X1'}]
+      oneOf:
+        - allOf: [{$ref: '#/components/schemas/X2'}, {$ref: '#/components/schemas/X3'}]
+        - $ref: '#/components/schemas/C'
+`, at: "components/schemas/U/oneOf/0"},
+	} {
+		doc, _ := composedDoc(t, tc.schemas)
+
+		for space, id := range map[string]ir.PropID{
+			"anon":     ir.PropID("p/composed/" + tc.at + "/allOf/properties/y"),
+			"composed": ir.PropID("p/composed/" + tc.at + "/allOf/allOf/properties/y"),
+		} {
+			m, ok := doc.Types[ir.TypeID("t/"+space+"/"+tc.at)].(*ir.Model)
+			require.True(t, ok, "%s: the %s model", name, space)
+			y, ok := openapitest.PropsByWire(m.Properties)["y"]
+			require.True(t, ok, "%s: the %s model settles y", name, space)
+			assert.Equal(t, id, y.ID, "%s: the %s model", name, space)
+		}
+	}
+}

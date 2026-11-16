@@ -2741,8 +2741,11 @@ holds with that document's name. A member the model declares itself keeps the id
 of its own declarations, unless another model holds that declaration too, as a node interned at the
 `allOf` branch writing it does, or as the variants of a distributed union share their body's; that
 one, and one only entries declare, the model declares in the `composed` namespace at
-`<model>/allOf/properties/<name>`. The member is required where the model's `required` names it,
-which the name then leaves, and a discriminator naming the model's own declaration names the member.
+`<model>/allOf/properties/<name>`. A model the merge composes, a distributed variant or a field's
+composition, shares its pointer with the schema written there, which may settle a member of that
+name too, so it declares one an `allOf` deeper, at `<model>/allOf/allOf/properties/<name>`, and no
+two models name one member. The member is required where the model's `required` names it, which the
+name then leaves, and a discriminator naming the model's own declaration names the member.
 The registry does not record which heuristic made a brought declaration secret, so a secret one's
 `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
 composes for a member lists its parts as the entries bringing them are written, and settles in turn,
@@ -2811,6 +2814,7 @@ its own declarations alone, with an `openapi/budget-exceeded` error at the first
   `schema.TestMembers_AModelIsSettledAfterWhatItComposes`,
   `schema.TestMembers_ACycleSettlesTheSameInEitherOrder`,
   `schema.TestMembers_AModelAFoldComposesIsSettledInTheNextRound`,
+  `schema.TestMembers_AModelTheMergeComposesNamesItsMembersApart`,
   `schema.TestMembers_CompositionsNestedPastTheRoundsAreReported`,
   `schema.TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed`,
   `schema.TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared`,

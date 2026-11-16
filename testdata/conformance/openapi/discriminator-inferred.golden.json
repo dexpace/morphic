@@ -1216,7 +1216,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Styled/oneOf/0/allOf/properties/type",
+          "id": "p/composed/components/schemas/Styled/oneOf/0/allOf/allOf/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
@@ -1239,7 +1239,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Styled/oneOf/0/allOf/properties/type"
+            "pointer": "/components/schemas/Styled/oneOf/0/allOf/allOf/properties/type"
           }
         },
         {
@@ -1293,7 +1293,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Styled/oneOf/1/allOf/properties/type",
+          "id": "p/composed/components/schemas/Styled/oneOf/1/allOf/allOf/properties/type",
           "name": {
             "source": "type",
             "canonical": "type"
@@ -1316,7 +1316,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Styled/oneOf/1/allOf/properties/type"
+            "pointer": "/components/schemas/Styled/oneOf/1/allOf/allOf/properties/type"
           }
         },
         {

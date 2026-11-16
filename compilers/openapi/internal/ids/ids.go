@@ -58,7 +58,7 @@ const (
 	// distributed union variants and the Union a routed subtype composes
 	// (docs/ir/models.md#composition-beside-a-union), the node a field's
 	// declarations compose or meet to, the identity of a field another model
-	// declares first, and a member its composition settles, at allOf,
+	// declares first, and a member its composition settles, beneath allOf at
 	// properties and its name
 	// (docs/compilers/openapi.md#allof-redeclared-property). A variant's path
 	// ends in oneOf or anyOf and an index, a minted union's in that keyword, and
