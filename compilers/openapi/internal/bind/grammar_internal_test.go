@@ -43,6 +43,7 @@ var modelStates = map[reflect.Type]state{
 var lags = map[state][]string{
 	sComponents: {"mediaTypes"}, sMediaType: {"description"}, sResponse: {"summary"},
 	sEncoding: {"encoding", "prefixEncoding", "itemEncoding"},
+	sSchema:   {"$vocabulary", "dependentRequired"},
 }
 
 // TestGrammar_FieldsAreTheModels holds the grammar to the parser's model, less

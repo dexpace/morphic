@@ -148,7 +148,9 @@ func schemaFields() map[string]state {
 		"multipleOf", "maximum", "minimum", "exclusiveMaximum", "exclusiveMinimum", "maxLength", "minLength",
 		"pattern", "maxItems", "minItems", "uniqueItems", "maxProperties", "minProperties", "required",
 		"minContains", "maxContains", "contentEncoding", "contentMediaType", "nullable", "readOnly", "writeOnly",
-		"deprecated", "discriminator", "xml", "externalDocs"} {
+		"deprecated", "discriminator", "xml", "externalDocs", "$vocabulary", "dependentRequired"} {
+		// The rule table judges such a value entry by entry and places a finding
+		// at each it refuses, so NamedPointerBytes names it node by node.
 		m[k] = sValue
 	}
 	return m

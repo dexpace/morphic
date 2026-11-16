@@ -299,9 +299,12 @@ it.
 A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
 default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
-leaves out, adds its root alone, though not an Encoding Object another nests: the lowering keeps
-it verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), but the binder reads it
-node by node for the references written in it. A mapping's members are read as the binder reads
+leaves out, adds its root alone, and each key a mapping in it writes more than once, where the
+check places a finding ([`validation`](#validation)), though not an Encoding Object another nests:
+the lowering keeps it verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), but the
+binder reads it node by node for the references written in it. A schema's `$vocabulary` and
+`dependentRequired`, which no model holds and the check judges entry by entry, are named node by
+node, as its `required` is. A mapping's members are read as the binder reads
 them, each a `<<` merge key brings in named at the mapping, and a key written twice at the copy the
 binder reads, a mapping's own at its last and a merged source's at its first
 ([`validation`](#validation)), so a schema merged into a schema's position is named node by
@@ -323,8 +326,18 @@ a path item's own fields not told apart, or is read under an `$id`, which moves 
 lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the depth the binder
 expands; the document may name a dialect, by `jsonSchemaDialect` or a
 `$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
-`definitions`, `dependencies`, an `items` list and `additionalItems`); or the weighing runs past the
-node bound. An overlay document and a document a reference reads keep the first total.
+`definitions`, `dependencies`, an `items` list and `additionalItems`); a mapping writes a key that
+is no string, or a `<<` that names no mapping, where the check of the document's keys spells a
+pointer for every node to place its findings; or the weighing runs past the node bound. An overlay
+document and a document a reference reads keep the first total.
+
+That total is a second reading of what a compile walks, and two generated tests hold it to the
+walks: `bind.TestNamedPointerBytes_TotalsWhatATablesWalksSpell` counts the pointer of every frame
+the binder's walks push, and `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut` what a whole
+compile allocates more as a key above a value grows, so a walk spelling a pointer at each node of
+a value counted by its root fails one of them. Each holds the documents its grammar writes and no
+others: neither reads a document naming a dialect or another document, which the refusals above
+leave to the first total, and the second counts what is allocated, not what is held at once.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -385,6 +398,11 @@ node bound. An overlay document and a document a reference reads keep the first 
   `bind.TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt`,
   `bind.TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects`,
   `bind.TestNamedPointerBytes_TotalsEachPositionATableReads`,
+  `bind.TestNamedPointerBytes_TotalsWhatATablesWalksSpell`,
+  `bind.TestNamedPointerBytes_AKeyARawValueWritesTwiceIsNamed`,
+  `bind.TestNamedPointerBytes_AKeywordJudgedByEntryIsNamedNodeByNode`,
+  `load.TestNamedWithin_ADocumentBreakingTheFormatRulesIsNotWithin`,
+  `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut`,
   `e2e.TestCompile_ARawValueARequirementKeyNamesIsNamedNodeByNode`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 

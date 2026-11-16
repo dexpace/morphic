@@ -403,25 +403,60 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 // rawRepeats warns of each key a mapping written in a value the table reads as
 // no object writes more than once, at its later copy, as repeated warns of one
 // an object writes: the lowering reads such a value at the copy the model
-// reads. It spends the walk's own budget, one unit a mapping or list.
+// reads. It spends the walk's own budget, one unit a mapping or list. ptr is
+// where the value is, and the one pointer the walk spells unless it places a
+// finding below (rawPointer): the pointer bound counts such a value by its
+// root alone (docs/compilers/openapi.md#source-budgets).
 func rawRepeats(w *walker, val *yaml.Node, ptr jsontext.Pointer, depth int) {
 	node := nodeview.Deref(val)
 	if node == nil || node.Kind != yaml.MappingNode && node.Kind != yaml.SequenceNode {
 		return
 	}
-	if !w.spend(depth, ptr) {
+	ok, stops := w.charge(depth)
+	if stops {
+		reportStop(w, rawPointer(ptr, w.raw))
+	}
+	if !ok {
 		return
 	}
 	if node.Kind == yaml.SequenceNode {
 		for i, item := range node.Content {
-			rawRepeats(w, item, itemPointer(ptr, i), depth+1)
+			w.raw = append(w.raw, rawStep{index: i, item: true})
+			rawRepeats(w, item, ptr, depth+1)
+			w.raw = w.raw[:len(w.raw)-1]
 		}
 		return
 	}
-	w.repeated(node, ptr, "a mapping")
-	for _, p := range w.view.MappingPairs(node) {
-		rawRepeats(w, p.Val, ptr.AppendToken(p.Key), depth+1)
+	if len(nodeview.RepeatedKeys(node)) > 0 {
+		w.repeated(node, rawPointer(ptr, w.raw), "a mapping")
 	}
+	for _, p := range w.view.MappingPairs(node) {
+		w.raw = append(w.raw, rawStep{key: p.Key})
+		rawRepeats(w, p.Val, ptr, depth+1)
+		w.raw = w.raw[:len(w.raw)-1]
+	}
+}
+
+// rawStep names a node of a value the table reads as no object, under the
+// node holding it: a mapping's key, or with item a list's index.
+type rawStep struct {
+	key   string
+	index int
+	item  bool
+}
+
+// rawPointer spells where steps lead from ptr, a raw value's root. A walk of
+// one keeps its steps (walker.raw) in place of a pointer a node, which costs
+// the bytes of every key above a node at each.
+func rawPointer(ptr jsontext.Pointer, steps []rawStep) jsontext.Pointer {
+	for _, s := range steps {
+		if s.item {
+			ptr = itemPointer(ptr, s.index)
+			continue
+		}
+		ptr = ptr.AppendToken(s.key)
+	}
+	return ptr
 }
 
 // keyFinding is one finding about a key of a map (keyFindings).

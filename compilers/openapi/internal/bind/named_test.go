@@ -57,6 +57,47 @@ func TestNamedPointerBytes_AValueKeptRawAddsItsRootAlone(t *testing.T) {
 	assert.Greater(t, asSchema-asSchemaBase, 5*(asExample-without), "mounted as a schema, every node of it is named")
 }
 
+// TestNamedPointerBytes_AKeyARawValueWritesTwiceIsNamed holds a value kept raw
+// to its root and each key a mapping in it writes more than once, where the
+// rule table places a finding: a mapping writing two keys twice each, mounted
+// at two positions of a list inside an extension, adds four pointers, and the
+// same mapping writing each key once adds none.
+func TestNamedPointerBytes_AKeyARawValueWritesTwiceIsNamed(t *testing.T) {
+	t.Parallel()
+	doc := func(m string) string { return namedHead + "x-m: &m " + m + "\nx-e: {kkkkkkkkkkkk: [*m, [*m]]}\n" }
+	once, complete := namedTotal(t, doc("{a: 1, b: 2, c: 3, d: 4}"))
+	require.True(t, complete)
+	twice, complete := namedTotal(t, doc("{a: 1, b: 2, a: 3, b: 4}"))
+	require.True(t, complete)
+
+	// The mapping is raw at its anchor too, where its two keys are named once more.
+	want := 2*len("/x-m/a") + 2*len("/x-e/kkkkkkkkkkkk/0/a") + 2*len("/x-e/kkkkkkkkkkkk/1/0/a")
+	assert.Equal(t, want, twice-once, "each key written twice is named at each position its mapping is read at")
+}
+
+// TestNamedPointerBytes_AKeywordJudgedByEntryIsNamedNodeByNode holds
+// `$vocabulary` and `dependentRequired` to a total of every node they hold:
+// the rule table judges each entry of one, and each name a list of the latter
+// repeats, and places a finding there, where an extension of the same content
+// adds its root alone.
+func TestNamedPointerBytes_AKeywordJudgedByEntryIsNamedNodeByNode(t *testing.T) {
+	t.Parallel()
+	doc := func(key string) string {
+		return namedHead + "components: {schemas: {S: {" + key + ": {kkkkkkkkkkkk: [a, a], llllllllllll: [b]}}}}\n"
+	}
+	for _, key := range []string{"$vocabulary", "dependentRequired"} {
+		raw, complete := namedTotal(t, doc("x-"+key))
+		require.True(t, complete)
+		named, complete := namedTotal(t, doc(key))
+		require.True(t, complete)
+
+		at := len("/components/schemas/S/") + len(key)
+		entries := 2 * (at + len("/kkkkkkkkkkkk") + at + len("/llllllllllll"))
+		items := 2*(at+len("/kkkkkkkkkkkk/0")) + at + len("/llllllllllll/0")
+		assert.Equal(t, entries+items-2*len("x-"), named-raw, "%s: each entry and each name it lists is named", key)
+	}
+}
+
 // TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping holds a
 // schema merged in through `<<` to the total of the same schema mounted by an
 // alias, as the binder and the parser read the merged members as the mapping's

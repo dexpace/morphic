@@ -318,11 +318,13 @@ func mappingValues(view *nodeview.View, n *yaml.Node) []*yaml.Node {
 // n, appended in order, so a walk reads its children with no slice of their
 // own. Nothing beside a reference object's $ref is read but a path item's
 // fields (refsOnly): OpenAPI ignores it, so it holds no reference and declares
-// no identifier.
+// no identifier. Every frame a walk reads past its root is pushed here, which
+// is where a test counts the pointers the walks spell (Config.pushed).
 func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 	if w.refsOnly(n, f) {
 		return stack
 	}
+	from := len(stack)
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
@@ -334,6 +336,11 @@ func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 			token := strconv.Itoa(i)
 			stack = append(stack, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
 				dialect: f.dialect})
+		}
+	}
+	if note := w.docs.cfg.pushed; note != nil {
+		for _, c := range stack[from:] {
+			note(c.at, n.Kind == yaml.MappingNode)
 		}
 	}
 	return stack
