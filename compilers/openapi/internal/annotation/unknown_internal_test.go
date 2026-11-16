@@ -130,6 +130,27 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 	assert.Equal(t, "openapi/unpreservable-construct", diags[0].Code)
 }
 
+// TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable pins where the
+// census takes its keys: the parser's model, which expands a whole `<<` chain,
+// and not the statement's keys, which stop at nodeview.MergeDepthLimit. A
+// keyword merged in from past the bound is reported unreachable at its
+// pointer beneath the schema, never passed over (docs/compilers/openapi.md#unknown-keys).
+func TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable(t *testing.T) {
+	t.Parallel()
+	s := standaloneSchema(schemaFromYAML(t, pastMergeBound("{notAKeyword: 7, type: string}")))
+	_, listed := s.Key("notAKeyword")
+	require.False(t, listed, "the statement's keys stop at the bound")
+
+	var got ir.Unmodeled
+	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+
+	assert.Empty(t, got, "no node of it is reached")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownKeyUnreachable, diags[0].Code)
+	assert.Equal(t, ir.Provenance{Pointer: "/A/notAKeyword"}, diags[0].Provenance)
+	assert.True(t, WritesUnknownKeyword(s), "and a position writing one holds a node for its report")
+}
+
 // TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted pins the OpenAPI-object
 // class: entries key under the path that says which object wrote them, the
 // grading is a warning because the format admits no such key, and both the
