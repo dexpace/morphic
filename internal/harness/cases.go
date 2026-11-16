@@ -78,6 +78,9 @@ type Equal struct {
 	Relocate func(string) string
 	// Stated are the reports this spelling draws and its partner does not.
 	Stated []Stated
+	// Replaced are the reports the partner draws where this spelling draws one
+	// of Stated in their place.
+	Replaced []Stated
 }
 
 // Stated is one report a spelling states it causes.
@@ -332,7 +335,9 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // asked holds the case oracles CheckCase applies, in CaseOracles' order, each
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
-var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{}
+var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
+	spelled,
+}
 
 // shard is the run of cases sharing their first shardAxes values, and what
 // each compiled to in it, by index.

@@ -1,0 +1,323 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package harness
+
+import (
+	"context"
+	"encoding/json/jsontext"
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
+)
+
+// useAt is the pointer of the use every spelling test writes, the schema C.
+const useAt = "/components/schemas/C"
+
+// spellingRule is the rule the spelling tests cite.
+const spellingRule = "docs/compilers/openapi.md#ref-use-site"
+
+// allOfToken is an allOf index in a pointer, or after an unmodeled name's
+// prefix.
+var allOfToken = regexp.MustCompile(`(^|/)allOf/[0-9]+`)
+
+// eraseAllOf relocates as the OpenAPI cases do: every allOf index after the
+// use's pointer, and after an unmodeled name's "openapi:" prefix, erased.
+func eraseAllOf(s string) string {
+	if rest, ok := strings.CutPrefix(s, "openapi:"); ok {
+		return "openapi:" + strings.TrimPrefix(allOfToken.ReplaceAllString(rest, ""), "/")
+	}
+	before, after, ok := strings.Cut(s, useAt)
+	if !ok {
+		return s
+	}
+	return before + useAt + allOfToken.ReplaceAllString(after, "")
+}
+
+// spellingSpec is a document at version writing T, a string, Obj, an object,
+// and C, the use, as the YAML flow mapping use.
+func spellingSpec(version, use string) []byte {
+	return fmt.Appendf(nil, `openapi: %s
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    T: {type: string}
+    Obj: {type: object, properties: {a: {type: string}}}
+    C: %s
+`, version, use)
+}
+
+// spellingPair is a product of two cases: the partner, writing partner, and
+// the spelling, writing spelling and equal to the partner under eq, whose To
+// and Relocate it fills.
+func spellingPair(version, partner, spelling string, eq Equal) fake {
+	eq.To = []int{0}
+	if eq.Relocate == nil {
+		eq.Relocate = eraseAllOf
+	}
+	if eq.Rule == "" {
+		eq.Rule = spellingRule
+	}
+	return fake{axes: []Axis{coreAxis("spelling", "partner", "spelling")}, write: func(at []int) (Document, bool) {
+		if at[0] == 0 {
+			return Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: spellingSpec(version, partner)}}}, true
+		}
+		return Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: spellingSpec(version, spelling)}},
+			Equal: &eq}, true
+	}}
+}
+
+// spellingVerdict is the spelling oracle's verdict on the second case of f.
+func spellingVerdict(t *testing.T, f fake) Verdict {
+	t.Helper()
+	withAsked(t, spelled)
+	r, ok := CheckCase(t.Context(), f, []int{1})
+	require.True(t, ok)
+	require.NotEqual(t, OutcomePanic, r.Outcome, r.Detail)
+	return r.Verdicts[0]
+}
+
+func TestSpelled_ScalarAndModelDecoratorsAreOneUse(t *testing.T) {
+	v := spellingVerdict(t, spellingPair("3.1.0",
+		`{type: array, items: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d}}`,
+		`{type: array, items: {$ref: '#/components/schemas/Obj', description: d}}`, Equal{}))
+	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+}
+
+func TestSpelled_ACarrierHoldsWhatItsDecoratorHeld(t *testing.T) {
+	v := spellingVerdict(t, spellingPair("3.1.0",
+		`{type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d, examples: [{a: x}]}}}`,
+		`{type: object, properties: {p: {$ref: '#/components/schemas/Obj', description: d, examples: [{a: x}]}}}`,
+		Equal{}))
+	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+}
+
+// TestSpelled_ADifferenceIsFoundWithWhereItLies holds each finding's first
+// line to where its two documents differ.
+func TestSpelled_ADifferenceIsFoundWithWhereItLies(t *testing.T) {
+	for _, tc := range []struct {
+		name, partner, spelling, what string
+	}{
+		{"a use's description", `{type: array, items: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d}}`,
+			`{type: array, items: {$ref: '#/components/schemas/Obj', description: e}}`, "types.elem.use.docs.description"},
+		{"a bound", `{allOf: [{$ref: '#/components/schemas/T'}], pattern: '^a4'}`,
+			`{allOf: [{$ref: '#/components/schemas/T'}, {pattern: '^a3'}]}`, "types.constraints.pattern"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := spellingVerdict(t, spellingPair("3.1.0", tc.partner, tc.spelling, Equal{}))
+			require.True(t, v.Found(), "%+v", v)
+			what, rest, _ := strings.Cut(v.Detail, "\n")
+			assert.Equal(t, tc.what, what)
+			assert.True(t, strings.HasPrefix(rest, spellingRule+"\n"), rest)
+			assert.Contains(t, rest, "--- spec.yaml\n", "both sources follow")
+		})
+	}
+}
+
+// TestSpelled_AKeptKeywordsNameRelocates compares two orders of one entry
+// keeping a keyword: the record's name holds the entry's index, which
+// relocates like any pointer.
+func TestSpelled_AKeptKeywordsNameRelocates(t *testing.T) {
+	v := spellingVerdict(t, spellingPair("3.1.0",
+		`{allOf: [{$ref: '#/components/schemas/T'}, {contentMediaType: text/html}]}`,
+		`{allOf: [{contentMediaType: text/html}, {$ref: '#/components/schemas/T'}]}`, Equal{}))
+	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+}
+
+func TestSpelled_TwoNamesRelocatedToOneDecline(t *testing.T) {
+	inline := `{properties: {q: {type: object, properties: {x: {type: string}}}}}`
+	v := spellingVerdict(t, spellingPair("3.1.0", `{allOf: [{$ref: '#/components/schemas/Obj'}]}`,
+		`{allOf: [{$ref: '#/components/schemas/Obj'}, `+inline+`, `+inline+`]}`, Equal{}))
+	assert.Equal(t, declined(OracleSpelling, DeclineRelocationCollides), v)
+}
+
+// TestSpelled_AStatedReportIsRequired holds a 3.0 keyword beside a $ref to the
+// report the spelling states, and to the one its partner draws in its place.
+func TestSpelled_AStatedReportIsRequired(t *testing.T) {
+	stated := func(at string) []Stated {
+		return []Stated{{Severity: ir.SeverityWarning, Code: "openapi/later-version-construct", Pointer: jsontext.Pointer(at)}}
+	}
+	minLength := spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], minLength: 1}`,
+		`{$ref: '#/components/schemas/T', minLength: 1}`, Equal{Stated: stated(useAt + "/minLength")})
+	v := spellingVerdict(t, minLength)
+	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+
+	nullable := Equal{Stated: stated(useAt + "/nullable"), Replaced: []Stated{{Severity: ir.SeverityWarning,
+		Code: "openapi/validation/validation-no-effect", Pointer: useAt + "/nullable"}}}
+	v = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], nullable: true}`,
+		`{$ref: '#/components/schemas/T', nullable: true}`, nullable))
+	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
+
+	var compile compileFunc
+	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := compile(ctx, spec, data, ps)
+		return doc, slicesDeleteCode(diags, "openapi/later-version-construct"), err
+	})
+	v = spellingVerdict(t, minLength)
+	require.True(t, v.Found(), "%+v", v)
+	assert.Equal(t, "stated:openapi/later-version-construct", strings.SplitN(v.Detail, "\n", 2)[0])
+}
+
+// slicesDeleteCode returns diags less every report of code.
+func slicesDeleteCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
+	var out []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code != code {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// TestSpelled_ARefusalIsFoundSayingWhichSide refuses one side, then the
+// other, then both, whose diagnostics alone compare.
+func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
+	refuse := map[string]bool{}
+	var compile compileFunc
+	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		doc, diags, err := compile(ctx, spec, data, ps)
+		if refuse[string(data)] {
+			return nil, diags, err
+		}
+		return doc, diags, err
+	})
+	partner, spelling := `{allOf: [{$ref: '#/components/schemas/T'}]}`, `{$ref: '#/components/schemas/T'}`
+	f := spellingPair("3.1.0", partner, spelling, Equal{})
+
+	refuse[string(spellingSpec("3.1.0", partner))] = true
+	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: the partner compiles to no document")
+
+	refuse[string(spellingSpec("3.1.0", spelling))] = true
+	assert.Equal(t, passed(OracleSpelling), spellingVerdict(t, f), "two refusals of one report agree")
+
+	delete(refuse, string(spellingSpec("3.1.0", partner)))
+	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: this spelling compiles to no document")
+}
+
+// TestSpelled_WhatStopsAComparison pins the verdicts no comparison makes: no
+// partner, a partner writing nothing, a compile's error and a document that
+// does not encode.
+func TestSpelled_WhatStopsAComparison(t *testing.T) {
+	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
+	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
+		doc, _ := f.write(at)
+		return doc, at[0] == 1
+	}}
+	assert.Equal(t, declined(OracleSpelling, DeclineNoPartner), spellingVerdict(t, alone))
+
+	unequal := fake{axes: f.axes, write: func(at []int) (Document, bool) {
+		doc, _ := f.write(at)
+		doc.Equal = nil
+		return doc, true
+	}}
+	assert.Equal(t, declined(OracleSpelling, DeclineNoPartner), spellingVerdict(t, unequal))
+
+	broken := errors.New("engine broke")
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		return nil, nil, broken
+	})
+	assert.Equal(t, found(OracleSpelling, "compile: engine broke"), spellingVerdict(t, f))
+
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		return &ir.Document{Name: "\xff"}, nil, nil
+	})
+	v := spellingVerdict(t, f)
+	require.True(t, v.Found(), "%+v", v)
+	assert.Contains(t, v.Detail, "encode: ")
+}
+
+// TestSpelled_ACaseNamingAPartnerAmissPanics pins the asserts on what a
+// product writes: an Equal with no relocation or no rule, and an oracle asked
+// of a case that writes nothing.
+func TestSpelled_ACaseNamingAPartnerAmissPanics(t *testing.T) {
+	withAsked(t, spelled)
+	for _, eq := range []Equal{{Rule: spellingRule}, {Relocate: eraseAllOf}} {
+		f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
+		write := f.write
+		f.write = func(at []int) (Document, bool) {
+			doc, ok := write(at)
+			if doc.Equal != nil {
+				eq.To = doc.Equal.To
+				doc.Equal = &eq
+			}
+			return doc, ok
+		}
+		r, ok := CheckCase(t.Context(), f, []int{1})
+		require.True(t, ok)
+		assert.Equal(t, OutcomePanic, r.Outcome)
+		assert.Contains(t, r.Detail, "names a partner with no relocation or no rule")
+	}
+
+	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
+	doc, _ := f.write([]int{1})
+	s := newShard(fake{axes: f.axes, write: func([]int) (Document, bool) { return Document{}, false }}, f.axes, []int{1})
+	assert.PanicsWithValue(t, "harness: case [1] writes nothing to compile", func() { spelled(t.Context(), s, []int{1}, doc) })
+}
+
+func TestReadTree_RefusesWhatItCannotRelocate(t *testing.T) {
+	_, err := relocatedTree([]byte(`{"`+useAt+`/allOf/1": 1, "`+useAt+`": 2}`), eraseAllOf)
+	require.ErrorIs(t, err, errCollides)
+	assert.Contains(t, err.Error(), `"`+useAt+`"`)
+
+	deep := strings.Repeat("[", maxSpellingDepth+2) + strings.Repeat("]", maxSpellingDepth+2)
+	_, err = relocatedTree([]byte(deep), eraseAllOf)
+	require.ErrorIs(t, err, errTreeTooDeep)
+	_, err = relocatedTree([]byte(deep[1:len(deep)-1]), eraseAllOf)
+	require.NoError(t, err, "a document at the bound is read")
+
+	for _, broken := range []string{`{"a": [1, `, `{"a": {"b": `, `{"a"`, `{"a": 1, `, ``} {
+		_, err := relocatedTree([]byte(broken), eraseAllOf)
+		require.Error(t, err, broken)
+	}
+
+	tree, err := relocatedTree([]byte(`{"x":"`+useAt+`/allOf/0/y","n":1.50,"t":true,"f":false,"z":null}`), eraseAllOf)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"x": useAt + "/y", "n": number("1.50"), "t": true, "f": false, "z": nil}, tree)
+}
+
+func TestDiffersIn_NamesEachPlaceOnce(t *testing.T) {
+	a := map[string]any{"types": map[string]any{
+		"t/x": map[string]any{"id": "t/x", "kind": "model", "list": []any{"a", "b"}},
+		"t/y": map[string]any{"id": "t/y"},
+	}}
+	b := map[string]any{"types": map[string]any{
+		"t/x": map[string]any{"id": "t/x", "kind": "scalar", "list": []any{"a"}},
+	}}
+	diags := diagnosed{mine: []string{"warning\x00a/b\x00x"}, theirs: []string{"warning\x00a/b\x00y", "info\x00c\x00z"}}
+
+	assert.Equal(t, "diagnostics:a/b,diagnostics:c,stated:x,types,types.kind,types.list", differsIn(a, b, diags, []string{"stated:x"}))
+	assert.Equal(t, "document", differsIn("a", nil, diagnosed{}, nil))
+	assert.Empty(t, differsIn(a, a, diagnosed{mine: diags.mine, theirs: diags.mine}, nil))
+
+	var deep any = "x"
+	for range maxSpellingDepth + 1 {
+		deep = []any{deep}
+	}
+	assert.Equal(t, "…", differsIn(deep, deep, diagnosed{}, nil), "the walk stops at its bound")
+}
+
+func TestComparableSide_ADocumentNestedPastTheBoundIsDeclined(t *testing.T) {
+	deep := strings.Repeat("[", maxSpellingDepth) + strings.Repeat("]", maxSpellingDepth)
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/x": &ir.Scalar{ID: "t/x",
+		Unmodeled: ir.Unmodeled{"x": {Value: ir.RawValue(deep)}}}}}
+	_, why, err := comparableSide(doc, eraseAllOf)
+	require.NoError(t, err)
+	assert.Equal(t, DeclineTooDeep, why)
+}
+
+func TestIndented_SaysWhyATreeDoesNotEncode(t *testing.T) {
+	assert.Equal(t, []string{"{", `  "n": 1.50`, "}"}, indented(map[string]any{"n": number("1.50")}))
+	got := indented(map[string]any{"s": "\xff"})
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0], "does not encode: ")
+}
