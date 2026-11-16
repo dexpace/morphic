@@ -49,7 +49,7 @@ func TestUseOf_ARunTheBindingsDoNotKnowLendsWhatItWrites(t *testing.T) {
 	var u Use
 	s, ok := u.lendRun(l.Ctx, l.Ctx.Statements().Of(ref))
 	assert.False(t, ok)
-	assert.Nil(t, statement.Parsed(s))
+	assert.Nil(t, s)
 	require.Len(t, u.Referents, 1)
 	assert.Same(t, ref.GetSchema(), statement.Parsed(u.Referents[0]))
 }
