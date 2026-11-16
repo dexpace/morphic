@@ -120,11 +120,13 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"internal/harness": {
 		// A format's Cases, which the harness asks for its axes, and for the
-		// document at a case both where it checks the case and where a shard
-		// compiles a neighbour, and the pick CheckCases is handed: designed
-		// seams.
+		// document at a case where it checks the case, where a shard compiles a
+		// neighbour and where a spelling's finding quotes its partner; the
+		// Relocate a case's Equal hands the spelling oracle, called on each
+		// string and member name of an encoding and on each report's pointer
+		// and node; and the pick CheckCases is handed: designed seams.
 		"cmd/morphic-harness":           1,
-		"internal/harness/openapicases": 3,
+		"internal/harness/openapicases": 8,
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
