@@ -6577,6 +6577,7 @@ its entry, and the table reports each.
   `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
   `oas.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
+  `annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
   `e2e.TestNullableInference_DisabledKeepsItAtASharedNode`
