@@ -135,6 +135,8 @@ func TestCore_AdmitsTheCasesOfCoreValuesAlone(t *testing.T) {
 	assert.False(t, core([]int{1, 2}), "no case of the product")
 	assert.False(t, core([]int{1, 3, 0}), "no case of the product")
 	assert.False(t, core([]int{-1, 0, 0}), "no case of the product")
+	assert.False(t, harness.Core(nil)(nil), "no cases hold no case")
+	assert.False(t, harness.Core(grid{})(nil), "a product CaseCount refuses holds no case")
 }
 
 // TestCheckCases_ResultsFollowTheIndexOrder pins which cases a run reports and
@@ -199,8 +201,9 @@ func TestCheckCase_AnswersForOneCase(t *testing.T) {
 	assert.Equal(t, "a0/b2/x", r.Like)
 	assert.Equal(t, idleVerdicts(), r.Verdicts)
 
-	_, ok = harness.CheckCase(t.Context(), g, []int{0, 1, 0})
+	r, ok = harness.CheckCase(t.Context(), g, []int{0, 1, 0})
 	assert.False(t, ok, "the case writes nothing")
+	assert.Equal(t, harness.Result{Spec: "a0/b1/x"}, r)
 }
 
 func TestCheckCase_ACallersMistakeIsAnErrorOutcome(t *testing.T) {

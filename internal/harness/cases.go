@@ -101,10 +101,18 @@ type Instance struct {
 // the record or a case name cannot hold, and a Like naming no core value of its
 // axis.
 func CaseCount(c Cases) (int, error) {
+	_, n, err := product(c)
+	return n, err
+}
+
+// product returns c's axes and how many cases they make, reading them once.
+func product(c Cases) ([]Axis, int, error) {
 	if c == nil {
-		return 0, errors.New("harness: no cases")
+		return nil, 0, errors.New("harness: no cases")
 	}
-	return countCases(c.Axes())
+	axes := c.Axes()
+	n, err := countCases(axes)
+	return axes, n, err
 }
 
 // countCases is CaseCount over axes.
@@ -227,9 +235,12 @@ func project(axes []Axis, at []int) []int {
 }
 
 // Core returns the pick admitting the cases the gate runs: those each of whose
-// values has an empty Like.
+// values has an empty Like. Of cases CaseCount refuses it admits nothing.
 func Core(c Cases) func(at []int) bool {
-	axes := c.Axes()
+	axes, _, err := product(c)
+	if err != nil {
+		return func([]int) bool { return false }
+	}
 	return func(at []int) bool {
 		if !inProduct(axes, at) {
 			return false
@@ -245,25 +256,26 @@ func Core(c Cases) func(at []int) bool {
 
 // Coordinates returns the value index per axis of c's case at index i.
 func Coordinates(c Cases, i int) ([]int, error) {
-	n, err := CaseCount(c)
+	axes, n, err := product(c)
 	if err != nil {
 		return nil, err
 	}
 	if i < 0 || i >= n {
 		return nil, fmt.Errorf("harness: case %d is outside the %d cases", i, n)
 	}
-	return coordinates(c.Axes(), i), nil
+	return coordinates(axes, i), nil
 }
 
 // CheckCase writes c's case at and applies every case oracle to it, as
-// CheckCases does, and returns false where the case writes nothing. A caller
+// CheckCases does, and returns false, with the case's name alone, where the
+// case writes nothing. A caller
 // mistake (nil ctx, cases CaseCount refuses, at outside the product) is
 // OutcomeError with a harness-prefixed Detail.
 func CheckCase(ctx context.Context, c Cases, at []int) (Result, bool) {
-	if _, err := CaseCount(c); err != nil {
+	axes, _, err := product(c)
+	if err != nil {
 		return faulted("", OutcomeError, err.Error()), true
 	}
-	axes := c.Axes()
 	if !inProduct(axes, at) {
 		return faulted("", OutcomeError, fmt.Sprintf("harness: case %v is outside the product", at)), true
 	}
@@ -293,11 +305,10 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 	if pick == nil {
 		return nil, errors.New("harness: no pick")
 	}
-	n, err := CaseCount(c)
+	axes, n, err := product(c)
 	if err != nil {
 		return nil, err
 	}
-	axes := c.Axes()
 	var results []Result
 	var s *shard
 	for i := range n {
@@ -369,8 +380,9 @@ func (s *shard) compile(ctx context.Context, at []int) (compiled, bool) {
 }
 
 // check writes the case at and asks it every case oracle, behind barrier.Catch
-// as Check is, and returns false where the case writes nothing. A panic is
-// OutcomePanic, and the oracles not yet asked decline as not reached.
+// as Check is, and returns false, with the case's name alone, where the case
+// writes nothing. A panic is OutcomePanic, and the oracles not yet asked
+// decline as not reached.
 func (s *shard) check(ctx context.Context, at []int) (Result, bool) {
 	name := caseName(s.axes, at)
 	written := true
@@ -385,7 +397,7 @@ func (s *shard) check(ctx context.Context, at []int) (Result, bool) {
 		}
 	})
 	if !written {
-		return Result{}, false
+		return Result{Spec: name}, false
 	}
 
 	missing := idle
