@@ -74,8 +74,10 @@ const maxMemberAliasHops = 64
 // models a model composes say (merge.Table), summed over the run
 // (styleguide bounded-everything rule). A table holds only the names more than
 // one model declares, so a hierarchy costs its depth again at each level only
-// where every level adds such a name; past the bound each model left settles
-// its own declarations alone.
+// where every level adds such a name. A read of a model not settled yet, as a
+// cycle's are, counts the composition its flattening walks too
+// (chargeComposition). Past the bound each model left settles its own
+// declarations alone.
 const maxMemberReads = 1 << 24
 
 // Settle settles each noted model in rounds, each round in settleOrder, so
@@ -112,7 +114,7 @@ func (rec *members) budgetCut() []ir.Diagnostic {
 	}
 	f := rec.byID[rec.cut]
 	return []ir.Diagnostic{f.c.DiagAt(ir.SeverityError, diag.BudgetExceeded, f.pointer,
-		"the settlement read past %d declarations of what composed models say at this model; it and each model "+
+		"the settlement read past %d declarations and composition entries at this model; it and each model "+
 			"settled after it fold only their own declarations, not those their entries bring", maxMemberReads)}
 }
 
@@ -266,8 +268,12 @@ func modelOf(reg ir.TypeRegistry, target ir.TypeID) (ir.TypeID, bool) {
 
 // asItStands returns the table of the model id as reg holds it: for each name
 // more than one model declares, the declaration its flattening takes but
-// from's (merge.TakenOutside), charging what the flattening reads.
+// from's (merge.TakenOutside), charging what the flattening walks and reads.
+// It returns none once the reads run out.
 func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Table {
+	if !rec.chargeComposition(reg, id) {
+		return nil
+	}
 	table := merge.Table{}
 	for _, member := range ir.FlattenedProperties(reg, id).Properties {
 		rec.reads.Spend(1 + len(member.Overridden))
@@ -276,6 +282,30 @@ func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Ta
 		}
 	}
 	return table
+}
+
+// chargeComposition spends, of the run's reads, what a flattening of id walks
+// besides the declarations it reads: each type its composition reaches
+// through Base, Mixins and alias scalars, and each entry naming one. A model
+// on a cycle is flattened at each read until it settles, and its composition
+// may hold every other model of the cycle. It reports false once the reads
+// run out.
+func (rec *members) chargeComposition(reg ir.TypeRegistry, id ir.TypeID) bool {
+	seen := map[ir.TypeID]bool{id: true}
+	for queue := []ir.TypeID{id}; len(queue) > 0; {
+		parts := merge.ComposedOf(reg[queue[len(queue)-1]])
+		queue = queue[:len(queue)-1]
+		if !rec.reads.Spend(1 + len(parts)) {
+			return false
+		}
+		for _, part := range parts {
+			if !seen[part] {
+				seen[part] = true
+				queue = append(queue, part)
+			}
+		}
+	}
+	return true
 }
 
 // sharedNames returns the wire names more than one model in reg declares, each

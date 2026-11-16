@@ -2753,8 +2753,9 @@ composes for a member lists its parts as the entries bringing them are written, 
 through 8 rounds; one nested deeper is left as its entries declare it, with an
 `openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than one
 model declares, so a hierarchy costs its depth again at each level only where every level adds such
-a name, and a run reads at most 16,777,216 of their declarations; past that each model left folds
-its own declarations alone, with an `openapi/budget-exceeded` error at the first.
+a name, and a run reads at most 16,777,216 of their declarations, a read of a model not settled
+yet, as a cycle's are, counting each type and entry its flattening walks too; past that each model
+left folds its own declarations alone, with an `openapi/budget-exceeded` error at the first.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
@@ -2821,6 +2822,9 @@ its own declarations alone, with an `openapi/budget-exceeded` error at the first
   `schema.TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared`,
   `schema.TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone`,
   `schema.TestMembers_ReadsAPartThroughItsAliasesAndNothingElse`,
+  `schema.TestMembers_ReadingAModelNotSettledChargesItsComposition`,
+  `schema.TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk`,
+  `merge.TestOwnership_ReadsEachModelsCompositionOnce`,
   `merge.TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder`,
   `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,

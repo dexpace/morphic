@@ -252,9 +252,16 @@ const maxComposedParts = 64
 // composes reports whether id is composed of target: a chain of alias scalars,
 // Base and Mixins leads from one to the other, and every value of the first is
 // a value of what it composes. A folded field names no such link, so the answer
-// follows no fold. The walk reads at most maxComposedParts types.
+// follows no fold. It reads what composedSet does.
 func (r registry) composes(id, target ir.TypeID) bool {
-	seen := map[ir.TypeID]bool{id: true}
+	return r.composedSet(id)[target]
+}
+
+// composedSet returns every type id is composed of (composes), id itself where
+// a cycle leads back to it. The walk reads at most maxComposedParts types, so a
+// caller asking of many targets reads them once.
+func (r registry) composedSet(id ir.TypeID) map[ir.TypeID]bool {
+	seen, parts := map[ir.TypeID]bool{id: true}, map[ir.TypeID]bool{}
 	queue := []ir.TypeID{id}
 	for len(queue) > 0 && len(seen) <= maxComposedParts {
 		td, ok := r.resolve(queue[len(queue)-1])
@@ -263,16 +270,14 @@ func (r registry) composes(id, target ir.TypeID) bool {
 			continue
 		}
 		for _, part := range ComposedOf(td) {
-			if part == target {
-				return true
-			}
+			parts[part] = true
 			if !seen[part] {
 				seen[part] = true
 				queue = append(queue, part)
 			}
 		}
 	}
-	return false
+	return parts
 }
 
 // ComposedOf returns the types td says its values are also values of: an

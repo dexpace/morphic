@@ -124,3 +124,62 @@ func TestMembers_ReadsAPartThroughItsAliasesAndNothingElse(t *testing.T) {
 	}
 	assert.Empty(t, rec.cut, "no read was refused")
 }
+
+// TestMembers_ReadingAModelNotSettledChargesItsComposition pins what reading a
+// model as it stands costs: its flattening walks each type its composition
+// reaches and each entry naming one, besides the declarations it reads, so
+// the reads charge both. N composes M through an alias and M2 beside it: four
+// types, three entries, one name read with its two overridden declarations,
+// and the table's one entry.
+func TestMembers_ReadingAModelNotSettledChargesItsComposition(t *testing.T) {
+	t.Parallel()
+	prop := func(id string) ir.Property {
+		return ir.Property{ID: ir.PropID(id), WireName: "p", Type: ir.TypeRef{Target: "t/prim/string"}}
+	}
+	reg := ir.TypeRegistry{
+		"t/N": &ir.Model{ID: "t/N", Base: &ir.TypeRef{Target: "t/alias"}, Mixins: []ir.TypeRef{{Target: "t/M2"}},
+			Properties: []ir.Property{prop("p/N")}},
+		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/M"}},
+		"t/M":     &ir.Model{ID: "t/M", Properties: []ir.Property{prop("p/M")}},
+		"t/M2":    &ir.Model{ID: "t/M2", Properties: []ir.Property{prop("p/M2")}},
+	}
+	rec := &members{byID: map[ir.TypeID]modelFields{"t/N": {}}, settled: map[ir.TypeID]bool{},
+		tables: map[ir.TypeID]merge.Table{}, shared: map[string]bool{"p": true}, reads: budget.New(budget.Unbounded())}
+
+	require.Len(t, rec.tableOf(reg, "t/N", "t/X"), 1)
+	assert.Equal(t, 4+3+3+1, rec.reads.Spent(), "types, entries, declarations and the table's entry")
+}
+
+// clique is n models each composing every other, each declaring x.
+func clique(n int) string {
+	var b strings.Builder
+	for i := range n {
+		var entries []string
+		for j := range n {
+			if j != i {
+				entries = append(entries, fmt.Sprintf("{$ref: '#/components/schemas/K%d'}", j))
+			}
+		}
+		fmt.Fprintf(&b, "    K%d: {allOf: [%s, {type: object, properties: {x: {type: integer}}}]}\n", i, strings.Join(entries, ", "))
+	}
+	return b.String()
+}
+
+// TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk pins the bound on a
+// cycle of compositions: each model of it is read as it stands until it
+// settles, each read walking the whole cycle, so the reads grow with the
+// cycle's entries times its models, past the declarations they find, and a
+// cycle dense enough is cut at the bound and reported once.
+func TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk(t *testing.T) {
+	t.Parallel()
+	read := func(n int) int {
+		_, diags, reads := settledUnder(t, clique(n), budget.Unbounded())
+		openapitest.RequireNoErrorDiags(t, diags)
+		return reads
+	}
+	a, b := read(6), read(12)
+	assert.GreaterOrEqual(t, b, 12*a, "reads at 6 and 12 models: %d, %d", a, b)
+
+	_, diags, _ := settledUnder(t, clique(12), budget.AtMost(b/2))
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
+}

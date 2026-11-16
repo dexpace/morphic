@@ -5,6 +5,7 @@ package merge
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -379,6 +380,40 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 		assert.Empty(t, diags, "entries written alike say one thing")
 		assert.Equal(t, 1, got.Unmodeled["openapi:x-tag"].Provenance.Source, "entries from %v", sources)
 	}
+}
+
+// TestOwnership_ReadsEachModelsCompositionOnce pins what sorting one name's
+// candidates costs: each model's composition is read once, however many other
+// candidates ask whether it composes theirs, so the reads grow with the
+// candidates, not their square. Each candidate's model composes a chain as
+// deep as the walk reads, and none composes another, so every one is left.
+func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
+	t.Parallel()
+	reads := func(n int) int {
+		reg := map[ir.TypeID]ir.TypeDef{"t/link-0": declaring("t/link-0")}
+		for i := 1; i <= maxComposedParts; i++ {
+			id := ir.TypeID(fmt.Sprintf("t/link-%d", i))
+			reg[id] = &ir.Model{ID: id, Base: &ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/link-%d", i-1))}}
+		}
+		cs := make([]candidate, n)
+		for i := range cs {
+			owner := ir.TypeID(fmt.Sprintf("t/owner-%d", i))
+			p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
+			reg[owner] = &ir.Model{ID: owner, Base: &ir.TypeRef{Target: "t/link-64"}, Properties: []ir.Property{p}}
+			cs[i] = candidate{decl: ir.PropertyDecl{Owner: owner, Property: &p}, part: i}
+		}
+		count := 0
+		o := ownership{composed: map[ir.TypeID]map[ir.TypeID]bool{}, r: registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+			count++
+			td, ok := reg[id]
+			return td, ok
+		}}}
+
+		require.Len(t, o.left(cs), n, "no model composes another")
+		return count
+	}
+	a, b := reads(50), reads(100)
+	assert.LessOrEqual(t, float64(b), 2.5*float64(a), "reads at 50 and 100 candidates: %d, %d", a, b)
 }
 
 // TestTakenOutside_LeavesOutTheComposingModelsOwn pins the declaration a part's

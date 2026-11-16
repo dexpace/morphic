@@ -173,10 +173,10 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 			}
 		}
 	}
-	r := registry{g.resolve}
+	owners := ownership{r: registry{g.resolve}, composed: map[ir.TypeID]map[ir.TypeID]bool{}}
 	out, inherited := map[string][]declaration{}, Table{}
 	for wire, cs := range byWire {
-		left := slices.DeleteFunc(slices.Clone(cs), func(cd candidate) bool { return r.standsWithin(cs, cd) })
+		left := owners.left(cs)
 		for _, cd := range left {
 			out[wire] = append(out[wire], broughtDeclaration(*cd.decl.Property, &parts[cd.part]))
 		}
@@ -187,23 +187,65 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 	return out, inherited
 }
 
-// standsWithin reports whether cs, one name's candidates in part order, read
-// cd elsewhere: an earlier part brings the same declaration, or another
-// brings one of a model composing cd's owner that cd's owner does not compose
-// in turn, as two models on a cycle each compose the other.
-func (r registry) standsWithin(cs []candidate, cd candidate) bool {
-	return slices.ContainsFunc(cs, func(o candidate) bool {
-		if o.decl.Owner == cd.decl.Owner && o.decl.Property.ID == cd.decl.Property.ID {
-			return o.part < cd.part
+// ownership is what one settlement reads of the models its parts' declarations
+// come from: the types each composes (registry.composedSet), read once per
+// model however many names and candidates name it.
+type ownership struct {
+	r        registry
+	composed map[ir.TypeID]map[ir.TypeID]bool
+}
+
+// of returns the types owner composes, reading them at the first ask.
+func (o ownership) of(owner ir.TypeID) map[ir.TypeID]bool {
+	set, read := o.composed[owner]
+	if !read {
+		set = o.r.composedSet(owner)
+		o.composed[owner] = set
+	}
+	return set
+}
+
+// left returns cs, one name's candidates in part order, but those it reads
+// elsewhere: one an earlier part brings, or one whose model another
+// candidate's composes without being composed by it in turn, as two models on
+// a cycle each compose the other. Each model's composition is read once, so
+// the candidates cost their number, not its square.
+func (o ownership) left(cs []candidate) []candidate {
+	type key struct {
+		owner ir.TypeID
+		id    ir.PropID
+	}
+	owners, brought := map[ir.TypeID]bool{}, map[key]bool{}
+	for _, cd := range cs {
+		owners[cd.decl.Owner] = true
+	}
+	composers := map[ir.TypeID][]ir.TypeID{}
+	for owner := range owners {
+		for part := range o.of(owner) {
+			if owners[part] {
+				composers[part] = append(composers[part], owner)
+			}
 		}
-		return r.composes(o.decl.Owner, cd.decl.Owner) && !r.composes(cd.decl.Owner, o.decl.Owner)
-	})
+	}
+	var out []candidate
+	for _, cd := range cs {
+		k := key{owner: cd.decl.Owner, id: cd.decl.Property.ID}
+		if brought[k] {
+			continue
+		}
+		brought[k] = true
+		within := func(by ir.TypeID) bool { return !o.of(cd.decl.Owner)[by] }
+		if !slices.ContainsFunc(composers[cd.decl.Owner], within) {
+			out = append(out, cd)
+		}
+	}
+	return out
 }
 
 // parts returns the types the model composes (ComposedOf), each with the
 // entry naming it: the first the walk met, or one at the model, read first,
 // where none does. A type written twice brings its declarations once
-// (standsWithin).
+// (ownership.left).
 func (idx *PropIndex) parts() []composedEntry {
 	var out []composedEntry
 	for _, target := range ComposedOf(idx.m) {
