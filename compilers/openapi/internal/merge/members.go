@@ -63,10 +63,10 @@ func (idx *PropIndex) members(shared map[string]bool, inherited Table) Table {
 // into the property the model holds at pos, or appends one where pos is -1. A
 // member only the model declares keeps its identity (Merger.fold), and so does
 // one it declares beside an entry's where no other model holds its first own
-// declaration (heldAlone). Any other member an entry brings a declaration of is
-// the model's own at <model>/allOf/properties/<name> in the composed namespace,
-// which no schema occupies, as a property may not follow allOf. Each report
-// about such a member names it (naming).
+// declaration (heldAlone), first as the walk met them, so two at different
+// depths follow their order (GitHub #1931). Any other member is the model's own
+// at <model>/allOf/properties/<name> in the composed namespace, which no
+// schema occupies, as a property may not follow allOf. Each report names it.
 func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
 	if len(decls) < 2 {
 		return nil

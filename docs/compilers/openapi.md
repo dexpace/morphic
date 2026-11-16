@@ -2303,7 +2303,7 @@ it states nothing a `true` elsewhere does not ([`ref-use-site`](#ref-use-site)).
 bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
-to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
+to `12`, whatever their order; a number written two ways keeps its first spelling here. Two `pattern`s
 have no one value, so each disagrees with another written differently. A writer stating no value
 parts no other: a 3.0 `exclusiveMinimum` of `false`, or of `true` with no bound beside it, which
 fills no field, and a bound the rule table refuses ([`validation`](#validation)) say nothing a value
@@ -2719,35 +2719,35 @@ a form part's flags read the merged field. A fold judges every pair of declarati
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
-A member a model's composition declares more than once folds the same way, wherever the
-declarations are written, so a `$ref` entry and the schema it names written inline in its place
-fold alike. The flattening ([models](../ir/models.md#the-flattening)) would otherwise take the
-model's own declaration over an entry's, and of two entries the later, and judge none. Once every
-lowering has returned, one settlement folds, on each model, every member its own declarations or
-its `allOf` entries decide more than once. Each entry brings the declaration the flattening of what
-it names takes, which a model settled first holds folded from every other its composition gives
-the member, and one another entry's composition holds stands within that entry's, so it brings
-nothing. Each model settles after every model it composes, however deep a hierarchy nests, so
-neither the order components are declared in nor their names decide anything, and a cycle of
-compositions reads the model it returns to as it stands. The declarations are read in the order the
-source writes them, a `$ref` entry's where the entry is written and the schema's own `properties`
-after its `allOf`; a union branch distributed into a variant reads before the body. A declaration an
-entry brings stays declared on its own model, so it is not kept verbatim, and a report about it sits
-at the entry bringing it, naming the member in its `Provenance.Node`, and names a declaration
-another document holds with that document's name. A member the model declares itself keeps that
-declaration's identity, unless another model holds the declaration too, as a node interned at the
+A member a model's composition declares more than once folds the same way, wherever the declarations
+are written, so a `$ref` entry and the schema it names written inline in its place fold alike. The
+flattening ([models](../ir/models.md#the-flattening)) would otherwise take the model's own
+declaration over an entry's, and of two entries the later, and judge none. Once every lowering has
+returned, one settlement folds, on each model, every member its own declarations or its `allOf`
+entries decide more than once. Each entry brings the declaration the flattening of what it names
+takes, which a model settled first holds folded from every other its composition gives the member,
+and one another entry's composition holds stands within that entry's, so it brings nothing. Each
+model settles after every model it composes, however deep a hierarchy nests, so neither the order
+components are declared in nor their names decide anything, and a cycle of compositions reads the
+model it returns to as it stands. The declarations are read in the order the source writes them, a
+`$ref` entry's where the entry is written and the schema's own `properties` after its `allOf`; a
+union branch distributed into a variant reads before the body. A declaration an entry brings stays
+declared on its own model, so it is not kept verbatim, and a report about it sits at the entry
+bringing it, naming the member in its `Provenance.Node`, and names a declaration another document
+holds with that document's name. A member the model declares itself keeps the identity of the first
+of its own declarations, unless another model holds that declaration too, as a node interned at the
 `allOf` branch writing it does, or as the variants of a distributed union share their body's; that
 one, and one only entries declare, the model declares in the `composed` namespace at
 `<model>/allOf/properties/<name>`. The member is required where the model's `required` names it,
-which the name then leaves, and a discriminator naming the model's own declaration names the
-member. The registry does not record which heuristic made a brought declaration secret, so a secret
-one's `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the
-fold composes for a member lists its parts as the entries bringing them are written, and settles in
-turn, through 8 rounds; one nested deeper is left as its entries declare it, with an
-`openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than
-one model declares, so a hierarchy costs its depth again at each level only where every level adds
-such a name, and a run reads at most 16,777,216 of their declarations; past that each model left folds its own
-declarations alone, with an `openapi/budget-exceeded` error at the first.
+which the name then leaves, and a discriminator naming the model's own declaration names the member.
+The registry does not record which heuristic made a brought declaration secret, so a secret one's
+`Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
+composes for a member lists its parts as the entries bringing them are written, and settles in turn,
+through 8 rounds; one nested deeper is left as its entries declare it, with an
+`openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than one
+model declares, so a hierarchy costs its depth again at each level only where every level adds such
+a name, and a run reads at most 16,777,216 of their declarations; past that each model left folds
+its own declarations alone, with an `openapi/budget-exceeded` error at the first.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
@@ -2949,12 +2949,13 @@ declarations alone, with an `openapi/budget-exceeded` error at the first.
 - Status: partly built: a structure stating no instance type that refuses some kinds only through
   a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
   (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
-  keeping the first, though they share values, since the IR has no value type for what both admit;
+  keeping the later, though they share values, since the IR has no value type for what both admit;
   an alias adding docs to the null it adds is not read as adding null alone, though a reference
   carries an alias's docs to its use, since a use site whose `$ref` chain runs on past the alias
   takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold different sets only because the model stops at the
   flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
-  names both.
+  names both; and a member declared at two depths keeps the identity of the one written first, so
+  swapping the branches moves it (#1931).
 
 ### `allof-required`
 
