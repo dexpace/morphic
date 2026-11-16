@@ -286,8 +286,9 @@ func (d *docs) rootState(id DocID) state {
 }
 
 // identityState is the state a document's root is read at for what its schemas
-// declare, and for the resource a position of it is in: the grammar's where it
-// is an OpenAPI document, which places them as the source does. Any other has no
+// declare, for the resource a position of it is in, and for the reference
+// objects a pointer passes (binder.readFrom): the grammar's where it is an
+// OpenAPI document, which places them as the source does. Any other has no
 // grammar, so its mappings are schemas but for what a schema's keywords say is
 // not one, as OAS 3.1 §4.3.1 leaves such a document to the reader: its root may
 // be a schema, or a map of them under keys of its own.
