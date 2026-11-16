@@ -198,7 +198,7 @@ var errUnrecognized = errors.New("unrecognized source")
 
 // registered is the compiler set a sweep compiles with: the engine's built-ins,
 // so a compiler registered there is swept with no change here. It is a seam, as
-// compile is, for tests that need a compiler the engine does not carry.
+// compileSources is, for tests that need a compiler the engine does not carry.
 var registered = engine.Compilers
 
 // passes is the pass list a sweep runs: the engine's default, so a pass that
@@ -226,22 +226,30 @@ func newEngine(ps []pass.Pass) (*engine.Engine, error) {
 	return e, nil
 }
 
-// compile runs one in-memory source through the engine as `morphic compile
-// --verify` runs a spec, with ps as the passes: data is held as the file at
-// spec, and what its references name is read from disk beside it. It returns
-// the document and every finding of the run, the compiler's and the passes', or
-// errUnrecognized for a source no registered compiler takes.
+// compile runs one in-memory source through compileSources at the default
+// compiler options: data is held as the file at spec, and what its references
+// name is read from disk beside it.
+func compile(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	return compileSources(ctx, []compilers.Source{{Path: spec, Data: data}}, nil, ps)
+}
+
+// compileSources runs sources through the engine as `morphic compile --verify`
+// runs a spec, with options as the compiler options and ps as the passes, and
+// returns the document and every finding of the run, or errUnrecognized for a
+// source no registered compiler takes. The first source is the spec (runOn
+// says what else a run reads).
 //
-// It is a package-level seam: production always runs the engine, while tests
-// replace it to drive the oracle-failure paths a correct compiler never
-// produces: a panic, structural violations, a non-round-tripping document, or
-// a nondeterministic recompile.
-var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+// It is the package's one seam over the engine: tests replace it to drive the
+// oracle-failure paths a correct compiler never produces, such as a panic, a
+// non-round-tripping document or a nondeterministic recompile.
+var compileSources = func(ctx context.Context, sources []compilers.Source, options map[string]string,
+	ps []pass.Pass,
+) (*ir.Document, []ir.Diagnostic, error) {
 	e, err := newEngine(ps)
 	if err != nil {
 		return nil, nil, err
 	}
-	res, err := e.RunSpec(ctx, compilers.Source{Path: spec, Data: data}, runOptions())
+	res, err := runOn(ctx, e, sources, options)
 	if err != nil {
 		return nil, nil, fmt.Errorf("harness: %w", reraise(err))
 	}
@@ -249,6 +257,19 @@ var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass
 		return nil, nil, fmt.Errorf("%s: %w", d.Message, errUnrecognized)
 	}
 	return res.Document, res.Diagnostics, nil
+}
+
+// runOn runs sources through e under runOptions and options. One source is a
+// spec on disk, held in memory: what its references name is read from disk
+// beside it, as a corpus spec split across files needs. More are every
+// document the run may read, held in memory, and nothing else is read.
+func runOn(ctx context.Context, e *engine.Engine, sources []compilers.Source, options map[string]string) (*engine.Result, error) {
+	opts := runOptions()
+	opts.CompilerOptions = options
+	if len(sources) == 1 {
+		return e.RunSpec(ctx, sources[0], opts)
+	}
+	return e.RunSources(ctx, sources, opts)
 }
 
 // undetected reports whether code is one the engine raises, with no document,
@@ -280,7 +301,7 @@ func reraise(err error) error {
 var reserializeJSON = json.Marshal
 
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
-// roundTrips for the same reason compile is one. A test swaps it to drive
+// roundTrips for the same reason compileSources is one. A test swaps it to drive
 // Check's OutcomeRoundtrip classification directly, so that test does not
 // depend on which documents Verify lets through to this oracle.
 var roundTrip = roundTrips
