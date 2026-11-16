@@ -29,10 +29,10 @@ const maxSpellingDepth = 2 * maxReverseDepth
 // to the partner's coordinates, and the diagnostics compared as a multiset once
 // the reports the spelling states are taken out. A difference is
 // OutcomeSpellingDependent, its Detail's first line naming where they differ.
-// Where neither side compiled it declines, which its record lists as a finding
-// (listed): two refusals compare alike whatever the case says. A compile's
-// error, a document that does not encode and a partner the product writes
-// nothing for are the harness's or the product's fault, a panic.
+// Neither side compiling is a decline its record lists (listed): two refusals
+// compare alike whatever the case says. A compile's error, a document that
+// does not encode and a partner the product writes nothing for are faults, and
+// a panic.
 func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	eq := doc.Equal
 	if eq == nil {
