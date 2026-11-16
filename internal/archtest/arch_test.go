@@ -618,6 +618,8 @@ var rules = map[string][]string{
 var exempt = map[string]string{
 	"internal/harness": "test/tooling infrastructure that drives specs through the oracles, " +
 		"so it legitimately imports the Layer-3 engine, whose runs it judges",
+	"internal/harness/openapicases": "the cases the harness asks of the OpenAPI compiler, " +
+		"which it reaches through the engine alone",
 }
 
 // unbuilt names the rules entries whose directory does not exist yet, each

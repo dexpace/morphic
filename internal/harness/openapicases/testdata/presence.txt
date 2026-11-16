@@ -1,0 +1,2 @@
+# What the presence oracle finds at the core cases, and the reason each finding
+# stands: case name, what was found, reason (Reasons).
