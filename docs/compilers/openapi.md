@@ -2650,9 +2650,10 @@ to set one keeps it, as does `multipleOf` for two steps past 1,024 significant d
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the last to give one keeping it, and a
 declaration giving one differently is reported and kept; of two keeping one `Unmodeled` entry alike,
-the one written at the pointer sorting first is the field's. An entry two declarations write alike is
-one where it writes no relative `$ref`, or both read it against one base: under an `$id` naming
-another URI, a `$ref` spelled alike names another schema.
+the one written first is the field's, in the document listed first and then at the pointer sorting
+first, since two files each holding one schema write the same pointers. An entry two declarations
+write alike is one where it writes no relative `$ref`, or both read it against one base: under an
+`$id` naming another URI, a `$ref` spelled alike names another schema.
 
 A field keeping the first declaration's identity keeps that declaration's pointer, and either way it
 names the heuristic that promoted its deprecation or its redaction from an extension, wherever the
@@ -2820,6 +2821,7 @@ its own declarations alone, with an `openapi/budget-exceeded` error at the first
   `schema.TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared`,
   `schema.TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone`,
   `schema.TestMembers_ReadsAPartThroughItsAliasesAndNothingElse`,
+  `merge.TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder`,
   `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
   `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,

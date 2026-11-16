@@ -5,6 +5,7 @@ package merge
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
@@ -560,8 +561,9 @@ func (f *folding) note(i int, sev ir.Severity, code, format string, args ...any)
 // are namespaced, so each entry lands; a key two declarations give is the last
 // one's, and an earlier one keeping another construct under it is reported and
 // kept, as lastWritten keeps a detail. Of two keeping one construct, the one
-// written at the pointer sorting first is kept, so no order decides where the
-// field says it was written. Keys are read in order, so the reports are.
+// written first in the documents' order (writtenBefore) is kept, so no order
+// of the declarations decides where the field says it was written. Keys are
+// read in order, so the reports are.
 func (f *folding) foldUnmodeled() {
 	var merged ir.Unmodeled
 	from := map[string]int{}
@@ -577,7 +579,7 @@ func (f *folding) foldUnmodeled() {
 				}
 				merged[key], from[key] = entry, i
 			case sameEntry(f.g.Walk, merged[key], entry):
-				if entry.Provenance.Pointer < merged[key].Provenance.Pointer {
+				if writtenBefore(entry.Provenance, merged[key].Provenance) {
 					merged[key] = entry
 				}
 			default:
@@ -590,6 +592,14 @@ func (f *folding) foldUnmodeled() {
 		}
 	}
 	f.merged.Unmodeled = merged
+}
+
+// writtenBefore reports whether a is written before b: in a document listed
+// before b's, which the load phase orders by name, not as declarations reach
+// it, or in one document at a pointer sorting first. Two files each holding
+// one schema write the same pointers.
+func writtenBefore(a, b ir.Provenance) bool {
+	return cmp.Or(cmp.Compare(a.Source, b.Source), cmp.Compare(a.Pointer, b.Pointer)) < 0
 }
 
 // sameEntry reports whether a and b, the entry two declarations give one key,

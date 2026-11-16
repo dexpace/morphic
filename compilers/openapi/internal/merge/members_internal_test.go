@@ -356,6 +356,31 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 		"kept what the declaration at /M/allOf/1/properties/p says over the one at /B/p in other.yaml,")
 }
 
+// TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder pins the entry a
+// field keeps of two written alike at one pointer in two documents, as two
+// files each holding one schema write /properties/p: the one in the document
+// listed first, in either entry order, so no order decides which file the
+// field says wrote it.
+func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
+	t.Parallel()
+	brought := func(source, order int) declaration {
+		p := declared("p", "t/prim/string", "/properties/p")
+		p.Provenance.Source = source
+		at := ir.Provenance{Source: source, Pointer: "/properties/p/x-tag"}
+		p.Unmodeled = ir.Unmodeled{"openapi:x-tag": {Value: ir.RawValue(`"same"`), Provenance: at}}
+		entry := &composedEntry{target: ir.TypeID("t/" + string(rune('A'+source))), at: "/M/allOf/0", order: order}
+		return broughtDeclaration(p, entry)
+	}
+
+	for _, sources := range [][2]int{{1, 2}, {2, 1}} {
+		g, _ := stubMerger(membersRegistry())
+		got, diags := g.foldAt([]declaration{brought(sources[0], 1), brought(sources[1], 2)}, "/M/allOf/properties/p")
+
+		assert.Empty(t, diags, "entries written alike say one thing")
+		assert.Equal(t, 1, got.Unmodeled["openapi:x-tag"].Provenance.Source, "entries from %v", sources)
+	}
+}
+
 // TestTakenOutside_LeavesOutTheComposingModelsOwn pins the declaration a part's
 // flattening stands for: the one it takes, or, where that is the composing
 // model's own, as a cycle reaches it, the last other it reads, and none where
