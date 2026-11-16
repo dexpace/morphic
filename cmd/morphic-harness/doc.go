@@ -6,8 +6,8 @@
 // and writes a line per finding and what each oracle asked and declined
 // (harness.Summary). Each argument is a spec file or a directory, walked for
 // the files a registered compiler claims (harness.SpecFiles). With -cases, it
-// checks the schema cases instead (harness.CheckCases), reporting
-// what the records leave unexplained; with -at N, the case at index N, counted
-// one product after another, its sources and verdicts. It exits 0 when nothing
-// is found, 1 when anything is, and 2 on a usage or filesystem error.
+// checks the schema cases instead (harness.CheckCases), the gate's core or
+// all, as make cases does nightly, reporting what no record explains, or with
+// -at N the case at index N. It exits 0 when nothing is found, 1 when anything
+// is, and 2 on a usage or filesystem error.
 package main

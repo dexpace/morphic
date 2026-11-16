@@ -178,12 +178,33 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `matrix.md` that is no spec and for a row that has both a witness and a reason, and
    `make coverage` for a statement only the case reaches. Nothing fails for a spec that witnesses a
    row but is not listed under it.
+
+   A keyword the Schema Object gains also gets a construct row in
+   `internal/harness/openapicases/constructs.go`: its two values, the versions writing it and the
+   targets it is said of, or, for a keyword nothing carries, why not. The case oracles then write it
+   at every position and in every spelling (the root guidance's Testing strategy says what each
+   holds).
+   *Fails if missed:* `TestCases_CoverTheRuleTable`, for a keyword of the rule table no construct
+   row writes at a version that defines it.
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
 
    ```bash
    go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
    git status --short testdata/
    ```
+
+   A fix that makes two spellings lower alike, or carries a keyword that was dropped, leaves lines of
+   `internal/harness/openapicases/testdata/` naming no finding, and the case oracles' tests fail on
+   them as stale. Regenerating the records deletes them; read what else it moved:
+
+   ```bash
+   go test ./internal/harness/openapicases -update
+   git diff internal/harness/openapicases/testdata/
+   ```
+
+   A line the diff adds is a finding the change made, written as `unclassified`, which fails until
+   the compiler is fixed or the line is given the reason, a key of `Reasons`, of the issue it stands
+   under. A line whose finding changed keeps its reason, so check the reason still holds.
 
    A regeneration that changes nothing looks exactly like a broken `-update`, and nothing checks
    that an assertion asserts anything: delete the construct from your spec once and watch the case
