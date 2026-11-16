@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -991,6 +992,35 @@ func TestDiscriminatorMapping_ReadsThroughAComponentThatIsARef(t *testing.T) {
 			"and the base's mapping keeps them all"}, reported(diags), "the keys naming Sub, and nothing else")
 		assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat"), "sib": componentID("Cat"), "dog": componentID("Dog")},
 			discriminatorOf(t, doc, componentID("Pet")).Mapping, "no route by name: an entry routes Cat")
+	}
+}
+
+// TestDiscriminatorMapping_AChainEndsWhereTheTableReadNoRef pins where a
+// value's chain ends on a component whose $ref is merged in through nested
+// `<<` keys. Within nodeview.MergeDepthLimit the table read the $ref, and
+// the value routes to what it names. One level past it the parser's model
+// alone holds the $ref (GitHub #2020), so the chain ends on the component
+// writing it, which the value then routes to.
+func TestDiscriminatorMapping_AChainEndsWhereTheTableReadNoRef(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name   string
+		levels int
+		want   ir.TypeID
+	}{
+		{"a $ref the table read", nodeview.MergeDepthLimit, componentID("Cat")},
+		{"a $ref merged in past the bound", nodeview.MergeDepthLimit + 1, componentID("CatAlias")},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := parseFull(t, openapitest.ComponentSpec("    Pet:\n"+
+				"      oneOf: [{$ref: '#/components/schemas/Dog'}]\n"+
+				"      discriminator: {propertyName: kind, mapping: {c: CatAlias}}\n"+
+				"    Dog: {type: object, properties: {kind: {type: string}}}\n"+
+				"    Cat: {type: object, properties: {kind: {type: string}}}\n"+
+				"    CatAlias: "+openapitest.NestedMerges(c.levels, "{$ref: '#/components/schemas/Cat'}")+"\n"))
+			assert.Equal(t, c.want, discriminatorOf(t, doc, componentID("Pet")).Mapping["c"])
+		})
 	}
 }
 
