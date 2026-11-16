@@ -221,6 +221,25 @@ func TestModel_PatternPropertiesOrder(t *testing.T) {
 	assert.Equal(t, "^y-", m.AdditionalProps.Patterns[1].Pattern)
 }
 
+// TestModel_PatternPropertiesKeepSourceOrder pins that patterns land in the
+// order the source writes them, which is not their sorted order here.
+func TestModel_PatternPropertiesKeepSourceOrder(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(`    S:
+      type: object
+      patternProperties:
+        "^y-": {type: integer}
+        "^x-": {type: string}
+`)
+	doc, diags := schema.LowerSpec(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m := doc.Types[componentID("S")].(*ir.Model)
+	require.NotNil(t, m.AdditionalProps)
+	require.Len(t, m.AdditionalProps.Patterns, 2)
+	assert.Equal(t, "^y-", m.AdditionalProps.Patterns[0].Pattern)
+	assert.Equal(t, "^x-", m.AdditionalProps.Patterns[1].Pattern)
+}
+
 // TestModel_UnevaluatedPropertiesClosedAfterComposition pins where
 // `unevaluatedProperties: false` is a model's openness: only where no
 // additionalProperties stands beside it, which would evaluate every property it

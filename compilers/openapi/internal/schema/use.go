@@ -94,7 +94,7 @@ func (u Use) Default(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 	chain := u.Site(s).Chain()
 	own := len(chain) - len(u.Referents) + u.narrowedFrom
 	for i, r := range chain {
-		d := statement.Parsed(r).GetDefault()
+		d := defaultOf(r)
 		if d == nil || u.narrowed != nil && i >= own && !u.takes(d) {
 			continue
 		}
@@ -147,12 +147,27 @@ func (u Use) lentKeys(c lowering.Ctx) promotion.Referent {
 		read := keysOf(c, r)
 		from.Redacted = from.Redacted || read.Redacted
 		from.Deprecated = from.Deprecated || read.Deprecated
-		from.Homes = from.Homes || statement.Parsed(r).GetDeprecated()
-		if !lent && (read.Deprecated || statement.Parsed(r).GetDeprecated()) {
+		deprecated := deprecates(r)
+		from.Homes = from.Homes || deprecated
+		if !lent && (read.Deprecated || deprecated) {
 			from.Members, lent = read.Members, true
 		}
 	}
 	return from
+}
+
+// defaultOf returns the default s writes, nil for none.
+func defaultOf(s *statement.Schema) *yaml.Node {
+	if s == nil || s.Notes == nil {
+		return nil
+	}
+	return s.Notes.Default
+}
+
+// deprecates reports whether s writes `deprecated: true`, which a `false` or
+// none does not.
+func deprecates(s *statement.Schema) bool {
+	return s != nil && s.Notes != nil && s.Notes.Deprecated != nil && *s.Notes.Deprecated
 }
 
 // keysOf reads what the mapped keys of r, a schema a use falls back to, lend
@@ -160,7 +175,7 @@ func (u Use) lentKeys(c lowering.Ctx) promotion.Referent {
 func keysOf(c lowering.Ctx, r *statement.Schema) promotion.Referent {
 	m := statement.Parsed(r)
 	promoter := c.Promoter()
-	return promoter.Referent(m, m.GetDeprecated(), func() ir.Unmodeled {
+	return promoter.Referent(m, deprecates(r), func() ir.Unmodeled {
 		return annotation.ExtensionsNamed(m.GetExtensions(), promoter.Keys())
 	})
 }
@@ -297,7 +312,7 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jso
 		u.lendAll(p.speakers(c))
 	case statement.ParsedAt(p.ref) != nil:
 		u.deprecatedBase = slices.ContainsFunc(p.speakers(c).Referents, func(r *statement.Schema) bool {
-			return statement.Parsed(r).GetDeprecated() || keysOf(c, r).Deprecated
+			return deprecates(r) || keysOf(c, r).Deprecated
 		})
 	}
 	return u
@@ -352,8 +367,7 @@ func (u *Use) lendRun(c lowering.Ctx, js *statement.Statement) (*statement.Schem
 		return nil, false
 	}
 	for range e.Chain.Hops + 1 {
-		s := annotation.SchemaOf(statement.ParsedAt(js))
-		if s == nil {
+		if js.Truth != statement.Stated {
 			return nil, false
 		}
 		at := placeOf(c, js)

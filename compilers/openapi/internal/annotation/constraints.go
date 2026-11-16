@@ -54,8 +54,7 @@ const (
 // to keep. The second return holds a 3.0 exclusive modifier with no bound
 // beside it (applyExclusiveFlag), placed by pointer and doc.
 func Constraints(s *statement.Schema, take Bounds, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	if m == nil {
+	if s == nil || s.Truth != statement.Stated {
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
@@ -66,14 +65,14 @@ func Constraints(s *statement.Schema, take Bounds, exclusiveBoolean bool, pointe
 		diags = applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
 		diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
 	}
-	if take&StringBounds != 0 {
-		c.MinLength = ExactCount(s, "minLength", m.MinLength)
-		c.MaxLength = ExactCount(s, "maxLength", m.MaxLength)
-		c.Pattern = m.GetPattern()
+	if take&StringBounds != 0 && s.Text != nil {
+		c.MinLength = ExactCount(s, "minLength", s.Text.MinLength)
+		c.MaxLength = ExactCount(s, "maxLength", s.Text.MaxLength)
+		c.Pattern = s.Text.Pattern
 	}
-	if take&ObjectBounds != 0 {
-		c.MinProps = ExactCount(s, "minProperties", m.MinProperties)
-		c.MaxProps = ExactCount(s, "maxProperties", m.MaxProperties)
+	if take&ObjectBounds != 0 && s.Object != nil {
+		c.MinProps = ExactCount(s, "minProperties", s.Object.MinProperties)
+		c.MaxProps = ExactCount(s, "maxProperties", s.Object.MaxProperties)
 	}
 	if emptyConstraints(c) {
 		return nil, residue.kept, diags

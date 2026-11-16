@@ -92,15 +92,14 @@ func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bi
 // to an alias over what it names, which is no subtype or variant, so a route
 // naming it means what its $ref names.
 func follow(c lowering.Ctx, start link) valueChain {
-	scope := c.RefScope()
 	chain := valueChain{links: []link{start}}
 	for range maxChainHops {
 		decl := chain.end().decl
-		if _, writes := scope.Bindings.Entry(statement.ParsedAt(decl)); !writes {
+		if decl.Ref == nil || !decl.Ref.Bound {
 			break
 		}
-		next, ok := scope.Target(statement.ParsedAt(decl))
-		l := link{at: next, decl: c.Statements().Of(scope.Bindings.Declared(statement.ParsedAt(decl)))}
+		next, ok := landsAt(decl)
+		l := link{at: next, decl: declaredBy(c, decl.Ref.Entry)}
 		if ok {
 			l.id, ok = declaredAt(c, l.at, l.decl)
 		}
@@ -111,6 +110,26 @@ func follow(c lowering.Ctx, start link) valueChain {
 		chain.links = append(chain.links, l)
 	}
 	return chain
+}
+
+// landsAt returns where the $ref st writes lands, as the compiler resolved
+// it: the position its hop reaches (bind.Hop.Target). It is false for a
+// statement writing no $ref the table read, one landing on no schema and one
+// on a loop of $refs, which lands nowhere a type can be read.
+func landsAt(st *statement.Statement) (bind.Position, bool) {
+	if st.Ref == nil || !st.Ref.Bound || !st.Ref.Entry.Lands() {
+		return bind.Position{}, false
+	}
+	return st.Ref.Entry.Hop.Target, true
+}
+
+// declaredBy returns the statement of the schema written where e's $ref lands,
+// an Unwritten one where it lands on none.
+func declaredBy(c lowering.Ctx, e bind.Entry) *statement.Statement {
+	if e.Hop.Status != bind.Resolved {
+		return c.Statements().Read(nil)
+	}
+	return c.Statements().At(e.Hop.Target)
 }
 
 // declaredAt returns the ID of the type declared at at, holding decl, which a

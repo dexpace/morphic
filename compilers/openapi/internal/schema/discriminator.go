@@ -245,7 +245,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 			if st.Ref != nil {
 				target = refBranchTarget(c, st)
 			}
-			return statement.Parsed(target) != nil && slices.ContainsFunc(discriminatedAncestors(c, target),
+			return target != nil && target.Truth == statement.Stated && slices.ContainsFunc(discriminatedAncestors(c, target),
 				func(a *statement.Schema) bool { return discriminatorIn(a) == d })
 		})
 	})
@@ -259,7 +259,7 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 	var out []*statement.Schema
 	for b := range allOfRefBranches(c, s) {
 		target := refBranchTarget(c, b)
-		if statement.Parsed(target) == nil || visited[target] {
+		if target == nil || target.Truth != statement.Stated || visited[target] {
 			continue
 		}
 		visited[target] = true
@@ -302,8 +302,7 @@ func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 // is false for a branch naming none, one written inline or a $ref to any other
 // position.
 func componentNamed(scope resolve.Scope, b *statement.Statement) (string, ir.TypeID, bool) {
-	m := statement.ParsedAt(b)
-	at, ok := scope.Target(m)
+	at, ok := landsAt(b)
 	if !ok || at.Doc != bind.Source {
 		return "", "", false
 	}
@@ -492,8 +491,5 @@ func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool 
 
 // discriminatorIn returns the discriminator s writes, nil for none.
 func discriminatorIn(s *statement.Schema) *statement.Discriminator {
-	if s == nil || s.Object == nil {
-		return nil
-	}
-	return s.Object.Discriminator
+	return objectIn(s).Discriminator
 }

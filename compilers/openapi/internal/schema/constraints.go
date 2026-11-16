@@ -91,8 +91,7 @@ func exclusiveIsBoolean(c lowering.Ctx, s *statement.Schema) bool {
 // constraintsAt reads what s, written at pointer, bounds of the groups take
 // names.
 func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, take annotation.Bounds) (*ir.Constraints, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	if m == nil {
+	if !statesSchema(s) {
 		return nil, nil
 	}
 	cons, kept, diags := annotation.Constraints(s, take, exclusiveIsBoolean(c, s), pointer, c.Place())
@@ -264,27 +263,35 @@ func isCount(keyword string) bool {
 	return slices.Contains(valueCountKeywords, keyword) || keyword == "maxItems" || keyword == "minItems"
 }
 
-// countOf returns the parser model's reading of keyword, one of the six counts,
-// that s writes, and nil for no schema.
+// statesSchema reports whether s is a schema object, which alone has keywords
+// to read: not nil, not a boolean schema and not a value written as no schema.
+func statesSchema(s *statement.Schema) bool {
+	return s != nil && s.Truth == statement.Stated
+}
+
+// countOf returns the model's reading of keyword, one of the six counts, that
+// s writes, as its statement holds it, and nil for no schema.
 func countOf(s *statement.Schema, keyword string) *int64 {
-	m := statement.Parsed(s)
-	if m == nil {
+	if !statesSchema(s) {
 		return nil
 	}
 	switch keyword {
 	case "minLength":
-		return m.MinLength
+		return writtenText(s).MinLength
 	case "maxLength":
-		return m.MaxLength
+		return writtenText(s).MaxLength
 	case "minItems":
-		return m.MinItems
+		return writtenArray(s).MinItems
 	case "maxItems":
-		return m.MaxItems
-	case "minProperties":
-		return m.MinProperties
-	default:
-		return m.MaxProperties
+		return writtenArray(s).MaxItems
 	}
+	if s.Object == nil {
+		return nil
+	}
+	if keyword == "minProperties" {
+		return s.Object.MinProperties
+	}
+	return s.Object.MaxProperties
 }
 
 // stampConstraintDiags gives every constraint diagnostic the provenance of the
@@ -307,7 +314,6 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 // does (referenceConstraintsOf), since the census hoists an alias to keep any
 // other. PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	if !LoweredToOwnNode(c, ts, pointer, t) {
 		return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
 	}
@@ -316,7 +322,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 		return nil, nil
 	}
 	var takes kindSet
-	if m != nil && !lowersTypeArray(c, s, pointer) {
+	if statesSchema(s) && !lowersTypeArray(c, s, pointer) {
 		takes = positionTypes(c, s, pointer)
 	}
 	return ConstraintsOf(c, p, s, voices, pointer, takes)
@@ -332,8 +338,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // so a collection bound is held only where they admit an array, and the census
 // keeps one they do not (referenceUnhomed).
 func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	if m == nil {
+	if !statesSchema(s) {
 		return nil, nil
 	}
 	takes := positionTypes(c, s, pointer)
@@ -360,16 +365,15 @@ func voicedCollectionBounds(cons *ir.Constraints, voices []annotation.Voice) *ir
 // heldCollectionBounds returns the collection bounds of s that a reference's
 // constraints hold (referenceHolds), and nil where it writes none of them.
 func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
-	m := statement.Parsed(s)
 	if !slices.ContainsFunc(collectionBoundKeywords, func(k string) bool { return referenceHolds(s, k) }) {
 		return nil
 	}
 	cons := &ir.Constraints{UniqueItems: referenceHolds(s, "uniqueItems")}
 	if referenceHolds(s, "minItems") {
-		cons.MinItems = m.MinItems
+		cons.MinItems = writtenArray(s).MinItems
 	}
 	if referenceHolds(s, "maxItems") {
-		cons.MaxItems = m.MaxItems
+		cons.MaxItems = writtenArray(s).MaxItems
 	}
 	return cons
 }
@@ -380,14 +384,14 @@ func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
 // (annotation.CountIsExact), and a false uniqueItems, which a plain bool cannot
 // tell from unset and which would stop an alias being a decorator.
 func referenceHolds(s *statement.Schema, keyword string) bool {
-	m := statement.Parsed(s)
+	array := writtenArray(s)
 	switch keyword {
 	case "minItems":
-		return annotation.CountIsExact(s, keyword, m.MinItems)
+		return annotation.CountIsExact(s, keyword, array.MinItems)
 	case "maxItems":
-		return annotation.CountIsExact(s, keyword, m.MaxItems)
+		return annotation.CountIsExact(s, keyword, array.MaxItems)
 	case "uniqueItems":
-		return m.GetUniqueItems()
+		return array.UniqueItems != nil && *array.UniqueItems
 	default:
 		return false
 	}

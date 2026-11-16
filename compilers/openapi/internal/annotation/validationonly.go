@@ -25,8 +25,7 @@ func IfThenElseRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
 // object, and names the keywords it combines.
 func ContainsRaw(s *statement.Schema) (ir.RawValue, []string, error) {
-	m := statement.Parsed(s)
-	if m.GetContains() == nil && m.GetMinContains() == nil && m.GetMaxContains() == nil {
+	if s == nil || s.Array == nil || s.Array.Contains == (statement.Sub{}) && s.Array.MinContains == nil && s.Array.MaxContains == nil {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")
@@ -284,7 +283,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 	if ite != nil || iteErr != nil {
 		keep("openapi:if-then-else", ite, iteErr, validationOnlyMessage("if/then/else"), iteKeys...)
 	}
-	if ds := m.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
+	if s != nil && s.Logic != nil && len(s.Logic.DependentSchemas) > 0 {
 		keepKeyword("dependentSchemas")
 	}
 	// dependentRequired has no oas3.Schema field to gate on
