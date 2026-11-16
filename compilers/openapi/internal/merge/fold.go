@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -35,6 +36,10 @@ type Merger struct {
 	// Sources names the documents a declaration's Provenance.Source indexes,
 	// so a report names the one an entry brought a declaration from (at).
 	Sources []ir.SourceInfo
+	// Reads is what remains of the run's reads, which telling whether one part's
+	// declaration stands within another's composition spends (ownership); nil
+	// reads without bound.
+	Reads *budget.Budget
 	// Walk is the walk that declared the field.
 	Walk Walk
 }

@@ -9,6 +9,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
@@ -173,7 +174,7 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 			}
 		}
 	}
-	owners := ownership{r: registry{g.resolve}, composed: map[ir.TypeID]map[ir.TypeID]bool{}}
+	owners := newOwnership(registry{g.resolve}, g.Reads)
 	out, inherited := map[string][]declaration{}, Table{}
 	for wire, cs := range byWire {
 		left := owners.left(cs)
@@ -188,28 +189,94 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 }
 
 // ownership is what one settlement reads of the models its parts' declarations
-// come from: the types each composes (registry.composedSet), read once per
-// model however many names and candidates name it.
+// come from: how far each one's composition reaches (reaching), through alias
+// scalars, Base and Mixins, read once per model however many names and
+// candidates ask of it, and only as far as a question needs. Each type it
+// reads is charged to reads, the run's, so no fixed depth decides an answer: a
+// walk the reads cut short leaves a candidate in, and the settlement reports
+// the cut.
 type ownership struct {
-	r        registry
-	composed map[ir.TypeID]map[ir.TypeID]bool
+	r     registry
+	reads *budget.Budget
+	walks map[ir.TypeID]*ownerWalk
 }
 
-// of returns the types owner composes, reading them at the first ask.
-func (o ownership) of(owner ir.TypeID) map[ir.TypeID]bool {
-	set, read := o.composed[owner]
-	if !read {
-		set = o.r.composedSet(owner)
-		o.composed[owner] = set
+// newOwnership returns the ownership one settlement reads through r, charging
+// reads, which nil leaves without bound, as a Merger naming none does.
+func newOwnership(r registry, reads *budget.Budget) ownership {
+	if reads == nil {
+		reads = new(budget.Budget)
 	}
-	return set
+	return ownership{r: r, reads: reads, walks: map[ir.TypeID]*ownerWalk{}}
+}
+
+// ownerWalk is how far one model's composition has been read breadth first:
+// the types it reaches, those queued once, and those whose parts are yet to
+// read.
+type ownerWalk struct {
+	reached, queued map[ir.TypeID]bool
+	queue           []ir.TypeID
+}
+
+// reaching returns the types owner's composition reaches, read until it
+// reaches each of owners but owner, ends, or the reads run out. A hierarchy
+// composing a shared base at every level answers at its first level; one
+// composing at every level a model redeclaring a name it holds reads its whole
+// depth at each, its depth squared, until the reads run out.
+func (o ownership) reaching(owner ir.TypeID, owners map[ir.TypeID]bool) map[ir.TypeID]bool {
+	w, read := o.walks[owner]
+	if !read {
+		w = &ownerWalk{reached: map[ir.TypeID]bool{}, queued: map[ir.TypeID]bool{owner: true}, queue: []ir.TypeID{owner}}
+		o.walks[owner] = w
+	}
+	missing := len(owners) - 1 - len(others(w.reached, owners, owner))
+	for len(w.queue) > 0 && missing > 0 {
+		td, ok := o.r.resolve(w.queue[0])
+		w.queue = w.queue[1:]
+		if !ok {
+			continue
+		}
+		parts := ComposedOf(td)
+		if !o.reads.Spend(1 + len(parts)) {
+			w.queue = nil
+			break
+		}
+		for _, part := range parts {
+			if !w.reached[part] && part != owner && owners[part] {
+				missing--
+			}
+			w.reached[part] = true
+			if !w.queued[part] {
+				w.queued[part] = true
+				w.queue = append(w.queue, part)
+			}
+		}
+	}
+	return w.reached
+}
+
+// others returns the members of owners but owner that reached holds, reading
+// the smaller of the two.
+func others(reached, owners map[ir.TypeID]bool, owner ir.TypeID) []ir.TypeID {
+	small, large := reached, owners
+	if len(owners) < len(reached) {
+		small, large = owners, reached
+	}
+	var out []ir.TypeID
+	for id := range small {
+		if id != owner && large[id] {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // left returns cs, one name's candidates in part order, but those it reads
 // elsewhere: one an earlier part brings, or one whose model another
 // candidate's composes without being composed by it in turn, as two models on
-// a cycle each compose the other. Each model's composition is read once, so
-// the candidates cost their number, not its square.
+// a cycle each compose the other. Each model's composition is read once, in
+// the order of their IDs, so the candidates cost their number, not its square,
+// and the reads run out at the same model in every run.
 func (o ownership) left(cs []candidate) []candidate {
 	type key struct {
 		owner ir.TypeID
@@ -219,10 +286,11 @@ func (o ownership) left(cs []candidate) []candidate {
 	for _, cd := range cs {
 		owners[cd.decl.Owner] = true
 	}
-	composers := map[ir.TypeID][]ir.TypeID{}
-	for owner := range owners {
-		for part := range o.of(owner) {
-			if owners[part] {
+	reach, composers := map[ir.TypeID]map[ir.TypeID]bool{}, map[ir.TypeID][]ir.TypeID{}
+	if len(owners) > 1 {
+		for _, owner := range slices.Sorted(maps.Keys(owners)) {
+			reach[owner] = o.reaching(owner, owners)
+			for _, part := range others(reach[owner], owners, owner) {
 				composers[part] = append(composers[part], owner)
 			}
 		}
@@ -234,7 +302,7 @@ func (o ownership) left(cs []candidate) []candidate {
 			continue
 		}
 		brought[k] = true
-		within := func(by ir.TypeID) bool { return !o.of(cd.decl.Owner)[by] }
+		within := func(by ir.TypeID) bool { return !reach[cd.decl.Owner][by] }
 		if !slices.ContainsFunc(composers[cd.decl.Owner], within) {
 			out = append(out, cd)
 		}

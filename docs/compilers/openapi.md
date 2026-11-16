@@ -2730,12 +2730,12 @@ declaration over an entry's, and of two entries the later, and judge none. Once 
 returned, one settlement folds, on each model, every member its own declarations or its `allOf`
 entries decide more than once. Each entry brings the declaration the flattening of what it names
 takes, which a model settled first holds folded from every other its composition gives the member,
-and one another entry's composition holds stands within that entry's, so it brings nothing. Each
-model settles after every model it composes, however deep a hierarchy nests, so the order components
-are declared in decides nothing, nor, off a cycle, their names. A cycle of compositions reads the
-model it returns to as it stands, and the models' IDs pick which one that is, so where two
-declarations on a cycle admit no value together, the names decide which its models keep, and the
-tie is reported.
+and one another entry's composition holds, however deep, stands within that entry's, so it brings
+nothing. Each model settles after every model it composes, however deep a hierarchy nests, so the
+order components are declared in decides nothing, nor, off a cycle, their names. A cycle of
+compositions reads the model it returns to as it stands, and the models' IDs pick which one that is,
+so where two declarations on a cycle admit no value together, the names decide which its models
+keep, and the tie is reported.
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
 variant reads before the body. A declaration an entry brings stays
@@ -2756,9 +2756,11 @@ composes for a member lists its parts as the entries bringing them are written, 
 through 8 rounds; one nested deeper is left as its entries declare it, with an
 `openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than one
 model declares, so a hierarchy costs its depth again at each level only where every level adds such
-a name, and a run reads at most 16,777,216 of their declarations, a read of a model not settled
-yet, as a cycle's are, counting each type and entry its flattening walks too; past that each model
-left folds its own declarations alone, with an `openapi/budget-exceeded` error at the first.
+a name, or composes a model redeclaring one it holds, which telling whether that declaration stands
+within the hierarchy reads to its base. A run reads at most 16,777,216 of their declarations, a read
+of a model not settled yet, as a cycle's are, counting each type and entry its flattening walks too,
+as does telling whether one part's declaration stands within another's; past that each model left
+folds its own declarations alone, with an `openapi/budget-exceeded` error at the first.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
@@ -2828,6 +2830,11 @@ left folds its own declarations alone, with an `openapi/budget-exceeded` error a
   `schema.TestMembers_ReadingAModelNotSettledChargesItsComposition`,
   `schema.TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk`,
   `merge.TestOwnership_ReadsEachModelsCompositionOnce`,
+  `merge.TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth`,
+  `merge.TestOwnership_StopsOnceItReachesEveryOtherModel`,
+  `merge.TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses`,
+  `schema.TestMembers_ABaseComposedBesideItsHierarchyBringsNothingAtAnyDepth`,
+  `schema.TestMembers_ACutTellingDeclarationsApartIsReported`,
   `merge.TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder`,
   `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,

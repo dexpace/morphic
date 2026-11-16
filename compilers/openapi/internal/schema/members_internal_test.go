@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"strings"
 	"testing"
@@ -148,6 +149,57 @@ func TestMembers_ReadingAModelNotSettledChargesItsComposition(t *testing.T) {
 
 	require.Len(t, rec.tableOf(reg, "t/N", "t/X"), 1)
 	assert.Equal(t, 4+3+3+1, rec.reads.Spent(), "types, entries, declarations and the table's entry")
+}
+
+// deepLeaf is Leaf, redeclaring the id Base declares through a chain of depth
+// models above Base, and M, composing Leaf and Base again.
+func deepLeaf(depth int) string {
+	var b strings.Builder
+	b.WriteString("    Base: {type: object, properties: {id: {type: integer, description: base}}}\n")
+	below := "Base"
+	for i := 1; i <= depth; i++ {
+		fmt.Fprintf(&b, "    L%d: {allOf: [{$ref: '#/components/schemas/%s'}]}\n", i, below)
+		below = fmt.Sprintf("L%d", i)
+	}
+	fmt.Fprintf(&b, "    Leaf: {allOf: [{$ref: '#/components/schemas/%s'}, "+
+		"{type: object, properties: {id: {type: integer, description: leaf, minimum: 5}}}]}\n", below)
+	b.WriteString("    M: {allOf: [{$ref: '#/components/schemas/Leaf'}, {$ref: '#/components/schemas/Base'}]}\n")
+	return b.String()
+}
+
+// TestMembers_ABaseComposedBesideItsHierarchyBringsNothingAtAnyDepth pins a
+// model composing a hierarchy and its base again: the base's declaration
+// stands within the hierarchy however deep it nests, so the model declares
+// nothing, reports nothing, and its flattening takes Leaf's declaration.
+func TestMembers_ABaseComposedBesideItsHierarchyBringsNothingAtAnyDepth(t *testing.T) {
+	t.Parallel()
+	for _, depth := range []int{4, 200} {
+		doc, diags, _ := settledUnder(t, deepLeaf(depth), budget.Unbounded())
+
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
+		require.True(t, ok)
+		assert.Empty(t, m.Properties, "at depth %d", depth)
+		flat := ir.FlattenedProperties(doc.Types, "t/openapi/components/schemas/M")
+		require.Len(t, flat.Properties, 1, "at depth %d", depth)
+		assert.Equal(t, "leaf", flat.Properties[0].Property.Docs.Description, "at depth %d", depth)
+		for _, d := range diags {
+			assert.NotContains(t, string(d.Provenance.Pointer), "/components/schemas/M", "at depth %d", depth)
+		}
+	}
+}
+
+// TestMembers_ACutTellingDeclarationsApartIsReported pins the bound on telling
+// whether one part's declaration stands within another's composition: it
+// spends the run's reads, and where they run out there, in the last model to
+// settle, the cut is reported at that model.
+func TestMembers_ACutTellingDeclarationsApartIsReported(t *testing.T) {
+	t.Parallel()
+	_, _, all := settledUnder(t, deepLeaf(200), budget.Unbounded())
+
+	_, diags, _ := settledUnder(t, deepLeaf(200), budget.AtMost(all-50))
+
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/M"}, openapitest.PointersOf(diags, diag.BudgetExceeded), "%+v", diags)
 }
 
 // clique is n models each composing every other, each declaring x.

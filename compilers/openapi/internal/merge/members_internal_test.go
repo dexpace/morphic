@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -407,7 +408,8 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 // candidates costs: each model's composition is read once, however many other
 // candidates ask whether it composes theirs, so the reads grow with the
 // candidates, not their square. Each candidate's model composes a chain as
-// deep as the walk reads, and none composes another, so every one is left.
+// deep as the judge's walk reads, and none composes another, so every one is
+// left.
 func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
 	t.Parallel()
 	reads := func(n int) int {
@@ -425,17 +427,108 @@ func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
 			cs[i] = candidate{decl: ir.PropertyDecl{Owner: owner, Property: &p}, part: i}
 		}
 		count := 0
-		o := ownership{composed: map[ir.TypeID]map[ir.TypeID]bool{}, r: registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+		o := newOwnership(registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			count++
 			td, ok := reg[id]
 			return td, ok
-		}}}
+		}}, nil)
 
 		require.Len(t, o.left(cs), n, "no model composes another")
 		return count
 	}
 	a, b := reads(50), reads(100)
 	assert.LessOrEqual(t, float64(b), 2.5*float64(a), "reads at 50 and 100 candidates: %d, %d", a, b)
+}
+
+// chainTo returns reg with a chain of depth models above base, each composing
+// the one below it, and the top one's ID.
+func chainTo(reg map[ir.TypeID]ir.TypeDef, base ir.TypeID, depth int) ir.TypeID {
+	below := base
+	for i := 1; i <= depth; i++ {
+		id := ir.TypeID(fmt.Sprintf("t/level-%d", i))
+		reg[id] = &ir.Model{ID: id, Base: &ir.TypeRef{Target: below}}
+		below = id
+	}
+	return below
+}
+
+// countingRegistry returns a registry reading reg, and the count of its reads.
+func countingRegistry(reg map[ir.TypeID]ir.TypeDef) (registry, *int) {
+	count := new(int)
+	return registry{resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+		*count++
+		td, ok := reg[id]
+		return td, ok
+	}}, count
+}
+
+// leafOver returns a registry holding t/Base declaring p and t/Leaf
+// redeclaring it, which composes t/Base through a chain of depth models and,
+// where direct, as a mixin too, and a candidate of each, Leaf's part first.
+func leafOver(depth int, direct bool) (map[ir.TypeID]ir.TypeDef, []candidate) {
+	reg := map[ir.TypeID]ir.TypeDef{}
+	baseP := declared("p", "t/prim/integer", "/Base/p")
+	reg["t/Base"] = &ir.Model{ID: "t/Base", Properties: []ir.Property{baseP}}
+	top := chainTo(reg, "t/Base", depth)
+	leafP := declared("p", "t/prim/integer", "/Leaf/p")
+	leaf := &ir.Model{ID: "t/Leaf", Base: &ir.TypeRef{Target: top}, Properties: []ir.Property{leafP}}
+	if direct {
+		leaf.Mixins = []ir.TypeRef{{Target: "t/Base"}}
+	}
+	reg["t/Leaf"] = leaf
+	return reg, []candidate{
+		{decl: ir.PropertyDecl{Owner: "t/Leaf", Property: &leafP}, part: 0},
+		{decl: ir.PropertyDecl{Owner: "t/Base", Property: &baseP}, part: 1},
+	}
+}
+
+// TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth pins that a
+// declaration another candidate's model composes stands within it however deep
+// that model's hierarchy nests, past the judge's walk too: a model composing a
+// hierarchy and its base again folds the hierarchy's declaration alone.
+func TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth(t *testing.T) {
+	t.Parallel()
+	for _, depth := range []int{1, maxComposedParts, 4 * maxComposedParts} {
+		reg, cs := leafOver(depth, false)
+		r, _ := countingRegistry(reg)
+
+		left := newOwnership(r, nil).left(cs)
+
+		require.Len(t, left, 1, "at depth %d", depth)
+		assert.Equal(t, ir.TypeID("t/Leaf"), left[0].decl.Owner, "at depth %d", depth)
+	}
+}
+
+// TestOwnership_StopsOnceItReachesEveryOtherModel pins what telling one
+// candidate from another costs where one model composes the other directly
+// beside a deep hierarchy: the walk stops at the first level, so a hierarchy
+// composing a shared base at every level costs its size, not its depth squared.
+func TestOwnership_StopsOnceItReachesEveryOtherModel(t *testing.T) {
+	t.Parallel()
+	reads := func(depth int) int {
+		reg, cs := leafOver(depth, true)
+		r, count := countingRegistry(reg)
+
+		require.Len(t, newOwnership(r, nil).left(cs), 1, "at depth %d", depth)
+		return *count
+	}
+	assert.Equal(t, reads(10), reads(1000), "reads at depth 10 and 1,000")
+}
+
+// TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses pins the
+// run's reads as the walk's bound: each type it reads is charged, and a walk
+// they cut short tells nothing, so both candidates are left and the reads say
+// they ran out, which the settlement reports.
+func TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses(t *testing.T) {
+	t.Parallel()
+	reg, cs := leafOver(100, false)
+	r, _ := countingRegistry(reg)
+	reads := budget.New(budget.AtMost(50))
+
+	left := newOwnership(r, &reads).left(cs)
+
+	assert.Len(t, left, 2, "a cut walk shows no candidate within another")
+	assert.True(t, reads.Exhausted(), "the walk charged its reads")
 }
 
 // TestTakenOutside_LeavesOutTheComposingModelsOwn pins the declaration a part's

@@ -74,10 +74,11 @@ const maxMemberAliasHops = 64
 // models a model composes say (merge.Table), summed over the run
 // (styleguide bounded-everything rule). A table holds only the names more than
 // one model declares, so a hierarchy costs its depth again at each level only
-// where every level adds such a name. A read of a model not settled yet, as a
-// cycle's are, counts the composition its flattening walks too
-// (chargeComposition). Past the bound each model left settles its own
-// declarations alone.
+// where every level adds such a name, or composes a model redeclaring one it
+// holds, whose declaration may stand within the hierarchy (merge.Merger.Reads).
+// A read of a model not settled yet, as a cycle's are, counts the composition
+// its flattening walks too (chargeComposition). Past the bound each model left
+// settles its own declarations alone.
 const maxMemberReads = 1 << 24
 
 // Settle settles each noted model in rounds, each round in settleOrder, so
@@ -171,9 +172,10 @@ func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.T
 func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.SourceInfo) []ir.Diagnostic {
 	rec.settled[id] = true
 	f := rec.byID[id]
-	g := merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Sources: sources, Walk: f}
+	g := merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Sources: sources, Reads: &rec.reads, Walk: f}
 	diags, table := f.idx.Settle(g, rec.partTables(reg, f.m), rec.shared)
 	rec.tables[id] = table
+	rec.cutAt(id)
 	if readingsOf(f.c).stored() {
 		diags = append(diags, f.c.DiagAt(ir.SeverityError, diag.InternalInvariant, f.pointer,
 			"internal: the model's members settle after a discriminator-inference reading is stored, which may "+
