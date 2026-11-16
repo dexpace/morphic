@@ -5,6 +5,7 @@ package openapicases
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/internal/harness"
@@ -125,7 +126,25 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
-	return harness.Document{Sources: []compilers.Source{{Path: specPath, Data: data}}}, true
+	doc := harness.Document{Sources: []compilers.Source{{Path: specPath, Data: data}}}
+	c.neighbours(&doc, at)
+	return doc, true
+}
+
+// neighbours names, in doc, the cases the presence oracle compares the case at
+// with: the case leaving the construct out, and, for a keyword something
+// carries, the case writing its other value. The none construct and a
+// keyword's other value name none: the latter is asked through its keyword.
+func (c cases) neighbours(doc *harness.Document, at []int) {
+	if at[2] == 0 || (at[2]-1)%2 != 0 {
+		return
+	}
+	k := c.constructs[(at[2]-1)/2]
+	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
+	doc.Carried, doc.Reason = k.reason == "", k.reason
+	if doc.Carried {
+		doc.Other = slices.Concat(at[:2], []int{at[2] + 1}, at[3:])
+	}
 }
 
 // holds reports whether at names a case of c: one index per axis, each within
