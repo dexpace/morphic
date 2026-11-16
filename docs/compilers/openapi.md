@@ -4596,7 +4596,8 @@ no bound ([`string-formats`](#string-formats)).
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
   at its position, with the census's other keywords, not at the keyword. A read counts schemas, not
   their keys, so positions naming a schema of very many keys cost their number times the schemas
-  read times those keys (#1939).
+  read times those keys (#1939). A bound beside an enum a promotion opens, which bounds the values
+  it does not list, is kept verbatim as a closed one's is (#2004).
 
 ### `validation-only`
 
