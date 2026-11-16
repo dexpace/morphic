@@ -63,7 +63,7 @@ func (p position) heldByAnother(i int) bool {
 // nothing of null, which the reference to the model says (position.null). The
 // pointer is the declaration last to widen the field (fieldSpan), so swapping
 // two branches renames the model, and moves a report on a member it settles
-// (GitHub #1921).
+// (GitHub #1921, #1992).
 func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int
 	for k, c := range cs {

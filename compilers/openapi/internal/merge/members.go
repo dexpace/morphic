@@ -246,7 +246,7 @@ type ownerWalk struct {
 // reaches each of owners but owner, ends, or the reads run out. A hierarchy
 // composing a shared base at every level answers at its first level; one
 // composing at every level a model redeclaring a name it holds reads its whole
-// depth at each, its depth squared, until the reads run out.
+// depth at each, its depth squared, until the reads run out (GitHub #1993).
 func (o ownership) reaching(owner ir.TypeID, owners map[ir.TypeID]bool) map[ir.TypeID]bool {
 	w, read := o.walks[owner]
 	if !read {

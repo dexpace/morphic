@@ -2735,7 +2735,7 @@ nothing. Each model settles after every model it composes, however deep a hierar
 order components are declared in decides nothing, nor, off a cycle, their names. A cycle of
 compositions reads the model it returns to as it stands, and the models' IDs pick which one that is,
 so where two declarations on a cycle admit no value together, the names decide which its models
-keep, and the tie is reported.
+keep, and the tie is reported (#1995).
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
 variant reads before the body. A declaration an entry brings stays
@@ -2760,10 +2760,11 @@ through 8 rounds; one nested deeper is left as its entries declare it, with an
 `openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than one
 model declares, so a hierarchy costs its depth again at each level only where every level adds such
 a name, or composes a model redeclaring one it holds, which telling whether that declaration stands
-within the hierarchy reads to its base. A run reads at most 16,777,216 of their declarations, a read
-of a model not settled yet, as a cycle's are, counting each type and entry its flattening walks too,
-as does telling whether one part's declaration stands within another's; past that each model left
-folds its own declarations alone, with an `openapi/budget-exceeded` error at the first.
+within the hierarchy reads to its base (#1993). A run reads at most 16,777,216 of their
+declarations, a read of a model not settled yet, as a cycle's are, counting each type and entry its
+flattening walks too, as does telling whether one part's declaration stands within another's; past
+that each model left folds its own declarations alone, with an `openapi/budget-exceeded` error at
+the first.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
@@ -2989,8 +2990,9 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   two depths keeps the identity of the one written first, so swapping the branches moves it (#1931);
   a part reached through more than 64 alias scalars brings nothing, its member left as the
   flattening takes it, as the type judge, a tag's reading and a multipart body read such a chain no
-  further; and a model the fold composes for a member is minted at the declaration last to widen the
-  field, so swapping two branches renames it, and moves a report on a member it settles (#1921).
+  further (#1994); and a model the fold composes for a member is minted at the declaration last to
+  widen the field, so swapping two branches renames it, and moves a report on a member it settles
+  (#1921, #1992).
 
 ### `allof-required`
 
