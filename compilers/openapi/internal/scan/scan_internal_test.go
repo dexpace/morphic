@@ -865,6 +865,43 @@ func TestPointers_AllocateInTheTreesSizeNotItsPointers(t *testing.T) {
 	assert.Less(t, alloc, uint64(bound), "indexing the tree and asking for one pointer allocated %d bytes", alloc)
 }
 
+// TestPointers_SpellADeepPointerInAFewTimesItsBytes pins the cost of spelling
+// one pointer: a node under many keys allocates a few times its pointer's
+// bytes. A pointer grown token by token is copied at each, half the node's
+// depth in copies of the whole, for every finding placed there. The tree is
+// indexed before the measurement, by asking about its root.
+//
+// It is not parallel: a parallel test would allocate during the measurement.
+func TestPointers_SpellADeepPointerInAFewTimesItsBytes(t *testing.T) {
+	const (
+		depth  = 512
+		keyLen = 256
+		times  = 8
+	)
+	key := strings.Repeat("k~/", keyLen/3)
+	deep := ynode.Scalar("v")
+	root := deep
+	for range depth {
+		root = ynode.Map(ynode.Scalar(key), root)
+	}
+	pointers := Pointers(t.Context(), root)
+	_, held := pointers(root)
+	require.True(t, held, "the tree holds its root")
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	got, held := pointers(deep)
+	runtime.ReadMemStats(&after)
+	runtime.KeepAlive(root)
+
+	require.True(t, held, "the tree holds the node")
+	want := strings.Repeat("/"+strings.Repeat("k~0~1", keyLen/3), depth)
+	same := string(got) == want
+	assert.True(t, same, "the pointer asked for is %d bytes, want %d", len(got), len(want))
+	alloc := after.TotalAlloc - before.TotalAlloc
+	assert.Less(t, alloc, uint64(times*len(want)), "spelling a pointer of %d bytes allocated %d", len(want), alloc)
+}
+
 // TestPointers_SaysWhetherTheTreeHoldsTheNode pins the answer a caller other
 // than provenance.Tree.Node reads: the node's pointer and that the tree holds
 // it, the document's own content included at "", and no pointer, held by
