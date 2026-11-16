@@ -28,7 +28,7 @@ func TestMessage_UseOpensItsSentence(t *testing.T) {
 		"Callers should, instead, use `a`.": {"a"},
 	} {
 		doc, _, member := phraseDocument(message)
-		assert.Empty(t, replacement.Infer(inferring(), whole.New(doc)), message)
+		assert.Empty(t, replacement.Infer(replacement.Inference{}, inferring(), whole.New(doc)), message)
 		_, wantMembers := entities(want)
 		assert.Equal(t, wantMembers, member.Deprecation.ReplacedBy, message)
 	}

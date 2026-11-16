@@ -7,17 +7,18 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Apply fills what w's names imply, under each policy c honours, and returns
-// what the readings report. c is the source's context, and w the document its
-// lowerings built, whose service tree and registry are whole.
-func Apply(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
+// Apply fills what w's names imply, under each policy of policy it honours,
+// and returns what the readings report. p is the run's promoter, whose keys a
+// reading defers to, and w the document its lowerings built, whose service
+// tree and registry are whole.
+func Apply(policy Policy, p promotion.Promoter, w *whole.Document) (diags []ir.Diagnostic) {
 	for _, op := range w.Ops {
-		diags = append(diags, operation(c, w, op)...)
+		diags = append(diags, operation(policy, p, w, op)...)
 	}
 	// Each member is read alone and none is reported, so the registry's order,
 	// which no sort fixes here, decides nothing.
@@ -27,7 +28,7 @@ func Apply(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
 			continue
 		}
 		for i := range m.Properties {
-			redact(c, w.Types, &m.Properties[i])
+			redact(policy.Secret, p, w.Types, &m.Properties[i])
 		}
 	}
 	return diags
@@ -36,23 +37,23 @@ func Apply(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
 // its header parameters and its responses' headers.
-func operation(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+func operation(policy Policy, p promotion.Promoter, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
 	reg := w.Types
-	diags := idempotency(c, w, op)
+	diags := idempotency(policy.Idempotency, w, op)
 	for i := range op.Params {
-		p := &op.Params[i]
-		redactUse(c, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
+		param := &op.Params[i]
+		redactUse(policy.Secret, p, reg, param.Name, param.Type, param.Unmodeled, &param.Secret, &param.Provenance)
 	}
-	diags = append(diags, httpDateParam(c, w, op)...)
+	diags = append(diags, httpDateParam(policy.HTTPDate, p, w, op)...)
 	for _, hs := range responseHeaders(op) {
 		for i := range hs {
-			redact(c, reg, &hs[i].Property)
-			diags = append(diags, httpDate(c, reg, &hs[i])...)
+			redact(policy.Secret, p, reg, &hs[i].Property)
+			diags = append(diags, httpDate(policy.HTTPDate, p, reg, &hs[i])...)
 		}
 	}
 	for _, hs := range partHeaders(op) {
 		for i := range hs {
-			redact(c, reg, &hs[i].Property)
+			redact(policy.Secret, p, reg, &hs[i].Property)
 		}
 	}
 	return diags
@@ -127,7 +128,7 @@ type chain struct {
 // readChain reads the chain from id through each scalar's Base, to
 // maxScalarHops of them, and reports false where it ends at a type that is no
 // primitive, at a type the registry does not hold, or past the bound.
-func readChain(p lowering.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
+func readChain(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, bool) {
 	var ch chain
 	for range maxScalarHops {
 		td := reg[id]
@@ -136,7 +137,7 @@ func readChain(p lowering.Promoter, reg ir.TypeRegistry, id ir.TypeID) (chain, b
 		}
 		common := td.Common()
 		ch.sensitive = ch.sensitive || common.Sensitive
-		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, lowering.TargetRedaction)
+		ch.spoken = ch.spoken || p.Writes(common.Unmodeled, promotion.TargetRedaction)
 		switch n := td.(type) {
 		case *ir.Primitive:
 			ch.prim = n.Prim

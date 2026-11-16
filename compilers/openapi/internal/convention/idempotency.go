@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -28,8 +27,8 @@ const methodQuery = "QUERY"
 // whose safety the compiler does not know, and the header bound twice, are
 // reported as undecided. w is the document holding op. The rule is
 // docs/compilers/openapi.md#idempotency-inference.
-func idempotency(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
-	if !c.IdempotencyInference.Honours() || op.Idempotency.Kind != ir.IdempotencyUnknown ||
+func idempotency(policy IdempotencyInference, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
+	if !policy.Honours() || op.Idempotency.Kind != ir.IdempotencyUnknown ||
 		len(op.Bindings.HTTP) != 1 {
 		return nil
 	}
@@ -49,7 +48,7 @@ func idempotency(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagn
 			idempotencyKeyHeader)
 	}
 	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: keys[0]}
-	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, lowering.IdempotencyInferenceHeuristic)
+	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, IdempotencyInferenceHeuristic)
 	return nil
 }
 

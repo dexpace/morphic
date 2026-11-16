@@ -4,6 +4,8 @@
 package lowering_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -52,7 +54,7 @@ func TestBeside_KeysTheUseAndEachAlias(t *testing.T) {
 	c, params := besideParams(t)
 
 	got, diags := lowering.Beside[soa.Parameter](c, params[0], "/paths/~1a/get/parameters/0", true)
-	assert.Equal(t, []string{"openapi:reference/0/required", "openapi:reference/0/x-note"}, sortedKeys(got))
+	assert.Equal(t, []string{"openapi:reference/0/required", "openapi:reference/0/x-note"}, slices.Sorted(maps.Keys(got)))
 	assert.Equal(t, `"kept"`, string(got["openapi:reference/0/x-note"].Value))
 	assert.Equal(t, "/paths/~1a/get/parameters/0/x-note", string(got["openapi:reference/0/x-note"].Provenance.Pointer))
 	assert.Empty(t, diags, "the table reports a key no object defines; the census keeps it and says nothing")
@@ -64,7 +66,7 @@ func TestBeside_KeysTheUseAndEachAlias(t *testing.T) {
 	assert.Equal(t, "/paths/~1a/get/parameters/0/summary", string(diags[0].Provenance.Pointer))
 
 	got, _ = lowering.Beside[soa.Parameter](c, params[3], "/paths/~1a/get/parameters/3", true)
-	assert.Equal(t, []string{"openapi:reference/0/x-use", "openapi:reference/1/x-alias"}, sortedKeys(got),
+	assert.Equal(t, []string{"openapi:reference/0/x-use", "openapi:reference/1/x-alias"}, slices.Sorted(maps.Keys(got)),
 		"the use and the alias each write their own entry")
 	assert.Equal(t, "/components/parameters/Alias/x-alias",
 		string(got["openapi:reference/1/x-alias"].Provenance.Pointer))

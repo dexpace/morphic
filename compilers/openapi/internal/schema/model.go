@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -219,7 +220,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 		var secretBy ir.Inferred
 		if p.Secret && !declared {
-			secretBy = lowering.ExtensionPromotionHeuristic
+			secretBy = promotion.ExtensionPromotionHeuristic
 		}
 		fields.merge(p, redeclarationSource(js), secretBy)
 	}

@@ -75,9 +75,8 @@ func leads(shape oas.Shape, of oas.Kind) state {
 	return sObject
 }
 
-// containerOf is the container of kind of what in, keyed by what each holds,
-// gives an object of kind of, or sObject for a kind the binder reads no
-// container of.
+// containerOf is the container state in gives for the state an object of kind
+// of is read at, or sObject where the binder reads no such container.
 func containerOf(in map[state]state, of oas.Kind) state {
 	if s, ok := kindStates[of]; ok {
 		if c, ok := in[s]; ok {

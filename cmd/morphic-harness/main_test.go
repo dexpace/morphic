@@ -31,7 +31,7 @@ func TestRun_AllOKExitsZero(t *testing.T) {
 	writeSpec(t, dir, "b.yaml", testspec.Minimal)
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+	code := run(context.Background(), nil, []string{dir}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stdout.String(), "a.yaml")
@@ -49,7 +49,7 @@ func TestRun_PrintsWhatEachOracleReached(t *testing.T) {
 	writeSpec(t, dir, "dup.yaml", testspec.Minimal+"info: {title: again, version: \"2\"}\n")
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+	code := run(context.Background(), nil, []string{dir}, &stdout, &stderr)
 
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 	report, summary, found := strings.Cut(stdout.String(), "\n\n")
@@ -75,7 +75,7 @@ func TestRun_AnyFailureExitsOne(t *testing.T) {
 	writeSpec(t, dir, "bad.yaml", testspec.BadHeader)
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+	code := run(context.Background(), nil, []string{dir}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "a failing spec must gate the exit code")
 }
@@ -86,7 +86,7 @@ func TestRun_SpecNoCompilerServesExitsOne(t *testing.T) {
 	writeSpec(t, dir, "swagger.yaml", "swagger: \"2.0\"\n")
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+	code := run(context.Background(), nil, []string{dir}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "a recognized format nobody serves is a finding")
 	assert.Contains(t, stdout.String(), "unrecognized")
@@ -99,7 +99,7 @@ func TestRun_FilesNoCompilerRecognizesAreNotSwept(t *testing.T) {
 	writeSpec(t, dir, "notes.txt", "not a spec")
 
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{dir}, &stdout, &stderr)
+	code := run(context.Background(), nil, []string{dir}, &stdout, &stderr)
 
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 	assert.Empty(t, stdout.String(), "nothing in the directory is a spec, so there is nothing to report")
@@ -108,7 +108,7 @@ func TestRun_FilesNoCompilerRecognizesAreNotSwept(t *testing.T) {
 func TestRun_MissingPathExitsTwo(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), []string{filepath.Join(t.TempDir(), "nope")}, &stdout, &stderr)
+	code := run(context.Background(), nil, []string{filepath.Join(t.TempDir(), "nope")}, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "morphic-harness:")
@@ -117,7 +117,7 @@ func TestRun_MissingPathExitsTwo(t *testing.T) {
 func TestRun_NoArgsExitsTwo(t *testing.T) {
 	t.Parallel()
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), nil, &stdout, &stderr)
+	code := run(context.Background(), nil, nil, &stdout, &stderr)
 
 	assert.Equal(t, 2, code)
 	assert.Contains(t, stderr.String(), "usage")

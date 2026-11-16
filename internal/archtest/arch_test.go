@@ -197,6 +197,18 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+	// What a schema position writes, read once into one value: each key in the
+	// slot oas gives it, each slot's values typed, and the inline allOf entries
+	// flattened. It reaches the bindings for where each schema was read and
+	// what its $ref names, nodeview for the keys as the parser reads them, oas
+	// for the rows in force, and the library's schema model, in one file, so
+	// that the schema lowering and annotation, which sit above it, read what
+	// a schema says without reading the parser.
+	"compilers/openapi/internal/statement": {module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3", "go.yaml.in/yaml/v3"},
 	// One reader of bytes: the source, an overlay and each document a reference
 	// names become the parser's tree of their first document, read as JSON when
 	// they are one JSON text (docs/parser-library.md#json-as-yaml) and else as a
@@ -303,6 +315,14 @@ var rules = map[string][]string{
 	// whose walk reads the table, and the table is no part of merge's fold. It
 	// reaches ir alone.
 	"compilers/openapi/internal/spelling": {module + "/ir"},
+	// The vendor-extension promotion policy: which extension fills which typed
+	// field. It reads what a node keeps in Unmodeled, never the source, so it
+	// reaches diag for what it reports and ids for the scope a key is kept under,
+	// and nothing that lowers: the walks and the readers of the whole document
+	// both read it.
+	"compilers/openapi/internal/promotion": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids"},
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
@@ -314,7 +334,8 @@ var rules = map[string][]string{
 	// It reaches nodeview and yaml to weigh the declaration a $ref names, which a
 	// reference's lowering copies, and yaml for the node a schema's rows are
 	// found by. It reaches annotation to keep what a reference writes beside its
-	// $ref, as every keeper does.
+	// $ref, as every keeper does, and promotion for the policy it carries and the
+	// list of texts a group path is read as.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
@@ -327,6 +348,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
@@ -350,25 +372,27 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, by a key or in its message,
-	// read once the document is whole. It reaches lowering for the policies
-	// and the promotion that reads the names, whole for the document they
-	// name, and diag for what it reports, and nothing of the walks
-	// (docs/compilers/openapi.md#policies).
+	// read once the document is whole. It reaches promotion for the promotion
+	// that reads the names, whole for the document they name, ids for the ID a
+	// schema's name gives it, and diag for what it reports, and nothing of the
+	// walks (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
 	// What a document's names imply, read once the document is whole: an
 	// operation's idempotency token, a credential's redaction and a header's
-	// HTTP-date text. It reaches lowering for the policies and the promotion
-	// whose keys it defers to, whole for the document it reads, and diag for
-	// what it reports, and nothing of the walks.
+	// HTTP-date text. It reaches promotion for the promotion whose keys it
+	// defers to, whole for the document it reads, and diag for what it reports,
+	// and nothing of the walks.
 	"compilers/openapi/internal/convention": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
 	// A compiled document as the steps after the walks read it: its
 	// operations listed, and its members, parameters and headers indexed. It
@@ -385,29 +409,30 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/runtimeexpr": {module + "/ir",
 		module + "/compilers/openapi/internal/whole"},
 	// The pagination an operation's extensions declare, and the pagination the
-	// names it uses say, read once the document is whole. It reaches lowering
-	// for the policy, whole for the document it reads, and runtimeexpr for the
-	// expressions an extension writes, and nothing of the walks.
+	// names it uses say, read once the document is whole. It reaches promotion
+	// for the keys an operation writes, whole for the document it reads, and
+	// runtimeexpr for the expressions an extension writes, and nothing of the
+	// walks.
 	"compilers/openapi/internal/pagination": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/whole"},
 	// What an operation's and its streaming contents' keys state of the stream
-	// it returns, read once the document is whole. It reaches lowering for the
+	// it returns, read once the document is whole. It reaches promotion for the
 	// policy and the reports it shares, whole for the document it reads, and
 	// runtimeexpr for the expression naming the input that asks for a stream,
 	// and nothing of the walks.
 	"compilers/openapi/internal/stream": {module + "/ir",
-		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/whole"},
 	// The choices among an operation's parameters its key states, read once
-	// the document is whole. It reaches lowering for the policy and the
-	// reports it shares, and whole for the parameters a name resolves to, and
-	// nothing of the walks.
+	// the document is whole. It reaches promotion for the policy and the reports
+	// it shares, and whole for the parameters a name resolves to, and nothing of
+	// the walks.
 	"compilers/openapi/internal/paramchoice": {module + "/ir",
-		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
@@ -418,6 +443,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/promotion",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The schema walk, and everything that recurses with it: composition,
 	// reference following, and the preservation that hangs off both. It is one
@@ -435,6 +461,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/merge",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
@@ -459,6 +486,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
+		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/schema",

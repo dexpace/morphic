@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -98,8 +99,8 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 	}
 	// Read once the keys are kept, and only where the parameter decides nothing:
 	// its own key, else the nearest object it carries stating one.
-	reserved, promoted := lowering.AllowReserved(c.Promoter(),
-		lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...), &param.Provenance)
+	reserved, promoted := promotion.AllowReserved(c.Promoter(),
+		promotion.Carried(c.Promoter(), param.Unmodeled, elected.carries...), &param.Provenance)
 	binding.AllowReserved = reserved
 	return param, binding, append(diags, promoted...)
 }
@@ -119,7 +120,7 @@ func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTP
 	var written ir.Unmodeled
 	diags = append(diags, fillParamSchema(elected.ctx, w.types, param, &written, elected.js, elected.pointer)...)
 	// What the schema keeps whole it keeps once, its inner keys not again.
-	lowering.DropContained(c.Promoter(), &written)
+	promotion.DropContained(c.Promoter(), &written)
 	param.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), written), elected.unmodeled)
 	return elected, diags
 }
@@ -297,23 +298,23 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 	// read at the nearest key writing one, and a misfit reported at each.
 	lent := c.Promoter().Lent(schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
 		elected.carries...)
-	carried := lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
+	carried := promotion.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
 	diags = append(diags, schema.PromoteUse(c, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
 	return append(diags, promoteShadowed(c, param.Unmodeled, elected.carries...)...)
 }
 
 // promoteShadowed reads, for its findings alone, the deprecation and redaction
-// each statement Carried passes over beneath scopes states (lowering.Shadowed),
+// each statement Carried passes over beneath scopes states (promotion.Shadowed),
 // so a misfit behind a nearer statement of its key is reported once, at its own
 // key, as the nearest statement's is by schema.PromoteUse.
 func promoteShadowed(c lowering.Ctx, own ir.Unmodeled, scopes ...string) []ir.Diagnostic {
-	layers := lowering.Shadowed(c.Promoter(), own, scopes...)
+	layers := promotion.Shadowed(c.Promoter(), own, scopes...)
 	diags := make([]ir.Diagnostic, 0, len(layers))
 	for _, layer := range layers {
 		var dep *ir.Deprecation
 		var redact bool
 		var prov ir.Provenance
-		diags = append(diags, schema.PromoteUse(c, lowering.Referent{}, layer, &dep, &redact, &prov)...)
+		diags = append(diags, schema.PromoteUse(c, promotion.Referent{}, layer, &dep, &redact, &prov)...)
 	}
 	return diags
 }

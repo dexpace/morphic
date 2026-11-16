@@ -84,7 +84,7 @@ var walkCallers = map[string]walkCaller{
 	"internal/census.add":         {answer: "reads the stop"},
 	"engine/report.keptAtOrBelow": {answer: "reads the stop"},
 
-	"compilers/openapi/internal/lowering.UnreadExtensions": {
+	"compilers/openapi/internal/promotion.UnreadExtensions": {
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
 	},
 }

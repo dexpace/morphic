@@ -247,7 +247,7 @@ const (
 	// unconvertible value as the top type, a member or const its type rejects as
 	// written), or dropped (an example, an enum's excluded null). A promotion
 	// or grouping by extension reports an extension kept but read into no field
-	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
+	// or group (promotion.Promoter, operation.extensionPaths). It marks the lossy
 	// lowerings reported, not every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
@@ -443,7 +443,7 @@ const (
 	UnknownObjectKey = "openapi/unknown-object-key"
 	// UnreadExtension reports a vendor extension under a prefix the promotion
 	// policy owns that the compiler reads no key of, by its mapping or by
-	// grouping, naming the nearest key it reads (lowering.UnreadExtensions).
+	// grouping, naming the nearest key it reads (promotion.UnreadExtensions).
 	// Warning for UnknownObjectKey's reason: a key under a prefix a policy owns
 	// is most likely one it reads, misspelt.
 	UnreadExtension = "openapi/unread-extension"

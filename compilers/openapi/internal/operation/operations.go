@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
@@ -292,19 +293,19 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // once its path item's are on it beside its own, since that is what it reads:
 // a deprecation where op or its path item states one, and the tier op states,
 // else its path item's (docs/compilers/openapi.md#extension-promotion).
-func promoteOperation(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
-	own := lowering.Carried(p, op.Unmodeled, pathItemScope)
-	diags := p.Deprecation(own, p.Lent(lowering.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
+func promoteOperation(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
+	own := promotion.Carried(p, op.Unmodeled, pathItemScope)
+	diags := p.Deprecation(own, p.Lent(promotion.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
 		&op.Provenance)
-	diags = append(diags, lowering.Stability(p, own, &op.Stability, &op.Provenance)...)
+	diags = append(diags, promotion.Stability(p, own, &op.Stability, &op.Provenance)...)
 	// What the path item states behind the operation's own key is read for its
 	// misfits alone, reported once at the path item's key.
-	for _, layer := range lowering.Shadowed(p, op.Unmodeled, pathItemScope) {
+	for _, layer := range promotion.Shadowed(p, op.Unmodeled, pathItemScope) {
 		var dep *ir.Deprecation
 		var tier ir.Stability
 		var prov ir.Provenance
-		diags = append(diags, p.Deprecation(layer, lowering.Referent{}, &dep, &prov)...)
-		diags = append(diags, lowering.Stability(p, layer, &tier, &prov)...)
+		diags = append(diags, p.Deprecation(layer, promotion.Referent{}, &dep, &prov)...)
+		diags = append(diags, promotion.Stability(p, layer, &tier, &prov)...)
 	}
 	return diags
 }
