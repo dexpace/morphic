@@ -60,7 +60,10 @@ func (p position) heldByAnother(i int) bool {
 // allOf of them composes: SelectBase picks its Base among those written as a
 // $ref, and the rest are Mixins in declaration order, so the model's own
 // members settle in that order too. Only the target is carried. A conjunct says
-// nothing of null, which the reference to the model says (position.null).
+// nothing of null, which the reference to the model says (position.null). The
+// pointer is the declaration last to widen the field (fieldSpan), so swapping
+// two branches renames the model, and moves a report on a member it settles
+// (GitHub #1921).
 func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int
 	for k, c := range cs {

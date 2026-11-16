@@ -2977,16 +2977,20 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: a structure stating no instance type that refuses some kinds only through
-  a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
+- Status: partly built: a structure stating no instance type that refuses some kinds only through a
+  `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
   (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
   keeping the later, though they share values, since the IR has no value type for what both admit;
   an alias adding docs to the null it adds is not read as adding null alone, though a reference
   carries an alias's docs to its use, since a use site whose `$ref` chain runs on past the alias
-  takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold different sets only because the model stops at the
-  flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
-  names both; and a member declared at two depths keeps the identity of the one written first, so
-  swapping the branches moves it (#1931).
+  takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold
+  different sets only because the model stops at the flattening depth are refused as
+  `compile/registry-refused`, not told apart, since one declaration names both; a member declared at
+  two depths keeps the identity of the one written first, so swapping the branches moves it (#1931);
+  a part reached through more than 64 alias scalars brings nothing, its member left as the
+  flattening takes it, as the type judge, a tag's reading and a multipart body read such a chain no
+  further; and a model the fold composes for a member is minted at the declaration last to widen the
+  field, so swapping two branches renames it, and moves a report on a member it settles (#1921).
 
 ### `allof-required`
 
