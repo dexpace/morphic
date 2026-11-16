@@ -238,5 +238,6 @@ its sources and each verdict are written. N counts the cases of one product
 after another: the OpenAPI schema cases, then the JSON Schema Test Suite's
 groups, each written as defaults. A case is written to compile, so an oracle
 declining one for an error diagnostic is reported as a finding is. Exit status
-is 0 when nothing is left to report, 1 when anything is (with -at, any finding
-the case holds, listed or not), 2 on a usage error or an index naming no case.`
+is 0 when nothing is left to report, 1 when anything is, 2 on a usage error or
+an index naming no case. -at reads no record: it exits 1 on any finding the
+case holds, and its output does not say whether a record lists one.`
