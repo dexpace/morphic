@@ -220,3 +220,38 @@ func TestAdmissionOf_VisitsEachStatementAndEdgeOnce(t *testing.T) {
 		}
 	}
 }
+
+// diamonds is a ladder of n schemas each combining, under comb, two schemas
+// that each combine the next and write a format and a value set of their own,
+// so the paths to the last schema double at each step.
+func diamonds(comb string, n int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "    D%d: {type: string, format: leaf, enum: [z]}\n", n)
+	for i := range n {
+		side := func(tag string) string {
+			return fmt.Sprintf("{%s: [{$ref: '#/components/schemas/D%d'}], type: string, format: f%s%d, enum: [z, %s%d]}",
+				comb, i+1, tag, i, tag, i)
+		}
+		fmt.Fprintf(&b, "    D%d: {%s: [%s, %s]}\n", i, comb, side("a"), side("b"))
+	}
+	return b.String()
+}
+
+// TestAdmissionOf_MergesWhatGrowsWithTheDocument holds the formats and value-
+// set members every reading of a run holds to growth linear in the document,
+// on ladders whose paths double at each step: a read past its caps stops
+// conjoining, so what each schema merges is bounded however many paths reach
+// it.
+func TestAdmissionOf_MergesWhatGrowsWithTheDocument(t *testing.T) {
+	t.Parallel()
+	for _, comb := range []string{"allOf", "oneOf", "anyOf"} {
+		merged := func(n int) int {
+			l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", diamonds(comb, n)))
+			require.Empty(t, diags)
+			admissionOf(l.Ctx, l.Ctx.Statements().Of(l.Doc.Components.Schemas.GetOrZero("D0")))
+			return admissionStore(l.Ctx).merged
+		}
+		at4, at8, at16 := merged(4), merged(8), merged(16)
+		assert.LessOrEqual(t, at16-at8, 5*(at8-at4)/2, "%s: merged %d, %d, %d at 4, 8, 16", comb, at4, at8, at16)
+	}
+}

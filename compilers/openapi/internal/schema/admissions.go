@@ -25,22 +25,45 @@ type reading struct {
 
 // conjoin adds what r's conjunct child admits, and what its read took in, to r.
 func (r *reading) conjoin(child *reading) {
-	r.admitted = r.admitted.and(child.admitted)
-	r.took(child)
+	if r.took(child) {
+		r.admitted = r.admitted.and(child.admitted)
+	}
 }
 
-// took adds what child's read took in and met to r's.
-func (r *reading) took(child *reading) {
+// took adds what child's read took in and met to r's, and reports whether r
+// is still within both caps. One past either stops (past).
+func (r *reading) took(child *reading) bool {
 	r.cut = r.cut || child.cut
 	r.loose = r.loose || child.loose
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
 	r.members = min(r.members+child.members, maxAdmissionMembers+1)
+	if r.reads <= maxAdmissionReads && r.members <= maxAdmissionMembers {
+		return true
+	}
+	r.past(child)
+	return false
 }
 
-// cycleReading is what a statement on a cycle of conjunct edges reads as: cut,
+// past is r once its read takes in more than a reader's cap, which every
+// reader reads as cut short: it admits every kind and holds no value set or
+// format, so what it merges stops growing with the paths to it, as the formats
+// a read conjoins are one per schema taken in. The element schema is kept,
+// child's where r holds none, which missingArrayItemsBesideRef reads past a
+// cut.
+func (r *reading) past(child *reading) {
+	items := r.admitted.items
+	if items == nil {
+		items = child.admitted.items
+	}
+	r.admitted = admitted{kinds: kindAny, items: items}
+}
+
+// cycleRead is what a statement on a cycle of conjunct edges reads as: cut,
 // whichever of its statements the read entered at, and past every reader's
 // cap.
-var cycleReading = reading{admitted: admitted{kinds: kindAny}, cut: true, reads: maxAdmissionReads + 1}
+func cycleRead() *reading {
+	return &reading{admitted: admitted{kinds: kindAny}, cut: true, reads: maxAdmissionReads + 1}
+}
 
 // admissionsIn keys a run's admissions. A statement the bindings do not place
 // is read in the dialect of the context asking (definesNullableAt), so each
@@ -49,11 +72,13 @@ type admissionsIn struct {
 	nullable bool
 }
 
-// admissions is the run's store of readings, and how many statements and
-// conjunct edges its walks have visited, which the tests hold to one each.
+// admissions is the run's store of readings; how many statements and conjunct
+// edges its walks have visited, which the tests hold to one each; and how many
+// formats and value-set members the readings it settled hold, which they hold
+// to grow with the document and not with its paths.
 type admissions struct {
-	read          map[*statement.Statement]*reading
-	visits, edges int
+	read                  map[*statement.Statement]*reading
+	visits, edges, merged int
 }
 
 // admissionOf returns what st admits, read once a run. The first ask walks
@@ -184,10 +209,12 @@ func (w *admissionWalk) settle(f *admissionFrame) {
 	members := w.open[from:]
 	if len(members) > 1 || slices.Contains(f.edges, f.st) {
 		for _, m := range members {
-			w.store.read[m] = &cycleReading
+			w.store.read[m] = cycleRead()
 		}
 	} else {
-		w.store.read[f.st] = w.readOne(f.st, f.edges)
+		r := w.readOne(f.st, f.edges)
+		w.store.read[f.st] = r
+		w.store.merged += len(r.admitted.forms) + len(r.admitted.values)
 	}
 	w.open = w.open[:from]
 }
@@ -208,6 +235,9 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 	own := admission{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
 	r.admitted = own.written(st.Schema, definesNullableAt(w.c, st))
 	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
+	if r.members > maxAdmissionMembers {
+		r.past(r)
+	}
 	r.cut = own.members.Exhausted()
 	r.loose = declaresDynamicRef(st.Schema) && st.Ref == nil
 
@@ -239,8 +269,9 @@ func (w *admissionWalk) join(branches []*statement.Statement) *reading {
 	out := &reading{admitted: w.store.read[branches[0]].admitted}
 	out.took(w.store.read[branches[0]])
 	for _, b := range branches[1:] {
-		out.admitted = out.admitted.or(w.store.read[b].admitted)
-		out.took(w.store.read[b])
+		if out.took(w.store.read[b]) {
+			out.admitted = out.admitted.or(w.store.read[b].admitted)
+		}
 	}
 	return out
 }
