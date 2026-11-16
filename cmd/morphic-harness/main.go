@@ -21,15 +21,16 @@ import (
 var osExit = os.Exit
 
 func main() {
-	osExit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
+	osExit(run(context.Background(), formats(), os.Args[1:], os.Stdout, os.Stderr))
 }
 
 // run parses args and runs what they ask for, writing what it finds to stdout,
 // and returns the process exit code: 0 when nothing is found, 1 when anything
 // is, 2 on a usage or filesystem error. Paths are swept (sweep); -cases checks
-// each format's schema cases instead, and -at one of them. It exists so tests
-// can drive the CLI without a subprocess; only main calls os.Exit.
-func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+// the schema cases of fmts instead, and -at one of them. It exists so tests
+// can drive the CLI without a subprocess, over formats of their own; only main
+// calls os.Exit.
+func run(ctx context.Context, fmts []format, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("morphic-harness", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	mode := fs.String("cases", "", "")
@@ -50,9 +51,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	case *mode != "core" && *mode != "full":
 		return usageError(stderr, fmt.Sprintf("-cases is core or full, not %q", *mode))
 	case atSet:
-		return checkOne(ctx, formats(), *at, stdout, stderr)
+		return checkOne(ctx, fmts, *at, stdout, stderr)
 	default:
-		return checkCases(ctx, formats(), *mode == "core", stdout, stderr)
+		return checkCases(ctx, fmts, *mode == "core", stdout, stderr)
 	}
 }
 
