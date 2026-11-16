@@ -232,5 +232,6 @@ declined. With -at N, the case at index N alone is checked, whichever of core
 or full is named, and its name, its sources and each verdict are written. N
 counts the cases of one product after another: the OpenAPI schema cases, then
 the JSON Schema Test Suite's groups, each written as defaults. Exit
-status is 0 when nothing is left to report, 1 when anything is, 2 on a usage
-error or an index naming no case.`
+status is 0 when nothing is left to report, 1 when anything is (with -at, any
+finding the case holds, listed or not), 2 on a usage error or an index naming
+no case.`
