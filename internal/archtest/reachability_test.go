@@ -71,8 +71,6 @@ var apiRoots = map[string]string{
 	"ir/irfacts.Index.Component":   factAPI,
 	"ir/irfacts.Index.Correlation": factAPI,
 	"ir/irfacts.Index.Correlated":  factAPI,
-	"internal/harness/openapicases.SuiteGroups": "the groups the instance oracle's cases write as defaults, " +
-		"and the binding canary compiles",
 
 	"compilers/openapi/internal/statement.NewTable":   statementAPI,
 	"compilers/openapi/internal/statement.Table.Of":   statementAPI,

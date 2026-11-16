@@ -97,9 +97,14 @@ type format struct {
 	record func(harness.Oracle) (harness.Recorded, error)
 }
 
-// formats returns every format whose schema cases -cases checks.
+// formats returns every product of schema cases -cases checks, in the order
+// -at counts their cases: the OpenAPI schema cases, then the test suite's
+// groups written as OpenAPI defaults.
 func formats() []format {
-	return []format{{cases: openapicases.New(), record: openapicases.Record}}
+	return []format{
+		{cases: openapicases.New(), record: openapicases.Record},
+		{cases: openapicases.Groups(), record: openapicases.Record},
+	}
 }
 
 // checkCases applies the case oracles to each format's cases, the core ones
@@ -224,6 +229,8 @@ the gate runs, or full, every case. Each case is a document the case oracles
 record lists at the core case the case projects to is explained; the rest are a
 line each, and a summary counts, per case oracle, the cases it asked and
 declined. With -at N, the case at index N alone is checked, whichever of core
-or full is named, and its name, its sources and each verdict are written. Exit
+or full is named, and its name, its sources and each verdict are written. N
+counts the cases of one product after another: the OpenAPI schema cases, then
+the JSON Schema Test Suite's groups, each written as defaults. Exit
 status is 0 when nothing is left to report, 1 when anything is, 2 on a usage
 error or an index naming no case.`
