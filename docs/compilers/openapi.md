@@ -2734,7 +2734,8 @@ and one another entry's composition holds stands within that entry's, so it brin
 model settles after every model it composes, however deep a hierarchy nests, so the order components
 are declared in decides nothing, nor, off a cycle, their names. A cycle of compositions reads the
 model it returns to as it stands, and the models' IDs pick which one that is, so where two
-declarations on a cycle admit no value together, the names decide which its models keep, reported.
+declarations on a cycle admit no value together, the names decide which its models keep, and the
+tie is reported.
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
 variant reads before the body. A declaration an entry brings stays

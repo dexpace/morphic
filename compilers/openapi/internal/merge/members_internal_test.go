@@ -390,7 +390,7 @@ func TestFold_AnEntryAlikeInTwoDocumentsKeepsOneWhateverTheOrder(t *testing.T) {
 		p.Provenance.Source = source
 		at := ir.Provenance{Source: source, Pointer: "/properties/p/x-tag"}
 		p.Unmodeled = ir.Unmodeled{"openapi:x-tag": {Value: ir.RawValue(`"same"`), Provenance: at}}
-		entry := &composedEntry{target: ir.TypeID("t/" + string(rune('A'+source))), at: "/M/allOf/0", order: order}
+		entry := &composedEntry{target: "t/part", at: "/M/allOf/0", order: order}
 		return broughtDeclaration(p, entry)
 	}
 
@@ -420,7 +420,8 @@ func TestOwnership_ReadsEachModelsCompositionOnce(t *testing.T) {
 		for i := range cs {
 			owner := ir.TypeID(fmt.Sprintf("t/owner-%d", i))
 			p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
-			reg[owner] = &ir.Model{ID: owner, Base: &ir.TypeRef{Target: "t/link-64"}, Properties: []ir.Property{p}}
+			last := ir.TypeID(fmt.Sprintf("t/link-%d", maxComposedParts))
+			reg[owner] = &ir.Model{ID: owner, Base: &ir.TypeRef{Target: last}, Properties: []ir.Property{p}}
 			cs[i] = candidate{decl: ir.PropertyDecl{Owner: owner, Property: &p}, part: i}
 		}
 		count := 0

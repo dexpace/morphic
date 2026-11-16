@@ -166,10 +166,10 @@ func clique(n int) string {
 }
 
 // TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk pins the bound on a
-// cycle of compositions: each model of it is read as it stands until it
-// settles, each read walking the whole cycle, so the reads grow with the
-// cycle's entries times its models, past the declarations they find, and a
-// cycle dense enough is cut at the bound and reported once.
+// cycle of compositions: a model of it is read as it stands by each settled
+// before it, each read walking every entry of the cycle, so the reads grow
+// with the square of its entries, faster than the declarations they find,
+// and a cycle dense enough is cut at the bound and reported once.
 func TestMembers_ACycleIsChargedTheCompositionsItsReadsWalk(t *testing.T) {
 	t.Parallel()
 	read := func(n int) int {
