@@ -224,14 +224,14 @@ when every spec passes, 1 when any spec fails an oracle, 2 on a usage or
 filesystem error.
 
 With -cases, each format's schema cases are checked instead: core, the cases
-the gate runs, or full, every case. Each case is a document the case oracles
-(spelling, presence, instance) compare with its neighbours. A finding a format's
-record lists at the core case the case projects to is explained; the rest are a
-line each, and a summary counts, per case oracle, the cases it asked and
-declined. With -at N, the case at index N alone is checked, whichever of core
-or full is named, and its name, its sources and each verdict are written. N
-counts the cases of one product after another: the OpenAPI schema cases, then
-the JSON Schema Test Suite's groups, each written as defaults. Exit
-status is 0 when nothing is left to report, 1 when anything is (with -at, any
-finding the case holds, listed or not), 2 on a usage error or an index naming
-no case.`
+the gate runs, or full, every case, as make cases runs them each night. Each
+case is a document the case oracles (spelling, presence, instance) compare with
+its neighbours. A finding a format's record lists at the core case the case
+projects to is explained; the rest are a line each, and a summary counts, per
+case oracle, the cases it asked and declined. With -at N, the case at index N
+alone is checked, whichever of core or full is named, and its name, its sources
+and each verdict are written. N counts the cases of one product after another:
+the OpenAPI schema cases, then the JSON Schema Test Suite's groups, each written
+as defaults. Exit status is 0 when nothing is left to report, 1 when anything
+is (with -at, any finding the case holds, listed or not), 2 on a usage error or
+an index naming no case.`

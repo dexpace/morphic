@@ -8,6 +8,7 @@
 #   make            the whole gate, one check at a time
 #   make coverage   the suite once, at exactly 100% coverage
 #   make race       the suite under the race detector, as the nightly job runs it
+#   make cases      every schema case through the case oracles, as the nightly job runs it
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -78,7 +79,7 @@ FUZZTIME ?= 5s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
-	fuzz bench bench-smoke print-lint-version print-go-version
+	cases fuzz bench bench-smoke print-lint-version print-go-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
@@ -161,6 +162,12 @@ race:
 		exit 1; \
 	fi
 	$(GO) test ./... $(RACE_FLAGS)
+
+# Every case of each schema-case product, where the gate's coverage run checks
+# the core ones alone (go test ./internal/harness/openapicases). It exits 1 on a
+# finding no record explains at the core case it projects to.
+cases:
+	$(GO) run ./cmd/morphic-harness -cases full
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
