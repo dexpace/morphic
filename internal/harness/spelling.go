@@ -52,7 +52,7 @@ func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	if err := cmp.Or(mine.err, theirs.err); err != nil {
 		panic(fmt.Sprintf("harness: compile case %v or its partner: %v", at, err))
 	}
-	if uncompiled(mine) && uncompiled(theirs) {
+	if mine.uncompiled() && theirs.uncompiled() {
 		return declined(OracleSpelling, DeclineErrorDiagnostic)
 	}
 	if refused := oneSideRefused(mine.doc, theirs.doc); refused != "" {
@@ -72,13 +72,6 @@ func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 		return found(OracleSpelling, spellingDetail(what, eq.Rule, a, b, diags, doc, partner))
 	}
 	return passed(OracleSpelling)
-}
-
-// uncompiled reports whether c is a refusal and not what its case says: the
-// compile drew an error diagnostic, or returned no document.
-func uncompiled(c compiled) bool {
-	_, failed := ir.FirstError(c.diags)
-	return failed || c.doc == nil
 }
 
 // oneSideRefused says which of a spelling and its partner alone compiled to no

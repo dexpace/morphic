@@ -115,7 +115,3 @@ func TestAdmitted_ACompileErrorEndsTheCase(t *testing.T) {
 	assert.Equal(t, OutcomePanic, res.Outcome)
 	assert.Contains(t, res.Detail, "harness: compiling case [0]: the engine is misconfigured")
 }
-
-func TestCarriers_ANilDocumentHoldsNone(t *testing.T) {
-	assert.Empty(t, carriers(nil))
-}

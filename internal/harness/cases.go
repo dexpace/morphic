@@ -380,6 +380,13 @@ type compiled struct {
 	err   error
 }
 
+// uncompiled reports whether c is a refusal and not what its case says: the
+// compile drew an error diagnostic, or returned no document.
+func (c compiled) uncompiled() bool {
+	_, failed := ir.FirstError(c.diags)
+	return failed || c.doc == nil
+}
+
 // newShard returns the empty shard holding the case at.
 func newShard(c Cases, axes []Axis, at []int) *shard {
 	return &shard{cases: c, axes: axes, key: slices.Clone(at[:min(shardAxes, len(at))]), kept: map[int]compiled{}}

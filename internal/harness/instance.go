@@ -39,7 +39,7 @@ func admitted(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	if got.err != nil {
 		panic(fmt.Errorf("harness: compiling case %v: %w", at, got.err))
 	}
-	if _, failed := ir.FirstError(got.diags); failed {
+	if got.uncompiled() {
 		return declined(OracleInstance, DeclineErrorDiagnostic)
 	}
 	held := carriers(got.doc)
@@ -53,12 +53,9 @@ func admitted(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 
 // carriers returns the ID of each property, header included, and each
 // parameter of doc that holds a default as a value: the places the validate
-// pass judges one at. A nil doc holds none.
+// pass judges one at.
 func carriers(doc *ir.Document) map[string]bool {
 	held := map[string]bool{}
-	if doc == nil {
-		return held
-	}
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		if p, ok := reflect.TypeAssert[ir.Property](v); ok && p.Default != nil {
 			held[string(p.ID)] = true
