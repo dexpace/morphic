@@ -361,12 +361,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, by a key or in its message,
-	// read once the document is whole. It reaches lowering for the policies,
+	// read once the document is whole. It reaches lowering for the policy,
 	// promotion for the promotion that reads the names, whole for the document
-	// they name, and diag for what it reports, and nothing of the walks
-	// (docs/compilers/openapi.md#policies).
+	// they name, ids for the ID a schema's name gives it, and diag for what it
+	// reports, and nothing of the walks (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
@@ -406,21 +407,19 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/whole"},
 	// What an operation's and its streaming contents' keys state of the stream
-	// it returns, read once the document is whole. It reaches lowering for the
-	// context, promotion for the policy and the reports it shares, whole for the
-	// document it reads, and runtimeexpr for the expression naming the input
-	// that asks for a stream, and nothing of the walks.
+	// it returns, read once the document is whole. It reaches promotion for the
+	// policy and the reports it shares, whole for the document it reads, and
+	// runtimeexpr for the expression naming the input that asks for a stream,
+	// and nothing of the walks.
 	"compilers/openapi/internal/stream": {module + "/ir",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/whole"},
 	// The choices among an operation's parameters its key states, read once
-	// the document is whole. It reaches lowering for the context, promotion for
-	// the policy and the reports it shares, and whole for the parameters a name
-	// resolves to, and nothing of the walks.
+	// the document is whole. It reaches promotion for the policy and the reports
+	// it shares, and whole for the parameters a name resolves to, and nothing of
+	// the walks.
 	"compilers/openapi/internal/paramchoice": {module + "/ir",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/whole"},
 	// The servers a document declares, whichever object declares them, and the

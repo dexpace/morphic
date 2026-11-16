@@ -8,22 +8,20 @@ import (
 	"slices"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
-// mapped is a context whose policy reads replacements from x-replaced-by.
-func mapped() lowering.Ctx {
-	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: replacedBy()})
+// mapped is a promoter whose policy reads replacements from x-replaced-by.
+func mapped() promotion.Promoter {
+	return promotion.New(replacedBy())
 }
 
 // replacedBy is a promotion mapping reading replacements from x-replaced-by.
@@ -46,9 +44,9 @@ func deprecated() *ir.Deprecation { return &ir.Deprecation{} }
 // replacementDoc is a document in which each kind of node replacement reads
 // is deprecated and names its replacement through value, and each has another
 // of its kind to name: headers among them at each place a list of them sits.
-func replacementDoc(c lowering.Ctx, value string) *ir.Document {
-	v2 := c.IDs().NamedType("/components/schemas/v2")
-	old := c.IDs().NamedType("/components/schemas/old")
+func replacementDoc(value string) *ir.Document {
+	v2 := ids.Document{}.NamedType("/components/schemas/v2")
+	old := ids.Document{}.NamedType("/components/schemas/old")
 	header := func(id ir.PropID, name string, unmodeled ir.Unmodeled, dep *ir.Deprecation) ir.Header {
 		return ir.Header{ID: id, WireName: name, Unmodeled: unmodeled, Deprecation: dep}
 	}
@@ -105,13 +103,13 @@ func replacementDoc(c lowering.Ctx, value string) *ir.Document {
 // as promoted.
 func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	t.Parallel()
-	c := mapped()
-	doc := replacementDoc(c, `"v2"`)
-	assert.Empty(t, replacement.Resolve(c, whole.New(doc)))
+	p := mapped()
+	doc := replacementDoc(`"v2"`)
+	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
 
 	op := doc.Services[0].Groups[0].Operations[0]
-	v2 := c.IDs().NamedType("/components/schemas/v2")
-	old := c.IDs().NamedType("/components/schemas/old")
+	v2 := ids.Document{}.NamedType("/components/schemas/v2")
+	old := ids.Document{}.NamedType("/components/schemas/old")
 	for _, tc := range []struct {
 		name string
 		dep  *ir.Deprecation
@@ -150,9 +148,9 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 	t.Parallel()
 	for _, value := range []string{`["v2","gone"]`, `"old"`, `["getOld"]`, `"X-Old"`} {
-		c := mapped()
-		doc := replacementDoc(c, value)
-		diags := replacement.Resolve(c, whole.New(doc))
+		p := mapped()
+		doc := replacementDoc(value)
+		diags := replacement.Resolve(p, whole.New(doc))
 		require.NotEmpty(t, diags, value)
 		for _, d := range diags {
 			assert.Equal(t, diag.DegradedConstruct, d.Code, value)
@@ -196,10 +194,10 @@ func severalV2(doc *ir.Document, first bool) {
 func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 	t.Parallel()
 	for _, first := range []bool{false, true} {
-		c := mapped()
-		doc := replacementDoc(c, `"v2"`)
+		p := mapped()
+		doc := replacementDoc(`"v2"`)
 		severalV2(doc, first)
-		diags := replacement.Resolve(c, whole.New(doc))
+		diags := replacement.Resolve(p, whole.New(doc))
 
 		messages := make([]string, 0, len(diags))
 		for _, d := range diags {
@@ -233,16 +231,16 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 // nothing, as a deprecation's other members do.
 func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	t.Parallel()
-	unmapped := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	doc := replacementDoc(unmapped, `"v2"`)
+	unmapped := promotion.New(promotion.ExtensionPromotions{})
+	doc := replacementDoc(`"v2"`)
 	assert.Empty(t, replacement.Resolve(unmapped, whole.New(doc)))
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy)
 
-	c := mapped()
-	doc = replacementDoc(c, `"v2"`)
+	p := mapped()
+	doc = replacementDoc(`"v2"`)
 	doc.Services[0].Groups[0].Operations[0].Deprecation = nil
-	doc.Types[c.IDs().NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
-	assert.Empty(t, replacement.Resolve(c, whole.New(doc)))
+	doc.Types[ids.Document{}.NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
+	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Deprecation)
 }
 
@@ -250,7 +248,7 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 // operation nested deeper than any document the compiler builds is not read.
 func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 	t.Parallel()
-	c := mapped()
+	p := mapped()
 	deep := ir.OperationGroup{Operations: []ir.Operation{
 		{ID: "op/deep", Unmodeled: names(`"v2"`), Deprecation: deprecated()}, {ID: "op/v2", Name: ir.Naming{Source: "v2"}},
 	}}
@@ -258,7 +256,7 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}
 	}
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deep}}}}
-	assert.Empty(t, replacement.Resolve(c, whole.New(doc)))
+	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
 	for range ir.MaxGroupDepth + 1 {
 		deep = deep.Groups[0]
 	}

@@ -20,11 +20,10 @@ import (
 // cursor (docs/compilers/openapi.md#pagination-policy), marking it inferred on
 // the Pagination and in the operation's Provenance. An operation whose
 // parameters name a walk it cannot settle keeps none, reported as an info
-// diagnostic. It neither reads nor reports an operation in stated, whose
-// extensions speak of a pagination. w is the document, which is whole; c is
-// the source's context.
-func InferWalks(c lowering.Ctx, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
-	if !c.PaginationInference.Honours() {
+// diagnostic. It reads no operation in stated, whose extensions speak of a
+// pagination, nor any while policy is off. w is the whole document.
+func InferWalks(policy lowering.PaginationInference, w *whole.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
+	if !policy.Honours() {
 		return nil
 	}
 	r := newReader(w)

@@ -4,13 +4,12 @@
 package replacement
 
 import (
-	"encoding/json/jsontext"
 	"maps"
 	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -22,10 +21,10 @@ import (
 // operationId, a parameter by `<in>.<name>` or its name within its operation,
 // a header by name among the headers beside it, a property by name within its
 // model, a schema by its components name, and a security scheme by its key
-// (docs/compilers/openapi.md#extension-promotion). c is the source's context,
+// (docs/compilers/openapi.md#extension-promotion). p is the run's promoter,
 // and w the document, which is whole.
-func Resolve(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
-	r := resolver{c: c, p: c.Promoter(), w: w}
+func Resolve(p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
+	r := resolver{p: p, w: w}
 	if !r.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
@@ -52,7 +51,6 @@ func Resolve(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
 // member, which messages every compile reads name, is read by its name alone
 // (whole.Document.Member), which indexes a model's own properties once.
 type resolver struct {
-	c lowering.Ctx
 	p promotion.Promoter
 	w *whole.Document
 }
@@ -105,9 +103,9 @@ func (r *resolver) scheme(name string) (ir.EntityRef, int) {
 	return found, matched
 }
 
-// schema finds the schema components/schemas declares under name.
+// schema finds the schema the source's components/schemas declares under name.
 func (r *resolver) schema(name string) (ir.EntityRef, int) {
-	id := r.c.IDs().NamedType(jsontext.Pointer("/components/schemas").AppendToken(name))
+	id := ids.Document{}.NamedType(ids.Ptr("components", "schemas", name))
 	if _, declared := r.w.Types[id]; !declared {
 		return ir.EntityRef{}, 0
 	}

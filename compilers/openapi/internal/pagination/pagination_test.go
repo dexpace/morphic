@@ -10,12 +10,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
@@ -444,19 +442,18 @@ func TestInferWalks_KeepsAPaginationTheOperationHolds(t *testing.T) {
 			Pagination: declared,
 		}}}}}},
 	}
-	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	assert.Empty(t, pagination.InferWalks(c, whole.New(doc), nil))
+	assert.Empty(t, pagination.InferWalks(lowering.PaginationInference{}, whole.New(doc), nil))
 	op := doc.Services[0].Groups[0].Operations[0]
 	assert.Same(t, declared, op.Pagination)
 	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyNextLink}, op.Pagination)
 	assert.Empty(t, op.Provenance.Inferred)
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
-	assert.Empty(t, pagination.InferWalks(c, whole.New(doc), map[ir.OpID]bool{"op/list": true}))
+	assert.Empty(t, pagination.InferWalks(lowering.PaginationInference{}, whole.New(doc), map[ir.OpID]bool{"op/list": true}))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation its extensions speak of")
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Provenance.Inferred)
 
-	assert.Empty(t, pagination.InferWalks(c, whole.New(doc), map[ir.OpID]bool{"op/other": true}))
+	assert.Empty(t, pagination.InferWalks(lowering.PaginationInference{}, whole.New(doc), map[ir.OpID]bool{"op/other": true}))
 	inferred := doc.Services[0].Groups[0].Operations[0].Pagination
 	require.NotNil(t, inferred, "the same operation holding none is inferred")
 	assert.Equal(t, ir.PageStrategyPage, inferred.Strategy)

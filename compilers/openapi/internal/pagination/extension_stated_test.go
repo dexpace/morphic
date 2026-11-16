@@ -9,14 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
@@ -297,8 +294,8 @@ func promoteStated(t *testing.T, spec string, policy promotion.ExtensionPromotio
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy})
-	stated, diags := pagination.Promote(c, whole.New(doc), nil)
+	p := promotion.New(policy)
+	stated, diags := pagination.Promote(p, whole.New(doc), nil)
 	reports := make([]string, 0, len(diags))
 	for _, d := range diags {
 		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
@@ -368,8 +365,8 @@ func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	doc, op, _ := compilePaged(t, "      x-page: {link: $response.next}\n"+pageResponse, pagePolicy())
 	require.NotNil(t, op.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
-	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: pagePolicy()})
-	stated, diags := pagination.Promote(c, whole.New(doc), nil)
+	p := promotion.New(pagePolicy())
+	stated, diags := pagination.Promote(p, whole.New(doc), nil)
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)
@@ -389,8 +386,8 @@ func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 		spoke, _, _ := promoteStated(t, statedSpec(t, statedPaths), policy)
 		assert.Empty(t, spoke, name)
 	}
-	stated, diags := pagination.Promote(lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}),
-		whole.New(&ir.Document{}), nil)
+	stated, diags := pagination.Promote(promotion.New(promotion.ExtensionPromotions{}), whole.New(&ir.Document{}),
+		nil)
 	assert.Empty(t, stated, "no operation, nothing read")
 	assert.Empty(t, diags)
 }

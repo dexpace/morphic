@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -22,12 +23,12 @@ const httpDateEncoding = "http-date"
 // field, and its type reads, through its scalars, as a datetime_offset none of
 // them names an encoding for. It reports each such header, whose format says
 // RFC 3339's text. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDate(c lowering.Ctx, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic {
-	if !c.HTTPDateInference.Honours() || h.Encoding != nil || h.Prefix != nil ||
+func httpDate(policy lowering.HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic {
+	if !policy.Honours() || h.Encoding != nil || h.Prefix != nil ||
 		!httpDateField(h.EffectiveWireName()) {
 		return nil
 	}
-	if !instant(c, reg, h.Type.Target) {
+	if !instant(p, reg, h.Type.Target) {
 		return nil
 	}
 	h.Encoding = &ir.Encoding{Name: httpDateEncoding}
@@ -45,8 +46,10 @@ func httpDate(c lowering.Ctx, reg ir.TypeRegistry, h *ir.Header) []ir.Diagnostic
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDateParam(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Diagnostic {
-	if !c.HTTPDateInference.Honours() || len(op.Params) == 0 {
+func httpDateParam(policy lowering.HTTPDateInference, promoter promotion.Promoter, w *whole.Document,
+	op *ir.Operation,
+) []ir.Diagnostic {
+	if !policy.Honours() || len(op.Params) == 0 {
 		return nil
 	}
 	ix := w.Params(op)
@@ -54,7 +57,7 @@ func httpDateParam(c lowering.Ctx, w *whole.Document, op *ir.Operation) []ir.Dia
 	for i := range op.Params {
 		p := &op.Params[i]
 		name, bound := headerName(ix, p)
-		if !bound || p.Encoding != nil || !httpDateField(name) || !instant(c, w.Types, p.Type.Target) {
+		if !bound || p.Encoding != nil || !httpDateField(name) || !instant(promoter, w.Types, p.Type.Target) {
 			continue
 		}
 		p.Encoding = &ir.Encoding{Name: httpDateEncoding}
@@ -81,8 +84,8 @@ func headerName(ix whole.ParamIndex, p *ir.Parameter) (string, bool) {
 
 // instant reports whether id reads, through its scalars, as a datetime_offset
 // none of them names an encoding for.
-func instant(c lowering.Ctx, reg ir.TypeRegistry, id ir.TypeID) bool {
-	ch, ok := readChain(c.Promoter(), reg, id)
+func instant(p promotion.Promoter, reg ir.TypeRegistry, id ir.TypeID) bool {
+	ch, ok := readChain(p, reg, id)
 	return ok && !ch.encoded && ch.prim == ir.PrimDatetimeOffset
 }
 

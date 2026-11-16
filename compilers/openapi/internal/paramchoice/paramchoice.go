@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -23,8 +22,8 @@ import (
 // and is reported as info diag.UnpromotedExtension at the most specific
 // coordinate. Choices and variants are sorted by name, as an object's members
 // keep no order. An operation holding a filled choice is marked; the key stays.
-func PromoteChoices(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
-	p := c.Promoter()
+// p is the run's promoter.
+func PromoteChoices(p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, op := range w.Ops {
 		st, written, readDiags := p.StatementOf(promotion.TargetParamChoices, op.Unmodeled)

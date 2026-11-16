@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -34,17 +33,17 @@ func responseTargets() []promotion.ExtensionTarget {
 // through the extensions the promotion policy maps to it, where the operation
 // holds none (docs/compilers/openapi.md#extension-pagination), whole or not
 // at all: one whose values do not all resolve, or which states no way to the
-// next page, is reported at the operation. c is the source's context.
+// next page, is reported at the operation. p is the run's promoter.
 //
 // stated holds each operation it reads whose extensions speak of a pagination,
 // filled or not: those an inference leaves alone, by that rule's precedence.
 // root is the document root's Unmodeled, which an operation's key written
 // true reads (promotion.PageStatementOf).
-func Promote(c lowering.Ctx, w *whole.Document, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
+func Promote(p promotion.Promoter, w *whole.Document, root ir.Unmodeled) (stated map[ir.OpID]bool, diags []ir.Diagnostic) {
 	if root == nil {
 		root = ir.Unmodeled{} // the nodes read are operations, whose root states nothing
 	}
-	pg := pager{c: c, p: c.Promoter(), w: w, root: root}
+	pg := pager{p: p, w: w, root: root}
 	if !pg.maps() {
 		return nil, nil
 	}
@@ -62,11 +61,10 @@ func Promote(c lowering.Ctx, w *whole.Document, root ir.Unmodeled) (stated map[i
 	return stated, diags
 }
 
-// pager is what one Promote reads its operations against: the document, w,
-// its root's Unmodeled, root, and reach, the models reaching each marking key
-// (pager.reaching).
+// pager is what one Promote reads its operations against: the promoter, p,
+// the document, w, its root's Unmodeled, root, and reach, the models reaching
+// each marking key (pager.reaching).
 type pager struct {
-	c     lowering.Ctx
 	p     promotion.Promoter
 	w     *whole.Document
 	root  ir.Unmodeled

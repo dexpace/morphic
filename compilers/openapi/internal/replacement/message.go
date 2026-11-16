@@ -21,13 +21,14 @@ import (
 // deprecated operation, parameter and model member names as its replacement,
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
-// every promotion (docs/compilers/openapi.md#policies). c is the source's
-// context, and w the document, which is whole.
-func Infer(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
-	if !c.ReplacementInference.Honours() {
+// every promotion (docs/compilers/openapi.md#policies), and reads nothing
+// while policy is off. p is the run's promoter, and w the document, which is
+// whole.
+func Infer(policy lowering.ReplacementInference, p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
+	if !policy.Honours() {
 		return nil
 	}
-	r := resolver{c: c, p: c.Promoter(), w: w}
+	r := resolver{p: p, w: w}
 	diags := r.inferService()
 	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
 		if m, ok := w.Types[id].(*ir.Model); ok && m != nil {

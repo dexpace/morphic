@@ -13,8 +13,8 @@ import (
 
 // redact asks for p's redaction where its name says it holds a credential
 // (redactUse): a model's member or a header.
-func redact(c lowering.Ctx, reg ir.TypeRegistry, p *ir.Property) {
-	redactUse(c, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
+func redact(policy lowering.SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, p *ir.Property) {
+	redactUse(policy, promoter, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
 }
 
 // redactUse sets *secret, and marks prov, under the secret policy, on a use
@@ -24,13 +24,12 @@ func redact(c lowering.Ctx, reg ir.TypeRegistry, p *ir.Property) {
 // it, and one where the document writes a key the policy reads redaction from,
 // at the use or along its type, whatever the key says: the document has spoken
 // there. The rule is docs/compilers/openapi.md#secret-inference.
-func redactUse(c lowering.Ctx, reg ir.TypeRegistry, name ir.Naming, t ir.TypeRef, own ir.Unmodeled,
-	secret *bool, prov *ir.Provenance,
+func redactUse(policy lowering.SecretInference, promoter promotion.Promoter, reg ir.TypeRegistry, name ir.Naming,
+	t ir.TypeRef, own ir.Unmodeled, secret *bool, prov *ir.Provenance,
 ) {
-	if !c.SecretInference.Honours() || *secret || !credentialName(name.Canonical) {
+	if !policy.Honours() || *secret || !credentialName(name.Canonical) {
 		return
 	}
-	promoter := c.Promoter()
 	if promoter.Writes(own, promotion.TargetRedaction) {
 		return
 	}

@@ -6,7 +6,6 @@ package stream
 import (
 	"strconv"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
@@ -23,9 +22,9 @@ const (
 // the keys the policy's sources of promotion.TargetStreamTerminator and
 // promotion.TargetStreamCondition name, marking the node whose key filled it,
 // and reports each key that fills nothing as info
-// diag.UnpromotedExtension. Every key stays as written.
-func PromoteDetail(c lowering.Ctx, w *whole.Document) (diags []ir.Diagnostic) {
-	p := c.Promoter()
+// diag.UnpromotedExtension. Every key stays as written. p is the run's
+// promoter.
+func PromoteDetail(p promotion.Promoter, w *whole.Document) (diags []ir.Diagnostic) {
 	for _, op := range w.Ops {
 		diags = append(diags, terminator(p, op)...)
 		diags = append(diags, condition(p, w, op)...)

@@ -84,16 +84,10 @@ type Ctx struct {
 	schemas resolve.Names
 
 	// NullableInference is the nullable-inference policy, and
-	// DiscriminatorInference the discriminator-inference policy, beside the
-	// policies of what a document's names and messages imply, read once it is
-	// whole. They sit before foreign so all of them share a word.
+	// DiscriminatorInference the discriminator-inference policy. They sit
+	// before foreign so all of them share a word.
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
-	IdempotencyInference   IdempotencyInference
-	SecretInference        SecretInference
-	HTTPDateInference      HTTPDateInference
-	ReplacementInference   ReplacementInference
-	PaginationInference    PaginationInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the name the bindings read it by (see
@@ -194,11 +188,6 @@ type Policy struct {
 	Promotions             promotion.ExtensionPromotions
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
-	IdempotencyInference   IdempotencyInference
-	SecretInference        SecretInference
-	HTTPDateInference      HTTPDateInference
-	ReplacementInference   ReplacementInference
-	PaginationInference    PaginationInference
 	TitleNames             TitleNames
 }
 
@@ -225,11 +214,6 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		promoter:               &promoter,
 		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
-		IdempotencyInference:   p.IdempotencyInference,
-		SecretInference:        p.SecretInference,
-		HTTPDateInference:      p.HTTPDateInference,
-		ReplacementInference:   p.ReplacementInference,
-		PaginationInference:    p.PaginationInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
