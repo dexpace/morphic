@@ -305,12 +305,14 @@ node by node for the references written in it. A mapping's members are read as t
 them, each a `<<` merge key brings in named at the mapping, and a key written twice at the copy the
 binder reads, a mapping's own at its last and a merged source's at its first
 ([`validation`](#validation)), so a schema merged into a schema's position is named node by
-node, and one under a copy the binder passes over is not. A raw value a `$ref`, a `$dynamicRef` or a
-discriminator mapping of the document lands in, its fragment read as the binder reads one, percent
-escapes decoded, is named node by node as the kind that reference expects, once for each position
-it lands at that the grammar does not read as that kind, since the binder walks each from where it
-lands and an anchor can mount one value at many. It is refused only when that total too is past the
-bound, or when it cannot be taken: a reference leaves
+node, and one under a copy the binder passes over is not. A raw value a `$ref`, a `$dynamicRef`, or
+a value of a discriminator's `mapping` or its `defaultMapping` lands in, its fragment read as the
+binder reads one, percent escapes decoded, is named node by node as the kind that reference
+expects, once for each position it lands at that the grammar does not read as that kind, since the
+binder walks each from where it lands and an anchor can mount one value at many. A discriminator's
+value spelling the key of a schema component names that component, which is read where it is
+declared. It is refused only when that total too is past the bound, or when it cannot be taken: a
+reference leaves
 the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
 lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the depth the binder
 expands; the document may name a dialect, by `jsonSchemaDialect` or a
@@ -373,6 +375,8 @@ node bound. An overlay document and a document a reference reads keep the first 
   `bind.TestNamedPointerBytes_ALandingIsNamedAtEachPositionItIsReachedAt`,
   `bind.TestNamedPointerBytes_AKeyWrittenTwiceIsNamedAtTheCopyAMergeReads`,
   `bind.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
+  `bind.TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt`,
+  `bind.TestNamedPointerBytes_TotalsEachPositionATableReads`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled`
 
 ### `overlays`

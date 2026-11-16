@@ -285,21 +285,9 @@ func (w *finder) landOn(from Position, h Hop) {
 // no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
 // so each is bound here.
 func (w *finder) mappingsOf(n *yaml.Node, at Position) {
-	view := w.docs.list[at.Doc].view
-	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
-	if d == nil || d.Kind != yaml.MappingNode {
-		return
-	}
 	disc := Position{Doc: at.Doc, Pointer: at.Pointer.AppendToken("discriminator")}
-	var values []*yaml.Node
-	if m := nodeview.Deref(view.ChildByToken(d, "mapping")); m != nil && m.Kind == yaml.MappingNode {
-		for _, p := range view.MappingPairs(m) {
-			values = append(values, p.Val)
-		}
-	}
-	values = append(values, view.ChildByToken(d, "defaultMapping"))
-	for _, v := range values {
-		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || w.docs.components[v.Value] {
+	for _, v := range mappingValues(w.docs.list[at.Doc].view, n) {
+		if w.docs.components[v.Value] {
 			continue
 		}
 		if k := (mappingKey{at: disc, value: v.Value}); !w.mappingSites[k] {
@@ -307,6 +295,23 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 			w.freshMappings = append(w.freshMappings, k)
 		}
 	}
+}
+
+// mappingValues returns the scalars the discriminator of the schema n names
+// schemas by, as view reads them, aliases followed: each value of its mapping,
+// then its defaultMapping. The finder binds them and NamedPointerBytes weighs
+// where they land, so both ask here.
+func mappingValues(view *nodeview.View, n *yaml.Node) []*yaml.Node {
+	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
+	if d == nil || d.Kind != yaml.MappingNode {
+		return nil
+	}
+	var values []*yaml.Node
+	for _, p := range view.MappingPairs(nodeview.Deref(view.ChildByToken(d, "mapping"))) {
+		values = append(values, p.Val)
+	}
+	values = append(values, nodeview.Deref(view.ChildByToken(d, "defaultMapping")))
+	return slices.DeleteFunc(values, func(v *yaml.Node) bool { return v == nil || v.Kind != yaml.ScalarNode })
 }
 
 // pushChildren returns stack with the positions directly below f, whose node is

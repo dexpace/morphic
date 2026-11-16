@@ -29,9 +29,13 @@ import (
 // nodeview.MergeDepthLimit; or past maxSteps.
 func NamedPointerBytes(ctx context.Context, root *yaml.Node, maxSteps int) (bytes int, complete bool) {
 	w := named{memo: map[namedKey]namedShape{}, steps: budget.New(budget.AtMost(maxSteps)),
-		view: nodeview.New(), root: nodeview.DocumentRoot(root), complete: true}
+		view: nodeview.New(), root: nodeview.DocumentRoot(root), components: map[string]bool{}, complete: true}
 	if w.root == nil {
 		return 0, true
+	}
+	schemas := w.view.ChildByToken(nodeview.Deref(w.view.ChildByToken(w.root, "components")), "schemas")
+	for _, p := range w.view.MappingPairs(schemas) {
+		w.components[p.Key] = true
 	}
 	total := w.shapeOf(ctx, namedKey{n: w.root, s: sDocument}).pointers
 	landed := map[namedLanding]bool{}
@@ -82,14 +86,17 @@ type namedLanding struct {
 }
 
 // named is one NamedPointerBytes in progress: each (node, state) measured,
-// and the references met on the way, read once each.
+// and the references met on the way, read once each. components is the keys
+// of the document's schema components, which a discriminator's value names by
+// key as the binder reads one (Config.Components).
 type named struct {
-	memo     map[namedKey]namedShape
-	steps    budget.Budget
-	view     *nodeview.View
-	root     *yaml.Node
-	refs     []namedRef
-	complete bool
+	memo       map[namedKey]namedShape
+	steps      budget.Budget
+	view       *nodeview.View
+	root       *yaml.Node
+	components map[string]bool
+	refs       []namedRef
+	complete   bool
 }
 
 // namedFrame is a (node, state) the walk has entered, and whether its
@@ -187,8 +194,9 @@ func (w *named) eachNamedChild(n *yaml.Node, s state, visit func(c *yaml.Node, s
 
 // noteRefs notes what the mapping k reads as a reference: its $ref where its
 // state reads one, and for a schema its $dynamicRef, which lands as a $ref
-// does or on the anchor its plain name expands to, and each discriminator
-// mapping value.
+// does or on the anchor its plain name expands to, and each value its
+// discriminator names a schema by (mappingValues) that spells no schema
+// component's key, which names that component where it is declared.
 func (w *named) noteRefs(k namedKey) {
 	if k.n.Kind != yaml.MappingNode {
 		return
@@ -210,9 +218,8 @@ func (w *named) noteRefs(k namedKey) {
 		w.complete = false
 		return
 	}
-	mapping := nodeview.Deref(w.view.ChildByToken(nodeview.Deref(w.view.ChildByToken(k.n, "discriminator")), "mapping"))
-	for _, p := range w.view.MappingPairs(mapping) {
-		if ref, ok := scalarText(p.Val); ok {
+	for _, v := range mappingValues(w.view, k.n) {
+		if ref, ok := scalarText(v); ok && !w.components[ref] {
 			w.refs = append(w.refs, namedRef{ref: ref, s: sSchema})
 		}
 	}

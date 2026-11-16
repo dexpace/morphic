@@ -210,6 +210,33 @@ func TestNamedPointerBytes_ADynamicRefLandsAsARefDoes(t *testing.T) {
 	assert.False(t, named, "a plain name is no JSON pointer")
 }
 
+// TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt holds a
+// discriminator's mapping value and its defaultMapping to the binder's reading:
+// one spelling a schema component's key names that component, which is read
+// where it is declared and leaves the total whole, one written as a pointer
+// into a raw value adds that value node by node, and one naming neither leaves
+// the document.
+func TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt(t *testing.T) {
+	t.Parallel()
+	total := func(mapped, fallback string) (int, bool) {
+		t.Helper()
+		return namedTotal(t, namedHead+"x-data: "+namedSpine+"\ncomponents:\n  schemas:\n    Dog: {type: object}\n"+
+			"    Pet: {type: object, discriminator: {propertyName: t, mapping: {dog: "+mapped+"}, defaultMapping: "+
+			fallback+"}}\n")
+	}
+	byKey, whole := total("Dog", "Dog")
+	byPointer, alsoWhole := total("'#/components/schemas/Dog'", "'#/components/schemas/Dog'")
+	mapped, c1 := total("'#/x-data'", "Dog")
+	fallback, c2 := total("Dog", "'#/x-data'")
+	_, undeclared := total("Dog", "Cat")
+
+	assert.True(t, whole && alsoWhole && c1 && c2)
+	assert.Equal(t, byPointer, byKey, "a component is read where it is declared")
+	assert.Greater(t, mapped, byKey, "the raw value a mapping value lands in is named node by node")
+	assert.Equal(t, mapped, fallback, "a defaultMapping lands as a mapping value does")
+	assert.False(t, undeclared, "a name no component declares reads as another document's")
+}
+
 // TestNamedPointerBytes_CountsAKeyAsItIsWritten holds a key holding a `/` and
 // a `~`, which a JSON pointer escapes as two bytes each, to the total of a key
 // of its length that holds neither, as the grammar-free total it is compared
