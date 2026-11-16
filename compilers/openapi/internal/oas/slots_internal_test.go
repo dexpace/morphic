@@ -22,7 +22,7 @@ func everySchemaRow(t *testing.T) map[string]SchemaRules {
 	t.Helper()
 	rows := map[string]SchemaRules{}
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
-		for _, id := range append([]string{""}, dialectIDs()...) {
+		for _, id := range append([]string{""}, SchemaDialectIDs()...) {
 			r, unread := Table().SchemaRules(version, id)
 			require.False(t, unread, "%s %s", version, id)
 			require.NotNil(t, r.rows, "%s %s", version, id)
@@ -30,16 +30,6 @@ func everySchemaRow(t *testing.T) map[string]SchemaRules {
 		}
 	}
 	return rows
-}
-
-// dialectIDs returns the id of each dialect the table has rows for.
-func dialectIDs() []string {
-	dialects := schemaDialects()
-	ids := make([]string, 0, len(dialects))
-	for _, d := range dialects {
-		ids = append(ids, d.id)
-	}
-	return ids
 }
 
 // TestSlots_EveryKeywordOfEveryDialectHasOne pins that the slot table places

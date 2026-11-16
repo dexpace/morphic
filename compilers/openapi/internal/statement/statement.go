@@ -1,0 +1,164 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package statement
+
+import (
+	"encoding/json/jsontext"
+
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+)
+
+// MaxFlattenDepth bounds how many allOf lists a statement flattens one inside
+// another: an inline entry more lists than this hold that writes an allOf of
+// its own is listed Capped, its entries unlisted, as the lowering keeps it
+// verbatim (docs/compilers/openapi.md#allof-classification).
+const MaxFlattenDepth = 32
+
+// indexAbove is the number of keys past which a schema answers Key from an
+// index built when it is read, rather than by scanning its keys.
+const indexAbove = 16
+
+// Statement is what the schema at a position writes: its own schema object,
+// and the entries of its inline allOf in the order the lowering flattens
+// them, each wrapper after its own entries.
+type Statement struct {
+	*Schema
+	Entries []Entry
+}
+
+// Entry is one inline allOf entry of a statement: the schema object written
+// there, its pointer below the statement's schema, such as /allOf/0/allOf/1,
+// whether it is a wrapper whose own entries precede it, and whether it
+// writes an allOf nested past MaxFlattenDepth, which is not listed.
+type Entry struct {
+	*Schema
+	Rel     jsontext.Pointer
+	Wrapper bool
+	Capped  bool
+}
+
+// Schema is one schema object as read: where it was read (the zero position
+// for a value the bindings do not know), the node it was read from, its
+// aliases followed, whether it states anything, and, for one that does, every
+// key it writes, its reference, its allOf entries and each slot's values. A
+// slot is nil where the object writes no key of it in the rows it is read
+// with, and holds each keyword's value otherwise, a keyword left out at its
+// zero.
+type Schema struct {
+	At    bind.Position
+	Node  *yaml.Node
+	Keys  []Key
+	Ref   *Reference
+	AllOf []Sub
+
+	Kinds  *Kinds
+	Values *Values
+	Format *Format
+	Number *Number
+	Text   *Text
+	Array  *Array
+	Object *Object
+	Choice *Choice
+	Logic  *Logic
+	Notes  *Notes
+
+	// m is the parser's value the schema was read from, and index each key's
+	// place in Keys, built only past indexAbove keys.
+	m     *model
+	index map[string]int
+
+	Truth Truth
+}
+
+// Key returns the key name of s and whether it is written and read: a null
+// is written and left out unless the keyword's value is an instance, as
+// `const`, `default` and `example` hold one (docs/compilers/openapi.md#null-keywords).
+// A key s does not write is the zero Key.
+func (s *Schema) Key(name string) (Key, bool) {
+	i, _ := s.find(name)
+	if i < 0 {
+		return Key{}, false
+	}
+	k := s.Keys[i]
+	return k, k.read()
+}
+
+// find returns the place of name in s's keys, -1 where s writes none, and how
+// many keys it compared name with to find it.
+func (s *Schema) find(name string) (place, compared int) {
+	if s == nil {
+		return -1, 0
+	}
+	if s.index != nil {
+		if i, ok := s.index[name]; ok {
+			return i, 1
+		}
+		return -1, 1
+	}
+	for i, k := range s.Keys {
+		if k.Name == name {
+			return i, i + 1
+		}
+	}
+	return -1, len(s.Keys)
+}
+
+// Key is one key a schema object writes: its name, its value with its alias
+// followed, the slot the rows it is read with place it in and whether they
+// define it only later (oas.SchemaRules.Slot), whether its value is null, and
+// whether the parser's model holds it, which the census of unknown keywords
+// turns on.
+type Key struct {
+	Name    string
+	Node    *yaml.Node
+	Slot    oas.Slot
+	Later   bool
+	Null    bool
+	Modeled bool
+}
+
+// read reports whether the key's value is read: any but a null, which is
+// read only where the keyword holds an instance.
+func (k Key) read() bool {
+	return !k.Null || k.Name == "const" || k.Name == "default" || k.Name == "example"
+}
+
+// Sub is a schema written under a keyword: the name of the property, pattern
+// or dependency it is written for, or its index in a list. Table.Sub reads
+// it.
+type Sub struct {
+	Name  string
+	Index int
+	m     *model
+}
+
+// Reference is the $ref a schema writes, as the bindings read it: the keyword
+// it is written under, "$dynamicRef" where they read one as the $ref it
+// spells (typed.Bindings.RefKeyword), and the bindings' entry for it, Bound
+// false where they hold none.
+type Reference struct {
+	Keyword string
+	Entry   bind.Entry
+	Bound   bool
+}
+
+// Truth is what a schema value states: Stated, the zero value, for a schema
+// object; Anything and Nothing for `true` and `false`; Unwritten for none, or
+// a value written as no schema (docs/compilers/openapi.md#null-schema); and
+// Unread for a mapping the parser read as a boolean
+// (docs/parser-library.md#failure-beneath-itself). Only a Stated schema has
+// keys.
+type Truth uint8
+
+// The truths of a schema value.
+const (
+	Stated Truth = iota
+	Anything
+	Nothing
+	Unwritten
+	Unread
+)

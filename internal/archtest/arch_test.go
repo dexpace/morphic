@@ -195,6 +195,18 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+	// What a schema position writes, read once into one value: each key in the
+	// slot oas gives it, each slot's values typed, and the inline allOf entries
+	// flattened. It reaches the bindings for where each schema was read and
+	// what its $ref names, nodeview for the keys as the parser reads them, oas
+	// for the rows in force, and the library's schema model, in one file, so
+	// that the schema lowering and annotation, which sit above it, read what
+	// a schema says without reading the parser.
+	"compilers/openapi/internal/statement": {module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
+		"github.com/speakeasy-api/openapi/jsonschema/oas3", "go.yaml.in/yaml/v3"},
 	// One reader of bytes: the source, an overlay and each document a reference
 	// names become the parser's tree of their first document, read as JSON when
 	// they are one JSON text (docs/parser-library.md#json-as-yaml) and else as a
