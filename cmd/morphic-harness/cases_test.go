@@ -241,3 +241,47 @@ func TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection(t *testing.
 	assert.True(t, strings.HasPrefix(stdout, "zero\n--- spec.yaml\n"), stdout)
 	assert.Contains(t, stdout, "\nspelling spelling-dependent "+found[0].What+"\n")
 }
+
+// uncompiled is a fake product of two spellings of one document the compiler
+// reports an error for, the first held to the second.
+type uncompiled struct{}
+
+func (uncompiled) Axes() []harness.Axis {
+	return []harness.Axis{{Name: "n", Values: []harness.Value{{Name: "zero"}, {Name: "one"}}}}
+}
+
+func (uncompiled) Write(at []int) (harness.Document, bool) {
+	doc := harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.BadHeader)}}}
+	if at[0] == 0 {
+		doc.Equal = &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
+			Relocate: func(s string) string { return s }}
+	}
+	return doc, true
+}
+
+// TestCheckCases_ACaseThatDoesNotCompileIsReportedUnlessListed holds a run to
+// a case its oracle declines for an error diagnostic: reported as a finding
+// is, exiting 1, by a run of the cases and by -at, and explained by a record
+// listing the decline, though -at exits 1 on it listed or not.
+func TestCheckCases_ACaseThatDoesNotCompileIsReportedUnlessListed(t *testing.T) {
+	t.Parallel()
+	code, stdout, stderr := runArgs(t, []format{{uncompiled{}, emptyRecord}}, "-cases", "full")
+	assert.Equal(t, 1, code, stderr)
+	assert.True(t, strings.HasPrefix(stdout, "zero declined declined: error diagnostic\n\n"), stdout)
+
+	listing := func(o harness.Oracle) (harness.Recorded, error) {
+		if o != harness.OracleSpelling {
+			return harness.Recorded{}, nil
+		}
+		return harness.ReadRecorded([]byte("zero\tdeclined: error diagnostic\twhy\n"))
+	}
+	code, stdout, _ = runArgs(t, []format{{uncompiled{}, listing}}, "-cases", "full")
+	assert.Equal(t, 0, code, stdout)
+
+	code, stdout, _ = runArgs(t, []format{{uncompiled{}, listing}}, "-cases", "full", "-at", "0")
+	assert.Equal(t, 1, code, "-at exits 1 on a decline a record lists as a finding")
+	assert.Contains(t, stdout, "\nspelling declined: error diagnostic\n")
+
+	code, stdout, _ = runArgs(t, []format{{uncompiled{}, listing}}, "-cases", "full", "-at", "1")
+	assert.Equal(t, 0, code, "a case with no partner is asked nothing: %s", stdout)
+}
