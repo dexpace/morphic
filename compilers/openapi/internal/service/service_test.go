@@ -6,6 +6,7 @@ package service_test
 import (
 	"encoding/json/jsontext"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -279,4 +280,28 @@ func overlayDoc(t testing.TB, ov string) *yaml.Node {
 	doc, err := doctree.Read(t.Context(), []byte(ov), budget.Unbounded())
 	require.NoError(t, err)
 	return doc.Root
+}
+
+// TestCtx_HasNoExportedMap holds Ctx to "immutable by value", as
+// lowering.Ctx is held: a struct copy shares a map or a slice's backing
+// array. The exported document pointer is exempt: it is shared by design and
+// no lowering writes through it, which TestNew_KeepsTheDocumentItWasGiven
+// pins.
+func TestCtx_HasNoExportedMap(t *testing.T) {
+	t.Parallel()
+	rt := reflect.TypeFor[service.Ctx]()
+	require.Positive(t, rt.NumField(), "a context with no fields would pass this vacuously")
+
+	var checked int
+	for f := range rt.Fields() {
+		if !f.IsExported() {
+			continue
+		}
+		checked++
+		assert.NotEqual(t, reflect.Map, f.Type.Kind(),
+			"exported field %s is a map, so a copy of the context shares it", f.Name)
+		assert.NotEqual(t, reflect.Slice, f.Type.Kind(),
+			"exported field %s is a slice, so a copy of the context shares its backing array", f.Name)
+	}
+	assert.Positive(t, checked, "no exported field was examined, so this asserted nothing")
 }

@@ -33,11 +33,8 @@ import (
 
 // TestCtx_HasNoExportedMap holds Ctx to "immutable by value": a struct copy
 // shares a map, so an exported map field would be the one part of the context a
-// callee could write to, visibly to its caller's caller.
-//
-// Slices are held to the same rule, since a copy shares the backing array. The
-// exported document pointer is exempt: it is shared by design and lowering
-// never writes through it, which TestNew_KeepsTheDocumentItWasGiven pins.
+// callee could write to, visibly to its caller's caller. Slices are held to the
+// same rule, since a copy shares the backing array.
 func TestCtx_HasNoExportedMap(t *testing.T) {
 	t.Parallel()
 	rt := reflect.TypeFor[lowering.Ctx]()
