@@ -45,9 +45,9 @@ type Entry struct {
 // for a value the bindings do not know), the node it was read from, its
 // aliases followed, whether it states anything, and, for one that does, every
 // key it writes, its reference, its allOf entries and each slot's values. A
-// slot is nil where the object writes no key of it in the rows it is read
-// with, and holds each keyword's value otherwise, a keyword left out at its
-// zero.
+// slot is nil where the object writes no keyword of it, and holds each
+// keyword's value otherwise, as the parser read it whatever the rows say, a
+// keyword left out at its zero. Whether the rows read a key is its Slot.
 type Schema struct {
 	At    bind.Position
 	Node  *yaml.Node

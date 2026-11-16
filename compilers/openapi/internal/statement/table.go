@@ -140,8 +140,8 @@ func (t *Table) flatten(st *Statement) {
 	}
 }
 
-// open makes s's struct of slot, where it has none yet: a key placed in a
-// slot opens it, whether or not its value is read.
+// open makes s's struct of slot, where it has none yet: a key of the slot's
+// keywords opens it, whether or not its value is read.
 func open(s *Schema, slot oas.Slot) {
 	switch {
 	case slot == oas.SlotKinds && s.Kinds == nil:

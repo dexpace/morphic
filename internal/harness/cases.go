@@ -62,6 +62,10 @@ type Document struct {
 	// Reason says why not, required when Carried is false and Absent is set
 	// (presence).
 	Reason string
+	// Replaces is true where the construct replaces a member the case's target
+	// writes, so the case at Absent still writes the keyword and is no case
+	// without it: the construct is held to Other alone (presence).
+	Replaces bool
 	// Instances are each default the document writes (instances).
 	Instances []Instance
 }
@@ -268,9 +272,8 @@ func Coordinates(c Cases, i int) ([]int, error) {
 
 // CheckCase writes c's case at and applies every case oracle to it, as
 // CheckCases does, and returns false, with the case's name alone, where the
-// case writes nothing. A caller
-// mistake (nil ctx, cases CaseCount refuses, at outside the product) is
-// OutcomeError with a harness-prefixed Detail.
+// case writes nothing. A caller mistake (nil ctx, cases CaseCount refuses, at
+// outside the product) is OutcomeError with a harness-prefixed Detail.
 func CheckCase(ctx context.Context, c Cases, at []int) (Result, bool) {
 	axes, _, err := product(c)
 	if err != nil {
@@ -332,7 +335,9 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // asked holds the case oracles CheckCase applies, in CaseOracles' order, each
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
-var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{}
+var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
+	present,
+}
 
 // shard is the run of cases sharing their first shardAxes values, and what
 // each compiled to in it, by index.

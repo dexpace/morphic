@@ -1069,13 +1069,14 @@ any chain that fails does, though the schema writing it keeps what it declares b
 alias or merge key is a copy written where it is placed, so what it holds is read at that position,
 as the document's JSON places it, and raw YAML a schema `$ref` lands on, under an extension or in
 another document, is read as a schema, as is a schema beneath an Encoding Object that another nests
-through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. A reference
-written beneath such a nested Encoding Object is bound and reported as one anywhere else is, though
-the object itself is kept verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). A
-schema position of the model holds the schema the parser
-built there, whatever its YAML, so a `$ref` to a component written as a string names that component,
-as it lowers. A key written twice in one mapping is read as its last occurrence, raw YAML included,
-as the parser's model reads one ([`duplicate-key`](../parser-library.md#duplicate-key)).
+through 3.2's `encoding`, `prefixEncoding` or `itemEncoding`, which no model holds. A `$ref`
+written beneath such a nested Encoding Object, a schema's or a Reference Object's, is bound and
+reported as one anywhere else is, though the object itself is kept verbatim
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). A schema position of the model holds the
+schema the parser built there, whatever its YAML, so a `$ref` to a component written as a string
+names that component, as it lowers. A key written twice in one mapping is read as its last
+occurrence, raw YAML included, as the parser's model reads one
+([`duplicate-key`](../parser-library.md#duplicate-key)).
 
 A reference that resolves to nothing — a pointer naming no node, a position holding no schema, a
 component its section does not hold, another document the compile may not read, a plain name or a
@@ -1436,10 +1437,10 @@ entry, whose carrier has no docs for the one media type it names. The load phase
 neither a section nor a reference, and the reference is followed as any other is
 ([`references`](#references)); each entry no reference reaches is kept
 ([`unreferenced-components`](#unreferenced-components)). Nothing models the nested Encoding fields.
-The binder places every field of the live set where the specification defines one, whatever the
-parser's model holds, so a reference written beneath any of them is bound and reported as any other
-is, and a schema it lands on beneath a nested Encoding Object is built from the raw YAML, as one an
-extension holds is.
+The binder places each field the rule table gives an object outside a schema that can hold a schema
+or a Reference Object, at every minor and whatever the parser's model holds, so a `$ref` written
+beneath a nested Encoding Object is bound and reported as any other is, and a schema one lands on
+there is built from the raw YAML, as one an extension holds is.
 
 - Cases: `response-summary-32`, `xml-nodetype-32`, `nested-encoding-32`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`, `openapi/unknown-key-unreachable`
@@ -1526,8 +1527,9 @@ holds is named for that object even where the object is kept under an extension 
 `$ref`, and a document a `$ref` reads whole as a schema is named for the document (`./Cat.yaml`
 names its root `cat_yaml`). A `components/mediaTypes` entry is named by its key, `""` minted as a
 component schema's is, and a header of an Encoding Object that another nests through 3.2's
-`encoding`, `prefixEncoding` or `itemEncoding` by its key, as any other header is. Every such name is a function of the documents and the position alone, read
-where the position is written, so no lowering order changes it: a union variant, or a composition
+`encoding`, `prefixEncoding` or `itemEncoding` by its key, as any other header is. Every such name
+is a function of the documents and the position alone, read where the position is written, so no
+lowering order changes it: a union variant, or a composition
 branch holding a `$ref`, is named as the position the `$ref` lands on, in whichever document, and
 keeps its own name where that names nothing. An inline `allOf` branch is a conjunct of the schema
 holding it, so a node built there ([`allof-refinement`](#allof-refinement)) is named as that schema
@@ -4908,18 +4910,22 @@ nothing by design: `$comment`, which the specification forbids surfacing; `$defs
 lower where a `$ref` reaches them; and `$dynamicAnchor` and `$anchor`, each consumed as a reference
 target rather than carried as content ([`dialect-keywords`](#dialect-keywords)). The keyword lists
 of [boundaries](../ir/boundaries.md#validation-only-constructs) and of this section are held
-to that rather than merely asserted: `TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates
-the vocabularies keyword by keyword and, for each, compiles three documents — the keyword absent,
-written with one value, written with a second — requiring that the absent form differs from the
-first and the first from the second, and an exception asserts the inverse with its written
-justification. A keyword that stops being carried fails there rather than waiting for a reader to
-notice. The guarantee is a floor rather than an inventory: it compares one pair of values per
-keyword, so a lowering that carried one spelling and dropped another would still pass. A keyword
-kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
-([`validation-only`](#validation-only)).
+to that rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema cases to every
+keyword of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
+compiles, for each keyword at each position the cases write a schema, three documents: the keyword
+absent, written with one value, written with a second. It requires the absent form to differ from
+the first and the first from the second, and an exception to equal the absent form, its
+justification written beside the keyword; where the target writes the keyword itself, there is no
+absent form, and the two values are compared alone. A keyword that stops being carried at any one position
+fails there rather than waiting for a reader to notice, and a finding that stands is listed with
+its reason in the package's `testdata/presence.txt`. The guarantee is a floor rather than an
+inventory: it compares one pair of values per keyword, so a lowering that carried one value and
+dropped another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the
+positions they land on are lowered ([`validation-only`](#validation-only)).
 
-- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`, `schema.TestPromiseLandings_BuildsNothingTwice`,
-  `schema.TestPromiseLandings_LowersWhatNothingElseReached`, `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
+- Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
+  `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,
+  `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
 
 ## 8. Paths and operations
 
@@ -6550,10 +6556,10 @@ how operations are arranged rather than filling a fact a node holds.
    rule reads, is met where the document has not spoken, and which then declines to fill the fact,
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
-   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `lowering` and
-   `whole`, the one reading of the finished document every such step shares, and `runtimeexpr`
-   where it reads an expression the document writes, and so nothing of the walks that built the
-   document. The compiler's run reads them in one block, in one order: links
+   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `ids` and
+   `promotion`, and `whole`, the one reading of the finished document every such step shares, and
+   `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks that
+   built the document. The compiler's run reads them in one block, in one order: links
    ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
    promotions, then inferences, so an inference sees what every promotion filled. Nothing after the
    root follows a reference, as which components the root keeps turns on what was reached. The

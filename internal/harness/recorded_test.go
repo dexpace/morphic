@@ -79,6 +79,16 @@ func TestRecorded_WriteKeepsEachReason(t *testing.T) {
 	assert.Equal(t, []string{"c/x\tunclassified", "e/x\tunclassified"}, unreasoned)
 }
 
+// TestRecorded_WriteOfAWhatNoLineHolds pins Write's limit: a What that is
+// empty or holds a tab writes a line ReadRecorded refuses.
+func TestRecorded_WriteOfAWhatNoLineHolds(t *testing.T) {
+	for _, what := range []string{"", "kind\tbase"} {
+		_, err := harness.ReadRecorded(harness.Recorded{}.Write("", []harness.Finding{{Name: "a/x", What: what}}))
+		require.Error(t, err, "%q", what)
+		assert.Contains(t, err.Error(), "want name, what and reason", "%q", what)
+	}
+}
+
 func TestReadRecorded_RefusesWhatNoRecordHolds(t *testing.T) {
 	for _, tc := range []struct{ name, data, want string }{
 		{"two fields", "a/x\tkind\n", "record line 1: want name, what and reason"},
@@ -102,7 +112,8 @@ func TestRecorded_ExplainsAFindingAtItsCoreName(t *testing.T) {
 }
 
 // caseResults are a run's results: one case each oracle passes, one the
-// spelling and presence oracles find something in, and one a panic ended.
+// spelling and presence oracles find something in, one a panic ended, and one
+// a panic ended after the spelling oracle found what the record lists.
 func caseResults() []harness.Result {
 	return []harness.Result{
 		{Spec: "a/x", Like: "a/x", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
@@ -116,19 +127,25 @@ func caseResults() []harness.Result {
 		{Spec: "c/x", Like: "c/x", Outcome: harness.OutcomePanic, Detail: "boom", Verdicts: []harness.Verdict{
 			{Oracle: harness.OracleSpelling, Declined: harness.DeclineNotReached},
 		}},
+		{Spec: "a/y", Like: "a/x", Outcome: harness.OutcomePanic, Detail: "presence exploded", Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeSpellingDependent, Detail: "kept record"},
+			{Oracle: harness.OraclePresence, Declined: harness.DeclineNotReached},
+		}},
 	}
 }
 
 func TestFindings_AreTheFirstLineOfWhatAnOracleFound(t *testing.T) {
 	results := caseResults()
-	assert.Equal(t, []harness.Finding{{Name: "b/y", What: "kind"}}, harness.Findings(results, harness.OracleSpelling))
+	assert.Equal(t, []harness.Finding{{Name: "b/y", What: "kind"}, {Name: "a/y", What: "kept record"}},
+		harness.Findings(results, harness.OracleSpelling))
 	assert.Equal(t, []harness.Finding{{Name: "b/y", What: "changes nothing"}},
 		harness.Findings(results, harness.OraclePresence))
 	assert.Empty(t, harness.Findings(results, harness.OracleInstance))
 }
 
 // TestUnexplained_KeepsWhatNoRecordExplains pins what a run reports: a fault,
-// and a finding no record lists at its case's core name, with the verdicts the
+// whole even where the record explains what an oracle found before it, and a
+// finding no record lists at its case's core name, with the verdicts the
 // record explains taken out.
 func TestUnexplained_KeepsWhatNoRecordExplains(t *testing.T) {
 	results := caseResults()
@@ -136,15 +153,31 @@ func TestUnexplained_KeepsWhatNoRecordExplains(t *testing.T) {
 
 	got := harness.Unexplained(results, records)
 
-	require.Len(t, got, 2)
+	require.Len(t, got, 3)
 	assert.Equal(t, harness.Result{
 		Spec: "b/y", Like: "b/x", Outcome: harness.OutcomeNotCarried, Detail: "changes nothing",
 		Verdicts: []harness.Verdict{{Oracle: harness.OraclePresence, Outcome: harness.OutcomeNotCarried, Detail: "changes nothing"}},
 	}, got[0])
 	assert.Equal(t, results[2], got[1])
+	assert.Equal(t, results[3], got[2])
+	assert.Contains(t, harness.Report(got), "presence exploded", "the report names the fault beside the finding")
 
 	bare := harness.Unexplained(results, nil)
-	require.Len(t, bare, 2, "with no record, every finding stands")
+	require.Len(t, bare, 3, "with no record, every finding stands")
 	assert.Equal(t, harness.OutcomeSpellingDependent, bare[0].Outcome)
 	assert.Equal(t, results[1].Verdicts[:2], bare[0].Verdicts)
+}
+
+// TestResult_FaultedTellsAFaultFromAFinding holds Faulted to each outcome a
+// result takes: a fault is an outcome no verdict of the result found.
+func TestResult_FaultedTellsAFaultFromAFinding(t *testing.T) {
+	results := caseResults()
+	for i, want := range []bool{false, false, true, true} {
+		assert.Equal(t, want, results[i].Faulted(), results[i].Spec)
+	}
+	panicked := harness.Result{Outcome: harness.OutcomePanic, Verdicts: []harness.Verdict{
+		{Oracle: harness.OracleNoPanic, Outcome: harness.OutcomePanic, Detail: "boom"},
+	}}
+	assert.False(t, panicked.Faulted(), "a spec's panic is the no-panic oracle's finding")
+	assert.True(t, harness.Result{Outcome: harness.OutcomeError}.Faulted())
 }

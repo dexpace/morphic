@@ -133,7 +133,9 @@ func sharedConstructs() []construct {
 		{keyword: "additionalProperties", targets: objectTargets(), values: fixed("additionalProperties",
 			`{"type": "integer"}`, `{"type": "boolean"}`)},
 		{keyword: "description", values: fixed("description", `"D"`, `"Z"`)},
-		{keyword: "format", targets: []string{stringTarget, formattedTarget}, values: fixed("format", `"date"`, `"date-time"`)},
+		// Not of the formatted target: its body writes format already, so there
+		// the construct would write the string target's documents again.
+		{keyword: "format", targets: []string{stringTarget}, values: fixed("format", `"date"`, `"date-time"`)},
 		{keyword: "default", values: instances("default", "%s")},
 		{keyword: "readOnly", values: fixed("readOnly", "true", "false")},
 		{keyword: "writeOnly", values: fixed("writeOnly", "true", "false")},
@@ -173,8 +175,8 @@ func dialectConstructs() []construct {
 		{keyword: "else", span: from31, values: fixed("else", `{"const": "a"}`, `{"const": "z"}`)},
 		{keyword: "unevaluatedItems", span: from31, targets: arrayTargets(), values: fixed("unevaluatedItems",
 			`{"type": "string"}`, `{"type": "boolean"}`)},
-		{keyword: "unevaluatedProperties", span: from31, targets: objectTargets(), values: fixed("unevaluatedProperties",
-			"false", `{"type": "string"}`)},
+		{keyword: "unevaluatedProperties", span: from31, targets: append(objectTargets(), stringTarget),
+			values: fixed("unevaluatedProperties", "false", `{"type": "string"}`)},
 		{keyword: "contentSchema", span: from31, targets: []string{stringTarget}, values: fixed("contentSchema",
 			`{"type": "object"}`, `{"type": "array"}`)},
 		{keyword: "const", span: from31, values: instances("const", "%s")},
