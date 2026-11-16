@@ -537,6 +537,15 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
+			name: "items beside an unevaluatedItems, which it leaves live",
+			null: "    A:\n      type: array\n      items: null\n      unevaluatedItems: false\n",
+			twin: "    A:\n      type: array\n      unevaluatedItems: false\n",
+			shape: func(t *testing.T, td ir.TypeDef) {
+				assert.Equal(t, top, asKind[*ir.List](t, td).Elem)
+			},
+			kept: map[string]string{"openapi:unevaluated": `{"unevaluatedItems":false}`},
+		},
+		{
 			name: "not",
 			null: "    A:\n      type: string\n      not: null\n",
 			twin: "    A:\n      type: string\n",
