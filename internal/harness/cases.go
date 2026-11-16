@@ -62,6 +62,10 @@ type Document struct {
 	// Reason says why not, required when Carried is false and Absent is set
 	// (presence).
 	Reason string
+	// Replaces is true where the construct replaces a member the case's target
+	// writes, so the case at Absent still writes the keyword and is no case
+	// without it: the construct is held to Other alone (presence).
+	Replaces bool
 	// Instances are each default the document writes (instances).
 	Instances []Instance
 }
@@ -331,7 +335,9 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // asked holds the case oracles CheckCase applies, in CaseOracles' order, each
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
-var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{}
+var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
+	present,
+}
 
 // shard is the run of cases sharing their first shardAxes values, and what
 // each compiled to in it, by index.

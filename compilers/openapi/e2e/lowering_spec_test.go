@@ -326,14 +326,16 @@ func testProblems(rules []rule, funcsOf func(pkg string) (map[string]bool, error
 }
 
 // packageDir returns the directory, from the repository root, of the package
-// a test name's prefix stands for: the compiler itself, this package, or one
-// under the compiler's internal directory.
+// a test name's prefix stands for: the compiler itself, this package, the
+// harness's schema cases, or one under the compiler's internal directory.
 func packageDir(pkg string) string {
 	switch pkg {
 	case "openapi":
 		return "compilers/openapi"
 	case "e2e":
 		return "compilers/openapi/e2e"
+	case "openapicases":
+		return "internal/harness/openapicases"
 	default:
 		return "compilers/openapi/internal/" + pkg
 	}
