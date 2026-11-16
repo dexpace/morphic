@@ -18,7 +18,7 @@ import (
 )
 
 // expansion counts what a run's $refs copy against
-// Limits.MaxReferenceExpansion. A declaration a $ref names, a schema aside,
+// Policy.MaxReferenceExpansion. A declaration a $ref names, a schema aside,
 // lowers again at every $ref naming it (GitHub #1240), so each such $ref
 // is charged what the declarations its chain names weigh, and the sum bounds
 // the product of references and size that the source budgets leave free, as
