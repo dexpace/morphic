@@ -5,6 +5,7 @@ package service
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
@@ -15,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -92,9 +94,15 @@ type Policy struct {
 // the compiler lowers only a document its load returned. The streaming and
 // binary policies are normalized here so readers cannot disagree about a
 // media type.
+//
+// It is the one place the load phase's document and the schema lowering's
+// values meet: what lowering.New reads of the load is built here.
 func New(srcIndex int, doc *load.Document, p Policy) Ctx {
+	documents, encoding := documentsOf(srcIndex, doc)
 	return Ctx{
-		Ctx:               lowering.New(srcIndex, doc, p.Schema),
+		Ctx: lowering.New(lowering.Loaded{Location: doc.Location, Places: doc.Places, Bindings: doc.Bindings,
+			Declares:  resolve.NewNames(slices.Collect(doc.Doc.Components.GetSchemas().Keys())...),
+			Documents: documents, Rules: doc.Dialects, Sources: sourcesOf(doc)}, p.Schema),
 		Doc:               doc.Doc,
 		Source:            doc.Source,
 		SrcIndex:          srcIndex,
@@ -102,24 +110,50 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		GroupingExtension: p.GroupingExtension,
 		streaming:         streamingSet(p.StreamingInference),
 		binary:            binarySet(p.BinaryInference),
-		loaded:            &loaded{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, encoding: encodingOf(doc)},
+		loaded:            &loaded{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, encoding: encoding},
 		expansion:         newExpansion(p.MaxReferenceExpansion),
 	}
 }
 
-// encodingOf returns the rows each document of doc's bindings' table the
-// compile read reads its Encoding Objects with: the source's own, and each
-// other's at the minor and in the dialect it is read in (load.Other.Rows).
-func encodingOf(doc *load.Document) map[bind.DocID]oas.EncodingRules {
-	out := map[bind.DocID]oas.EncodingRules{bind.Source: doc.Rows.Encoding}
+// documentsOf returns each document of doc's bindings' table the compile
+// read, as a lowering places and names what it reads there, and the rows each
+// reads its Encoding Objects with: the source at srcIndex, where the overlay
+// is named as the writer of a position it introduced or rewrote, read with its
+// own rows, and each other whose name the documents a reference read beside
+// the source know (load.Others.Named), at the minor and in the dialect it is
+// read in (load.Other.Rows). Two names one document is read by are two
+// entries naming one Document.Sources entry.
+func documentsOf(srcIndex int, doc *load.Document) (map[bind.DocID]lowering.Document, map[bind.DocID]oas.EncodingRules) {
+	documents := map[bind.DocID]lowering.Document{
+		bind.Source: {Place: provenance.Doc{Source: srcIndex, Overlay: doc.Overlay.Attribution()}},
+	}
+	encoding := map[bind.DocID]oas.EncodingRules{bind.Source: doc.Rows.Encoding}
 	table := doc.Bindings.Table()
 	if table == nil {
-		return out
+		return documents, encoding
 	}
 	for id := range bind.DocID(table.Documents()) {
-		if o, ok := doc.Others.Named(table.Document(id).Name); ok && id != bind.Source {
-			out[id] = o.Rows.Encoding
+		name := table.Document(id).Name
+		o, ok := doc.Others.Named(name)
+		if !ok || id == bind.Source {
+			continue
 		}
+		documents[id] = lowering.Document{Name: name, Place: provenance.Doc{Source: o.Index}, IDs: ids.In(o.Label)}
+		encoding[id] = o.Rows.Encoding
+	}
+	return documents, encoding
+}
+
+// sourcesOf returns doc's input files, in the order Provenance.Source indexes
+// them: the source being lowered, then the overlay applied to it if there was
+// one, then each document a reference read beside it (load.Others).
+func sourcesOf(doc *load.Document) []ir.SourceInfo {
+	out := []ir.SourceInfo{doc.Source}
+	if doc.Overlay.Applied() {
+		out = append(out, doc.Overlay.Source())
+	}
+	for _, o := range doc.Others.List() {
+		out = append(out, o.Info)
 	}
 	return out
 }

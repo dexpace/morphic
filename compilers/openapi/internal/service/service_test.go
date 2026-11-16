@@ -14,8 +14,12 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
@@ -155,4 +159,124 @@ components:
 	assert.True(t, use.IsReference(), "the context reads the load phase's model")
 	_, isUse = c.MediaTypeUse(content.GetOrZero("text/plain"))
 	assert.False(t, isUse, "an entry written inline is no use")
+}
+
+// TestNew_DerivesTheDeclaredSchemaNames pins the index the $ref and
+// discriminator-mapping resolutions read. A name missing from it is not a
+// resolvable target, so under-deriving turns a valid $ref into a dangling one;
+// over-deriving mints an ID for a component the document never declared.
+func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		doc      *soa.OpenAPI
+		declares []string
+		denies   []string
+	}{
+		{
+			name: "every declared component", doc: openapitest.DocDeclaring("User", "Order", "A~B"),
+			declares: []string{"User", "Order", "A~B"}, denies: []string{"Missing", ""},
+		},
+		{
+			name: "a document declaring none", doc: &soa.OpenAPI{},
+			denies: []string{"User", ""},
+		},
+		{
+			name: "components present but no schemas", doc: &soa.OpenAPI{Components: &soa.Components{}},
+			denies: []string{"User"},
+		},
+		{
+			name: "the empty name is a name like any other", doc: openapitest.DocDeclaring(""),
+			declares: []string{""}, denies: []string{"User"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c := service.New(0, &load.Document{Doc: tc.doc}, service.Policy{})
+			for _, n := range tc.declares {
+				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
+			}
+			for _, n := range tc.denies {
+				assert.False(t, c.DeclaresSchema(n), "%q is not declared", n)
+			}
+		})
+	}
+}
+
+// appliedOverlay returns a real Origin by applying ov to a tree of doc. Origin's
+// fields are unexported, so a context carrying one can only be built the way the
+// loader builds it — which is also what keeps this test honest about the shape
+// the compiler actually hands over.
+func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
+
+	origin, diags := overlay.Apply(t.Context(), index, &root, overlayDoc(t, ov), overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	require.False(t, diag.HasError(diags), "%+v", diags)
+	require.True(t, origin.Applied())
+	return origin
+}
+
+// TestSources_ListsTheOverlayAfterTheSourceItPatched pins the list
+// Provenance.Source indexes into. The order is the contract: a position
+// attributed to index 1 must find the overlay there, so a Sources built in the
+// other order would misname every one of them rather than fail.
+func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
+	t.Parallel()
+	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
+	origin := appliedOverlay(t, 1, "info: {title: T}\n",
+		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
+			"  - target: $.info\n    update: {description: d}\n")
+
+	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, service.Policy{})
+
+	require.Len(t, c.Sources(), 2)
+	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
+	assert.Equal(t, "overlay@1.0.0", c.Sources()[1].Format, "and the overlay applied to it second")
+	assert.Equal(t, "patch.yaml", c.Sources()[1].Path)
+}
+
+// TestSources_ListsOnlyTheSourceWhenNoOverlayApplied is the control for the case
+// above: without it, an assertion that the overlay entry is present would pass
+// on a context that appended one unconditionally.
+func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
+	t.Parallel()
+	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
+
+	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src}, service.Policy{})
+
+	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
+}
+
+// TestPlace_NamesTheOverlayForThePositionsItIntroduced pins the one place
+// a source index is spelled into a Provenance. Asking the overlay here is what
+// makes an overlay's contribution traceable without touching a lowering, so a
+// Place that ignored it would credit the overlay's work to the file on disk at
+// every site at once. The position is the source's either way.
+func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
+	t.Parallel()
+	origin := appliedOverlay(t, 1, "info: {title: T}\n",
+		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
+			"  - target: $.info\n    update: {description: d}\n")
+
+	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, service.Policy{})
+
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
+		c.Place().At("/info/description"), "the overlay wrote this position of the source")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
+		c.Place().At("/info/title"), "and left this one alone")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
+		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
+		"a diagnostic is stamped through the same question")
+}
+
+// overlayDoc reads ov as the compile reads an overlay document, into the tree
+// overlay.Apply is handed.
+func overlayDoc(t testing.TB, ov string) *yaml.Node {
+	t.Helper()
+	doc, err := doctree.Read(t.Context(), []byte(ov), budget.Unbounded())
+	require.NoError(t, err)
+	return doc.Root
 }

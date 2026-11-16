@@ -5,15 +5,13 @@ package lowering
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
-
-	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
@@ -44,7 +42,7 @@ type Ctx struct {
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported because it holds a map, which a struct
-	// copy would share. It sits behind one pointer for the reason loaded does.
+	// copy would share. It sits behind one pointer for the reason shared does.
 	promoter *promotion.Promoter
 
 	// schemas is the set of component-schema names the document declares, read
@@ -57,11 +55,11 @@ type Ctx struct {
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
 
-	// loaded is what the load phase resolved with the document. It sits behind
+	// shared is what the load phase resolved with the document. It sits behind
 	// one pointer because every lowering takes a copy of the context, and a
 	// closure over one that escapes moves it to the heap, with every word the
 	// context holds.
-	loaded *loadResult
+	shared *shared
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
@@ -70,13 +68,13 @@ type Ctx struct {
 	reached *resolve.Reached
 }
 
-// loadResult holds what a context reads of the load phase (see New): the
-// readings RefScope hands every scope over the raw YAML the model reads on in,
-// and over the schema bindings. They come with the document rather than being
+// shared holds what every copy of a context reads of the load phase (see
+// New): the readings RefScope hands every scope over the raw YAML the model
+// reads on in, and over the schema bindings. They come with the document rather than being
 // derived from it, since resolving them reads every document the source names,
 // which only the load phase may (GitHub #757). The readings are bound once,
 // here: binding them in RefScope would allocate each time.
-type loadResult struct {
+type shared struct {
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt). Copies share it on
 	// purpose: a name reads only those documents, which no lowering changes,
@@ -119,32 +117,6 @@ type Policy struct {
 	TitleNames             TitleNames
 }
 
-// New derives the context for doc, at srcIndex, under p. doc must not be nil:
-// the compiler lowers only a document its load returned.
-//
-// The schema-name index is built here, not on first use, so every reader sees
-// the same set whatever the source order: a $ref resolved mid-lowering must see
-// a component declared later, and the promotion policy is copied so no
-// lowering can write through the context into the caller's map.
-func New(srcIndex int, doc *load.Document, p Policy) Ctx {
-	promoter := promotion.New(p.Promotions)
-	documents := documentsOf(srcIndex, doc)
-	return Ctx{
-		Site:                   siteOf(bind.Source, documents[bind.Source]),
-		Limits:                 p.Limits,
-		schemas:                declaredSchemaNames(doc.Doc),
-		promoter:               &promoter,
-		NullableInference:      p.NullableInference,
-		DiscriminatorInference: p.DiscriminatorInference,
-
-		loaded: &loadResult{documents: documents, dialects: doc.Dialects, sources: sourcesOf(doc),
-			names:    naming.New(doc.Bindings.Table(), p.TitleNames.Honours()),
-			reads:    resolve.Scope{SelfPath: doc.Location, Places: doc.Places, Bindings: doc.Bindings},
-			readings: map[any]any{}, settled: map[any]any{}},
-		reached: resolve.NewReached(),
-	}
-}
-
 // Document is one document of the bindings' table the compile read, as a
 // lowering places and names what it reads there (Site): the name the bindings
 // read it by, which a reference in it is resolved against, where its positions
@@ -155,37 +127,45 @@ type Document struct {
 	IDs   ids.Document
 }
 
-// documentsOf returns each document of doc's bindings' table the compile
-// read: the source at srcIndex, where the overlay is named as the writer of a
-// position it introduced or rewrote, and each other whose name the documents
-// a reference read beside the source know (load.Others.Named).
-func documentsOf(srcIndex int, doc *load.Document) map[bind.DocID]Document {
-	out := map[bind.DocID]Document{bind.Source: {Place: provenance.Doc{Source: srcIndex, Overlay: doc.Overlay.Attribution()}}}
-	table := doc.Bindings.Table()
-	if table == nil {
-		return out
-	}
-	for id := range bind.DocID(table.Documents()) {
-		name := table.Document(id).Name
-		if o, ok := doc.Others.Named(name); ok && id != bind.Source {
-			out[id] = Document{Name: name, Place: provenance.Doc{Source: o.Index}, IDs: ids.In(o.Label)}
-		}
-	}
-	return out
+// Loaded is what New reads of the load phase, as values of the packages
+// below: where the source lies and where the compile's files lie, as its
+// references are read against; where each $ref lands; the component schemas
+// the source declares; each document of the bindings' table the compile read,
+// the source at bind.Source; the rows each schema is read with; and the
+// compile's input files, in the order Provenance.Source indexes them.
+type Loaded struct {
+	Location  string
+	Places    *resolve.Places
+	Bindings  *typed.Bindings
+	Declares  resolve.Names
+	Documents map[bind.DocID]Document
+	Rules     dialect.Table
+	Sources   []ir.SourceInfo
 }
 
-// sourcesOf returns doc's input files, in the order Provenance.Source indexes
-// them: the source being lowered, then the overlay applied to it if there was
-// one, then each document a reference read beside it (load.Others).
-func sourcesOf(doc *load.Document) []ir.SourceInfo {
-	out := []ir.SourceInfo{doc.Source}
-	if doc.Overlay.Applied() {
-		out = append(out, doc.Overlay.Source())
+// New derives the context for in under p, reading the source's own content:
+// in.Documents holds the source at bind.Source.
+//
+// The schema-name index arrives built, not built on first use, so every reader
+// sees the same set whatever the source order: a $ref resolved mid-lowering
+// must see a component declared later. The promotion policy is copied so no
+// lowering can write through the context into the caller's map.
+func New(in Loaded, p Policy) Ctx {
+	promoter := promotion.New(p.Promotions)
+	return Ctx{
+		Site:                   siteOf(bind.Source, in.Documents[bind.Source]),
+		Limits:                 p.Limits,
+		schemas:                in.Declares,
+		promoter:               &promoter,
+		NullableInference:      p.NullableInference,
+		DiscriminatorInference: p.DiscriminatorInference,
+
+		shared: &shared{documents: maps.Clone(in.Documents), dialects: in.Rules, sources: slices.Clone(in.Sources),
+			names:    naming.New(in.Bindings.Table(), p.TitleNames.Honours()),
+			reads:    resolve.Scope{SelfPath: in.Location, Places: in.Places, Bindings: in.Bindings},
+			readings: map[any]any{}, settled: map[any]any{}},
+		reached: resolve.NewReached(),
 	}
-	for _, o := range doc.Others.List() {
-		out = append(out, o.Info)
-	}
-	return out
 }
 
 // siteOf returns the site of document id, which d is.
@@ -216,13 +196,13 @@ func (c Ctx) Reached(pointer jsontext.Pointer) bool {
 // is a second place they can disagree — which would misattribute every node
 // rather than fail.
 func (c Ctx) Sources() []ir.SourceInfo {
-	return slices.Clone(c.loaded.sources)
+	return slices.Clone(c.shared.sources)
 }
 
 // Bindings returns where the document's schema $refs land, as the load phase
 // resolved them.
 func (c Ctx) Bindings() *typed.Bindings {
-	return c.loaded.reads.Bindings
+	return c.shared.reads.Bindings
 }
 
 // Remembered returns read's answer for key, read once and remembered for every
@@ -232,12 +212,12 @@ func (c Ctx) Bindings() *typed.Bindings {
 // its own, so neither is boxed to be found or kept, and a key read for two
 // types of answer is read once for each.
 func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
-	answers, ok := c.loaded.readings[memo[K, V]{}].(map[K]V)
+	answers, ok := c.shared.readings[memo[K, V]{}].(map[K]V)
 	if !ok {
 		// Kept before read runs, so a reading that asks Remembered for answers of
 		// the same types keeps them here rather than in a map this one replaces.
 		answers = map[K]V{}
-		c.loaded.readings[memo[K, V]{}] = answers
+		c.shared.readings[memo[K, V]{}] = answers
 	}
 	if answer, seen := answers[key]; seen {
 		return answer
@@ -261,23 +241,17 @@ type memo[K comparable, V any] struct{}
 // reads. S's documentation names them, and each reports a store it finds
 // filled.
 func Settled[S any](c Ctx, build func() *S) *S {
-	if s, ok := c.loaded.settled[store[S]{}].(*S); ok {
+	if s, ok := c.shared.settled[store[S]{}].(*S); ok {
 		return s
 	}
 	s := build()
-	c.loaded.settled[store[S]{}] = s
+	c.shared.settled[store[S]{}] = s
 	return s
 }
 
 // store is what Settled keeps the store of type S under. It holds nothing, so
 // it is boxed without allocating.
 type store[S any] struct{}
-
-// declaredSchemaNames collects the names under components/schemas, none when
-// the document declares none.
-func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
-	return resolve.NewNames(slices.Collect(doc.Components.GetSchemas().Keys())...)
-}
 
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
@@ -292,7 +266,7 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return c.Rules().In(c.doc) }
 
 // Rules returns the rows each schema of the compile is read with, which the
 // load phase read off the one table it judged the documents against.
-func (c Ctx) Rules() dialect.Table { return c.loaded.dialects }
+func (c Ctx) Rules() dialect.Table { return c.shared.dialects }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
@@ -302,11 +276,11 @@ func (c Ctx) Rules() dialect.Table { return c.loaded.dialects }
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	r := c.loaded.reads
+	r := c.shared.reads
 	scope := resolve.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Reached: c.reached,
 		Bindings: r.Bindings}
 	if c.doc != bind.Source {
-		scope.Foreign, scope.Holder = true, c.loaded.documents[c.doc].Name
+		scope.Foreign, scope.Holder = true, c.shared.documents[c.doc].Name
 	}
 	return scope
 }
@@ -315,26 +289,26 @@ func (c Ctx) RefScope() resolve.Scope {
 // by (naming.Namer.At): a function of the documents and the coordinate alone,
 // whichever lowering builds the node, read once for every copy of c.
 func NameAt(c Ctx, pointer jsontext.Pointer) string {
-	return c.loaded.names.At(c.Position(pointer))
+	return c.shared.names.At(c.Position(pointer))
 }
 
 // NameTitle returns the name the title of the schema at pointer in c's
 // document gives the node built there (naming.Namer.Title), and false where it
 // gives none.
 func NameTitle(c Ctx, pointer jsontext.Pointer) (string, bool) {
-	return c.loaded.names.Title(c.Position(pointer))
+	return c.shared.names.Title(c.Position(pointer))
 }
 
 // NameThrough returns the name the $ref written at pointer in c's document
 // suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(c Ctx, pointer jsontext.Pointer) string {
-	return c.loaded.names.Through(c.Position(pointer))
+	return c.shared.names.Through(c.Position(pointer))
 }
 
 // NameOfDocument returns the hint what is declared at the root of document doc
 // of the bindings' table is named by (naming.Namer.Document).
 func NameOfDocument(c Ctx, doc bind.DocID) string {
-	return c.loaded.names.Document(doc)
+	return c.shared.names.Document(doc)
 }
 
 // InDocument returns c for lowering what document id of the bindings' table
@@ -344,7 +318,7 @@ func NameOfDocument(c Ctx, doc bind.DocID) string {
 // way to another document, or back to the source. It is false, c unchanged,
 // for a document the compile did not read beside the source.
 func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
-	d, ok := c.loaded.documents[id]
+	d, ok := c.shared.documents[id]
 	if !ok {
 		return c, false
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -172,4 +173,35 @@ func TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing(t *testing.T) {
 	assert.Nil(t, p)
 	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at))
 	assert.Equal(t, ids.Document{}, there.IDs())
+}
+
+// TestInDocument_PlacesADocumentByItsNumberNotItsSourcesEntry pins that the
+// documents a context reads are kept by their number in the bindings' table,
+// which an overlay applied to the source sets apart from their
+// Document.Sources entry: ext.yaml is the table's second document and the
+// third input, after the source and the overlay.
+func TestInDocument_PlacesADocumentByItsNumberNotItsSourcesEntry(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte("X: {type: string}\nP: {name: p, in: query}\n"),
+		0o600))
+	const patch = "overlay: 1.0.0\ninfo: {title: O, version: '1'}\nactions:\n" +
+		"  - {target: '$.info', update: {description: patched}}\n"
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
+		Data: []byte(splitRoot)}, load.Options{Reader: reader.Disk{},
+		Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(patch)}, OverlaySrcIndex: 1})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "%+v", diags)
+	require.True(t, doc.Overlay.Applied())
+	c := service.New(0, doc, service.Policy{})
+	id := extDoc(t, c)
+	require.Equal(t, bind.DocID(1), id, "sanity: ext.yaml is the table's second document")
+
+	there, ok := service.InDocument(c, id)
+	require.True(t, ok)
+	assert.Equal(t, 2, there.Place().Source, "ext.yaml's Document.Sources entry, after the overlay's")
+	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
+	assert.Equal(t, id, there.Position("/X").Doc)
+	_, ok = service.InDocument(c, 2)
+	assert.False(t, ok, "no document of the table is numbered by ext.yaml's Document.Sources entry")
 }

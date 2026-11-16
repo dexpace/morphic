@@ -335,9 +335,10 @@ var rules = map[string][]string{
 	// What the schema lowering reads: the document whose content it reads, the
 	// caller's policies and the indexes derived at entry. It is the substrate
 	// the schema walk and the service walks share and so must reach neither. It
-	// reaches load for the schema bindings the load phase built, which its
-	// scope reads, dialect for the rows each schema is read with, which oas
-	// states: the dialect question is asked of the table, never of the version.
+	// takes what the load phase read as values of the packages below, never
+	// load itself: bind and resolve for where each $ref lands, which its scope
+	// reads, and dialect for the rows each schema is read with, which oas
+	// states, the dialect question asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, provenance and diag for where a position of its document is
 	// placed, and promotion for the policy it carries.
@@ -348,21 +349,21 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/dialect",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/provenance",
-		module + "/compilers/openapi/internal/resolve",
-		"github.com/speakeasy-api/openapi/openapi"},
+		module + "/compilers/openapi/internal/resolve"},
 	// What the service lowerings read beside the schema lowering's context,
 	// which it embeds: the parsed document, the source's identity, how
 	// operations group, which media types stream or are binary, and the budget
 	// a $ref's copies are charged against. It reaches load for what the load
 	// phase modelled beside path items' $refs and the media types it resolved,
-	// nodeview and yaml to weigh the declaration a $ref names, annotation to
-	// keep what a reference writes beside its $ref, and promotion for the list
-	// of texts a group path is read as. The schema walk reaches none of it.
+	// provenance and ids for where each document it read places its positions
+	// and how it qualifies their IDs, nodeview and yaml to weigh the
+	// declaration a $ref names, annotation to keep what a reference writes
+	// beside its $ref, and promotion for the list of texts a group path is
+	// read as. The schema walk reaches none of it.
 	"compilers/openapi/internal/service": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
@@ -374,6 +375,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/promotion",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
 	// The context the compiler's tests lower under, over a document the load
