@@ -49,7 +49,31 @@ func settled(t *testing.T, reg ir.TypeRegistry, steps ...func(idx *PropIndex)) (
 		step(idx)
 	}
 	g, _ := stubMerger(reg)
-	return m, idx.Settle(g.Merger)
+	return m, settleFlat(g, idx, reg)
+}
+
+// settleFlat settles idx's model against reg, reading each part as its
+// flattening stands and every name as shared, as a run reads a part it has
+// not settled.
+func settleFlat(g *stubbed, idx *PropIndex, reg ir.TypeRegistry) []ir.Diagnostic {
+	parts, shared := map[ir.TypeID]Members{}, map[string]bool{}
+	for _, target := range ComposedOf(idx.m) {
+		parts[target] = Members{}
+		for _, member := range ir.FlattenedProperties(reg, target).Properties {
+			if d, ok := TakenBy(member, idx.m.ID); ok {
+				parts[target][member.Property.WireName] = d
+			}
+		}
+	}
+	for _, td := range reg {
+		if m, ok := td.(*ir.Model); ok {
+			for _, p := range m.Properties {
+				shared[p.WireName] = true
+			}
+		}
+	}
+	diags, _ := idx.Settle(g.Merger, parts, shared)
+	return diags
 }
 
 // composes composes target as written at /M/allOf/<n>, recording it as Mixins.
@@ -122,7 +146,9 @@ func TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
 // TestPropIndex_PlacesADeclarationAtTheEntryBringingIt pins where a brought
 // declaration is read and reported: at the entry naming its owner or a type
 // composing it, and at the model, read first, where no entry does; an owner
-// another entry's composes brings nothing, Sub's p standing within A's.
+// another entry's composes brings nothing, Sub's p standing within A's, but
+// one of two models composing each other does, and a declaration two entries
+// bring is read once.
 func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()
@@ -141,6 +167,25 @@ func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	m, diags = settled(t, membersRegistry(), composes("t/Sub", "0"), composes("t/A", "1"))
 	assert.Empty(t, m.Properties, "Sub's p stands within A's, so one declaration decides")
 	assert.Empty(t, diags)
+
+	reg = membersRegistry()
+	for _, via := range []ir.TypeID{"t/viaA1", "t/viaA2"} {
+		reg[via] = &ir.Model{ID: via, Base: &ir.TypeRef{Target: "t/A"}}
+	}
+	m, diags = settled(t, reg, composes("t/viaA1", "0"), composes("t/viaA2", "1"))
+	assert.Empty(t, m.Properties, "A's p, which both entries bring, is one declaration")
+	assert.Empty(t, diags)
+	m, diags = settled(t, membersRegistry(), composes("t/A", "0"), composes("t/A", "1"))
+	assert.Empty(t, m.Properties, "A written twice brings its p once")
+	assert.Empty(t, diags)
+
+	reg = membersRegistry()
+	reg["t/P"] = &ir.Model{ID: "t/P", Base: &ir.TypeRef{Target: "t/Q"}, Properties: []ir.Property{declared("p", "t/prim/string", "/P/p")}}
+	reg["t/Q"] = &ir.Model{ID: "t/Q", Base: &ir.TypeRef{Target: "t/P"}, Properties: []ir.Property{declared("p", "t/prim/integer", "/Q/p")}}
+	m, diags = settled(t, reg, composes("t/P", "0"), composes("t/Q", "1"))
+	require.Len(t, m.Properties, 1, "two models composing each other each bring theirs")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target)
+	assert.Len(t, diags, 1)
 }
 
 // TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the order
@@ -215,7 +260,7 @@ func TestPropIndex_ComposesModelsAsTheirEntriesBringThem(t *testing.T) {
 		composes(order[1], "1")(idx)
 		g, _ := stubMerger(reg)
 
-		diags := idx.Settle(g.Merger)
+		diags := settleFlat(g, idx, reg)
 
 		require.Empty(t, diags, "%v", order)
 		minted, ok := reg[m.Properties[0].Type.Target].(*ir.Model)
@@ -244,4 +289,119 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
 	assert.Equal(t, jsontext.Pointer("/M/allOf/9"), diags[0].Provenance.Pointer)
 	assert.NotContains(t, got.Unmodeled, losingDeclarationKey+"/B/data")
+}
+
+// TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
+// of a member the model declares beside an entry's declaration: its own
+// declaration's, where that is written, unless another model holds that
+// declaration too, as a node interned at the allOf branch writing it does, or
+// it is written outside the model's schema, as the body a distributed variant
+// shares is; then one in the composed namespace. The report about the entry's
+// declaration sits at the entry either way, naming the member.
+func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
+	t.Parallel()
+	const composedAt jsontext.Pointer = "/M/allOf/properties/p"
+	composed := ids.Document{}.ComposedProp(composedAt)
+	for name, tc := range map[string]struct {
+		at, wantAt jsontext.Pointer
+		interned   []jsontext.Pointer
+		want       ir.PropID
+	}{
+		"held alone":          {"/M/allOf/1/properties/p", "/M/allOf/1/properties/p", nil, "p/M/allOf/1/properties/p"},
+		"its branch interned": {"/M/allOf/1/properties/p", composedAt, []jsontext.Pointer{"/M/allOf/1"}, composed},
+		"outside the model":   {"/body/properties/p", composedAt, nil, composed},
+	} {
+		reg := membersRegistry()
+		m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
+		reg["t/M"] = m
+		idx := NewPropIndex(m)
+		composes("t/B", "0")(idx)
+		idx.MergeProperty(declared("p", "t/prim/string", string(tc.at)), written(`{}`), "")
+		g, _ := stubMerger(reg)
+		g.walk.interned = tc.interned
+
+		diags := settleFlat(g, idx, reg)
+
+		require.Len(t, m.Properties, 1, name)
+		p := m.Properties[0]
+		assert.Equal(t, tc.want, p.ID, name)
+		assert.Equal(t, tc.wantAt, p.Provenance.Pointer, "%s: where the identity says", name)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "%s: the own declaration, written later", name)
+		require.Len(t, diags, 1, name)
+		assert.Equal(t, jsontext.Pointer("/M/allOf/0"), diags[0].Provenance.Pointer, name)
+		assert.Equal(t, string(p.ID), diags[0].Provenance.Node, name)
+	}
+}
+
+// TestFold_NamesADeclarationAnotherDocumentHolds pins how a report names a
+// declaration an entry brings from another document: its pointer and that
+// document's name, since the pointer alone reads as one in the document the
+// report is in; a declaration in that document is named by its pointer alone.
+func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(membersRegistry())
+	g.Sources = []ir.SourceInfo{{Path: "root.yaml"}, {Path: "other.yaml"}}
+	theirs := declared("p", "t/prim/integer", "/B/p")
+	theirs.Provenance.Source = 1
+	entry := &composedEntry{target: "t/B", at: "/M/allOf/0", order: 1}
+	decls := []declaration{
+		{prop: theirs, order: 1, via: entry},
+		{prop: declared("p", "t/prim/string", "/M/allOf/1/properties/p"), source: written(`{}`), order: 2},
+	}
+
+	_, diags := g.foldAt(decls, "/M/allOf/1/properties/p")
+
+	require.Len(t, diags, 1)
+	assert.Contains(t, diags[0].Message,
+		"kept what the declaration at /M/allOf/1/properties/p says over the one at /B/p in other.yaml,")
+}
+
+// TestTakenBy_LeavesOutTheComposingModelsOwn pins the declaration a part's
+// flattening stands for: the one it takes, or, where that is the composing
+// model's own, as a cycle reaches it, the last other it reads, and none where
+// every declaration is the model's.
+func TestTakenBy_LeavesOutTheComposingModelsOwn(t *testing.T) {
+	t.Parallel()
+	decl := func(owner ir.TypeID) ir.PropertyDecl {
+		p := declared("p", "t/prim/string", "/"+string(owner)+"/p")
+		return ir.PropertyDecl{Owner: owner, Property: &p}
+	}
+	for name, tc := range map[string]struct {
+		member ir.FlatProperty
+		want   ir.TypeID
+		ok     bool
+	}{
+		"another's":        {ir.FlatProperty{PropertyDecl: decl("t/A")}, "t/A", true},
+		"the last other":   {ir.FlatProperty{PropertyDecl: decl("t/M"), Overridden: []ir.PropertyDecl{decl("t/A"), decl("t/B"), decl("t/M")}}, "t/B", true},
+		"only the model's": {ir.FlatProperty{PropertyDecl: decl("t/M"), Overridden: []ir.PropertyDecl{decl("t/M")}}, "", false},
+	} {
+		got, ok := TakenBy(tc.member, "t/M")
+		assert.Equal(t, tc.ok, ok, name)
+		assert.Equal(t, tc.want, got.Owner, name)
+	}
+}
+
+// TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn pins a part on a cycle
+// whose Members hold the model's own declaration: it is the model's, so the
+// model brings nothing from that part, folds nothing, and keeps the member's
+// identity, which a fold would move to the composed namespace, as an interned
+// branch writes the declaration.
+func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
+	t.Parallel()
+	reg := membersRegistry()
+	m := &ir.Model{ID: "t/M", Provenance: ptrAt("/M")}
+	reg["t/M"] = m
+	idx := NewPropIndex(m)
+	composes("t/A", "0")(idx)
+	idx.MergeProperty(declared("p", "t/prim/integer", "/M/allOf/1/properties/p"), written(`{}`), "")
+	g, _ := stubMerger(reg)
+	g.walk.interned = []jsontext.Pointer{"/M/allOf/1"}
+	parts := map[ir.TypeID]Members{"t/A": {"p": ir.PropertyDecl{Owner: "t/M", Property: &m.Properties[0]}}}
+
+	diags, table := idx.Settle(g.Merger, parts, map[string]bool{"p": true})
+
+	assert.Empty(t, diags)
+	require.Len(t, m.Properties, 1)
+	assert.Equal(t, ir.PropID("p/M/allOf/1/properties/p"), m.Properties[0].ID)
+	assert.Equal(t, ir.TypeID("t/M"), table["p"].Owner)
 }

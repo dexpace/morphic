@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
@@ -74,8 +75,8 @@ func TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition(t *tes
 // either entry order, the field takes the type, docs and bounds it takes where
 // the named schema's declaration is written inline in the entry's place, the
 // narrower type wherever it is written and, of a pair no value satisfies, the
-// later. The report sits at the entry, and the property is the model's own in
-// the composed namespace.
+// later. The report sits at the entry, and the property keeps the identity of
+// the declaration the model writes, so a report about it sits there too.
 func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 	t.Parallel()
 	const base = "{type: integer, description: from base}"
@@ -96,7 +97,10 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 			require.Empty(t, irverify.Verify(doc))
 
 			byRef, written := propertyOf(t, doc, "Ref", "id"), propertyOf(t, doc, "Inline", "id")
-			assert.Equal(t, ir.PropID("p/composed/components/schemas/Ref/allOf/properties/id"), byRef.ID, name)
+			mineAt := map[bool]string{true: "1", false: "0"}[refFirst]
+			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Ref/allOf/"+mineAt+"/properties/id"), byRef.ID, name)
+			assert.Equal(t, ids.Ptr("components", "schemas", "Ref", "allOf", mineAt, "properties", "id"),
+				byRef.Provenance.Pointer, name)
 			assert.Equal(t, written.Type, byRef.Type, name)
 			assert.Equal(t, written.Docs, byRef.Docs, name)
 			assert.Equal(t, written.Constraints, byRef.Constraints, name)
@@ -107,10 +111,12 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 }
 
 // TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember pins what
-// names a member a composition settles: a composition requiring one it does not declare
-// requires the member it declares, its name leaving Requires, and a
-// discriminator naming the model's own declaration names the member that
-// replaces it.
+// names a member a composition settles: a composition requiring one it does
+// not declare requires the member it declares, its name leaving Requires; a
+// model declaring the member itself keeps that declaration's identity; and one
+// whose declaration another model holds too, through a $ref to the allOf
+// branch writing it, takes one in the composed namespace, which a
+// discriminator naming that declaration follows.
 func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T) {
 	t.Parallel()
 	doc, _ := composedDoc(t, `    A: {type: object, properties: {kind: {type: string}}}
@@ -122,19 +128,29 @@ func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T
       allOf: [{$ref: '#/components/schemas/B'}]
       properties: {kind: {type: string}}
       discriminator: {propertyName: kind}
+    Shared:
+      allOf: [{$ref: '#/components/schemas/B'}, {type: object, properties: {kind: {type: string}}}]
+      discriminator: {propertyName: kind}
+    Branch: {$ref: '#/components/schemas/Shared/allOf/1'}
 `)
 	required, ok := typeByName(doc, "Required").(*ir.Model)
 	require.True(t, ok)
 	assert.True(t, propertyOf(t, doc, "Required", "kind").Required)
 	assert.Empty(t, required.Requires)
 
-	tagged, ok := typeByName(doc, "Tagged").(*ir.Model)
-	require.True(t, ok)
-	kind := propertyOf(t, doc, "Tagged", "kind")
-	assert.Equal(t, ir.PropID("p/composed/components/schemas/Tagged/allOf/properties/kind"), kind.ID,
-		"B's bounded kind is narrower")
-	require.NotNil(t, tagged.Discriminator)
-	assert.Equal(t, kind.ID, tagged.Discriminator.Property)
+	for name, want := range map[string]ir.PropID{
+		"Tagged": "p/openapi/components/schemas/Tagged/properties/kind",
+		"Shared": "p/composed/components/schemas/Shared/allOf/properties/kind",
+	} {
+		tagged, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, name)
+		kind := propertyOf(t, doc, name, "kind")
+		assert.Equal(t, want, kind.ID, name)
+		assert.Equal(t, ir.TypeID("t/prim/string"), kind.Type.Target, name)
+		assert.Equal(t, new(int64(9)), kind.Constraints.MaxLength, "%s: B's bound", name)
+		require.NotNil(t, tagged.Discriminator, name)
+		assert.Equal(t, kind.ID, tagged.Discriminator.Property, name)
+	}
 }
 
 // TestMembers_AModelIsSettledAfterWhatItComposes pins a model composing one
@@ -214,4 +230,33 @@ func TestMembers_CompositionsNestedPastTheRoundsAreReported(t *testing.T) {
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
 	require.Empty(t, irverify.Verify(doc))
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.BudgetExceeded, ir.SeverityError), "%+v", diags)
+}
+
+// TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed pins a
+// hierarchy deeper than any bound on a walk's depth, each level redeclaring as
+// a number the integer its base declares: every level settles after its base,
+// so each member is the base's integer, whether the most derived model's name
+// sorts first or last, since a name is presentation.
+func TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed(t *testing.T) {
+	t.Parallel()
+	const levels = 100
+	for _, derivedFirst := range []bool{true, false} {
+		name := func(level int) string {
+			if derivedFirst {
+				return fmt.Sprintf("L%03d", levels-level)
+			}
+			return fmt.Sprintf("L%03d", level)
+		}
+		var spec strings.Builder
+		fmt.Fprintf(&spec, "    %s: {type: object, properties: {x: {type: integer}}}\n", name(0))
+		for level := 1; level < levels; level++ {
+			fmt.Fprintf(&spec, "    %s: {allOf: [{$ref: '#/components/schemas/%s'}, "+
+				"{type: object, properties: {x: {type: number}}}]}\n", name(level), name(level-1))
+		}
+		doc, _ := composedDoc(t, spec.String())
+		for level := range levels {
+			x := propertyOf(t, doc, name(level), "x")
+			assert.Equal(t, ir.TypeID("t/prim/integer"), x.Type.Target, "level %d, derived first %v", level, derivedFirst)
+		}
+	}
 }

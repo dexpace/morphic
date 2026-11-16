@@ -2724,22 +2724,30 @@ declarations are written, so a `$ref` entry and the schema it names written inli
 fold alike. The flattening ([models](../ir/models.md#the-flattening)) would otherwise take the
 model's own declaration over an entry's, and of two entries the later, and judge none. Once every
 lowering has returned, one settlement folds, on each model, every member its own declarations or
-its `allOf` entries decide more than once, an entry's counting only where no other entry's owner
-composes it. Each model settles after the models it composes, by ID, so the order components are
-declared in decides nothing, and a cycle of compositions reads the model it returns to as it stands.
-The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
-written and the schema's own `properties` after its `allOf`; a union branch distributed into a
-variant reads before the body. A declaration an entry brings stays declared on its own model, so it
-is not kept verbatim, and a report about it sits at the entry bringing it. Where an entry brings a
-declaration, the model declares the folded member in the `composed` namespace at
-`<model>/allOf/properties/<name>`, in place of its own declaration where it has one, and each report
-names that property in its `Provenance.Node`; the member is required where the model's `required`
-names it, which the name then leaves, and a discriminator naming the model's own declaration names
-it. The registry does not record which heuristic made a brought declaration secret, so a secret
+its `allOf` entries decide more than once. Each entry brings the declaration the flattening of what
+it names takes, which a model settled first holds folded from every other its composition gives
+the member, and one another entry's composition holds stands within that entry's, so it brings
+nothing. Each model settles after every model it composes, however deep a hierarchy nests, so
+neither the order components are declared in nor their names decide anything, and a cycle of
+compositions reads the model it returns to as it stands. The declarations are read in the order the
+source writes them, a `$ref` entry's where the entry is written and the schema's own `properties`
+after its `allOf`; a union branch distributed into a variant reads before the body. A declaration an
+entry brings stays declared on its own model, so it is not kept verbatim, and a report about it sits
+at the entry bringing it, naming the member in its `Provenance.Node`, and names a declaration
+another document holds with that document's name. A member the model declares itself keeps that
+declaration's identity, unless another model holds the declaration too, as a node interned at the
+`allOf` branch writing it does, or as the variants of a distributed union share their body's; that
+one, and one only entries declare, the model declares in the `composed` namespace at
+`<model>/allOf/properties/<name>`. The member is required where the model's `required` names it,
+which the name then leaves, and a discriminator naming the model's own declaration names the
+member. The registry does not record which heuristic made a brought declaration secret, so a secret
 one's `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the
 fold composes for a member lists its parts as the entries bringing them are written, and settles in
 turn, through 8 rounds; one nested deeper is left as its entries declare it, with an
-`openapi/budget-exceeded` error.
+`openapi/budget-exceeded` error. What a model's parts bring is read only for the names more than
+one model declares, so a hierarchy costs its depth again at each level only where every level adds
+such a name, and a run reads at most 16,777,216 such declarations; past that each model left folds its own
+declarations alone, with an `openapi/budget-exceeded` error at the first.
 
 - Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
   `allof-redeclared-bounds`
@@ -2789,6 +2797,10 @@ turn, through 8 rounds; one nested deeper is left as its entries declare it, wit
   `merge.TestPropIndex_SettlesTheMembersOnlyEntriesDeclareByWireName`,
   `merge.TestTypeJudge_AUnionsVariantIsJudgedAtTheUnionsSite`,
   `merge.TestPropIndex_APromotedRedactionBringsItsMarkerInEitherOrder`,
+  `merge.TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone`,
+  `merge.TestFold_NamesADeclarationAnotherDocumentHolds`,
+  `merge.TestTakenBy_LeavesOutTheComposingModelsOwn`,
+  `e2e.TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt`,
   `schema.TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition`,
   `schema.TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike`,
   `schema.TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember`,
@@ -2796,6 +2808,10 @@ turn, through 8 rounds; one nested deeper is left as its entries declare it, wit
   `schema.TestMembers_ACycleSettlesTheSameInEitherOrder`,
   `schema.TestMembers_AModelAFoldComposesIsSettledInTheNextRound`,
   `schema.TestMembers_CompositionsNestedPastTheRoundsAreReported`,
+  `schema.TestMembers_AHierarchyOfAnyDepthSettlesWhateverItsModelsAreNamed`,
+  `schema.TestMembers_ReadsGrowWithAHierarchysSizeNotItsDepthSquared`,
+  `schema.TestMembers_ReadsPastTheBudgetFoldTheirOwnDeclarationsAlone`,
+  `schema.TestMembers_ReadsAPartThroughItsAliasesAndNothingElse`,
   `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
   `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,

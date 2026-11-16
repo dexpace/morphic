@@ -140,7 +140,7 @@ const firstSource = `{"declared":"first"}`
 func indexOver(m *ir.Model, g *stubbed) (idx *PropIndex, settle func()) {
 	idx = NewPropIndex(m)
 	return idx, func() {
-		*g.recorded = append(*g.recorded, idx.Settle(g.Merger)...)
+		*g.recorded = append(*g.recorded, settleFlat(g, idx, g.Reg)...)
 	}
 }
 
@@ -179,7 +179,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
 	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
 	g, _ := stubMerger(reg)
-	settled := idx.Settle(g.Merger)
+	settled := settleFlat(g, idx, reg)
 
 	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")

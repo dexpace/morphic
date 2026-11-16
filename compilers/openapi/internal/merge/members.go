@@ -12,16 +12,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Settle folds each member of the model that more than one declaration
-// decides: one it declares twice, and one an entry brings beside its own
-// declaration or another entry's (docs/compilers/openapi.md#allof-redeclared-property).
-// The flattening would take one of them by where it reads it and judge none.
-// Each fold reads the declarations in the order the walk met them, an entry's
-// where the walk met the entry, so a $ref and the schema it names written
-// inline fold alike. It reads each model the model composes as it stands, so
-// the caller settles those first.
-func (idx *PropIndex) Settle(g Merger) []ir.Diagnostic {
-	brought := idx.brought(registry{g.resolve}, g.Reg)
+// Members is what a model's composition says of the wire names more than one
+// model declares: for each, the declaration its flattening takes
+// (ir.FlattenedProperties), which a model settled before holds folded from
+// every other its composition gives the name. A name one model alone declares
+// never decides a member twice, so a settlement reads none.
+type Members map[string]ir.PropertyDecl
+
+// Settle folds each member of the model more than one declaration decides,
+// its own and those its entries bring
+// (docs/compilers/openapi.md#allof-redeclared-property), which the flattening
+// would take one of by where it reads it, judging none. Each fold reads them in
+// the order the walk met them, an entry's where it met the entry, so a $ref
+// and the schema it names written inline fold alike. parts holds the Members
+// of each type the model composes (ComposedOf), so the caller settles those
+// first, and shared the names more than one model declares. It returns the
+// model's Members.
+func (idx *PropIndex) Settle(g Merger, parts map[ir.TypeID]Members, shared map[string]bool) ([]ir.Diagnostic, Members) {
+	brought, inherited := idx.brought(g, parts)
 	diags := make([]ir.Diagnostic, 0, len(idx.byWire))
 	for _, f := range slices.SortedFunc(maps.Values(idx.byWire), func(a, b *field) int { return cmp.Compare(a.pos, b.pos) }) {
 		decls := slices.Clone(f.decls)
@@ -34,29 +42,53 @@ func (idx *PropIndex) Settle(g Merger) []ir.Diagnostic {
 	for _, wire := range slices.Sorted(maps.Keys(brought)) {
 		diags = append(diags, idx.settle(g, -1, brought[wire])...)
 	}
-	return diags
+	return diags, idx.members(shared, inherited)
+}
+
+// members returns the model's Members once settled: each name its parts leave
+// one declaration of, and each shared one it declares itself, which stands
+// over theirs.
+func (idx *PropIndex) members(shared map[string]bool, inherited Members) Members {
+	out := make(Members, len(inherited))
+	maps.Copy(out, inherited)
+	for i := range idx.m.Properties {
+		if p := &idx.m.Properties[i]; shared[p.WireName] {
+			out[p.WireName] = ir.PropertyDecl{Owner: idx.m.ID, Property: p}
+		}
+	}
+	return out
 }
 
 // settle folds decls, the declarations of one member, where at least two are,
 // into the property the model holds at pos, or appends one where pos is -1. A
-// member only the model declares keeps its identity (Merger.fold); one an entry
-// brings a declaration of is the model's own at <model>/allOf/properties/<name>
-// in the composed namespace, which no schema occupies, as a property may not
-// follow allOf, and each report names it (naming).
+// member only the model declares keeps its identity (Merger.fold), and so does
+// one it declares beside an entry's where no other model holds its first own
+// declaration (heldAlone). Any other member an entry brings a declaration of is
+// the model's own at <model>/allOf/properties/<name> in the composed namespace,
+// which no schema occupies, as a property may not follow allOf. Each report
+// about such a member names it (naming).
 func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagnostic {
 	if len(decls) < 2 {
 		return nil
 	}
-	if !slices.ContainsFunc(decls, func(d declaration) bool { return d.via != nil }) {
+	if !slices.ContainsFunc(decls, isBrought) {
 		merged, diags := g.fold(decls)
 		idx.place(pos, merged)
 		return diags
 	}
+	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
 	field := idx.m.Provenance.Pointer + ids.Ptr("allOf", "properties", decls[0].prop.WireName)
+	kept := len(own) > 0 && idx.heldAlone(g, own[0])
+	if kept {
+		_, field = fieldSpan(own[:min(len(own), maxFoldDeclarations)])
+	}
 	merged, diags := g.foldAt(decls, field)
 	inferred := merged.Provenance.Inferred
-	merged.ID = g.IDs.ComposedProp(field)
-	merged.Provenance = g.Doc.At(field)
+	if kept {
+		merged.ID, merged.Provenance = own[0].prop.ID, own[0].prop.Provenance
+	} else {
+		merged.ID, merged.Provenance = g.IDs.ComposedProp(field), g.Doc.At(field)
+	}
 	merged.Provenance.Inferred = inferred
 	if i := slices.Index(idx.m.Requires, merged.WireName); i >= 0 {
 		idx.m.Requires = slices.Delete(idx.m.Requires, i, i+1)
@@ -64,6 +96,20 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 	}
 	idx.place(pos, merged)
 	return naming(diags, merged.ID)
+}
+
+// isBrought reports whether d is a declaration an entry brings, which another
+// model holds.
+func isBrought(d declaration) bool { return d.via != nil }
+
+// heldAlone reports whether no model but this one holds d, its own
+// declaration, so the member it decides may keep d's identity: d is written
+// inside the model's schema, as the body a distributed variant shares with its
+// siblings is not, and no schema between the two stands as a node of its own
+// (Merger.carriedApart).
+func (idx *PropIndex) heldAlone(g Merger, d declaration) bool {
+	model, at := idx.m.Provenance.Pointer, d.prop.Provenance.Pointer
+	return model.Contains(at) && !g.carriedApart(at, model)
 }
 
 // place writes p as the model's property at pos, or appends it where pos is
@@ -81,7 +127,7 @@ func (idx *PropIndex) place(pos int, p ir.Property) {
 
 // naming returns diags, each naming id, the property the fold decided, as the
 // node it locates (ir.Provenance.Node): an entry's report sits where the model
-// writes the entry, not beneath the property, whose identity no entry order
+// writes the entry, not beneath the property, whose place no entry order
 // decides.
 func naming(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
 	for i := range diags {
@@ -90,36 +136,87 @@ func naming(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
 	return diags
 }
 
-// brought returns, by wire name, the declarations the model's entries bring
-// that no other's owner composes: one a composing model narrows already stands
-// within it. Each is read where the walk met the first entry naming its owner
-// or a type composing it; one no entry places is read first, at the model.
-func (idx *PropIndex) brought(r registry, reg ir.TypeRegistry) map[string][]declaration {
-	out := map[string][]declaration{}
-	for _, member := range ir.FlattenedProperties(reg, idx.m.ID).Properties {
-		var decls []ir.PropertyDecl
-		for _, d := range append(slices.Clone(member.Overridden), member.PropertyDecl) {
+// candidate is a declaration one of the model's parts brings, and that part.
+type candidate struct {
+	decl ir.PropertyDecl
+	part int
+}
+
+// brought returns, by wire name, the declarations the model's parts bring, as
+// tables holds them, each read where the walk met the entry naming its part
+// (parts), and the one declaration each name its parts leave one of. A
+// declaration two parts bring is read once, at the first, and one within
+// another's composition is left out: the model composing it narrows it there
+// already, with what its own declaration says. A part on a cycle may hold the
+// model's own declaration, which the model reads as its own, not brought.
+func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Members) (map[string][]declaration, Members) {
+	parts := idx.parts()
+	byWire := map[string][]candidate{}
+	for i, part := range parts {
+		for wire, d := range tables[part.target] {
 			if d.Owner != idx.m.ID {
-				decls = append(decls, d)
+				byWire[wire] = append(byWire[wire], candidate{decl: d, part: i})
 			}
 		}
-		for _, d := range r.maximal(decls) {
-			via := idx.entryOf(r, d.Owner)
-			out[d.Property.WireName] = append(out[d.Property.WireName], broughtDeclaration(*d.Property, via))
+	}
+	r := registry{g.resolve}
+	out, inherited := map[string][]declaration{}, Members{}
+	for wire, cs := range byWire {
+		left := slices.DeleteFunc(slices.Clone(cs), func(cd candidate) bool { return r.standsWithin(cs, cd) })
+		for _, cd := range left {
+			out[wire] = append(out[wire], broughtDeclaration(*cd.decl.Property, &parts[cd.part]))
 		}
+		if len(left) == 1 {
+			inherited[wire] = left[0].decl
+		}
+	}
+	return out, inherited
+}
+
+// standsWithin reports whether cs, one name's candidates in part order, read
+// cd elsewhere: an earlier part brings the same declaration, or another
+// brings one of a model composing cd's owner that cd's owner does not compose
+// in turn, as two models on a cycle each compose the other.
+func (r registry) standsWithin(cs []candidate, cd candidate) bool {
+	return slices.ContainsFunc(cs, func(o candidate) bool {
+		if o.decl.Owner == cd.decl.Owner && o.decl.Property.ID == cd.decl.Property.ID {
+			return o.part < cd.part
+		}
+		return r.composes(o.decl.Owner, cd.decl.Owner) && !r.composes(cd.decl.Owner, o.decl.Owner)
+	})
+}
+
+// parts returns the types the model composes (ComposedOf), each with the
+// entry naming it: the first the walk met, or one at the model, read first,
+// where none does. A type written twice brings its declarations once
+// (standsWithin).
+func (idx *PropIndex) parts() []composedEntry {
+	var out []composedEntry
+	for _, target := range ComposedOf(idx.m) {
+		at := slices.IndexFunc(idx.entries, func(e composedEntry) bool { return e.target == target })
+		if at < 0 {
+			out = append(out, composedEntry{target: target, at: idx.m.Provenance.Pointer})
+			continue
+		}
+		out = append(out, idx.entries[at])
 	}
 	return out
 }
 
-// entryOf is the first entry naming owner or a type composing it, or one at the
-// model, read first, where none does.
-func (idx *PropIndex) entryOf(r registry, owner ir.TypeID) *composedEntry {
-	for i := range idx.entries {
-		if e := &idx.entries[i]; e.target == owner || r.composes(e.target, owner) {
-			return e
+// TakenBy returns the declaration of member a flattening takes but those of
+// from: a composition on a cycle reaches from in turn, whose declarations from
+// holds already, so the one taken before them stands in. It is false where
+// every declaration is from's.
+func TakenBy(member ir.FlatProperty, from ir.TypeID) (ir.PropertyDecl, bool) {
+	if member.Owner != from {
+		return member.PropertyDecl, true
+	}
+	for _, d := range slices.Backward(member.Overridden) {
+		if d.Owner != from {
+			return d, true
 		}
 	}
-	return &composedEntry{target: owner, at: idx.m.Provenance.Pointer}
+	return ir.PropertyDecl{}, false
 }
 
 // broughtDeclaration is p, which another model declares, as an entry, via,
@@ -140,15 +237,4 @@ func inOrder(own, brought []declaration) []declaration {
 	out := slices.Concat(own, brought)
 	slices.SortStableFunc(out, func(a, b declaration) int { return cmp.Compare(a.order, b.order) })
 	return out
-}
-
-// maximal returns the declarations of decls whose owner no other's owner
-// composes, in order: one a composing model narrows already stands within it,
-// so it decides nothing the other does not.
-func (r registry) maximal(decls []ir.PropertyDecl) []ir.PropertyDecl {
-	return slices.DeleteFunc(slices.Clone(decls), func(d ir.PropertyDecl) bool {
-		return slices.ContainsFunc(decls, func(e ir.PropertyDecl) bool {
-			return e.Owner != d.Owner && r.composes(e.Owner, d.Owner)
-		})
-	})
 }

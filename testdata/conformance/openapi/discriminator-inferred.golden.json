@@ -1424,7 +1424,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Circle/allOf/properties/kind",
+          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
@@ -1447,7 +1447,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Circle/allOf/properties/kind"
+            "pointer": "/components/schemas/Circle/allOf/1/properties/kind"
           }
         },
         {
@@ -1945,7 +1945,7 @@
       },
       "properties": [
         {
-          "id": "p/composed/components/schemas/Square/allOf/properties/kind",
+          "id": "p/openapi/components/schemas/Square/allOf/1/properties/kind",
           "name": {
             "source": "kind",
             "canonical": "kind"
@@ -1968,7 +1968,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Square/allOf/properties/kind"
+            "pointer": "/components/schemas/Square/allOf/1/properties/kind"
           }
         }
       ],

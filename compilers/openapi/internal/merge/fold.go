@@ -21,7 +21,7 @@ import (
 
 // Merger is what folding the declarations of one field reads besides them, as
 // values, so a test drives a fold with a map and a stub walk rather than a
-// document. PropIndex.Fold runs it once every node exists.
+// document. PropIndex.Settle runs it once every node exists.
 type Merger struct {
 	// Reg is the registry every lowering left. The judgment compares what two
 	// references point at there, not the references themselves.
@@ -31,6 +31,9 @@ type Merger struct {
 	IDs ids.Document
 	// Doc places what a fold reports.
 	Doc provenance.Doc
+	// Sources names the documents a declaration's Provenance.Source indexes,
+	// so a report names the one an entry brought a declaration from (at).
+	Sources []ir.SourceInfo
 	// Walk is the walk that declared the field.
 	Walk Walk
 }
@@ -330,8 +333,16 @@ func (f *folding) disagree(i, kept int, detail string) {
 			"which %s", f.merged.WireName, detail, f.at(kept), f.at(i), f.decls[i].keptAs())})
 }
 
-// at is where decls[i] was written.
-func (f *folding) at(i int) jsontext.Pointer { return f.decls[i].prop.Provenance.Pointer }
+// at is where decls[i] was written, as a report the fold makes names it: its
+// pointer, followed by its document's name where that is not the document the
+// report is in, as a declaration an entry brings may be written in another.
+func (f *folding) at(i int) string {
+	p := f.decls[i].prop.Provenance
+	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {
+		return string(p.Pointer)
+	}
+	return string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+}
 
 // foldConstraints meets the constraints the cone writes on the property.
 func (f *folding) foldConstraints() {

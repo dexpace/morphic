@@ -86,10 +86,6 @@ var loweringRecursions = [][]string{
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
 	{"bodyParts"},
-	// The members settlement settles a model after each it composes, which may
-	// compose others in turn. Bounded by maxMemberDepth, and a model is read
-	// once, so a cycle ends where it returns.
-	{"members.settle"},
 }
 
 // schemaRecursion is the largest of them, named because the design refers to it

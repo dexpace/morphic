@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -14,26 +15,27 @@ import (
 )
 
 // members is the run's record of the models with members to settle, each with
-// the fields that built it, and how far settleMembers has read each. The walks
-// and the folds fill it; settleMembers alone reads it.
+// the fields that built it, and which of them settleMembers has read. The
+// walks and the folds fill it; settleMembers alone reads it.
 type members struct {
-	byID  map[ir.TypeID]modelFields
-	state map[ir.TypeID]memberState
+	byID    map[ir.TypeID]modelFields
+	settled map[ir.TypeID]bool
+	// tables holds the Members of each model settled, and of each model a part
+	// names that the walks did not note, which composes nothing.
+	tables map[ir.TypeID]merge.Members
+	// shared is the wire names more than one model declares (sharedNames).
+	shared map[string]bool
+	// reads is what remains of the declarations settleMembers reads
+	// (maxMemberReads), and cut the first model it read none for.
+	reads budget.Budget
+	cut   ir.TypeID
 }
-
-// memberState is how far settleMembers has read one model.
-type memberState uint8
-
-const (
-	memberPending memberState = iota
-	memberReading
-	memberSettled
-)
 
 // membersOf returns the run's record of models with members to settle.
 func membersOf(c lowering.Ctx) *members {
 	return lowering.Settled(c, func() *members {
-		return &members{byID: map[ir.TypeID]modelFields{}, state: map[ir.TypeID]memberState{}}
+		return &members{byID: map[ir.TypeID]modelFields{}, settled: map[ir.TypeID]bool{},
+			tables: map[ir.TypeID]merge.Members{}, reads: budget.New(budget.AtMost(maxMemberReads))}
 	})
 }
 
@@ -63,25 +65,34 @@ type settleMembers struct {
 // one and read in the next, so each round reads a fold nested one level deeper.
 const maxMemberRounds = 8
 
-// maxMemberDepth bounds how many models Settle settles beneath one before it,
-// those it composes, each before the model composing it (styleguide
-// bounded-recursion rule); past it a model is read as it stands.
-const maxMemberDepth = 64
+// maxMemberAliasHops bounds how many alias scalars composed and modelOf read a
+// part through (styleguide bounded-everything rule), as maxTagAliasHops bounds
+// a tag's. A longer chain, or a loop, stops on an alias, which has no members.
+const maxMemberAliasHops = 64
 
-// Settle settles each noted model, by ID, in rounds, each model after those it
-// composes, so the order models are declared in decides nothing. A cycle of
-// compositions reads the model it returns to as it stands, the same whichever
-// is noted first.
+// maxMemberReads bounds the declarations the settlement reads of what the
+// models a model composes say (merge.Members), summed over the run
+// (styleguide bounded-everything rule). A table holds only the names more than
+// one model declares, so a hierarchy costs its depth again at each level only
+// where every level adds such a name; past the bound each model left settles
+// its own declarations alone.
+const maxMemberReads = 1 << 24
+
+// Settle settles each noted model in rounds, each round in settleOrder, so
+// every model settles after each noted model it composes, however deep a
+// hierarchy nests, and the order models are declared in decides nothing.
 func (k settleMembers) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	rec := membersOf(k.c)
+	rec.shared = sharedNames(reg)
+	sources := k.c.Sources()
 	var diags []ir.Diagnostic
 	for range maxMemberRounds {
 		pending := rec.pending()
 		if len(pending) == 0 {
-			return diags
+			return append(diags, rec.budgetCut()...)
 		}
-		for _, id := range pending {
-			diags = append(diags, rec.settle(reg, id, 0)...)
+		for _, id := range rec.settleOrder(reg, pending) {
+			diags = append(diags, rec.settle(reg, id, sources)...)
 		}
 	}
 	if pending := rec.pending(); len(pending) > 0 {
@@ -90,33 +101,76 @@ func (k settleMembers) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 			"models composing what a fold composes nest past the %d rounds their members are settled in; %d models "+
 				"are left as their declarations stand", maxMemberRounds, len(pending)))
 	}
-	return diags
+	return append(diags, rec.budgetCut()...)
+}
+
+// budgetCut reports, at the first model the settlement read nothing for, that
+// the reads ran out (maxMemberReads), or nothing where they did not.
+func (rec *members) budgetCut() []ir.Diagnostic {
+	if rec.cut == "" {
+		return nil
+	}
+	f := rec.byID[rec.cut]
+	return []ir.Diagnostic{f.c.DiagAt(ir.SeverityError, diag.BudgetExceeded, f.pointer,
+		"the settlement read past %d declarations of what composed models say at this model; it and each model "+
+			"settled after it fold only their own declarations, not those their entries bring", maxMemberReads)}
 }
 
 // pending returns the noted models not yet read, by ID.
 func (rec *members) pending() []ir.TypeID {
-	return slices.DeleteFunc(slices.Sorted(maps.Keys(rec.byID)), func(id ir.TypeID) bool {
-		return rec.state[id] != memberPending
-	})
+	return slices.DeleteFunc(slices.Sorted(maps.Keys(rec.byID)), func(id ir.TypeID) bool { return rec.settled[id] })
 }
 
-// settle settles the model id names, once, after each noted model it composes,
-// read by ID. A tag reading reads the members it settles (tagReadings), so one
-// stored before it is a compiler bug, reported at the model.
-func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, depth int) []ir.Diagnostic {
-	if rec.state[id] != memberPending {
-		return nil
-	}
-	rec.state[id] = memberReading
-	var diags []ir.Diagnostic
-	if depth < maxMemberDepth {
-		for _, part := range rec.composed(reg, id) {
-			diags = append(diags, rec.settle(reg, part, depth+1)...)
+// settleFrame is one model on settleOrder's path, and the parts it has yet to
+// visit.
+type settleFrame struct {
+	id    ir.TypeID
+	parts []ir.TypeID
+}
+
+// settleOrder returns pending, the noted models a round reads, each after every
+// pending model it composes: a depth-first walk from each in turn, by ID, that
+// lists a model once its parts are listed, run on an explicit stack, as a
+// hierarchy may nest as deep as a document is long. A part already on the path
+// closes a cycle of compositions, so the model naming it reads it as it
+// stands, the same whichever the walk meets first.
+func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.TypeID {
+	order := make([]ir.TypeID, 0, len(pending))
+	seen := make(map[ir.TypeID]bool, len(pending))
+	for _, root := range pending {
+		if seen[root] {
+			continue
+		}
+		seen[root] = true
+		path := []settleFrame{{id: root, parts: rec.composed(reg, root)}}
+		for len(path) > 0 {
+			top := &path[len(path)-1]
+			if len(top.parts) == 0 {
+				order = append(order, top.id)
+				path = path[:len(path)-1]
+				continue
+			}
+			part := top.parts[0]
+			top.parts = top.parts[1:]
+			if !seen[part] && !rec.settled[part] {
+				seen[part] = true
+				path = append(path, settleFrame{id: part, parts: rec.composed(reg, part)})
+			}
 		}
 	}
-	rec.state[id] = memberSettled
+	return order
+}
+
+// settle settles the model id names, reading each model it composes as it
+// stands, which settleOrder puts first. A tag reading reads the members it
+// settles (tagReadings), so one stored before it is a compiler bug, reported at
+// the model.
+func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, sources []ir.SourceInfo) []ir.Diagnostic {
+	rec.settled[id] = true
 	f := rec.byID[id]
-	diags = append(diags, f.idx.Settle(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})...)
+	g := merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Sources: sources, Walk: f}
+	diags, table := f.idx.Settle(g, rec.partTables(reg, f.m), rec.shared)
+	rec.tables[id] = table
 	if readingsOf(f.c).stored() {
 		diags = append(diags, f.c.DiagAt(ir.SeverityError, diag.InternalInvariant, f.pointer,
 			"internal: the model's members settle after a discriminator-inference reading is stored, which may "+
@@ -130,7 +184,7 @@ func (rec *members) settle(reg ir.TypeRegistry, id ir.TypeID, depth int) []ir.Di
 func (rec *members) composed(reg ir.TypeRegistry, id ir.TypeID) []ir.TypeID {
 	var out []ir.TypeID
 	for _, part := range merge.ComposedOf(rec.byID[id].m) {
-		for range maxMemberDepth {
+		for range maxMemberAliasHops {
 			if _, noted := rec.byID[part]; noted {
 				out = append(out, part)
 				break
@@ -144,4 +198,102 @@ func (rec *members) composed(reg ir.TypeRegistry, id ir.TypeID) []ir.TypeID {
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
+}
+
+// partTables returns the Members of each type m composes (merge.ComposedOf),
+// read for m (tableOf).
+func (rec *members) partTables(reg ir.TypeRegistry, m *ir.Model) map[ir.TypeID]merge.Members {
+	out := map[ir.TypeID]merge.Members{}
+	for _, target := range merge.ComposedOf(m) {
+		out[target] = rec.tableOf(reg, target, m.ID)
+	}
+	return out
+}
+
+// tableOf returns the table of the model target names through alias scalars,
+// charged to the run's reads: the one its settlement left, or, for a model
+// not settled yet, which a cycle reaches or the walks did not note, what its
+// flattening takes as it stands but from's (asItStands). A model the walks did
+// not note composes nothing, so its table is kept. It returns none once the
+// reads run out, and none for a type naming no model.
+func (rec *members) tableOf(reg ir.TypeRegistry, target, from ir.TypeID) merge.Members {
+	id, isModel := modelOf(reg, target)
+	if !isModel || rec.reads.Exhausted() {
+		rec.cutAt(from)
+		return nil
+	}
+	table, kept := rec.tables[id]
+	if !kept {
+		table = rec.asItStands(reg, id, from)
+		if _, noted := rec.byID[id]; !noted {
+			rec.tables[id] = table
+		}
+	}
+	if !rec.reads.Spend(len(table)) {
+		rec.cutAt(from)
+		return nil
+	}
+	return table
+}
+
+// cutAt records from as the first model the settlement read nothing for, where
+// the reads have run out and none is recorded yet.
+func (rec *members) cutAt(from ir.TypeID) {
+	if rec.cut == "" && rec.reads.Exhausted() {
+		rec.cut = from
+	}
+}
+
+// modelOf returns the model target names through alias scalars, and false
+// where it names none within maxMemberAliasHops.
+func modelOf(reg ir.TypeRegistry, target ir.TypeID) (ir.TypeID, bool) {
+	for range maxMemberAliasHops {
+		switch td := reg[target].(type) {
+		case *ir.Model:
+			return target, true
+		case *ir.Scalar:
+			if td.Base == nil {
+				return "", false
+			}
+			target = td.Base.Target
+		default:
+			return "", false
+		}
+	}
+	return "", false
+}
+
+// asItStands returns the table of the model id as reg holds it: for each name
+// more than one model declares, the declaration its flattening takes but
+// from's (merge.TakenBy), charging what the flattening reads.
+func (rec *members) asItStands(reg ir.TypeRegistry, id, from ir.TypeID) merge.Members {
+	table := merge.Members{}
+	for _, member := range ir.FlattenedProperties(reg, id).Properties {
+		rec.reads.Spend(1 + len(member.Overridden))
+		if d, ok := merge.TakenBy(member, from); ok && rec.shared[member.Property.WireName] {
+			table[member.Property.WireName] = d
+		}
+	}
+	return table
+}
+
+// sharedNames returns the wire names more than one model in reg declares, each
+// model counted once: a name one model alone declares decides no member twice.
+func sharedNames(reg ir.TypeRegistry) map[string]bool {
+	first, shared := map[string]ir.TypeID{}, map[string]bool{}
+	for id, td := range reg {
+		m, isModel := td.(*ir.Model)
+		if !isModel {
+			continue
+		}
+		for _, p := range m.Properties {
+			switch owner, seen := first[p.WireName]; {
+			case !seen:
+				first[p.WireName] = id
+			case owner != id:
+				shared[p.WireName] = true
+			}
+		}
+	}
+	return shared
 }

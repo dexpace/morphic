@@ -866,10 +866,12 @@ it sees. Changes made together in one bump are listed together under it.
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A tie goes to
   the later declaration, as the flattening's override does, where the fold of two inline
   declarations kept the first, and so does each detail and bound two declarations give differently.
-  A member an entry brings a declaration of is the model's own property in the `composed` namespace,
-  which the flattening takes: a name it carries as `Required` leaves `Model.Requires`, a
-  discriminator naming the model's own declaration names it, and a report on it names it in
-  `Provenance.Node`. The fold relates a type to an untagged union through its variants. A consumer
+  A member an entry brings a declaration of is the model's own property, which the flattening takes:
+  one it declares itself keeps that declaration's identity, and one only entries declare, or whose
+  declaration another model holds too, takes one in the `composed` namespace; a name it carries as
+  `Required` leaves `Model.Requires`, a discriminator naming the model's own declaration names it,
+  and a report on an entry's declaration names it in `Provenance.Node`. The fold relates a type to
+  an untagged union through its variants. A consumer
   pinned to 0.68.0 refuses the document; one reading such a carrier finds the bound on its node, one
   reading such a member took the declaration the flattening reached last, and one reading a tie
   between two inline declarations took the first's.
