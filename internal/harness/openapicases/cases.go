@@ -49,7 +49,7 @@ func versions() []version {
 func seconds() []string { return []string{none} }
 
 // spellings returns the spellings, in the order the spelling axis lists them.
-func spellings() []string { return []string{inline} }
+func spellings() []string { return []string{inline, beside, wrap, entry, entryFirst, nested} }
 
 // cases is the OpenAPI product: the tables each axis lists the values of.
 type cases struct {
@@ -103,19 +103,27 @@ func names(of []string) []harness.Value {
 
 // Write returns the document at one value index per axis, and false where the
 // combination writes nothing: a construct its version lacks or its target is
-// not said of, or indices outside the product. A table the writer cannot
+// not said of, a spelling that moves no such keyword or writes another's
+// document (spelt), or indices outside the product. A table the writer cannot
 // encode panics, which CheckCase reports as the case's outcome.
 func (c cases) Write(at []int) (harness.Document, bool) {
 	if !c.holds(at) {
 		return harness.Document{}, false
 	}
-	v, t, p := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]]
+	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
 	members, components, ok := c.construct(at[2], v, t)
-	if !ok || c.seconds[at[3]] != none || c.spellings[at[5]] != inline {
+	if !ok || c.seconds[at[3]] != none {
+		return harness.Document{}, false
+	}
+	use, ok := c.spelt(at[2], s, t, members)
+	if !ok {
 		return harness.Document{}, false
 	}
 
-	paths, schemas := p.place(t.body.with(members))
+	paths, schemas := p.place(use)
+	if s != inline {
+		schemas = append(schemas, member{targetSchema, t.body})
+	}
 	data, err := encode(object{
 		{"openapi", v.name},
 		{"info", object{{"title", "cases"}, {"version", "1"}}},
@@ -125,7 +133,10 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
-	return harness.Document{Sources: []compilers.Source{{Path: specPath, Data: data}}}, true
+	return harness.Document{
+		Sources: []compilers.Source{{Path: specPath, Data: data}},
+		Equal:   c.equal(at, members),
+	}, true
 }
 
 // holds reports whether at names a case of c: one index per axis, each within

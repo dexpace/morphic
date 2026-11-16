@@ -130,7 +130,7 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 
 func TestNew_WritesNothingOutsideTheProduct(t *testing.T) {
 	c := openapicases.New()
-	for _, at := range [][]int{nil, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 1}, {0, -1, 0, 0, 0, 0}} {
+	for _, at := range [][]int{nil, {0, 0, 0, 0, 0}, {0, 0, 0, 0, 0, 6}, {0, -1, 0, 0, 0, 0}} {
 		_, ok := c.Write(at)
 		assert.False(t, ok, "%v", at)
 	}
