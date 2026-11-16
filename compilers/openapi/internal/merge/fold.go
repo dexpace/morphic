@@ -373,13 +373,15 @@ func (f *folding) disagree(i, kept int, detail string) {
 // report is in, as a declaration an entry brings may be written in another. A
 // member an entry brings settled names its first declaration, which need not
 // say what the member does, so the report names the one place its type is
-// written, or, for one written nowhere (unwritten), the entry bringing it.
+// written, or, where that is the member's own and no schema is written there
+// (unwritten), the entry bringing it.
 func (f *folding) at(i int) string {
 	d := f.decls[i]
 	p := d.prop.Provenance
 	if d.via != nil && len(d.typeAt) == 1 {
 		p = d.typeAt[0]
-	} else if f.unwritten(d) {
+	}
+	if p.Pointer == d.prop.Provenance.Pointer && f.unwritten(d) {
 		return string(d.via.at)
 	}
 	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {

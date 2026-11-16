@@ -25,7 +25,7 @@ func TestContext_LowersWhatTheLoadPhaseRead(t *testing.T) {
 
 	require.NotNil(t, c.Doc)
 	assert.Equal(t, "3.1.0", c.Doc.GetOpenAPI())
-	assert.Equal(t, "spec.yaml", c.Source.Path)
+	assert.Equal(t, "spec.yaml", c.Sources()[0].Path)
 	assert.Equal(t, 0, c.SrcIndex)
 	assert.True(t, c.DeclaresSchema("A"))
 	assert.NotNil(t, c.Bindings(), "the load phase bound the source")

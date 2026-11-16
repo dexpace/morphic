@@ -27,9 +27,10 @@ import (
 )
 
 // TestNew_KeepsTheDocumentItWasGiven pins the rest of the context: the document,
-// grouping policy and its extension, source identity and index arrive
+// grouping policy and its extension, and the source's identity and index arrive
 // unchanged, since every Provenance the compile stamps is built from the last
-// two.
+// two: the index places a position, and the identity is the Document.Sources
+// entry it names.
 func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	t.Parallel()
 	doc := openapitest.DocDeclaring("User")
@@ -40,10 +41,11 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 		service.Policy{Grouping: service.GroupByExtension, GroupingExtension: ext})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
-	assert.Equal(t, src, c.Source)
+	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 	assert.Equal(t, service.GroupByExtension, c.Grouping)
 	assert.Equal(t, ext, c.GroupingExtension)
 	assert.Equal(t, 7, c.SrcIndex)
+	assert.Equal(t, 7, c.Place().Source)
 }
 
 // referenceKinds is a source declaring one component of each kind the library

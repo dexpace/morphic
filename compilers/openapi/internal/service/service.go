@@ -35,9 +35,7 @@ type Ctx struct {
 	// Doc is the parsed, reference-resolved source document. Lowering reads it
 	// and never writes through it.
 	Doc *soa.OpenAPI
-	// Source is the identity of the loaded source, stamped into
-	// Document.Sources, and SrcIndex its index within the compile.
-	Source   ir.SourceInfo
+	// SrcIndex is the source's index within the compile.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups, and
 	// GroupingExtension is what GroupByExtension reads. Both arrive as the
@@ -104,7 +102,6 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 			Declares:  resolve.NewNames(slices.Collect(doc.Doc.Components.GetSchemas().Keys())...),
 			Documents: documents, Rules: doc.Dialects, Sources: sourcesOf(doc)}, p.Schema),
 		Doc:               doc.Doc,
-		Source:            doc.Source,
 		SrcIndex:          srcIndex,
 		Grouping:          p.Grouping,
 		GroupingExtension: p.GroupingExtension,

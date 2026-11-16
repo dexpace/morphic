@@ -71,10 +71,10 @@ type Ctx struct {
 
 // shared holds what every copy of a context reads of the load phase (see
 // New): the readings RefScope hands every scope over the raw YAML the model
-// reads on in, and over the schema bindings. They come with the document rather than being
-// derived from it, since resolving them reads every document the source names,
-// which only the load phase may (GitHub #757). The readings are bound once,
-// here: binding them in RefScope would allocate each time.
+// reads on in, and over the schema bindings. They come with the document
+// rather than being derived from it, since resolving them reads every document
+// the source names, which only the load phase may (GitHub #757). The readings
+// are bound once, here: binding them in RefScope would allocate each time.
 type shared struct {
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt). Copies share it on

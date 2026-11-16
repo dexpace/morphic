@@ -108,9 +108,8 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
 // context reads a schema with: that of the document its scope reads, through
-// InDocument, and back to the source's. Rules().In answers
-// for a document of the bindings' table, and with the source's for one the
-// compile did not read.
+// InDocument, and back to the source's. Rules().In answers for a document of
+// the bindings' table, and with the source's for one the compile did not read.
 func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")

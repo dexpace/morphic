@@ -343,8 +343,9 @@ var rules = map[string][]string{
 	// states, the dialect question asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, provenance and diag for where a position of its document is
-	// placed, promotion for the policy it carries, and statement for what each
-	// schema says, read once for the run.
+	// placed, ids for how the IDs of what that document declares are
+	// qualified, promotion for the policy it carries, and statement for what
+	// each schema says, read once for the run.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -359,7 +360,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/statement"},
 	// What the service lowerings read beside the schema lowering's context,
-	// which it embeds: the parsed document, the source's identity, how
+	// which it embeds: the parsed document, the source's index, how
 	// operations group, which media types stream or are binary, and the budget
 	// a $ref's copies are charged against. It reaches load for what the load
 	// phase modelled beside path items' $refs and the media types it resolved,
