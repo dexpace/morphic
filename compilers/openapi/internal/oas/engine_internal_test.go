@@ -5,6 +5,7 @@ package oas
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -32,7 +33,8 @@ func TestCheck_AnUnknownCodeRuleIsATableError(t *testing.T) {
 }
 
 // TestCheck_WorkIsBounded pins that the walk stops past its budget, not at it,
-// and at its depth whatever the budget, and says so once, as an error. An unset
+// and at its depth whatever the budget, and says so once, as an error at the
+// node it stopped on, one inside a value read as no object among them. An unset
 // budget is unbounded.
 func TestCheck_WorkIsBounded(t *testing.T) {
 	deep := "{}"
@@ -44,25 +46,27 @@ func TestCheck_WorkIsBounded(t *testing.T) {
 		name  string
 		doc   string
 		limit budget.Limit
-		over  bool
+		at    string
 	}{
-		{"a budget one short of the objects", five, budget.AtMost(4), true},
-		{"a budget of the objects", five, budget.AtMost(5), false},
+		{"a budget one short of the objects", five, budget.AtMost(4), "/properties/d"},
+		{"a budget of the objects", five, budget.AtMost(5), ""},
 		// One schema, then a list and three mappings read as no object.
-		{"a budget one short of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(4), true},
-		{"a budget of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(5), false},
-		{"no budget", five, budget.Unbounded(), false},
-		{"depth", deep, budget.Unbounded(), true},
+		{"a budget one short of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(4), "/default/1"},
+		{"a budget of a value's mappings and lists", `{default: [{a: {}}, {}]}`, budget.AtMost(5), ""},
+		{"no budget", five, budget.Unbounded(), ""},
+		{"depth", deep, budget.Unbounded(), strings.Repeat("/properties/a", MaxDepth+1)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			diags := NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.limit})
-			if !tc.over {
+			diags := NewChecker().Check(t.Context(), openapitest.YAMLDocument(t, tc.doc), "3.1.0", Options{Start: Schema, Budget: tc.limit,
+				Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }})
+			if tc.at == "" {
 				assert.Empty(t, diags)
 				return
 			}
 			require.Len(t, diags, 1)
 			assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
+			assert.Equal(t, tc.at, string(diags[0].Provenance.Pointer))
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 		})
 	}

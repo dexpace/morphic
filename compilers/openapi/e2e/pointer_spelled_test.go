@@ -161,6 +161,7 @@ func spelledLeaves(all bool) map[string]string {
 		"a timestamp": "2001-01-01", "a set": "!!set {a, b}", "an integer key": "{1: a}", "a boolean key": "{true: a}",
 		"a tag": "!foo bar", "a long integer": "123456789012345678901234567890", "an empty key": "{'': 1}",
 		"not a number": ".nan", "a $ref": "{$ref: '#/nowhere'}", "an ordered map": "!!omap [a: 1]", "a tagged string": "!!str 5",
+		"a nested value": "{a: [{b: {c: [1, {d: 2, e: [3]}]}}]}",
 	})
 	return leaves
 }
@@ -257,19 +258,35 @@ const (
 	spelledPerKey   = 300
 )
 
+// spelledMinors lists a version of each minor the rule table tells apart, the
+// last the one whose cases are widened.
+var spelledMinors = []string{"3.0.3", "3.1.1", "3.2.0"}
+
 // TestCompile_SpellsNoPointerTheNamedTotalLeavesOut holds a whole compile to
 // the total the pointer bound's second weighing takes
 // (docs/compilers/openapi.md#source-budgets): for each case spelledCases
 // lists, what a compile allocates more for a longer key is within a constant
 // of what the total grows by, so no walk spells a pointer at each entry of a
-// value the total counts by its root. A case whose total is not taken is left
-// to the first total. It does not run in parallel, since the count is
-// process-wide, and takes the fewest of three where one is past.
+// value the total counts by its root. A short run holds the last minor alone.
+// It does not run in parallel, since the count is process-wide.
 func TestCompile_SpellsNoPointerTheNamedTotalLeavesOut(t *testing.T) {
-	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	previous := runtime.GOMAXPROCS(1)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
+	for i, version := range spelledMinors {
+		last := i == len(spelledMinors)-1
+		if last || !testing.Short() {
+			spellsWithinTheTotal(t, spelledCases(version, last && !testing.Short()))
+		}
+	}
+}
+
+// spellsWithinTheTotal holds each of cases to what its total grows by, the
+// fewest of three compiles where one is past. A case whose total is not taken
+// is left to the first total.
+func spellsWithinTheTotal(t *testing.T, cases []spelledCase) {
+	t.Helper()
 	short, long := strings.Repeat("K", spelledShortKey), strings.Repeat("K", spelledLongKey)
 	taken := 0
-	cases := spelledCases("3.2.0", !testing.Short())
 	for _, c := range cases {
 		narrow, wide := c.doc(short), c.doc(long)
 		low, whole := bind.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, narrow), 1<<22)
