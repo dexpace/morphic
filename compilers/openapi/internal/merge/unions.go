@@ -31,10 +31,10 @@ func unionArms(j typeJudge, a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	}
 	if bUnion {
 		against := func(v ir.TypeRef) relation { return j.relateAt(a, v, depth+1) }
-		return byVariants(j, against, bu, !j.boundsBeside(bt))
+		return byVariants(j, against, bu, !boundsBeside(j.registry, bt))
 	}
 	against := func(v ir.TypeRef) relation { return j.relateAt(v, b, depth+1).flipped() }
-	return byVariants(j, against, au, !j.boundsBeside(at)).flipped()
+	return byVariants(j, against, au, !boundsBeside(j.registry, at)).flipped()
 }
 
 // boundsBeside reports whether td, a union read through aliases, or an alias
@@ -42,8 +42,8 @@ func unionArms(j typeJudge, a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 // whichever variant holds them (docs/ir/unions.md#bounds-beside-a-union),
 // which the variants do not say, so a type within one of them is not shown to
 // be within td, and a field taking it would lose them.
-func (j typeJudge) boundsBeside(td ir.TypeDef) bool {
-	chain, end := j.aliasChain(td)
+func boundsBeside(r registry, td ir.TypeDef) bool {
+	chain, end := r.aliasChain(td)
 	if u, ok := end.(*ir.Union); ok && u.Constraints != nil {
 		return true
 	}
