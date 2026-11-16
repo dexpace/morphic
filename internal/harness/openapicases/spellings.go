@@ -173,8 +173,7 @@ func laterVersion(at jsontext.Pointer) harness.Stated {
 
 // relocation returns the Relocate of a use at pointer use, or of every use
 // beneath it where use ends in "/": each allOf index following use in a string
-// holding it, and following an unmodeled name's "openapi:" prefix, erased. It
-// is the one place that knows how a pointer is spelled inside an ID.
+// holding it, and following an unmodeled name's "openapi:" prefix, erased.
 func relocation(use string) func(string) string {
 	if use == "" {
 		panic("openapicases: a relocation of no use")

@@ -165,10 +165,11 @@ func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Write
 }
 
 // writeCase applies the case oracles to c's case at and writes its name, its
-// sources and each verdict, and returns 1 when the case holds a finding or a
-// fault. A case a fault such as a panic ended is written with the fault in
-// place of its sources: the fault may lie in Write, which writing the case
-// again would raise again.
+// sources and each verdict, and returns 1 when the case holds what a run of
+// the cases reports with no record to explain it: a finding, a decline a
+// record lists as one, or a fault. A case a fault such as a panic ended is
+// written with the fault in place of its sources: the fault may lie in Write,
+// which writing the case again would raise again.
 func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer) int {
 	res, written := harness.CheckCase(ctx, c, at)
 	if !written {
@@ -191,7 +192,10 @@ func writeCase(ctx context.Context, c harness.Cases, at []int, stdout io.Writer)
 		}
 		emitf(stdout, "%s\n", strings.TrimSuffix(fmt.Sprintf("%s %s %s", v.Oracle, answer, v.Detail), " "))
 	}
-	return exitCode([]harness.Result{res})
+	if len(harness.Unexplained([]harness.Result{res}, nil)) > 0 {
+		return 1
+	}
+	return 0
 }
 
 // exitCode returns 1 when any result is not OutcomeOK, otherwise 0.
@@ -232,6 +236,7 @@ counts, per case oracle, the cases it asked and declined. With -at N, the case
 at index N alone is checked, whichever of core or full is named, and its name,
 its sources and each verdict are written. N counts the cases of one product
 after another: the OpenAPI schema cases, then the JSON Schema Test Suite's
-groups, each written as defaults. Exit status is 0 when nothing is left to
-report, 1 when anything is (with -at, any finding the case holds, listed or
-not), 2 on a usage error or an index naming no case.`
+groups, each written as defaults. A case is written to compile, so an oracle
+declining one for an error diagnostic is reported as a finding is. Exit status
+is 0 when nothing is left to report, 1 when anything is (with -at, any finding
+the case holds, listed or not), 2 on a usage error or an index naming no case.`

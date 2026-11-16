@@ -7,8 +7,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-
-	"github.com/dexpace/morphic/ir"
 )
 
 // The What of each finding the presence oracle makes, which a record lists.
@@ -80,8 +78,8 @@ func judgePresence(axes []Axis, doc Document, texts []string) Verdict {
 }
 
 // encoded returns what the case at compiled to as the presence oracle
-// compares it, and why it cannot: the compile drew an error diagnostic, so it
-// would compare a refusal. A case the cases write nothing for, as the
+// compares it, and why it cannot: the case did not compile (uncompiled), so
+// it would compare a refusal. A case the cases write nothing for, as the
 // neighbour of a document that names it, and a compile's Go error are the
 // harness's or the product's mistake, and a panic, as in the other oracles.
 func (s *shard) encoded(ctx context.Context, at []int) (string, Decline) {
@@ -92,7 +90,7 @@ func (s *shard) encoded(ctx context.Context, at []int) (string, Decline) {
 	if got.err != nil {
 		panic(fmt.Sprintf("harness: compile case %v: %v", at, got.err))
 	}
-	if _, failed := ir.FirstError(got.diags); failed {
+	if got.uncompiled() {
 		return "", DeclineErrorDiagnostic
 	}
 	own := *got.doc // a copy: the shard keeps the document for the other oracles

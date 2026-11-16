@@ -63,10 +63,10 @@ func TestGroups_EachValueCompilesAtALaterVersion(t *testing.T) {
 
 // eachValueCompilesAtALaterVersion compiles, at each version of c the core
 // leaves out, the first case writing each value of each other axis, as
-// eachCoreCaseCompilesWithNoError compiles the core. No other run fails on a
-// document such a version alone makes one the compiler refuses: the presence
-// oracle declines a case drawing an error, and the spelling oracle compares
-// two refusals as it compares two documents.
+// eachCoreCaseCompilesWithNoError compiles the core. The gate checks no other
+// document of such a version, so one the version alone makes the compiler
+// refuse fails here and not first in the nightly run, whose oracles decline
+// it; one refused only where two values meet is that run's to find.
 func eachValueCompilesAtALaterVersion(t *testing.T, c harness.Cases) {
 	t.Helper()
 	axes := c.Axes()

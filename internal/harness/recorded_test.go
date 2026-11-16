@@ -183,9 +183,10 @@ func TestResult_FaultedTellsAFaultFromAFinding(t *testing.T) {
 }
 
 // TestFindings_ListTheDeclinesARecordHolds pins the declines a record lists as
-// it lists a finding: the instance oracle's error diagnostic and unjudged
-// instance, as "declined: <reason>", and no other decline. Unexplained keeps
-// one its record does not list as a finding of OutcomeDeclined.
+// it lists a finding: any case oracle's error diagnostic and the instance
+// oracle's unjudged instance, as "declined: <reason>", and no other decline.
+// Unexplained keeps one its record does not list as a finding of
+// OutcomeDeclined.
 func TestFindings_ListTheDeclinesARecordHolds(t *testing.T) {
 	results := []harness.Result{
 		{Spec: "g/p", Like: "g/p", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
@@ -197,19 +198,37 @@ func TestFindings_ListTheDeclinesARecordHolds(t *testing.T) {
 			{Oracle: harness.OracleInstance, Declined: harness.DeclineNotJudged},
 		}},
 		{Spec: "g/r", Like: "g/r", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineRelocationCollides},
+			{Oracle: harness.OraclePresence, Declined: harness.DeclineNoConstruct},
 			{Oracle: harness.OracleInstance, Declined: harness.DeclineNoInstance},
 		}},
+		{Spec: "g/s", Like: "g/s", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineErrorDiagnostic},
+		}},
 	}
-	assert.Equal(t, []harness.Finding{{Name: "g/p", What: "declined: error diagnostic"},
-		{Name: "g/q", What: "declined: not judged"}}, harness.Findings(results, harness.OracleInstance))
-	assert.Empty(t, harness.Findings(results, harness.OraclePresence))
+	refused := harness.Finding{Name: "g/p", What: "declined: error diagnostic"}
+	assert.Equal(t, []harness.Finding{refused, {Name: "g/q", What: "declined: not judged"}},
+		harness.Findings(results, harness.OracleInstance))
+	assert.Equal(t, []harness.Finding{refused}, harness.Findings(results, harness.OraclePresence))
+	assert.Equal(t, []harness.Finding{{Name: "g/s", What: "declined: error diagnostic"}},
+		harness.Findings(results, harness.OracleSpelling))
 
 	record, err := harness.ReadRecorded([]byte("g/p\tdeclined: error diagnostic\tremote\n"))
 	require.NoError(t, err)
-	got := harness.Unexplained(results, map[harness.Oracle]harness.Recorded{harness.OracleInstance: record})
+	got := harness.Unexplained(results, map[harness.Oracle]harness.Recorded{
+		harness.OraclePresence: record, harness.OracleInstance: record,
+	})
 	unjudged := harness.Verdict{Oracle: harness.OracleInstance, Outcome: harness.OutcomeDeclined, Detail: "declined: not judged"}
-	assert.Equal(t, []harness.Result{{Spec: "g/q", Like: "g/q", Outcome: harness.OutcomeDeclined,
-		Detail: "declined: not judged", Verdicts: []harness.Verdict{unjudged}}}, got)
+	uncompiled := harness.Verdict{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeDeclined, Detail: "declined: error diagnostic"}
+	assert.Equal(t, []harness.Result{
+		{Spec: "g/q", Like: "g/q", Outcome: harness.OutcomeDeclined, Detail: "declined: not judged", Verdicts: []harness.Verdict{unjudged}},
+		{Spec: "g/s", Like: "g/s", Outcome: harness.OutcomeDeclined, Detail: "declined: error diagnostic", Verdicts: []harness.Verdict{uncompiled}},
+	}, got)
 	assert.False(t, got[0].Faulted())
-	assert.Equal(t, "g/q declined declined: not judged\n", harness.Report(got))
+	assert.Equal(t, "g/q declined declined: not judged\ng/s declined declined: error diagnostic\n", harness.Report(got))
+
+	got = harness.Unexplained(results, map[harness.Oracle]harness.Recorded{harness.OracleInstance: record})
+	require.Len(t, got, 3, "the presence oracle's decline stands where its record does not list it")
+	assert.Equal(t, "g/p", got[0].Spec)
+	assert.Equal(t, harness.OraclePresence, got[0].Verdicts[0].Oracle)
 }

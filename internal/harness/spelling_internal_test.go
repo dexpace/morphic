@@ -208,28 +208,68 @@ func slicesDeleteCode(diags []ir.Diagnostic, code string) []ir.Diagnostic {
 }
 
 // TestSpelled_ARefusalIsFoundSayingWhichSide refuses one side, then the
-// other, then both, whose diagnostics alone compare.
+// other: the side that alone compiles to no document is the finding.
 func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
-	refuse := map[string]bool{}
+	partner, spelling := `{allOf: [{$ref: '#/components/schemas/T'}]}`, `{$ref: '#/components/schemas/T'}`
+	f := spellingPair("3.1.0", partner, spelling, Equal{})
+	uncompiled := swapUncompiled(t)
+
+	uncompiled[string(spellingSpec("3.1.0", partner))] = "refused"
+	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: the partner compiles to no document")
+
+	delete(uncompiled, string(spellingSpec("3.1.0", partner)))
+	uncompiled[string(spellingSpec("3.1.0", spelling))] = "refused"
+	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: this spelling compiles to no document")
+}
+
+// TestSpelled_TwoSidesThatDoNotCompileDecline holds a pair neither side of
+// which compiled to a decline a record lists, however each failed: two
+// refusals would compare alike whatever the case says. One side drawing an
+// error over a document is a difference in the reports, found.
+func TestSpelled_TwoSidesThatDoNotCompileDecline(t *testing.T) {
+	partner, spelling := `{allOf: [{$ref: '#/components/schemas/T'}]}`, `{$ref: '#/components/schemas/T'}`
+	f := spellingPair("3.1.0", partner, spelling, Equal{})
+	uncompiled := swapUncompiled(t)
+	for _, how := range []string{"refused", "error", "no document"} {
+		uncompiled[string(spellingSpec("3.1.0", partner))] = how
+		uncompiled[string(spellingSpec("3.1.0", spelling))] = how
+
+		v := spellingVerdict(t, f)
+
+		assert.Equal(t, declined(OracleSpelling, DeclineErrorDiagnostic), v, how)
+		assert.True(t, listed(v), how)
+	}
+
+	delete(uncompiled, string(spellingSpec("3.1.0", partner)))
+	uncompiled[string(spellingSpec("3.1.0", spelling))] = "error"
+	v := spellingVerdict(t, f)
+	require.True(t, v.Found(), "%+v", v)
+	assert.Equal(t, "diagnostics:x/refused", strings.SplitN(v.Detail, "\n", 2)[0])
+}
+
+// swapUncompiled makes the compile of each source the returned map names fail
+// as the map says: "refused" to no document and an error diagnostic, as the
+// engine refuses, "error" to its document and an error diagnostic, and "no
+// document" to neither.
+func swapUncompiled(t *testing.T) map[string]string {
+	t.Helper()
+	how := map[string]string{}
+	boom := ir.Diagnostic{Severity: ir.SeverityError, Code: "x/refused", Message: "refused"}
 	var compile compileFunc
 	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := compile(ctx, spec, data, ps)
-		if refuse[string(data)] {
+		switch how[string(data)] {
+		case "refused":
+			return nil, append(diags, boom), err
+		case "error":
+			return doc, append(diags, boom), err
+		case "no document":
 			return nil, diags, err
+		default:
+			return doc, diags, err
 		}
-		return doc, diags, err
 	})
-	partner, spelling := `{allOf: [{$ref: '#/components/schemas/T'}]}`, `{$ref: '#/components/schemas/T'}`
-	f := spellingPair("3.1.0", partner, spelling, Equal{})
-
-	refuse[string(spellingSpec("3.1.0", partner))] = true
-	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: the partner compiles to no document")
-
-	refuse[string(spellingSpec("3.1.0", spelling))] = true
-	assert.Equal(t, passed(OracleSpelling), spellingVerdict(t, f), "two refusals of one report agree")
-
-	delete(refuse, string(spellingSpec("3.1.0", partner)))
-	assert.Contains(t, spellingVerdict(t, f).Detail, "refused: this spelling compiles to no document")
+	return how
 }
 
 // TestSpelled_WhatStopsAComparison pins what stops a comparison: no partner
