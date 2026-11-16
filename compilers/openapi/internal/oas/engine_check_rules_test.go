@@ -4,10 +4,12 @@
 package oas_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
@@ -363,6 +365,32 @@ func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, `Schema Object field "required" repeats "a" first written at /required/0 in OpenAPI 3.1 (Schema Object)`,
 		diags[0].Message)
+}
+
+// TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced holds the copy a
+// repeated entry's message names to where the Locator places it, and, where
+// the Locator places it at no pointer, to where it was read, under Root.
+func TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced(t *testing.T) {
+	for name, c := range map[string]struct {
+		locate oas.Locator
+		want   string
+	}{
+		"placed": {func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/placed" + p} },
+			"/placed/required/0"},
+		"placed at no pointer": {nil, "/x-raw/T/required/0"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var n yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte(`{required: [a, a]}`), &n))
+
+			diags := oas.NewChecker().Check(t.Context(), &n, "3.1.0",
+				oas.Options{Start: oas.Schema, Locate: c.locate, Root: "/x-raw/T"})
+
+			require.Len(t, diags, 1)
+			assert.Equal(t, `Schema Object field "required" repeats "a" first written at `+c.want+
+				` in OpenAPI 3.1 (Schema Object)`, diags[0].Message)
+		})
+	}
 }
 
 // TestCheck_AFieldBesideContentNamesItsCarrier holds the warning a

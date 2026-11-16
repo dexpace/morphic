@@ -720,7 +720,9 @@ merge key mounts at several positions draws one, naming the least position in th
 read it, by the order below, where that is another place than the one it is placed at. A node aliases share is placed at the least pointer of the
 places that mount it, where its anchor is written and where each alias of it is, pointers compared
 token by token and each token by its bytes, so `/A/…` comes before `/A-/…`; its line and column
-stay where its text is written. Which place a document writes first decides nothing, and a document
+stay where its text is written. A message naming another node, as a repeated entry's names the copy
+it repeats, names the pointer a finding on that node is placed at, or, where no pointer places it,
+the position that read it. Which place a document writes first decides nothing, and a document
 whose aliases lead back into what holds them keeps every written place: it is refused, at the
 cycle.
 
@@ -801,6 +803,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
   `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
+  `oas.TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced`,
+  `e2e.TestCompile_ARepeatedEntryNamesItsFirstCopyWhereItsDocumentHoldsIt`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`,
   `e2e.TestCompile_AValueARefLandsOnIsJudgedBeforeItIsBuilt`,
   `e2e.TestCompile_AValueAnotherDocumentsRefLandsOnIsJudgedBeforeItIsBuilt`,
