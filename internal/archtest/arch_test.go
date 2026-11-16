@@ -130,12 +130,14 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Every $ref of the source, a schema's and a reference object's, resolved
 	// into a table over the decoded trees, never through the library's resolver
-	// (GitHub #558). It reads a tree through nodeview and a fragment through
-	// fragment, counts its work through budget, and reaches nothing of the
-	// library's model or of the compiler.
+	// (GitHub #558). It reads a tree through nodeview, a fragment through
+	// fragment and each object's fields off oas's rule table, counts its work
+	// through budget, and reaches nothing of the library's model or of what
+	// loads or lowers.
 	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/fragment",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/nodeview", module + "/compilers/openapi/internal/oas",
+		"go.yaml.in/yaml/v3"},
 	// The typed side of a bind table: each schema of the parsed model known by
 	// the position it was read at, located through the library's walk, and one
 	// the library's decoder builds from raw YAML where the model holds none,

@@ -38,24 +38,20 @@ var modelStates = map[reflect.Type]state{
 	reflect.TypeFor[oas3core.Schema]():            sSchema,
 }
 
-// The containers of each kind, keyed by what they hold.
-var (
-	mapsOf = map[state]state{
-		sSchema: sSchemaMap, sPathItem: sPathItemMap, sOperation: sOperationMap, sParameter: sParameterMap,
-		sHeader: sHeaderMap, sRequestBody: sRequestBodyMap, sResponse: sResponseMap, sMediaType: sMediaTypeMap,
-		sEncoding: sEncodingMap, sCallback: sCallbackMap, sExample: sExampleMap, sLink: sLinkMap,
-		sSecurityScheme: sSecuritySchemeMap, sRaw: sRawEntries,
-	}
-	listsOf = map[state]state{sSchema: sSchemaList, sParameter: sParameterList, sEncoding: sEncodingList, sRaw: sRawEntries}
-)
+// lags is each field the rule table defines that the parser's model names no
+// member for, by the state of the object defining it.
+var lags = map[state][]string{
+	sComponents: {"mediaTypes"}, sMediaType: {"description"}, sResponse: {"summary"},
+	sEncoding: {"encoding", "prefixEncoding", "itemEncoding"},
+}
 
-// TestGrammar_FieldsAreTheModels holds the grammar to the parser's model: each
-// object state defines exactly the fields its object of the model does, and
-// each leads where the model's field does: to a schema, a map or list of them,
-// an object of a kind and its containers, raw YAML or a list or map of it. A
-// field holding neither a schema nor raw YAML may be read as a value or an
-// object alike. A $ref, which the binding reads itself, is compared on neither
-// side.
+// TestGrammar_FieldsAreTheModels holds the grammar to the parser's model, less
+// where the model lags the rule table (lags): each object state defines the
+// fields its object of the model does, each leading where the model's does: to
+// a schema, a map or list of them, an object of a kind and its containers, or
+// raw YAML or a list or map of it. A value and any other object are alike. A
+// $ref, which the binding reads itself, is compared on neither side. No field
+// of lags is one the model names, so a release adding one fails here.
 func TestGrammar_FieldsAreTheModels(t *testing.T) {
 	t.Parallel()
 	for model, s := range modelStates {
@@ -73,6 +69,10 @@ func TestGrammar_FieldsAreTheModels(t *testing.T) {
 		}
 		got := maps.Clone(fields[s])
 		delete(got, "$ref")
+		for _, lag := range lags[s] {
+			assert.NotContains(t, want, lag, "%s.%s is a field the model names", model.Name(), lag)
+			delete(got, lag)
+		}
 		if s == sPathItem {
 			for key, ks := range got {
 				if ks == sOperation {
@@ -149,9 +149,9 @@ func modelState(t *testing.T, ft reflect.Type) state {
 	case strings.HasPrefix(name, "sequencedmap.Map["):
 		m, ok := reflect.TypeAssert[interface{ GetValueType() reflect.Type }](reflect.New(ft))
 		assert.True(t, ok, name)
-		return containerOf(mapsOf, modelState(t, m.GetValueType()))
+		return modelContainer(mapsOf, modelState(t, m.GetValueType()))
 	case ft.Kind() == reflect.Slice:
-		return containerOf(listsOf, modelState(t, ft.Elem()))
+		return modelContainer(listsOf, modelState(t, ft.Elem()))
 	case ft == reflect.TypeFor[yaml.Node]():
 		return sRaw
 	default:
@@ -159,10 +159,10 @@ func modelState(t *testing.T, ft reflect.Type) state {
 	}
 }
 
-// containerOf is the container of kind of what holds, or a value for a
+// modelContainer is the container in of what holds, or a value for a
 // container of values.
-func containerOf(of map[state]state, holds state) state {
-	if s, ok := of[holds]; ok {
+func modelContainer(in map[state]state, holds state) state {
+	if s, ok := in[holds]; ok {
 		return s
 	}
 	return sValue

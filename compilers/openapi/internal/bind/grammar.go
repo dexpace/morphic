@@ -3,7 +3,11 @@
 
 package bind
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+)
 
 // state is where the OpenAPI grammar stands after reading a pointer's tokens.
 type state uint8
@@ -55,63 +59,32 @@ const (
 	sLoose
 )
 
-// fields maps the fields an object state defines to the state each leads to,
-// as the parser's model defines them (TestGrammar_FieldsAreTheModels). A field
-// an object leaves out is raw YAML to the model, as is every x- key.
-var fields = map[state]map[string]state{
-	sDocument: {
-		"openapi": sValue, "info": sObject, "jsonSchemaDialect": sValue, "servers": sObject, "paths": sPaths,
-		"webhooks": sPathItemMap, "components": sComponents, "security": sSecurityList, "tags": sObject,
-		"externalDocs": sObject, "$self": sValue,
-	},
-	sComponents: {
-		"schemas": sSchemaMap, "responses": sResponseMap, "parameters": sParameterMap, "examples": sExampleMap,
-		"requestBodies": sRequestBodyMap, "headers": sHeaderMap, "securitySchemes": sSecuritySchemeMap,
-		"links": sLinkMap, "callbacks": sCallbackMap, "pathItems": sPathItemMap,
-	},
-	sSchema: schemaFields(),
-	sPathItem: {
-		"$ref": sValue, "summary": sValue, "description": sValue, "servers": sObject, "parameters": sParameterList,
-		"get": sOperation, "put": sOperation, "post": sOperation, "delete": sOperation, "options": sOperation,
-		"head": sOperation, "patch": sOperation, "trace": sOperation, "query": sOperation,
-		"additionalOperations": sOperationMap,
-	},
-	sOperation: {
-		"tags": sObject, "summary": sValue, "description": sValue, "externalDocs": sObject, "operationId": sValue,
-		"parameters": sParameterList, "requestBody": sRequestBody, "responses": sResponses,
-		"callbacks": sCallbackMap, "deprecated": sValue, "security": sSecurityList, "servers": sObject,
-	},
-	sParameter: {
-		"name": sValue, "in": sValue, "description": sValue, "required": sValue, "deprecated": sValue,
-		"allowEmptyValue": sValue, "style": sValue, "explode": sValue, "allowReserved": sValue,
-		"schema": sSchema, "example": sRaw, "examples": sExampleMap, "content": sMediaTypeMap,
-	},
-	sHeader: {
-		"description": sValue, "required": sValue, "deprecated": sValue, "style": sValue, "explode": sValue,
-		"schema": sSchema, "example": sRaw, "examples": sExampleMap, "content": sMediaTypeMap,
-	},
-	sRequestBody: {"description": sValue, "content": sMediaTypeMap, "required": sValue},
-	sResponse:    {"description": sValue, "headers": sHeaderMap, "content": sMediaTypeMap, "links": sLinkMap},
-	sMediaType: {
-		"schema": sSchema, "itemSchema": sSchema, "example": sRaw, "examples": sExampleMap,
-		"encoding": sEncodingMap, "prefixEncoding": sEncodingList, "itemEncoding": sEncoding,
-	},
-	sEncoding: {
-		"contentType": sValue, "headers": sHeaderMap, "style": sValue, "explode": sValue, "allowReserved": sValue,
-	},
-	sExample: {
-		"summary": sValue, "description": sValue, "value": sRaw, "dataValue": sRaw, "serializedValue": sValue,
-		"externalValue": sValue,
-	},
-	sLink: {
-		"operationRef": sValue, "operationId": sValue, "parameters": sRawEntries, "requestBody": sRaw,
-		"description": sValue, "server": sObject,
-	},
-	sSecurityScheme: {
-		"type": sValue, "description": sValue, "name": sValue, "in": sValue, "scheme": sValue,
-		"bearerFormat": sValue, "flows": sObject, "openIdConnectUrl": sValue, "oauth2MetadataUrl": sValue,
-		"deprecated": sValue,
-	},
+// fields maps the fields each object state defines to the state each leads
+// to: every field the rule table gives the object, at any minor, but those
+// unplaced names (objectFields), and the Schema Object's keywords. A field an
+// object leaves out is raw YAML, as is every x- key. A schema's keyword
+// grammar is its dialect's, not the object grammar's, so it stays hand-written
+// (schemaFields, dialectStep).
+var fields = withSchema(objectFields(oas.Table()))
+
+// unplaced holds the fields the rule table defines that the binder does not
+// place: those the parser's model names no member for and nothing else
+// models.
+var unplaced = map[state][]string{
+	sMediaType: {"description"}, sResponse: {"summary"},
+	sEncoding: {"encoding", "prefixEncoding", "itemEncoding"},
+}
+
+// withSchema returns objects, less what unplaced holds, with the Schema
+// Object's keywords beside them.
+func withSchema(objects map[state]map[string]state) map[state]map[string]state {
+	for s, names := range unplaced {
+		for _, name := range names {
+			delete(objects[s], name)
+		}
+	}
+	objects[sSchema] = schemaFields()
+	return objects
 }
 
 // schemaFields is what a Schema Object holds under each keyword the model
@@ -144,12 +117,6 @@ func schemaFields() map[string]state {
 	}
 	return m
 }
-
-// unmodelled maps the fields an object state defines that the parser's model
-// names no member for, and the load phase models itself, to the state each
-// leads to: OpenAPI 3.2's components/mediaTypes (GitHub #856). They are kept
-// apart from fields, which mirrors the model (TestGrammar_FieldsAreTheModels).
-var unmodelled = map[state]map[string]state{sComponents: {"mediaTypes": sMediaTypeMap}}
 
 // entries maps a container state to the state of each of its entries.
 var entries = map[state]state{
@@ -191,13 +158,13 @@ var refKinds = map[state]RefKind{
 	sSecurityScheme: RefSecurityScheme, sMediaType: RefMediaType,
 }
 
-// kindStates is the state each RefKind reads its object at, refKinds turned
+// refStates is the state each RefKind reads its object at, refKinds turned
 // round, by the kind less one.
-var kindStates = []state{sPathItem, sParameter, sHeader, sRequestBody, sResponse, sCallback, sExample, sLink,
+var refStates = []state{sPathItem, sParameter, sHeader, sRequestBody, sResponse, sCallback, sExample, sLink,
 	sSecurityScheme, sMediaType}
 
 // state is the state an object of kind k is read at.
-func (k RefKind) state() state { return kindStates[k-1] }
+func (k RefKind) state() state { return refStates[k-1] }
 
 // step is the state one token below s.
 func step(s state, token string) state {
@@ -216,9 +183,6 @@ func step(s state, token string) state {
 		return e
 	}
 	if next, ok := fields[s][token]; ok {
-		return next
-	}
-	if next, ok := unmodelled[s][token]; ok {
 		return next
 	}
 	return sRaw
