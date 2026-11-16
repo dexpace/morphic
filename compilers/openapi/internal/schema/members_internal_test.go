@@ -325,6 +325,6 @@ func TestMembers_TheSettlementAsksItsContextBeforeEachModel(t *testing.T) {
 
 	_, atRefusal, settled := finish(20, short-10)
 	assert.Equal(t, atRefusal, settled, "nothing settles once the context refuses")
-	assert.Greater(t, settled, 0)
+	assert.Positive(t, settled)
 	assert.Less(t, settled, all)
 }

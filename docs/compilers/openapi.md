@@ -2735,33 +2735,34 @@ model. Each entry brings the declaration the flattening of what it names takes, 
 settled first holds folded from every other its composition gives the member, and one another
 entry's composition holds, however deep, stands within that entry's, so it brings nothing. A
 declaration an entry brings is judged where its type is written, as an inline one is: a member a
-part settled keeps its first declaration's identity whichever declaration gave its type, so a node
-of its type is an inline copy wherever it is written at a declaration the part folded it from, or
-where the fold built it, the nearest 128 such places, and one written past them reads as a schema a
-`$ref` reached. A value a declaration gives is read against the field's type the same way, at each
-place the type's nodes are written, which for a node the fold built is not the winning declaration's
-alone. Each model settles after every model it composes, however deep a hierarchy nests, so the
-order components are declared in decides nothing, nor, off a cycle, their names. A cycle of
-compositions reads the model it returns to as it stands, and the models' IDs pick which one that is,
-so where two declarations on a cycle admit no value together, the names decide which its models
-keep, and the tie is reported.
+part settled keeps its first declaration's identity whichever declaration gave its type, so the part
+records where the nodes of that type are written: at the declaration whose node the member keeps,
+or, for a node the fold built, where it stands and at the declaration writing each node it holds, of
+which it reads 128 at most. A node written at none of them reads as a schema a `$ref` reached. A
+value a declaration gives is read against the field's type the same way, at each place the type's
+nodes are written, which for a node the fold built is not the winning declaration's alone. Each
+model settles after every model it composes, however deep a hierarchy nests, so the order components
+are declared in decides nothing, nor, off a cycle, their names. A cycle of compositions reads the
+model it returns to as it stands, and the models' IDs pick which one that is, so where two
+declarations on a cycle admit no value together, the names decide which its models keep, and the tie
+is reported.
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
 variant reads before the body. A declaration an entry brings stays declared on its own model, so it
 is not kept verbatim, and a report about it sits at the entry bringing it, naming the member in its
 `Provenance.Node`, and names a declaration another document holds with that document's name, a
-member a part settled by the one declaration that gave its type, and one written nowhere, as a
-member only a part's entries declare, by the entry bringing it. A member the model declares itself
-keeps the identity of the first of its own declarations, unless another model holds that declaration
-too, as a node interned at the `allOf` branch writing it does, or as the variants of a distributed
-union share their body's; that one, and one only entries declare, the model declares in the
-`composed` namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it, and a
-node its fold mints, name an overlay that wrote every entry and declaration it is assembled from. A
-model the merge composes, a distributed variant or a field's composition, shares its pointer with
-the schema written there, which may settle a member of that name too, so it declares one an `allOf`
-deeper, at `<model>/allOf/allOf/properties/<name>`, and no two models name one member. The member is
-required where the model's `required` names it, which the name then leaves, and a discriminator
-naming the model's own declaration, or by its name a member only entries declare, names the member
+member a part settled by the one place its type is written, and one written nowhere, as a member
+only a part's entries declare, by the entry bringing it. A member the model declares itself keeps
+the identity of the first of its own declarations, unless another model holds that declaration too,
+as a node interned at the `allOf` branch writing it does, or as the variants of a distributed union
+share their body's; that one, and one only entries declare, the model declares in the `composed`
+namespace at `<model>/allOf/properties/<name>`, where no schema is written, so it, and a node its
+fold mints, name an overlay that wrote every entry and declaration it is assembled from. A model the
+merge composes, a distributed variant or a field's composition, shares its pointer with the schema
+written there, which may settle a member of that name too, so it declares one an `allOf` deeper, at
+`<model>/allOf/allOf/properties/<name>`, and no two models name one member. The member is required
+where the model's `required` names it, which the name then leaves, and a discriminator naming the
+model's own declaration, or by its name a member only entries declare, names the member
 ([`discriminator`](#discriminator)).
 The registry does not record which heuristic made a brought declaration secret, so a secret one's
 `Provenance.Inferred` marker comes with its redaction, as a deprecation's does. A model the fold
@@ -2841,6 +2842,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestMembers_TheSettlementAsksItsContextBeforeEachModel`,
   `schema.TestAllOf_ADefaultIsItsOwnTypesWhicheverDeclarationTheNodeCopies`,
   `merge.TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten`,
+  `merge.TestBuiltSites_ReadsNoMoreNodesThanItsBound`,
   `merge.TestJoinSites_KeepsEachPlaceOnceUpToItsBound`,
   `merge.TestHoistedAt_ReadsEachPlaceADeclarationHoldsItsType`,
   `merge.TestFold_NamesABroughtDeclarationWhereItSaysWhatItDoes`,

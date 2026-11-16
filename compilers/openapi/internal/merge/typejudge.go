@@ -555,13 +555,15 @@ func (r registry) isAnyType(ref ir.TypeRef) bool {
 // another document that happens to share the pointer, was declared apart.
 func hoistedAt(td ir.TypeDef, sites []ir.Provenance) bool {
 	c := td.Common()
-	if !c.Anonymous {
-		return false
-	}
+	return slices.ContainsFunc(sites, func(at ir.Provenance) bool { return hoistedUnder(c, at) })
+}
+
+// hoistedUnder reports whether the node c describes is a hoisted one written
+// at or under at, in at's document.
+func hoistedUnder(c *ir.TypeCommon, at ir.Provenance) bool {
 	p := c.Provenance.Pointer
-	return slices.ContainsFunc(sites, func(at ir.Provenance) bool {
-		return c.Provenance.Source == at.Source && (p == at.Pointer || strings.HasPrefix(string(p), string(at.Pointer)+"/"))
-	})
+	return c.Anonymous && c.Provenance.Source == at.Source &&
+		(p == at.Pointer || strings.HasPrefix(string(p), string(at.Pointer)+"/"))
 }
 
 // copies relates a and b, two nodes held alike, by sameNodes, each a copy
