@@ -5,6 +5,7 @@ package statement_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir/irtest"
@@ -252,9 +254,10 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 }
 
 // TestRead_ANullKeywordIsWrittenAndLeftOut reads the schemas of the
-// null-keywords case: each null keyword is written and left out, its slot
-// holding nothing for it, bar `const`, whose null is the instance it holds
-// (docs/compilers/openapi.md#null-keywords).
+// null-keywords case: each null keyword is written and its key left out, bar
+// `const`, whose null is the instance it holds
+// (docs/compilers/openapi.md#null-keywords), and its slot holds what the
+// parser's model reads of it, which is nothing but for `type`.
 func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile(filepath.Join(irtest.RepoRoot(t), "testdata", "conformance", "openapi", "null-keywords.yaml"))
@@ -287,7 +290,8 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 
 	kinded := at("/components/schemas/Typed")
 	leftOut(kinded, "type")
-	assert.Empty(t, kinded.Kinds.Types)
+	assert.Equal(t, []statement.Kind{""}, kinded.Kinds.Types,
+		"the model's reading of a null type (docs/parser-library.md#null-type-is-empty)")
 
 	identified := at("/components/schemas/Identified")
 	leftOut(identified, "$id")
@@ -303,6 +307,50 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 	require.NotNil(t, constant.Values)
 }
 
+// TestRead_AKeywordMergedPastTheBoundHasItsValueAndNoKey reads a schema whose
+// `<<` chain runs past nodeview.MergeDepthLimit: its keys list only what it
+// writes itself, as the raw mapping reads it, while each typed value merged
+// past the bound, one keyword of each slot, is the parser's model's, which
+// expands the whole chain. A bound, kept as the node it was written as, comes
+// from its key, so it is not there.
+func TestRead_AKeywordMergedPastTheBoundHasItsValueAndNoKey(t *testing.T) {
+	t.Parallel()
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
+		"x-c0: &c0 {allOf: [{}], type: object, enum: [{}], format: f, minLength: 1, minItems: 2, maximum: 9, " +
+		"discriminator: {propertyName: k}, oneOf: [{}], not: {}, description: d}\n")
+	for i := 1; i <= nodeview.MergeDepthLimit; i++ {
+		fmt.Fprintf(&spec, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	fmt.Fprintf(&spec, "components:\n  schemas:\n    P: {<<: *c%d, title: P}\n", nodeview.MergeDepthLimit)
+	table, c := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
+	p := table.At(component(c, "P"))
+	require.Equal(t, statement.Stated, p.Truth)
+
+	names := make([]string, len(p.Keys))
+	for i, k := range p.Keys {
+		names[i] = k.Name
+	}
+	assert.Equal(t, []string{"title"}, names, "the raw mapping lists nothing past the bound")
+	_, read := p.Key("discriminator")
+	assert.False(t, read)
+
+	require.NotNil(t, p.Object)
+	require.NotNil(t, p.Object.Discriminator, "the model's discriminator")
+	assert.Equal(t, "k", p.Object.Discriminator.PropertyName)
+	assert.Len(t, p.AllOf, 1)
+	assert.Len(t, p.Entries, 1)
+	assert.Equal(t, []statement.Kind{statement.KindObject}, p.Kinds.Types)
+	assert.Len(t, p.Values.Enum, 1)
+	assert.Equal(t, "f", p.Format.Name)
+	assert.Equal(t, []int64{1, 2}, int64s(p.Text.MinLength, p.Array.MinItems))
+	assert.Len(t, p.Choice.OneOf, 1)
+	assert.Equal(t, statement.Stated, table.Sub(p.Logic.Not).Truth)
+	assert.Equal(t, []string{"P", "d"}, []string{p.Notes.Title, p.Notes.Description})
+	assert.Nil(t, p.Number, "a bound comes from its key")
+	assert.NotNil(t, c.Bindings().At(component(c, "P")).GetSchema().Maximum, "though the model holds it")
+}
+
 // TestRead_ReadsWhatAValueStates pins each truth a value reads as, a value
 // the bindings do not know, which is read with no position, and a keyword
 // whose value the parser's model does not hold.
@@ -313,6 +361,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	table, c := tableOver(t, "jsonSchemaDialect: '"+draft07+"'\n"+document("3.1.0",
 		`Truths: {allOf: [true, false], properties: {none: null}}`,
 		`Empty: {properties: {}, $comment: c, x-a: 1}`,
+		`Nulls: {nullable: null, format: null, maxLength: null, anyOf: null}`,
 		`Bare: {}`,
 		`Disc: {discriminator: {propertyName: a}}`,
 		"Chain: "+chain,
@@ -340,6 +389,15 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 
 	empty := table.At(component(c, "Empty"))
 	assert.Nil(t, empty.Object.Properties)
+	nulls := table.At(component(c, "Nulls"))
+	require.NotNil(t, nulls.Kinds, "a key the model holds nothing for opens its slot")
+	assert.Nil(t, nulls.Kinds.Nullable)
+	require.NotNil(t, nulls.Format)
+	assert.Empty(t, nulls.Format.Name)
+	require.NotNil(t, nulls.Text)
+	assert.Nil(t, nulls.Text.MaxLength)
+	require.NotNil(t, nulls.Choice)
+	assert.Nil(t, nulls.Choice.AnyOf)
 	bare := table.At(component(c, "Bare"))
 	assert.Equal(t, statement.Stated, bare.Truth)
 	assert.Empty(t, bare.Keys)

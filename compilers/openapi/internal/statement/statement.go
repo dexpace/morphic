@@ -41,13 +41,14 @@ type Entry struct {
 	Capped  bool
 }
 
-// Schema is one schema object as read: where it was read (the zero position
-// for a value the bindings do not know), the node it was read from, its
-// aliases followed, whether it states anything, and, for one that does, every
-// key it writes, its reference, its allOf entries and each slot's values. A
-// slot is nil where the object writes no keyword of it, and holds each
-// keyword's value otherwise, as the parser read it whatever the rows say, a
-// keyword left out at its zero. Whether the rows read a key is its Slot.
+// Schema is one schema object as read: where (zero for a value the bindings
+// do not know), its node, aliases followed, whether it states anything, and,
+// for one that does, its keys, reference, allOf entries and slots' values.
+// Keys are the node's, within nodeview.MergeDepthLimit; a typed value is the
+// parser's model's wherever it holds one, so a keyword merged past that bound
+// has a value and no key, and a value kept as a node is its key's. A slot is
+// nil where neither holds a keyword of it. Whether the rows read a key is its
+// Slot.
 type Schema struct {
 	At    bind.Position
 	Node  *yaml.Node
