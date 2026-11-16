@@ -34,11 +34,13 @@ func shards(t *testing.T, c harness.Cases, pick func([]int) bool) map[[2]int][][
 	return out
 }
 
-// TestNew_EveryDocumentCompilesClean compiles each core case as the harness's
-// first three oracles hold a spec: verified, so a broken invariant or a panic
-// fails the run, and with no error diagnostic. Each case is a valid document
-// of its version, so a case the compiler refuses is the writer's defect.
-func TestNew_EveryDocumentCompilesClean(t *testing.T) {
+// TestNew_EachCoreCaseCompilesWithNoError compiles each core case as the
+// harness's first three oracles hold a spec: verified, so a broken invariant
+// or a panic fails the run, and with no error diagnostic. Each case is a valid
+// document of its version, so a case the compiler refuses is the writer's
+// defect. An info or a warning stands: it is the compiler's account of a valid
+// construct, which the case oracles judge.
+func TestNew_EachCoreCaseCompilesWithNoError(t *testing.T) {
 	t.Parallel()
 	c := openapicases.New()
 	axes := c.Axes()
@@ -110,9 +112,9 @@ func TestNew_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 	}
 }
 
-// TestNew_TheAxesAreTheProducts pins the axes' order and the values a later
+// TestNew_TheAxesInTheirOrder pins the axes' order and the values a later
 // version or construct is recorded under.
-func TestNew_TheAxesAreTheProducts(t *testing.T) {
+func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	axes := openapicases.New().Axes()
 	names := make([]string, len(axes))
 	for i, a := range axes {
