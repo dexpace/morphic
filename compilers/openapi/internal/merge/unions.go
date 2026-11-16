@@ -18,7 +18,7 @@ const maxVariantReads = 64
 // unionArms relates a type to an untagged union, each read through aliases, by
 // the union's variants: the type is within the union where it is within one
 // variant (withinUnion) and nothing on the way bounds the union's values
-// (boundsBeside), and the union within the type where every variant is
+// (boundsBeside), and a closed union within the type where every variant is
 // (unionWithin). Two unions, a tagged union, or a type neither holds, are
 // unrelated here. A variant is judged on its union's side, against the site
 // that union was declared at (declarationSites), so swapping a and b flips the
@@ -70,10 +70,11 @@ func byVariants(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union, h
 func tagged(u *ir.Union) bool { return u.WireTagged || u.Discriminator != nil }
 
 // unionWithin reports whether every value of u, an untagged union, is a value of
-// the type against judges: u has a variant, and each is within that type. A
-// read past the judgment's budget is no proof.
+// the type against judges: u is closed and has a variant, and each is within
+// that type. An open union admits a variant it does not list, which nothing
+// holds within the type. A read past the judgment's budget is no proof.
 func unionWithin(j typeJudge, against func(v ir.TypeRef) relation, u *ir.Union) bool {
-	if tagged(u) || len(u.Variants) == 0 {
+	if tagged(u) || !u.Closed || len(u.Variants) == 0 {
 		return false
 	}
 	for _, v := range u.Variants {

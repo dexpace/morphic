@@ -2504,17 +2504,17 @@ in a kind, but for the `time` node above, or a `const` of its value; and unrelat
 what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, a union and a type neither holds, or an external and anything else. A type within a
-variant of an untagged union is narrower than the union, as is an untagged union every variant of
-which is within a type than that type; of a `oneOf`, the type must be within one variant alone and
-disjoint from every other, since a `oneOf` refuses a value two variants share. A tagged union holds
-neither: a discriminator routes by a tag a variant's values need not agree with. Nor is a type
-within a union holding bounds of its own, or reached through an alias that holds some, since each
-bounds the values of its kind whichever variant holds them, which the variants do not say. One
-judgment reads at most 64 variants, past which the two are unrelated. A structure whose source
-states no instance type is the exception to the disjoint pairs: its own `type` and its `allOf`,
-read as [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so
-it admits every value of another instance type, as `properties` alone constrains objects and
-admits a string.
+variant of an untagged union is narrower than the union, as is a closed untagged union every
+variant of which is within a type than that type, since an open one admits a variant it does not
+list; of a `oneOf`, the type must be within one variant alone and disjoint from every other, since
+a `oneOf` refuses a value two variants share. A tagged union holds neither: a discriminator routes
+by a tag a variant's values need not agree with. Nor is a type within a union holding bounds of its
+own, or reached through an alias that holds some, since each bounds the values of its kind
+whichever variant holds them, which the variants do not say. One judgment reads at most 64
+variants, past which the two are unrelated. A structure whose source states no instance type is the
+exception to the disjoint pairs: its own `type` and its `allOf`, read as
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
+every value of another instance type, as `properties` alone constrains objects and admits a string.
 That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
 else could refuse a value of some instance type reads as stating its type: a `oneOf`, `anyOf`,
 `not`, `if`, `enum`, `const`, `$dynamicRef` or `$recursiveRef`, a keyword beside an entry's or an
