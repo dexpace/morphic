@@ -306,7 +306,7 @@ func (w *admission) of(js *statement.Statement) admitted {
 	r := admissionOf(w.c, js)
 	w.reads.Spend(r.reads)
 	w.members.Spend(r.members)
-	if r.cut || r.loose {
+	if r.cut || r.dynamic {
 		w.reads.Exhaust()
 	}
 	return r.admitted

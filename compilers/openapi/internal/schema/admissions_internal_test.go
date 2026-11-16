@@ -20,6 +20,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
@@ -142,7 +143,7 @@ func TestAdmissionOf_AgreesWithAReadOfItsOwn(t *testing.T) {
 			r := admissionOf(l.Ctx, st)
 			former := newAdmission(l.Ctx)
 			want := former.formerWhole(st)
-			if r.cut || r.loose || r.reads > maxAdmissionReads || r.members > maxAdmissionMembers || former.incomplete() {
+			if r.cut || r.dynamic || r.reads > maxAdmissionReads || r.members > maxAdmissionMembers || former.incomplete() {
 				return
 			}
 			compared++
@@ -254,4 +255,84 @@ func TestAdmissionOf_MergesWhatGrowsWithTheDocument(t *testing.T) {
 		at4, at8, at16 := merged(4), merged(8), merged(16)
 		assert.LessOrEqual(t, at16-at8, 5*(at8-at4)/2, "%s: merged %d, %d, %d at 4, 8, 16", comb, at4, at8, at16)
 	}
+}
+
+// TestInstanceKinds_ReadsEachKindOfInstance pins the kinds each kind of JSON
+// instance a merge asks of a structure's source is (modelFields.Admits): an
+// integer apart from a number, which holds it, and none for the null, which
+// the nulls walk reads.
+func TestInstanceKinds_ReadsEachKindOfInstance(t *testing.T) {
+	t.Parallel()
+	for kind, want := range map[merge.Instance]kindSet{
+		merge.InstanceString: kindString, merge.InstanceInteger: kindInteger, merge.InstanceNumber: kindNumber,
+		merge.InstanceBoolean: kindBoolean, merge.InstanceArray: kindArray, merge.InstanceObject: kindObject,
+		merge.InstanceNull: 0,
+	} {
+		assert.Equal(t, want, instanceKinds(kind), "%d", kind)
+	}
+}
+
+// TestAdmission_TakesItsNullFromTheNullsWalk holds the null a conjunct admits,
+// as a disjoint report reads it (empty), to the nulls walk's verdict on every
+// schema the documents under testdata write and on each spelling of a
+// `nullable` beside a `type`, at every version: the admission reads its kinds
+// with null aside and derives null no second way. A null read past its budget
+// is undecided and set aside.
+func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
+	t.Parallel()
+	specs := specsUnder(t)
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, value := range []string{`"yes"`, `"true"`, "1", "null", "[true]", "yes", "true", "True", "false"} {
+			specs[version+" nullable: "+value] = []byte(openapitest.HolderSpec(version,
+				"{type: ['null'], nullable: "+value+"}", "    N: {allOf: [{type: 'null', nullable: "+value+"}]}\n"))
+		}
+	}
+	compared := 0
+	for path, src := range specs {
+		l := loweredOrNot(t, src)
+		if l == nil {
+			continue
+		}
+		statementsOfDocument(l, func(at jsontext.Pointer, st *statement.Statement) {
+			n := newNulls(l.Ctx)
+			want := n.conjunct(st, nullSite{}).admits(l.Ctx)
+			if n.conjuncts.Exhausted() {
+				return
+			}
+			compared++
+			assert.Equal(t, want, !empty(l.Ctx, conjunctAtom{st: st}), "%s#%s", path, at)
+		})
+	}
+	assert.Greater(t, compared, 1000, "the corpus reaches what it compares")
+}
+
+// TestUnionHolding_FindsTheUnionABranchIsAVariantOf pins which statement a node
+// written at a union's branch is read with (modelFields.Admits): the one
+// writing that oneOf or anyOf, and none for a position that is no such branch,
+// whether its pointer ends elsewhere or names a branch its holder lacks.
+func TestUnionHolding_FindsTheUnionABranchIsAVariantOf(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    U: {type: object, anyOf: [{type: object}, {type: array}]}
+    O: {oneOf: [{type: string}]}
+`))
+	at := func(p string) bind.Position { return bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer(p)} }
+	for _, tc := range []struct {
+		branch, holder string
+	}{
+		{"/components/schemas/U/anyOf/1", "/components/schemas/U"},
+		{"/components/schemas/O/oneOf/0", "/components/schemas/O"},
+		{"/components/schemas/U/anyOf/2", ""},
+		{"/components/schemas/U/oneOf/0", ""},
+		{"/components/schemas/U", ""},
+	} {
+		st := l.Ctx.Statements().At(at(tc.branch))
+		holder, ok := unionHolding(l.Ctx, at(tc.branch), st)
+		assert.Equal(t, tc.holder != "", ok, tc.branch)
+		if ok {
+			assert.Same(t, l.Ctx.Statements().At(at(tc.holder)), holder, tc.branch)
+		}
+	}
+	other := l.Ctx.Statements().At(at("/components/schemas/O/oneOf/0"))
+	_, ok := unionHolding(l.Ctx, at("/components/schemas/U/anyOf/0"), other)
+	assert.False(t, ok, "a statement read elsewhere is no branch of the union")
 }

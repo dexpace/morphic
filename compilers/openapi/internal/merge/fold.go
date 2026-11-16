@@ -64,14 +64,31 @@ type Walk interface {
 	// $id naming another URI, a $ref spelled alike names another schema. The
 	// fold asks it only of text writing one (annotation.WritesReference).
 	Alike(a, b ir.Provenance) bool
-	// Untyped reports whether the schema written at a node's provenance states
-	// no instance type, so the structure it lowered to admits every value of
-	// another: `properties` alone constrains objects and admits a string
-	// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A node it cannot
-	// place, or whose source writes what that read does not follow but which
-	// could refuse a value of some instance type, reads as stating one.
-	Untyped(at ir.Provenance) bool
+	// Admits reports whether the schema written at a node's provenance admits
+	// every instance of kind, so the structure it lowered to admits each value
+	// of another type of that kind: `properties` alone constrains objects and
+	// admits a string (docs/compilers/openapi.md#allof-redeclared-property). It
+	// is exact where the read follows all the source writes; one it cannot
+	// place, or one writing what the read does not follow but which could
+	// refuse a value of some kind, is not, and decides nothing.
+	Admits(at ir.Provenance, kind Instance) (admits, exact bool)
 }
+
+// Instance is a kind of JSON instance, which every value of a type a
+// structure is judged against is (Walk.Admits).
+type Instance uint8
+
+// The kinds of JSON instance. An integer is a number with no fraction, which
+// a schema may admit apart from the others.
+const (
+	InstanceString Instance = iota + 1
+	InstanceInteger
+	InstanceNumber
+	InstanceBoolean
+	InstanceArray
+	InstanceObject
+	InstanceNull
+)
 
 // resolve looks the type id names up in the registry.
 func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {

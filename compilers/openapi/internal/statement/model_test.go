@@ -540,8 +540,7 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 		assert.Equal(t, row.want, sub.Truth(), "%s: the Sub", row.name)
 		assert.Equal(t, row.want, table.Sub(sub).Truth, "%s: its statement", row.name)
 		assert.Equal(t, row.want == statement.Nothing, sub.Truth().ReadsFalse(), "%s: read as false", row.name)
-		assert.True(t, sub.Held(), "%s: the model holds a value", row.name)
-		assert.True(t, table.Sub(sub).Held(), "%s: and its statement says so", row.name)
+		assert.True(t, table.Sub(sub).Held(), "%s: the model holds a value, its statement says", row.name)
 	}
 	assert.False(t, table.At(component(c, "Absent")).Held(), "none is held where nothing is written")
 	assert.False(t, (*statement.Schema)(nil).Held())
@@ -554,7 +553,7 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	assert.True(t, items.Truth().ReadsFalse(), "the parser reads it as false")
 
 	assert.Equal(t, statement.Unwritten, statement.Sub{}.Truth(), "no value at all")
-	assert.False(t, statement.Sub{}.Held(), "which the model holds none of")
+	assert.False(t, statement.NewTable(statement.Source{}).Sub(statement.Sub{}).Held(), "which the model holds none of")
 	built := statement.NewTable(statement.Source{}).Of(oas3.NewJSONSchemaFromBool(false))
 	assert.Equal(t, statement.Nothing, built.Truth, "a false schema built in memory, which has no node")
 }

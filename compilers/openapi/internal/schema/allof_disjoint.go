@@ -4,21 +4,14 @@
 package schema
 
 import (
+	"slices"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
-
-// maxConjunctTypeReads bounds conjunctTypes' read (styleguide bounded-recursion
-// rule), one step per schema it reads, so its depth and breadth: an allOf naming
-// its own schema ends on it. A read past it states nothing, the answer that
-// claims the least. A report also needs the null read, which maxNullConjuncts
-// bounds on its own.
-const maxConjunctTypeReads = 256
 
 // anyInstance is what a schema writing no `type` admits, null aside: nulls is
 // the one reading of null, so a set here holds no kindNull, and its zero is a
@@ -75,123 +68,33 @@ func declaredInstanceTypes(s *statement.Schema) kindSet {
 	return out
 }
 
-// conjunctTypes reads what schemas state of their instance types, within one
-// budget for the whole read, as nulls does. It runs out to anyInstance, the
-// answer that claims the least, so a cycle ends on the budget.
-type conjunctTypes struct {
-	c     lowering.Ctx
-	steps budget.Budget
-	// passedOver is set where the read meets what can refuse a value of some
-	// instance type and that it does not read (passesOver), so anyInstance may
-	// claim more than the schema admits. A report reads anyInstance as stating
-	// nothing and needs no more; a merge narrowing a structure does.
-	passedOver bool
-}
-
-// schema is what s admits: its `type` conjoined with its allOf's entries. A
-// schema writing an allOf says nothing here where that conjunction leaves at
-// most a null, which keeps a schema composing a reported one from drawing a
-// second report. Where nothing reports it, as for a null its own entries share
-// or a `type: "null"` beside them, that is a miss. reference is the keyword s
-// is a reference site under (typed.Bindings.RefKeyword), which the read leaves
-// to branch, as it leaves a $ref.
-func (r *conjunctTypes) schema(s *statement.Schema, reference string) kindSet {
-	if !stated(s) || !r.steps.Spend(1) {
-		return anyInstance
-	}
-	r.passedOver = r.passedOver || passesOver(s, reference)
-	out := declaredInstanceTypes(s)
-	entries := s.AllOf
-	for _, b := range entries {
-		out &= r.branch(r.c.Statements().Sub(b))
-	}
-	if out == 0 && len(entries) > 0 {
-		return anyInstance
-	}
-	return out
-}
-
-// branch is what one allOf entry admits: an inline one's own schema, a $ref's
-// the schema it lands on. A keyword beside a $ref says nothing: 3.0 ignores it,
-// and reading it from 3.1 on, where it applies, is left open (GitHub #1390).
-// A boolean entry has no schema, so its `false` is applyFalseBranches' to report.
-// A keyword beside a $ref that could refuse a value of some instance type is
-// passed over (besideChain), as are a `false` entry and a $ref landing on no
-// schema.
-func (r *conjunctTypes) branch(b *statement.Statement) kindSet {
-	if b.Ref != nil {
-		target := refBranchTarget(r.c, b)
-		r.passedOver = r.passedOver || !stated(target) || r.besideChain(b)
-		return r.schema(target, "")
-	}
-	r.passedOver = r.passedOver || b.Truth.ReadsFalse()
-	return r.schema(b.Schema, "")
-}
-
-// besideChain reports whether b, an allOf entry writing a $ref, or an alias its
-// chain passes on the way to what branch reads, writes beside its $ref what can
-// refuse a value of some instance type. The hops are walked in a loop the
-// chain's own length bounds, as nulls.lands walks them; one the bindings do
-// not know has none.
-func (r *conjunctTypes) besideChain(b *statement.Statement) bool {
-	hops := 0
-	if b.Ref != nil && b.Ref.Bound {
-		hops = b.Ref.Entry.Chain.Hops
-	}
-	for hop, i := b, 0; i < hops && hop != nil; i++ {
-		if writesBesideRef(hop.Schema, refKeyword(hop)) {
-			return true
-		}
-		hop, _ = declaredOf(r.c, hop)
-	}
-	return false
-}
-
-// passesOver reports whether s writes a keyword that can refuse a value of some
-// instance type and that conjunctTypes does not read: a union, a `not`, a
-// condition, an `enum` or a `const`, or a dynamic or recursive reference other
-// than reference, the keyword s is a reference site under
-// (typed.Bindings.RefKeyword), which conjunctTypes follows.
-func passesOver(s *statement.Schema, reference string) bool {
-	var not, cond statement.Sub
-	if l := s.Logic; l != nil {
-		not, cond = l.Not, l.If
-	}
-	return declaresUnion(s) || not.Held() || cond.Held() ||
-		enumWritten(s) || constIn(s) != nil ||
-		reference != "$dynamicRef" && hasKey(s, "$dynamicRef") ||
-		hasKey(s, "$recursiveRef")
-}
-
-// writesBesideRef reports whether s, a reference site under reference, writes
-// beside it anything that can refuse a value of some instance type.
-func writesBesideRef(s *statement.Schema, reference string) bool {
-	return stated(s) && (writesType(s) || len(s.AllOf) > 0 || passesOver(s, reference))
-}
-
-// entry is what one flattened entry adds. A wrapper adds only its own `type`,
-// since its allOf's entries stand beside it in the flattened list.
-func (r *conjunctTypes) entry(e allOfBranch) kindSet {
-	if e.wrapper {
-		return declaredInstanceTypes(e.schema.Schema)
-	}
-	return r.branch(e.schema)
+// conjunctAtom is one conjunct of an allOf, as a disjoint report names it:
+// its name below the composing schema, what it admits, and whether its read
+// was cut short. Its null is the statement st's, or, for keywords read apart
+// from a $ref or an allOf they stand beside, those of the schema words.
+type conjunctAtom struct {
+	name   string
+	admits kindSet
+	st     *statement.Statement
+	words  *statement.Schema
+	cut    bool
 }
 
 // disjointConjuncts names what each conjunct of comp, the allOf s writes,
-// states of its instance types where they share no value, and returns nil
-// where they share one (docs/compilers/openapi.md#allof-disjoint-conjuncts).
-// A null is one: the shared reading of it is the nulls walk's. One conjunct
-// contradicts nothing, so a lone `type: "null"` beside what takes its null away
-// draws nil too.
+// admits where they share no value, and returns nil where they share one
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A null is one: the
+// shared reading of it is the nulls walk's. A read cut short decides nothing,
+// a conjunct admitting nothing by itself is its own schema's to report, and
+// one conjunct contradicts nothing, so a lone `type: "null"` beside what takes
+// its null away draws nil too.
 func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
-	r := conjunctTypes{c: c, steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
-	own := declaredInstanceTypes(s)
-	joint := own
-	read := make([]kindSet, len(comp.branches))
-	for i, e := range comp.branches {
-		read[i] = r.entry(e)
-		joint &= read[i]
+	atoms := conjunctAtoms(c, s, comp)
+	joint := anyInstance
+	for _, a := range atoms {
+		if a.cut {
+			return nil
+		}
+		joint &= a.admits
 	}
 	if joint != 0 {
 		return nil
@@ -202,26 +105,59 @@ func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfCompositio
 	if n.schema(s, nullSite{}).admits(c) || n.conjuncts.Exhausted() {
 		return nil
 	}
-	names := comp.namedConjuncts(own, read)
+	if slices.ContainsFunc(atoms, func(a conjunctAtom) bool { return empty(c, a) }) {
+		return nil
+	}
+	var names []string
+	for _, a := range atoms {
+		if a.admits != anyInstance {
+			names = append(names, a.name+": "+instanceWords(a.admits))
+		}
+	}
 	if len(names) < 2 {
 		return nil
 	}
 	return names
 }
 
-// namedConjuncts spells each conjunct that narrows the instance types, own
-// being what the composing schema's `type` says and read each entry's.
-func (a allOfComposition) namedConjuncts(own kindSet, read []kindSet) []string {
-	out := make([]string, 0, len(read)+1)
-	if own != anyInstance {
-		out = append(out, "type: "+instanceWords(own))
-	}
-	for i, t := range read {
-		if t != anyInstance {
-			out = append(out, a.branchPath(a.branches[i].pointer)+": "+instanceWords(t))
+// conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
+// beside it, and each flattened branch, a wrapper by its own `type`, an entry
+// nested past statement.MaxFlattenDepth as cut, and a $ref entry writing
+// keywords that narrow what it admits as two, the reference and the keywords
+// beside it, which apply to an instance alike. A value set s writes beside the
+// allOf is the election's to weigh (competing-keywords), and is not read.
+func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
+	out := make([]conjunctAtom, 0, 1+len(comp.branches))
+	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
+	for _, e := range comp.branches {
+		name := comp.branchPath(e.pointer)
+		r := admissionOf(c, e.schema)
+		switch {
+		case e.wrapper:
+			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
+		case e.schema.Ref != nil && r.words != anyInstance && !r.cut:
+			ref, _ := declaredOf(c, e.schema)
+			out = append(out, conjunctAtom{name: name + "/$ref", admits: admissionOf(c, ref).admits, st: ref},
+				conjunctAtom{name: name, admits: r.words, words: e.schema.Schema})
+		default:
+			out = append(out, conjunctAtom{name: name, admits: r.admits, st: e.schema, cut: r.cut || e.capped})
 		}
 	}
 	return out
+}
+
+// empty reports whether a admits no value by itself, the null included as
+// nulls reads it, which makes it its own schema's to report rather than the
+// allOf's.
+func empty(c lowering.Ctx, a conjunctAtom) bool {
+	if a.admits != 0 {
+		return false
+	}
+	if a.st != nil {
+		n := newNulls(c)
+		return !n.conjunct(a.st, nullSite{}).admits(c)
+	}
+	return typeNullVerdict(a.words) != nullAdmitted
 }
 
 // diagDisjointConjuncts is the one report an allOf whose conjuncts share no

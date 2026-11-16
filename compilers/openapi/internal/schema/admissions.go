@@ -13,21 +13,29 @@ import (
 )
 
 // reading is what one statement admits, read once a run, and what the read
-// met. admitted is what an election compares; kinds the kinds of instance it
-// lowers to, null aside, which a bound is placed by. cut marks a statement on
-// or reaching a cycle of conjunct edges, a $ref landing on no schema or a
-// value set no reading converts; loose one meeting a $dynamicRef the bindings
-// read as no $ref. reads and members are the schemas and value-set members the
-// read takes in, each counted per path and held to one past a reader's cap.
+// met on the way.
 type reading struct {
-	admitted       admitted
-	kinds          kindSet
-	cut, loose     bool
+	// admitted is what an election compares.
+	admitted admitted
+	// admits is the kinds of instance the statement's keywords leave, null
+	// aside; words those the keywords beside its $ref leave; and kinds those it
+	// lowers to, which a bound is placed by.
+	admits, words, kinds kindSet
+	// cut marks a statement on or reaching a cycle of conjunct edges, a $ref
+	// landing on no schema or a value set no reading converts; dynamic one
+	// meeting a $dynamicRef the bindings read as no $ref, which an election
+	// cannot read; loose one meeting a keyword the read does not follow that
+	// could refuse a kind (looseIn), so admits may claim more than the schema
+	// admits.
+	cut, dynamic, loose bool
+	// reads and members are the schemas and value-set members the read takes
+	// in, each counted per path and held to one past a reader's cap.
 	reads, members int
 }
 
 // conjoin adds what r's conjunct child admits, and what its read took in, to r.
 func (r *reading) conjoin(child *reading) {
+	r.admits &= child.admits
 	r.kinds &= child.kinds
 	if r.took(child) {
 		r.admitted = r.admitted.and(child.admitted)
@@ -38,6 +46,7 @@ func (r *reading) conjoin(child *reading) {
 // is still within both caps. One past either stops (past).
 func (r *reading) took(child *reading) bool {
 	r.cut = r.cut || child.cut
+	r.dynamic = r.dynamic || child.dynamic
 	r.loose = r.loose || child.loose
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
 	r.members = min(r.members+child.members, maxAdmissionMembers+1)
@@ -66,7 +75,8 @@ func (r *reading) past(child *reading) {
 // whichever of its statements the read entered at, and past every reader's
 // cap.
 func cycleRead() *reading {
-	return &reading{admitted: admitted{kinds: kindAny}, kinds: anyInstance, cut: true, reads: maxAdmissionReads + 1}
+	return &reading{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance,
+		cut: true, reads: maxAdmissionReads + 1}
 }
 
 // admissionsIn keys a run's admissions. A statement the bindings do not place
@@ -251,7 +261,7 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 		if st.Truth.ReadsFalse() {
 			return &reading{reads: 1}
 		}
-		return &reading{admitted: admitted{kinds: kindAny}, kinds: anyInstance, reads: 1}
+		return &reading{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance, reads: 1}
 	}
 	r := w.readOwn(st)
 	choice := choiceIn(st.Schema)
@@ -265,14 +275,18 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 			edges = edges[len(branches):]
 		}
 	}
+	r.words = r.admits
 	switch {
 	case st.Ref != nil && len(edges) == 0:
 		r.cut = true
 	case st.Ref != nil:
 		r.conjoin(w.store.read[edges[0]])
 	case len(edges) > 0:
-		r.kinds &= w.store.read[edges[0]].kinds
-		r.cut = r.cut || w.store.read[edges[0]].cut
+		target := w.store.read[edges[0]]
+		r.admits &= target.admits
+		r.kinds &= target.kinds
+		r.cut = r.cut || target.cut
+		r.loose = r.loose || target.loose
 	}
 	if r.kinds == anyInstance && len(objectIn(st.Schema).Properties) > 0 {
 		r.kinds = kindObject
@@ -285,13 +299,15 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 	own := admission{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
 	r := &reading{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
-	r.kinds = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
+	r.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
+	r.kinds = r.admits
 	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
 	if r.members > maxAdmissionMembers {
 		r.past(r)
 	}
 	r.cut = own.members.Exhausted()
-	r.loose = declaresDynamicRef(st.Schema) && st.Ref == nil
+	r.dynamic = declaresDynamicRef(st.Schema) && st.Ref == nil
+	r.loose = r.dynamic || looseIn(st.Schema)
 	return r
 }
 
@@ -299,13 +315,26 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 // took in.
 func (w *admissionWalk) join(branches []*statement.Statement) *reading {
 	first := w.store.read[branches[0]]
-	out := &reading{admitted: first.admitted, kinds: first.kinds}
+	out := &reading{admitted: first.admitted, admits: first.admits, kinds: first.kinds}
 	out.took(first)
 	for _, b := range branches[1:] {
+		out.admits |= w.store.read[b].admits
 		out.kinds |= w.store.read[b].kinds
 		if out.took(w.store.read[b]) {
 			out.admitted = out.admitted.or(w.store.read[b].admitted)
 		}
 	}
 	return out
+}
+
+// looseIn reports whether s writes a keyword the read of what it admits does
+// not follow and that could refuse a value of some kind: a `not`, an `if` or a
+// `dependentSchemas` holding a schema. One written null is the keyword left
+// out (docs/compilers/openapi.md#null-schema), and refuses nothing.
+func looseIn(s *statement.Schema) bool {
+	if s.Logic == nil {
+		return false
+	}
+	l := s.Logic
+	return written(l.Not) || written(l.If) || slices.ContainsFunc(l.DependentSchemas, written)
 }

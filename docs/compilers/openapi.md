@@ -2598,14 +2598,18 @@ a `oneOf` refuses a value two variants share. A tagged union holds neither: a di
 by a tag a variant's values need not agree with. Nor is a type within a union holding bounds of its
 own, or reached through an alias that holds some, since each bounds the values of its kind
 whichever variant holds them, which the variants do not say. One judgment reads at most 64
-variants, past which the two are unrelated. A structure whose source states no instance type is the
-exception to the disjoint pairs: its own `type` and its `allOf`, read as
-[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
-every value of another instance type, as `properties` alone constrains objects and admits a string.
-That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
-else could refuse a value of some instance type reads as stating its type: a `oneOf`, `anyOf`,
-`not`, `if`, `enum`, `const`, `$dynamicRef` or `$recursiveRef`, a keyword beside an entry's or an
-alias's `$ref`, a `$ref` landing on no schema or on `false`, or a `false` entry. A value type or a
+variants, past which the two are unrelated. A structure whose source admits every instance of the
+other's kind is the exception to the disjoint pairs, as `properties` alone constrains objects and
+admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf: [{type: object},
+{type: integer}]}` admits every integer: what it admits is read as
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
+`enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
+`$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
+the union admits too. Where that read meets what it does not follow but which could refuse a value of
+some kind, a `not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a
+`$recursiveRef` the bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no
+schema, the structure reads as stating its type; a `not` or an `if` written `null` is the keyword
+left out ([`null-schema`](#null-schema)) and refuses nothing. A value type or a
 structure of another instance type is narrower than it, in either order, where it and each alias
 naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps it otherwise,
 since a type replacing it would lose what it holds. So a structure written at the declaration
@@ -2613,8 +2617,7 @@ itself, which keeps its docs, deprecation and redaction on its own node, overlap
 structure of another instance type where it holds any of them; one a `$ref` reached carries them
 down to the field. Two such structures of different instance types overlap, sharing every value of
 a third. The source is read in the document holding the composing model, so a structure another
-document declares, and one whose `allOf` runs past the 256 schemas that read spends, reads as
-stating its type. A pair gets the same verdict as a field's types and as two containers' members,
+document declares reads as stating its type. A pair gets the same verdict as a field's types and as two containers' members,
 but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
@@ -2897,6 +2900,10 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind`,
   `schema.TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites`,
   `schema.TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict`,
+  `schema.TestAllOf_ANullNotOrIfIsTheKeywordLeftOut`,
+  `schema.TestAllOf_ADistributedVariantIsReadWithItsUnion`,
+  `e2e.TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict`,
+  `e2e.TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestTypeJudge_ModelsAlikeAreCopies`,
   `merge.TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase`,
@@ -3092,9 +3099,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: a structure stating no instance type that refuses some kinds only through a
-  `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
-  (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
+- Status: partly built: a structure that refuses some kinds only through a `not` or an `if` reads
+  as stating its type, so it conflicts with a kind it admits (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
   keeping the later, though they share values, since the IR has no value type for what both admit;
   an alias adding docs to the null it adds is not read as adding null alone, though a reference
   carries an alias's docs to its use, since a use site whose `$ref` chain runs on past the alias
@@ -3170,46 +3176,53 @@ The reading is of the source, since a `Model` cannot say whether its source wrot
 and `{properties: …}` alone admits a string. That is where it parts from the reading
 [`allof-refinement`](#allof-refinement) elects a principal by, which takes such a `properties` to
 claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
-states a set of JSON instance types, an `integer` within a `number` and named as written: the `type`
-beside the `allOf`; an inline entry's `type`, conjoined with
-what its own `allOf` states; and for a `$ref` entry, what the schema it lands on states. The schema
-is reported where those sets share no member and the schema admits no null as
+admits a set of JSON instance types, an `integer` within a `number` and named as written, read once
+a compile, whatever its size: the `type` beside the `allOf`; an inline entry's `type`, the members
+of its `enum` or `const`, the join of what each branch of its `oneOf` or `anyOf` admits, and what
+its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admits, read the same
+way. The keywords beside a `$ref` entry apply to the instance as the reference does, at 3.0 as from
+3.1, since the lowering applies them ([`ref-use-site`](#ref-use-site)), so where they narrow what
+it admits they are a conjunct of their own, named `allOf/<n>` beside the reference's
+`allOf/<n>/$ref`: `{allOf: [{$ref: Str, type: object}]}` is reported at every version, beside the
+later-version warning 3.0 draws. The schema is reported where those sets share no member, every
+conjunct admits some value by itself and none is cut short, and the schema admits no null as
 [`nullable`](#nullable) reads it, under the nullable-inference policy where that is on: a null every
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
 null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
-the instance types nothing is reported, since one conjunct contradicts nothing: a `type: "null"`
-beside a `false`, `enum` or `const` is silent. The null reading is the whole schema's, so two or
-more narrowing conjuncts beside a `false`, `enum` or `const` are reported though that entry alone
-takes away the null they share: `{allOf: [{type: [string, "null"]}, {type: [object, "null"]},
-false]}` draws the warning beside the `false`'s own report.
+the instance types nothing is reported, since one conjunct contradicts nothing.
 
-What writes no `type` states nothing, so a report is made only of what the source declares: a
-boolean entry, whose `false` is [`allof-false-branch`](#allof-false-branch)'s to report, a `$ref`
-landing on no schema, and a composition only `enum`, `const`, `format`, `oneOf` or `anyOf` empties.
-A keyword beside a `$ref` entry states nothing either: OpenAPI 3.0 ignores it, and reading it from
-3.1 on, where it applies, is left open, so `{allOf: [{$ref: Str, type: object}]}` draws no report at
-any version. A conjunct writing an `allOf` also states nothing here where its `type` and its entries
-leave at most a null, which is what keeps a schema composing a reported one from drawing a second
-report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
-entries share or a `type: "null"` beside them, or one nested past `statement.MaxFlattenDepth`. An
-`allOf` beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read.
-One passed over for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as
-any composition is, and the warning names the value set the position lowered as.
+What writes no `type` and no value set admits every kind, so a report is made only of what the
+source declares: a `true` entry, a `format` and a `properties` state nothing. A conjunct admitting no
+value by itself, the null included, is its own to report and the `allOf` composing it draws
+nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch) reports, a `$ref`
+landing on `false`, and a schema whose own conjuncts share no value, which is reported where it is
+written, so a schema composing a reported one draws no second report. A read cut short decides
+nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
+converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
+no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
+may admit less than is read, and conjuncts disjoint as read are disjoint. An `allOf` beside a
+`$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read. One passed over
+for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as any composition
+is, the value set beside it left to the election, and the warning names the value set the position
+lowered as.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
   `schema.TestAllOf_DisjointReportStaysSilent`,
-  `schema.TestAllOf_KeywordBesideARefStatesNothing`,
+  `schema.TestAllOf_AKeywordBesideARefIsReadAtEveryVersion`,
   `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,
   `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
   `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
-  `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`
-- Status: partly built: a keyword beside a `$ref` entry is not read from 3.1 on, where it applies
-  (#1390).
+  `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`,
+  `e2e.TestCompile_AUnionConjunctSharingNoKindWithTheOtherIsReported`,
+  `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,
+  `e2e.TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema`,
+  `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
+  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`
 
 ### `union`
 

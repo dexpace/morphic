@@ -505,12 +505,30 @@
   },
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (type: object, allOf/0/$ref: object, allOf/0: string or integer), so no instance satisfies this schema, which a composition cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionBranch"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/UnionBranch/allOf/0"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (type: object, allOf/0/$ref: object, allOf/0: string), so no instance satisfies this schema, which a composition cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NestedAllOfBranch"
       }
     },
     {
