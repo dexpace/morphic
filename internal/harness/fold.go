@@ -47,23 +47,23 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
 			c := carried[plainProperty]{Carrier: plainProperty(p)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, true})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
 			c := carried[plainHeader]{Carrier: plainHeader(h)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, true})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
 			c := carried[plainParameter]{Carrier: plainParameter(p)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, true})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: true})
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
 			c := carried[plainVariant]{Carrier: plainVariant(v)}
-			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
-				&c.Carrier.Examples, false})
+			return c.write(enc, uses, slots{ref: &c.Carrier.Type, docs: &c.Carrier.Docs, deprecation: &c.Carrier.Deprecation,
+				examples: &c.Carrier.Examples, lends: false})
 		}),
 	)
 }
