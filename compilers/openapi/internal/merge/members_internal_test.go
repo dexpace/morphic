@@ -499,6 +499,24 @@ func TestOwnership_LeavesOutADeclarationAnotherComposesAtAnyDepth(t *testing.T) 
 	}
 }
 
+// TestOwnership_ReadsPastAPartNamingNoType pins a composition one of whose
+// parts names no type, as a reference left dangling does: the walk reads past
+// it to the rest, so the base it reaches beside it is still found.
+func TestOwnership_ReadsPastAPartNamingNoType(t *testing.T) {
+	t.Parallel()
+	reg, cs := leafOver(3, false)
+	leaf, ok := reg["t/Leaf"].(*ir.Model)
+	require.True(t, ok)
+	leaf.Mixins = []ir.TypeRef{*leaf.Base}
+	leaf.Base = &ir.TypeRef{Target: "t/missing"}
+	r, _ := countingRegistry(reg)
+
+	left := newOwnership(r, nil).left(cs)
+
+	require.Len(t, left, 1)
+	assert.Equal(t, ir.TypeID("t/Leaf"), left[0].decl.Owner)
+}
+
 // TestOwnership_StopsOnceItReachesEveryOtherModel pins what telling one
 // candidate from another costs where one model composes the other directly
 // beside a deep hierarchy: the walk stops at the first level, so a hierarchy
@@ -529,6 +547,26 @@ func TestOwnership_ChargesWhatItReadsAndLeavesInWhatACutWalkMisses(t *testing.T)
 
 	assert.Len(t, left, 2, "a cut walk shows no candidate within another")
 	assert.True(t, reads.Exhausted(), "the walk charged its reads")
+}
+
+// TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID pins the
+// locator a discriminator takes once the settlement appends the member it names
+// by name: the member's ID alone, as for a member the model declares, while one
+// naming another member keeps its name.
+func TestPropIndex_ADiscriminatorNamingAnAppendedMemberNamesItsID(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]ir.Discriminator{
+		"kind":  {Property: "p/composed/M/allOf/properties/kind"},
+		"other": {PropertyName: "other"},
+	} {
+		m := &ir.Model{ID: "t/M", Discriminator: &ir.Discriminator{PropertyName: name}}
+		member := declared("kind", "t/prim/string", "/M/allOf/properties/kind")
+		member.ID = "p/composed/M/allOf/properties/kind"
+
+		NewPropIndex(m).place(-1, member)
+
+		assert.Equal(t, want, *m.Discriminator, name)
+	}
 }
 
 // TestTakenOutside_LeavesOutTheComposingModelsOwn pins the declaration a part's

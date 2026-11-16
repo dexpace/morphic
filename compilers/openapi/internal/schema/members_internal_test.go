@@ -202,6 +202,49 @@ func TestMembers_ACutTellingDeclarationsApartIsReported(t *testing.T) {
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/M"}, openapitest.PointersOf(diags, diag.BudgetExceeded), "%+v", diags)
 }
 
+// twoDeepLeaves is deepLeaf twice over, for x over BaseX and y over BaseY, and M
+// composing both hierarchies and both bases again.
+func twoDeepLeaves(depth int) string {
+	var b strings.Builder
+	for _, name := range []string{"X", "Y"} {
+		fmt.Fprintf(&b, "    Base%s: {type: object, properties: {%s: {type: integer}}}\n", name, strings.ToLower(name))
+		below := "Base" + name
+		for i := 1; i <= depth; i++ {
+			fmt.Fprintf(&b, "    L%s%d: {allOf: [{$ref: '#/components/schemas/%s'}]}\n", name, i, below)
+			below = fmt.Sprintf("L%s%d", name, i)
+		}
+		fmt.Fprintf(&b, "    Leaf%s: {allOf: [{$ref: '#/components/schemas/%s'}, "+
+			"{type: object, properties: {%s: {type: integer, minimum: 5}}}]}\n", name, below, strings.ToLower(name))
+	}
+	b.WriteString("    M: {allOf: [{$ref: '#/components/schemas/LeafX'}, {$ref: '#/components/schemas/BaseX'}, " +
+		"{$ref: '#/components/schemas/LeafY'}, {$ref: '#/components/schemas/BaseY'}]}\n")
+	return b.String()
+}
+
+// TestMembers_ACutTellingDeclarationsApartFallsAlikeInEveryRun pins the order
+// a settlement asks of its names: where the reads run out between two names'
+// walks, the same name is cut in every run, so the document does not follow
+// the order a map yields them in.
+func TestMembers_ACutTellingDeclarationsApartFallsAlikeInEveryRun(t *testing.T) {
+	t.Parallel()
+	_, _, all := settledUnder(t, twoDeepLeaves(100), budget.Unbounded())
+	members := func() []string {
+		doc, _, _ := settledUnder(t, twoDeepLeaves(100), budget.AtMost(all-60))
+		m, ok := doc.Types["t/openapi/components/schemas/M"].(*ir.Model)
+		require.True(t, ok)
+		var wires []string
+		for _, p := range m.Properties {
+			wires = append(wires, p.WireName)
+		}
+		return wires
+	}
+	first := members()
+	require.Len(t, first, 1, "the cut walk leaves one name's candidates both in")
+	for range 30 {
+		assert.Equal(t, first, members())
+	}
+}
+
 // clique is n models each composing every other, each declaring x.
 func clique(n int) string {
 	var b strings.Builder

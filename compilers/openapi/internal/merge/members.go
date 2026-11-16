@@ -185,8 +185,9 @@ type candidate struct {
 // (parts), and the one declaration each name its parts leave one of. A
 // declaration two parts bring is read once, at the first, and one within
 // another's composition is left out: the model composing it narrows it there
-// already, with what its own declaration says. A part on a cycle may hold the
-// model's own declaration, which the model reads as its own, not brought.
+// already. A part on a cycle may hold the model's own declaration, which the
+// model reads as its own, not brought. Names are read in order, as their walks
+// spend the run's reads (ownership).
 func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string][]declaration, Table) {
 	parts := idx.parts()
 	byWire := map[string][]candidate{}
@@ -199,8 +200,8 @@ func (idx *PropIndex) brought(g Merger, tables map[ir.TypeID]Table) (map[string]
 	}
 	owners := newOwnership(registry{g.resolve}, g.Reads)
 	out, inherited := map[string][]declaration{}, Table{}
-	for wire, cs := range byWire {
-		left := owners.left(cs)
+	for _, wire := range slices.Sorted(maps.Keys(byWire)) {
+		left := owners.left(byWire[wire])
 		for _, cd := range left {
 			out[wire] = append(out[wire], broughtDeclaration(*cd.decl.Property, &parts[cd.part]))
 		}
@@ -252,7 +253,7 @@ func (o ownership) reaching(owner ir.TypeID, owners map[ir.TypeID]bool) map[ir.T
 		w = &ownerWalk{reached: map[ir.TypeID]bool{}, queued: map[ir.TypeID]bool{owner: true}, queue: []ir.TypeID{owner}}
 		o.walks[owner] = w
 	}
-	missing := len(owners) - 1 - len(others(w.reached, owners, owner))
+	missing := len(owners) - 1 - len(reachedOthers(w.reached, owners, owner))
 	for len(w.queue) > 0 && missing > 0 {
 		td, ok := o.r.resolve(w.queue[0])
 		w.queue = w.queue[1:]
@@ -278,9 +279,9 @@ func (o ownership) reaching(owner ir.TypeID, owners map[ir.TypeID]bool) map[ir.T
 	return w.reached
 }
 
-// others returns the members of owners but owner that reached holds, reading
-// the smaller of the two.
-func others(reached, owners map[ir.TypeID]bool, owner ir.TypeID) []ir.TypeID {
+// reachedOthers returns the members of owners but owner that reached holds,
+// reading the smaller of the two.
+func reachedOthers(reached, owners map[ir.TypeID]bool, owner ir.TypeID) []ir.TypeID {
 	small, large := reached, owners
 	if len(owners) < len(reached) {
 		small, large = owners, reached
@@ -313,7 +314,7 @@ func (o ownership) left(cs []candidate) []candidate {
 	if len(owners) > 1 {
 		for _, owner := range slices.Sorted(maps.Keys(owners)) {
 			reach[owner] = o.reaching(owner, owners)
-			for _, part := range others(reach[owner], owners, owner) {
+			for _, part := range reachedOthers(reach[owner], owners, owner) {
 				composers[part] = append(composers[part], owner)
 			}
 		}
