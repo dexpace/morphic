@@ -85,7 +85,8 @@ func landed(name string, within func(sites string) string, site func(ref, i stri
 
 // bringers lists the ways: an alias, a `<<` merge of one source, of a list and
 // of a source that merges, a key written twice in a mapping and in a merged
-// source, a list's entries, and a raw mount each kind of reference lands on.
+// source, a list's entries, and a raw mount each kind of reference lands on,
+// a mapping value tagged null among them, which the binder reads by its text.
 var bringers = []bringer{
 	anchored("alias", "", func(a, i string) string { return "q" + i + ": *" + a }),
 	anchored("merge", "", func(a, i string) string { return "q" + i + ": {<<: *" + a + "}" }),
@@ -110,6 +111,9 @@ var bringers = []bringer{
 	landed("default mapping", func(s string) string { return "{anyOf: [" + s + "]}" }, func(ref, _ string) string {
 		return "{type: object, discriminator: {propertyName: t, defaultMapping: " + ref + "}}"
 	}),
+	landed("mapping tagged null", func(s string) string {
+		return "{type: object, discriminator: {propertyName: t, mapping: {" + s + "}}}"
+	}, func(ref, i string) string { return "m" + i + ": !!null " + ref }),
 }
 
 // coreBringers is how many of bringers, from the first, nest three deep.

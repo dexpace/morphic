@@ -123,6 +123,10 @@ func TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode(t *testing.T) {
 		"a discriminator mapping lands in it": {
 			"components:\n  schemas:\n    A: {type: object, discriminator: {propertyName: t, mapping: {a: \"#/x-data\"}}}\n", true,
 		},
+		"a mapping value tagged null lands in it, written in a raw value a $ref lands in": {
+			"x-held: {type: object, discriminator: {propertyName: t, mapping: {a: !!null \"#/x-data\"}}}\n" +
+				"components:\n  schemas:\n    A: {$ref: \"#/x-held\"}\n", true,
+		},
 		"a $ref leaves the document": {"components:\n  schemas:\n    B: {$ref: \"other.yaml#/x\"}\n", true},
 		"the $ref is inside an example": {
 			"components:\n  schemas:\n    A: {type: object, example: {$ref: \"#/x-data\"}}\n", false,
@@ -144,12 +148,40 @@ func TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode(t *testing.T) {
 	}
 }
 
+// TestCompile_ARawValueARequirementKeyNamesIsNamedNodeByNode holds the exemption
+// to a Security Requirement Object's key, which OpenAPI 3.2 reads as a URI
+// where it names no security scheme component: the raw mapping it lands in,
+// deep under long keys, is read as a Security Scheme Object, each member at
+// its pointer, so the document is refused. Under an extension the key is data,
+// and at 3.1 it is a name, which lands nowhere.
+func TestCompile_ARawValueARequirementKeyNamesIsNamedNodeByNode(t *testing.T) {
+	t.Parallel()
+	var at strings.Builder
+	for i := range 12 {
+		fmt.Fprintf(&at, "/%s%d", strings.Repeat("p", spineKeyLen), i%10)
+	}
+	spec := func(minor, field string) string {
+		return "openapi: " + minor + "\ninfo: {title: t, version: \"1\"}\npaths: {}\nx-data:\n" + spine(2, 12, false) +
+			field + ":\n  - ? \"#/x-data" + at.String() + "\"\n    : []\n"
+	}
+
+	read, diags := compileText(t, "spec.yaml", spec("3.2.0", "security"), openapi.Options{})
+	assert.Nil(t, read)
+	assert.Len(t, byCode(diags, diag.PointerAmplification), 1, "%+v", diags)
+
+	for name, doc := range map[string]string{"under an extension": spec("3.2.0", "x-security"), "at 3.1": spec("3.1.1", "security")} {
+		_, diags := compileText(t, "spec.yaml", doc, openapi.Options{})
+		assert.Empty(t, byCode(diags, diag.PointerAmplification), name)
+	}
+}
+
 // TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled holds the
 // exemption to where a reference lands, read as the compile reads it: a
 // fragment written with a percent escape, a $ref a draft's keyword holds as a
-// schema, named by jsonSchemaDialect or by $schema, and one read under an $id,
-// which lands in the resource the $id roots, are each refused, as the raw value
-// they land in is named node by node.
+// schema, named by jsonSchemaDialect or by $schema, one read under an $id,
+// which lands in the resource the $id roots, and one whose pointer passes a
+// Reference Object, which lands in the object that names and not beside its
+// $ref, are each refused, as the raw value they land in is named node by node.
 func TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled(t *testing.T) {
 	t.Parallel()
 	const draft07 = "jsonSchemaDialect: \"http://json-schema.org/draft-07/schema#\"\n"
@@ -164,6 +196,9 @@ func TestCompile_ARawValueAReferenceLandsInIsWeighedHoweverItIsSpelled(t *testin
 		"draft 7's additionalItems": pointerBoundRaw(draft07 + schemas + "{items: [{type: string}], additionalItems: {$ref: \"#/x-data\"}}\n"),
 		"a draft $schema names":     pointerBoundRaw(schemas + "{$schema: \"http://json-schema.org/draft-07/schema#\", definitions: {d: {$ref: \"#/x-data\"}}}\n"),
 		"a $ref under an $id":       underID,
+		"a $ref through a Reference Object": "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n" +
+			"x-p:\n  name: n\n  in: query\n  x-data:\n" + spine(4, 12, true) + "components:\n  parameters:\n" +
+			"    P: {$ref: \"#/x-p\", x-data: {type: string}}\n  schemas:\n    A: {$ref: \"#/components/parameters/P/x-data\"}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
