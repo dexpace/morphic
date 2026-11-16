@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
@@ -11,14 +12,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 // unheldField is a field OpenAPI 3.2 gives an Encoding Object whose content no
@@ -137,7 +142,14 @@ func none(twinPlace) []string { return nil }
 // kept under no_ir_home at an info finding
 // (docs/compilers/openapi.md#unmodeled-dialect-fields).
 func rawField(p twinPlace) []string {
-	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.field() + ":"}
+	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.field() + ":",
+		"unmodeled openapi:encoding/f" + p.field() + " no_ir_home"}
+}
+
+// rawExtension is what every twin keeps and no nested document does: the
+// field, kept as an extension.
+func rawExtension(p twinPlace) []string {
+	return []string{"unmodeled openapi:encoding/f" + p.field() + " vendor_extension"}
 }
 
 // in is the source's $ref to the schema beneath the field.
@@ -191,6 +203,19 @@ var twinRows = []twinRow{
 		// pointer is read in, where an extension's makes none and the $defs
 		// rule finds raw YAML above.
 		nestedOnly: definedInResource, twinOnly: definedInRaw,
+	},
+	{
+		name: "a draft 7 $schema naming its dialect", doc: func(p twinPlace) twinDoc {
+			return twinDoc{schemas: "    In: {$ref: '#nested'}\n",
+				schema: ", $schema: 'http://json-schema.org/draft-07/schema#', $id: '#nested'"}
+		},
+		// "A schema another holds roots a resource ... as the dialect its own
+		// `$schema` names does", and "In drafts 4, 6 and 7 one naming a fragment
+		// alone, `#name`, declares that plain name" (references): the compile
+		// reads the `$schema` of the schema the grammar places, so In lowers it,
+		// where an extension's names nothing and In is unresolved. The binder
+		// above is handed no Config.Dialect, so it reads both as 2020-12 does.
+		nestedOnly: draftIdentifiersKept, twinOnly: draftAnchorUnresolved,
 	},
 	{name: "an escaped pointer token", doc: func(p twinPlace) twinDoc {
 		esc := strings.Replace(p.header(), p.key, p.escaped(), 1)
@@ -324,11 +349,10 @@ func headerRefused(twinPlace) []string {
 }
 
 // headerFromSchema is HRef landing on the raw YAML at the header's schema,
-// read as a header, whose own schema the weight reads as a schema.
+// read as a header.
 func headerFromSchema(p twinPlace) []string {
 	return []string{"reference spec.yaml#/components/headers/HRef header: hop resolved 0 raw",
-		"object-landing spec.yaml#" + encodingAt + p.header() + "/schema header",
-		"weighed once spec.yaml#" + encodingAt + p.header() + "/schema/schema"}
+		"object-landing spec.yaml#" + encodingAt + p.header() + "/schema header"}
 }
 
 // refusedAt is a $ref from In refused as naming no schema.
@@ -365,6 +389,17 @@ func listLanded(p twinPlace) []string {
 func anchorAnswers(p twinPlace) []string {
 	return []string{"entry spec.yaml#/components/schemas/In: hop resolved 0 raw spec.yaml#" + encodingAt +
 		p.header() + "/schema", "landing spec.yaml#" + encodingAt + p.header() + "/schema"}
+}
+
+// draftIdentifiersKept is the schema In lowers reporting the identifiers it
+// keeps, its $id and its $schema.
+func draftIdentifiersKept(p twinPlace) []string {
+	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.header() + "/schema/$"}
+}
+
+// draftAnchorUnresolved is the compile refusing In's $ref.
+func draftAnchorUnresolved(twinPlace) []string {
+	return []string{"diag error openapi/unresolved-ref 0/components/schemas/In:"}
 }
 
 // anchorUnanswered is In's $ref naming an anchor no schema declares.
@@ -411,7 +446,6 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	root := openapitest.YAMLDocument(t, src)
 	table := bind.Bind(t.Context(), root, cfg)
 	lines := bindAnswers(table)
-	lines = append(lines, weightAnswers(table, encodingAt+p.field())...)
 	// An incomplete total is never read, so its count says nothing.
 	if named, complete := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
 		lines = append(lines, fmt.Sprintf("named pointer bytes %d", named))
@@ -420,17 +454,68 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	dir := t.TempDir()
 	layout(t, dir, files)
 	doc, diags := compileDir(t, dir, openapi.Options{})
-	lines = append(lines, "compiled "+strconv.FormatBool(doc != nil))
+	lines = append(lines, "compiled "+strconv.FormatBool(doc != nil), fmt.Sprintf("charged %d", charged(t, dir)))
+	lines = append(lines, irAnswers(t, doc)...)
 	for _, d := range diags {
-		msg := strings.ReplaceAll(d.Message, dir, "DIR")
 		lines = append(lines, fmt.Sprintf("diag %s %s %d%s: %s", d.Severity, d.Code, d.Provenance.Source,
-			d.Provenance.Pointer, msg))
+			d.Provenance.Pointer, d.Message))
 	}
 	for i := range lines {
+		lines[i] = strings.ReplaceAll(lines[i], dir, "DIR")
 		lines[i] = strings.ReplaceAll(lines[i], p.key, nested)
 		lines[i] = strings.ReplaceAll(lines[i], p.escaped(), twinPlace{key: nested}.escaped())
 	}
 	slices.Sort(lines)
+	return lines
+}
+
+// irAnswers is doc as a line for each value it holds, "ir <pointer> <value>",
+// and each Unmodeled entry no type holds as "unmodeled <key> <reason>". The findings and the
+// source's hash are left out, the findings answered for line by line beside, and
+// so is the name of a type at a header's schema, which a header beneath the
+// field names (docs/compilers/openapi.md#naming) and raw YAML does not.
+func irAnswers(t *testing.T, doc *ir.Document) []string {
+	t.Helper()
+	if doc == nil {
+		return nil
+	}
+	data, err := json.Marshal(doc)
+	require.NoError(t, err)
+	var v any
+	require.NoError(t, json.Unmarshal(data, &v))
+	var lines []string
+	var walk func(v any, at string)
+	walk = func(v any, at string) {
+		switch v := v.(type) {
+		case map[string]any:
+			for k, c := range v {
+				below := at + "/" + strings.ReplaceAll(strings.ReplaceAll(k, "~", "~0"), "/", "~1")
+				if e, ok := c.(map[string]any); ok && strings.HasSuffix(at, "/unmodeled") && !strings.HasPrefix(at, "/types/") {
+					lines = append(lines, fmt.Sprintf("unmodeled %s %v", k, e["reason"]))
+					delete(e, "reason")
+				}
+				walk(c, below)
+			}
+		case []any:
+			for i, c := range v {
+				walk(c, at+"/"+strconv.Itoa(i))
+			}
+		default:
+			lines = append(lines, fmt.Sprintf("ir %s %v", at, v))
+		}
+	}
+	m, ok := v.(map[string]any)
+	require.True(t, ok)
+	delete(m, "diagnostics")
+	for _, src := range m["sources"].([]any) {
+		delete(src.(map[string]any), "hash")
+	}
+	for id, def := range m["types"].(map[string]any) {
+		if strings.HasSuffix(id, "/headers/H/schema") {
+			delete(def.(map[string]any), "name")
+		}
+	}
+	walk(m, "")
 	return lines
 }
 
@@ -460,102 +545,39 @@ func bindAnswers(table *bind.Table) []string {
 	return lines
 }
 
-// weightAnswers is how the reference-expansion weight reads each declaration a
-// reference object's chain ends on, and the request body B: from how the
-// grammar reads the reference, a line for each position below read as a
-// schema, which a copy weighs as one node. A reference written beneath
-// verbatim, the field, is weighed from nowhere: the lowering keeps the field
-// as written and copies nothing it names.
-func weightAnswers(table *bind.Table, verbatim string) []string {
-	type start struct{ use, decl bind.Position }
-	b := bind.Position{Pointer: "/components/requestBodies/B"}
-	starts := []start{{use: b, decl: b}}
-	for _, r := range table.References() {
-		if r.Chain.Status == bind.Resolved && !strings.HasPrefix(string(r.Site.Pointer), verbatim+"/") {
-			starts = append(starts, start{use: r.Site, decl: r.Chain.End})
+// charged is what the copies a compile of the files in dir makes weigh: the
+// least reference-expansion budget it is not refused past
+// (docs/compilers/openapi.md#source-budgets).
+func charged(t *testing.T, dir string) int {
+	t.Helper()
+	within := func(limit int) bool {
+		_, diags := compileDir(t, dir, openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}})
+		return !slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.BudgetExceeded })
+	}
+	refused, admitted := 0, 1
+	for !within(admitted) {
+		require.Less(t, admitted, 1<<16, "the copies weigh past any budget the search tries")
+		refused, admitted = admitted, 2*admitted
+	}
+	for refused+1 < admitted {
+		if mid := (refused + admitted) / 2; within(mid) {
+			admitted = mid
+		} else {
+			refused = mid
 		}
 	}
-	var lines []string
-	for _, s := range starts {
-		n, found := nodeAt(table.Document(s.decl.Doc).Root, string(s.decl.Pointer))
-		if !found {
-			continue
-		}
-		name := table.Document(s.decl.Doc).Name
-		weighed(n, table.ReadingAt(s.use), name+"#"+string(s.decl.Pointer), &lines, 0)
-	}
-	return lines
-}
-
-// weighed appends to lines each position below n, at pointer, read as r, that
-// is read as a schema, to a bounded depth.
-func weighed(n *yaml.Node, r bind.Reading, pointer string, lines *[]string, depth int) {
-	if n == nil || depth > 64 {
-		return
-	}
-	if n.Kind == yaml.AliasNode {
-		weighed(n.Alias, r, pointer, lines, depth+1)
-		return
-	}
-	if r.Schema() {
-		*lines = append(*lines, "weighed once "+pointer)
-		return
-	}
-	switch n.Kind {
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			k := n.Content[i].Value
-			weighed(n.Content[i+1], r.Below(k), pointer+"/"+strings.ReplaceAll(k, "/", "~1"), lines, depth+1)
-		}
-	case yaml.SequenceNode:
-		for i, c := range n.Content {
-			weighed(c, r.Below(strconv.Itoa(i)), pointer+"/"+strconv.Itoa(i), lines, depth+1)
-		}
-	default:
-	}
-}
-
-// nodeAt is the node pointer names below root, a document node.
-func nodeAt(root *yaml.Node, pointer string) (*yaml.Node, bool) {
-	n := root
-	if n != nil && n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
-		n = n.Content[0]
-	}
-	for _, token := range strings.Split(pointer, "/")[1:] {
-		token = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
-		for n != nil && n.Kind == yaml.AliasNode {
-			n = n.Alias
-		}
-		if n == nil {
-			return nil, false
-		}
-		var next *yaml.Node
-		switch n.Kind {
-		case yaml.MappingNode:
-			for i := 0; i+1 < len(n.Content); i += 2 {
-				if n.Content[i].Value == token {
-					next = n.Content[i+1]
-				}
-			}
-		case yaml.SequenceNode:
-			if i, err := strconv.Atoi(token); err == nil && i >= 0 && i < len(n.Content) {
-				next = n.Content[i]
-			}
-		default:
-		}
-		n = next
-	}
-	return n, n != nil
+	return admitted
 }
 
 // TestCompile_AFieldNoModelHoldsReadsAsAnExtension holds a schema beneath each
 // field an Encoding Object nests (unheldFields), one level beneath it and two,
 // to the answers the same schema gets with the field moved under an extension
-// key of its length: each schema $ref's hop and chain, role included, each
-// landing, each `#/$defs` answer, how the expansion weight weighs what a
-// compile copies, and every finding of the compile. They differ only by the
-// field's own finding (rawField), the pointer bound's total (namedTotal), and
-// where a row says, each by the rule sentence its comment quotes.
+// key of its length: each reference's hop and chain, each landing, what a
+// compile's copies are charged (charged), its findings and its document
+// (irAnswers), each as often. They differ only by how each keeps the field
+// (rawField, rawExtension), the pointer bound's total (namedTotal), and where a
+// row says, by the rule its comment quotes, with the types a reference read
+// apart lowers to.
 func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 	t.Parallel()
 	for _, f := range unheldFields {
@@ -568,19 +590,20 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 					want, wantNamed, wantTaken := namedTotal(twinAnswers(t, twin, row.doc(twin), f.key))
 					require.Equal(t, wantTaken, gotTaken, "the pointer bound takes a total of both or neither")
 					// The binder reads each node beneath the field for the references
-					// written there, where an extension's value adds its root alone
-					// (source-budgets). The weighing expands no merge key, so a field
-					// an Encoding Object merges in through `<<` adds its root alone in
-					// both.
-					merged := row.doc(nested).encoding != ""
-					assert.Equal(t, gotTaken && !merged, gotNamed > wantNamed,
+					// written there, merged in through `<<` or written, where an
+					// extension's value adds its root alone (source-budgets).
+					assert.Equal(t, gotTaken, gotNamed > wantNamed,
 						"the nested document names more: %d against %d", gotNamed, wantNamed)
 					onlyNested, onlyTwin := row.nestedOnly, row.twinOnly
 					if onlyNested == nil {
 						onlyNested, onlyTwin = none, none
 					}
+					if len(onlyNested(nested)) > 0 && len(onlyTwin(nested)) > 0 {
+						// A reference the pair reads apart may lower to types apart.
+						got, want = withoutTypes(got), withoutTypes(want)
+					}
 					assertDiffers(t, "nested", minus(got, want), append(rawField(nested), onlyNested(nested)...))
-					assertDiffers(t, "twin", minus(want, got), onlyTwin(nested))
+					assertDiffers(t, "twin", minus(want, got), append(rawExtension(nested), onlyTwin(nested)...))
 				})
 			}
 		}
@@ -599,13 +622,25 @@ func namedTotal(lines []string) ([]string, int, bool) {
 	return lines, 0, false
 }
 
-// minus is each line of a that b lacks.
+// withoutTypes is lines without those irAnswers gives of a type.
+func withoutTypes(lines []string) []string {
+	return slices.DeleteFunc(slices.Clone(lines), func(l string) bool { return strings.HasPrefix(l, "ir /types/") })
+}
+
+// minus is a less b, as multisets: a line a gives more often than b is kept
+// as often as a gives it more.
 func minus(a, b []string) []string {
+	left := map[string]int{}
+	for _, l := range b {
+		left[l]++
+	}
 	var out []string
 	for _, l := range a {
-		if !slices.Contains(b, l) {
-			out = append(out, l)
+		if left[l] > 0 {
+			left[l]--
+			continue
 		}
+		out = append(out, l)
 	}
 	return out
 }
@@ -622,5 +657,43 @@ func assertDiffers(t *testing.T, which string, lines, prefixes []string) {
 	for _, p := range prefixes {
 		require.True(t, slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, p) }),
 			"the %s document alone answers %q...; it answers alone %q", which, p, lines)
+	}
+}
+
+// TestCompile_ANestedEncodingIsChargedAlikeAtEveryLimit compiles a document
+// writing references into, out of and beneath nested Encoding Objects at every
+// reference-expansion budget up to what it is charged, its components in either
+// order: each answer is the unbudgeted one or a refusal past the budget
+// (docs/compilers/openapi.md#source-budgets), alike in both orders.
+func TestCompile_ANestedEncodingIsChargedAlikeAtEveryLimit(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.2.0\ninfo: {title: t, version: '1'}\npaths:\n  /a: {post: {requestBody: " +
+		"{$ref: '#/components/requestBodies/B'}, responses: {'200': {$ref: '#/components/responses/R'}}}}\n" +
+		"components:\n"
+	enc := func(key string) string {
+		return "{contentType: multipart/mixed, " + key + ": {g: {headers: {H: {$ref: '#/components/headers/X'}, " +
+			"J: {schema: {type: object, properties: {p: {$ref: '#/components/schemas/T'}}}}}}}}"
+	}
+	blocks := []string{
+		"  schemas:\n    T: {type: string}\n    In: {$ref: '#/components/requestBodies/B/content/" +
+			"multipart~1form-data/encoding/f/encoding/g/headers/J/schema'}\n",
+		"  headers:\n    X: {description: x, schema: {type: integer}}\n    Y: {$ref: '#/components/headers/X'}\n",
+		"  responses:\n    R: {description: r, headers: {Y: {$ref: '#/components/headers/Y'}}, content: {multipart/mixed: " +
+			"{encoding: {f: " + enc("prefixEncoding") + "}}}}\n",
+		"  requestBodies:\n    B: {content: {multipart/form-data: {schema: {type: object, properties: {f: " + partSchema +
+			"}}, encoding: {f: " + enc("encoding") + "}}}}\n",
+	}
+	full, fullFound := assertOneReadingInEitherOrder(t, head, blocks, -1)
+	require.NotNil(t, full, "%v", fullFound)
+	for limit := 1; ; limit++ {
+		require.Less(t, limit, 1<<12, "no budget admits the document")
+		doc, found := assertOneReadingInEitherOrder(t, head, blocks, limit)
+		if doc == nil {
+			assert.Contains(t, found, "error openapi/budget-exceeded ", "refused at %d past the budget alone", limit)
+			continue
+		}
+		assert.Empty(t, cmp.Diff(full, doc, cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash")), "at %d", limit)
+		assert.Equal(t, fullFound, found, "at %d", limit)
+		return
 	}
 }

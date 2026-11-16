@@ -5,6 +5,7 @@ package bind_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,6 +55,33 @@ func TestNamedPointerBytes_AValueKeptRawAddsItsRootAlone(t *testing.T) {
 	assert.Equal(t, 2*len("/components/schemas/E/example"), asExample-without,
 		"only the root of the mount is named, with its key, each at the pointer it is mounted at")
 	assert.Greater(t, asSchema-asSchemaBase, 5*(asExample-without), "mounted as a schema, every node of it is named")
+}
+
+// TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping holds a
+// schema merged in through `<<` to the total of the same schema mounted by an
+// alias, as the binder and the parser read the merged members as the mapping's
+// own, and a merge chain past nodeview.MergeDepthLimit to no total.
+func TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping(t *testing.T) {
+	t.Parallel()
+	const base = namedHead + "x-s: &s " + namedSpine + "\ncomponents:\n  schemas:\n"
+	aliased, complete := namedTotal(t, base+"    E: {type: object, properties: {x: *s}}\n")
+	require.True(t, complete)
+	merged, complete := namedTotal(t, base+"    E: {type: object, properties: {x: {<<: *s}}}\n")
+	require.True(t, complete)
+	raw, complete := namedTotal(t, base+"    E: {type: object, properties: {x: {}}}\n")
+	require.True(t, complete)
+
+	assert.Equal(t, aliased, merged, "a merged member is named at the mapping, as an alias's is at its mount")
+	assert.Greater(t, merged-raw, 5*len("/components/schemas/E/properties/x"), "every node of the spine is named")
+
+	var chain strings.Builder
+	chain.WriteString(namedHead + "x-chain:\n  a0: &a0 {type: string}\n")
+	for i := 1; i <= nodeview.MergeDepthLimit+1; i++ {
+		fmt.Fprintf(&chain, "  a%d: &a%d {<<: *a%d}\n", i, i, i-1)
+	}
+	fmt.Fprintf(&chain, "components:\n  schemas:\n    E: {<<: *a%d}\n", nodeview.MergeDepthLimit+1)
+	_, complete = namedTotal(t, chain.String())
+	assert.False(t, complete, "a merge chain the binder cannot expand leaves the total untaken")
 }
 
 // TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode holds a schema

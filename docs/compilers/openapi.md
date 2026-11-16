@@ -301,13 +301,17 @@ is refused, by what a compile names one by one: a value the grammar keeps raw, a
 default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
 leaves out, adds its root alone, though not an Encoding Object another nests: the lowering keeps
 it verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), but the binder reads it
-node by node for the references written in it. A raw value a `$ref`, a `$dynamicRef` or a
+node by node for the references written in it. A mapping's members are read as the binder reads
+them, each a `<<` merge key brings in named at the mapping and a key written twice at its last copy
+([`validation`](#validation)), so a schema merged into a schema's position is named node by
+node. A raw value a `$ref`, a `$dynamicRef` or a
 discriminator mapping of the document lands in, its fragment read as the binder reads one, percent
 escapes decoded, is named node by node as the kind that reference expects, once, where the walk has
 not named it already. It is refused only when that total too is past the bound, or when it cannot
 be taken: a reference leaves
 the document, names nothing its pointer finds, or is read under an `$id`, which moves where it
-lands; a fragment is no JSON pointer; the document may name a dialect, by `jsonSchemaDialect` or a
+lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the depth the binder
+expands; the document may name a dialect, by `jsonSchemaDialect` or a
 `$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
 `definitions`, `dependencies`, an `items` list and `additionalItems`); or the weighing runs past the
 node bound. An overlay document and a document a reference reads keep the first total.
@@ -359,6 +363,7 @@ node bound. An overlay document and a document a reference reads keep the first 
   `e2e.TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode`,
   `bind.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
   `bind.TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode`,
+  `bind.TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping`,
   `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`,
   `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
   `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
