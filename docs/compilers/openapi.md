@@ -304,7 +304,10 @@ check places a finding ([`validation`](#validation)), though not an Encoding Obj
 the lowering keeps it verbatim ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), but the
 binder reads it node by node for the references written in it. A schema's `$vocabulary` and
 `dependentRequired`, which no model holds and the check judges entry by entry, are named node by
-node, as its `required` is. A mapping's members are read as the binder reads
+node, as its `required` is. The total judges no entry, so it names those the check accepts, which
+a compile spells no pointer for, beside those it places a finding at: a document past the bound
+that holds most of its nodes in such entries is refused though a compile of it is cheap. A
+mapping's members are read as the binder reads
 them, each a `<<` merge key brings in named at the mapping, and a key written twice at the copy the
 binder reads, a mapping's own at its last and a merged source's at its first
 ([`validation`](#validation)), so a schema merged into a schema's position is named node by
@@ -327,7 +330,7 @@ lands; a fragment is no JSON pointer; a chain of `<<` merge keys runs past the d
 expands; the document may name a dialect, by `jsonSchemaDialect` or a
 `$schema` key anywhere, whose keywords hold schemas the minor's grammar keeps raw (draft 7's
 `definitions`, `dependencies`, an `items` list and `additionalItems`); a mapping writes a key that
-is no string, or a `<<` that names no mapping, where the check of the document's keys spells a
+is no scalar, or a `<<` that names no mapping, where the check of the document's keys spells a
 pointer for every node to place its findings; or the weighing runs past the node bound. An overlay
 document and a document a reference reads keep the first total.
 
@@ -336,8 +339,12 @@ walks: `bind.TestNamedPointerBytes_TotalsWhatATablesWalksSpell` counts the point
 the binder's walks push, and `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut` what a whole
 compile allocates more as a key above a value grows, so a walk spelling a pointer at each node of
 a value counted by its root fails one of them. Each holds the documents its grammar writes and no
-others: neither reads a document naming a dialect or another document, which the refusals above
-leave to the first total, and the second counts what is allocated, not what is held at once.
+others: neither reads a document naming a dialect or another document, nor one whose total is not
+taken (`bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`), which the refusals
+above leave to the first total. The first counts frames, so a pointer a walk spells without pushing
+one is not counted: the binder spells one for a requirement key that is a URI, for a tuple's entry
+and for a schema's `discriminator`, each at a frame it pushes or one token below a schema's. The
+second holds each minor and counts what is allocated, not what is held at once.
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `openapi.TestDetect_DeclinesASourceHoldingMoreNodesThanTheCallersBudget`,
@@ -4459,7 +4466,7 @@ verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing r
 
 - Tests: `e2e.TestCompile_ANullWhereASchemaBelongsIsNoSchema`,
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
-  `annotation.TestIsNoSchema_TellsNoSchemaFromFalse`,
+  `statement.TestSub_TruthTellsNoSchemaFromFalse`,
   `e2e.TestCompile_AValueWhereASchemaBelongsThatIsNoMappingIsNoSchema`
 
 ### `null-keywords`

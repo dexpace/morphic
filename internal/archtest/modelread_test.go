@@ -32,32 +32,11 @@ import (
 // when one falls until the count here is lowered to match, so the map only
 // shrinks as the readers move onto the statement (GitHub #1991).
 var modelReadBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/annotation": {
-		"GetAdditionalProperties":  1,
-		"GetBool":                  2,
-		"GetCore":                  1,
-		"GetDiscriminator":         1,
-		"GetExclusiveMaximum":      1,
-		"GetExclusiveMinimum":      1,
-		"GetExtensions":            1,
-		"GetExternalDocs":          1,
-		"GetItems":                 1,
-		"GetNot":                   1,
-		"GetPropertyNames":         1,
-		"GetSchema":                1,
-		"GetUnevaluatedItems":      1,
-		"GetUnevaluatedProperties": 2,
-		"GetXML":                   1,
-		"IsBool":                   2,
-		"IsReference":              1,
-		"statement.Parsed":         8,
-	},
 	"compilers/openapi/internal/bind/typed": {
-		"GetCore":     1,
-		"GetRootNode": 1,
-		"GetSchema":   2,
-		"IsBool":      3,
-		"Ref":         1,
+		"GetCore":   1,
+		"GetSchema": 1,
+		"IsBool":    3,
+		"Ref":       1,
 	},
 	"compilers/openapi/internal/operation": {
 		"GetAdditionalProperties":  2,
@@ -80,24 +59,6 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetUnevaluatedProperties": 2,
 		"IsSchema":                 2,
 		"statement.Parsed":         14,
-	},
-	"compilers/openapi/internal/resolve": {
-		"GetSchema": 1,
-		"IsBool":    1,
-	},
-	"compilers/openapi/internal/schema": {
-		"GetAdditionalProperties": 1,
-		"GetContentSchema":        1,
-		"GetDiscriminator":        1,
-		"GetExtensions":           2,
-		"GetIf":                   1,
-		"GetItems":                1,
-		"GetNot":                  1,
-		"GetProperties":           1,
-		"GetRef":                  1,
-		"GetSchema":               1,
-		"IsBool":                  1,
-		"statement.Parsed":        34,
 	},
 }
 

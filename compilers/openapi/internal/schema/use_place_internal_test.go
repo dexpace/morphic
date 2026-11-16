@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -37,6 +39,15 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	for i, want := range []jsontext.Pointer{"/p/default", "/v/default", "/r/default", "/p"} {
 		assert.Equal(t, want, u.defaultAt(c, i, carrier).Pointer, "schema %d of the chain", i)
 	}
+}
+
+// TestKeysOf_ANilSchemaLendsNothing pins keysOf's guard: a nil schema writes
+// no key the policy reads, whatever the policy reads.
+func TestKeysOf_ANilSchemaLendsNothing(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
+	require.NotEmpty(t, slices.Collect(l.Ctx.Promoter().Keys()), "the default policy reads keys")
+	assert.Equal(t, promotion.Referent{}, keysOf(l.Ctx, nil))
 }
 
 // TestUseOf_ARunTheBindingsDoNotKnowLendsWhatItWrites pins lendRun on a $ref

@@ -21,10 +21,12 @@ type model = oas3.JSONSchema[oas3.Referenceable]
 // schema object and its inline allOf entries, flattened. A nil js reads as
 // Unwritten.
 func (t *Table) Of(js *model) *Statement {
+	t.lookups++
 	if st, ok := t.statements[js]; ok {
 		return st
 	}
 	st := &Statement{Schema: t.read(js)}
+	st.of = st
 	t.flatten(st)
 	t.statements[js] = st
 	return st
@@ -72,18 +74,57 @@ func (t *Table) read(js *model) *Schema {
 	m := js.GetSchema()
 	s.Node = nodeview.Deref(nodeview.DocumentRoot(m.GetRootNode()))
 	s.Unknown = m.GetCore().GetUnknownProperties()
+	s.Extensions = listedExtensions(m.GetExtensions().Len(), m.GetExtensions().All())
 	readKeys(s, t.src.Rules.At(s.At))
 	if kw := t.src.Bindings.RefKeyword(js); kw != "" {
 		e, bound := t.src.Bindings.Entry(js)
-		s.Ref = &Reference{Keyword: kw, Entry: e, Bound: bound}
+		s.Ref = &Reference{Keyword: kw, Text: string(m.GetRef()), Entry: e, Bound: bound}
 	}
 	fill(s, m)
 	return s
 }
 
-// truthOf returns what js states, by the readings the lowering makes of it:
-// annotation.IsNoSchema's of a value written as no schema, and that of a
-// mapping the parser read as a boolean.
+// Truth returns what the schema s names states, as Table.Sub reads it, with no
+// lookup.
+func (s Sub) Truth() Truth {
+	return truthOf(s.m)
+}
+
+// Held reports whether the parser's model holds a value here, a value written
+// as no schema among them, which Truth reads Unwritten as it reads none
+// (docs/parser-library.md#null-schema-is-false). It is false for a nil s.
+func (s *Schema) Held() bool {
+	return s != nil && s.m != nil
+}
+
+// Held reports whether the parser's model holds a value for the keyword s is
+// written under, a value written as no schema among them, which Truth reads
+// Unwritten as it reads none, so Held tells a keyword holding one from a
+// keyword left out (docs/parser-library.md#null-schema-is-false).
+func (s Sub) Held() bool {
+	return s.m != nil
+}
+
+// Property returns the schema s writes for the property name, as the parser's
+// model holds it, by one lookup in the model's map: the Sub
+// Object.Properties lists under that name. It is false for a name s does not
+// write and for a nil or unstated s.
+func (s *Schema) Property(name string) (Sub, bool) {
+	if s == nil {
+		return Sub{}, false
+	}
+	p, ok := s.m.GetSchema().GetProperties().Get(name)
+	if !ok {
+		return Sub{}, false
+	}
+	return Sub{Name: name, m: p}, true
+}
+
+// truthOf returns what js states. The parser reads a value written as no
+// schema as the `false` schema, which truthOf reads as Unwritten by its node
+// (docs/parser-library.md#null-schema-is-false), and a mapping it fails
+// beneath as a boolean, which truthOf reads as Unread
+// (docs/parser-library.md#failure-beneath-itself).
 func truthOf(js *model) Truth {
 	if js == nil {
 		return Unwritten
@@ -116,6 +157,7 @@ func truthOf(js *model) Truth {
 func fill(s *Schema, m *oas3.Schema) {
 	s.AllOf = listed(m.AllOf)
 	s.Kinds = kindsOf(m)
+	s.Number = numberOf(m)
 	s.Values = valuesOf(m)
 	s.Format = formatOf(m)
 	s.Text = textOf(m)
@@ -169,6 +211,30 @@ func kindsOf(m *oas3.Schema) *Kinds {
 		kinds.Types = append(kinds.Types, Kind(t))
 	}
 	return kinds
+}
+
+// numberOf returns the forms of m's exclusive bounds, nil where it holds
+// neither: the bounds themselves are the nodes their keys hold (fillNode).
+func numberOf(m *oas3.Schema) *Number {
+	if m.ExclusiveMinimum == nil && m.ExclusiveMaximum == nil {
+		return nil
+	}
+	return &Number{ExclusiveMinimumForm: exclusiveOf(m.ExclusiveMinimum),
+		ExclusiveMaximumForm: exclusiveOf(m.ExclusiveMaximum)}
+}
+
+// exclusiveOf returns the arm the model read e, either exclusive bound, as.
+func exclusiveOf(e oas3.ExclusiveMinimum) Exclusive {
+	switch {
+	case e == nil:
+		return NoExclusive
+	case !e.IsLeft():
+		return ExclusiveBound
+	case e.GetLeft() != nil && *e.GetLeft():
+		return ExclusiveTrue
+	default:
+		return ExclusiveFalse
+	}
 }
 
 // valuesOf returns what m's enum and const say, nil where it holds neither.
@@ -235,7 +301,8 @@ func discriminatorOf(d *oas3.Discriminator, at bind.Position) *Discriminator {
 		return nil
 	}
 	out := &Discriminator{PropertyName: d.GetPropertyName(), DefaultMapping: d.GetDefaultMapping(),
-		Node: nodeview.Deref(d.GetRootNode()), Unknown: d.GetCore().GetUnknownProperties()}
+		Node: nodeview.Deref(d.GetRootNode()), Unknown: d.GetCore().GetUnknownProperties(),
+		Extensions: listedExtensions(d.GetExtensions().Len(), d.GetExtensions().All())}
 	if at != (bind.Position{}) {
 		out.At = bind.Position{Doc: at.Doc, Pointer: at.Pointer + "/discriminator"}
 	}
@@ -283,7 +350,8 @@ func xmlOf(x *oas3.XML) *XML {
 		return nil
 	}
 	return &XML{Name: x.Name, Namespace: x.Namespace, Prefix: x.Prefix, Attribute: x.Attribute, Wrapped: x.Wrapped,
-		Node: nodeview.Deref(x.GetRootNode()), Unknown: x.GetCore().GetUnknownProperties()}
+		Node: nodeview.Deref(x.GetRootNode()), Unknown: x.GetCore().GetUnknownProperties(),
+		Extensions: listedExtensions(x.GetExtensions().Len(), x.GetExtensions().All())}
 }
 
 // externalDocsOf returns what d says.
@@ -292,7 +360,8 @@ func externalDocsOf(d *oas3.ExternalDocumentation) *ExternalDocs {
 		return nil
 	}
 	return &ExternalDocs{Description: d.GetDescription(), URL: d.GetURL(), Node: nodeview.Deref(d.GetRootNode()),
-		Unknown: d.GetCore().GetUnknownProperties()}
+		Unknown:    d.GetCore().GetUnknownProperties(),
+		Extensions: listedExtensions(d.GetExtensions().Len(), d.GetExtensions().All())}
 }
 
 // listed returns the schemas of a list keyword, each at its index.
@@ -303,6 +372,20 @@ func listed(list []*model) []Sub {
 	out := make([]Sub, len(list))
 	for i, js := range list {
 		out[i] = Sub{Index: i, m: js}
+	}
+	return out
+}
+
+// listedExtensions returns the n extensions all yields, in its order, nil for
+// none. The model holds them past nodeview.MergeDepthLimit as it does a typed
+// value, so the list names a key merged in there, which Keys lack.
+func listedExtensions(n int, all iter.Seq2[string, *yaml.Node]) []Extension {
+	if n == 0 {
+		return nil
+	}
+	out := make([]Extension, 0, n)
+	for name, node := range all {
+		out = append(out, Extension{Name: name, Node: node})
 	}
 	return out
 }

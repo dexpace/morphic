@@ -57,8 +57,11 @@ type Schema struct {
 	// typed value is: from the model, so it names a key merged in past
 	// nodeview.MergeDepthLimit, which Keys lack.
 	Unknown []string
-	Ref     *Reference
-	AllOf   []Sub
+	// Extensions lists the x- keys the schema writes, read from the model as
+	// Unknown is.
+	Extensions []Extension
+	Ref        *Reference
+	AllOf      []Sub
 
 	Kinds  *Kinds
 	Values *Values
@@ -71,10 +74,12 @@ type Schema struct {
 	Logic  *Logic
 	Notes  *Notes
 
-	// m is the parser's value the schema was read from, and index each key's
-	// place in Keys, built only past indexAbove keys.
+	// m is the parser's value the schema was read from, index each key's
+	// place in Keys, built only past indexAbove keys, and of the statement
+	// Table.Of built over the schema, nil until something reads it.
 	m     *model
 	index map[string]int
+	of    *Statement
 
 	Truth Truth
 }
@@ -133,6 +138,13 @@ func (k Key) read() bool {
 	return !k.Null || k.Name == "const" || k.Name == "default" || k.Name == "example"
 }
 
+// Extension is one x- key an object writes and its value, in the order the
+// parser's model holds them: in source order, a key written twice once.
+type Extension struct {
+	Name string
+	Node *yaml.Node
+}
+
 // Sub is a schema written under a keyword: the name of the property, pattern
 // or dependency it is written for, or its index in a list. Table.Sub reads
 // it.
@@ -144,12 +156,13 @@ type Sub struct {
 
 // Reference is the $ref a schema writes, as the bindings read it: the keyword
 // it is written under, "$dynamicRef" where they read one as the $ref it
-// spells (typed.Bindings.RefKeyword), and the bindings' entry for it, Bound
-// false where they hold none.
+// spells (typed.Bindings.RefKeyword), the $ref the parser's model holds, empty
+// for such a $dynamicRef and for an empty $ref, and the bindings' entry for
+// it, Bound false where they hold none.
 type Reference struct {
-	Keyword string
-	Entry   bind.Entry
-	Bound   bool
+	Keyword, Text string
+	Entry         bind.Entry
+	Bound         bool
 }
 
 // Truth is what a schema value states: Stated, the zero value, for a schema
@@ -171,7 +184,9 @@ const (
 
 // ReadsFalse reports whether t reads as the false schema, which admits no
 // value: Nothing, and Unread, a mapping the parser decodes as `false`
-// (docs/parser-library.md#failure-beneath-itself).
+// (docs/parser-library.md#failure-beneath-itself), and not Unwritten, a value
+// the parser decodes so though it is written as no schema
+// (docs/parser-library.md#null-schema-is-false).
 func (t Truth) ReadsFalse() bool {
 	return t == Nothing || t == Unread
 }

@@ -282,7 +282,7 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 	if e, ok := c.Bindings().Table().Entry(at); ok {
 		return e.Chain.End, e.Chain.Status == bind.Resolved
 	}
-	s := annotation.At(c.Statements().Of(c.Bindings().At(at))).Node
+	s := annotation.At(c.Statements().At(at)).Node
 	if !stated(s) {
 		return bind.Position{}, false
 	}

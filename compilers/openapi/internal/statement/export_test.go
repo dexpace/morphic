@@ -7,6 +7,10 @@ package statement
 // table to one read of each.
 func Reads(t *Table) int { return t.reads }
 
+// Lookups returns how many statements t has looked up, for the tests holding
+// a schema whose statement is built to reading it with none.
+func Lookups(t *Table) int { return t.lookups }
+
 // Compared returns how many keys s compares name with to find it, for the
 // tests holding a wide object's lookups to its index.
 func Compared(s *Schema, name string) int {

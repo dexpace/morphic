@@ -48,12 +48,29 @@ type Format struct {
 	Name string
 }
 
-// Number is what the keywords asserting about a number say.
+// Number is what the keywords asserting about a number say, and the form the
+// parser's model read each exclusive bound in.
 type Number struct {
-	Minimum, Maximum                   *yaml.Node
-	ExclusiveMinimum, ExclusiveMaximum *yaml.Node
-	MultipleOf                         *yaml.Node
+	Minimum, Maximum                           *yaml.Node
+	ExclusiveMinimum, ExclusiveMaximum         *yaml.Node
+	MultipleOf                                 *yaml.Node
+	ExclusiveMinimumForm, ExclusiveMaximumForm Exclusive
 }
+
+// Exclusive is the arm the parser's model read an exclusiveMinimum or
+// exclusiveMaximum as: none, the flag 3.0 and draft 4 write, false or true, a
+// flag it holds no value for being false, or the bound 2020-12 writes. It is
+// the model's, which reads a string such as `yes` as a flag where the node's
+// tag says it is no boolean (docs/parser-library.md#string-as-boolean).
+type Exclusive uint8
+
+// The arms an exclusive bound is read as.
+const (
+	NoExclusive Exclusive = iota
+	ExclusiveFalse
+	ExclusiveTrue
+	ExclusiveBound
+)
 
 // Text is what the keywords asserting about a string say.
 type Text struct {
@@ -87,8 +104,9 @@ type Object struct {
 
 // Discriminator is what a schema's discriminator says: the property, its
 // mapping in source order, its default mapping, the node it was read from and
-// where (the zero position where the bindings do not know the schema), and the
-// keys the parser's model holds no field for (Schema.Unknown).
+// where (the zero position where the bindings do not know the schema), the
+// keys the parser's model holds no field for (Schema.Unknown), and its
+// extensions (Schema.Extensions).
 type Discriminator struct {
 	PropertyName   string
 	Mapping        []MappingEntry
@@ -96,6 +114,7 @@ type Discriminator struct {
 	Node           *yaml.Node
 	At             bind.Position
 	Unknown        []string
+	Extensions     []Extension
 }
 
 // MappingEntry is one entry of a discriminator's mapping: the property value
@@ -131,20 +150,23 @@ type Notes struct {
 	Comment              *yaml.Node
 }
 
-// XML is what a schema's xml object says, the node it was read from, and the
-// keys the parser's model holds no field for (Schema.Unknown).
+// XML is what a schema's xml object says, the node it was read from, the keys
+// the parser's model holds no field for (Schema.Unknown), and its extensions
+// (Schema.Extensions).
 type XML struct {
 	Name, Namespace, Prefix *string
 	Attribute, Wrapped      *bool
 	Node                    *yaml.Node
 	Unknown                 []string
+	Extensions              []Extension
 }
 
 // ExternalDocs is what a schema's externalDocs object says, the node it was
-// read from, and the keys the parser's model holds no field for
-// (Schema.Unknown).
+// read from, the keys the parser's model holds no field for (Schema.Unknown),
+// and its extensions (Schema.Extensions).
 type ExternalDocs struct {
 	Description, URL string
 	Node             *yaml.Node
 	Unknown          []string
+	Extensions       []Extension
 }

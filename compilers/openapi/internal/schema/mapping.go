@@ -27,7 +27,7 @@ const maxChainHops = 64
 
 // link is one position of a mapping value's chain, the schema held there,
 // which a reference object the position's $ref passes may have the bindings
-// read in another document (resolve.Scope.Target), and the ID of the type
+// read in another document (bind.Hop.Target), and the ID of the type
 // declared there (declaredAt).
 type link struct {
 	at   bind.Position
@@ -80,10 +80,10 @@ func chainOf(c lowering.Ctx, d *statement.Discriminator, value string) (valueCha
 func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bind.Position, *statement.Statement, bool) {
 	if c.DeclaresSchema(value) {
 		at := bind.Position{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
-		return at, c.Statements().Of(c.Bindings().At(at)), true
+		return at, c.Statements().At(at), true
 	}
-	at, js, ok := c.RefScope().MappingTarget(d.At, value)
-	return at, c.Statements().Of(js), ok
+	at, ok := c.RefScope().MappingTarget(d.At, value)
+	return at, c.Statements().At(at), ok
 }
 
 // follow returns the chain from start: each $ref read in turn, to the first

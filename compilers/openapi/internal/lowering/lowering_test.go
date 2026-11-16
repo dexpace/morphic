@@ -160,9 +160,9 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
 	assert.Same(t, loaded.Bindings, atSource(t, carrying.Ctx).Bindings(), "a copy shares it")
-	at, ok := carrying.RefScope().Target(alias)
-	require.True(t, ok, "its $ref lands where the load phase resolved it")
-	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
+	e, ok := carrying.RefScope().Bindings.Entry(alias)
+	require.True(t, ok && e.Lands(), "its $ref lands where the load phase resolved it")
+	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, e.Hop.Target)
 }
 
 // TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML pins that a mapping
@@ -188,9 +188,10 @@ x-lib:
 	require.True(t, ok)
 	require.NotNil(t, pet.GetSchema().GetDiscriminator())
 
-	at, built, ok := c.RefScope().MappingTarget(bind.Position{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
+	at, ok := c.RefScope().MappingTarget(bind.Position{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
+	built := c.Bindings().At(at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
 }

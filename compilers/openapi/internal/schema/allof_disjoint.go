@@ -153,8 +153,11 @@ func (r *conjunctTypes) besideChain(b *statement.Statement) bool {
 // than reference, the keyword s is a reference site under
 // (typed.Bindings.RefKeyword), which conjunctTypes follows.
 func passesOver(s *statement.Schema, reference string) bool {
-	m := statement.Parsed(s)
-	return declaresUnion(s) || m.GetNot() != nil || m.GetIf() != nil ||
+	var not, cond statement.Sub
+	if l := s.Logic; l != nil {
+		not, cond = l.Not, l.If
+	}
+	return declaresUnion(s) || not.Held() || cond.Held() ||
 		enumWritten(s) || constIn(s) != nil ||
 		reference != "$dynamicRef" && hasKey(s, "$dynamicRef") ||
 		hasKey(s, "$recursiveRef")

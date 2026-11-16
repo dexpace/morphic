@@ -112,7 +112,7 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 			if version == "3.0.3" && src == `{type: ["null", "null"]}` {
 				continue // 3.0 writes no type list, so it reads this one as left out
 			}
-			s := declared(t, l, "S"+string(rune('a'+i)))
+			s := componentSchema(t, l, "S"+string(rune('a'+i)))
 			got, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 			require.True(t, ok, "%s %s leaves no value but null", version, src)
 			n := newNulls(l.Ctx)
@@ -120,7 +120,7 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 		}
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {type: [string, \"null\"]}\n"))
-	_, ok := nullAloneReading(l.Ctx, StatedIn(l, declared(t, l, "S")))
+	_, ok := nullAloneReading(l.Ctx, StatedIn(l, componentSchema(t, l, "S")))
 	assert.False(t, ok, "a type admitting a string leaves more than null")
 }
 
@@ -131,7 +131,7 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 func TestNullAloneReading_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {enum: [null]}\n"))
-	s := declared(t, l, "S")
+	s := componentSchema(t, l, "S")
 	first, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 	require.True(t, ok)
 	StatedIn(l, s).Values.Enum = nil

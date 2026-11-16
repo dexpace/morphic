@@ -37,7 +37,7 @@ func TestRefKeyword_NamesTheKeywordOfAReferenceSite(t *testing.T) {
         - {$dynamicRef: '#/components/schemas/T'}
         - {type: object}
 `))
-	entries := StatedIn(l, declared(t, l, "M")).AllOf
+	entries := StatedIn(l, componentSchema(t, l, "M")).AllOf
 	got := make([]string, 0, len(entries))
 	for _, b := range entries {
 		got = append(got, refKeyword(l.Ctx.Statements().Sub(b)))

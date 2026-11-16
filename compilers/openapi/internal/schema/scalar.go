@@ -6,8 +6,6 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -117,10 +115,10 @@ const numberTextEncoding = "string"
 // says the string is that encoding's text instead, so the format, which
 // encodingName then keeps verbatim, selects nothing.
 func numberAsText(s *statement.Schema, st statement.Kind, format string) (ir.PrimKind, bool) {
-	if oas3.SchemaType(st) != oas3.SchemaTypeString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
+	if st != statement.KindString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
 		return "", false
 	}
-	return spelling.Lookup(string(oas3.SchemaTypeNumber) + "/" + format)
+	return spelling.Lookup(string(statement.KindNumber) + "/" + format)
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its
@@ -267,13 +265,10 @@ func takesContent(takes kindSet) bool {
 }
 
 // declaresContentVocabulary reports whether s writes any content-vocabulary
-// keyword, so a position that wrote one owns a node to keep it on. Whether
-// contentSchema is written is still the parser's value's to say, as a
-// statement's reading of it needs the table this takes none of.
+// keyword, so a position that wrote one owns a node to keep it on.
 func declaresContentVocabulary(s *statement.Schema) bool {
 	text := textIn(s)
-	return text.ContentEncoding != "" || text.ContentMediaType != "" ||
-		annotation.Written(statement.Parsed(s).GetContentSchema())
+	return text.ContentEncoding != "" || text.ContentMediaType != "" || written(text.ContentSchema)
 }
 
 // recordUnplacedContent keeps each content keyword verbatim on p, for a position

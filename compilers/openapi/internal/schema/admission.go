@@ -364,9 +364,9 @@ func newDeclarationSet() declarationSet {
 	return declarationSet{properties: map[string]*place{}}
 }
 
-// add records s and its `items`. An s holding no schema object
-// (statement.Parsed), a boolean schema's, declares nothing, and the getters
-// read it as empty.
+// add records s and its `items`. An s holding no schema object, a boolean
+// schema's, declares nothing: it writes no `items` and no property
+// (statement.Schema.Property).
 func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
 	d.schemas = append(d.schemas, s)
 	if items := t.Sub(itemsSchema(s)); items.Truth != statement.Unwritten {
@@ -385,11 +385,11 @@ func (d *declarationSet) property(t *statement.Table, name string) *place {
 	}
 	var at *place
 	for _, s := range d.schemas {
-		if p, ok := statement.Parsed(s).GetProperties().Get(name); ok {
+		if p, ok := s.Property(name); ok {
 			if at == nil {
 				at = &place{}
 			}
-			at.decls = append(at.decls, t.Of(p))
+			at.decls = append(at.decls, t.Sub(p))
 		}
 	}
 	d.properties[name] = at

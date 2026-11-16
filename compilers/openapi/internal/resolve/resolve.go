@@ -4,8 +4,6 @@
 package resolve
 
 import (
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 )
@@ -69,18 +67,6 @@ func (n Names) Has(name string) bool { return n.set[name] }
 func (s Scope) InSource() Scope {
 	s.Foreign, s.Holder = false, ""
 	return s
-}
-
-// InDocumentOf returns s for reading what js holds, a schema the bindings
-// know, in the document they place it in (InDocument), as where a pointer the
-// source spells passes a reference object into another (GitHub #762); a
-// schema they do not know is read in the source.
-func (s Scope) InDocumentOf(js *oas3.JSONSchema[oas3.Referenceable]) Scope {
-	p, ok := s.Bindings.Site(js)
-	if !ok {
-		return s.InSource()
-	}
-	return s.InDocument(p.Doc)
 }
 
 // InDocument returns s for reading what document id of the bindings' table

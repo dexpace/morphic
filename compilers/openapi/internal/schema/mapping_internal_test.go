@@ -88,10 +88,10 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	require.True(t, ok)
 	d := discriminatorIn(c.Statements().Of(js).Schema)
 	require.NotNil(t, d)
-	at, decl, ok := c.RefScope().MappingTarget(d.At, "./ext.yaml#/X")
+	at, ok := c.RefScope().MappingTarget(d.At, "./ext.yaml#/X")
 	require.True(t, ok, "the bindings read ext.yaml")
 
-	_, ok = declaredAt(c.Ctx, at, c.Statements().Of(decl))
+	_, ok = declaredAt(c.Ctx, at, c.Statements().At(at))
 	assert.False(t, ok, "a document the compile does not list")
 	_, ok = chainOf(c.Ctx, d, "./ext.yaml#/X")
 	assert.False(t, ok)

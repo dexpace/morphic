@@ -13,7 +13,7 @@ import (
 // composition branch ends on, as the bindings resolved it (Reference.Entry),
 // and nil when the branch is no reference site (typed.Bindings.RefSite).
 // Where the chain ends on no schema, or on a bare boolean schema, it returns
-// one statement.Parsed reads no schema object of.
+// one that is no schema object (stated).
 func refBranchTarget(c lowering.Ctx, b *statement.Statement) *statement.Schema {
 	if b.Ref == nil {
 		return nil
@@ -33,6 +33,16 @@ func declaredOf(c lowering.Ctx, st *statement.Statement) (*statement.Statement, 
 		return nil, bind.Position{}
 	}
 	return c.Statements().At(st.Ref.Entry.Hop.Target), st.Ref.Entry.Hop.Target
+}
+
+// declared returns the statement of the schema written where x's $ref lands,
+// as declaredOf reads it, and an Unwritten one where it lands on none, for a
+// reader taking the statement of none (lentBy).
+func declared(c lowering.Ctx, x *statement.Statement) *statement.Statement {
+	if st, _ := declaredOf(c, x); st != nil {
+		return st
+	}
+	return c.Statements().Read(nil)
 }
 
 // siteOf returns the position the bindings read s at, and false for a schema

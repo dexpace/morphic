@@ -69,8 +69,8 @@ func TestRecordVoicedResidue_NeedsANodeItsPositionOwns(t *testing.T) {
 	assert.NotEmpty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeOwnNode))
 }
 
-// declared returns the schema the component name declares.
-func declared(t *testing.T, l *Lowerer, name string) *oas3.Schema {
+// componentSchema returns the schema the component name declares.
+func componentSchema(t *testing.T, l *Lowerer, name string) *oas3.Schema {
 	t.Helper()
 	js, ok := l.Doc.Components.Schemas.Get(name)
 	require.True(t, ok, name)
@@ -87,11 +87,11 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
     T: {allOf: [{$ref: '#/components/schemas/Port'}]}
 `))
 	const at = "/components/schemas/T"
-	s := declared(t, l, "T")
+	s := componentSchema(t, l, "T")
 	_, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
 	require.True(t, refined)
 
-	StatedIn(l, declared(t, l, "Port")).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
+	StatedIn(l, componentSchema(t, l, "Port")).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
 	_, refined = refinementOf(l.Ctx, StatedIn(l, s), at)
 	assert.True(t, refined, "the second ask reads what the first read")
 
@@ -106,7 +106,7 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
-	s := declared(t, l, "E")
+	s := componentSchema(t, l, "E")
 	first := newAdmission(l.Ctx)
 	require.Contains(t, first.written(StatedIn(l, s), first.nullable).values, "s:a")
 
@@ -126,7 +126,7 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
     T: {allOf: [{$ref: '#/components/schemas/Str'}, {description: d}]}
 `))
-	s := declared(t, l, "T")
+	s := componentSchema(t, l, "T")
 	require.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)))
 
 	st := l.Ctx.Statements().Read(StatedIn(l, s))
@@ -142,7 +142,7 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
     T: {allOf: [{$ref: '#/components/schemas/Str'}, {nullable: true}]}
 `))
-	s := declared(t, l, "T")
+	s := componentSchema(t, l, "T")
 	first := nullableVoices(l.Ctx, StatedIn(l, s))
 	require.Len(t, first, 1)
 	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each branch at its pointer under the schema's")
@@ -161,7 +161,7 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    V: {const: null, enum: [a, null]}
     U: {oneOf: [{type: string}, {type: 'null'}]}
 `))
-	v, u := declared(t, l, "V"), declared(t, l, "U")
+	v, u := componentSchema(t, l, "V"), componentSchema(t, l, "U")
 	values := valueVerdicts{constant: nullAdmitted, enum: nullAdmitted}
 	union := valueVerdicts{union: alike(nullAdmitted)}
 	require.Equal(t, values, valueNulls(l.Ctx, StatedIn(l, v)))
@@ -188,7 +188,7 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
         - {readOnly: true}
         - {description: d}
 `))
-	got := lendingBranches(l.Ctx, StatedIn(l, declared(t, l, "T")))
+	got := lendingBranches(l.Ctx, StatedIn(l, componentSchema(t, l, "T")))
 	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
 	assert.Equal(t, jsontext.Pointer("/allOf/2"), got[0].pointer)
 	b := statement.ParsedAt(got[0].schema).GetSchema()
@@ -199,7 +199,7 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
 	split, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
 `))
-	got = lendingBranches(split.Ctx, StatedIn(split, declared(t, split, "T")))
+	got = lendingBranches(split.Ctx, StatedIn(split, componentSchema(t, split, "T")))
 	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
 	assert.Empty(t, statement.ParsedAt(got[0].schema).GetSchema().GetTitle())
 	assert.Equal(t, "d", statement.ParsedAt(got[0].schema).GetSchema().GetDescription())
@@ -254,7 +254,7 @@ func TestReadVoices_RendersEachValueOnce(t *testing.T) {
 			fmt.Fprintf(&src, "        - {description: d%d}\n", i)
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
-		s := declared(t, l, "T")
+		s := componentSchema(t, l, "T")
 		var stats runtime.MemStats
 		least := uint64(math.MaxUint64)
 		for range 3 {
@@ -284,7 +284,7 @@ func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
 			fmt.Fprintf(&src, "        - {x-k%d: 1}\n", i)
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
-		s := declared(t, l, "T")
+		s := componentSchema(t, l, "T")
 		site := Use{Voices: positionVoices(l.Ctx, l.Types, StatedIn(l, s), at, ir.TypeRef{})}.Site(StatedIn(l, s))
 		require.Len(t, site.Voices, voices)
 		var stats runtime.MemStats
@@ -337,7 +337,7 @@ func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmission(l.Ctx)
-	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, declared(t, l, "E")), w.nullable).values)
+	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable).values)
 }
 
 // TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
@@ -351,7 +351,7 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
 		w := newAdmission(l.Ctx)
-		assert.Equal(t, want, w.written(StatedIn(l, declared(t, l, "T")), w.nullable).kinds, version)
+		assert.Equal(t, want, w.written(StatedIn(l, componentSchema(t, l, "T")), w.nullable).kinds, version)
 	}
 }
 
@@ -362,7 +362,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
 	w := newAdmission(l.Ctx)
-	read := w.written(StatedIn(l, declared(t, l, "E")), w.nullable)
+	read := w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable)
 	assert.True(t, w.within(read, read))
 }
 
@@ -373,7 +373,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
-	s := declared(t, l, "E")
+	s := componentSchema(t, l, "E")
 	first := newAdmission(l.Ctx)
 	first.written(StatedIn(l, s), first.nullable)
 	require.False(t, first.incomplete())
@@ -389,7 +389,7 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
-	s := declared(t, l, "E")
+	s := componentSchema(t, l, "E")
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
 		w := newAdmission(l.Ctx)
@@ -414,7 +414,7 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpec("    En: {type: string, enum: ["+target.String()+"]}\n"+
 			"    T: {allOf: [{$ref: '#/components/schemas/En'}, {enum: ["+narrowed.String()+"]}]}\n"))
-		s := declared(t, l, "T")
+		s := componentSchema(t, l, "T")
 		w := newAdmission(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }

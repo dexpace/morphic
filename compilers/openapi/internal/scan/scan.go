@@ -8,6 +8,7 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -137,9 +138,12 @@ func eachChild(n *yaml.Node, visit func(c *yaml.Node, token string, held bool)) 
 
 // pointerOf returns n's pointer in the tree steps indexes, or "" when the tree
 // does not hold n. A holder is indexed before what it holds, so the walk up
-// ends at the top in as many steps as n is deep.
+// ends at the top in as many steps as n is deep. The pointer is spelled into
+// one buffer: appending token by token to a pointer copies it at each, half
+// n's depth in copies of the whole.
 func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 	var tokens []string
+	size := 0
 	for at := n; ; {
 		s, ok := steps[at]
 		if !ok {
@@ -149,13 +153,15 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 			break
 		}
 		tokens = append(tokens, s.token)
+		size += len(s.token) + 1
 		at = s.holder
 	}
-	var p jsontext.Pointer
+	escaped := strings.NewReplacer("~", "~0", "/", "~1") // RFC 6901, section 3
+	spelled := make([]byte, 0, size)
 	for _, token := range slices.Backward(tokens) {
-		p = p.AppendToken(token)
+		spelled = append(append(spelled, '/'), escaped.Replace(token)...)
 	}
-	return p
+	return jsontext.Pointer(spelled)
 }
 
 // scanRecovered runs scan behind diag.Catch and, on any panic from its

@@ -13,25 +13,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestConstraintsOf_NonSchemaInputs covers annotation.SchemaOf's nil and
-// boolean early return, plus a well-formed reference besides: none of the three
-// leaves a body with constraint keywords on it, so ConstraintsOf reports none
-// either way.
+// TestConstraintsOf_NonSchemaInputs covers a nil and a boolean schema, plus a
+// well-formed reference besides: none of the three leaves a body with
+// constraint keywords on it, so ConstraintsOf reports none either way.
 func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	for _, js := range []*oas3.Schema{
-		annotation.SchemaOf(nil),
-		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
-		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
+	for _, s := range []*statement.Schema{
+		nil,
+		Standalone(oas3.NewJSONSchemaFromBool(true)).Schema,
+		Standalone(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")).Schema,
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.Ctx, &kept, StandaloneSchema(js), nil, "/p", anyInstance)
+		cons, diags := ConstraintsOf(l.Ctx, &kept, s, nil, "/p", anyInstance)
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
@@ -58,16 +57,16 @@ func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
 }
 
 // TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
-// empty: annotation.At reads it as a declaration, since IsReference is false
-// for it, and SchemaOf returns its body like any other, so ConstraintsOf meets
-// a body that carries only Ref and finds no constraint keywords. The parser
-// never emits this shape, so it is built by hand.
+// empty: annotation.At reads it as a declaration, since its reference's text is
+// empty, so ConstraintsOf meets a body that carries only Ref and finds no
+// constraint keywords. The parser never emits this shape, so it is built by
+// hand.
 func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.Ctx, &kept, StandaloneSchema(annotation.SchemaOf(js)), nil, "/p", anyInstance)
+	cons, diags := ConstraintsOf(l.Ctx, &kept, Standalone(js).Schema, nil, "/p", anyInstance)
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)

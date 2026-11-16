@@ -791,8 +791,8 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
-  - `annotation.IsNoSchema` tells such a value from `false` by its node.
-  - `annotation.IsFalseSchema` excludes it, so no reader takes one for `false`.
+  - `statement.truthOf` reads such a value as `Unwritten` by its node.
+  - `statement.Truth.ReadsFalse` excludes it, so no reader takes one for `false`.
 
 ### `failure-beneath-itself`
 

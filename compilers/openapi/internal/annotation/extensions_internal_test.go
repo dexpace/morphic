@@ -156,3 +156,54 @@ func TestExtensionsAt_ReportsEverySiteThatFailed(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 }
+
+// TestSchemaExtensions_ReportsInTheOrderTheStatementLists pins the schema
+// form of ExtensionsUnder to the statement's list: each extension kept as
+// ExtensionsUnder keeps it, and two that do not serialize reported in the
+// order the schema writes them, which is not their names' order.
+func TestSchemaExtensions_ReportsInTheOrderTheStatementLists(t *testing.T) {
+	t.Parallel()
+	s := standaloneSchema(schemaFromYAML(t, "type: string\nx-b: .nan\nx-c: 1\nx-a: .nan\n"))
+
+	got, diags := SchemaExtensions(s.Extensions, sourced(2), "/o", "xml")
+
+	require.Len(t, got, 1)
+	assert.Equal(t, ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue("1"),
+		Provenance: ir.Provenance{Source: 2, Pointer: "/o/x-c"}}, got["openapi:xml/x-c"])
+	require.Len(t, diags, 2)
+	assert.Contains(t, diags[0].Message, `"x-b"`)
+	assert.Contains(t, diags[1].Message, `"x-a"`)
+
+	got, diags = SchemaExtensions(nil, sourced(0), "/o", "")
+	assert.Nil(t, got, "nothing listed is no map")
+	assert.Empty(t, diags)
+}
+
+// TestSchemaExtensionsNamed_ReadsOnlyWhatItIsAsked is
+// TestExtensionsNamed_ReadsOnlyWhatItIsAsked for the statement's list.
+func TestSchemaExtensionsNamed_ReadsOnlyWhatItIsAsked(t *testing.T) {
+	t.Parallel()
+	s := standaloneSchema(schemaFromYAML(t, "type: string\nx-a: 1\nx-bad: .nan\nx-b: {k: v}\n"))
+
+	got := SchemaExtensionsNamed(s.Extensions, slices.Values([]string{"x-b", "x-bad", "x-absent"}))
+	require.Len(t, got, 1, "a value that does not serialize is left out")
+	assert.Equal(t, ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"k":"v"}`)},
+		got["openapi:x-b"])
+	assert.Nil(t, SchemaExtensionsNamed(s.Extensions, slices.Values([]string{"x-absent"})))
+	assert.Nil(t, SchemaExtensionsNamed(nil, slices.Values([]string{"x-a"})))
+}
+
+// TestExtensionPairs_StopsWhenItsReaderDoes pins the iterator over a list to
+// its contract: it yields the list in order and stops at the first false.
+func TestExtensionPairs_StopsWhenItsReaderDoes(t *testing.T) {
+	t.Parallel()
+	s := standaloneSchema(schemaFromYAML(t, "x-b: 1\nx-a: 2\n"))
+	var names []string
+	for name := range extensionPairs(s.Extensions) {
+		names = append(names, name)
+		if name == "x-b" {
+			break
+		}
+	}
+	assert.Equal(t, []string{"x-b"}, names)
+}
