@@ -332,7 +332,9 @@ func CheckCases(ctx context.Context, c Cases, pick func(at []int) bool) ([]Resul
 // asked holds the case oracles CheckCase applies, in CaseOracles' order, each
 // answering for the case at, which writes doc, and compiling through s what it
 // compares. A case oracle with no entry declines as having nothing to ask.
-var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{}
+var asked = []func(ctx context.Context, s *shard, at []int, doc Document) Verdict{
+	present,
+}
 
 // shard is the run of cases sharing their first shardAxes values, and what
 // each compiled to in it, by index.
