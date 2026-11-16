@@ -127,7 +127,7 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
 	doc := harness.Document{Sources: []compilers.Source{{Path: specPath, Data: data}}}
-	c.neighbours(&doc, at)
+	c.neighbours(&doc, t, at)
 	return doc, true
 }
 
@@ -135,7 +135,9 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 // with: the case leaving the construct out, and, for a keyword something
 // carries, the case writing its other value. The none construct and a
 // keyword's other value name none: the latter is asked through its keyword.
-func (c cases) neighbours(doc *harness.Document, at []int) {
+// A keyword the target's body writes already is replaced by the construct, so
+// no case leaves it out (Document.Replaces).
+func (c cases) neighbours(doc *harness.Document, t target, at []int) {
 	if at[2] == 0 || (at[2]-1)%2 != 0 {
 		return
 	}
@@ -145,6 +147,7 @@ func (c cases) neighbours(doc *harness.Document, at []int) {
 	if doc.Carried {
 		doc.Other = slices.Concat(at[:2], []int{at[2] + 1}, at[3:])
 	}
+	doc.Replaces = slices.ContainsFunc(t.body, func(m member) bool { return m.name == k.keyword })
 }
 
 // holds reports whether at names a case of c: one index per axis, each within

@@ -21,11 +21,11 @@ const (
 // present is the presence oracle: it holds a case writing a construct to the
 // case leaving it out and, for a construct the format carries, to the case
 // writing its other value. A carried construct changes the compiled document
-// when written and again when its value changes, which tells it from one
-// announced and dropped, or noticed and its value discarded; one nothing
-// carries changes nothing, and Reason says why. Documents compare less their
-// diagnostics, which a dropped construct can still draw, and their source
-// table, whose hash differs with any text.
+// when written and again when its value changes; one nothing carries changes
+// nothing, and Reason says why. Documents compare less their diagnostics, which
+// a dropped construct can still draw, and their source table, whose hash
+// differs with any text. A construct replacing a member its target writes has
+// no case leaving it out, so its two values are compared alone.
 func present(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	if doc.Absent == nil {
 		return declined(OraclePresence, DeclineNoConstruct)
@@ -33,8 +33,14 @@ func present(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	if !doc.Carried && doc.Reason == "" {
 		panic(fmt.Sprintf("harness: case %v is carried by nothing and says not why", at))
 	}
+	if doc.Replaces && (!doc.Carried || doc.Other == nil) {
+		panic(fmt.Sprintf("harness: case %v replaces a member of its target and names no other value", at))
+	}
 
-	neighbours := [][]int{at, doc.Absent}
+	neighbours := [][]int{at}
+	if !doc.Replaces {
+		neighbours = append(neighbours, doc.Absent)
+	}
 	if doc.Carried && doc.Other != nil {
 		neighbours = append(neighbours, doc.Other)
 	}
@@ -46,17 +52,29 @@ func present(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 		}
 		texts[i] = text
 	}
+	return judgePresence(s.axes, doc, texts)
+}
 
-	against := "equal to " + caseName(s.axes, doc.Absent)
+// judgePresence is the verdict of a case whose documents compiled to texts:
+// the case's, then the case leaving its construct out unless doc replaces a
+// member, then the case writing its other value, when it names one.
+func judgePresence(axes []Axis, doc Document, texts []string) Verdict {
+	if doc.Replaces {
+		if texts[0] == texts[1] {
+			return found(OraclePresence, whatDiscarded+"\nequal to "+caseName(axes, doc.Other))
+		}
+		return passed(OraclePresence)
+	}
+	absent := caseName(axes, doc.Absent)
 	switch {
 	case !doc.Carried && texts[0] != texts[1]:
-		return found(OraclePresence, whatCarried+"\n"+doc.Reason+"\ndiffers from "+caseName(s.axes, doc.Absent))
+		return found(OraclePresence, whatCarried+"\n"+doc.Reason+"\ndiffers from "+absent)
 	case !doc.Carried:
 		return passed(OraclePresence)
 	case texts[0] == texts[1]:
-		return found(OraclePresence, whatChangesNothing+"\n"+against)
+		return found(OraclePresence, whatChangesNothing+"\nequal to "+absent)
 	case len(texts) == 3 && texts[0] == texts[2]:
-		return found(OraclePresence, whatDiscarded+"\nequal to "+caseName(s.axes, doc.Other))
+		return found(OraclePresence, whatDiscarded+"\nequal to "+caseName(axes, doc.Other))
 	}
 	return passed(OraclePresence)
 }

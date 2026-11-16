@@ -103,6 +103,10 @@ func TestPresent_JudgesAKeywordAgainstItsNeighbours(t *testing.T) {
 			doc.Other = nil
 			return doc
 		}, map[string]string{"none": "a", "kw": "b", "kw~": "b"}, OutcomeOK, ""},
+		{"replacing and differing from its other value", replacingDocs,
+			map[string]string{"none": "b", "kw": "b", "kw~": "c"}, OutcomeOK, ""},
+		{"replacing and equal to its other value", replacingDocs,
+			map[string]string{"none": "a", "kw": "b", "kw~": "b"}, OutcomeNotCarried, "value discarded\nequal to kw~"},
 		{"not carried and equal to absent", notCarriedDocs,
 			map[string]string{"none": "a", "kw": "a", "kw~": "c"}, OutcomeOK, ""},
 		{"not carried and differing from absent", notCarriedDocs,
@@ -123,6 +127,14 @@ func TestPresent_JudgesAKeywordAgainstItsNeighbours(t *testing.T) {
 			assert.Equal(t, tc.detail, v.Detail)
 		})
 	}
+}
+
+// replacingDocs writes the keyword as one replacing a member its target
+// writes: the none case writes the keyword too, so it is no neighbour to compare.
+func replacingDocs(i int) Document {
+	doc := carriedDocs(i)
+	doc.Replaces = true
+	return doc
 }
 
 // notCarriedDocs writes the keyword as one nothing carries, with a reason.
@@ -232,6 +244,16 @@ func TestPresent_AssertsWhatACaseMustSay(t *testing.T) {
 			doc.Reason = ""
 			return doc
 		}, map[string]*ir.Document{"none": named("a"), "kw": named("a")}, "says not why"},
+		{"a replacement naming no other value", func(i int) Document {
+			doc := replacingDocs(i)
+			doc.Other = nil
+			return doc
+		}, map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}, "names no other value"},
+		{"a replacement nothing carries", func(i int) Document {
+			doc := notCarriedDocs(i)
+			doc.Replaces = true
+			return doc
+		}, map[string]*ir.Document{"none": named("a"), "kw": named("a")}, "names no other value"},
 		{"a document that does not encode", carriedDocs,
 			map[string]*ir.Document{"none": named("a"), "kw": badExtDoc(), "kw~": named("c")}, "does not encode"},
 	} {

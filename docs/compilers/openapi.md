@@ -4915,7 +4915,8 @@ keyword of the rule table at each version, and `openapicases.TestCore_EveryKeywo
 compiles, for each keyword at each position the cases write a schema, three documents: the keyword
 absent, written with one value, written with a second. It requires the absent form to differ from
 the first and the first from the second, and an exception to equal the absent form, its
-justification written beside the keyword. A keyword that stops being carried at any one position
+justification written beside the keyword; where the target writes the keyword itself, there is no
+absent form, and the two values are compared alone. A keyword that stops being carried at any one position
 fails there rather than waiting for a reader to notice, and a finding that stands is listed with
 its reason in the package's `testdata/presence.txt`. The guarantee is a floor rather than an
 inventory: it compares one pair of values per keyword, so a lowering that carried one value and

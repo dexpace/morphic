@@ -62,6 +62,10 @@ type Document struct {
 	// Reason says why not, required when Carried is false and Absent is set
 	// (presence).
 	Reason string
+	// Replaces is true where the construct replaces a member the case's target
+	// writes, so the case at Absent still writes the keyword and is no case
+	// without it: the construct is held to Other alone (presence).
+	Replaces bool
 	// Instances are each default the document writes (instances).
 	Instances []Instance
 }

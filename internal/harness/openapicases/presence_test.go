@@ -137,7 +137,7 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 	axes := c.Axes()
 	n, err := harness.CaseCount(c)
 	require.NoError(t, err)
-	var kept []string
+	var kept, replaced []string
 	for i := range n {
 		at, err := harness.Coordinates(c, i)
 		require.NoError(t, err)
@@ -154,6 +154,9 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 		with := func(neighbour []int) []int { return slices.Concat(at[:2], neighbour, at[3:]) }
 		assert.Equal(t, with([]int{0}), doc.Absent, "%v", at)
 		assert.Equal(t, doc.Carried, doc.Reason == "", "%v: a keyword nothing carries says why", at)
+		if doc.Replaces {
+			replaced = append(replaced, axes[1].Values[at[1]].Name+"/"+name)
+		}
 		if !doc.Carried {
 			kept = append(kept, name)
 			assert.Nil(t, doc.Other, "%v", at)
@@ -164,4 +167,7 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 	}
 	slices.Sort(kept)
 	assert.Equal(t, notCarried, slices.Compact(kept))
+	slices.Sort(replaced)
+	assert.Equal(t, []string{"array/items", "enum/enum", "map/additionalProperties", "object/properties", "union/oneOf"},
+		slices.Compact(replaced), "the keyword a target writes already is replaced, not added")
 }
