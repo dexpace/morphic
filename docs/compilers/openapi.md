@@ -298,8 +298,10 @@ it.
 
 A source past the pointer bound, as written or as an overlay patches it, is weighed again before it
 is refused, by what a compile names one by one: a value the grammar keeps raw, an example, a
-default, a `const`, an enum member, an Example Object's value, an `x-` key or a field its object
-leaves out, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
+default, a `const`, an enum member, an Example Object's value, an `x-` key, a field its object
+leaves out, and an Encoding Object another nests, which the lowering keeps verbatim
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)) and whose references are read all the
+same, adds its root alone, and a raw value a `$ref`, a `$dynamicRef` or a discriminator
 mapping of the document lands in, its fragment read as the binder reads one, percent escapes
 decoded, is named node by node as the kind that reference expects, once, where the walk has not
 named it already. It is
