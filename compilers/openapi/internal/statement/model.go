@@ -21,10 +21,12 @@ type model = oas3.JSONSchema[oas3.Referenceable]
 // schema object and its inline allOf entries, flattened. A nil js reads as
 // Unwritten.
 func (t *Table) Of(js *model) *Statement {
+	t.lookups++
 	if st, ok := t.statements[js]; ok {
 		return st
 	}
 	st := &Statement{Schema: t.read(js)}
+	st.of = st
 	t.flatten(st)
 	t.statements[js] = st
 	return st

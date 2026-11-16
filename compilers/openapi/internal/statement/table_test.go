@@ -251,3 +251,31 @@ func TestTable_AtFindsWhatOfReads(t *testing.T) {
 		assert.Same(t, tc.st, table.Read(tc.st.Schema), "%s: read again, the same statement", tc.name)
 	}
 }
+
+// TestTable_ReadsABuiltStatementWithoutALookup pins that a schema keeps the
+// statement Of built over it: once each of a schema and its three inline
+// entries has been read, reading them again, a hundred times each, returns
+// that statement and looks none up.
+func TestTable_ReadsABuiltStatementWithoutALookup(t *testing.T) {
+	t.Parallel()
+	table, c := tableOver(t, document("3.1.0",
+		`S: {allOf: [{type: object}, {required: [a]}, {properties: {a: {type: string}}}]}`,
+	), rulesAt(t, "3.1.0", ""))
+	s := table.At(component(c, "S"))
+	require.Len(t, s.Entries, 3)
+	built := make([]*statement.Statement, 0, 1+len(s.Entries))
+	built = append(built, s)
+	for _, e := range s.Entries {
+		built = append(built, table.Read(e.Schema))
+	}
+	before := statement.Lookups(table)
+	for range 100 {
+		for _, st := range built {
+			assert.Same(t, st, table.Read(st.Schema))
+		}
+	}
+	assert.Equal(t, before, statement.Lookups(table), "no lookup once each is built")
+	for i, e := range s.Entries {
+		assert.Same(t, built[i+1].Schema, e.Schema, "entry %d: the statement Read built is the entry's", i)
+	}
+}

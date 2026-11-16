@@ -74,10 +74,12 @@ type Schema struct {
 	Logic  *Logic
 	Notes  *Notes
 
-	// m is the parser's value the schema was read from, and index each key's
-	// place in Keys, built only past indexAbove keys.
+	// m is the parser's value the schema was read from, index each key's
+	// place in Keys, built only past indexAbove keys, and of the statement
+	// Table.Of built over the schema, nil until something reads it.
 	m     *model
 	index map[string]int
+	of    *Statement
 
 	Truth Truth
 }
