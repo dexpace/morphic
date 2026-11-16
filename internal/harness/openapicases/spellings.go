@@ -52,17 +52,17 @@ func partnerOf(s string) (partner, rule string, ok bool) {
 
 // spelt returns the schema a case writes at its position: for inline, t's
 // body with members merged in; otherwise the use of the target saying members
-// in spelling s. It is false where s writes no such use: the unit stays where
-// inline writes it (st), s would write a key twice, or an entry spelling
-// saying nothing writes wrap's document.
-func (c cases) spelt(st stays, s string, t target, members object) (object, bool) {
+// in spelling s. It is false where s writes no such use: the construct at index
+// i of the construct axis stays where inline writes it (stays), s would write a
+// key twice, or an entry spelling saying nothing writes wrap's document.
+func (c cases) spelt(i int, s string, t target, members object) (object, bool) {
 	if s == inline {
 		return t.body.with(members), true
 	}
 	if len(members) == 0 && (s == entry || s == entryFirst) {
 		return nil, false
 	}
-	switch st {
+	switch c.staysAt(i) {
 	case inlineAlone:
 		return nil, false
 	case besideToo:
@@ -130,11 +130,10 @@ func repeats(o object) bool {
 	return false
 }
 
-// equal is what the case at, saying members written where st says, must
-// equal: its partner spelling, nil for a spelling with none or whose partner
-// writes nothing. Beside a $ref at 3.0 each keyword states the warning it
-// draws there.
-func (c cases) equal(at []int, members object, st stays) *harness.Equal {
+// equal is what the case at, saying members, must equal: its partner
+// spelling, nil for a spelling with none or whose partner writes nothing.
+// Beside a $ref at 3.0 each keyword states the warning it draws there.
+func (c cases) equal(at []int, members object) *harness.Equal {
 	s := c.spellings[at[5]]
 	partner, rule, ok := partnerOf(s)
 	if !ok {
@@ -143,7 +142,7 @@ func (c cases) equal(at []int, members object, st stays) *harness.Equal {
 	if partner == entry && len(members) == 0 {
 		partner = wrap // an entry saying nothing is wrap's document, which wrap writes
 	}
-	if _, writes := c.spelt(st, partner, c.targets[at[1]], members); !writes {
+	if _, writes := c.spelt(at[2], partner, c.targets[at[1]], members); !writes {
 		return nil
 	}
 	to := slices.Clone(at)

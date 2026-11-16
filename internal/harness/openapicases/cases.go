@@ -45,6 +45,10 @@ func versions() []version {
 	return []version{{name: "3.0.3"}, {name: "3.1.0", dialect: true}, {name: "3.2.0", like: "3.1.0", dialect: true}}
 }
 
+// seconds returns the second constructs, in the order the second axis lists
+// them.
+func seconds() []string { return []string{none} }
+
 // spellings returns the spellings, in the order the spelling axis lists them.
 func spellings() []string { return []string{inline, beside, wrap, entry, entryFirst, nested} }
 
@@ -53,7 +57,7 @@ type cases struct {
 	versions   []version
 	targets    []target
 	constructs []construct
-	seconds    []second
+	seconds    []string
 	positions  []position
 	spellings  []string
 }
@@ -81,24 +85,12 @@ func (c cases) Axes() []harness.Axis {
 	for _, k := range c.constructs {
 		axes[2].Values = append(axes[2].Values, harness.Value{Name: k.keyword}, harness.Value{Name: k.keyword + other})
 	}
-	for _, sec := range c.seconds {
-		axes[3].Values = append(axes[3].Values, harness.Value{Name: sec.name, Like: secondLike(sec.name)})
-	}
+	axes[3].Values = names(c.seconds)
 	for _, p := range c.positions {
 		axes[4].Values = append(axes[4].Values, harness.Value{Name: p.name})
 	}
 	axes[5].Values = spellingValues(c.spellings)
 	return axes
-}
-
-// secondLike returns the core value a second construct is recorded under:
-// none, as the gate runs a construct alone and a nightly run writes a second
-// beside it.
-func secondLike(name string) string {
-	if name == none {
-		return ""
-	}
-	return none
 }
 
 // names returns a core value of each name.
@@ -125,20 +117,20 @@ func spellingValues(of []string) []harness.Value {
 }
 
 // Write returns the document at one value index per axis, and false where the
-// combination writes nothing: a construct or a second its version lacks or its
-// target is not said of (unit), a spelling that moves no such keyword or writes
-// another's document (spelt), or indices outside the product. A table the
-// writer cannot encode panics, which CheckCase reports as the case's outcome.
+// combination writes nothing: a construct its version lacks or its target is
+// not said of, a spelling that moves no such keyword or writes another's
+// document (spelt), or indices outside the product. A table the writer cannot
+// encode panics, which CheckCase reports as the case's outcome.
 func (c cases) Write(at []int) (harness.Document, bool) {
 	if !c.holds(at) {
 		return harness.Document{}, false
 	}
 	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
-	members, components, st, ok := c.unit(at, v, t)
-	if !ok {
+	members, components, ok := c.construct(at[2], v, t)
+	if !ok || c.seconds[at[3]] != none {
 		return harness.Document{}, false
 	}
-	use, ok := c.spelt(st, s, t, members)
+	use, ok := c.spelt(at[2], s, t, members)
 	if !ok {
 		return harness.Document{}, false
 	}
@@ -158,35 +150,17 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	}
 	doc := harness.Document{
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
-		Equal:   c.equal(at, members, st),
+		Equal:   c.equal(at, members),
 	}
 	c.neighbours(&doc, t, at)
 	return doc, true
-}
-
-// unit returns what the case at writes in one unit on t at v: its construct's
-// members then its second's, the components they name and where the unit is
-// written, the stricter of the two, and false where either writes nothing. A
-// row's second beside no construct is that row's case, which writes it.
-func (c cases) unit(at []int, v version, t target) (object, object, stays, bool) {
-	members, components, ok := c.construct(at[2], v, t)
-	if !ok {
-		return nil, nil, moved, false
-	}
-	sec, ok := c.secondAt(at[3], v, t)
-	if !ok || (sec.row >= 0 && at[2] == 0) || !c.fits(at, sec, members, t) {
-		return nil, nil, moved, false
-	}
-	st := max(c.staysAt(at[2]), sec.stays)
-	return slices.Concat(members, sec.members), slices.Concat(components, sec.components), st, true
 }
 
 // neighbours names, in doc, the cases the presence oracle compares the case at
 // with: the case leaving the construct out, and, for a keyword something
 // carries, the case writing its other value. The none construct and a
 // keyword's other value name none: the latter is asked through its keyword.
-// Left out of a unit writing no second, the construct leaves an entry spelling
-// wrap's document; left beside a row's second, it leaves that row's case.
+// Left out of an entry spelling, the construct leaves wrap's document.
 // A keyword the target's body writes already is replaced by the construct, so
 // no case leaves it out (Document.Replaces).
 func (c cases) neighbours(doc *harness.Document, t target, at []int) {
@@ -195,9 +169,7 @@ func (c cases) neighbours(doc *harness.Document, t target, at []int) {
 	}
 	k := c.constructs[(at[2]-1)/2]
 	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
-	if row := c.rowOf(at[3]); row >= 0 {
-		doc.Absent[2], doc.Absent[3] = 1+2*row, 0 // the row's second alone is the row's case
-	} else if s := c.spellings[at[5]]; at[3] == 0 && (s == entry || s == entryFirst) {
+	if s := c.spellings[at[5]]; s == entry || s == entryFirst {
 		doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
 	}
 	doc.Carried, doc.Reason = k.reason == "", k.reason
