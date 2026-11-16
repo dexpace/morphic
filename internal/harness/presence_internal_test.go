@@ -189,17 +189,16 @@ func TestPresent_DeclinesWhatItCannotCompare(t *testing.T) {
 		name  string
 		write func(i int) Document
 		diags map[string][]ir.Diagnostic
-		fail  string
 		want  Decline
 	}{
-		{"an error diagnostic on the keyword's case", carriedDocs, map[string][]ir.Diagnostic{"kw": boom}, "", DeclineErrorDiagnostic},
-		{"an error diagnostic on the absent case", carriedDocs, map[string][]ir.Diagnostic{"none": boom}, "", DeclineErrorDiagnostic},
-		{"an error diagnostic on the other case", carriedDocs, map[string][]ir.Diagnostic{"kw~": boom}, "", DeclineErrorDiagnostic},
-		{"an error diagnostic beside a keyword nothing carries", notCarriedDocs, map[string][]ir.Diagnostic{"none": boom}, "", DeclineErrorDiagnostic},
-		{"a case that names no neighbour", func(int) Document { return Document{} }, nil, "", DeclineNoConstruct},
+		{"an error diagnostic on the keyword's case", carriedDocs, map[string][]ir.Diagnostic{"kw": boom}, DeclineErrorDiagnostic},
+		{"an error diagnostic on the absent case", carriedDocs, map[string][]ir.Diagnostic{"none": boom}, DeclineErrorDiagnostic},
+		{"an error diagnostic on the other case", carriedDocs, map[string][]ir.Diagnostic{"kw~": boom}, DeclineErrorDiagnostic},
+		{"an error diagnostic beside a keyword nothing carries", notCarriedDocs, map[string][]ir.Diagnostic{"none": boom}, DeclineErrorDiagnostic},
+		{"a case that names no neighbour", func(int) Document { return Document{} }, nil, DeclineNoConstruct},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			swapDocuments(t, same, tc.diags, tc.fail)
+			swapDocuments(t, same, tc.diags, "")
 
 			v := presenceOf(t, presenceProduct(tc.write))
 
