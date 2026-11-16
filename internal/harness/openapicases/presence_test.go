@@ -4,11 +4,9 @@
 package openapicases_test
 
 import (
-	"context"
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,21 +28,6 @@ const (
 // notCarried are the keywords nothing carries, which the cases write as the
 // control: each changes nothing.
 var notCarried = []string{"$anchor", "$comment", "$defs", "$dynamicAnchor"}
-
-// presenceRun runs the case oracles over the core cases once, for the tests
-// below to read, and returns what it found.
-var presenceRun = sync.OnceValues(func() ([]harness.Result, error) {
-	c := openapicases.New()
-	return harness.CheckCases(context.Background(), c, harness.Core(c))
-})
-
-// coreResults returns what the case oracles found at the core cases.
-func coreResults(t *testing.T) []harness.Result {
-	t.Helper()
-	results, err := presenceRun()
-	require.NoError(t, err)
-	return results
-}
 
 // presence returns r's verdict of the presence oracle.
 func presence(t *testing.T, r harness.Result) harness.Verdict {
