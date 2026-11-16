@@ -39,11 +39,27 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 // writtenFormat returns the format s writes, but for a redaction, which names no
 // shape: the annotation readers hold it.
 func writtenFormat(s *statement.Schema) string {
-	m := statement.Parsed(s)
 	if annotation.DeclaresRedaction(s) {
 		return ""
 	}
-	return m.GetFormat()
+	return namedFormat(s)
+}
+
+// namedFormat returns the format s names, "" where it names none.
+func namedFormat(s *statement.Schema) string {
+	if s == nil || s.Format == nil {
+		return ""
+	}
+	return s.Format.Name
+}
+
+// writtenText returns what s writes of the keywords asserting about a string,
+// the zero Text where it writes none.
+func writtenText(s *statement.Schema) statement.Text {
+	if s == nil || s.Text == nil {
+		return statement.Text{}
+	}
+	return *s.Text
 }
 
 // scalarShape is what a scalar of one type lowers to: the primitive it is over,
@@ -110,12 +126,11 @@ func numberAsText(s *statement.Schema, st statement.Kind, format string) (ir.Pri
 // formatPrimitive returns the primitive that s's one declared type and its
 // format select, when the table has that pairing.
 func formatPrimitive(s *statement.Schema) (ir.PrimKind, bool) {
-	m := statement.Parsed(s)
 	types := effectiveTypes(s)
 	if len(types) != 1 {
 		return "", false
 	}
-	return spelling.Lookup(string(types[0]) + "/" + m.GetFormat())
+	return spelling.Lookup(string(types[0]) + "/" + namedFormat(s))
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
@@ -176,13 +191,12 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema,
 	formatName string, withContent bool, common *ir.TypeCommon, pointer jsontext.Pointer,
 ) (*ir.Encoding, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	if !withContent {
 		return &ir.Encoding{Name: formatName}, nil
 	}
 	name, diags := encodingName(c, s, formatName, common, pointer)
 	content, contentDiags := contentSchemaRef(c, ts, depth, s, pointer)
-	enc := &ir.Encoding{Name: name, MediaType: m.GetContentMediaType(), Schema: content}
+	enc := &ir.Encoding{Name: name, MediaType: writtenText(s).ContentMediaType, Schema: content}
 	return enc, append(diags, contentDiags...)
 }
 
@@ -194,8 +208,7 @@ func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 // named a *different* encoding is kept verbatim on the node rather than
 // overwritten away.
 func encodingName(c lowering.Ctx, s *statement.Schema, formatName string, common *ir.TypeCommon, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	content := m.GetContentEncoding()
+	content := writtenText(s).ContentEncoding
 	if content == "" || content == formatName {
 		return formatName, nil
 	}
@@ -216,8 +229,7 @@ func encodingName(c lowering.Ctx, s *statement.Schema, formatName string, common
 // other than formatName, the one its format names, which encodingName lowers
 // in the format's place.
 func contentOverridesFormat(s *statement.Schema, formatName string) bool {
-	m := statement.Parsed(s)
-	content := m.GetContentEncoding()
+	content := writtenText(s).ContentEncoding
 	return formatName != "" && content != "" && content != formatName
 }
 
@@ -231,12 +243,11 @@ func contentOverridesFormat(s *statement.Schema, formatName string) bool {
 // declaration can name, so the node needs no namespace of its own
 // (docs/ir/identity.md#the-id-grammar).
 func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (*ir.TypeRef, []ir.Diagnostic) {
-	m := statement.Parsed(s)
-	cs := m.GetContentSchema()
-	if !annotation.Written(cs) {
+	cs := c.Statements().Sub(writtenText(s).ContentSchema)
+	if cs.Truth == statement.Unwritten {
 		return nil, nil
 	}
-	ref, diags := Ref(c, ts, depth, c.Statements().Of(cs), pointer+ids.Ptr("contentSchema"))
+	ref, diags := Ref(c, ts, depth, cs, pointer+ids.Ptr("contentSchema"))
 	return &ref, diags
 }
 
@@ -256,11 +267,13 @@ func takesContent(takes kindSet) bool {
 }
 
 // declaresContentVocabulary reports whether s writes any content-vocabulary
-// keyword, so a position that wrote one owns a node to keep it on.
+// keyword, so a position that wrote one owns a node to keep it on. Whether
+// contentSchema is written is still the parser's value's to say, as a
+// statement's reading of it needs the table this takes none of.
 func declaresContentVocabulary(s *statement.Schema) bool {
-	m := statement.Parsed(s)
-	return m.GetContentEncoding() != "" || m.GetContentMediaType() != "" ||
-		annotation.Written(m.GetContentSchema())
+	text := writtenText(s)
+	return text.ContentEncoding != "" || text.ContentMediaType != "" ||
+		annotation.Written(statement.Parsed(s).GetContentSchema())
 }
 
 // recordUnplacedContent keeps each content keyword verbatim on p, for a position

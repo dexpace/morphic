@@ -207,8 +207,8 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // collectionConstraints reads the collection bounds of an array schema s, lowered
 // at pointer, which bound the whole instance whether it lowers to a List or a
 // Tuple, met with those the branches of its allOf write for it (positionVoices).
-// Only the integer and boolean bounds are read here, from the parser's model,
-// each count where the model holds the number its literal states
+// Only the integer and boolean bounds are read here, as the statement holds the
+// model's, each count where the model holds the number its literal states
 // (annotation.ExactCount); the census keeps one it does not (keptCount).
 func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) *ir.Constraints {
 	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, ts, s, pointer, ir.TypeRef{}))
@@ -217,16 +217,25 @@ func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *statement.Schem
 // ownCollectionConstraints reads the collection bounds s itself writes, and nil
 // where it states none.
 func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
-	m := statement.Parsed(s)
-	minItems, maxItems := annotation.ExactCount(s, "minItems", m.MinItems), annotation.ExactCount(s, "maxItems", m.MaxItems)
-	if minItems == nil && maxItems == nil && m.UniqueItems == nil {
+	array := writtenArray(s)
+	minItems, maxItems := annotation.ExactCount(s, "minItems", array.MinItems), annotation.ExactCount(s, "maxItems", array.MaxItems)
+	if minItems == nil && maxItems == nil && array.UniqueItems == nil {
 		return nil
 	}
 	cons := &ir.Constraints{MinItems: minItems, MaxItems: maxItems}
-	if m.UniqueItems != nil {
-		cons.UniqueItems = *m.UniqueItems
+	if array.UniqueItems != nil {
+		cons.UniqueItems = *array.UniqueItems
 	}
 	return cons
+}
+
+// writtenArray returns what s writes of the keywords asserting about an array,
+// the zero Array where it writes none.
+func writtenArray(s *statement.Schema) statement.Array {
+	if s == nil || s.Array == nil {
+		return statement.Array{}
+	}
+	return *s.Array
 }
 
 // missingArrayItems reports a 3.0 schema that writes type array and no items,
@@ -241,9 +250,10 @@ func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
 // missingArrayItemsBesideRef holds a $ref site's keywords to it; a subschema
 // kept verbatim never reaches it.
 func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	m := statement.Parsed(s)
-	_, listed := listedItems(s)
-	if listed || annotation.Written(m.GetItems()) || !slices.Contains(m.GetType(), oas3.SchemaTypeArray) {
+	if !slices.Contains(kindsIn(s), statement.KindArray) {
+		return nil
+	}
+	if _, listed := listedItems(s); listed || c.Statements().Sub(writtenArray(s).Items).Truth != statement.Unwritten {
 		return nil
 	}
 	if !c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {
