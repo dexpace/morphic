@@ -26,9 +26,7 @@ import (
 // or a Literal, it holds none, and it restates no collection bound
 // (CarrierConstraintsOf).
 func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
-	m := statement.ParsedAt(js)
-	ref := m.GetSchema()
-	if ref == nil {
+	if js.Truth != statement.Stated {
 		return nil
 	}
 	use := UseOf(c, ts, js, p.Type, pointer)
@@ -144,9 +142,7 @@ func PromoteUse(c lowering.Ctx, from promotion.Referent, unmodeled ir.Unmodeled,
 // owning a node lends its carrier none, as it lends no keyword: the node takes
 // them (attachDeclaredAnnotations).
 func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
-	m := statement.ParsedAt(js)
-	s := annotation.SchemaOf(m)
-	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
+	if js.Truth != statement.Stated || LoweredToOwnNode(c, ts, pointer, t) {
 		return promotion.Referent{}
 	}
 	return UseOf(c, ts, js, t, pointer).lentKeys(c)
