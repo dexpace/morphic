@@ -48,12 +48,29 @@ type Format struct {
 	Name string
 }
 
-// Number is what the keywords asserting about a number say.
+// Number is what the keywords asserting about a number say, and the form the
+// parser's model read each exclusive bound in.
 type Number struct {
-	Minimum, Maximum                   *yaml.Node
-	ExclusiveMinimum, ExclusiveMaximum *yaml.Node
-	MultipleOf                         *yaml.Node
+	Minimum, Maximum                           *yaml.Node
+	ExclusiveMinimum, ExclusiveMaximum         *yaml.Node
+	MultipleOf                                 *yaml.Node
+	ExclusiveMinimumForm, ExclusiveMaximumForm Exclusive
 }
+
+// Exclusive is the arm the parser's model read an exclusiveMinimum or
+// exclusiveMaximum as: none, the flag 3.0 and draft 4 write, false or true, a
+// flag it holds no value for being false, or the bound 2020-12 writes. It is
+// the model's, which reads a string such as `yes` as a flag where the node's
+// tag says it is no boolean (docs/parser-library.md#string-as-boolean).
+type Exclusive uint8
+
+// The arms an exclusive bound is read as.
+const (
+	NoExclusive Exclusive = iota
+	ExclusiveFalse
+	ExclusiveTrue
+	ExclusiveBound
+)
 
 // Text is what the keywords asserting about a string say.
 type Text struct {

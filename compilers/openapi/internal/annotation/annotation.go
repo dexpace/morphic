@@ -227,7 +227,7 @@ func (st Site) Chain() []*statement.Schema {
 // Site).
 //
 // A schema whose $ref is present but empty ({$ref: ""}) is a declaration, not a
-// reference site: an empty ref resolves nowhere, so IsReference is false.
+// reference site: an empty ref resolves nowhere, so its Text is empty.
 //
 // At trusts its caller that js is the schema at the position being modeled.
 func At(js *statement.Statement) Site {
@@ -236,7 +236,7 @@ func At(js *statement.Statement) Site {
 		return s
 	}
 	s.Node = js.Schema
-	if statement.ParsedAt(js).IsReference() {
+	if js.Ref != nil && js.Ref.Text != "" {
 		s.Kind = Reference
 	}
 	return s

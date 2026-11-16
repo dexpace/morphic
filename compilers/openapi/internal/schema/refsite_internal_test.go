@@ -125,3 +125,13 @@ func unheldLowerer(t *testing.T) *Lowerer {
 	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})
 	return LowererOver(service.New(0, &load.Document{Doc: doc, Bindings: bd.Bindings()}, service.Policy{}))
 }
+
+// TestRefSpelling_ASchemaWritingNoReferenceSpellsAnEmptyOne pins refSpelling's
+// reading of a schema writing no reference, which no caller hands it: the
+// empty $ref the model's reading of it gave.
+func TestRefSpelling_ASchemaWritingNoReferenceSpellsAnEmptyOne(t *testing.T) {
+	t.Parallel()
+	keyword, ref := refSpelling(Standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})))
+	assert.Equal(t, "$ref", keyword)
+	assert.Empty(t, ref)
+}

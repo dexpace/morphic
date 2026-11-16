@@ -104,10 +104,14 @@ func refTypeRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, poin
 // load phase reports one landing nowhere: the table's entry's, else the
 // model's $ref, which the budget left unread.
 func refSpelling(js *statement.Statement) (keyword, value string) {
-	if js.Ref != nil && js.Ref.Bound {
+	switch {
+	case js.Ref == nil:
+		return "$ref", ""
+	case js.Ref.Bound:
 		return js.Ref.Entry.Keyword, js.Ref.Entry.Hop.Ref
+	default:
+		return "$ref", js.Ref.Text
 	}
-	return "$ref", statement.ParsedAt(js).GetRef().String()
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no

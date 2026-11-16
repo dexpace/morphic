@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -550,4 +551,57 @@ func TestSub_TruthTellsNoSchemaFromFalse(t *testing.T) {
 	assert.Equal(t, statement.Unwritten, statement.Sub{}.Truth(), "no value at all")
 	built := statement.NewTable(statement.Source{}).Of(oas3.NewJSONSchemaFromBool(false))
 	assert.Equal(t, statement.Nothing, built.Truth, "a false schema built in memory, which has no node")
+}
+
+// TestRead_AReferenceHoldsTheModelsText pins Reference.Text to the $ref the
+// parser's model holds, which the bindings' entry does not say: empty for an
+// empty $ref and for a $dynamicRef the bindings read as a $ref, so that
+// annotation.At reads either as a declaration, and the $ref itself for one
+// naming a schema.
+func TestRead_AReferenceHoldsTheModelsText(t *testing.T) {
+	t.Parallel()
+	table, c := tableOver(t, document("3.1.0",
+		`E: {$ref: ''}`, `D: {$dynamicRef: '#a'}`, `R: {$ref: '#/components/schemas/E'}`,
+	), rulesAt(t, "3.1.0", ""))
+	for _, tc := range []struct {
+		name, keyword, text string
+		kind                annotation.Kind
+	}{
+		{"E", "$ref", "", annotation.Declaration},
+		{"D", "$dynamicRef", "", annotation.Declaration},
+		{"R", "$ref", "#/components/schemas/E", annotation.Reference},
+	} {
+		st := table.At(component(c, tc.name))
+		require.NotNil(t, st.Ref, tc.name)
+		assert.Equal(t, tc.keyword, st.Ref.Keyword, tc.name)
+		assert.True(t, st.Ref.Bound, "%s: the bindings read it", tc.name)
+		assert.Equal(t, tc.text, st.Ref.Text, tc.name)
+		assert.Equal(t, tc.kind, annotation.At(st).Kind, tc.name)
+	}
+}
+
+// TestRead_AnExclusiveBoundHoldsTheArmTheModelRead pins Number's forms to the
+// arm the parser's model read each exclusive bound as: a flag, true where the
+// model reads a string such as `yes` as true, or a bound.
+func TestRead_AnExclusiveBoundHoldsTheArmTheModelRead(t *testing.T) {
+	t.Parallel()
+	flags, fc := tableOver(t, document("3.0.3",
+		`F: {type: number, minimum: 5, exclusiveMinimum: yes, maximum: 9, exclusiveMaximum: false}`,
+		`M: {type: number, minimum: 5}`,
+	), rulesAt(t, "3.0.3", ""))
+	f := flags.At(component(fc, "F"))
+	require.NotNil(t, f.Number)
+	assert.Equal(t, statement.ExclusiveTrue, f.Number.ExclusiveMinimumForm)
+	assert.Equal(t, statement.ExclusiveFalse, f.Number.ExclusiveMaximumForm)
+	assert.Equal(t, "5", text(f.Number.Minimum))
+	m := flags.At(component(fc, "M"))
+	require.NotNil(t, m.Number, "a key opens the slot")
+	assert.Equal(t, statement.NoExclusive, m.Number.ExclusiveMinimumForm)
+
+	bounds, bc := tableOver(t, document("3.1.0", `B: {exclusiveMinimum: 5}`), rulesAt(t, "3.1.0", ""))
+	b := bounds.At(component(bc, "B"))
+	require.NotNil(t, b.Number)
+	assert.Equal(t, statement.ExclusiveBound, b.Number.ExclusiveMinimumForm)
+	assert.Equal(t, statement.NoExclusive, b.Number.ExclusiveMaximumForm)
+	assert.Equal(t, "5", text(b.Number.ExclusiveMinimum))
 }

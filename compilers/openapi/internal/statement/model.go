@@ -76,7 +76,7 @@ func (t *Table) read(js *model) *Schema {
 	readKeys(s, t.src.Rules.At(s.At))
 	if kw := t.src.Bindings.RefKeyword(js); kw != "" {
 		e, bound := t.src.Bindings.Entry(js)
-		s.Ref = &Reference{Keyword: kw, Entry: e, Bound: bound}
+		s.Ref = &Reference{Keyword: kw, Text: string(m.GetRef()), Entry: e, Bound: bound}
 	}
 	fill(s, m)
 	return s
@@ -125,6 +125,7 @@ func truthOf(js *model) Truth {
 func fill(s *Schema, m *oas3.Schema) {
 	s.AllOf = listed(m.AllOf)
 	s.Kinds = kindsOf(m)
+	s.Number = numberOf(m)
 	s.Values = valuesOf(m)
 	s.Format = formatOf(m)
 	s.Text = textOf(m)
@@ -178,6 +179,30 @@ func kindsOf(m *oas3.Schema) *Kinds {
 		kinds.Types = append(kinds.Types, Kind(t))
 	}
 	return kinds
+}
+
+// numberOf returns the forms of m's exclusive bounds, nil where it holds
+// neither: the bounds themselves are the nodes their keys hold (fillNode).
+func numberOf(m *oas3.Schema) *Number {
+	if m.ExclusiveMinimum == nil && m.ExclusiveMaximum == nil {
+		return nil
+	}
+	return &Number{ExclusiveMinimumForm: exclusiveOf(m.ExclusiveMinimum),
+		ExclusiveMaximumForm: exclusiveOf(m.ExclusiveMaximum)}
+}
+
+// exclusiveOf returns the arm the model read e, either exclusive bound, as.
+func exclusiveOf(e oas3.ExclusiveMinimum) Exclusive {
+	switch {
+	case e == nil:
+		return NoExclusive
+	case !e.IsLeft():
+		return ExclusiveBound
+	case e.GetLeft() != nil && *e.GetLeft():
+		return ExclusiveTrue
+	default:
+		return ExclusiveFalse
+	}
 }
 
 // valuesOf returns what m's enum and const say, nil where it holds neither.

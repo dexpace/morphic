@@ -154,12 +154,13 @@ type Sub struct {
 
 // Reference is the $ref a schema writes, as the bindings read it: the keyword
 // it is written under, "$dynamicRef" where they read one as the $ref it
-// spells (typed.Bindings.RefKeyword), and the bindings' entry for it, Bound
-// false where they hold none.
+// spells (typed.Bindings.RefKeyword), the $ref the parser's model holds, empty
+// for such a $dynamicRef and for an empty $ref, and the bindings' entry for
+// it, Bound false where they hold none.
 type Reference struct {
-	Keyword string
-	Entry   bind.Entry
-	Bound   bool
+	Keyword, Text string
+	Entry         bind.Entry
+	Bound         bool
 }
 
 // Truth is what a schema value states: Stated, the zero value, for a schema
