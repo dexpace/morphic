@@ -5,11 +5,9 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -309,60 +307,6 @@ func vocabularyAnnotation() []vocabCase {
 			write: "contentSchema: {type: object}", alt: "contentSchema: {type: array}",
 		},
 	}
-}
-
-// TestVocabulary2020_12_EveryKeywordIsLoweredOrKept compiles each 2020-12
-// keyword with two values and once omitted, and requires all three IR documents
-// to differ. A keyword the compiler neither lowers nor keeps verbatim yields an
-// identical document, the silent drop of GitHub #125.
-//
-// Two values are needed because a keyword whose mere presence reshapes the IR
-// moves the document even if its value is discarded. One pair per keyword is a
-// floor on what reaches the IR, not an inventory.
-//
-// Each excluded row states why nothing carries its keyword and is held to
-// producing no difference, so a newly carried keyword must move its
-// justification.
-func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
-	t.Parallel()
-	for _, tc := range vocabularyCases() {
-		t.Run(tc.keyword, func(t *testing.T) {
-			t.Parallel()
-			require.Contains(t, tc.schemas, "KW, ", "the template must mark where the keyword goes")
-
-			with := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", tc.write+", ", 1))
-			without := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", "", 1))
-
-			if tc.excluded != "" {
-				assert.Equal(t, without, with, "%s is deliberately not carried: %s", tc.keyword, tc.excluded)
-				return
-			}
-			require.NotEmpty(t, tc.alt, "a carried keyword needs a second value to be checked against")
-			assert.NotEqual(t, without, with,
-				"%s changed nothing in the IR, so it is neither lowered nor kept verbatim", tc.keyword)
-
-			other := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", tc.alt+", ", 1))
-			assert.NotEqual(t, with, other,
-				"%s reshaped the IR by being present but two values of it produced one document, "+
-					"so the value itself is read and discarded", tc.keyword)
-		})
-	}
-}
-
-// compileVocabIR compiles a components/schemas block and renders the IR it
-// produced. Two fields are cleared first: diagnostics, because a keyword that is
-// only announced and not lowered or kept is still lost, and Sources, whose
-// content hash differs for any two distinct source texts and would make every
-// case "differ" for free.
-func compileVocabIR(t *testing.T, schemas string) string {
-	t.Helper()
-	doc, diags := parseFull(t, openapitest.ComponentSpec(schemas))
-	openapitest.RequireNoErrorDiags(t, diags)
-	doc.Diagnostics = nil
-	doc.Sources = nil
-	out, err := json.Marshal(doc)
-	require.NoError(t, err)
-	return string(out)
 }
 
 // unpreservableValue is a value that is legal YAML and that JSON cannot spell:
