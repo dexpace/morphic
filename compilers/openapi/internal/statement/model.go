@@ -84,15 +84,18 @@ func truthOf(js *model) Truth {
 }
 
 // fill reads each slot's values from m, a key at a time, each keyword into
-// the slot its key is placed in, so a keyword the rows place in no slot fills
-// none. A key whose value is not read opens its slot and fills nothing.
+// its own slot (oas.SlotOf) whatever the rows say of it, as the walk reads the
+// model: a policy reads a 3.0 `nullable` in a 3.1 schema
+// (docs/compilers/openapi.md#nullable), and the key's Slot carries the rows'
+// verdict. A key whose value is not read opens its slot and fills nothing.
 func fill(s *Schema, m *oas3.Schema) {
 	for _, k := range s.Keys {
-		open(s, k.Slot)
+		slot := oas.SlotOf(k.Name)
+		open(s, slot)
 		if !k.read() {
 			continue
 		}
-		switch k.Slot {
+		switch slot {
 		case oas.SlotConjunction:
 			s.AllOf = listed(m.GetAllOf())
 		case oas.SlotKinds:

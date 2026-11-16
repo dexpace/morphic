@@ -4910,18 +4910,22 @@ nothing by design: `$comment`, which the specification forbids surfacing; `$defs
 lower where a `$ref` reaches them; and `$dynamicAnchor` and `$anchor`, each consumed as a reference
 target rather than carried as content ([`dialect-keywords`](#dialect-keywords)). The keyword lists
 of [boundaries](../ir/boundaries.md#validation-only-constructs) and of this section are held
-to that rather than merely asserted: `TestVocabulary2020_12_EveryKeywordIsLoweredOrKept` enumerates
-the vocabularies keyword by keyword and, for each, compiles three documents — the keyword absent,
-written with one value, written with a second — requiring that the absent form differs from the
-first and the first from the second, and an exception asserts the inverse with its written
-justification. A keyword that stops being carried fails there rather than waiting for a reader to
-notice. The guarantee is a floor rather than an inventory: it compares one pair of values per
-keyword, so a lowering that carried one spelling and dropped another would still pass. A keyword
-kept verbatim keeps its `$ref`s as written, and the positions they land on are lowered
-([`validation-only`](#validation-only)).
+to that rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema cases to every
+keyword of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
+compiles, for each keyword at each position the cases write a schema, three documents: the keyword
+absent, written with one value, written with a second. It requires the absent form to differ from
+the first and the first from the second, and an exception to equal the absent form, its
+justification written beside the keyword; where the target writes the keyword itself, there is no
+absent form, and the two values are compared alone. A keyword that stops being carried at any one position
+fails there rather than waiting for a reader to notice, and a finding that stands is listed with
+its reason in the package's `testdata/presence.txt`. The guarantee is a floor rather than an
+inventory: it compares one pair of values per keyword, so a lowering that carried one value and
+dropped another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the
+positions they land on are lowered ([`validation-only`](#validation-only)).
 
-- Tests: `schema.TestVocabulary2020_12_EveryKeywordIsLoweredOrKept`, `schema.TestPromiseLandings_BuildsNothingTwice`,
-  `schema.TestPromiseLandings_LowersWhatNothingElseReached`, `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
+- Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
+  `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,
+  `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
 
 ## 8. Paths and operations
 
@@ -6552,10 +6556,10 @@ how operations are arranged rather than filling a fact a node holds.
    rule reads, is met where the document has not spoken, and which then declines to fill the fact,
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
-   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `lowering` and
-   `whole`, the one reading of the finished document every such step shares, and `runtimeexpr`
-   where it reads an expression the document writes, and so nothing of the walks that built the
-   document. The compiler's run reads them in one block, in one order: links
+   the fact or for the convention, which imports only `ir`, the compiler's `diag`, `ids` and
+   `promotion`, and `whole`, the one reading of the finished document every such step shares, and
+   `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks that
+   built the document. The compiler's run reads them in one block, in one order: links
    ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
    promotions, then inferences, so an inference sees what every promotion filled. Nothing after the
    root follows a reference, as which components the root keeps turns on what was reached. The

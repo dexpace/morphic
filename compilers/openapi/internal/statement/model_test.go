@@ -100,6 +100,7 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 		`Notes: {title: T, description: D, default: d, example: e, examples: [x, y], deprecated: true, readOnly: true, `+
 			`writeOnly: false, xml: {name: n, namespace: 'https://example.com/ns', prefix: p, attribute: true, wrapped: false}, `+
 			`externalDocs: {description: E, url: 'https://example.com'}, $comment: c}`,
+		`Flags: {deprecated: true, readOnly: false}`,
 		`Conjunction: {allOf: [{type: string}]}`,
 		`Reference: {$ref: '#/components/schemas/Kinds'}`,
 	), rulesAt(t, "3.1.0", ""))
@@ -180,6 +181,8 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 	assert.Equal(t, []string{"d", "e", "c"}, texts([]*yaml.Node{notes.Default, notes.Example, notes.Comment}))
 	assert.Equal(t, []string{"x", "y"}, texts(notes.Examples))
 	assert.Equal(t, []string{"true", "true", "false"}, bools(notes.Deprecated, notes.ReadOnly, notes.WriteOnly))
+	flags := at("Flags").Notes
+	assert.Equal(t, []string{"true", "false"}, bools(flags.Deprecated, flags.ReadOnly), "each flag from its own key")
 	require.NotNil(t, notes.XML)
 	assert.Equal(t, []string{"n", "https://example.com/ns", "p"}, []string{*notes.XML.Name, *notes.XML.Namespace,
 		*notes.XML.Prefix})
@@ -212,19 +215,31 @@ func TestRead_FillsEachSlotFromItsKeywords(t *testing.T) {
 }
 
 // TestRead_AKeyTheDialectDoesNotDefineIsUnknown pins that a key's slot is the
-// rows', not its name's: a keyword they do not define is unknown and fills
-// no slot, as an extension is, and one they define later is read in its slot.
+// rows', not its name's: a keyword they do not define is unknown, as an
+// extension is, and one they define later is read in its slot. The value of
+// each is read into its keyword's slot as the parser read it all the same,
+// since a policy reads a 3.0 `nullable` in a 3.1 schema
+// (docs/compilers/openapi.md#nullable), and an extension fills none.
 func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		version, key, value string
 		slot                oas.Slot
 		later               bool
+		read                func(*statement.Statement) bool
 	}{
-		{"3.1.0", "nullable", "true", oas.SlotUnknown, false},
-		{"3.1.0", "additionalItems", "false", oas.SlotUnknown, false},
-		{"3.1.0", "x-a", "1", oas.SlotUnknown, false},
-		{"3.0.3", "prefixItems", "[{}]", oas.SlotArray, true},
+		{"3.1.0", "nullable", "true", oas.SlotUnknown, false, func(st *statement.Statement) bool {
+			return st.Kinds != nil && st.Kinds.Nullable != nil && *st.Kinds.Nullable
+		}},
+		{"3.1.0", "additionalItems", "false", oas.SlotUnknown, false, func(st *statement.Statement) bool {
+			return st.Array != nil && text(st.Array.AdditionalItems) == "false"
+		}},
+		{"3.1.0", "x-a", "1", oas.SlotUnknown, false, func(st *statement.Statement) bool {
+			return st.Kinds == nil && st.Array == nil && st.Notes == nil && st.Object == nil
+		}},
+		{"3.0.3", "prefixItems", "[{}]", oas.SlotArray, true, func(st *statement.Statement) bool {
+			return st.Array != nil && len(st.Array.PrefixItems) == 1
+		}},
 	} {
 		table, c := tableOver(t, document(tc.version, "A: {"+tc.key+": "+tc.value+"}"), rulesAt(t, tc.version, ""))
 		st := table.At(component(c, "A"))
@@ -232,8 +247,7 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 		require.True(t, read, tc.key)
 		assert.Equal(t, tc.slot, k.Slot, tc.key)
 		assert.Equal(t, tc.later, k.Later, tc.key)
-		assert.Nil(t, st.Kinds, "%s fills no kinds", tc.key)
-		assert.Equal(t, tc.slot == oas.SlotArray, st.Array != nil, "%s fills the array slot only in it", tc.key)
+		assert.True(t, tc.read(st), "%s is read as the parser reads it", tc.key)
 	}
 }
 
@@ -360,5 +374,6 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 	unruled := statement.NewTable(statement.Source{Bindings: c.Bindings()}).Of(js)
 	k, _ := unruled.Key("discriminator")
 	assert.Equal(t, oas.SlotUnknown, k.Slot, "no rows place a key")
-	assert.Nil(t, unruled.Object)
+	require.NotNil(t, unruled.Object, "its value is read all the same")
+	assert.Equal(t, "a", unruled.Object.Discriminator.PropertyName)
 }

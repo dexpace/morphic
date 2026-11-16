@@ -42,11 +42,11 @@ func TestSlots_EveryKeywordOfEveryDialectHasOne(t *testing.T) {
 	for row, r := range rows {
 		for name := range r.rows.fields {
 			names[name] = true
-			assert.NotEqual(t, SlotUnknown, slotOf(name), "%s defines %s", row, name)
+			assert.NotEqual(t, SlotUnknown, SlotOf(name), "%s defines %s", row, name)
 		}
 		for name := range r.rows.later {
 			names[name] = true
-			assert.NotEqual(t, SlotUnknown, slotOf(name), "%s defines %s later", row, name)
+			assert.NotEqual(t, SlotUnknown, SlotOf(name), "%s defines %s later", row, name)
 		}
 	}
 	require.NotEmpty(t, rows, "read no row")
@@ -67,8 +67,8 @@ func TestSlots_ADraftSpellingSharesItsTwins(t *testing.T) {
 		{"additionalItems", "items"},
 		{"dependencies", "dependentSchemas"},
 	} {
-		assert.NotEqual(t, SlotUnknown, slotOf(pair[1]), pair[1])
-		assert.Equal(t, slotOf(pair[1]), slotOf(pair[0]), "%s speaks of what %s does", pair[0], pair[1])
+		assert.NotEqual(t, SlotUnknown, SlotOf(pair[1]), pair[1])
+		assert.Equal(t, SlotOf(pair[1]), SlotOf(pair[0]), "%s speaks of what %s does", pair[0], pair[1])
 	}
 }
 
@@ -85,7 +85,7 @@ func TestSlots_EverySlotHoldsAKeyword(t *testing.T) {
 	held := map[Slot]bool{}
 	for _, r := range everySchemaRow(t) {
 		for _, name := range slices.Concat(slices.Collect(maps.Keys(r.rows.fields)), slices.Collect(maps.Keys(r.rows.later))) {
-			held[slotOf(name)] = true
+			held[SlotOf(name)] = true
 		}
 	}
 	declared := 0
@@ -129,5 +129,5 @@ func TestSchemaRules_SlotIsTheRowsInForce(t *testing.T) {
 		assert.Equal(t, tc.slot, slot, tc.name)
 		assert.Equal(t, tc.later, later, tc.name)
 	}
-	assert.Equal(t, SlotUnknown, slotOf("x-a"), "a name no dialect defines")
+	assert.Equal(t, SlotUnknown, SlotOf("x-a"), "a name no dialect defines")
 }

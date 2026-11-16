@@ -119,9 +119,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/output": 1,
 	},
 	"internal/harness": {
-		// A format's Cases, which the harness asks for its axes and the document
-		// at a case, and the pick CheckCases is handed: designed seams. The
-		// OpenAPI cases are two products, each answering every such call.
+		// A format's Cases, which the harness asks for its axes, and for the
+		// document at a case both where it checks the case and where a shard
+		// compiles a neighbour, and the pick CheckCases is handed: designed
+		// seams. The OpenAPI cases are two products, each answering every such
+		// call.
 		"cmd/morphic-harness":           1,
 		"internal/harness/openapicases": 6,
 	},
