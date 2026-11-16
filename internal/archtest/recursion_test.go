@@ -568,10 +568,10 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 // TestWholeDocumentReaders_DoNotRecurse holds the packages that read the
 // finished document, and take it rather than the context, to what the pin
 // above holds the lowerings: no recursion it does not name, and it names none
-// of theirs. Each package is graphed alone, since none imports another and no
-// call between packages closes a cycle, so a name two of them declare, as each
-// policy's Honours is, stays apart. The packages are derived, as the lowerings'
-// are, by the type they take.
+// of theirs. Each package is graphed alone, so a name two of them declare, as
+// each policy's Honours is, stays apart; that loses no cycle, since Go refuses
+// the import that would let a callee's package call back. The packages are
+// derived, as the lowerings' are, by the type they take.
 func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
 	t.Parallel()
 	var readers []string
