@@ -51,7 +51,7 @@ func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmission(c), body: s}
 	r.held = r.w.written(s, r.w.nullable)
 	for _, b := range allOfIn(s) {
-		r.held = r.held.and(r.w.whole(c.Statements().Sub(b)))
+		r.held = r.held.and(r.w.of(c.Statements().Sub(b)))
 	}
 	return r
 }

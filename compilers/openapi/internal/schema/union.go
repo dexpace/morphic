@@ -589,7 +589,7 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		w := newAdmission(c)
 		reads := make([]admitted, len(branches))
 		for i, b := range branches {
-			reads[i] = w.whole(c.Statements().Sub(b))
+			reads[i] = w.of(c.Statements().Sub(b))
 		}
 		if w.incomplete() {
 			return nil
@@ -764,7 +764,7 @@ func branchesAdmitOnlyObjects(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	w := newAdmission(c)
 	objectsOnly := !slices.ContainsFunc(branches, func(b statement.Sub) bool {
-		return w.whole(c.Statements().Sub(b)).kinds&^(kindObject|kindNull) != 0
+		return w.of(c.Statements().Sub(b)).kinds&^(kindObject|kindNull) != 0
 	})
 	return objectsOnly && !w.incomplete()
 }

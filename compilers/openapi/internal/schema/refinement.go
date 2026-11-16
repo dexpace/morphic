@@ -143,7 +143,7 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) []conj
 		switch {
 		case !stated(e.schema.Schema):
 		case e.schema.Ref != nil:
-			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
+			out = append(out, conjunct{branch: e, read: w.of(e.schema)})
 		default:
 			out = append(out, conjunct{branch: e, read: inlineConjunct(w, e.schema.Schema), says: saysKind(e.schema.Schema) || declaresUnion(e.schema.Schema)})
 		}
@@ -483,7 +483,7 @@ func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool
 		switch {
 		case w.restates(r.held, principal, branch):
 			within++
-		case r.held.kinds&w.whole(branch).kinds != 0:
+		case r.held.kinds&w.of(branch).kinds != 0:
 			overlaps++
 		}
 	}

@@ -20,14 +20,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// A reading of what a schema admits is bounded twice (styleguide bounded-recursion
-// rule): maxAdmissionReads caps the schemas it reads, so its depth and breadth,
-// as maxNullConjuncts caps the same walk, and maxAdmissionMembers what a value set
-// costs each position naming it. A reading past either says nothing, and the
-// position stays the composition it would be with no reading at all, which loses
-// nothing. Each position reads afresh, as a reading's answer turns on the budget
-// left, so a chain of allOfs each naming the next pays up to maxAdmissionReads at
-// every link.
+// A position's reading of what a schema admits is cut twice: past
+// maxAdmissionReads schemas taken in, each counted per path to it, and past
+// maxAdmissionMembers value-set members. A reading past either says nothing, and
+// the position stays the composition it would be with no reading at all, which
+// loses nothing. What each statement admits is read once a run (admissionOf),
+// and a position spends what that read takes in, so its verdict is the one a
+// read of its own would reach.
 const (
 	maxAdmissionReads   = 256
 	maxAdmissionMembers = 4096
@@ -298,42 +297,19 @@ func newAdmission(c lowering.Ctx) admission {
 // value it cannot convert.
 func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
 
-// whole reads js, a schema of any form written anywhere, in the dialect of the
-// document holding it: what its keywords say, conjoined with its allOf, its
-// unions and what its $ref lands on.
-func (w *admission) whole(js *statement.Statement) admitted {
-	if !w.reads.Spend(1) || js.Truth == statement.Unwritten {
-		return admitted{kinds: kindAny}
-	}
-	if js.Truth != statement.Stated {
-		if js.Truth.ReadsFalse() {
-			return admitted{}
-		}
-		return admitted{kinds: kindAny}
-	}
-	if declaresDynamicRef(js.Schema) && js.Ref == nil {
+// of is what js, a schema of any form written anywhere, admits, as the run
+// reads it once (admissionOf): what its keywords say, in the dialect of the
+// document holding it, conjoined with its allOf, its unions and what its $ref
+// lands on. It spends what that read takes in, so a read past either cap, or
+// one admissionOf could not settle, is cut short here as reading it would be.
+func (w *admission) of(js *statement.Statement) admitted {
+	r := admissionOf(w.c, js)
+	w.reads.Spend(r.reads)
+	w.members.Spend(r.members)
+	if r.cut || r.loose {
 		w.reads.Exhaust()
 	}
-	out := w.written(js.Schema, definesNullableAt(w.c, js))
-	for _, b := range js.AllOf {
-		out = out.and(w.whole(w.c.Statements().Sub(b)))
-	}
-	choice := choiceIn(js.Schema)
-	if len(choice.OneOf) > 0 {
-		out = out.and(w.union(choice.OneOf))
-	}
-	if len(choice.AnyOf) > 0 {
-		out = out.and(w.union(choice.AnyOf))
-	}
-	if js.Ref == nil {
-		return out
-	}
-	next, _ := declaredOf(w.c, js)
-	if next == nil {
-		w.reads.Exhaust()
-		return out
-	}
-	return out.and(w.whole(next))
+	return r.admitted
 }
 
 // declarationSet is a set of schemas declaring together, with every schema they
@@ -397,7 +373,7 @@ func (d *declarationSet) property(t *statement.Table, name string) *place {
 }
 
 // declarations returns what s declares: itself, each allOf conjunct and what
-// a $ref lands on, read as whole reads them and within the same budget.
+// a $ref lands on, read as of reads them and within the same budget.
 func (w *admission) declarations(s *statement.Schema) declarationSet {
 	out := newDeclarationSet()
 	out.add(w.c.Statements(), s)
@@ -408,9 +384,9 @@ func (w *admission) declarations(s *statement.Schema) declarationSet {
 // heldAt returns what p's declarations admit together, read once.
 func (w *admission) heldAt(p *place) admitted {
 	if p.held == nil {
-		held := w.whole(p.decls[0])
+		held := w.of(p.decls[0])
 		for _, d := range p.decls[1:] {
-			held = held.and(w.whole(d))
+			held = held.and(w.of(d))
 		}
 		p.held = &held
 	}
@@ -461,9 +437,9 @@ func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
 
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
 func (w *admission) union(branches []statement.Sub) admitted {
-	out := w.whole(w.c.Statements().Sub(branches[0]))
+	out := w.of(w.c.Statements().Sub(branches[0]))
 	for _, b := range branches[1:] {
-		out = out.or(w.whole(w.c.Statements().Sub(b)))
+		out = out.or(w.of(w.c.Statements().Sub(b)))
 	}
 	return out
 }
@@ -590,7 +566,7 @@ func (w *admission) itemsWithin(a, b admitted) bool {
 	if b.items == nil || a.items == b.items {
 		return true
 	}
-	return a.items != nil && w.restates(w.whole(a.items), a.items, b.items)
+	return a.items != nil && w.restates(w.of(a.items), a.items, b.items)
 }
 
 // restates reports whether what held admits, read from from, says all that js
