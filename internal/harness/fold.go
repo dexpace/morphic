@@ -1,0 +1,263 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package harness
+
+import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"errors"
+	"maps"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+// folded returns doc with its decorators (ir.Decorated) left out of Types, and
+// the marshalers that write each use of one as a use of the type it stands for,
+// its annotations merged as docs/emitters/refine/decorators.md merges them.
+// Two spellings of one use then encode alike. It is a second implementation of
+// that fold, until emitters/refine holds the emitter's, which replaces it.
+func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
+	uses := decoratorUses(doc.Types)
+	if len(uses) == 0 {
+		return doc, nil
+	}
+	own := *doc
+	own.Types = make(ir.TypeRegistry, len(doc.Types)-len(uses))
+	for id, td := range doc.Types {
+		if _, ok := uses[id]; !ok {
+			own.Types[id] = td
+		}
+	}
+	return &own, json.JoinMarshalers(
+		json.MarshalToFunc(func(enc *jsontext.Encoder, id ir.TypeID) error {
+			u, ok := uses[id]
+			if !ok {
+				return errors.ErrUnsupported
+			}
+			return enc.WriteToken(jsontext.String(string(u.target)))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, r ir.TypeRef) error {
+			u, ok := uses[r.Target]
+			if !ok {
+				return errors.ErrUnsupported
+			}
+			r.Target = u.target
+			return json.MarshalEncode(enc, foldedRef{Ref: plainRef(r), Use: u.notes.written()})
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Property) error {
+			c := carried[plainProperty]{Carrier: plainProperty(p)}
+			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, h ir.Header) error {
+			c := carried[plainHeader]{Carrier: plainHeader(h)}
+			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, p ir.Parameter) error {
+			c := carried[plainParameter]{Carrier: plainParameter(p)}
+			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.Variant) error {
+			c := carried[plainVariant]{Carrier: plainVariant(v)}
+			return c.write(enc, uses, slots{&c.Carrier.Type, &c.Carrier.Docs, &c.Carrier.Deprecation,
+				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled})
+		}),
+	)
+}
+
+// use is what a decorator stands for: the first type along its Base chain that
+// is no decorator, and the chain's annotations, merged nearest first.
+type use struct {
+	target ir.TypeID
+	notes  annotations
+}
+
+// decoratorUses returns, for each decorator of types, what it stands for. A
+// chain that returns to a decorator it passed collapses nowhere, so it is left
+// out and its nodes kept.
+func decoratorUses(types ir.TypeRegistry) map[ir.TypeID]use {
+	uses := map[ir.TypeID]use{}
+	for id, td := range types {
+		if _, ok := ir.Decorated(td); !ok {
+			continue
+		}
+		if u, ok := chainOf(types, id); ok {
+			uses[id] = u
+		}
+	}
+	return uses
+}
+
+// chainOf walks from the decorator id along Base to the first type that is no
+// decorator, merging each decorator's annotations on the way. A chain of
+// distinct decorators reaches one within a step per type and one more, so a
+// walk that has not is going round a cycle, and returns false.
+func chainOf(types ir.TypeRegistry, id ir.TypeID) (use, bool) {
+	var notes annotations
+	at := id
+	for range len(types) + 1 {
+		base, ok := ir.Decorated(types[at])
+		if !ok {
+			return use{target: at, notes: notes}, true
+		}
+		notes = notes.then(notesOf(types[at].Common()))
+		at = base.Target
+	}
+	return use{}, false
+}
+
+// annotations are the fields a decorator shares with a use site, merged as
+// docs/emitters/refine/decorators.md merges a chain onto its carrier: each
+// Docs field, Deprecation and Availability from the first that sets one,
+// Examples whole from the nearest, and Unmodeled the union by name.
+type annotations struct {
+	docs         ir.Docs
+	deprecation  *ir.Deprecation
+	examples     []ir.Example
+	availability *ir.Availability
+	unmodeled    map[string][]ir.UnmodeledEntry
+}
+
+// notesOf returns the annotations a decorator's c holds.
+func notesOf(c *ir.TypeCommon) annotations {
+	return annotations{docs: c.Docs, deprecation: c.Deprecation, examples: c.Examples, availability: c.Availability,
+		unmodeled: listed(c.Unmodeled)}
+}
+
+// listed returns u's entries as one-entry lists, by name.
+func listed(u ir.Unmodeled) map[string][]ir.UnmodeledEntry {
+	if len(u) == 0 {
+		return nil
+	}
+	out := make(map[string][]ir.UnmodeledEntry, len(u))
+	for name, e := range u {
+		out[name] = []ir.UnmodeledEntry{e}
+	}
+	return out
+}
+
+// then returns a merged with b, a nearer: a field a sets is a's, and an
+// unmodeled name both hold keeps a's entries, then b's.
+func (a annotations) then(b annotations) annotations {
+	out := a
+	out.docs = mergeDocs(a.docs, b.docs)
+	if out.deprecation == nil {
+		out.deprecation = b.deprecation
+	}
+	if len(out.examples) == 0 {
+		out.examples = b.examples
+	}
+	if out.availability == nil {
+		out.availability = b.availability
+	}
+	if len(b.unmodeled) > 0 {
+		out.unmodeled = make(map[string][]ir.UnmodeledEntry, len(a.unmodeled)+len(b.unmodeled))
+		maps.Copy(out.unmodeled, a.unmodeled)
+		for name, entries := range b.unmodeled {
+			out.unmodeled[name] = append(append([]ir.UnmodeledEntry(nil), out.unmodeled[name]...), entries...)
+		}
+	}
+	return out
+}
+
+// mergeDocs returns a's docs with each field a leaves empty taken from b, a
+// Description and its Refs as one, since each Ref indexes its own description.
+func mergeDocs(a, b ir.Docs) ir.Docs {
+	if a.Summary == "" {
+		a.Summary = b.Summary
+	}
+	if a.Description == "" && len(a.Refs) == 0 {
+		a.Description, a.Refs = b.Description, b.Refs
+	}
+	if len(a.ExternalDocs) == 0 {
+		a.ExternalDocs = b.ExternalDocs
+	}
+	return a
+}
+
+// written is a as a reference's use member writes it.
+func (a annotations) written() useMember {
+	return useMember{Docs: a.docs, Deprecation: a.deprecation, Examples: a.examples, Availability: a.availability,
+		Unmodeled: a.unmodeledMember()}
+}
+
+// unmodeledMember is a's Unmodeled as written: an entry by name, as ir.Unmodeled
+// writes one, and a list of the entries where a name repeats.
+func (a annotations) unmodeledMember() map[string]any {
+	if len(a.unmodeled) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(a.unmodeled))
+	for name, entries := range a.unmodeled {
+		if len(entries) == 1 {
+			out[name] = entries[0]
+			continue
+		}
+		out[name] = entries
+	}
+	return out
+}
+
+// useMember is a folded reference's use member: the annotations of the chain
+// it names, which no carrier holds.
+type useMember struct {
+	Docs         ir.Docs          `json:"docs"`
+	Deprecation  *ir.Deprecation  `json:"deprecation,omitzero"`
+	Examples     []ir.Example     `json:"examples,omitempty"`
+	Availability *ir.Availability `json:"availability,omitzero"`
+	Unmodeled    map[string]any   `json:"unmodeled,omitempty"`
+}
+
+// The methodless copies the fold writes through, so writing one reaches none
+// of its own marshalers again.
+type (
+	plainRef       ir.TypeRef
+	plainProperty  ir.Property
+	plainHeader    ir.Header
+	plainParameter ir.Parameter
+	plainVariant   ir.Variant
+)
+
+// foldedRef is a reference to a decorator: its own members, the target
+// replaced, and the chain's annotations beside them.
+type foldedRef struct {
+	Ref plainRef  `json:",embed"`
+	Use useMember `json:"use"`
+}
+
+// carried is a carrier whose type names a decorator: its own members, the
+// chain merged in, and Unmodeled the union, which may list a repeated name.
+type carried[T any] struct {
+	Carrier   T              `json:",embed"`
+	Unmodeled map[string]any `json:"unmodeled,omitempty"`
+}
+
+// slots point at a carrier's reference and the fields the chain merges into.
+type slots struct {
+	ref          *ir.TypeRef
+	docs         *ir.Docs
+	deprecation  **ir.Deprecation
+	examples     *[]ir.Example
+	availability **ir.Availability
+	unmodeled    ir.Unmodeled
+}
+
+// write writes c, merging the chain its reference names into s, the carrier's
+// own fields first, or declines, for a carrier naming no decorator.
+func (c *carried[T]) write(enc *jsontext.Encoder, uses map[ir.TypeID]use, s slots) error {
+	u, ok := uses[s.ref.Target]
+	if !ok {
+		return errors.ErrUnsupported
+	}
+	own := annotations{docs: *s.docs, deprecation: *s.deprecation, examples: *s.examples,
+		availability: *s.availability, unmodeled: listed(s.unmodeled)}
+	merged := own.then(u.notes)
+	s.ref.Target = u.target
+	*s.docs, *s.deprecation, *s.examples, *s.availability = merged.docs, merged.deprecation, merged.examples,
+		merged.availability
+	c.Unmodeled = merged.unmodeledMember()
+	return json.MarshalEncode(enc, c)
+}
