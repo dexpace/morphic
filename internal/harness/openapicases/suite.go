@@ -159,38 +159,35 @@ func (g suiteGroup) group(name string, n int) (Group, error) {
 }
 
 // compatible reports whether a group whose compatibility expression is expr
-// applies at release, as the suite's README reads one: comma-separated terms
-// ordered smallest to largest, "N" opening a range from release N, "<=N"
-// closing the open range, or one from the first release, at N, and "=N" naming
-// release N alone. The group applies where any range holds release, and an
-// empty expression at every release.
+// applies at release, by the algorithm the suite's README gives: the
+// comma-separated terms are read in order, each deciding alone, "N" for a
+// release at or past N, "<=N" for one at or before it and "=N" for N alone, and
+// the first term whose N is at or past release is the last read. Every term is
+// parsed, read or not. An empty expression applies at every release.
 func compatible(expr string, release int) (bool, error) {
 	if expr == "" {
 		return true, nil
 	}
-	applies, open, from := false, false, 0
+	applies, decided := true, false
 	for term := range strings.SplitSeq(expr, ",") {
 		op, n, err := compatibilityTerm(strings.TrimSpace(term))
 		if err != nil {
 			return false, fmt.Errorf("compatibility %q: %w", expr, err)
 		}
+		if decided {
+			continue
+		}
 		switch op {
 		case "<=":
-			lowest := 0
-			if open {
-				lowest = from
-			}
-			applies = applies || (lowest <= release && release <= n)
-			open = false
+			applies = release <= n
 		case "=":
-			applies = applies || release == n
-			open = false
+			applies = release == n
 		default:
-			applies = applies || (open && from <= release)
-			open, from = true, n
+			applies = release >= n
 		}
+		decided = release <= n
 	}
-	return applies || (open && from <= release), nil
+	return applies, nil
 }
 
 // compatibilityTerm splits one term of a compatibility expression into its
