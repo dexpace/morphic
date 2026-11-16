@@ -4547,16 +4547,21 @@ instances of one kind and lets any other through (JSON Schema Validation 2020-12
 the numeric bounds, the exclusive ones among them, where it admits `integer` or `number`,
 `minLength`, `maxLength` and `pattern` where it admits `string`, the collection bounds where it
 admits `array`, and `minProperties` and `maxProperties` where it admits `object`; `boolean` and
-`null` take none. The types a position admits are those its own `type` declares that every schema
-it names admits too: the one its `$ref` chain ends on, each `allOf` entry, a `oneOf` or `anyOf`,
-which admits what any of its branches does, a branch of null alone, written with a `type` or not,
-admitting none a bound applies to ([`union-null-variant`](#union-null-variant)), and the target a
-`$dynamicRef` or `$recursiveRef` names ([`dynamic-ref`](#dynamic-ref)), one closing a cycle of
-them, which does not expand, included, read through as many of those as the named schemas write,
-from the source and never from what has been lowered, so no answer turns on the order schemas are
-declared in. A schema declaring no `type` and naming none excludes nothing, so it reads every
-bound; one declaring `null` alone reads none, its `Enum` with no member keeping them
-([`null-alone`](#null-alone)), and so does one whose own and named types share no kind. A bound no
+`null` take none. The types a position admits are those its node lowers from: the kinds its own
+`type` declares and the members of its `enum` or `const` have, that every schema it names admits
+too: what its `$ref` lands on, the keywords beside each `$ref` of the chain read with it, each
+`allOf` entry, a `oneOf` or `anyOf`, which admits what any of its branches does, a branch of null
+alone, written with a `type` or not, admitting none a bound applies to
+([`union-null-variant`](#union-null-variant)), and the target a `$dynamicRef` or `$recursiveRef`
+names ([`dynamic-ref`](#dynamic-ref)), read through as many of those as the named schemas write,
+from the source and never from what has been lowered, once a compile, so no answer turns on the
+order schemas are declared in or on how many the read takes in. Where that leaves every kind and the
+schema's `properties` lists a member, it admits an object, as it lowers to a `Model`. A read meeting
+a cycle of `$ref`s, `allOf` entries or dynamic references, or a `$ref` landing on no schema,
+whichever schema of it is read first, leaves the position's own `type` to decide. A schema
+declaring no `type` and naming none excludes nothing, so it reads every bound; one declaring `null`
+alone reads none, its `Enum` with no member keeping them ([`null-alone`](#null-alone)), and so does
+one whose own and named types share no kind. A bound no
 type the position admits takes reaches no `Constraints`, the carrier's included, and is kept
 verbatim under `openapi:<keyword>` (`degraded_lowering`) with an info `openapi/degraded-construct`
 naming what the position lowered to: on the node it owns, on an alias hoisted where it lowered to a
@@ -4627,7 +4632,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestAllOf_ACompositionReadsBoundsByTheTypesItComposes`,
   `schema.TestAllOf_AnEmptyConjunctionKeepsEveryBound`,
   `schema.TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes`,
-  `schema.TestConstraints_AReadPastItsBudgetReadsEveryBoundInEitherOrder`,
+  `schema.TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder`,
   `schema.TestConstraints_AnExpandedReferenceIsNamedByItsKeyword`,
   `schema.TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder`,
   `schema.TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch`,
@@ -4636,9 +4641,12 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_ATypeListReadsWhatThePositionAdmits`,
   `schema.TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough`,
   `schema.TestConstraints_AnInlineBranchIsReadAtItsOwnPointer`,
-  `schema.TestBoundTypes_ReadsNoSiblingPastItsBudget`,
-  `schema.TestBoundTypes_ADynamicCycleEndsOnTheBudget`,
-  `schema.TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing`,
+  `schema.TestBoundKinds_ReadsEachShapeWhole`,
+  `schema.TestBoundKinds_ACycleLeavesTheOwnTypeToDecide`,
+  `e2e.TestCompile_ABoundBesideAValueSetOfOtherKindsIsKeptNotPlaced`,
+  `e2e.TestCompile_ABoundBesideAnInferredObjectIsKeptOnItsHome`,
+  `e2e.TestCompile_ABoundBesideAWideAllOfOfStringsIsDecidedAtEverySize`,
+  `e2e.TestCompile_AnAllOfCycleBesideABoundIsReadAlikeFromEveryEntry`,
   `operation.TestParams_ABoundBesideAReferenceIsReadByItsNamedType`,
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
@@ -4676,19 +4684,12 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
-- Status: partly built: the types a schema admits are read off `type` alone, a union's branch of
-  null alone aside, so a value set declaring none (an `enum` or a `const`), the position's own or a
-  union's branch, reads every bound, and a `Union` of such branches holds one of a kind none of
-  their members is (#1919); a `type` written beside a `$ref` inside a named schema is not read
-  (#1390); and a read of more than 256 named schemas reads every bound, as one through a cycle of
-  `allOf` entries or of dynamic references always does. A distributed union's variant holds each
-  bound the whole position takes, one its own branch cannot take included (#1936). Two declarations
-  of one field that each keep a bound meet the fold of
-  [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
-  at its position, with the census's other keywords, not at the keyword. A read counts schemas, not
-  their keys, so positions naming a schema of very many keys cost their number times the schemas
-  read times those keys (#1939). A bound beside an enum a promotion opens, which bounds the values
-  it does not list, is kept verbatim as a closed one's is (#2004).
+- Status: partly built: a distributed union's variant holds each bound the whole position takes,
+  one its own branch cannot take included (#1936). Two declarations of one field that each keep a
+  bound meet the fold of [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound
+  left unread is reported at its position, with the census's other keywords, not at the keyword. A
+  bound beside an enum a promotion opens, which bounds the values it does not list, is kept verbatim
+  as a closed one's is (#2004).
 
 ### `validation-only`
 

@@ -336,14 +336,14 @@ func unhomedAcross(s *statement.Schema, nodes []ir.TypeDef, handled []string) []
 	return out
 }
 
-// referenceUnhomed is unhomedKeywords for a position s, written at pointer,
-// lowered to a reference (keywordHome's nil td), with the bounds its alias or
-// carrier does not read: those no type the position admits takes
-// (positionTypes), and the collection bounds it would have held where those
-// admit no array (referenceConstraintsOf). The census keywords stay in
-// censusKeywords order, which is alphabetical.
-func referenceUnhomed(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, handled []string) []string {
-	takes := positionTypes(c, s, pointer)
+// referenceUnhomed is unhomedKeywords for a position s lowered to a reference
+// (keywordHome's nil td), with the bounds its alias or carrier does not read:
+// those no type the position admits takes (boundKinds), and the collection
+// bounds it would have held where those admit no array
+// (referenceConstraintsOf). The census keywords stay in censusKeywords order,
+// which is alphabetical.
+func referenceUnhomed(c lowering.Ctx, s *statement.Schema, handled []string) []string {
+	takes := boundKinds(c, s)
 	unhomed := unhomedKeywords(s, nil, handled)
 	if takes&kindArray == 0 {
 		for _, keyword := range collectionBoundKeywords {
@@ -356,8 +356,7 @@ func referenceUnhomed(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poin
 	return append(unhomed, untakenBounds(s, takes)...)
 }
 
-// refSiteUnhomedKeywords is referenceUnhomed for a $ref site s, written at
-// pointer, plus allOf.
+// refSiteUnhomedKeywords is referenceUnhomed for a $ref site s, plus allOf.
 // handled passes through so an allOf branch spelled as a $ref still routes its
 // own `required` to requireMembers.
 //
@@ -369,8 +368,8 @@ func referenceUnhomed(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poin
 //
 // oneOf/anyOf stay out: callers check declaresUnion and call the union keepers
 // directly (GitHub #406).
-func refSiteUnhomedKeywords(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, handled []string) []string {
-	unhomed := referenceUnhomed(c, s, pointer, handled)
+func refSiteUnhomedKeywords(c lowering.Ctx, s *statement.Schema, handled []string) []string {
+	unhomed := referenceUnhomed(c, s, handled)
 	if len(allOfIn(s)) > 0 {
 		unhomed = append(unhomed, "allOf")
 	}
@@ -403,7 +402,7 @@ func expandedShapeOf(s *statement.Schema) string {
 // Those two write few: neither expands or collapses beside a shape (GitHub #595).
 func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) ([]string, string) {
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
-		return referenceUnhomed(c, s, pointer, nil), expandedShapeOf(s)
+		return referenceUnhomed(c, s, nil), expandedShapeOf(s)
 	}
 	if hasUnionSiblings(c, s) {
 		return nil, ""
@@ -411,7 +410,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
-	return referenceUnhomed(c, s, pointer, branchesSay(c, s)), collapsedShape
+	return referenceUnhomed(c, s, branchesSay(c, s)), collapsedShape
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
@@ -437,12 +436,12 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Sch
 	case owns != id:
 		// The alias hoisted over a shared node reads the bounds the types the
 		// position admits take, and only those.
-		unhomed = append(unhomed, untakenBounds(s, positionTypes(c, s, pointer))...)
+		unhomed = append(unhomed, untakenBounds(s, boundKinds(c, s))...)
 	case !carriesNumberAsText(td):
 		// No alias will be hoisted over a node the position already owns, so a
 		// bound it did not read reaches no Constraints field anywhere. One carrying
 		// a number as text kept every bound itself (keepTextBounds).
-		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, positionTypes(c, s, pointer))...)
+		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, boundKinds(c, s))...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
@@ -559,7 +558,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *statement.Sch
 			nodes = append(nodes, node)
 		}
 	}
-	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, positionTypes(c, s, pointer))...)
+	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, boundKinds(c, s))...)
 	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
 }
 

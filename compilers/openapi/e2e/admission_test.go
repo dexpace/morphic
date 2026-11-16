@@ -186,6 +186,176 @@ func TestCompile_AnAllOfCycleBesideABoundIsReadAlikeFromEveryEntry(t *testing.T)
 	}
 }
 
+// infosAt counts the infos of code whose pointer is at or under pointer and
+// whose message holds word.
+func infosAt(diags []ir.Diagnostic, code, pointer, word string) int {
+	n := 0
+	for _, d := range diags {
+		at := string(d.Provenance.Pointer)
+		if d.Severity == ir.SeverityInfo && d.Code == code &&
+			(at == pointer || strings.HasPrefix(at, pointer+"/")) && strings.Contains(d.Message, word) {
+			n++
+		}
+	}
+	return n
+}
+
+// walkObjects calls visit on every JSON object under tree.
+func walkObjects(tree any, visit func(m map[string]any)) {
+	switch v := tree.(type) {
+	case map[string]any:
+		visit(v)
+		for _, child := range v {
+			walkObjects(child, visit)
+		}
+	case []any:
+		for _, child := range v {
+			walkObjects(child, visit)
+		}
+	}
+}
+
+// boundHomes is the sorted IDs of every node, property and parameter of doc
+// whose Constraints hold the member named key (JSON spelling, "min" or
+// "minLength"): a bound placed as a constraint.
+func boundHomes(t *testing.T, doc *ir.Document, key string) []string {
+	t.Helper()
+	homes := []string{}
+	walkObjects(documentTree(t, doc), func(m map[string]any) {
+		c, ok := m["constraints"].(map[string]any)
+		if !ok {
+			return
+		}
+		if _, held := c[key]; held {
+			id, _ := m["id"].(string)
+			homes = append(homes, id)
+		}
+	})
+	sort.Strings(homes)
+	return homes
+}
+
+// keptEntries is the sorted source pointers of every Unmodeled entry of doc
+// under key, wherever it is held: a bound kept verbatim rather than placed.
+func keptEntries(t *testing.T, doc *ir.Document, key string) []string {
+	t.Helper()
+	kept := []string{}
+	walkObjects(documentTree(t, doc), func(m map[string]any) {
+		held, ok := m["unmodeled"].(map[string]any)
+		if !ok {
+			return
+		}
+		entry, ok := held[key].(map[string]any)
+		if !ok {
+			return
+		}
+		prov, _ := entry["provenance"].(map[string]any)
+		pointer, _ := prov["pointer"].(string)
+		assert.Equal(t, "degraded_lowering", entry["reason"], "why %s is kept", key)
+		kept = append(kept, pointer)
+	})
+	sort.Strings(kept)
+	return kept
+}
+
+// TestCompile_ABoundBesideAValueSetOfOtherKindsIsKeptNotPlaced holds that a
+// numeric bound beside a value set whose members are strings, whether the set
+// is named by a $ref, by an allOf or written at the position, lands in no
+// Constraints, at a component, a property and a parameter alike, and is kept
+// under its own key once with one info at its position.
+func TestCompile_ABoundBesideAValueSetOfOtherKindsIsKeptNotPlaced(t *testing.T) {
+	t.Parallel()
+	const paths = `paths:
+  /p:
+    get:
+      parameters:
+        - name: q
+          in: query
+          schema: {$ref: '#/components/schemas/Colors', minimum: 1}
+      responses: {'204': {description: ok}}
+`
+	schemas := []string{
+		"Colors: {enum: [red, green]}",
+		"Shade: {allOf: [{$ref: '#/components/schemas/Colors'}], minimum: 1}",
+		"Holder: {type: object, properties: {shade: {$ref: '#/components/schemas/Colors', minimum: 1}, own: {enum: [red, green], minimum: 1}}}",
+	}
+	positions := []string{
+		"/components/schemas/Shade",
+		"/components/schemas/Holder/properties/shade",
+		"/components/schemas/Holder/properties/own",
+		"/paths/~1p/get/parameters/0/schema",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "colors", admissionSpec("3.1.0", paths, schemas...))
+		assert.Empty(t, boundHomes(t, doc, "min"), "no Constraints holds the bound")
+		wantKept := make([]string, 0, len(positions))
+		for _, p := range positions {
+			wantKept = append(wantKept, p+"/minimum")
+			assert.Equal(t, 1, infosAt(diags, diag.DegradedConstruct, p, "minimum"), "one info at %s", p)
+		}
+		// A parameter keeps what its schema writes under the schema's scope
+		// (docs/ir/unmodeled.md#keys), so the last position's key is scoped.
+		atSchemas := wantKept[:len(wantKept)-1]
+		sort.Strings(atSchemas)
+		assert.Equal(t, atSchemas, keptEntries(t, doc, "openapi:minimum"), "the bound is kept once at each schema")
+		assert.Equal(t, wantKept[len(wantKept)-1:], keptEntries(t, doc, "openapi:schema/minimum"),
+			"and once at the parameter")
+		requireErrorsAndWarnings(t, diags, nil)
+	})
+}
+
+// TestCompile_ABoundBesideAnInferredObjectIsKeptOnItsHome holds that a string
+// bound beside a schema that is an object by its properties, written inline or
+// beside a $ref to one, lands in no Constraints: the home is an object, and
+// the bound is kept under its own key at its pointer.
+func TestCompile_ABoundBesideAnInferredObjectIsKeptOnItsHome(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Props: {properties: {a: {type: string}}}",
+		"B3: {$ref: '#/components/schemas/Props', minLength: 3}",
+		"O1: {properties: {a: {type: string}}, minLength: 3}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "inferred", admissionSpec("3.1.0", "", schemas...))
+		assert.Empty(t, boundHomes(t, doc, "minLength"), "no Constraints holds the bound")
+		assert.Equal(t, []string{"/components/schemas/B3/minLength", "/components/schemas/O1/minLength"},
+			keptEntries(t, doc, "openapi:minLength"))
+		requireErrorsAndWarnings(t, diags, nil)
+	})
+}
+
+// TestCompile_ABoundBesideAWideAllOfOfStringsIsDecidedAtEverySize holds that a
+// numeric bound beside an allOf of N references to strings is kept under its
+// own key and placed in no Constraints whatever N is, either side of 256, and
+// at 3.0 as at 3.1: the answer does not turn on how many schemas the read
+// took in.
+func TestCompile_ABoundBesideAWideAllOfOfStringsIsDecidedAtEverySize(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		version string
+		n       int
+	}{{"3.1.0", 2}, {"3.1.0", 255}, {"3.1.0", 256}, {"3.1.0", 257}, {"3.1.0", 300}, {"3.0.3", 257}} {
+		version, n := tc.version, tc.n
+		t.Run(fmt.Sprint(version, " ", n), func(t *testing.T) {
+			t.Parallel()
+			entries := make([]string, 0, n)
+			schemas := make([]string, 1, n+1)
+			for i := range n {
+				entries = append(entries, fmt.Sprintf("{$ref: '#/components/schemas/S%d'}", i))
+				schemas = append(schemas, fmt.Sprintf("S%d: {type: string}", i))
+			}
+			schemas[0] = "Wide: {allOf: [" + strings.Join(entries, ", ") + "], minimum: 1}"
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, diags := compileAnnotationSpec(t, "wide", admissionSpec(version, "", schemas...))
+				assert.Empty(t, boundHomes(t, doc, "min"), "no Constraints holds the bound")
+				assert.Equal(t, []string{"/components/schemas/Wide/minimum"}, keptEntries(t, doc, "openapi:minimum"))
+				assert.Equal(t, 1, infosAt(diags, diag.DegradedConstruct, "/components/schemas/Wide", "minimum"))
+				requireErrorsAndWarnings(t, diags, nil)
+			})
+		})
+	}
+}
+
 const (
 	strRef   = "{$ref: '#/components/schemas/Str'}"
 	objRef   = "{$ref: '#/components/schemas/Obj'}"

@@ -534,11 +534,31 @@ func (w *admission) valueSet(key valueSetOf, members []*yaml.Node) admitted {
 	if !w.members.Spend(len(members)) {
 		return admitted{fixed: true}
 	}
-	set := lowering.Remembered(w.c, key, func() memberSet { return readMembers(members) })
+	set := memberSetOf(w.c, key, members)
 	if set.unread {
 		w.members.Exhaust()
 	}
 	return admitted{kinds: set.kinds, fixed: true, values: set.values}
+}
+
+// memberSetOf returns the members of the set key names, members, read once a
+// run.
+func memberSetOf(c lowering.Ctx, key valueSetOf, members []*yaml.Node) memberSet {
+	return lowering.Remembered(c, key, func() memberSet { return readMembers(members) })
+}
+
+// valueKinds returns the kinds the enum and the const s writes leave, null
+// aside: every kind where it writes neither, and none for a set no reading
+// converts, which cuts the read (readOwn).
+func valueKinds(c lowering.Ctx, s *statement.Schema) kindSet {
+	kinds := anyInstance
+	if enumWritten(s) {
+		kinds &= memberSetOf(c, valueSetOf{s, "enum"}, enumIn(s)).kinds
+	}
+	if constant := constIn(s); constant != nil {
+		kinds &= memberSetOf(c, valueSetOf{s, "const"}, []*yaml.Node{constant}).kinds
+	}
+	return kinds
 }
 
 // readMembers reads each member's key with its kind.

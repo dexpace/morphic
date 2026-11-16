@@ -45,8 +45,9 @@ func dynamicRefOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer)
 
 // dynamicTarget is the position the dynamic reference s writes at pointer
 // names, as dynamicExpansion reads it but for the check that its expansions
-// close no cycle, which walks their whole chain. A reader spending a step on
-// each schema it reads, as boundTypes does, ends such a cycle on its budget.
+// close no cycle, which walks their whole chain. A reader following it as a
+// conjunct edge, as admissionOf does, cuts such a cycle as it cuts one of
+// $refs.
 func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (bind.Position, bool) {
 	ref, _, ok := expandableRef(c, s, pointer)
 	if !ok {

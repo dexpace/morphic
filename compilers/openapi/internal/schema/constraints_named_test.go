@@ -607,41 +607,26 @@ func budgetSpec(n int) string {
 	return openapitest.ComponentSpec(b.String())
 }
 
-// TestConstraints_AReadPastItsBudgetReadsEveryBoundInEitherOrder pins that a
-// read of the named schemas that spends more than its budget answers nothing,
-// so no verdict turns on the order an allOf lists its entries in: past 256
-// schemas read, both properties hold the bound, and short of it both keep it.
-func TestConstraints_AReadPastItsBudgetReadsEveryBoundInEitherOrder(t *testing.T) {
+// TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder pins that the read
+// of the named schemas is decided whatever it takes in, so no verdict turns on
+// how far it reads or on the order an allOf lists its entries in: either side
+// of 256 schemas read, both properties keep a string bound beside an array.
+func TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder(t *testing.T) {
 	t.Parallel()
-	t.Run("row 36: 256 reads", func(t *testing.T) {
-		t.Parallel()
-		doc, diags := parseFull(t, budgetSpec(254))
-		openapitest.RequireNoErrorDiags(t, diags)
-		for _, wire := range []string{"wideFirst", "arrFirst"} {
-			p := propertyOf(t, doc, "H", wire)
-			assert.Nil(t, p.Constraints, wire)
-			node, ok := doc.Types[p.Type.Target].(*ir.Model)
-			require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
-			assert.Contains(t, node.Unmodeled, "openapi:minLength", wire)
-		}
-	})
-	t.Run("row 37: 257 reads", func(t *testing.T) {
-		t.Parallel()
-		doc, diags := parseFull(t, budgetSpec(255))
-		openapitest.RequireNoErrorDiags(t, diags)
-		first, last := propertyOf(t, doc, "H", "wideFirst"), propertyOf(t, doc, "H", "arrFirst")
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, first.Constraints)
-		assert.Equal(t, first.Constraints, last.Constraints)
-		assert.Empty(t, first.Unmodeled)
-		assert.Empty(t, last.Unmodeled)
-		for _, p := range []ir.Property{first, last} {
-			node := doc.Types[p.Type.Target]
-			require.NotNil(t, node, p.ID)
-			assert.NotContains(t, node.Common().Unmodeled, "openapi:minLength", p.ID)
-		}
-		assert.Equal(t, doc.Types[first.Type.Target].Kind(), doc.Types[last.Type.Target].Kind())
-		assert.Equal(t, first.Type.Nullable, last.Type.Nullable)
-	})
+	for _, n := range []int{254, 255} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, budgetSpec(n))
+			openapitest.RequireNoErrorDiags(t, diags)
+			for _, wire := range []string{"wideFirst", "arrFirst"} {
+				p := propertyOf(t, doc, "H", wire)
+				assert.Nil(t, p.Constraints, wire)
+				node, ok := doc.Types[p.Type.Target].(*ir.Model)
+				require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
+				assert.Contains(t, node.Unmodeled, "openapi:minLength", wire)
+			}
+		})
+	}
 }
 
 // recursiveSpec writes a $recursiveRef and a $dynamicRef each beside a bound its

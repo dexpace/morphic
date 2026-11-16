@@ -876,3 +876,13 @@ it sees. Changes made together in one bump are listed together under it.
   carrier finds the bound on its node, one reading such a member took the declaration the flattening
   reached last, one reading such a discriminator found it by `PropertyName`, and one reading a tie
   between two inline declarations took the first's.
+- **0.70.0** — no change of shape; a bound is read by the kinds its position lowers from. A
+  compiler keeps a bound none of those kinds takes verbatim under its keyword
+  (`ReasonDegradedLowering`) on the node or carrier it would have reached, a value set's among them
+  ([constraints](./constraints.md#constraints)). The OpenAPI compiler reads the kinds a value set's
+  members have, a `type` written beside a `$ref` at any depth, an object where a schema states no
+  kind and its `properties` lists a member, and a read of any size, where it read every bound beside
+  a value set naming no `type` and past 256 named schemas: a numeric bound beside an `enum` of
+  strings, or a string bound beside a schema that is an object by its `properties`, is kept and no
+  longer held ([`constraints`](../compilers/openapi.md#constraints)). A consumer pinned to 0.69.0
+  refuses the document; one reading such a bound off `Constraints` finds it under `Unmodeled`.
