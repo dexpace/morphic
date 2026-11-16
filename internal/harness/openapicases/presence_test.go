@@ -42,9 +42,13 @@ func presence(t *testing.T, r harness.Result) harness.Verdict {
 // compiles, and again when its value changes, and a keyword nothing carries
 // changes nothing. What the oracle finds is the record's, each line with the
 // reason it stands; the four keywords nothing carries are asked at every
-// position and found equal to the case leaving them out.
+// position and found equal to the case leaving them out. No case faults: a
+// fault gives no verdict, so -update would delete the line of a case it ended.
 func TestCore_EveryKeywordIsCarriedEverywhere(t *testing.T) {
 	results := coreResults(t)
+	for _, r := range results {
+		require.False(t, r.Faulted(), "%s: %s: %s", r.Spec, r.Outcome, r.Detail)
+	}
 	found := harness.Findings(results, harness.OraclePresence)
 	record, err := openapicases.Record(harness.OraclePresence)
 	require.NoError(t, err)
