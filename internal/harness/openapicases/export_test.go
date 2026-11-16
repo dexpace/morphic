@@ -32,5 +32,7 @@ func Reasons() map[string]string {
 			"a $dynamicRef it does not expand",
 		"union-beside-ref": "#2010: a union beside a $ref is kept verbatim where beside an allOf of that $ref it is " +
 			"consumed, distributed or read as validation logic",
+		"entry-value-set": "#2017: an enum or const on an inline allOf entry builds its node at the entry's " +
+			"pointer where beside the allOf it builds it at the position's",
 	}
 }
