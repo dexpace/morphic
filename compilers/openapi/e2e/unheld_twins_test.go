@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"slices"
@@ -139,7 +140,14 @@ func none(twinPlace) []string { return nil }
 // kept under no_ir_home at an info finding
 // (docs/compilers/openapi.md#unmodeled-dialect-fields).
 func rawField(p twinPlace) []string {
-	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.field() + ":"}
+	return []string{"diag info openapi/degraded-construct 0" + encodingAt + p.field() + ":",
+		"unmodeled openapi:encoding/f" + p.field() + " no_ir_home"}
+}
+
+// rawExtension is what every twin keeps and no nested document does: the
+// field, kept as an extension.
+func rawExtension(p twinPlace) []string {
+	return []string{"unmodeled openapi:encoding/f" + p.field() + " vendor_extension"}
 }
 
 // in is the source's $ref to the schema beneath the field.
@@ -421,16 +429,67 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	layout(t, dir, files)
 	doc, diags := compileDir(t, dir, openapi.Options{})
 	lines = append(lines, "compiled "+strconv.FormatBool(doc != nil), fmt.Sprintf("charged %d", charged(t, dir)))
+	lines = append(lines, irAnswers(t, doc)...)
 	for _, d := range diags {
-		msg := strings.ReplaceAll(d.Message, dir, "DIR")
 		lines = append(lines, fmt.Sprintf("diag %s %s %d%s: %s", d.Severity, d.Code, d.Provenance.Source,
-			d.Provenance.Pointer, msg))
+			d.Provenance.Pointer, d.Message))
 	}
 	for i := range lines {
+		lines[i] = strings.ReplaceAll(lines[i], dir, "DIR")
 		lines[i] = strings.ReplaceAll(lines[i], p.key, nested)
 		lines[i] = strings.ReplaceAll(lines[i], p.escaped(), twinPlace{key: nested}.escaped())
 	}
 	slices.Sort(lines)
+	return lines
+}
+
+// irAnswers is doc as a line for each value it holds, "ir <pointer> <value>",
+// and each Unmodeled entry no type holds as "unmodeled <key> <reason>". The findings and the
+// source's hash are left out, the findings answered for line by line beside, and
+// so is the name of a type at a header's schema, which a header beneath the
+// field names (docs/compilers/openapi.md#naming) and raw YAML does not.
+func irAnswers(t *testing.T, doc *ir.Document) []string {
+	t.Helper()
+	if doc == nil {
+		return nil
+	}
+	data, err := json.Marshal(doc)
+	require.NoError(t, err)
+	var v any
+	require.NoError(t, json.Unmarshal(data, &v))
+	var lines []string
+	var walk func(v any, at string)
+	walk = func(v any, at string) {
+		switch v := v.(type) {
+		case map[string]any:
+			for k, c := range v {
+				below := at + "/" + strings.ReplaceAll(strings.ReplaceAll(k, "~", "~0"), "/", "~1")
+				if e, ok := c.(map[string]any); ok && strings.HasSuffix(at, "/unmodeled") && !strings.HasPrefix(at, "/types/") {
+					lines = append(lines, fmt.Sprintf("unmodeled %s %v", k, e["reason"]))
+					delete(e, "reason")
+				}
+				walk(c, below)
+			}
+		case []any:
+			for i, c := range v {
+				walk(c, at+"/"+strconv.Itoa(i))
+			}
+		default:
+			lines = append(lines, fmt.Sprintf("ir %s %v", at, v))
+		}
+	}
+	m, ok := v.(map[string]any)
+	require.True(t, ok)
+	delete(m, "diagnostics")
+	for _, src := range m["sources"].([]any) {
+		delete(src.(map[string]any), "hash")
+	}
+	for id, def := range m["types"].(map[string]any) {
+		if strings.HasSuffix(id, "/headers/H/schema") {
+			delete(def.(map[string]any), "name")
+		}
+	}
+	walk(m, "")
 	return lines
 }
 
@@ -487,11 +546,12 @@ func charged(t *testing.T, dir string) int {
 // TestCompile_AFieldNoModelHoldsReadsAsAnExtension holds a schema beneath each
 // field an Encoding Object nests (unheldFields), one level beneath it and two,
 // to the answers the same schema gets with the field moved under an extension
-// key of its length: each schema $ref's hop and chain, role included, each
-// landing, each `#/$defs` answer, what a compile's copies are charged
-// (charged), and every finding of the compile, each as often. They differ only by the
-// field's own finding (rawField), the pointer bound's total (namedTotal), and
-// where a row says, each by the rule sentence its comment quotes.
+// key of its length: each reference's hop and chain, each landing, what a
+// compile's copies are charged (charged), its findings and its document
+// (irAnswers), each as often. They differ only by how each keeps the field
+// (rawField, rawExtension), the pointer bound's total (namedTotal), and where a
+// row says, by the rule its comment quotes, with the types a reference read
+// apart lowers to.
 func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 	t.Parallel()
 	for _, f := range unheldFields {
@@ -512,8 +572,12 @@ func TestCompile_AFieldNoModelHoldsReadsAsAnExtension(t *testing.T) {
 					if onlyNested == nil {
 						onlyNested, onlyTwin = none, none
 					}
+					if len(onlyNested(nested)) > 0 && len(onlyTwin(nested)) > 0 {
+						// A reference the pair reads apart may lower to types apart.
+						got, want = withoutTypes(got), withoutTypes(want)
+					}
 					assertDiffers(t, "nested", minus(got, want), append(rawField(nested), onlyNested(nested)...))
-					assertDiffers(t, "twin", minus(want, got), onlyTwin(nested))
+					assertDiffers(t, "twin", minus(want, got), append(rawExtension(nested), onlyTwin(nested)...))
 				})
 			}
 		}
@@ -530,6 +594,11 @@ func namedTotal(lines []string) ([]string, int, bool) {
 		}
 	}
 	return lines, 0, false
+}
+
+// withoutTypes is lines without those irAnswers gives of a type.
+func withoutTypes(lines []string) []string {
+	return slices.DeleteFunc(slices.Clone(lines), func(l string) bool { return strings.HasPrefix(l, "ir /types/") })
 }
 
 // minus is a less b, as multisets: a line a gives more often than b is kept
