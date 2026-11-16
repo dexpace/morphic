@@ -113,14 +113,14 @@ func TestNullAloneReading_IsTheWholeSchemasReading(t *testing.T) {
 				continue // 3.0 writes no type list, so it reads this one as left out
 			}
 			s := declared(t, l, "S"+string(rune('a'+i)))
-			got, ok := nullAloneReading(l.Ctx, StandaloneSchema(s))
+			got, ok := nullAloneReading(l.Ctx, StatedIn(l, s))
 			require.True(t, ok, "%s %s leaves no value but null", version, src)
 			n := newNulls(l.Ctx)
-			assert.Equal(t, n.schema(StandaloneSchema(s), nullSite{}), got, "%s %s", version, src)
+			assert.Equal(t, n.schema(StatedIn(l, s), nullSite{}), got, "%s %s", version, src)
 		}
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {type: [string, \"null\"]}\n"))
-	_, ok := nullAloneReading(l.Ctx, StandaloneSchema(declared(t, l, "S")))
+	_, ok := nullAloneReading(l.Ctx, StatedIn(l, declared(t, l, "S")))
 	assert.False(t, ok, "a type admitting a string leaves more than null")
 }
 

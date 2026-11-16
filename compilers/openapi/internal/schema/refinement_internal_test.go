@@ -51,7 +51,7 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 func TestOutcomeKeeps_ReportsANodeTheRegistryLacks(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
-	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape}.recordOn(l.Ctx, l.Types, "t/anon/none", StandaloneSchema(s), at)
+	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape}.recordOn(l.Ctx, l.Types, "t/anon/none", s, at)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 }
@@ -62,7 +62,7 @@ func TestOutcomeKeeps_ReportsANodeTheRegistryLacks(t *testing.T) {
 func TestRecordVoicedResidue_NeedsANodeItsPositionOwns(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
-	voices := []annotation.Voice{{Node: StandaloneSchema(s), At: at}}
+	voices := []annotation.Voice{{Node: s, At: at}}
 	assert.Empty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeCarrier))
 	assert.Empty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeOwnNode))
 	internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: cm} })
@@ -185,7 +185,7 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
         - {readOnly: true}
         - {description: d}
 `))
-	got := lendingBranches(l.Ctx, StandaloneSchema(declared(t, l, "T")))
+	got := lendingBranches(l.Ctx, StatedIn(l, declared(t, l, "T")))
 	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
 	assert.Equal(t, jsontext.Pointer("/allOf/2"), got[0].pointer)
 	b := statement.ParsedAt(got[0].schema).GetSchema()
@@ -196,7 +196,7 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
 	split, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
 `))
-	got = lendingBranches(split.Ctx, StandaloneSchema(declared(t, split, "T")))
+	got = lendingBranches(split.Ctx, StatedIn(split, declared(t, split, "T")))
 	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
 	assert.Empty(t, statement.ParsedAt(got[0].schema).GetSchema().GetTitle())
 	assert.Equal(t, "d", statement.ParsedAt(got[0].schema).GetSchema().GetDescription())
@@ -256,7 +256,7 @@ func TestReadVoices_RendersEachValueOnce(t *testing.T) {
 		for range 3 {
 			runtime.ReadMemStats(&stats)
 			before := stats.TotalAlloc
-			read := readVoices(l.Ctx, StandaloneSchema(s))
+			read := readVoices(l.Ctx, StatedIn(l, s))
 			runtime.ReadMemStats(&stats)
 			least = min(least, stats.TotalAlloc-before)
 			require.Len(t, read.speaks, later+1)
@@ -281,7 +281,7 @@ func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
 		s := declared(t, l, "T")
-		site := Use{Voices: positionVoices(l.Ctx, l.Types, StandaloneSchema(s), at, ir.TypeRef{})}.Site(StandaloneSchema(s))
+		site := Use{Voices: positionVoices(l.Ctx, l.Types, StatedIn(l, s), at, ir.TypeRef{})}.Site(StatedIn(l, s))
 		require.Len(t, site.Voices, voices)
 		var stats runtime.MemStats
 		least := uint64(math.MaxUint64)
@@ -333,7 +333,7 @@ func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmission(l.Ctx)
-	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StandaloneSchema(declared(t, l, "E")), w.nullable).values)
+	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, declared(t, l, "E")), w.nullable).values)
 }
 
 // TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
@@ -347,7 +347,7 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
 		w := newAdmission(l.Ctx)
-		assert.Equal(t, want, w.written(StandaloneSchema(declared(t, l, "T")), w.nullable).kinds, version)
+		assert.Equal(t, want, w.written(StatedIn(l, declared(t, l, "T")), w.nullable).kinds, version)
 	}
 }
 
@@ -358,7 +358,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
 	w := newAdmission(l.Ctx)
-	read := w.written(StandaloneSchema(declared(t, l, "E")), w.nullable)
+	read := w.written(StatedIn(l, declared(t, l, "E")), w.nullable)
 	assert.True(t, w.within(read, read))
 }
 
@@ -371,12 +371,12 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	first.written(StandaloneSchema(s), first.nullable)
+	first.written(StatedIn(l, s), first.nullable)
 	require.False(t, first.incomplete())
 
 	short := newAdmission(l.Ctx)
 	short.members = budget.New(budget.AtMost(1))
-	assert.Empty(t, short.written(StandaloneSchema(s), short.nullable).values, "a set past the budget is not read at all")
+	assert.Empty(t, short.written(StatedIn(l, s), short.nullable).values, "a set past the budget is not read at all")
 	assert.True(t, short.incomplete())
 }
 
@@ -389,7 +389,7 @@ func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
 		w := newAdmission(l.Ctx)
-		w.written(StandaloneSchema(s), w.nullable)
+		w.written(StatedIn(l, s), w.nullable)
 		assert.True(t, w.incomplete())
 	}
 }
@@ -414,7 +414,7 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		w := newAdmission(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }
-		conjuncts := w.conjuncts(StandaloneSchema(s), allOfBranches(l.Ctx, StandaloneSchema(s), ""))
+		conjuncts := w.conjuncts(StatedIn(l, s), allOfBranches(l.Ctx, StatedIn(l, s), ""))
 		principal := w.elect(conjuncts, refBranchOf(w.c, conjuncts))
 		require.NotNil(t, principal.branch)
 		require.Nil(t, statement.ParsedAt(principal.branch.schema).GetSchema().Ref, "the narrowing is elected")

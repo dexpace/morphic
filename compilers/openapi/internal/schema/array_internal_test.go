@@ -30,7 +30,7 @@ components:
 `)
 	js, ok := l.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
-	_, at := writtenAt(l.Ctx, StandaloneSchema(js.GetSchema()), "/components/schemas/U/type/0")
+	_, at := writtenAt(l.Ctx, l.Ctx.Statements().Of(js).Schema, "/components/schemas/U/type/0")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/U"), at)
 	_, at = writtenAt(l.Ctx, StandaloneSchema(&oas3.Schema{}), "/x")
 	assert.Equal(t, jsontext.Pointer("/x"), at, "a schema the bindings place nowhere")

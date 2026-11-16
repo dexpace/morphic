@@ -104,7 +104,7 @@ func TestSpellImplicitRoutes_ReportsAVariantNoBranchStandsFor(t *testing.T) {
 	u := &ir.Union{Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/a"}}, {Type: ir.TypeRef{Target: "t/b"}}},
 		Discriminator: &ir.Discriminator{PropertyName: "k"}}
 
-	diags := spellImplicitRoutes(l.Ctx, StandaloneSchema(js.GetSchema()), u, "/components/schemas/U")
+	diags := spellImplicitRoutes(l.Ctx, l.Ctx.Statements().Of(js).Schema, u, "/components/schemas/U")
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)

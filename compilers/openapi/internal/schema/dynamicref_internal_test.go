@@ -160,7 +160,7 @@ func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
 			there, read := lowering.InDocument(l.Ctx, at.Doc)
 			want := false
 			if read {
-				_, want = resolvePointer(there, l.Types, at.Pointer, Standalone(l.Ctx.Bindings().At(at)))
+				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Statements().At(at))
 			}
 			assert.Equal(t, want, resolvesAt(l.Ctx, at), "%s: %v", name, at)
 			asked++

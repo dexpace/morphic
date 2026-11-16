@@ -7,12 +7,12 @@ import (
 	"encoding/json/jsontext"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,13 +27,13 @@ func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *tes
 	var midBuild []ir.Diagnostic
 	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
 		require.NotPanics(t, func() {
-			midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, StandaloneSchema(s), at, ir.TypeRef{})
+			midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, s, at, ir.TypeRef{})
 		})
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build reports nothing")
 
-	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, StandaloneSchema(s), at, ir.TypeRef{}))
+	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, s, at, ir.TypeRef{}))
 	td, ok := l.Types.Node(id)
 	require.True(t, ok)
 	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")
@@ -49,13 +49,13 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 	var midBuild []ir.Diagnostic
 	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
 		require.NotPanics(t, func() {
-			midBuild = recordDeclarationResidue(l.Ctx, l.Types, StandaloneSchema(s), at, annotation.HomeOwnNode)
+			midBuild = recordDeclarationResidue(l.Ctx, l.Types, s, at, annotation.HomeOwnNode)
 		})
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build records and reports nothing")
 
-	assert.NotEmpty(t, recordDeclarationResidue(l.Ctx, l.Types, StandaloneSchema(s), at, annotation.HomeOwnNode),
+	assert.NotEmpty(t, recordDeclarationResidue(l.Ctx, l.Types, s, at, annotation.HomeOwnNode),
 		"the builder's own pass reports what it keeps")
 	td, ok := l.Types.Node(id)
 	require.True(t, ok)
@@ -63,14 +63,15 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 }
 
 // lowererDeclaringS returns a lowerer over a component S that declares a
-// description and readOnly, with S's schema and pointer, for driving a reader
+// description and readOnly, with S's schema as the run reads it and its
+// pointer, for driving a reader
 // at S while its node is still being built and again once the build returns.
-func lowererDeclaringS(t *testing.T) (*Lowerer, *oas3.Schema, jsontext.Pointer) {
+func lowererDeclaringS(t *testing.T) (*Lowerer, *statement.Schema, jsontext.Pointer) {
 	t.Helper()
 	l, diags := LoweredFor(t, openapitest.ComponentSpec(
 		"    S: {type: object, description: kept, readOnly: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	decl, ok := l.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
-	return l, decl.GetSchema(), "/components/schemas/S"
+	return l, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/S"
 }
