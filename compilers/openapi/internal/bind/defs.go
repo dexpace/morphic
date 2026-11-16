@@ -73,6 +73,9 @@ func (d definitions) ancestorDefinition(site Position, path []*yaml.Node, pointe
 	states[0] = sDocument
 	for i, t := range tokens {
 		states[i+1] = step(states[i], t)
+		if unheld[states[i]][t] {
+			states[i+1] = sRaw // no model holds what the field holds
+		}
 	}
 	rest := slices.Collect(pointer.Tokens())
 	why := NoDefinition
