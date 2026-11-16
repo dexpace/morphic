@@ -43,6 +43,14 @@ const (
 	OutcomeSequenceOrderDependent Outcome = "sequence-order-dependent"
 )
 
+// Case oracle outcomes, each the finding of the case oracle Oracle.finds names
+// it for.
+const (
+	OutcomeSpellingDependent Outcome = "spelling-dependent"
+	OutcomeNotCarried        Outcome = "not-carried"
+	OutcomeInstanceExcluded  Outcome = "instance-excluded"
+)
+
 // Result is one spec's outcome plus human-readable detail, and every oracle's
 // verdict on it.
 type Result struct {
@@ -53,8 +61,12 @@ type Result struct {
 	Outcome Outcome
 	// Detail is human-readable context for a non-OK outcome.
 	Detail string
-	// Verdicts holds one Verdict per oracle, in the order Oracles lists them:
-	// what each found, or why it asked nothing.
+	// Like is the name of the core case a case's values project to (Value),
+	// under which a record lists a finding at it (Recorded.Explains); empty
+	// for a spec.
+	Like string
+	// Verdicts holds one Verdict per oracle, in the order Oracles lists them,
+	// or for a case CaseOracles: what each found, or why it asked nothing.
 	Verdicts []Verdict
 }
 
@@ -102,15 +114,22 @@ func ended(spec string, outcome Outcome, detail string, verdicts []Verdict) Resu
 // judge is the Result verdicts make: completed with a not-reached verdict from
 // each oracle that gave none, and the first finding as its outcome.
 func judge(spec string, verdicts []Verdict) Result {
+	return judgeAmong(spec, Oracles(), verdicts, notReached)
+}
+
+// judgeAmong is the Result verdicts make of oracles: completed with a verdict
+// declining for missing's reason from each oracle that gave none, and the first
+// finding, in the order of oracles, as its outcome.
+func judgeAmong(spec string, oracles []Oracle, verdicts []Verdict, missing func(Oracle) Decline) Result {
 	answered := make(map[Oracle]Verdict, len(verdicts))
 	for _, v := range verdicts {
 		answered[v.Oracle] = v
 	}
 	res := Result{Spec: spec, Outcome: OutcomeOK}
-	for _, o := range Oracles() {
+	for _, o := range oracles {
 		v, ok := answered[o]
 		if !ok {
-			v = declined(o, DeclineNotReached)
+			v = declined(o, missing(o))
 		}
 		if v.Found() && res.Outcome == OutcomeOK {
 			res.Outcome, res.Detail = v.Outcome, v.Detail

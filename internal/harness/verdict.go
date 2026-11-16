@@ -28,12 +28,30 @@ const (
 	OracleSequenceOrder     Oracle = "sequence-order-invariance"
 )
 
+// The case oracles, in the order CheckCase applies them, each comparing a
+// case with a neighbour (Document says which).
+const (
+	// OracleSpelling holds a case to the partner spelling it must equal.
+	OracleSpelling Oracle = "spelling"
+	// OraclePresence holds a case to the case leaving its construct out and
+	// to the case writing its other value.
+	OraclePresence Oracle = "presence"
+	// OracleInstance holds each valid instance a case writes as a default to
+	// the type it compiles to.
+	OracleInstance Oracle = "instance"
+)
+
 // Oracles returns every oracle in the order Check applies them.
 func Oracles() []Oracle {
 	return []Oracle{
 		OracleNoPanic, OracleInvariants, OracleNoErrorDiagnostic, OracleRoundTrip,
 		OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder,
 	}
+}
+
+// CaseOracles returns every case oracle in the order CheckCase applies them.
+func CaseOracles() []Oracle {
+	return []Oracle{OracleSpelling, OraclePresence, OracleInstance}
 }
 
 // finds returns the outcome o reports when it fires, and false for a name that
@@ -56,10 +74,35 @@ func (o Oracle) finds() (Outcome, bool) {
 		return OutcomeOrderDependent, true
 	case OracleSequenceOrder:
 		return OutcomeSequenceOrderDependent, true
+	case OracleSpelling:
+		return OutcomeSpellingDependent, true
+	case OraclePresence:
+		return OutcomeNotCarried, true
+	case OracleInstance:
+		return OutcomeInstanceExcluded, true
 	default:
 		return "", false
 	}
 }
+
+// idle returns why o, a case oracle, asks a case nothing when the case's
+// document gives it nothing to compare, and "" for an oracle that is none. A
+// case oracle CheckCase holds no entry for declines for it.
+func idle(o Oracle) Decline {
+	switch o {
+	case OracleSpelling:
+		return DeclineNoPartner
+	case OraclePresence:
+		return DeclineNoConstruct
+	case OracleInstance:
+		return DeclineNoInstance
+	default:
+		return ""
+	}
+}
+
+// notReached is why an oracle a fault ended the run before declines.
+func notReached(Oracle) Decline { return DeclineNotReached }
 
 // Decline says why an oracle asked a spec nothing. A sweep counts each
 // (Summary), so an oracle that could not ask is never read as one that passed.
@@ -117,6 +160,26 @@ const (
 	// such nodes apart would follow which of them the comparison met first,
 	// not what they say.
 	DeclineReferenceCycle Decline = "reference cycle"
+)
+
+// Why a case oracle declines.
+const (
+	// DeclineNoPartner: the case names no spelling it must equal.
+	DeclineNoPartner Decline = "no partner"
+	// DeclineRelocationCollides: two names of one object read alike once
+	// relocated to the partner's coordinates, so the comparison would lose one.
+	DeclineRelocationCollides Decline = "relocation collides"
+	// DeclineNoConstruct: the case names no case leaving its construct out,
+	// as for the case writing no construct and for a construct's other value.
+	DeclineNoConstruct Decline = "no construct"
+	// DeclineNoInstance: the case writes no instance.
+	DeclineNoInstance Decline = "no instance"
+	// DeclineNotJudged: the compiled document does not hold an instance where
+	// the case wrote it, so nothing judged it.
+	DeclineNotJudged Decline = "not judged"
+	// DeclineErrorDiagnostic: a document the oracle compares draws an error
+	// diagnostic, so it compares a refusal rather than what the case says.
+	DeclineErrorDiagnostic Decline = "error diagnostic"
 )
 
 // Verdict is one oracle's answer for one spec: it asked and found nothing
@@ -180,8 +243,14 @@ type tally struct {
 // it asked its question of, how many of those it found something in, and how
 // many it declined, by reason. A result missing an oracle's verdict, which no
 // Check returns, counts as not reached.
-func Summary(results []Result) string {
-	oracles := Oracles()
+func Summary(results []Result) string { return summary(results, Oracles()) }
+
+// CaseSummary renders what Summary does of CheckCases' results, for each case
+// oracle in CheckCase's order.
+func CaseSummary(results []Result) string { return summary(results, CaseOracles()) }
+
+// summary renders, for each of oracles in order, what Summary says of it.
+func summary(results []Result, oracles []Oracle) string {
 	tallies := make(map[Oracle]*tally, len(oracles))
 	for _, o := range oracles {
 		tallies[o] = &tally{declined: map[Decline]int{}}
