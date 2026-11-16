@@ -72,12 +72,8 @@ var apiRoots = map[string]string{
 	"ir/irfacts.Index.Correlation": factAPI,
 	"ir/irfacts.Index.Correlated":  factAPI,
 
-	"compilers/openapi/internal/statement.NewTable":   statementAPI,
-	"compilers/openapi/internal/statement.Table.Of":   statementAPI,
-	"compilers/openapi/internal/statement.Table.At":   statementAPI,
-	"compilers/openapi/internal/statement.Table.Sub":  statementAPI,
-	"compilers/openapi/internal/statement.Table.Read": statementAPI,
-	"compilers/openapi/internal/statement.Schema.Key": statementAPI,
+	"compilers/openapi/internal/statement.Parsed":   statementAPI,
+	"compilers/openapi/internal/statement.ParsedAt": statementAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

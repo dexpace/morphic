@@ -200,12 +200,13 @@ var rules = map[string][]string{
 	// What a schema position writes, read once into one value: each key in the
 	// slot oas gives it, each slot's values typed, and the inline allOf entries
 	// flattened. It reaches the bindings for where each schema was read and
-	// what its $ref names, nodeview for the keys as the parser reads them, oas
-	// for the rows in force, and the library's schema model, in one file, so
-	// that the schema lowering and annotation, which sit above it, read what
-	// a schema says without reading the parser.
+	// what its $ref names, nodeview for the keys as the parser reads them,
+	// dialect and oas for the rows in force, and the library's schema model,
+	// in one file, so that the schema lowering and annotation, which sit above
+	// it, read what a schema says without reading the parser.
 	"compilers/openapi/internal/statement": {module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/dialect",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "go.yaml.in/yaml/v3"},
@@ -341,7 +342,8 @@ var rules = map[string][]string{
 	// states, the dialect question asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, provenance and diag for where a position of its document is
-	// placed, and promotion for the policy it carries.
+	// placed, promotion for the policy it carries, and statement for what each
+	// schema says, read once for the run.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -353,7 +355,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/provenance",
-		module + "/compilers/openapi/internal/resolve"},
+		module + "/compilers/openapi/internal/resolve",
+		module + "/compilers/openapi/internal/statement"},
 	// What the service lowerings read beside the schema lowering's context,
 	// which it embeds: the parsed document, the source's identity, how
 	// operations group, which media types stream or are binary, and the budget

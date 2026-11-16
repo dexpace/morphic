@@ -13,11 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
-	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
-
-// The rows a statement reads a position with are the table's.
-var _ statement.Dialects = dialect.Table{}
 
 // rows returns the Schema Object's rows at version in the dialect uri names,
 // which the table must have.

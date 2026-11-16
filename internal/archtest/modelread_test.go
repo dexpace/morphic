@@ -26,7 +26,8 @@ import (
 // modelReadBaseline is how many times each production package, keyed by its
 // repo-relative path, selects each member of the parser library's schema
 // types outside the statement adapter, compilers/openapi/internal/statement's
-// model.go. TestModelReads_HeldToTheBaseline fails when a count rises, since
+// model.go, and names a bridge back to them (bridgeKey).
+// TestModelReads_HeldToTheBaseline fails when a count rises, since
 // each new read is a second reading of the source beside the statement, and
 // when one falls until the count here is lowered to match, so the map only
 // shrinks as the readers move onto the statement (GitHub #1991).
@@ -168,6 +169,37 @@ var modelReadRatchet = ratchet{
 		"which reads the parser's schema once (GitHub #1991)",
 }
 
+// bridgeKey is the key modelReadBaseline counts each use of the statement's
+// bridges under: a function handing back the parser's value a statement was
+// read from, which a reader not yet reading the statement reads the model
+// through as surely as by a selection on it.
+const bridgeKey = "statement.Parsed"
+
+// statementPackage is the package the bridges are declared in, and bridges
+// names them.
+const statementPackage = module + "/compilers/openapi/internal/statement"
+
+var bridges = []string{"Parsed", "ParsedAt"}
+
+// bridgeUses returns where p names one of the statement's bridges.
+func bridgeUses(p *decls.Package) []token.Position {
+	var out []token.Position
+	for id, obj := range p.Info.Uses {
+		fn, ok := obj.(*types.Func)
+		if !ok || fn.Pkg() == nil || fn.Pkg().Path() != statementPackage || !slices.Contains(bridges, fn.Name()) {
+			continue
+		}
+		out = append(out, p.Fset.Position(id.Pos()))
+	}
+	slices.SortFunc(out, func(a, b token.Position) int {
+		if c := strings.Compare(a.Filename, b.Filename); c != 0 {
+			return c
+		}
+		return a.Offset - b.Offset
+	})
+	return out
+}
+
 // schemaModel names the parser library's schema types: a package and the
 // names it declares them by, a generic one standing for each of its
 // instances.
@@ -274,6 +306,9 @@ func TestModelReads_HeldToTheBaseline(t *testing.T) {
 		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
 		outside, inside := modelSelections(p, parserSchema, adapter)
 		inAdapter += inside
+		if at := bridgeUses(p); len(at) > 0 {
+			outside[bridgeKey] = at
+		}
 		for member, at := range outside {
 			if sites[rel] == nil {
 				sites[rel] = map[string][]string{}
