@@ -2987,10 +2987,13 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   different sets only because the model stops at the flattening depth are refused as
   `compile/registry-refused`, not told apart, since one declaration names both; a member declared at
   two depths keeps the identity of the one written first, so swapping the branches moves it (#1931);
-  a part reached through more than 64 alias scalars brings nothing, its member left as the
-  flattening takes it, as the type judge, a tag's reading and a multipart body read such a chain no
-  further; and a model the fold composes for a member is minted at the declaration last to widen the
-  field, so swapping two branches renames it, and moves a report on a member it settles (#1921).
+  a hierarchy composing at every level a model redeclaring a name it holds reads its depth again at
+  each level, until the run's reads run out (#1993); the names of the models on a cycle of
+  compositions decide which declaration they keep where two admit no value together (#1995); a part
+  reached through more than 64 alias scalars brings nothing, its member left as the flattening takes
+  it, as the type judge, a tag's reading and a multipart body read such a chain no further (#1994);
+  and a model the fold composes for a member is minted at the declaration last to widen the field,
+  so swapping two branches renames it, and moves a report on a member it settles (#1921, #1992).
 
 ### `allof-required`
 

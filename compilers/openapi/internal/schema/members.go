@@ -67,7 +67,8 @@ const maxMemberRounds = 8
 
 // maxMemberAliasHops bounds how many alias scalars composed and modelOf read a
 // part through (styleguide bounded-everything rule), as maxTagAliasHops bounds
-// a tag's. A longer chain, or a loop, stops on an alias, which has no members.
+// a tag's. A longer chain, or a loop, stops on an alias, which has no members,
+// though the flattening reads on (GitHub #1994).
 const maxMemberAliasHops = 64
 
 // maxMemberReads bounds the declarations the settlement reads of what the
@@ -137,7 +138,7 @@ type settleFrame struct {
 // hierarchy may nest as deep as a document is long. A part already on the path
 // closes a cycle of compositions, so the model naming it reads it as it
 // stands; which model of a cycle settles first follows their IDs, not the
-// order the source declares them in.
+// order the source declares them in (GitHub #1995).
 func (rec *members) settleOrder(reg ir.TypeRegistry, pending []ir.TypeID) []ir.TypeID {
 	order := make([]ir.TypeID, 0, len(pending))
 	seen := make(map[ir.TypeID]bool, len(pending))

@@ -51,52 +51,58 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 // leave untouched: the diagnostics, the document and each model's flattened
 // shape, each read in the coordinates of its own source. A pair of diagnostics
 // equal but for which element of a reversed sequence their pointers name is a
-// report that moves with the order, a tie the lowering states, so nothing the
-// documents hold at or beneath its pointer, or at the node it names, is
-// compared. Every difference is reported. It declines a document read from more
-// than one file, and what compareForms declines.
+// report that moves with the order, a tie, so nothing the documents hold at or
+// beneath its pointer, or at the node it names, is compared; a pair naming
+// nodes the forms read alike is one report (sameNodes). It declines a document
+// read from more than one file, and what compareForms declines.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
 	}
-	var found []string
 	ties, left, right := movedReports(firstDiags, secondDiags, perm)
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
-	if unpaired := renderUnpaired(untied(left, ties, perm.written), untied(right, ties, perm.written)); unpaired != "" {
-		found = append(found, "diagnostics depend on sequence order (-as-written +reversed):\n"+unpaired)
-	}
-	switch refused := oneRefusal(first, second); {
-	case refused != "":
-		found = append(found, refused)
-	case first != nil:
-		forms, why := compareForms(first, second, perm, ties)
+	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
+	refused := oneRefusal(first, second)
+	var forms []string
+	if refused == "" && first != nil {
+		var why Decline
+		left, right, forms, why = compareForms(first, second, perm, ties, left, right)
 		if why != "" {
 			return "", false, why
 		}
-		found = append(found, forms...)
 	}
+	var found []string
+	if unpaired := renderUnpaired(left, right); unpaired != "" {
+		found = append(found, "diagnostics depend on sequence order (-as-written +reversed):\n"+unpaired)
+	}
+	if refused != "" {
+		found = append(found, refused)
+	}
+	found = append(found, forms...)
 	return strings.Join(found, "\n"), len(found) == 0, ""
 }
 
 // compareForms compares two documents' canonical forms (canonicalForm), each
 // in its own source's coordinates, line by line, and their flattened shapes,
-// or declines where either form nests past its bound or meets a cycle of
-// digests.
-func compareForms(first, second *ir.Document, perm permutation, ties tieSites) ([]string, Decline) {
+// and pairs what left and right, the reports only one order makes, say of one
+// node by what the forms read (sameNodes). It declines where either form nests
+// past its bound or meets a cycle of digests.
+func compareForms(first, second *ir.Document, perm permutation, ties tieSites, left, right []report) ([]report, []report, []string, Decline) {
 	a, err := canonicalForm(first, perm.written, ties)
 	if why := formDecline(err); why != "" {
-		return nil, why
+		return nil, nil, nil, why
 	}
 	if err != nil {
-		return []string{"encode as written: " + err.Error()}, ""
+		return left, right, []string{"encode as written: " + err.Error()}, ""
 	}
 	b, err := canonicalForm(second, perm.moved, ties)
 	if why := formDecline(err); why != "" {
-		return nil, why
+		return nil, nil, nil, why
 	}
 	if err != nil {
-		return []string{"encode permuted: " + err.Error()}, ""
+		return left, right, []string{"encode permuted: " + err.Error()}, ""
 	}
+	left, right = sameNodes(left, right, a.identify, b.identify)
 	var found []string
 	if !slices.Equal(a.document, b.document) {
 		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.document, b.document))
@@ -104,7 +110,61 @@ func compareForms(first, second *ir.Document, perm permutation, ties tieSites) (
 	if !slices.Equal(a.shape, b.shape) {
 		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.shape, b.shape))
 	}
-	return found, ""
+	return left, right, found, ""
+}
+
+// sameNodes returns left and right without each pair saying one thing of one
+// node: a node whose ID the reversal moves only by which element of a reversed
+// sequence it names, as a fold mints one at the declaration written later in
+// either order, is one where each form tells it alike by what it holds
+// (rewriter.identify), as a reference to it is. first and second identify a
+// node in the coordinates of the compile its report came from.
+func sameNodes(left, right []report, first, second func(string) (string, bool)) ([]report, []report) {
+	rightKeys := make([]string, len(right))
+	unmatched := map[string]int{}
+	for i, r := range right {
+		key := nodeKey(r, second)
+		rightKeys[i] = key
+		if key != "" {
+			unmatched[key]++
+		}
+	}
+	paired := map[string]int{}
+	var keptLeft []report
+	for _, r := range left {
+		key := nodeKey(r, first)
+		if key != "" && unmatched[key] > 0 {
+			unmatched[key]--
+			paired[key]++
+			continue
+		}
+		keptLeft = append(keptLeft, r)
+	}
+	keptRight := make([]report, 0, len(right))
+	for i, r := range right {
+		if key := rightKeys[i]; key != "" && paired[key] > 0 {
+			paired[key]--
+			continue
+		}
+		keptRight = append(keptRight, r)
+	}
+	return keptLeft, keptRight
+}
+
+// nodeKey is r's key with its node as identify writes it and no pointer, as a
+// report naming a node is erased (reportsOf), or empty, pairing with nothing,
+// where r names no node or identify cannot tell the node by what it holds.
+func nodeKey(r report, identify func(string) (string, bool)) string {
+	if r.raw.Provenance.Node == "" {
+		return ""
+	}
+	node, ok := identify(r.raw.Provenance.Node)
+	if !ok {
+		return ""
+	}
+	d := r.raw
+	d.Provenance.Pointer, d.Provenance.Node = "", node
+	return diagnosticKey(d)
 }
 
 // formDecline is the decline a canonical form's error stands for, if any.
@@ -122,10 +182,14 @@ func formDecline(err error) Decline {
 // report is one diagnostic as the comparison reads it, in the coordinates of
 // the source as written: as diagnosticKey renders it, the same with every
 // index of a reversed sequence erased, and with no pointer where it names a
-// node, its pointer and its node. A report naming the node it decided is told
-// apart by that node: it sits at the declaration the order made lose, which a
-// nested allOf can place at another depth.
-type report struct{ key, erased, pointer, node string }
+// node, its pointer and its node; and raw, the diagnostic in its own compile's
+// coordinates. A report naming the node it decided is told apart by that node:
+// it sits at the declaration the order made lose, which a nested allOf can
+// place at another depth.
+type report struct {
+	key, erased, pointer, node string
+	raw                        ir.Diagnostic
+}
 
 // tieSites is what the reports a reversal moved decided: the erased pointer of
 // each, at or beneath which nothing is compared, the erased node of each naming
@@ -139,6 +203,7 @@ type tieSites struct{ pointers, nodes, holders []string }
 func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 	out := make([]report, 0, len(diags))
 	for _, d := range diags {
+		raw := d
 		d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
 		d.Provenance.Node = rebase(d.Provenance.Node, from)
 		e := d
@@ -148,7 +213,7 @@ func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 			e.Provenance.Pointer = ""
 		}
 		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer),
-			node: d.Provenance.Node})
+			node: d.Provenance.Node, raw: raw})
 	}
 	return out
 }
