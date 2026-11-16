@@ -132,6 +132,9 @@ func TestCore_AdmitsTheCasesOfCoreValuesAlone(t *testing.T) {
 	core := harness.Core(grid{axes: threeAxes()})
 	assert.True(t, core([]int{1, 2, 0}))
 	assert.False(t, core([]int{1, 2, 1}), "y is like x")
+	first := threeAxes()
+	first[0].Values[1].Like = "a0"
+	assert.False(t, harness.Core(grid{axes: first})([]int{1, 2, 0}), "a1 is like a0, on the first axis")
 	assert.False(t, core([]int{1, 2}), "no case of the product")
 	assert.False(t, core([]int{1, 3, 0}), "no case of the product")
 	assert.False(t, core([]int{-1, 0, 0}), "no case of the product")

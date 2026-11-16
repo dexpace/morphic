@@ -1076,8 +1076,10 @@ with no request. A pass is read again only where a location's own content leads 
 its URI; a URL held beside the URL-named document declaring it is read for nothing. A pointer passing a reference object, with tokens left to read, reads on where that
 reference's chain ends, in whichever document, save at a path item, where a token naming a field
 written beside its `$ref` reads that field ([`path-item-ref-fields`](#path-item-ref-fields)); a
-pointer whose read needs a chain that needs that read is unresolved. A `$ref` written in another
-document's content is read in that document. What a `$ref` lands on lowers where it is declared, at
+pointer whose read needs a chain that needs that read is unresolved. A pointer into another OpenAPI
+document passes the reference objects its grammar places, as one into the source does; a document
+with no `openapi` member has no grammar to place one, so a pointer into it passes none. A `$ref`
+written in another document's content is read in that document. What a `$ref` lands on lowers where it is declared, at
 the position its pointer reaches read through each reference object it passes, in whichever
 document, so two spellings reaching one declaration name one node. A use site takes what its schema
 `$ref`'s chain ends on — an annotation, a form body's parts, a file body or a discriminator —
@@ -1233,6 +1235,7 @@ the item as what else it writes.
   `e2e.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
   `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`, `bind.TestBind_ReadsEachHop`,
+  `bind.TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts`,
   `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
@@ -6581,6 +6584,7 @@ its entry, and the table reports each.
   `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
   `oas.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
+  `annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
   `e2e.TestNullableInference_DisabledKeepsItAtASharedNode`

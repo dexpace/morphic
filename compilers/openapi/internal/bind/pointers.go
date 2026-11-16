@@ -23,14 +23,19 @@ func (b *binder) readPointer(id DocID, pointer jsontext.Pointer) (reading, Reaso
 // pointer's length rather than its square.
 func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (reading, Reason, objectKey) {
 	r := reading{at: Position{Doc: id}, node: b.docs.list[id].root, state: b.docs.rootState(id)}
+	// grammar is the state the grammar places r's position at, which says where
+	// a reference object stands: r's own in the source, and in another OpenAPI
+	// document what it places there although r reads raw YAML, which no model
+	// holds (docs.identityState).
+	grammar := b.docs.identityState(id)
 	var soFar []byte
 	tokens := 0
 	for token := range pointer.Tokens() {
 		if tokens++; tokens > maxPointerTokens || !b.work.spend(1) {
 			return r.spelledAs(soFar), NoTarget, objectKey{}
 		}
-		if _, isRef := refKinds[r.state]; isRef && b.docs.writesRef(r) {
-			next, reason, need := b.through(r.spelledAs(soFar), token, settle)
+		if kind, isRef := refKinds[grammar]; isRef && b.docs.writesRef(r) {
+			next, reason, need := b.through(r.spelledAs(soFar), kind, token, settle)
 			if reason != NoReason || need.kind != 0 {
 				return next, reason, need
 			}
@@ -42,6 +47,7 @@ func (b *binder) readFrom(id DocID, pointer jsontext.Pointer, settle bool) (read
 		}
 		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
 		r = reading{at: Position{Doc: r.at.Doc}, node: child, place: r.below(token)}
+		grammar = step(grammar, token)
 	}
 	return r.spelledAs(soFar), NoReason, objectKey{}
 }
@@ -53,8 +59,8 @@ func (d *docs) writesRef(r reading) bool {
 	return ok
 }
 
-// through carries r, a reference object with token left to read, on to where
-// its chain ends, read at r's state afresh (place): a pointer through a
+// through carries r, a reference object of kind with token left to read, on to
+// where its chain ends, read at r's state afresh (place): a pointer through a
 // response reads on in the response it names, in whichever document. A path
 // item's token the mapping writes beside its $ref is read where it is written,
 // as a mount keeps the nearer layer
@@ -62,8 +68,7 @@ func (d *docs) writesRef(r reading) bool {
 // that does not resolve is Unpassable, and one that waits for documents a pass
 // has yet to read is Held. Without settle, a chain not settled is returned as
 // what the read needs.
-func (b *binder) through(r reading, token string, settle bool) (reading, Reason, objectKey) {
-	kind := refKinds[r.state]
+func (b *binder) through(r reading, kind RefKind, token string, settle bool) (reading, Reason, objectKey) {
 	if kind == RefPathItem && token != "$ref" && b.docs.child(r.at.Doc, r.node, token) != nil {
 		return r, NoReason, objectKey{}
 	}

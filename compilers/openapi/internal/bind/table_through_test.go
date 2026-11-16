@@ -5,6 +5,7 @@ package bind_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,6 +117,74 @@ components:
 	h, ok := table.Reference(bind.Position{Doc: other, Pointer: "/components/responses/R/headers/H"}, bind.RefHeader)
 	require.True(t, ok, "other.yaml's header is read")
 	assert.Equal(t, bind.Position{Doc: other, Pointer: "/components/headers/HO"}, h.Chain.End)
+}
+
+// referenceObjects declares a reference object of each kind a pointer into a
+// schema can pass, and a response holding one below the pointer's start.
+const referenceObjects = `components:
+  headers:
+    HO: {schema: {type: string}}
+    HRef: {$ref: '#/components/headers/HO'}
+  parameters:
+    PO: {name: p, in: query, schema: {type: integer}}
+    PRef: {$ref: '#/components/parameters/PO'}
+  responses:
+    RO: {description: o, content: {application/json: {schema: {type: boolean}}}}
+    RRef: {$ref: '#/components/responses/RO'}
+    R: {description: n, headers: {H: {$ref: '#/components/headers/HO'}}}
+  requestBodies:
+    BO: {content: {application/json: {schema: {type: number}}}}
+    BRef: {$ref: '#/components/requestBodies/BO'}
+  pathItems:
+    IO: {get: {responses: {'200': {description: o, content: {application/json: {schema: {type: string}}}}}}}
+    IRef: {$ref: '#/components/pathItems/IO'}
+`
+
+// TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts pins a
+// pointer starting in another OpenAPI document: it passes the reference
+// objects the grammar places there as one in the source does (GitHub #2016).
+// A document with no openapi member has no grammar to place one, so a pointer
+// into it passes none.
+func TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		pointer string
+		target  jsontext.Pointer
+	}{
+		{"a header", "/components/headers/HRef/schema", "/components/headers/HO/schema"},
+		{"a parameter", "/components/parameters/PRef/schema", "/components/parameters/PO/schema"},
+		{"a response", "/components/responses/RRef/content/application~1json/schema",
+			"/components/responses/RO/content/application~1json/schema"},
+		{"a request body", "/components/requestBodies/BRef/content/application~1json/schema",
+			"/components/requestBodies/BO/content/application~1json/schema"},
+		{"a path item", "/components/pathItems/IRef/get/responses/200/content/application~1json/schema",
+			"/components/pathItems/IO/get/responses/200/content/application~1json/schema"},
+		{"one below the start", "/components/responses/R/headers/H/schema", "/components/headers/HO/schema"},
+	}
+	src := head + referenceObjects + "  schemas:\n"
+	for i, tc := range tests {
+		src += fmt.Sprintf("    Far%d: {$ref: 'other.yaml#%s'}\n    Near%d: {$ref: '#%s'}\n"+
+			"    Bare%d: {$ref: 'bare.yaml#%s'}\n", i, tc.pointer, i, tc.pointer, i, tc.pointer)
+	}
+	table := bound(t, src, withDocuments(map[string]string{
+		"other.yaml": head + referenceObjects, "bare.yaml": referenceObjects,
+	}))
+	other, ok := table.Find("other.yaml")
+	require.True(t, ok)
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			far := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Far%d", i))).Hop
+			assert.Equal(t, bind.Resolved, far.Status, far.Why())
+			assert.Equal(t, bind.Position{Doc: other, Pointer: tc.target}, far.Target)
+			near := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Near%d", i))).Hop
+			assert.Equal(t, at(tc.target), near.Target, "the same pointer into the source")
+			bare := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Bare%d", i))).Hop
+			assert.Equal(t, bind.NoTarget, bare.Reason, "a document with no openapi member")
+		})
+	}
 }
 
 // TestBind_ReadsWhatAReferenceObjectResolvedTo pins the sites the table reads

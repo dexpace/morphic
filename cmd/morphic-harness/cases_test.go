@@ -214,6 +214,7 @@ func (c spelt) Write(at []int) (harness.Document, bool) {
 // full over a case like a core one: its finding is explained by the line the
 // record holds at the core case, so the run exits 0, unless the finding
 // differs from the line's, when it is left to report and the run exits 1.
+// With -at, a finding is written and exits 1 though the record lists it.
 func TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection(t *testing.T) {
 	t.Parallel()
 	results, err := harness.CheckCases(context.Background(), spelt{}, harness.Core(spelt{}))
@@ -234,4 +235,9 @@ func TestCheckCases_AFindingOutsideTheCoreIsExplainedByItsProjection(t *testing.
 	assert.Equal(t, 1, code, "the case like zero finds another difference")
 	assert.True(t, strings.HasPrefix(stdout, "two "), stdout)
 	assert.NotContains(t, stdout, "\nzero ", "the core case's finding is listed")
+
+	code, stdout, _ = runArgs(t, []format{{spelt{}, record}}, "-cases", "full", "-at", "0")
+	assert.Equal(t, 1, code, "-at exits 1 on a finding the record lists")
+	assert.True(t, strings.HasPrefix(stdout, "zero\n--- spec.yaml\n"), stdout)
+	assert.Contains(t, stdout, "\nspelling spelling-dependent "+found[0].What+"\n")
 }
