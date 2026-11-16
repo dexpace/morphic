@@ -53,6 +53,7 @@ func TestGovern_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	d := NewBuilder(source)
 	d.Govern(a, first)
 	d.Govern(b, second)
+	d.Govern(nil, first)
 	table := d.Table()
 	// Identity, not equality: two rows of one dialect are equal, and the claim
 	// is whose rows the node holds.
@@ -62,7 +63,5 @@ func TestGovern_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	if table.Of(b) != second {
 		t.Error("B holds another root's rows than its own")
 	}
-	assert.Len(t, table.byNode, 3, "A, the shared node and B, and none of their scalars")
-	d.Govern(nil, first)
-	assert.Len(t, table.byNode, 3, "no tree governs nothing")
+	assert.Len(t, table.byNode, 3, "A, the shared node and B, none of their scalars, and nothing for no tree")
 }
