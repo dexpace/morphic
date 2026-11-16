@@ -49,11 +49,12 @@ func liftedNulls(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 	branches, key, _ := unionBranches(s)
 	var out []liftedNull
 	for i, b := range branches {
-		if !nullBranch(c, c.Statements().Of(b)) {
+		st := c.Statements().Sub(b)
+		if !nullBranch(c, st) {
 			continue
 		}
 		index := strconv.Itoa(i)
-		out = append(out, liftedNull{schema: c.Statements().Of(b).Schema, at: pointer + ids.Ptr(key, index), key: "openapi:" + key + "/" + index})
+		out = append(out, liftedNull{schema: st.Schema, at: pointer + ids.Ptr(key, index), key: "openapi:" + key + "/" + index})
 	}
 	return out
 }

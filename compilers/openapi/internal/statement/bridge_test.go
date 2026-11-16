@@ -49,8 +49,7 @@ func TestOf_TruthReadsWhatThePositionPredicatesRead(t *testing.T) {
 		assert.Equal(t, annotation.Written(js), st.Truth != statement.Unwritten, "%s: Written", tc.name)
 		assert.Equal(t, annotation.IsNoSchema(js), js != nil && st.Truth == statement.Unwritten, "%s: IsNoSchema", tc.name)
 		// The parser reads the mapping it fails beneath as `false` too.
-		falsy := st.Truth == statement.Nothing || st.Truth == statement.Unread
-		assert.Equal(t, annotation.IsFalseSchema(js), falsy, "%s: IsFalseSchema", tc.name)
+		assert.Equal(t, annotation.IsFalseSchema(js), st.Truth.ReadsFalse(), "%s: IsFalseSchema", tc.name)
 		mended := js != nil && js.IsBool() && nodeview.Deref(js.GetCore().GetRootNode()).Kind == yaml.MappingNode
 		assert.Equal(t, mended, st.Truth == statement.Unread, "%s: a mapping read as a boolean", tc.name)
 		assert.Same(t, annotation.SchemaOf(js), statement.Parsed(st.Schema), "%s: the schema object", tc.name)

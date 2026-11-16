@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -109,7 +111,7 @@ func walkService(t *testing.T, src string, policy service.Policy, report func([]
 
 	types := compile.NewTypes()
 	c := service.New(0, loadedDoc, policy)
-	report(schema.LowerComponentSchemas(t.Context(), c.Ctx, types, c.Doc.Components.GetSchemas().All()))
+	report(schema.LowerComponentSchemas(t.Context(), c.Ctx, types, componentStatements(c)))
 
 	declared, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
@@ -174,3 +176,15 @@ paths:
               examples:
                 empty: {summary: no value here}
 `
+
+// componentStatements yields each component schema of c's document under its
+// name, as run hands them to schema.LowerComponentSchemas.
+func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+	return func(yield func(string, *statement.Statement) bool) {
+		for name, js := range c.Doc.Components.GetSchemas().All() {
+			if !yield(name, c.Statements().Of(js)) {
+				return
+			}
+		}
+	}
+}

@@ -225,7 +225,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 		return nil
 	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
-		return c.Statements().Of(refs[0])
+		return refs[0]
 	}
 	if !allOfMayRefine(s) || hasAnyKey(s, objectKeywords) || !refinableBranches(c, allOfBranches(c, s, "")) {
 		return nil
@@ -233,7 +233,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 	if declaresUnion(s) && allOfComposes(c, s) {
 		return nil
 	}
-	return c.Statements().Of(refs[0])
+	return refs[0]
 }
 
 // speakers returns what p's $ref says of a use, nearest first, as a Use's

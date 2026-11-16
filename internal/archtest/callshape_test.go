@@ -112,6 +112,12 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine":        1,
 		"engine/reader": 2,
 	},
+	"compilers/openapi/internal/schema": {
+		// LowerComponentSchemas ranges over the statements of the component
+		// schemas the run hands it, read as it asks for each: a traversal
+		// callback.
+		"compilers/openapi": 1,
+	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate
 		// callback.

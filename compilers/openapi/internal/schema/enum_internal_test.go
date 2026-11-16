@@ -6,11 +6,11 @@ package schema
 import (
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -164,19 +164,19 @@ func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
 	bin := ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}
 	for _, tc := range []struct {
-		types  []oas3.SchemaType
+		types  []statement.Kind
 		admits []ir.Value
 		not    []ir.Value
 	}{
 		{nil, []ir.Value{str, null, obj}, nil},
-		{[]oas3.SchemaType{oas3.SchemaTypeString}, []ir.Value{str, bin}, []ir.Value{one, null}},
-		{[]oas3.SchemaType{oas3.SchemaTypeInteger}, []ir.Value{one}, []ir.Value{half, str}},
-		{[]oas3.SchemaType{oas3.SchemaTypeNumber}, []ir.Value{one, half}, []ir.Value{str}},
-		{[]oas3.SchemaType{oas3.SchemaTypeBoolean}, []ir.Value{yes}, []ir.Value{str}},
-		{[]oas3.SchemaType{oas3.SchemaTypeObject}, []ir.Value{obj}, []ir.Value{list}},
-		{[]oas3.SchemaType{oas3.SchemaTypeArray}, []ir.Value{list}, []ir.Value{obj}},
-		{[]oas3.SchemaType{oas3.SchemaTypeInteger, oas3.SchemaTypeBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
-		{[]oas3.SchemaType{oas3.SchemaTypeInteger, "file"}, []ir.Value{str, one, null}, nil},
+		{[]statement.Kind{statement.KindString}, []ir.Value{str, bin}, []ir.Value{one, null}},
+		{[]statement.Kind{statement.KindInteger}, []ir.Value{one}, []ir.Value{half, str}},
+		{[]statement.Kind{statement.KindNumber}, []ir.Value{one, half}, []ir.Value{str}},
+		{[]statement.Kind{statement.KindBoolean}, []ir.Value{yes}, []ir.Value{str}},
+		{[]statement.Kind{statement.KindObject}, []ir.Value{obj}, []ir.Value{list}},
+		{[]statement.Kind{statement.KindArray}, []ir.Value{list}, []ir.Value{obj}},
+		{[]statement.Kind{statement.KindInteger, statement.KindBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
+		{[]statement.Kind{statement.KindInteger, "file"}, []ir.Value{str, one, null}, nil},
 	} {
 		for _, v := range tc.admits {
 			assert.True(t, typesAdmit(tc.types, v), "%v admits %+v", tc.types, v)

@@ -154,7 +154,7 @@ func routesByName(c lowering.Ctx, a, s *statement.Schema) bool {
 	listed := lowering.Remembered(c, listedBy{a}, func() map[*oas3.Schema]bool {
 		set := make(map[*oas3.Schema]bool, len(branches))
 		for _, b := range branches {
-			if target := refBranchTarget(c, c.Statements().Of(b)); statement.Parsed(target) != nil {
+			if target := refBranchTarget(c, c.Statements().Sub(b)); statement.Parsed(target) != nil {
 				set[statement.Parsed(target)] = true
 			}
 		}
@@ -239,10 +239,11 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	}
 	return lowering.Remembered(c, composedByOf{s, u.holder}, func() bool {
 		branches, _, _ := unionBranches(u.holder)
-		return slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-			target := c.Statements().Of(b).Schema
-			if c.Bindings().RefSite(b) {
-				target = refBranchTarget(c, c.Statements().Of(b))
+		return slices.ContainsFunc(branches, func(b statement.Sub) bool {
+			st := c.Statements().Sub(b)
+			target := st.Schema
+			if st.Ref != nil {
+				target = refBranchTarget(c, st)
 			}
 			return statement.Parsed(target) != nil && slices.ContainsFunc(discriminatedAncestors(c, target),
 				func(a *statement.Schema) bool { return discriminatorIn(a) == d })
@@ -257,7 +258,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*statement.Schema]bool) []*statement.Schema {
 	var out []*statement.Schema
 	for b := range allOfRefBranches(c, s) {
-		target := refBranchTarget(c, c.Statements().Of(b))
+		target := refBranchTarget(c, b)
 		if statement.Parsed(target) == nil || visited[target] {
 			continue
 		}
@@ -289,7 +290,7 @@ func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		if _, id, ok := componentNamed(scope, c.Statements().Of(b)); ok {
+		if _, id, ok := componentNamed(scope, c.Statements().Sub(b)); ok {
 			named = append(named, id)
 		}
 	}
@@ -402,10 +403,11 @@ func implicitRoutes(c lowering.Ctx, s *statement.Schema) []implicitRoute {
 	branches, _, _ := unionBranches(s)
 	routes := make([]implicitRoute, 0, len(branches))
 	for _, b := range branches {
-		if nullBranch(c, c.Statements().Of(b)) {
+		st := c.Statements().Sub(b)
+		if nullBranch(c, st) {
 			continue
 		}
-		name, id, ok := componentNamed(scope, c.Statements().Of(b))
+		name, id, ok := componentNamed(scope, st)
 		routes = append(routes, implicitRoute{name: name, component: id, named: ok})
 	}
 	return routes

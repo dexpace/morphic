@@ -76,7 +76,7 @@ func (r *bodyReading) declared() declarationSet {
 	if r.decls == nil {
 		d := newDeclarationSet()
 		if r.own {
-			d.add(r.body)
+			d.add(r.w.c.Statements(), r.body)
 		} else {
 			d = r.w.declarations(r.body)
 		}

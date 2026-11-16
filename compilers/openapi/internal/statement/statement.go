@@ -167,3 +167,10 @@ const (
 	Unwritten
 	Unread
 )
+
+// ReadsFalse reports whether t reads as the false schema, which admits no
+// value: Nothing, and Unread, a mapping the parser decodes as `false`
+// (docs/parser-library.md#failure-beneath-itself).
+func (t Truth) ReadsFalse() bool {
+	return t == Nothing || t == Unread
+}

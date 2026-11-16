@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
 	yaml "go.yaml.in/yaml/v3"
 
@@ -105,9 +104,8 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // admits, a type of null included, which is kept as written beside the type
 // the census keeps verbatim.
 func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
-	m := statement.Parsed(s)
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
-	types := m.GetType()
+	types := kindsIn(s)
 	kept := make([]enumEntry, 0, len(entries))
 	var diags []ir.Diagnostic
 	for _, e := range entries {
@@ -134,10 +132,10 @@ func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, point
 // kinds the admission reading gives a type and a value (kindOfType,
 // kindOfValue). An empty list declares no type, and a type no schema defines
 // judges nothing, which validation reports; either admits v.
-func typesAdmit(types []oas3.SchemaType, v ir.Value) bool {
+func typesAdmit(types []statement.Kind, v ir.Value) bool {
 	var admitted kindSet
 	for _, t := range types {
-		k := kindOfType(statement.Kind(t))
+		k := kindOfType(t)
 		if k == 0 {
 			return true
 		}
@@ -148,7 +146,7 @@ func typesAdmit(types []oas3.SchemaType, v ir.Value) bool {
 
 // typeList spells a declared type set for a message: its one type, or the
 // list.
-func typeList(types []oas3.SchemaType) string {
+func typeList(types []statement.Kind) string {
 	names := make([]string, 0, len(types))
 	for _, t := range types {
 		names = append(names, string(t))
@@ -274,7 +272,7 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer 
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
-	if types := m.GetType(); !typesAdmit(types, val) {
+	if types := kindsIn(s); !typesAdmit(types, val) {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))

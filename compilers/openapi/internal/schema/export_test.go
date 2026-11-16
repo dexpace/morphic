@@ -103,10 +103,16 @@ func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {
 	return LowererOver(service.New(0, &load.Document{Doc: doc}, service.Policy{}))
 }
 
-// Schemas returns the component schemas of the fixture's document, as run
-// hands them to LowerComponentSchemas.
-func (l *Lowerer) Schemas() iter.Seq2[string, *oas3.JSONSchema[oas3.Referenceable]] {
-	return l.Doc.Components.GetSchemas().All()
+// Schemas returns the statements of the component schemas of the fixture's
+// document, as run hands them to LowerComponentSchemas.
+func (l *Lowerer) Schemas() iter.Seq2[string, *statement.Statement] {
+	return func(yield func(string, *statement.Statement) bool) {
+		for name, js := range l.Doc.Components.GetSchemas().All() {
+			if !yield(name, l.Ctx.Statements().Of(js)) {
+				return
+			}
+		}
+	}
 }
 
 // Document finishes the registry as run does once every lowering has

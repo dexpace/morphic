@@ -163,17 +163,18 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		// A non-null branch lacking its variant is a compiler bug
 		// spellImplicitRoutes reports; it routes nothing here.
 		i := len(x.pointers)
-		if nullBranch(c, c.Statements().Of(b)) || i == len(variants) {
+		st := c.Statements().Sub(b)
+		if nullBranch(c, st) || i == len(variants) {
 			continue
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(n))
 		x.pointers = append(x.pointers, vptr)
 		keepFirst(x.is, variants[i].Type.Target, i)
 		own := c.Position(vptr)
-		if id, ok := declaredAt(c, own, c.Statements().Of(b)); ok {
+		if id, ok := declaredAt(c, own, st); ok {
 			keepFirst(x.is, id, i)
 		}
-		for _, l := range follow(c, link{at: own, decl: c.Statements().Of(b)}).links[1:] {
+		for _, l := range follow(c, link{at: own, decl: st}).links[1:] {
 			keepFirst(x.passes, l.id, i)
 			x.several[l.id] = append(x.several[l.id], i)
 		}
