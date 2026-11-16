@@ -205,16 +205,10 @@ func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
 }
 
 // TestSpelled_WhatStopsAComparison pins what stops a comparison: no partner
-// and a partner writing nothing decline, and a compile's error and a document
-// that does not encode are faults.
+// declines, and a compile's error, a document that does not encode and a
+// partner writing nothing are faults.
 func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
-	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
-		doc, _ := f.write(at)
-		return doc, at[0] == 1
-	}}
-	assert.Equal(t, declined(OracleSpelling, DeclineNoPartner), spellingVerdict(t, alone))
-
 	unequal := fake{axes: f.axes, write: func(at []int) (Document, bool) {
 		doc, _ := f.write(at)
 		doc.Equal = nil
@@ -239,6 +233,15 @@ func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, r.Faulted(), "a document that does not encode is a fault")
 	assert.Contains(t, r.Detail, "harness: encode case [1] or its partner: ")
+
+	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
+		doc, _ := f.write(at)
+		return doc, at[0] == 1
+	}}
+	r, ok = CheckCase(t.Context(), alone, []int{1})
+	require.True(t, ok)
+	assert.True(t, r.Faulted(), "a partner the product writes nothing for is a fault")
+	assert.Contains(t, r.Detail, "harness: case [1] names the partner [0], which writes nothing")
 }
 
 // TestSpelled_ACaseNamingAPartnerAmissPanics pins the asserts on what a

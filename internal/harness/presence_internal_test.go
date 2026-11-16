@@ -196,14 +196,6 @@ func TestPresent_DeclinesWhatItCannotCompare(t *testing.T) {
 		{"an error diagnostic on the absent case", carriedDocs, map[string][]ir.Diagnostic{"none": boom}, "", DeclineErrorDiagnostic},
 		{"an error diagnostic on the other case", carriedDocs, map[string][]ir.Diagnostic{"kw~": boom}, "", DeclineErrorDiagnostic},
 		{"an error diagnostic beside a keyword nothing carries", notCarriedDocs, map[string][]ir.Diagnostic{"none": boom}, "", DeclineErrorDiagnostic},
-		{"a compile that fails", carriedDocs, nil, "none", DeclineNoDocument},
-		{"a neighbour outside the product", func(i int) Document {
-			doc := carriedDocs(i)
-			if i == caseWrite {
-				doc.Other = []int{caseOther + 1}
-			}
-			return doc
-		}, nil, "", DeclineNoDocument},
 		{"a case that names no neighbour", func(int) Document { return Document{} }, nil, "", DeclineNoConstruct},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -260,6 +252,38 @@ func TestPresent_AssertsWhatACaseMustSay(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			swapDocuments(t, tc.docs, nil, "")
 			res, ok := CheckCase(t.Context(), presenceProduct(tc.write), []int{caseWrite})
+			require.True(t, ok)
+			assert.Equal(t, OutcomePanic, res.Outcome)
+			assert.Contains(t, res.Detail, tc.want)
+		})
+	}
+}
+
+// TestPresent_ACompileErrorIsAPanic holds a Go error compiling a case the
+// oracle compares, as one outside the product draws, to a fault, as the
+// other case oracles hold it, never a decline nothing records.
+func TestPresent_ACompileErrorIsAPanic(t *testing.T) {
+	docs := map[string]*ir.Document{"none": named("a"), "kw": named("b"), "kw~": named("c")}
+	for _, tc := range []struct {
+		name  string
+		write func(i int) Document
+		fail  string
+		want  string
+	}{
+		{"a compile that fails", carriedDocs, "none", "harness: compile case [0]: "},
+		{"a neighbour outside the product", func(i int) Document {
+			doc := carriedDocs(i)
+			if i == caseWrite {
+				doc.Other = []int{caseOther + 1}
+			}
+			return doc
+		}, "", "is outside the product"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			swapDocuments(t, docs, nil, tc.fail)
+
+			res, ok := CheckCase(t.Context(), presenceProduct(tc.write), []int{caseWrite})
+
 			require.True(t, ok)
 			assert.Equal(t, OutcomePanic, res.Outcome)
 			assert.Contains(t, res.Detail, tc.want)
