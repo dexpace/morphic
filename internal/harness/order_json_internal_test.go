@@ -43,8 +43,8 @@ func TestSequenceOrderInvariant_DeclinesASourceOnlyTheJSONReaderReads(t *testing
 	const tail = `"]}]}}}}`
 	pair := `\u` + "d83d" + `\u` + "de00"
 
-	asked := sequenceOrderInvariant(t.Context(), "char.json", []byte(head+"\U0001F600"+tail), true)
-	assert.True(t, asked.Asked(), "the oracle asks the source written with the character: %+v", asked)
+	written := sequenceOrderInvariant(t.Context(), "char.json", []byte(head+"\U0001F600"+tail), true)
+	assert.True(t, written.Asked(), "the oracle asks the source written with the character: %+v", written)
 	v := sequenceOrderInvariant(t.Context(), "pair.json", []byte(head+pair+tail), true)
 	assert.Equal(t, declined(OracleSequenceOrder, DeclineNotYAML), v, "and nothing of the source written with the pair")
 }

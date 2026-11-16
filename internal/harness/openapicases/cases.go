@@ -23,8 +23,8 @@ const (
 
 	// none is the construct, and the second construct, a case leaves out.
 	none = "none"
-	// other marks a construct's other value: "minLength~" writes the second.
-	other = "~"
+	// otherMark marks a construct's other value: "minLength~" writes the second.
+	otherMark = "~"
 	// inline writes a target's body, the construct merged in, at the position.
 	inline = "inline"
 )
@@ -83,9 +83,9 @@ func (c cases) Axes() []harness.Axis {
 	}
 	axes[2].Values = append(axes[2].Values, harness.Value{Name: none})
 	for _, k := range c.constructs {
-		axes[2].Values = append(axes[2].Values, harness.Value{Name: k.keyword}, harness.Value{Name: k.keyword + other})
+		axes[2].Values = append(axes[2].Values, harness.Value{Name: k.keyword}, harness.Value{Name: k.keyword + otherMark})
 	}
-	axes[3].Values = names(c.seconds)
+	axes[3].Values = coreValues(c.seconds)
 	for _, p := range c.positions {
 		axes[4].Values = append(axes[4].Values, harness.Value{Name: p.name})
 	}
@@ -93,8 +93,8 @@ func (c cases) Axes() []harness.Axis {
 	return axes
 }
 
-// names returns a core value of each name.
-func names(of []string) []harness.Value {
+// coreValues returns a core value of each name.
+func coreValues(of []string) []harness.Value {
 	values := make([]harness.Value, len(of))
 	for i, n := range of {
 		values[i] = harness.Value{Name: n}
@@ -107,7 +107,7 @@ func names(of []string) []harness.Value {
 // (docs/compilers/openapi.md#allof-classification) and so repeats its
 // findings: a nightly run records them under that entry.
 func spellingValues(of []string) []harness.Value {
-	values := names(of)
+	values := coreValues(of)
 	for i, n := range of {
 		if n == entryFirst {
 			values[i].Like = entry

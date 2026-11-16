@@ -94,16 +94,16 @@ func spell(s string, ref, k object) (object, bool) {
 	case wrap:
 		use = slices.Concat(object{{"allOf", []any{ref}}}, k)
 	case entry, entryFirst, nested:
-		use = object{{"allOf", entries(s, ref, k)}}
+		use = object{{"allOf", allOfEntries(s, ref, k)}}
 	default:
 		return nil, false
 	}
 	return use, !repeats(use)
 }
 
-// entries is the allOf an entry spelling writes: the reference and, when k
+// allOfEntries is the allOf an entry spelling writes: the reference and, when k
 // writes a keyword, an entry of it, in s's order and nesting.
-func entries(s string, ref, k object) []any {
+func allOfEntries(s string, ref, k object) []any {
 	out := []any{ref}
 	if len(k) > 0 {
 		out = append(out, k)

@@ -1077,14 +1077,14 @@ func TestMaxReverseDepth_ReachesEveryAdmittedDocument(t *testing.T) {
 	require.NoError(t, err)
 	bound, err := pkg.IntConst("MaxNesting")
 	require.NoError(t, err)
-	admitted := int(bound)
+	deepest := int(bound)
 	nested := func(n int) []byte {
 		return []byte(strings.Repeat("{k: ", n) + "1" + strings.Repeat("}", n) + "\n")
 	}
 
-	_, why := reverseMappings(nested(admitted))
+	_, why := reverseMappings(nested(deepest))
 	assert.Empty(t, why, "a document at the compiler's bound is permuted")
-	_, why = reverseMappings(nested(admitted + 1))
+	_, why = reverseMappings(nested(deepest + 1))
 	assert.Equal(t, DeclineTooDeep, why, "one past it is the compiler's to refuse, and the rewrite's")
 }
 

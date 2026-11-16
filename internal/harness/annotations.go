@@ -110,9 +110,9 @@ func SiteKinds() []SiteKind {
 // order, annotation-major. This is the set of cells a format must either
 // cover or explicitly excuse.
 func Cells() []Cell {
-	annotations, kinds := Annotations(), SiteKinds()
-	out := make([]Cell, 0, len(annotations)*len(kinds))
-	for _, a := range annotations {
+	all, kinds := Annotations(), SiteKinds()
+	out := make([]Cell, 0, len(all)*len(kinds))
+	for _, a := range all {
 		for _, k := range kinds {
 			out = append(out, Cell{Annotation: a, SiteKind: k})
 		}

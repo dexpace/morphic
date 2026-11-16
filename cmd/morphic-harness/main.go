@@ -208,8 +208,8 @@ func exitCode(results []harness.Result) int {
 
 // emitf writes a formatted message to w; write errors on a human-facing stream
 // are unactionable and deliberately discarded.
-func emitf(w io.Writer, format string, args ...any) {
-	_, _ = fmt.Fprintf(w, format, args...)
+func emitf(w io.Writer, layout string, args ...any) {
+	_, _ = fmt.Fprintf(w, layout, args...)
 }
 
 const usage = `usage:

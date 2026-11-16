@@ -141,7 +141,7 @@ func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
 // fault before the oracles leaves every one but no-panic not reached, and
 // each result still holds one verdict per oracle.
 func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
-	notReached := func(os ...Oracle) []Verdict {
+	unreached := func(os ...Oracle) []Verdict {
 		vs := make([]Verdict, 0, len(os))
 		for _, o := range os {
 			vs = append(vs, declined(o, DeclineNotReached))
@@ -165,7 +165,7 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		assert.Equal(t, r.Verdicts[0].Detail, r.Detail)
 		assert.Equal(t, []Verdict{passed(OracleInvariants), passed(OracleNoErrorDiagnostic), passed(OracleRoundTrip)},
 			r.Verdicts[1:4])
-		assert.Equal(t, notReached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), r.Verdicts[4:])
+		assert.Equal(t, unreached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), r.Verdicts[4:])
 	})
 	t.Run("a Go error from the first compile", func(t *testing.T) {
 		swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
@@ -175,7 +175,7 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		r := Check(context.Background(), "spec", []byte("x"))
 
 		assert.Equal(t, OutcomeError, r.Outcome)
-		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, notReached(Oracles()[1:]...)...), r.Verdicts)
+		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, unreached(Oracles()[1:]...)...), r.Verdicts)
 	})
 	t.Run("a stage the verified run refuses", func(t *testing.T) {
 		withPasses(t, faulting{first: func(own *ir.Document) *ir.Document {
@@ -188,13 +188,13 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		require.Len(t, r.Verdicts, len(Oracles()))
 		assert.Equal(t, passed(OracleNoPanic), r.Verdicts[0])
 		assert.Equal(t, OutcomeViolations, r.Verdicts[1].Outcome, "the engine's refusal is the invariants oracle's")
-		assert.Equal(t, notReached(Oracles()[2:]...), r.Verdicts[2:], "the engine returns no document to ask of")
+		assert.Equal(t, unreached(Oracles()[2:]...), r.Verdicts[2:], "the engine returns no document to ask of")
 	})
 	t.Run("a caller's mistake", func(t *testing.T) {
 		r := Check(context.Background(), "", []byte(testspec.Minimal))
 
 		assert.Equal(t, OutcomeError, r.Outcome)
-		assert.Equal(t, notReached(Oracles()...), r.Verdicts, "nothing ran, so not even no-panic asked")
+		assert.Equal(t, unreached(Oracles()...), r.Verdicts, "nothing ran, so not even no-panic asked")
 	})
 }
 
