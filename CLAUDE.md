@@ -290,8 +290,8 @@ These all exist already — extend them rather than building a parallel mechanis
   separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Case oracles**: `internal/harness/openapicases` writes the OpenAPI compiler's schema cases, one
   document per case, as products of axes its `Axes` names: version, target schema, construct (each
-  keyword of the rule table at two values), a second construct written beside it, position and
-  spelling, and the JSON Schema Test Suite's groups written as defaults. `internal/harness`'s case
+  keyword of the rule table at two values), position and spelling, and the JSON Schema Test Suite's
+  groups written as defaults. `internal/harness`'s case
   oracles compare each case with a neighbour: spelling (a use spelt another way lowers alike, up to
   decorators), presence (a keyword changes what compiles, and again when its value changes, unless
   it says why nothing carries it) and instance (the suite's valid instances are admitted). The gate
