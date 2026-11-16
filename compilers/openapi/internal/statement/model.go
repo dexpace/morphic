@@ -33,8 +33,8 @@ func (t *Table) Of(js *model) *Statement {
 }
 
 // Parsed returns the parser's schema object s was read from, nil for a nil s
-// and for a value that is no schema object: what a reader not yet reading the
-// statement reads (GitHub #1991). It goes once none does.
+// and for a value that is no schema object: what the operation walk reads
+// beside the statement (GitHub #1991). It goes once that walk reads none.
 func Parsed(s *Schema) *oas3.Schema {
 	if s == nil {
 		return nil
@@ -43,8 +43,8 @@ func Parsed(s *Schema) *oas3.Schema {
 }
 
 // ParsedAt returns the parser's value st was read from, nil for a nil st: what
-// a reader not yet reading the statement reads (GitHub #1991). It goes once
-// none does.
+// the operation walk reads beside the statement (GitHub #1991). It goes once
+// that walk reads none.
 func ParsedAt(st *Statement) *model {
 	if st == nil {
 		return nil

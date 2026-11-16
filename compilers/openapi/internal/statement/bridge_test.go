@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
-// TestParsed_HandsBackWhatTheStatementWasReadFrom pins the bridges a reader
-// not yet reading a statement takes the parser's value back through.
+// TestParsed_HandsBackWhatTheStatementWasReadFrom pins the bridges the
+// operation walk takes the parser's value back through.
 func TestParsed_HandsBackWhatTheStatementWasReadFrom(t *testing.T) {
 	t.Parallel()
 	table, c := tableOver(t, document("3.1.0", `A: {type: string}`, `B: {properties: {t: true}}`), rulesAt(t, "3.1.0", ""))
