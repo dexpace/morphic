@@ -15,9 +15,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -111,7 +113,7 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 // extensions, as d declares them, under mt, the key it is written under.
 func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) {
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
-	mediaType, diags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+	mediaType, diags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, d.ctx.Statements().Of(media.GetSchema()), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{
 		MediaType: mt,
 		Type:      mediaType,
@@ -212,4 +214,18 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 		}
 	}
 	return s
+}
+
+// statementOf is schemaOf read as a statement: the schema whose object
+// schemaOf returns (statement.Parsed), and nil where it returns nil.
+func statementOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) *statement.Schema {
+	if schemaOf(c.Bindings(), js) == nil {
+		return nil
+	}
+	if c.Bindings().RefSite(js) {
+		if end := c.Bindings().End(js); end != nil {
+			return c.Statements().Of(end).Schema
+		}
+	}
+	return c.Statements().Of(js).Schema
 }

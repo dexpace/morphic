@@ -3130,7 +3130,7 @@ A keyword beside a `$ref` entry states nothing either: OpenAPI 3.0 ignores it, a
 any version. A conjunct writing an `allOf` also states nothing here where its `type` and its entries
 leave at most a null, which is what keeps a schema composing a reported one from drawing a second
 report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
-entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
+entries share or a `type: "null"` beside them, or one nested past `statement.MaxFlattenDepth`. An
 `allOf` beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read.
 One passed over for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as
 any composition is, and the warning names the value set the position lowered as.

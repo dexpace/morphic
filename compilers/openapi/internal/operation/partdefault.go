@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,11 +36,11 @@ const (
 func readContentEncoding(c service.Ctx, schemas []*oas3.JSONSchema[oas3.Referenceable]) contentEncoding {
 	writes, omits := false, false
 	for _, js := range schemas {
-		s := schemaOf(c.Bindings(), js)
-		if s == nil {
+		s := statementOf(c.Ctx, js)
+		if statement.Parsed(s) == nil {
 			continue
 		}
-		if schema.DecidingSchema(c.Ctx, s).GetContentEncoding() != "" {
+		if statement.Parsed(schema.DecidingSchema(c.Ctx, s)).GetContentEncoding() != "" {
 			writes = true
 		} else {
 			omits = true

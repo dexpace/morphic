@@ -7,12 +7,11 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,7 +20,7 @@ import (
 // primitive the conjuncts select narrowing every other, where each value is one
 // of it (conjunctPrim). It runs after the census read the node's own keywords
 // against the ValueType its own schema gave it, which this only narrows.
-func typeValueSet(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, r refinement, pointer jsontext.Pointer) {
+func typeValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, r refinement, pointer jsontext.Pointer) {
 	switch n := valueSetNode(c, ts, r, pointer).(type) {
 	case *ir.Literal:
 		n.ValueType = conjunctPrim(c, r, s, n.ValueType, func(p ir.PrimKind) bool { return merge.Admits(p, n.Value) })
@@ -53,7 +52,7 @@ func valueSetNode(c lowering.Ctx, ts *compile.Types, r refinement, pointer jsont
 // are s, each inline branch, and what decides what a $ref branch lands on
 // (conjunctSchemas). own is "" for a value no primitive types, which none fits,
 // so it stands.
-func conjunctPrim(c lowering.Ctx, r refinement, s *oas3.Schema, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
+func conjunctPrim(c lowering.Ctx, r refinement, s *statement.Schema, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
 	prims := []ir.PrimKind{own}
 	for _, cs := range conjunctSchemas(c, r, s) {
 		if prim, ok := declaredPrim(cs, fits); ok {
@@ -71,14 +70,14 @@ func conjunctPrim(c lowering.Ctx, r refinement, s *oas3.Schema, own ir.PrimKind,
 // conjunctSchemas returns the schemas whose keywords r's conjuncts write: s, the
 // keywords beside the allOf, then each branch, a $ref's being what decides what
 // it lands on, read past a chain of $refs and refinements (DecidingSchema).
-func conjunctSchemas(c lowering.Ctx, r refinement, s *oas3.Schema) []*oas3.Schema {
-	out := []*oas3.Schema{s}
+func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*statement.Schema {
+	out := []*statement.Schema{s}
 	for _, e := range r.comp.branches {
-		bs := e.schema.GetSchema()
-		if c.Bindings().RefSite(e.schema) {
-			bs = DecidingSchema(c, c.RefScope().TargetSchema(e.schema))
+		bs := e.schema.Schema
+		if c.Bindings().RefSite(statement.ParsedAt(e.schema)) {
+			bs = DecidingSchema(c, c.Statements().Of(c.Bindings().End(statement.ParsedAt(e.schema))).Schema)
 		}
-		if bs != nil {
+		if statement.Parsed(bs) != nil {
 			out = append(out, bs)
 		}
 	}
@@ -94,7 +93,7 @@ func narrowsOrIs(p, o ir.PrimKind) bool {
 // declaredPrim returns the primitive s's type and format select, else its type
 // alone, where fits says its values are of it, as a value set's own schema types
 // it (literalValueType), and false where s selects none they fit.
-func declaredPrim(s *oas3.Schema, fits func(ir.PrimKind) bool) (ir.PrimKind, bool) {
+func declaredPrim(s *statement.Schema, fits func(ir.PrimKind) bool) (ir.PrimKind, bool) {
 	if prim, paired := formatPrimitive(s); paired && fits(prim) {
 		return prim, true
 	}

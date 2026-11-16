@@ -31,8 +31,6 @@ const (
 		"const-unions, replaces and removes types and edits nothing else"
 	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
 	factAPI     = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
-
-	statementAPI = "what the schema lowering's readers move onto, a family at a time (GitHub #1991)"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -71,13 +69,6 @@ var apiRoots = map[string]string{
 	"ir/irfacts.Index.Component":   factAPI,
 	"ir/irfacts.Index.Correlation": factAPI,
 	"ir/irfacts.Index.Correlated":  factAPI,
-
-	"compilers/openapi/internal/statement.NewTable":   statementAPI,
-	"compilers/openapi/internal/statement.Table.Of":   statementAPI,
-	"compilers/openapi/internal/statement.Table.At":   statementAPI,
-	"compilers/openapi/internal/statement.Table.Sub":  statementAPI,
-	"compilers/openapi/internal/statement.Table.Read": statementAPI,
-	"compilers/openapi/internal/statement.Schema.Key": statementAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

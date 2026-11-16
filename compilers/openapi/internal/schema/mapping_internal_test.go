@@ -90,7 +90,7 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	at, decl, ok := c.RefScope().MappingTarget(d, "./ext.yaml#/X")
 	require.True(t, ok, "the bindings read ext.yaml")
 
-	_, ok = declaredAt(c.Ctx, at, decl)
+	_, ok = declaredAt(c.Ctx, at, Standalone(decl))
 	assert.False(t, ok, "a document the compile does not list")
 	_, ok = chainOf(c.Ctx, d, "./ext.yaml#/X")
 	assert.False(t, ok)
@@ -255,7 +255,7 @@ func TestChainOf_ReadsEachPositionOnce(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), chain.end().id, "the position reads through to Cat")
 	held := bind.Position{Pointer: "/components/schemas/Hold/properties/p"}
-	again := lowering.Remembered(l.Ctx, chainFrom{held, l.Ctx.Bindings().At(held)}, func() valueChain {
+	again := lowering.Remembered(l.Ctx, chainFrom{held, l.Ctx.Statements().Of(l.Ctx.Bindings().At(held))}, func() valueChain {
 		t.Error("the position was read again")
 		return valueChain{}
 	})

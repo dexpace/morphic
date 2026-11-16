@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary holds the
@@ -44,9 +45,9 @@ func TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo(t *testing.T) {
 		}
 		s := openapitest.SchemaFromYAML(t.Context(), t, keyword+": "+literal+"\n").GetSchema()
 		kinds := keywordKinds[keyword]
-		read, _, _ := annotation.Constraints(s, boundsFor(kinds), false, "/p", provenance.Doc{})
+		read, _, _ := annotation.Constraints(StandaloneSchema(s), boundsFor(kinds), false, "/p", provenance.Doc{})
 		assert.NotNil(t, read, keyword)
-		unread, _, _ := annotation.Constraints(s, boundsFor(anyInstance&^kinds), false, "/p", provenance.Doc{})
+		unread, _, _ := annotation.Constraints(StandaloneSchema(s), boundsFor(anyInstance&^kinds), false, "/p", provenance.Doc{})
 		assert.Nil(t, unread, keyword)
 	}
 }
@@ -67,7 +68,7 @@ func TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares(t *testing.T) {
 		"type: [number, array, boolean]\n": kindNumber | kindArray | kindBoolean,
 	} {
 		s := openapitest.SchemaFromYAML(t.Context(), t, body).GetSchema()
-		assert.Equal(t, want, declaredInstanceTypes(s), body)
+		assert.Equal(t, want, declaredInstanceTypes(StandaloneSchema(s)), body)
 	}
 }
 
@@ -96,6 +97,7 @@ func TestTaken_AKeywordTheTableDoesNotListAppliesToEveryKind(t *testing.T) {
 func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 	t.Parallel()
 	const obj = "{$ref: '#/components/schemas/Obj'}"
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Obj: {type: object}\n"))
 	for _, tc := range []struct {
 		name, body string
 		want       bool
@@ -112,7 +114,7 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := openapitest.SchemaFromYAML(t.Context(), t, tc.body).GetSchema()
-			assert.Equal(t, tc.want, writesBound(nil, s))
+			assert.Equal(t, tc.want, writesBound(l.Ctx, StandaloneSchema(s)))
 		})
 	}
 }
@@ -132,10 +134,10 @@ func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
 			t.Parallel()
 			c := servicetest.Context(t, spec, service.Policy{})
 			pointer := jsontext.Pointer("/components/schemas/" + name)
-			s := heldAt(c.Ctx, pointer).GetSchema()
+			s := statement.ParsedAt(heldAt(c.Ctx, pointer)).GetSchema()
 			require.NotNil(t, s)
 			r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-			assert.Equal(t, anyInstance, r.names(c.Ctx, s, pointer))
+			assert.Equal(t, anyInstance, r.names(c.Ctx, heldAt(c.Ctx, pointer).Schema, pointer))
 			assert.True(t, r.steps.Exhausted())
 			assert.LessOrEqual(t, r.steps.Spent(), bound)
 		})
@@ -186,10 +188,10 @@ func TestBoundTypes_ADynamicCycleEndsOnTheBudget(t *testing.T) {
 	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0",
 		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"), service.Policy{})
 	const pointer = jsontext.Pointer("/components/schemas/A")
-	s := heldAt(c.Ctx, pointer).GetSchema()
+	s := statement.ParsedAt(heldAt(c.Ctx, pointer)).GetSchema()
 	require.NotNil(t, s)
 	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	assert.Equal(t, anyInstance, r.schema(c.Ctx, s, pointer))
+	assert.Equal(t, anyInstance, r.schema(c.Ctx, heldAt(c.Ctx, pointer).Schema, pointer))
 	assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
 }
 
@@ -202,9 +204,9 @@ func TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing(t *testing.T) {
 	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0",
 		"    Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}]}\n"), service.Policy{})
 	const pointer = jsontext.Pointer("/components/schemas/Dangling")
-	s := heldAt(c.Ctx, pointer).GetSchema()
+	s := statement.ParsedAt(heldAt(c.Ctx, pointer)).GetSchema()
 	require.NotNil(t, s)
 	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	assert.Equal(t, anyInstance, r.schema(c.Ctx, s, pointer))
+	assert.Equal(t, anyInstance, r.schema(c.Ctx, heldAt(c.Ctx, pointer).Schema, pointer))
 	assert.Equal(t, 2, r.steps.Spent())
 }

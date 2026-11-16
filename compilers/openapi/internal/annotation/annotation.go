@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -26,7 +27,7 @@ import (
 // deprecated. JSON Schema reads a location deprecated where any occurrence of
 // the keyword applying to it is true, and an occurrence false as one omitted,
 // so no schema of a chain withdraws another's.
-func EffectiveDeprecated(chain []*oas3.Schema) bool {
+func EffectiveDeprecated(chain []*statement.Schema) bool {
 	return anyFlag(chain, func(s *oas3.Schema) *bool { return s.Deprecated })
 }
 
@@ -43,7 +44,7 @@ func EffectiveDeprecated(chain []*oas3.Schema) bool {
 // as sets they leave nothing, which Visibility{None: true} states, as
 // merge.mergeVisibility answers for the pair spread over two allOf branches
 // (GitHub #276).
-func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
+func EffectiveVisibility(chain []*statement.Schema) (ir.Visibility, bool) {
 	readOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.ReadOnly })
 	writeOnly := anyFlag(chain, func(s *oas3.Schema) *bool { return s.WriteOnly })
 
@@ -63,11 +64,11 @@ func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
 // extracts. It is the one reading of the boolean annotations JSON Schema
 // defines (deprecated, readOnly, writeOnly): each in force where any
 // occurrence is true, and false the same as absent.
-func anyFlag(chain []*oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
-	return slices.ContainsFunc(chain, func(s *oas3.Schema) bool {
+func anyFlag(chain []*statement.Schema, accessor func(*oas3.Schema) *bool) bool {
+	return slices.ContainsFunc(chain, func(s *statement.Schema) bool {
 		v := (*bool)(nil)
-		if s != nil {
-			v = accessor(s)
+		if m := statement.Parsed(s); m != nil {
+			v = accessor(m)
 		}
 		return v != nil && *v
 	})
@@ -77,14 +78,15 @@ func anyFlag(chain []*oas3.Schema, accessor func(*oas3.Schema) *bool) bool {
 // Every field is assigned, never accumulated: a schema declares at most one
 // externalDocs, and a pointer read twice (a sub-schema lowered both in place
 // and through a $ref that hoists it) must not end up with two copies of it.
-func FillTypeDocs(d *ir.Docs, s *oas3.Schema) {
-	if t := s.GetTitle(); t != "" {
+func FillTypeDocs(d *ir.Docs, s *statement.Schema) {
+	m := statement.Parsed(s)
+	if t := m.GetTitle(); t != "" {
 		d.Summary = t
 	}
-	if desc := s.GetDescription(); desc != "" {
+	if desc := m.GetDescription(); desc != "" {
 		d.Description = desc
 	}
-	if ed := s.GetExternalDocs(); ed != nil {
+	if ed := m.GetExternalDocs(); ed != nil {
 		d.ExternalDocs = []ir.Link{{URL: ed.GetURL(), Description: ed.GetDescription()}}
 	}
 }
@@ -101,9 +103,9 @@ func FillTypeDocs(d *ir.Docs, s *oas3.Schema) {
 // annotations merge onto the referencing Property/Parameter with use-site
 // precedence, uniformly, constraints excepted, while the referent keeps its own
 // copy on its node.
-func FillCarrierDocs(d *ir.Docs, chain []*oas3.Schema) {
+func FillCarrierDocs(d *ir.Docs, chain []*statement.Schema) {
 	for _, s := range slices.Backward(chain) {
-		if s != nil {
+		if statement.Parsed(s) != nil {
 			FillTypeDocs(d, s)
 		}
 	}
@@ -173,13 +175,13 @@ type Kind int
 // fillParamSchema, builds its own Site (schema.UseOf).
 type Site struct {
 	Kind Kind
-	Node *oas3.Schema
+	Node *statement.Schema
 	// Voices are the branches read as written at Node
 	// (docs/compilers/openapi.md#allof-inline-residue).
 	Voices []Voice
 	// Referents is empty when Kind is Reference but the $ref's chain ends on no
 	// schema; refTypeRef is what diagnoses that, not this.
-	Referents []*oas3.Schema
+	Referents []*statement.Schema
 	// Dialect is what the dialect Node is read in spells otherwise than 2020-12.
 	Dialect Dialect
 	// Closure says the node Node lowered to holds its `unevaluatedProperties:
@@ -205,14 +207,14 @@ type Dialect struct {
 // Voice is an inline allOf branch and where it is written, so what it declares
 // is read, and reported, at its own pointer.
 type Voice struct {
-	Node *oas3.Schema
+	Node *statement.Schema
 	At   jsontext.Pointer
 }
 
 // Chain returns what speaks for the site, nearest first: its own schema, its
 // voices, then the referents a reference site falls back to.
-func (st Site) Chain() []*oas3.Schema {
-	chain := make([]*oas3.Schema, 0, 1+len(st.Voices)+len(st.Referents))
+func (st Site) Chain() []*statement.Schema {
+	chain := make([]*statement.Schema, 0, 1+len(st.Voices)+len(st.Referents))
 	chain = append(chain, st.Node)
 	for _, v := range st.Voices {
 		chain = append(chain, v.Node)
@@ -230,9 +232,13 @@ func (st Site) Chain() []*oas3.Schema {
 // reference site: an empty ref resolves nowhere, so IsReference is false.
 //
 // At trusts its caller that js is the schema at the position being modeled.
-func At(js *oas3.JSONSchema[oas3.Referenceable]) Site {
-	s := Site{Kind: Declaration, Node: SchemaOf(js)}
-	if js != nil && !js.IsBool() && js.IsReference() {
+func At(js *statement.Statement) Site {
+	m := statement.ParsedAt(js)
+	s := Site{Kind: Declaration}
+	if SchemaOf(m) != nil {
+		s.Node = js.Schema
+	}
+	if m != nil && !m.IsBool() && m.IsReference() {
 		s.Kind = Reference
 	}
 	return s
@@ -324,8 +330,9 @@ const redactionFormat = "password"
 // table lists it for strings, but hiding a value no one needed hidden is the
 // safe reading. It is an annotation rather than a (type, format) pairing, so
 // the shape a position lowers to is read without it.
-func DeclaresRedaction(s *oas3.Schema) bool {
-	return s.GetFormat() == redactionFormat
+func DeclaresRedaction(s *statement.Schema) bool {
+	m := statement.Parsed(s)
+	return m.GetFormat() == redactionFormat
 }
 
 // Read reads every site-local annotation at st: what its schema writes at
@@ -363,14 +370,15 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 // rather than a voice, whose dialect keywords, discriminator and unevaluated
 // keywords no fold reads and whose residue keeps them, dialect is what its
 // dialect spells otherwise (Site.Dialect), and closure is Site.Closure.
-func readLocal(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
+func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
+	m := statement.Parsed(s)
 	var out Set
-	out.XML = XMLHints(s.GetXML())
+	out.XML = XMLHints(m.GetXML())
 
 	examples, exDiags := schemaExamplesAt(s, pointer, doc)
 	out.Examples = examples
 
-	ext, extDiags := ExtensionsFrom(s.GetExtensions(), doc, pointer)
+	ext, extDiags := ExtensionsFrom(m.GetExtensions(), doc, pointer)
 	sub, subDiags := subObjectKeys(s, out.XML, pointer, doc, own)
 	kept, keptDiags := unmodeledAt(s, pointer, doc, own, dialect, closure)
 
@@ -391,18 +399,19 @@ func readLocal(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own
 // keyword each was written under. The census is graded as an OpenAPI object's,
 // not a schema keyword's. It first reads the XML object's nodeType into hints
 // (applyNodeType). discriminator says whether s's discriminator is read.
-func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
+func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
+	m := statement.Parsed(s)
 	var out ir.Unmodeled
-	xmlTaken, diags := applyNodeType(&out, hints, s.GetXML(), doc, pointer+ids.Ptr("xml"))
+	xmlTaken, diags := applyNodeType(&out, hints, m.GetXML(), doc, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
 		obj     any
 		ext     *extensions.Extensions
 		taken   []string
 	}{
-		{"xml", s.GetXML(), s.GetXML().GetExtensions(), xmlTaken},
-		{"discriminator", s.GetDiscriminator(), s.GetDiscriminator().GetExtensions(), nil},
-		{"externalDocs", s.GetExternalDocs(), s.GetExternalDocs().GetExtensions(), nil},
+		{"xml", m.GetXML(), m.GetXML().GetExtensions(), xmlTaken},
+		{"discriminator", m.GetDiscriminator(), m.GetDiscriminator().GetExtensions(), nil},
+		{"externalDocs", m.GetExternalDocs(), m.GetExternalDocs().GetExtensions(), nil},
 	}
 	for _, sub := range subs {
 		if sub.keyword == "discriminator" && !discriminator {
@@ -471,7 +480,7 @@ func definedNodeType(v string) bool {
 // ir.Encoding depends on what the position lowered to, which only the schema
 // package can answer — schema.recordUnplacedContent asks the node that was
 // built rather than the keyword that was written.
-func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect,
+func unmodeledAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect,
 	closure bool,
 ) (ir.Unmodeled, []ir.Diagnostic) {
 	vOnly, diags := validationOnlyAt(s, pointer, doc, dialect, own, closure)
@@ -530,7 +539,7 @@ func dialectRead(keyword string, dialect Dialect) string {
 // the exclusion is visible in the output rather than only in this comment:
 // those DialectKeywords names, and draft 4's `id` where dialect says s is read
 // in a dialect spelling its identifier so.
-func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect) (ir.Unmodeled, []ir.Diagnostic) {
+func dialectAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	keep := func(keyword string) {
@@ -557,7 +566,8 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dia
 //
 // Site-only: an example written beside a $ref describes the position, never the
 // referent, which is the class of annotation the $ref-sibling defect broke.
-func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc) ([]ir.Example, []ir.Diagnostic) {
+func schemaExamplesAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc) ([]ir.Example, []ir.Diagnostic) {
+	m := statement.Parsed(s)
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	add := func(node *yaml.Node, seg ...string) {
@@ -565,10 +575,10 @@ func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 		out, exDiags = AppendExample(out, ir.Example{}, node, doc, pointer, seg...)
 		diags = append(diags, exDiags...)
 	}
-	if node := s.GetExample(); node != nil {
+	if node := m.GetExample(); node != nil {
 		add(node, "example")
 	}
-	for i, node := range s.GetExamples() {
+	for i, node := range m.GetExamples() {
 		add(node, "examples", strconv.Itoa(i))
 	}
 	return out, diags

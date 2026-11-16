@@ -31,7 +31,7 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.Ctx, &kept, js, nil, "/p", anyInstance)
+		cons, diags := ConstraintsOf(l.Ctx, &kept, StandaloneSchema(js), nil, "/p", anyInstance)
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
@@ -54,7 +54,7 @@ func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
 // keywordHome's arm never reaches: a keyword that is no collection bound.
 func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
 	t.Parallel()
-	assert.False(t, referenceHolds(&oas3.Schema{}, "pattern"))
+	assert.False(t, referenceHolds(StandaloneSchema(&oas3.Schema{}), "pattern"))
 }
 
 // TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
@@ -67,7 +67,7 @@ func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	l := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), nil, "/p", anyInstance)
+	cons, diags := ConstraintsOf(l.Ctx, &kept, StandaloneSchema(annotation.SchemaOf(js)), nil, "/p", anyInstance)
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)

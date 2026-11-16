@@ -28,6 +28,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -212,6 +213,24 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 	assert.Equal(t, 2, lowering.Remembered(c.Ctx, "other", read), "another key is another reading")
 	other := servicetest.Context(t, bindingsSpec, service.Policy{})
 	assert.Equal(t, 3, lowering.Remembered(other.Ctx, "k", read), "another context remembers nothing of c's")
+}
+
+// TestStatements_IsOneTableForTheRun pins that every copy of a context reads
+// statements from one table, over the bindings and rows the load phase read,
+// and another context from its own.
+func TestStatements_IsOneTableForTheRun(t *testing.T) {
+	t.Parallel()
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
+	table := c.Statements()
+
+	assert.Same(t, table, atSource(t, c.Ctx).Statements(), "a copy shares the table")
+	target := table.At(c.Position("/components/schemas/Target"))
+	require.NotNil(t, target.Kinds)
+	assert.Equal(t, []statement.Kind{statement.KindString}, target.Kinds.Types, "read off the bindings")
+	k, _ := target.Key("type")
+	assert.Equal(t, oas.SlotKinds, k.Slot, "read in the rows the load phase read")
+	other := servicetest.Context(t, bindingsSpec, service.Policy{})
+	assert.NotSame(t, table, other.Statements(), "another run reads its own")
 }
 
 // TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer pins a key asked for two

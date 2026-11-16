@@ -30,6 +30,26 @@ func (t *Table) Of(js *model) *Statement {
 	return st
 }
 
+// Parsed returns the parser's schema object s was read from, nil for a nil s
+// and for a value that is no schema object: what a reader not yet reading the
+// statement reads (GitHub #1991). It goes once none does.
+func Parsed(s *Schema) *oas3.Schema {
+	if s == nil {
+		return nil
+	}
+	return s.m.GetSchema()
+}
+
+// ParsedAt returns the parser's value st was read from, nil for a nil st: what
+// a reader not yet reading the statement reads (GitHub #1991). It goes once
+// none does.
+func ParsedAt(st *Statement) *model {
+	if st == nil {
+		return nil
+	}
+	return st.m
+}
+
 // read returns the schema object js holds, read on the first ask and
 // remembered, which reads no other object: where the bindings read it, its
 // node, its truth and, for a stated one, its keys in their slots, its
@@ -51,7 +71,7 @@ func (t *Table) read(js *model) *Schema {
 	}
 	m := js.GetSchema()
 	s.Node = nodeview.Deref(nodeview.DocumentRoot(m.GetRootNode()))
-	readKeys(s, t.rules(s.At), m.GetCore().GetUnknownProperties())
+	readKeys(s, t.src.Rules.At(s.At), m.GetCore().GetUnknownProperties())
 	if kw := t.src.Bindings.RefKeyword(js); kw != "" {
 		e, bound := t.src.Bindings.Entry(js)
 		s.Ref = &Reference{Keyword: kw, Entry: e, Bound: bound}

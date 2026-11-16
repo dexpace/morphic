@@ -500,7 +500,7 @@ func compileView(t *testing.T, m string) (composedView, []string) {
 // equivalencePairs are (nested, flat) spellings of one composition M. Each
 // nested spelling must lower as its flat one does
 // (docs/compilers/openapi.md#allof-classification), at any depth up to
-// MaxAllOfFlattenDepth.
+// statement.MaxFlattenDepth.
 var equivalencePairs = []struct {
 	name   string
 	nested string

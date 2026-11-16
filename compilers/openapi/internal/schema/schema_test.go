@@ -95,7 +95,7 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := schema.NewRawLowerer(&soa.OpenAPI{})
-	ref, diags := schema.Ref(l.Ctx, l.Types, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p")
+	ref, diags := schema.Ref(l.Ctx, l.Types, schema.TopLevelDepth, schema.Standalone(openapitest.EmptyEitherSchema()), "/p")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }

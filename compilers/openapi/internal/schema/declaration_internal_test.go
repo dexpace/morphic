@@ -26,12 +26,14 @@ func TestAttachDeclaredAnnotations_LeavesANodeStillBeingBuiltToItsBuilder(t *tes
 
 	var midBuild []ir.Diagnostic
 	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
-		require.NotPanics(t, func() { midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, s, at, ir.TypeRef{}) })
+		require.NotPanics(t, func() {
+			midBuild = attachDeclaredAnnotations(l.Ctx, l.Types, StandaloneSchema(s), at, ir.TypeRef{})
+		})
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build reports nothing")
 
-	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, s, at, ir.TypeRef{}))
+	assert.Empty(t, attachDeclaredAnnotations(l.Ctx, l.Types, StandaloneSchema(s), at, ir.TypeRef{}))
 	td, ok := l.Types.Node(id)
 	require.True(t, ok)
 	assert.Equal(t, "kept", td.Common().Docs.Description, "the builder's own pass attaches it")
@@ -46,12 +48,14 @@ func TestRecordDeclarationResidue_LeavesANodeStillBeingBuiltToItsBuilder(t *test
 
 	var midBuild []ir.Diagnostic
 	id := internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef {
-		require.NotPanics(t, func() { midBuild = recordDeclarationResidue(l.Ctx, l.Types, s, at, annotation.HomeOwnNode) })
+		require.NotPanics(t, func() {
+			midBuild = recordDeclarationResidue(l.Ctx, l.Types, StandaloneSchema(s), at, annotation.HomeOwnNode)
+		})
 		return &ir.Model{TypeCommon: cm}
 	})
 	assert.Empty(t, midBuild, "a revisit mid-build records and reports nothing")
 
-	assert.NotEmpty(t, recordDeclarationResidue(l.Ctx, l.Types, s, at, annotation.HomeOwnNode),
+	assert.NotEmpty(t, recordDeclarationResidue(l.Ctx, l.Types, StandaloneSchema(s), at, annotation.HomeOwnNode),
 		"the builder's own pass reports what it keeps")
 	td, ok := l.Types.Node(id)
 	require.True(t, ok)

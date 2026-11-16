@@ -22,8 +22,8 @@ func TestRawPropertyNode_NilSchemaReadsNothing(t *testing.T) {
 	assert.Nil(t, RawPropertyNode(nil, "type"))
 
 	s := schemaFromYAML(t, "type: string\n")
-	require.NotNil(t, RawPropertyNode(s, "type"))
-	assert.Nil(t, RawPropertyNode(s, "title"), "a keyword the schema did not write")
+	require.NotNil(t, RawPropertyNode(standaloneSchema(s), "type"))
+	assert.Nil(t, RawPropertyNode(standaloneSchema(s), "title"), "a keyword the schema did not write")
 }
 
 // TestRawPropertyNode_ReadsANullKeywordAsLeftOut pins the one reading a null
@@ -33,14 +33,14 @@ func TestRawPropertyNode_ReadsANullKeywordAsLeftOut(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "{maxLength: null, format: ~, $id: null, const: null, default: ~, example: null, title: t}\n")
 	for _, keyword := range []string{"maxLength", "format", "$id"} {
-		assert.Nil(t, RawPropertyNode(s, keyword), keyword)
+		assert.Nil(t, RawPropertyNode(standaloneSchema(s), keyword), keyword)
 	}
 	for _, keyword := range []string{"const", "default", "example"} {
-		node := RawPropertyNode(s, keyword)
+		node := RawPropertyNode(standaloneSchema(s), keyword)
 		require.NotNil(t, node, keyword)
 		assert.True(t, IsNullNode(node), keyword)
 	}
-	assert.NotNil(t, RawPropertyNode(s, "title"))
+	assert.NotNil(t, RawPropertyNode(standaloneSchema(s), "title"))
 }
 
 // TestRawPropertyNode_ReadsAKeywordAsTheParserDoes pins the raw keyword reader
@@ -71,7 +71,7 @@ components:
 	} {
 		js, ok := doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
-		node := RawPropertyNode(js.GetSchema(), "maximum")
+		node := RawPropertyNode(standaloneSchema(js.GetSchema()), "maximum")
 		require.NotNil(t, node, "%s writes maximum as the parser reads it", name)
 		assert.Equal(t, yaml.ScalarNode, node.Kind, "%s: the value's alias is followed", name)
 		assert.Equal(t, want, node.Value, name)
@@ -83,7 +83,7 @@ components:
 // and the other does not cannot arise.
 func TestDeclaresAny_AsksTheRawNodes(t *testing.T) {
 	t.Parallel()
-	assert.True(t, DeclaresAny(schemaFromYAML(t, "$id: 'urn:a'\ntype: string\n"), slices.Collect(DialectKeywords())))
-	assert.False(t, DeclaresAny(schemaFromYAML(t, "type: string\n"), slices.Collect(DialectKeywords())))
-	assert.False(t, DeclaresAny(schemaFromYAML(t, "type: string\n"), nil))
+	assert.True(t, DeclaresAny(standaloneSchema(schemaFromYAML(t, "$id: 'urn:a'\ntype: string\n")), slices.Collect(DialectKeywords())))
+	assert.False(t, DeclaresAny(standaloneSchema(schemaFromYAML(t, "type: string\n")), slices.Collect(DialectKeywords())))
+	assert.False(t, DeclaresAny(standaloneSchema(schemaFromYAML(t, "type: string\n")), nil))
 }

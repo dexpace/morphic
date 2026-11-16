@@ -69,7 +69,7 @@ func TestPreserveSchemaKeyword_KeysAndLocatesTheEntryAtTheKeyword(t *testing.T) 
 	s := schemaFromYAML(t, "type: string\nformat: password\n")
 	var p ir.Unmodeled
 
-	kept, diags := PreserveSchemaKeyword(&p, s, "format", ir.ReasonNoIRHome, "/S", overlaid("/S/format"))
+	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", overlaid("/S/format"))
 
 	assert.True(t, kept)
 	assert.Empty(t, diags)
@@ -88,11 +88,11 @@ func TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 	s := schemaFromYAML(t, "type: number\ndefault: .nan\n")
 	var p ir.Unmodeled
 
-	kept, diags := PreserveSchemaKeyword(&p, s, "format", ir.ReasonNoIRHome, "/S", sourced(0))
+	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", sourced(0))
 	assert.False(t, kept)
 	assert.Empty(t, diags, "an absent keyword is no construct")
 
-	kept, diags = PreserveSchemaKeyword(&p, s, "default", ir.ReasonNoIRHome, "/S", overlaid("/S/default"))
+	kept, diags = PreserveSchemaKeyword(&p, standaloneSchema(s), "default", ir.ReasonNoIRHome, "/S", overlaid("/S/default"))
 	assert.False(t, kept)
 	assert.Nil(t, p, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
@@ -109,11 +109,11 @@ func TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nnullable: true\n")
 	var p ir.Unmodeled
-	kept, diags := PreserveSchemaKeyword(&p, s, "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
+	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
 	require.True(t, kept)
 	require.Empty(t, diags)
 
-	census := UndefinedKeywordsIn(&p, s, []string{"nullable"}, "/S", sourced(0))
+	census := UndefinedKeywordsIn(&p, standaloneSchema(s), []string{"nullable"}, "/S", sourced(0))
 
 	assert.Empty(t, census, "the census announces nothing it did not keep")
 	require.Len(t, p, 1, "and keeps no second entry")
@@ -130,7 +130,7 @@ func TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement(t *test
 	s := schemaFromYAML(t, "type: string\nnot: {const: x}\n")
 	var p ir.Unmodeled
 
-	diags := PreserveValidationOnlyKeyword(&p, s, "not", "/S", overlaid("/S/not"))
+	diags := PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "not", "/S", overlaid("/S/not"))
 
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "not"): {
 		Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"const":"x"}`),
@@ -149,9 +149,9 @@ func TestPreserveValidationOnlyKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testin
 	s := schemaFromYAML(t, "type: object\ndependentRequired: {a: [.nan]}\n")
 	var p ir.Unmodeled
 
-	assert.Empty(t, PreserveValidationOnlyKeyword(&p, s, "not", "/S", sourced(0)), "an absent keyword is no construct")
+	assert.Empty(t, PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "not", "/S", sourced(0)), "an absent keyword is no construct")
 
-	diags := PreserveValidationOnlyKeyword(&p, s, "dependentRequired", "/S", overlaid("/S/dependentRequired"))
+	diags := PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "dependentRequired", "/S", overlaid("/S/dependentRequired"))
 	assert.Nil(t, p, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)

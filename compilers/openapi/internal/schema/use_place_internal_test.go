@@ -10,9 +10,11 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/references"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // TestUseDefault_PlacesEachSchemaOfTheChain pins where defaultAt places the
@@ -24,13 +26,13 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	c := l.Ctx
 	ref := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference("#/x"))})
-	unknown := placeOf(c, ref)
+	unknown := placeOf(c, Standalone(ref))
 	assert.False(t, unknown.known, "a schema the bindings do not know is placed nowhere")
 	assert.False(t, unknown.beneath("/allOf/0").known, "nor is a branch beneath it")
 
 	u := Use{Voices: []annotation.Voice{{At: "/v"}}}
-	u.lend(&oas3.Schema{}, placeIn(c, "/r"))
-	u.lend(&oas3.Schema{}, unknown)
+	u.lend(StandaloneSchema(&oas3.Schema{}), placeIn(c, "/r"))
+	u.lend(StandaloneSchema(&oas3.Schema{}), unknown)
 	const carrier = jsontext.Pointer("/p")
 	for i, want := range []jsontext.Pointer{"/p/default", "/v/default", "/r/default", "/p"} {
 		assert.Equal(t, want, u.defaultAt(c, i, carrier).Pointer, "schema %d of the chain", i)
@@ -45,8 +47,9 @@ func TestUseOf_ARunTheBindingsDoNotKnowLendsWhatItWrites(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	ref := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference("#/x"))})
 	var u Use
-	s, ok := u.lendRun(l.Ctx, ref)
+	s, ok := u.lendRun(l.Ctx, l.Ctx.Statements().Of(ref))
 	assert.False(t, ok)
-	assert.Nil(t, s)
-	assert.Equal(t, []*oas3.Schema{ref.GetSchema()}, u.Referents)
+	assert.Nil(t, statement.Parsed(s))
+	require.Len(t, u.Referents, 1)
+	assert.Same(t, ref.GetSchema(), statement.Parsed(u.Referents[0]))
 }

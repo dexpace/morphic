@@ -6,13 +6,12 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,17 +25,18 @@ import (
 // finds them either way. Beside a node keeping them verbatim, such as an Enum
 // or a Literal, it holds none, and it restates no collection bound
 // (CarrierConstraintsOf).
-func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
-	ref := js.GetSchema()
+func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
+	m := statement.ParsedAt(js)
+	ref := m.GetSchema()
 	if ref == nil {
 		return nil
 	}
 	use := UseOf(c, ts, js, p.Type, pointer)
-	def, diags := use.Default(c, ref, pointer)
+	def, diags := use.Default(c, js.Schema, pointer)
 	p.Default = def
-	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, use.Voices, pointer)...)
-	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, use, pointer)...)
+	diags = append(diags, fillPropertyVisibility(c, p, use.Site(js.Schema).Chain(), pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, ts, p, js.Schema, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, ts, p, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
@@ -49,7 +49,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 // the caller that knows the position being filled. It is the same finding under
 // the same code as the allOf spelling, so a consumer filtering on
 // diag.DisjointVisibility sees both.
-func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	visibility, disjoint := annotation.EffectiveVisibility(chain)
 	p.Visibility = visibility
 	if !disjoint {
@@ -70,7 +70,7 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema
 // here under use-site precedence would publish the wider of the two as the whole
 // truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
 	cons, diags := CarrierConstraintsOf(c, ts, &p.Unmodeled, ref, voices, p.Type, pointer)
 	p.Constraints = cons
 	return diags
@@ -88,7 +88,7 @@ func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 //
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
-func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *statement.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
@@ -117,7 +117,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 // which attachDeclaredAnnotations keeps on a node. It is one call so that a
 // property, a header and a parameter cannot differ in what they keep, and it runs
 // last, as PreserveUnknownKeywords requires.
-func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// nil node: only a schema with no node of its own comes here, so nothing here
 	// can be carrying an Encoding.
 	diags := recordUnplacedContent(c, p, s, nil, pointer)
@@ -143,8 +143,9 @@ func PromoteUse(c lowering.Ctx, from promotion.Referent, unmodeled ir.Unmodeled,
 // lend it, js written at pointer and lowered to t (Use.lentKeys). A position
 // owning a node lends its carrier none, as it lends no keyword: the node takes
 // them (attachDeclaredAnnotations).
-func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
-	s := annotation.SchemaOf(js)
+func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
+	m := statement.ParsedAt(js)
+	s := annotation.SchemaOf(m)
 	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return promotion.Referent{}
 	}

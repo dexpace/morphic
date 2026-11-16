@@ -9,10 +9,10 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -62,14 +62,15 @@ func instanceWords(t kindSet) string {
 // writing none excludes nothing, whatever else it writes: `properties` alone
 // constrains objects and admits a string. A word no dialect defines says
 // nothing either: load reports it, so it is no conjunct's to contradict another.
-func declaredInstanceTypes(s *oas3.Schema) kindSet {
-	declared := s.GetType()
+func declaredInstanceTypes(s *statement.Schema) kindSet {
+	m := statement.Parsed(s)
+	declared := m.GetType()
 	if len(declared) == 0 {
 		return anyInstance
 	}
 	var out kindSet
 	for _, st := range declared {
-		kinds := kindOfType(st)
+		kinds := kindOfType(statement.Kind(st))
 		if kinds == 0 {
 			kinds = anyInstance
 		}
@@ -82,7 +83,7 @@ func declaredInstanceTypes(s *oas3.Schema) kindSet {
 // budget for the whole read, as nulls does. It runs out to anyInstance, the
 // answer that claims the least, so a cycle ends on the budget.
 type conjunctTypes struct {
-	refs  *typed.Bindings
+	c     lowering.Ctx
 	steps budget.Budget
 	// passedOver is set where the read meets what can refuse a value of some
 	// instance type and that it does not read (passesOver), so anyInstance may
@@ -98,15 +99,16 @@ type conjunctTypes struct {
 // or a `type: "null"` beside them, that is a miss. reference is the keyword s
 // is a reference site under (typed.Bindings.RefKeyword), which the read leaves
 // to branch, as it leaves a $ref.
-func (r *conjunctTypes) schema(s *oas3.Schema, reference string) kindSet {
-	if s == nil || !r.steps.Spend(1) {
+func (r *conjunctTypes) schema(s *statement.Schema, reference string) kindSet {
+	m := statement.Parsed(s)
+	if m == nil || !r.steps.Spend(1) {
 		return anyInstance
 	}
 	r.passedOver = r.passedOver || passesOver(s, reference)
 	out := declaredInstanceTypes(s)
-	entries := s.GetAllOf()
+	entries := m.GetAllOf()
 	for _, b := range entries {
-		out &= r.branch(b)
+		out &= r.branch(r.c.Statements().Of(b))
 	}
 	if out == 0 && len(entries) > 0 {
 		return anyInstance
@@ -121,14 +123,15 @@ func (r *conjunctTypes) schema(s *oas3.Schema, reference string) kindSet {
 // A keyword beside a $ref that could refuse a value of some instance type is
 // passed over (besideChain), as are a `false` entry and a $ref landing on no
 // schema.
-func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
-	if r.refs.RefSite(b) {
-		target := refBranchTarget(r.refs, b)
-		r.passedOver = r.passedOver || target == nil || r.besideChain(b)
+func (r *conjunctTypes) branch(b *statement.Statement) kindSet {
+	m := statement.ParsedAt(b)
+	if r.c.Bindings().RefSite(m) {
+		target := refBranchTarget(r.c, b)
+		r.passedOver = r.passedOver || statement.Parsed(target) == nil || r.besideChain(b)
 		return r.schema(target, "")
 	}
-	r.passedOver = r.passedOver || annotation.IsFalseSchema(b)
-	return r.schema(b.GetSchema(), "")
+	r.passedOver = r.passedOver || annotation.IsFalseSchema(m)
+	return r.schema(b.Schema, "")
 }
 
 // besideChain reports whether b, an allOf entry writing a $ref, or an alias its
@@ -136,14 +139,15 @@ func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 // refuse a value of some instance type. The hops are walked in a loop the
 // chain's own length bounds, as nulls.lands walks them; one the bindings do
 // not know has none.
-func (r *conjunctTypes) besideChain(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	e, _ := r.refs.Entry(b)
+func (r *conjunctTypes) besideChain(b *statement.Statement) bool {
+	m := statement.ParsedAt(b)
+	e, _ := r.c.Bindings().Entry(m)
 	hop := b
-	for i := 0; i < e.Chain.Hops && hop != nil; i++ {
-		if writesBesideRef(hop.GetSchema(), r.refs.RefKeyword(hop)) {
+	for i := 0; i < e.Chain.Hops && statement.ParsedAt(hop) != nil; i++ {
+		if writesBesideRef(hop.Schema, r.c.Bindings().RefKeyword(statement.ParsedAt(hop))) {
 			return true
 		}
-		hop = r.refs.Declared(hop)
+		hop = r.c.Statements().Of(r.c.Bindings().Declared(statement.ParsedAt(hop)))
 	}
 	return false
 }
@@ -153,24 +157,26 @@ func (r *conjunctTypes) besideChain(b *oas3.JSONSchema[oas3.Referenceable]) bool
 // condition, an `enum` or a `const`, or a dynamic or recursive reference other
 // than reference, the keyword s is a reference site under
 // (typed.Bindings.RefKeyword), which conjunctTypes follows.
-func passesOver(s *oas3.Schema, reference string) bool {
-	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 || s.GetNot() != nil || s.GetIf() != nil ||
-		enumWritten(s) || s.GetConst() != nil ||
+func passesOver(s *statement.Schema, reference string) bool {
+	m := statement.Parsed(s)
+	return len(m.GetOneOf()) > 0 || len(m.GetAnyOf()) > 0 || m.GetNot() != nil || m.GetIf() != nil ||
+		enumWritten(s) || m.GetConst() != nil ||
 		reference != "$dynamicRef" && annotation.RawPropertyNode(s, "$dynamicRef") != nil ||
 		annotation.RawPropertyNode(s, "$recursiveRef") != nil
 }
 
 // writesBesideRef reports whether s, a reference site under reference, writes
 // beside it anything that can refuse a value of some instance type.
-func writesBesideRef(s *oas3.Schema, reference string) bool {
-	return s != nil && (writesType(s) || len(s.GetAllOf()) > 0 || passesOver(s, reference))
+func writesBesideRef(s *statement.Schema, reference string) bool {
+	m := statement.Parsed(s)
+	return m != nil && (writesType(s) || len(m.GetAllOf()) > 0 || passesOver(s, reference))
 }
 
 // entry is what one flattened entry adds. A wrapper adds only its own `type`,
 // since its allOf's entries stand beside it in the flattened list.
 func (r *conjunctTypes) entry(e allOfBranch) kindSet {
 	if e.wrapper {
-		return declaredInstanceTypes(e.schema.GetSchema())
+		return declaredInstanceTypes(e.schema.Schema)
 	}
 	return r.branch(e.schema)
 }
@@ -181,8 +187,8 @@ func (r *conjunctTypes) entry(e allOfBranch) kindSet {
 // A null is one: the shared reading of it is the nulls walk's. One conjunct
 // contradicts nothing, so a lone `type: "null"` beside what takes its null away
 // draws nil too.
-func disjointConjuncts(c lowering.Ctx, s *oas3.Schema, comp allOfComposition) []string {
-	r := conjunctTypes{refs: c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
+func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
+	r := conjunctTypes{c: c, steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
 	own := declaredInstanceTypes(s)
 	joint := own
 	read := make([]kindSet, len(comp.branches))

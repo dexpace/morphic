@@ -193,6 +193,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/provenance",
+		module + "/compilers/openapi/internal/statement",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
@@ -200,12 +201,13 @@ var rules = map[string][]string{
 	// What a schema position writes, read once into one value: each key in the
 	// slot oas gives it, each slot's values typed, and the inline allOf entries
 	// flattened. It reaches the bindings for where each schema was read and
-	// what its $ref names, nodeview for the keys as the parser reads them, oas
-	// for the rows in force, and the library's schema model, in one file, so
-	// that the schema lowering and annotation, which sit above it, read what
-	// a schema says without reading the parser.
+	// what its $ref names, nodeview for the keys as the parser reads them,
+	// dialect and oas for the rows in force, and the library's schema model,
+	// in one file, so that the schema lowering and annotation, which sit above
+	// it, read what a schema says without reading the parser.
 	"compilers/openapi/internal/statement": {module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/dialect",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3", "go.yaml.in/yaml/v3"},
@@ -342,7 +344,8 @@ var rules = map[string][]string{
 	// It reaches naming for what each position is called, budget for the limits
 	// it holds, provenance and diag for where a position of its document is
 	// placed, ids for how the IDs of what that document declares are
-	// qualified, and promotion for the policy it carries.
+	// qualified, promotion for the policy it carries, and statement for what
+	// each schema says, read once for the run.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -354,7 +357,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/provenance",
-		module + "/compilers/openapi/internal/resolve"},
+		module + "/compilers/openapi/internal/resolve",
+		module + "/compilers/openapi/internal/statement"},
 	// What the service lowerings read beside the schema lowering's context,
 	// which it embeds: the parsed document, the source's index, how
 	// operations group, which media types stream or are binary, and the budget
@@ -493,6 +497,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
+		module + "/compilers/openapi/internal/statement",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/values", "go.yaml.in/yaml/v3"},
@@ -520,6 +525,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",
 		module + "/compilers/openapi/internal/service",
+		module + "/compilers/openapi/internal/statement",
 		module + "/compilers/openapi/internal/value",
 		module + "/compilers/openapi/internal/whole",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "go.yaml.in/yaml/v3"},

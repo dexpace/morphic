@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -99,6 +100,11 @@ type shared struct {
 	// documents and their bindings, which no lowering changes, so what one copy
 	// remembers is what another would read.
 	readings map[any]any
+	// statements reads each schema the bindings hold into its statement, once
+	// for the run (Statements). Copies share it on purpose: a statement reads
+	// only the documents, their bindings and their rows, which no lowering
+	// changes, so what one copy reads is what another would.
+	statements *statement.Table
 	// settled holds each store Settled built, by its type (store). Copies share
 	// it on purpose, so every settlement of a run reads one store. Unlike an
 	// answer in readings, what a store holds reads the registry, so it would
@@ -163,7 +169,8 @@ func New(in Loaded, p Policy) Ctx {
 		shared: &shared{documents: maps.Clone(in.Documents), dialects: in.Rules, sources: slices.Clone(in.Sources),
 			names:    naming.New(in.Bindings.Table(), p.TitleNames.Honours()),
 			reads:    resolve.Scope{SelfPath: in.Location, Places: in.Places, Bindings: in.Bindings},
-			readings: map[any]any{}, settled: map[any]any{}},
+			readings: map[any]any{}, settled: map[any]any{},
+			statements: statement.NewTable(statement.Source{Bindings: in.Bindings, Rules: in.Rules})},
 		reached: resolve.NewReached(),
 	}
 }
@@ -203,6 +210,12 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // resolved them.
 func (c Ctx) Bindings() *typed.Bindings {
 	return c.shared.reads.Bindings
+}
+
+// Statements returns the run's statements: what each schema the documents
+// write says, read once for every copy of c.
+func (c Ctx) Statements() *statement.Table {
+	return c.shared.statements
 }
 
 // Remembered returns read's answer for key, read once and remembered for every

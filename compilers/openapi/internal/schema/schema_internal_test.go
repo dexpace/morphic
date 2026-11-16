@@ -75,7 +75,7 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := recordSkippedFamilies(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{},
+	diags := recordSkippedFamilies(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}),
 		dispatch{won: "const", skipped: []string{"enum"}}, "/p")
 	assertInternalInvariant(t, diags)
 }
@@ -95,8 +95,8 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 		oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}),
 	}}
 
-	require.True(t, declaresFamily(withAllOf, "allOf"), "allOf is named and declared")
-	assert.False(t, declaresFamily(withAllOf, "oneOf"),
+	require.True(t, declaresFamily(StandaloneSchema(withAllOf), "allOf"), "allOf is named and declared")
+	assert.False(t, declaresFamily(StandaloneSchema(withAllOf), "oneOf"),
 		"an unknown name must not inherit allOf's guard")
-	assert.False(t, declaresFamily(&oas3.Schema{}, "nosuchfamily"))
+	assert.False(t, declaresFamily(StandaloneSchema(&oas3.Schema{}), "nosuchfamily"))
 }

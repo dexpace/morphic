@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
@@ -229,12 +229,9 @@ func TestTable_AtFindsWhatOfReads(t *testing.T) {
 		"B: *shared",
 	), service.Policy{}).Ctx
 	draft07, own := rulesAt(t, "3.1.0", "http://json-schema.org/draft-07/schema#"), rulesAt(t, "3.1.0", "")
-	table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rowsBy(func(p bind.Position) oas.SchemaRules {
-		if p == component(c, "A") {
-			return draft07
-		}
-		return own
-	})})
+	rows := dialect.NewBuilder(own)
+	rows.Root(component(c, "A"), nil, draft07)
+	table := statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: rows.Table()})
 	a, b := table.At(component(c, "A")), table.At(component(c, "B"))
 	assert.NotSame(t, a, b)
 	assert.Same(t, a.Node, b.Node, "one node")

@@ -21,7 +21,7 @@ import (
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.Ctx, l.Types, &oas3.Schema{}, "/p", "t/anon/missing", dispatch{})
+	got, diags := preserveUnhomedKeywords(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "t/anon/missing", dispatch{})
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }
@@ -33,7 +33,7 @@ func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := recordUnhomedKeywords(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{}, []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
+	diags := recordUnhomedKeywords(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}), []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
 	assertInternalInvariant(t, diags)
 }
 
@@ -43,10 +43,10 @@ func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 func TestPreserveVariantsUnhomed_NeedsAUnion(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, &oas3.Schema{}, "t/anon/missing", distributedShape, nil, "/p"))
+	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "t/anon/missing", distributedShape, nil, "/p"))
 
 	l.Types.Register("t/anon/scalar", &ir.Scalar{ID: "t/anon/scalar"})
-	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, &oas3.Schema{}, "t/anon/scalar", distributedShape, nil, "/p"))
+	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "t/anon/scalar", distributedShape, nil, "/p"))
 }
 
 // TestKeywordHome_AnUnknownKeywordIsHomedNowhere reaches the arm censusKeywords
@@ -60,7 +60,7 @@ func TestPreserveVariantsUnhomed_NeedsAUnion(t *testing.T) {
 // GitHub #268 was.
 func TestKeywordHome_AnUnknownKeywordIsHomedNowhere(t *testing.T) {
 	t.Parallel()
-	assert.False(t, keywordHome(&ir.Model{}, &oas3.Schema{}, "unevaluatedItems"),
+	assert.False(t, keywordHome(&ir.Model{}, StandaloneSchema(&oas3.Schema{}), "unevaluatedItems"),
 		"a keyword with no arm has no home on any node")
 }
 
@@ -71,7 +71,7 @@ func TestLiteralTyped_AnUnknownKindIsTypedByNothing(t *testing.T) {
 	t.Parallel()
 	lit := &ir.Literal{Value: ir.Value{Kind: "bogus"}, ValueType: ir.PrimString}
 	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
-	assert.False(t, literalTyped(lit, s), "a kind with no arm is held by no declared type")
+	assert.False(t, literalTyped(lit, StandaloneSchema(s)), "a kind with no arm is held by no declared type")
 }
 
 // TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt pins the agreement
@@ -96,7 +96,7 @@ func TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt(t *testing.T) {
 	for _, keyword := range censusKeywords {
 		homed := false
 		for _, td := range nodes {
-			homed = homed || keywordHome(td, s, keyword)
+			homed = homed || keywordHome(td, StandaloneSchema(s), keyword)
 		}
 		assert.True(t, homed, "%q is in the census with no node kind that carries it", keyword)
 	}
@@ -126,7 +126,7 @@ func TestDiscriminatorHome_AsksWhetherTheFieldWasFilled(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, c.want, keywordHome(c.td, &oas3.Schema{}, "discriminator"))
+			assert.Equal(t, c.want, keywordHome(c.td, StandaloneSchema(&oas3.Schema{}), "discriminator"))
 		})
 	}
 }

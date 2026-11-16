@@ -21,6 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -38,10 +39,10 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 	r := refinement{held: admitted{kinds: kindString}}
 
 	whole := newAdmission(l.Ctx)
-	assert.True(t, unionHeld(&whole, r, js.GetSchema(), "anyOf"), "read whole, the string branch says the union")
+	assert.True(t, unionHeld(&whole, r, StandaloneSchema(js.GetSchema()), "anyOf"), "read whole, the string branch says the union")
 	cut := newAdmission(l.Ctx)
 	require.True(t, cut.reads.Spend(maxAdmissionReads), "the budget holds what is spent")
-	assert.False(t, unionHeld(&cut, r, js.GetSchema(), "anyOf"), "the integer branch's read runs past it")
+	assert.False(t, unionHeld(&cut, r, StandaloneSchema(js.GetSchema()), "anyOf"), "the integer branch's read runs past it")
 }
 
 // TestOutcomeKeeps_ReportsANodeTheRegistryLacks pins the one way recordOn keeps
@@ -50,7 +51,7 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 func TestOutcomeKeeps_ReportsANodeTheRegistryLacks(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
-	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape}.recordOn(l.Ctx, l.Types, "t/anon/none", s, at)
+	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape}.recordOn(l.Ctx, l.Types, "t/anon/none", StandaloneSchema(s), at)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 }
@@ -61,7 +62,7 @@ func TestOutcomeKeeps_ReportsANodeTheRegistryLacks(t *testing.T) {
 func TestRecordVoicedResidue_NeedsANodeItsPositionOwns(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
-	voices := []annotation.Voice{{Node: s, At: at}}
+	voices := []annotation.Voice{{Node: StandaloneSchema(s), At: at}}
 	assert.Empty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeCarrier))
 	assert.Empty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeOwnNode))
 	internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: cm} })
@@ -87,14 +88,14 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 `))
 	const at = "/components/schemas/T"
 	s := declared(t, l, "T")
-	_, refined := refinementOf(l.Ctx, s, at)
+	_, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
 	require.True(t, refined)
 
 	declared(t, l, "Port").Type = oas3.NewTypeFromString(oas3.SchemaTypeObject)
-	_, refined = refinementOf(l.Ctx, s, at)
+	_, refined = refinementOf(l.Ctx, StatedIn(l, s), at)
 	assert.True(t, refined, "the second ask reads what the first read")
 
-	_, refined = refinementOf(l.Ctx, s, "/elsewhere")
+	_, refined = refinementOf(l.Ctx, StatedIn(l, s), "/elsewhere")
 	assert.False(t, refined, "another pointer is another answer")
 }
 
@@ -107,11 +108,11 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	require.Contains(t, first.written(s, first.nullable).values, "s:a")
+	require.Contains(t, first.written(StatedIn(l, s), first.nullable).values, "s:a")
 
 	s.GetEnum()[0].Value = "z"
 	second := newAdmission(l.Ctx)
-	read := second.written(s, second.nullable)
+	read := second.written(StatedIn(l, s), second.nullable)
 	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
 }
@@ -126,10 +127,10 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
     T: {allOf: [{$ref: '#/components/schemas/Str'}, {description: d}]}
 `))
 	s := declared(t, l, "T")
-	require.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, s))
+	require.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)))
 
 	s.AllOf = nil
-	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, s), "the second ask reads what the first read")
+	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
 // TestNullableVoices_ReadsASchemaOnce pins that the branches widening a schema
@@ -141,12 +142,12 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
     T: {allOf: [{$ref: '#/components/schemas/Str'}, {nullable: true}]}
 `))
 	s := declared(t, l, "T")
-	first := nullableVoices(l.Ctx, s)
+	first := nullableVoices(l.Ctx, StatedIn(l, s))
 	require.Len(t, first, 1)
 	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each branch at its pointer under the schema's")
 
 	s.AllOf = nil
-	assert.Equal(t, first, nullableVoices(l.Ctx, s), "the second ask reads what the first read")
+	assert.Equal(t, first, nullableVoices(l.Ctx, StatedIn(l, s)), "the second ask reads what the first read")
 }
 
 // TestValueNulls_ReadsASchemaOnce pins that what a schema's const, enum and union
@@ -161,12 +162,12 @@ func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
 	v, u := declared(t, l, "V"), declared(t, l, "U")
 	values := valueVerdicts{constant: nullAdmitted, enum: nullAdmitted}
 	union := valueVerdicts{union: alike(nullAdmitted)}
-	require.Equal(t, values, valueNulls(l.Ctx, v))
-	require.Equal(t, union, valueNulls(l.Ctx, u))
+	require.Equal(t, values, valueNulls(l.Ctx, StatedIn(l, v)))
+	require.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)))
 
 	v.Const, v.Enum, u.OneOf = nil, nil, nil
-	assert.Equal(t, values, valueNulls(l.Ctx, v), "the second ask reads what the first read")
-	assert.Equal(t, union, valueNulls(l.Ctx, u), "the second ask reads what the first read")
+	assert.Equal(t, values, valueNulls(l.Ctx, StatedIn(l, v)), "the second ask reads what the first read")
+	assert.Equal(t, union, valueNulls(l.Ctx, StatedIn(l, u)), "the second ask reads what the first read")
 }
 
 // TestLendingBranches_LendsEachEntryOnce pins what a use of a wide composition
@@ -184,10 +185,10 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
         - {readOnly: true}
         - {description: d}
 `))
-	got := lendingBranches(l.Ctx, declared(t, l, "T"))
+	got := lendingBranches(l.Ctx, StandaloneSchema(declared(t, l, "T")))
 	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
 	assert.Equal(t, jsontext.Pointer("/allOf/2"), got[0].pointer)
-	b := got[0].schema.GetSchema()
+	b := statement.ParsedAt(got[0].schema).GetSchema()
 	require.NotNil(t, b.ReadOnly)
 	assert.True(t, *b.ReadOnly)
 	assert.Equal(t, "d", b.GetDescription())
@@ -195,10 +196,10 @@ func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
 	split, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
     T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
 `))
-	got = lendingBranches(split.Ctx, declared(t, split, "T"))
+	got = lendingBranches(split.Ctx, StandaloneSchema(declared(t, split, "T")))
 	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
-	assert.Empty(t, got[0].schema.GetSchema().GetTitle())
-	assert.Equal(t, "d", got[0].schema.GetSchema().GetDescription())
+	assert.Empty(t, statement.ParsedAt(got[0].schema).GetSchema().GetTitle())
+	assert.Equal(t, "d", statement.ParsedAt(got[0].schema).GetSchema().GetDescription())
 }
 
 // TestLentBy_ReadsATargetOnce pins that what a schema lends is read once a run
@@ -211,11 +212,11 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 `))
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
-	first := lentBy(l.Ctx, js).Referents
+	first := lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents
 	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
 
 	js.GetSchema().AllOf = nil
-	assert.Equal(t, first, lentBy(l.Ctx, js).Referents, "the second ask reads what the first read")
+	assert.Equal(t, first, lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents, "the second ask reads what the first read")
 }
 
 // TestAdmission_RendersASchemaOnce pins that a schema's text is rendered once a run
@@ -227,12 +228,12 @@ func TestAdmission_RendersASchemaOnce(t *testing.T) {
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
 	first := newAdmission(l.Ctx)
-	text := first.text(js)
+	text := first.text(l.Ctx.Statements().Of(js))
 	require.NotNil(t, text)
 
 	*js.GetCore().GetRootNode() = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "other"}
 	second := newAdmission(l.Ctx)
-	assert.Equal(t, text, second.text(js), "the second ask reads what the first rendered")
+	assert.Equal(t, text, second.text(l.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
 }
 
 // TestReadVoices_RendersEachValueOnce pins what a first writer costs: every later
@@ -255,7 +256,7 @@ func TestReadVoices_RendersEachValueOnce(t *testing.T) {
 		for range 3 {
 			runtime.ReadMemStats(&stats)
 			before := stats.TotalAlloc
-			read := readVoices(l.Ctx, s)
+			read := readVoices(l.Ctx, StandaloneSchema(s))
 			runtime.ReadMemStats(&stats)
 			least = min(least, stats.TotalAlloc-before)
 			require.Len(t, read.speaks, later+1)
@@ -280,7 +281,7 @@ func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
 		s := declared(t, l, "T")
-		site := Use{Voices: positionVoices(l.Ctx, l.Types, s, at, ir.TypeRef{})}.Site(s)
+		site := Use{Voices: positionVoices(l.Ctx, l.Types, StandaloneSchema(s), at, ir.TypeRef{})}.Site(StandaloneSchema(s))
 		require.Len(t, site.Voices, voices)
 		var stats runtime.MemStats
 		least := uint64(math.MaxUint64)
@@ -332,7 +333,7 @@ func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmission(l.Ctx)
-	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(declared(t, l, "E"), w.nullable).values)
+	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StandaloneSchema(declared(t, l, "E")), w.nullable).values)
 }
 
 // TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
@@ -346,7 +347,7 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
 		w := newAdmission(l.Ctx)
-		assert.Equal(t, want, w.written(declared(t, l, "T"), w.nullable).kinds, version)
+		assert.Equal(t, want, w.written(StandaloneSchema(declared(t, l, "T")), w.nullable).kinds, version)
 	}
 }
 
@@ -357,7 +358,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
 	w := newAdmission(l.Ctx)
-	read := w.written(declared(t, l, "E"), w.nullable)
+	read := w.written(StandaloneSchema(declared(t, l, "E")), w.nullable)
 	assert.True(t, w.within(read, read))
 }
 
@@ -370,12 +371,12 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	first.written(s, first.nullable)
+	first.written(StandaloneSchema(s), first.nullable)
 	require.False(t, first.incomplete())
 
 	short := newAdmission(l.Ctx)
 	short.members = budget.New(budget.AtMost(1))
-	assert.Empty(t, short.written(s, short.nullable).values, "a set past the budget is not read at all")
+	assert.Empty(t, short.written(StandaloneSchema(s), short.nullable).values, "a set past the budget is not read at all")
 	assert.True(t, short.incomplete())
 }
 
@@ -388,7 +389,7 @@ func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
 		w := newAdmission(l.Ctx)
-		w.written(s, w.nullable)
+		w.written(StandaloneSchema(s), w.nullable)
 		assert.True(t, w.incomplete())
 	}
 }
@@ -413,10 +414,10 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		w := newAdmission(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }
-		conjuncts := w.conjuncts(s, allOfBranches(nil, s, ""))
+		conjuncts := w.conjuncts(StandaloneSchema(s), allOfBranches(l.Ctx, StandaloneSchema(s), ""))
 		principal := w.elect(conjuncts, refBranchOf(w.c, conjuncts))
 		require.NotNil(t, principal.branch)
-		require.Nil(t, principal.branch.schema.GetSchema().Ref, "the narrowing is elected")
+		require.Nil(t, statement.ParsedAt(principal.branch.schema).GetSchema().Ref, "the narrowing is elected")
 		return total
 	}
 	assert.Equal(t, 1, walked(1000, 1))

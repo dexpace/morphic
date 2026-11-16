@@ -31,7 +31,7 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *Lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
 		t.Helper()
-		ref, diags := refTypeRef(l.Ctx, l.Types, js, "/components/schemas/A")
+		ref, diags := refTypeRef(l.Ctx, l.Types, l.Ctx.Statements().Of(js), "/components/schemas/A")
 		assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 		require.Len(t, diags, 1)
 		return diags[0].Message
@@ -68,7 +68,7 @@ func TestResolvePointer_PromisesWhatItNames(t *testing.T) {
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	id, ok := resolvePointer(l.Ctx, l.Types, deepPointer, object)
+	id, ok := resolvePointer(l.Ctx, l.Types, deepPointer, Standalone(object))
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.AnonType(deepPointer), id)
 	_, built := l.Types.Lookup(deepPointer)
@@ -91,7 +91,7 @@ func TestResolveSchemaRef_UnboundDeepRefDropped(t *testing.T) {
 	// nothing the bindings know it lands on, so the reference is dropped.
 	js := oas3.NewJSONSchemaFromReference("#" + deepPointer)
 
-	_, ok := resolveSchemaRef(l.Ctx, l.Types, js)
+	_, ok := resolveSchemaRef(l.Ctx, l.Types, Standalone(js))
 	assert.False(t, ok, "an unresolved deep sub-schema $ref is dropped, not synthesized")
 }
 
@@ -103,7 +103,7 @@ func TestHoistSubSchema_BodyInternsAtPointer(t *testing.T) {
 	object := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](
 		&oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeObject)})
 
-	assert.Empty(t, hoistSubSchema(l.Ctx, l.Types, object, deepPointer), "an object body hoists cleanly")
+	assert.Empty(t, hoistSubSchema(l.Ctx, l.Types, Standalone(object), deepPointer), "an object body hoists cleanly")
 	seeded, _ := l.Types.Lookup(deepPointer)
 	assert.Equal(t, ids.Document{}.AnonType(deepPointer), seeded)
 	td, ok := l.Types.NodeAt(deepPointer)

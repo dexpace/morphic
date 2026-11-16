@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -310,9 +311,9 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf: [{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}]
     Capped:
       allOf:
-        - `+strings.Repeat("{allOf: [", schema.MaxAllOfFlattenDepth)+
+        - `+strings.Repeat("{allOf: [", statement.MaxFlattenDepth)+
 		`{allOf: [{type: object}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}`+
-		strings.Repeat("]}", schema.MaxAllOfFlattenDepth)+`
+		strings.Repeat("]}", statement.MaxFlattenDepth)+`
         - {type: object, properties: {c: {type: string}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -347,7 +348,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		assert.NotContains(t, v.Unmodeled, "openapi:allOf/0")
 	}
 
-	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", schema.MaxAllOfFlattenDepth+1), "/")
+	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
 		"Shapeless":  {"openapi:allOf/0"},
 		"Two":        {"openapi:allOf/0", "openapi:allOf/1"},
