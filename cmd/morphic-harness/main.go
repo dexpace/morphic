@@ -145,8 +145,8 @@ func checkCases(ctx context.Context, fmts []format, core bool, stdout, stderr io
 
 // checkOne applies the case oracles to the case at index n of the formats'
 // cases, counted one format after another, and writes its name, its sources
-// and each verdict. It returns 2 for an index naming no case, and 1 when the
-// case holds a finding.
+// and each verdict. It returns 2 for an index naming no case, and otherwise
+// what writeCase returns for the case.
 func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Writer) int {
 	first := 0
 	for _, f := range fmts {
