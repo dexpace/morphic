@@ -158,6 +158,16 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 		`{$ref: '#/components/schemas/T', nullable: true}`, nullable))
 	assert.Equal(t, passed(OracleSpelling), v, v.Detail)
 
+	for _, amiss := range []Equal{
+		{Stated: stated(useAt + "/maxLength")},
+		{Stated: []Stated{{Severity: ir.SeverityInfo, Code: "openapi/later-version-construct", Pointer: useAt + "/minLength"}}},
+	} {
+		v = spellingVerdict(t, spellingPair("3.0.3", `{allOf: [{$ref: '#/components/schemas/T'}], minLength: 1}`,
+			`{$ref: '#/components/schemas/T', minLength: 1}`, amiss))
+		assert.Equal(t, "diagnostics:openapi/later-version-construct,stated:openapi/later-version-construct",
+			strings.SplitN(v.Detail, "\n", 2)[0], "a report stated at another pointer or severity is no report drawn")
+	}
+
 	var compile compileFunc
 	compile = swapCompile(t, func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		doc, diags, err := compile(ctx, spec, data, ps)
@@ -166,6 +176,20 @@ func TestSpelled_AStatedReportIsRequired(t *testing.T) {
 	v = spellingVerdict(t, minLength)
 	require.True(t, v.Found(), "%+v", v)
 	assert.Equal(t, "stated:openapi/later-version-construct", strings.SplitN(v.Detail, "\n", 2)[0])
+}
+
+// TestRelocatedSet_RelocatesEachPointerAndNode pins what a spelling's
+// reports compare by: each pointer and each node read in the partner's
+// coordinates.
+func TestRelocatedSet_RelocatesEachPointerAndNode(t *testing.T) {
+	report := func(at string) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: "x/y",
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at), Node: "t/openapi" + at}}
+	}
+
+	got := relocatedSet([]ir.Diagnostic{report(useAt + "/allOf/1")}, eraseAllOf)
+
+	assert.Equal(t, diagnosticSet([]ir.Diagnostic{report(useAt)}), got)
 }
 
 // slicesDeleteCode returns diags less every report of code.
@@ -205,16 +229,10 @@ func TestSpelled_ARefusalIsFoundSayingWhichSide(t *testing.T) {
 }
 
 // TestSpelled_WhatStopsAComparison pins what stops a comparison: no partner
-// and a partner writing nothing decline, and a compile's error and a document
-// that does not encode are faults.
+// declines, and a compile's error, a document that does not encode and a
+// partner writing nothing are faults.
 func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	f := spellingPair("3.1.0", `{$ref: '#/components/schemas/T'}`, `{$ref: '#/components/schemas/T'}`, Equal{})
-	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
-		doc, _ := f.write(at)
-		return doc, at[0] == 1
-	}}
-	assert.Equal(t, declined(OracleSpelling, DeclineNoPartner), spellingVerdict(t, alone))
-
 	unequal := fake{axes: f.axes, write: func(at []int) (Document, bool) {
 		doc, _ := f.write(at)
 		doc.Equal = nil
@@ -239,6 +257,15 @@ func TestSpelled_WhatStopsAComparison(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, r.Faulted(), "a document that does not encode is a fault")
 	assert.Contains(t, r.Detail, "harness: encode case [1] or its partner: ")
+
+	alone := fake{axes: f.axes, write: func(at []int) (Document, bool) {
+		doc, _ := f.write(at)
+		return doc, at[0] == 1
+	}}
+	r, ok = CheckCase(t.Context(), alone, []int{1})
+	require.True(t, ok)
+	assert.True(t, r.Faulted(), "a partner the product writes nothing for is a fault")
+	assert.Contains(t, r.Detail, "harness: case [1] names the partner [0], which writes nothing")
 }
 
 // TestSpelled_ACaseNamingAPartnerAmissPanics pins the asserts on what a

@@ -80,16 +80,17 @@ func judgePresence(axes []Axis, doc Document, texts []string) Verdict {
 }
 
 // encoded returns what the case at compiled to as the presence oracle
-// compares it, and why it cannot: the compile failed, or drew an error
-// diagnostic, so it would compare a refusal. A case the cases write nothing
-// for is an oracle's mistake, as the neighbour of a document that names it.
+// compares it, and why it cannot: the compile drew an error diagnostic, so it
+// would compare a refusal. A case the cases write nothing for, as the
+// neighbour of a document that names it, and a compile's Go error are the
+// harness's or the product's mistake, and a panic, as in the other oracles.
 func (s *shard) encoded(ctx context.Context, at []int) (string, Decline) {
 	got, ok := s.compile(ctx, at)
 	if !ok {
 		panic(fmt.Sprintf("harness: case %v is named as a neighbour and writes nothing", at))
 	}
 	if got.err != nil {
-		return "", DeclineNoDocument
+		panic(fmt.Sprintf("harness: compile case %v: %v", at, got.err))
 	}
 	if _, failed := ir.FirstError(got.diags); failed {
 		return "", DeclineErrorDiagnostic

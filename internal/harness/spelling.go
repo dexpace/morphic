@@ -29,8 +29,9 @@ const maxSpellingDepth = 2 * maxReverseDepth
 // to the partner's coordinates, and the diagnostics compared as a multiset once
 // the reports the spelling states are taken out. A difference is
 // OutcomeSpellingDependent, its Detail's first line naming where they differ.
-// A compile's error or a document that does not encode is the harness's fault,
-// a panic, never a finding a record could list.
+// A compile's error, a document that does not encode and a partner the product
+// writes nothing for are the harness's or the product's fault, a panic, never
+// a finding a record could list.
 func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	eq := doc.Equal
 	if eq == nil {
@@ -45,7 +46,7 @@ func spelled(ctx context.Context, s *shard, at []int, doc Document) Verdict {
 	}
 	theirs, ok := s.compile(ctx, eq.To)
 	if !ok {
-		return declined(OracleSpelling, DeclineNoPartner)
+		panic(fmt.Sprintf("harness: case %v names the partner %v, which writes nothing", at, eq.To))
 	}
 	if err := cmp.Or(mine.err, theirs.err); err != nil {
 		panic(fmt.Sprintf("harness: compile case %v or its partner: %v", at, err))

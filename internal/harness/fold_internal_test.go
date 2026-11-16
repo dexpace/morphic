@@ -263,6 +263,39 @@ func TestFolded_AnIDNamingADecoratorNamesWhatItStandsFor(t *testing.T) {
 	assert.NotContains(t, foldedText(t, doc), string(decID))
 }
 
+// TestFolded_AUseKeepsItsNullable pins the referring reference's Nullable,
+// which answers for the whole decorator: a nullable use of one, at a list and
+// at a carrier, differs from a use that is not.
+func TestFolded_AUseKeepsItsNullable(t *testing.T) {
+	decorator := func() ir.TypeDef {
+		return &ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}}
+	}
+	nullable := listOf(decorator())
+	nullable.Types[holderID].(*ir.List).Elem.Nullable = true
+	assert.Contains(t, foldedText(t, nullable), `"nullable": true`)
+	assert.NotEqual(t, foldedText(t, listOf(decorator())), foldedText(t, nullable))
+
+	carrier := carrying("property", true)
+	carrier.Types[holderID].(*ir.Model).Properties[0].Type.Nullable = true
+	assert.Contains(t, foldedText(t, carrier), `"nullable": true`)
+	assert.NotEqual(t, foldedText(t, carrying("property", true)), foldedText(t, carrier))
+}
+
+// TestWithoutTypes_LeavesTheDocumentAsItWas pins the removal: the decorators
+// leave the copy alone, and an ID the document holds no type at is a panic.
+func TestWithoutTypes_LeavesTheDocumentAsItWas(t *testing.T) {
+	doc := listOf(&ir.Scalar{TypeCommon: annotated(decID, "d"), Base: &ir.TypeRef{Target: objID}})
+
+	own, _ := folded(doc)
+
+	assert.NotContains(t, own.Types, decID)
+	assert.Contains(t, own.Types, holderID)
+	assert.Contains(t, doc.Types, decID, "the document folded keeps its decorator")
+	assert.PanicsWithValue(t,
+		`harness: leave the decorators out: internal: edit: remove rejected: no type "t/x/none" to remove; an edit adds no type`,
+		func() { withoutTypes(doc, []ir.TypeID{"t/x/none"}) })
+}
+
 func TestFolded_ADocumentOfNoDecoratorIsItself(t *testing.T) {
 	doc := listOf(nil)
 	own, more := folded(doc)

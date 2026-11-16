@@ -7,30 +7,26 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/dexpace/morphic/ir"
 )
 
 // folded returns doc with its decorators (ir.Decorated) left out of Types, and
 // the marshalers that write each use of one as a use of the type it stands for,
-// its annotations merged as docs/emitters/refine/decorators.md merges them.
-// Two spellings of one use then encode alike. It is a second implementation of
-// that fold, until emitters/refine holds the emitter's, which replaces it.
+// its annotations merged as annotations says. Two spellings of one use then
+// encode alike. It is a second implementation of the emitter's collapse
+// (docs/emitters/refine/decorators.md), until emitters/refine holds that one,
+// which replaces it.
 func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 	uses := decoratorUses(doc.Types)
 	if len(uses) == 0 {
 		return doc, nil
 	}
-	own := *doc
-	own.Types = make(ir.TypeRegistry, len(doc.Types)-len(uses))
-	for id, td := range doc.Types {
-		if _, ok := uses[id]; !ok {
-			own.Types[id] = td
-		}
-	}
-	return &own, json.JoinMarshalers(
+	return withoutTypes(doc, slices.Sorted(maps.Keys(uses))), json.JoinMarshalers(
 		json.MarshalToFunc(func(enc *jsontext.Encoder, id ir.TypeID) error {
 			u, ok := uses[id]
 			if !ok {
@@ -67,6 +63,22 @@ func folded(doc *ir.Document) (*ir.Document, *json.Marshalers) {
 				&c.Carrier.Examples, &c.Carrier.Availability, c.Carrier.Unmodeled, false})
 		}),
 	)
+}
+
+// withoutTypes returns doc less the types at ids, removed through an
+// ir.Editor, which leaves doc as it was. What still names a removed type is
+// the fold's marshalers' to rewrite. An ID doc holds no type at, which the
+// editor refuses, is the harness's mistake, and a panic.
+func withoutTypes(doc *ir.Document, ids []ir.TypeID) *ir.Document {
+	e := ir.NewEditor(doc)
+	for _, id := range ids {
+		e.RemoveType(id)
+	}
+	own, refused := e.Finish()
+	if len(refused) > 0 {
+		panic(fmt.Sprintf("harness: leave the decorators out: %s", refused[0].Message))
+	}
+	return own
 }
 
 // use is what a decorator stands for: the first type along its Base chain that
@@ -125,10 +137,12 @@ func lentBy(td ir.TypeDef) annotations {
 	return annotations{docs: c.Docs, deprecation: c.Deprecation}
 }
 
-// annotations are the fields a decorator shares with a use site, merged as
-// docs/emitters/refine/decorators.md merges a chain onto its carrier: each
-// Docs field, Deprecation and Availability from the first that sets one,
-// Examples whole from the nearest, and Unmodeled the union by name.
+// annotations are the fields a decorator shares with a use site: each Docs
+// field and Deprecation from the first that sets one and Examples whole from
+// the nearest, as docs/emitters/refine/decorators.md merges a chain onto its
+// carrier, and Availability from the first and Unmodeled the union by name,
+// which that collapse leaves on the decorator. So the fold does not tell an
+// Unmodeled entry a carrier holds from one the decorator it names holds.
 type annotations struct {
 	docs         ir.Docs
 	deprecation  *ir.Deprecation
