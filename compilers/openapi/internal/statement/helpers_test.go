@@ -12,9 +12,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -42,8 +43,8 @@ func document(version string, schemas ...string) string {
 // and the context positions in its document are taken from.
 func tableOver(t *testing.T, spec string, rules oas.SchemaRules) (*statement.Table, lowering.Ctx) {
 	t.Helper()
-	c := loweringtest.Context(t, spec, lowering.Policy{})
-	return statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rows{rules}}), c
+	c := servicetest.Context(t, spec, service.Policy{})
+	return statement.NewTable(statement.Source{Bindings: c.Bindings(), Dialects: rows{rules}}), c.Ctx
 }
 
 // component returns the position of the component schema name.

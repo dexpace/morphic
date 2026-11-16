@@ -66,7 +66,7 @@ func lowererDeclaringS(t *testing.T) (*Lowerer, *oas3.Schema, jsontext.Pointer) 
 	l, diags := LoweredFor(t, openapitest.ComponentSpec(
 		"    S: {type: object, description: kept, readOnly: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	decl, ok := l.Ctx.Doc.Components.Schemas.Get("S")
+	decl, ok := l.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
 	return l, decl.GetSchema(), "/components/schemas/S"
 }

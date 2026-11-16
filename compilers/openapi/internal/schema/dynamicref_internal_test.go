@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -232,11 +233,11 @@ func TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead(t *testing.T)
 		Data: []byte(openapitest.ComponentSpec("    A: {$ref: './ext.yaml#/X'}\n"))}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	read := LowererOver(lowering.New(0, doc, lowering.Policy{}))
+	read := LowererOver(service.New(0, doc, service.Policy{}))
 	e, ok := read.Ctx.Bindings().Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
 	require.True(t, ok)
 	require.True(t, resolvesAt(read.Ctx, e.Hop.Target), "sanity: the document the compile read resolves")
 	none := *doc
 	none.Others = load.Others{}
-	assert.False(t, resolvesAt(LowererOver(lowering.New(0, &none, lowering.Policy{})).Ctx, e.Hop.Target))
+	assert.False(t, resolvesAt(LowererOver(service.New(0, &none, service.Policy{})).Ctx, e.Hop.Target))
 }

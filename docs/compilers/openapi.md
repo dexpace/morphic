@@ -330,14 +330,14 @@ node bound. An overlay document and a document a reference reads keep the first 
   `openapi.TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder`,
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
   `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
-  `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
-  `lowering.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
-  `lowering.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
+  `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `service.TestExpansion_ChargesEveryCopy`,
+  `service.TestExpansion_AHopWeighsWhatItWritesBesideItsRef`,
+  `service.TestDeclared_ChargesEachAliasWhatItWritesBesideItsRef`, `e2e.TestCompile_ALongRefChainCompiles`,
   `e2e.TestCompile_AChainFarPastTheExpansionBudgetIsRefused`,
-  `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
-  `lowering.TestWeightOf_CountsASchemaAsOneNode`,
-  `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
-  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
+  `service.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
+  `service.TestWeightOf_CountsASchemaAsOneNode`,
+  `service.TestDeclared_ChargesEachDeclarationOfAChain`,
+  `service.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
   `openapi.TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy`,
   `openapi.TestCompile_APathItemsFixedMethodsAreNotCharged`,
   `openapi.TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder`,
@@ -1181,8 +1181,8 @@ the item as what else it writes.
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
   `lowering.TestInDocument_PlacesWhatAnotherDocumentDeclares`,
-  `lowering.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
-  `lowering.TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference`,
+  `service.TestDeclared_LowersAReferencedObjectWhereItIsDeclared`,
+  `service.TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference`,
   `e2e.TestCompile_ASiblingRefResolvesWithinTheSourcesDirectory`,
   `e2e.TestCompile_ARefOutsideTheSourcesDirectoryIsRefused`,
   `e2e.TestCompile_ASymlinkOutOfTheSourcesDirectoryIsRefused`,
@@ -1777,8 +1777,8 @@ to; and one flat `reference/` scope, which would make a use and an alias writing
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesArePlacedThere`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
   `operation.TestMediaTypeRef_ABodyFoldsAndAParameterKeepsEachPosition`,
-  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`, `lowering.TestBeside_KeysTheUseAndEachAlias`,
-  `lowering.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`, `service.TestBeside_KeysTheUseAndEachAlias`,
+  `service.TestBeside_ABareReferenceCostsNothing`, `operation.TestContentDocs_ChainAndDeclarationKeepApart`,
   `operation.TestContentDocs_AKeyIsReadWhole`, `operation.TestCallbacks_AUseKeepsItsDocs`,
   `e2e.TestBeside_AnAliasInAnotherDocumentKeepsItsKeyThere`,
   `e2e.TestBeside_ASecuritySchemeKeepsTheKeysBesideItsRef`,
@@ -5250,8 +5250,8 @@ and neither's keys name a group.
   `operation.TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder`,
   `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
   `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
-  `lowering.TestGroupingExtension_PathsReadEachSpelling`,
-  `lowering.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `service.TestGroupingExtension_PathsReadEachSpelling`,
+  `service.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
   `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
   `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`,
   `openapi.TestCompile_GroupingAliasesFollowTheKeysTheyRestate`
@@ -5521,7 +5521,7 @@ written.
 - Codes: `openapi/validation`
 - Tests: `oas.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
-  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
+  `service.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
   `naming.TestAt_NamesASchemaAfterItsOwner`
 
@@ -5623,7 +5623,7 @@ entries separated by commas, and refuses one that is neither a media type nor a 
 `binary-inference=false` sets `Disabled`.
 
 - Cases: `file-media`
-- Tests: `lowering.TestMediaTypeBinary_AnswersFromThePolicy`,
+- Tests: `service.TestMediaTypeBinary_AnswersFromThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ### `example-values`
@@ -5674,7 +5674,7 @@ repeat a structure is no closed set, so nothing else draws one.
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
   `operation.TestStreaming_AnItemSchemaDeclaresItsContentAStream`,
-  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
+  `service.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
   `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`,
   `operation.TestContent_AnItemEncodingOutsideMultipartIsKeptWhole`,
   `operation.TestFillSequential_AnItemEncodingWithNoNodeOutsideMultipartKeepsNothing`
@@ -5740,7 +5740,7 @@ offers a Content that does not stream beside one that does. Any other key is rep
   `operation.TestStreaming_ACallbackAndAWebhookMarkTheirContents`,
   `operation.TestStreaming_AMediaTypeRefStreamsByTheKeyItIsWrittenUnder`,
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
-  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`, `promotion.TestTextOf_ReadsTheFirstSourceStatingAText`,
+  `service.TestMediaTypeStreams_AnswersFromThePolicy`, `promotion.TestTextOf_ReadsTheFirstSourceStatingAText`,
   `stream.TestPromote_FillsTheTerminator`, `stream.TestPromote_FillsTheTerminatorOfEveryStreamingContent`,
   `stream.TestPromote_TerminatorIsAllOrNone`, `stream.TestPromote_OperationAndContentsMustAgree`,
   `stream.TestPromote_FillsTheCondition`, `stream.TestPromote_AConditionNeedsAStream`,
@@ -6367,7 +6367,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss`,
   `auth.TestNearest_TakesTheFirstReadingThatMatches`,
   `auth.TestNearest_ReadsOneEditWithinItsBounds`, `auth.TestOneEditApart_CountsOneEdit`,
-  `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
+  `service.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
 
 ### `security-scheme-fields`
@@ -6773,7 +6773,7 @@ saying why.
   `promotion.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
   `promotion.TestUnreadExtensions_TheGroupingKeyIsRead`,
   `promotion.TestUnreadExtensions_TheAliasesKeyIsRead`,
-  `lowering.TestGroupingExtension_KeysAreWhatGroupingReads`,
+  `service.TestGroupingExtension_KeysAreWhatGroupingReads`,
   `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `e2e.TestPromotion_AnOwnedPrefixCountsEveryGroupingKeyRead`,
   `promotion.TestServerName_ReadsTheDefaultKey`,

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package service_test
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // chainedParameter returns a path using a parameter through aliases aliases, one
@@ -45,7 +45,7 @@ func admittedUnder(t *testing.T, src string, limit int) bool {
 	c := loaded(t, src, budget.AtMost(limit))
 	a, ok := c.Doc.Paths.Get("/a")
 	require.True(t, ok)
-	p, _, _ := lowering.Declared[soa.Parameter](c, a.GetObject().Get().GetParameters()[0], "/paths/~1a/get/parameters/0")
+	p, _, _ := service.Declared[soa.Parameter](c, a.GetObject().Get().GetParameters()[0], "/paths/~1a/get/parameters/0")
 	_, refused := c.ExpansionRefusal()
 	require.Equal(t, p == nil, refused, "a copy resolves exactly when it is not refused, under %d", limit)
 	return p != nil

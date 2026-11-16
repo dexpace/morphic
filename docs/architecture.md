@@ -626,14 +626,16 @@ morphic/
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
 │   │       ├── promotion/  #             which vendor extension fills which field
-│   │       ├── lowering/   #             the context every lowering reads
+│   │       ├── dialect/    #             the rows each schema is read with, one table
+│   │       ├── lowering/   #             the context the schema lowerings read
 │   │       ├── schema/     #             the schema walk, composition, preservation
+│   │       ├── service/    #             the context the service lowerings read, beside the schema's
 │   │       ├── auth/       #             security schemes and requirements
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
 │   │       ├── servers/    #             the servers a document declares, one registry
 │   │       ├── document/   #             info, and what the document keeps verbatim
 │   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes,
-│   │                       #             and lowering/loweringtest/, a context over a loaded document
+│   │                       #             and service/servicetest/, a context over a loaded document
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).

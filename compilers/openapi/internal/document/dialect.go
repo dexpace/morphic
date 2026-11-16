@@ -7,8 +7,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -17,7 +17,7 @@ import (
 // Objects, and the IR models no dialect, so it is kept as a schema's own
 // `$schema` is (annotation.DialectKeywords()): ReasonOutOfScope, read only for
 // the dialect a schema naming none of its own is read in.
-func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
+func keepJSONSchemaDialect(c service.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	at := ids.Ptr("jsonSchemaDialect")
 	node := nodeview.Child(c.Doc.GetRootNode(), "jsonSchemaDialect")
 	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("", "jsonSchemaDialect"), node,

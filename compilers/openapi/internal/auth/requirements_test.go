@@ -24,10 +24,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -706,7 +706,7 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 // opposite claim.
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	reg := auth.RegistryOf(c, nil)
 
 	absent, absentDiags := reg.Requirements(c, nil, "")
@@ -911,7 +911,7 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 // and a nil one is in no document at all.
 func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	reg := auth.RegistryOf(c, nil)
 	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{nil}, "/security")
 
@@ -1085,7 +1085,7 @@ func TestSecurityRequirement_AMergeChainIsReadToItsEnd(t *testing.T) {
 // hand-built requirement holds one, and it is no option rather than {}.
 func TestRegistryRequirements_AnEntryWhoseRootIsNoMappingIsNoOption(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	reg := auth.RegistryOf(c, nil)
 	req := soa.NewSecurityRequirement()
 	core := soacore.NewSecurityRequirement()

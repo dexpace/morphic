@@ -6,6 +6,7 @@ package schema
 import (
 	"context"
 	"encoding/json/jsontext"
+	"iter"
 	"slices"
 	"strings"
 
@@ -22,8 +23,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerComponentSchemas interns every named component schema in source order.
-// It is the entry Compile's run() calls before any operation lowering.
+// LowerComponentSchemas interns every named component schema schemas yields,
+// the source's components/schemas in source order. It is the entry Compile's
+// run() calls before any operation lowering.
 //
 // ctx bounds the walk in time: a document declares as many components as it
 // likes, so this loop is one of the places a compile does work proportional to
@@ -31,20 +33,14 @@ import (
 // returns what was lowered so far; the caller — run — sees ctx.Err() at the
 // phase boundary immediately after and refuses the document there, so a partial
 // registry never becomes a Document.
-func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types) []ir.Diagnostic {
-	comps := c.Doc.Components
-	if comps == nil {
-		return nil
-	}
-	schemas := comps.GetSchemas()
-	if schemas == nil {
-		return nil
-	}
+func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Types,
+	schemas iter.Seq2[string, *oas3.JSONSchema[oas3.Referenceable]],
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	// The declared-name index the $ref and discriminator-mapping resolutions read
 	// is derived at entry (lowering.New), so a component declared later in the
 	// document is already a valid target here regardless of source order.
-	for name, js := range schemas.All() {
+	for name, js := range schemas {
 		if ctx.Err() != nil {
 			return diags
 		}

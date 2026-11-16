@@ -13,9 +13,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -497,7 +497,7 @@ func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
 // extension to the one a compile reads when Options names none.
 func TestDefaultGroupingExtension_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultGroupingExtension(), openapi.DefaultGroupingExtension())
+	assert.Equal(t, service.DefaultGroupingExtension(), openapi.DefaultGroupingExtension())
 }
 
 // TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies pins the exported
@@ -505,14 +505,14 @@ func TestDefaultGroupingExtension_IsWhatTheLoweringApplies(t *testing.T) {
 // extending it starts from what a compile really uses.
 func TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultStreamingMediaTypes(), openapi.DefaultStreamingMediaTypes())
+	assert.Equal(t, service.DefaultStreamingMediaTypes(), openapi.DefaultStreamingMediaTypes())
 }
 
 // TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies pins the exported list
 // to the one a compile classifies by when Options names none.
 func TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultBinaryMediaTypes(), openapi.DefaultBinaryMediaTypes())
+	assert.Equal(t, service.DefaultBinaryMediaTypes(), openapi.DefaultBinaryMediaTypes())
 }
 
 // TestDefaultExtensionPromotions_IsWhatTheLoweringApplies pins the exported

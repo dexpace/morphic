@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -77,7 +77,7 @@ paths:
 webhooks:
   onEvent: {post: {operationId: onEvent, responses: {"200": {description: ok}}}}
 `
-	svc, diags := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
+	svc, diags := serviceWithGrouping(t, spec, service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	want := map[ir.GroupID][]ir.OpID{
@@ -187,7 +187,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
             post: {operationId: ordersDone, responses: {"200": {description: ok}}}
       responses: {"200": {description: ok}}
 `)
-	svc, diags := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
+	svc, diags := serviceWithGrouping(t, spec, service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
 	byName := openapitest.IndexBy(svc.Groups, func(g ir.OperationGroup) string { return g.Name.Source })
 	_, hasUsers := byName["users"]
@@ -207,7 +207,7 @@ func TestGrouping_PathPrefixRootPath(t *testing.T) {
 	spec := openapitest.PathsSpec(`  /:
     get: {operationId: root, responses: {"200": {description: ok}}}
 `)
-	svc, _ := serviceWithGrouping(t, spec, lowering.GroupByPathPrefix)
+	svc, _ := serviceWithGrouping(t, spec, service.GroupByPathPrefix)
 	require.NotEmpty(t, svc.Groups)
 	assert.Empty(t, svc.Groups[0].Name.Source, "root path yields empty first segment")
 }
@@ -588,8 +588,8 @@ func placements(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID]groupPl
 
 // groupedByExtension is the extension GroupByExtension reads in these tests,
 // its lists read as one path and an operation stating none grouped by tags.
-var groupedByExtension = lowering.GroupingExtension{
-	Key: "x-group", Lists: lowering.ListsAreSegments, Fallback: lowering.GroupByTags,
+var groupedByExtension = service.GroupingExtension{
+	Key: "x-group", Lists: service.ListsAreSegments, Fallback: service.GroupByTags,
 }
 
 // extensionGroupingSpec states a group path each way a document can, and
@@ -714,7 +714,7 @@ func TestGrouping_ByExtensionFallsBackToPathPrefix(t *testing.T) {
     get: {operationId: getLegacy, tags: [people], x-group: a..b, responses: {"200": {description: ok}}}
 `)
 	ext := groupedByExtension
-	ext.Fallback = lowering.GroupByPathPrefix
+	ext.Fallback = service.GroupByPathPrefix
 	svc, diags := serviceByExtension(t, spec, ext)
 	openapitest.RequireNoErrorDiags(t, diags)
 
@@ -753,7 +753,7 @@ func TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach(t *testing.T) {
     get: {operationId: listUsers, x-group: users, responses: {"200": {description: ok}}}
 `)
 	ext := groupedByExtension
-	ext.Lists = lowering.ListsAreGroups
+	ext.Lists = service.ListsAreGroups
 	svc, diags := serviceByExtension(t, spec, ext)
 	openapitest.RequireNoErrorDiags(t, diags)
 
@@ -803,8 +803,8 @@ webhooks:
 `
 
 // aliasedExtension is groupedByExtension reading the aliases aliasedSpec lists.
-var aliasedExtension = lowering.GroupingExtension{
-	Key: "x-group", Lists: lowering.ListsAreSegments, Aliases: "x-aliases", Fallback: lowering.GroupByTags,
+var aliasedExtension = service.GroupingExtension{
+	Key: "x-group", Lists: service.ListsAreSegments, Aliases: "x-aliases", Fallback: service.GroupByTags,
 }
 
 // TestGrouping_ByExtensionMintsAGroupForEachAlias pins Aliases: each path an
@@ -963,9 +963,9 @@ paths:
               responses: {"200": {description: ok}}
 `
 	const parent, child = "op/openapi/paths/~1a/post", "op/openapi/paths/~1a/post/callbacks/onEvent/{$request.body#~1url}/post"
-	for strategy, group := range map[lowering.GroupingStrategy]ir.GroupID{
-		lowering.GroupByTags: "g/tags/pets", lowering.GroupByPathPrefix: "g/path-prefix/a",
-		lowering.GroupByExtension: "g/tags/pets",
+	for strategy, group := range map[service.GroupingStrategy]ir.GroupID{
+		service.GroupByTags: "g/tags/pets", service.GroupByPathPrefix: "g/path-prefix/a",
+		service.GroupByExtension: "g/tags/pets",
 	} {
 		svc, diags := serviceUnderStrategy(t, spec, strategy)
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -976,9 +976,9 @@ paths:
 
 // serviceUnderStrategy is serviceWithGrouping under strategy, reading
 // groupedByExtension where strategy is GroupByExtension.
-func serviceUnderStrategy(t *testing.T, src string, strategy lowering.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
+func serviceUnderStrategy(t *testing.T, src string, strategy service.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
-	if strategy == lowering.GroupByExtension {
+	if strategy == service.GroupByExtension {
 		return serviceByExtension(t, src, groupedByExtension)
 	}
 	return serviceWithGrouping(t, src, strategy)

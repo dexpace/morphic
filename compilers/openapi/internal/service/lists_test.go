@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package service_test
 
 import (
 	"slices"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst pins the fold: every entry
@@ -23,18 +23,18 @@ func TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst(t *testing.T) {
 		name    string
 		entries []string
 		kept    []string
-		repeats []lowering.Repeat
+		repeats []service.Repeat
 	}{
 		{"none", nil, nil, nil},
 		{"no repeat", []string{"a", "A", "", " "}, []string{"a", "A", "", " "}, nil},
 		{"repeats", []string{"a", "a", "", "b", "a", ""},
-			[]string{"a", "", "b"}, []lowering.Repeat{{At: 1, First: 0}, {At: 4, First: 0}, {At: 5, First: 2}}},
-		{"all one", []string{"x", "x", "x"}, []string{"x"}, []lowering.Repeat{{At: 1, First: 0}, {At: 2, First: 0}}},
+			[]string{"a", "", "b"}, []service.Repeat{{At: 1, First: 0}, {At: 4, First: 0}, {At: 5, First: 2}}},
+		{"all one", []string{"x", "x", "x"}, []string{"x"}, []service.Repeat{{At: 1, First: 0}, {At: 2, First: 0}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			kept, repeats := lowering.FirstOccurrences(tc.entries)
+			kept, repeats := service.FirstOccurrences(tc.entries)
 			assert.Equal(t, tc.kept, kept)
 			assert.Equal(t, tc.repeats, repeats)
 		})
@@ -51,9 +51,9 @@ func TestFirstOccurrences_ALongListFoldsAsAShortOne(t *testing.T) {
 	}
 	want := slices.Clone(entries)
 	entries = append(entries, "s3", "s0", "s3")
-	kept, repeats := lowering.FirstOccurrences(entries)
+	kept, repeats := service.FirstOccurrences(entries)
 	assert.Equal(t, want, kept)
-	assert.Equal(t, []lowering.Repeat{{At: 20, First: 3}, {At: 21, First: 0}, {At: 22, First: 3}}, repeats)
+	assert.Equal(t, []service.Repeat{{At: 20, First: 3}, {At: 21, First: 0}, {At: 22, First: 3}}, repeats)
 }
 
 // TestFirstOccurrences_ShortListRepeatingNothingCostsNothing pins the common
@@ -62,7 +62,7 @@ func TestFirstOccurrences_ALongListFoldsAsAShortOne(t *testing.T) {
 func TestFirstOccurrences_ShortListRepeatingNothingCostsNothing(t *testing.T) {
 	entries := []string{"read", "write", "admin", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"}
 	var kept []string
-	allocs := testing.AllocsPerRun(100, func() { kept, _ = lowering.FirstOccurrences(entries) })
+	allocs := testing.AllocsPerRun(100, func() { kept, _ = service.FirstOccurrences(entries) })
 	assert.Zero(t, allocs)
 	assert.Same(t, &entries[0], &kept[0], "the list itself")
 }

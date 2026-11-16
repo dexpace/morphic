@@ -13,8 +13,8 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -56,7 +56,7 @@ func Reopen(held map[ir.ServerID]ir.Server) *Registry {
 // absent or empty is served at "/", which OpenAPI supplies in its place and
 // which is minted at ids.DefaultServer with no pointer, since nothing in the
 // source writes it (GitHub #672).
-func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
+func (r *Registry) Root(c service.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 	// The field, not GetServers, which stands in a "/" server for an empty list:
 	// the default below is minted as no declaration.
 	if declared := c.Doc.Servers; len(declared) > 0 {
@@ -81,7 +81,7 @@ func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 // index it occupies, so the next entry's ID is still its own position. An empty
 // list declares nothing, as an absent one does, and so overrides nothing above
 // it (docs/compilers/openapi.md#path-item-servers).
-func (r *Registry) Declared(c lowering.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
+func (r *Registry) Declared(c service.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
 	if len(list) == 0 {
 		return nil, nil
 	}
@@ -104,7 +104,7 @@ func (r *Registry) Declared(c lowering.Ctx, list []*soa.Server, owner jsontext.P
 // At registers the server s declared at at and returns its ID, lowering it
 // the first time any mount reaches it. c is the context of the document
 // declaring it, as for Declared. A Link Object's server is one no list holds.
-func (r *Registry) At(c lowering.Ctx, s *soa.Server, at jsontext.Pointer) (ir.ServerID, []ir.Diagnostic) {
+func (r *Registry) At(c service.Ctx, s *soa.Server, at jsontext.Pointer) (ir.ServerID, []ir.Diagnostic) {
 	id := c.IDs().Server(at)
 	if _, held := r.byID[id]; held {
 		return id, nil
@@ -125,7 +125,7 @@ func (r *Registry) Servers() map[ir.ServerID]ir.Server {
 
 // lowerServer lowers one server declared at sptr as id, keeping its x-* and
 // undeclared keys on the ir.Server itself.
-func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
+func lowerServer(c service.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
 	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.Place(), sptr)
 	diags = append(diags, extDiags...)
@@ -172,7 +172,7 @@ func serverName(s *soa.Server) ir.Naming {
 
 // serverVariables lowers a server's URL template variables in source order, or
 // nil when it declares none.
-func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.ServerVariable, []ir.Diagnostic) {
+func serverVariables(c service.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir.ServerVariable, []ir.Diagnostic) {
 	vars := s.GetVariables()
 	if vars == nil || vars.Len() == 0 {
 		return nil, nil

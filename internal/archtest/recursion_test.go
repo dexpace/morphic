@@ -572,8 +572,9 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 			"lowers is dead, and an unlisted one is a recursion the pin cannot see")
 }
 
-// declaresLowering reports whether f declares a function taking the lowering
-// context by value, which is what every lowering in this compiler is.
+// declaresLowering reports whether f declares a function taking a lowering
+// context by value, the schema lowering's (lowering.Ctx) or the service
+// lowerings' (service.Ctx), which is what every lowering in this compiler is.
 func declaresLowering(f *ast.File) bool {
 	for _, d := range f.Decls {
 		fn, isFunc := d.(*ast.FuncDecl)
@@ -585,7 +586,7 @@ func declaresLowering(f *ast.File) bool {
 			if !isSel || sel.Sel.Name != "Ctx" {
 				continue
 			}
-			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && pkg.Name == "lowering" {
+			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && (pkg.Name == "lowering" || pkg.Name == "service") {
 				return true
 			}
 		}

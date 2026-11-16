@@ -5,7 +5,7 @@ package document
 
 import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,9 +31,9 @@ type Meta struct {
 // its own, kept verbatim (docs/ir/unmodeled.md).
 //
 // It must run after every lowering that follows a reference, as which
-// components it keeps depends on what they reached (lowering.Ctx.Reached). The
+// components it keeps depends on what they reached (service.Ctx.Reached). The
 // promotions run after it, reading the root's kept keys, and follow none.
-func Lower(c lowering.Ctx) (Meta, []ir.Diagnostic) {
+func Lower(c service.Ctx) (Meta, []ir.Diagnostic) {
 	m := lowerInfo(c)
 
 	ext, diags := documentExtensions(c)

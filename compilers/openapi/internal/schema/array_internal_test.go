@@ -28,7 +28,7 @@ components:
   schemas:
     U: {type: [array, object], items: [{description: a}]}
 `)
-	js, ok := l.Ctx.Doc.Components.Schemas.Get("U")
+	js, ok := l.Doc.Components.Schemas.Get("U")
 	require.True(t, ok)
 	_, at := writtenAt(l.Ctx, js.GetSchema(), "/components/schemas/U/type/0")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/U"), at)
@@ -56,7 +56,7 @@ components:
     Prefixed: {type: array, prefixItems: [{description: a}], items: false}
 `)
 	component := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
-		js, ok := l.Ctx.Doc.Components.Schemas.Get(name)
+		js, ok := l.Doc.Components.Schemas.Get(name)
 		require.True(t, ok, "sanity: %s is declared", name)
 		return js
 	}
@@ -91,7 +91,7 @@ components:
   schemas:
     Elsewhere: {type: array, items: [{description: a}]}
 `)
-	elsewhere, declared := other.Ctx.Doc.Components.Schemas.Get("Elsewhere")
+	elsewhere, declared := other.Doc.Components.Schemas.Get("Elsewhere")
 	require.True(t, declared, "sanity: Elsewhere is declared")
 	_, _, ok = ListedTuple(l.Ctx, elsewhere)
 	assert.False(t, ok, "a tuple the bindings place nowhere is none")

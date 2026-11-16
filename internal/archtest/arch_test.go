@@ -332,22 +332,16 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/promotion": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids"},
-	// What is being lowered: the parsed document, the identity of the source, and
-	// the indexes derived from them at entry. It is the substrate both walks share
-	// and so must reach neither, which is why it sits here rather than with either
-	// one. It reaches load for the schema bindings the load phase built, which its
-	// scope reads, and for the rows a document's Encoding Objects are read with,
-	// and dialect for those each schema is read with, which oas states: the
-	// dialect question is asked of the table, never of the version.
+	// What the schema lowering reads: the document whose content it reads, the
+	// caller's policies and the indexes derived at entry. It is the substrate
+	// the schema walk and the service walks share and so must reach neither. It
+	// reaches load for the schema bindings the load phase built, which its
+	// scope reads, dialect for the rows each schema is read with, which oas
+	// states: the dialect question is asked of the table, never of the version.
 	// It reaches naming for what each position is called, budget for the limits
-	// it holds, and provenance for where a position of its document is placed.
-	// It reaches nodeview and yaml to weigh the declaration a $ref names, which a
-	// reference's lowering copies, and yaml for the node a schema's rows are
-	// found by. It reaches annotation to keep what a reference writes beside its
-	// $ref, as every keeper does, and promotion for the policy it carries and the
-	// list of texts a group path is read as.
+	// it holds, provenance and diag for where a position of its document is
+	// placed, and promotion for the policy it carries.
 	"compilers/openapi/internal/lowering": {module + "/ir",
-		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
@@ -356,20 +350,39 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
-		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
-		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
-		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
-	// The lowering context the compiler's tests lower under, over a document the
-	// load phase read. It is apart from openapitest, which internal tests of load
-	// and of packages beneath it import, and so could not import a package that
-	// reaches load.
-	"compilers/openapi/internal/lowering/loweringtest": {module + "/compilers",
+		"github.com/speakeasy-api/openapi/openapi"},
+	// What the service lowerings read beside the schema lowering's context,
+	// which it embeds: the parsed document, the source's identity, how
+	// operations group, which media types stream or are binary, and the budget
+	// a $ref's copies are charged against. It reaches load for what the load
+	// phase modelled beside path items' $refs and the media types it resolved,
+	// nodeview and yaml to weigh the declaration a $ref names, annotation to
+	// keep what a reference writes beside its $ref, and promotion for the list
+	// of texts a group path is read as. The schema walk reaches none of it.
+	"compilers/openapi/internal/service": {module + "/ir",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/bind",
+		module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/lowering",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
+		module + "/compilers/openapi/internal/promotion",
+		module + "/compilers/openapi/internal/resolve",
+		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
+	// The context the compiler's tests lower under, over a document the load
+	// phase read. It is apart from openapitest, which internal tests of load
+	// and of packages beneath it import, and so could not import a package that
+	// reaches load.
+	"compilers/openapi/internal/service/servicetest": {module + "/compilers",
+		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/service",
 		"github.com/stretchr/testify/require"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it:
@@ -385,6 +398,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/promotion",
 		module + "/compilers/openapi/internal/resolve",
+		module + "/compilers/openapi/internal/service",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// What a deprecation names as its replacement, by a key or in its message,
 	// read once the document is whole. It reaches promotion for the promotion
@@ -453,8 +467,8 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/servers": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/promotion",
+		module + "/compilers/openapi/internal/service",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The schema walk, and everything that recurses with it: composition,
 	// reference following, and the preservation that hangs off both. It is one
@@ -502,6 +516,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/runtimeexpr",
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",
+		module + "/compilers/openapi/internal/service",
 		module + "/compilers/openapi/internal/value",
 		module + "/compilers/openapi/internal/whole",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "go.yaml.in/yaml/v3"},
@@ -513,8 +528,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/service",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The canaries that pin docs/parser-library.md. Its one production file is

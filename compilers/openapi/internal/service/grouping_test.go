@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package lowering_test
+package service_test
 
 import (
 	"slices"
@@ -10,12 +10,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
 // deep is a path of MaxGroupPathDepth segments, each "a".
-var deep = slices.Repeat([]string{"a"}, lowering.MaxGroupPathDepth)
+var deep = slices.Repeat([]string{"a"}, service.MaxGroupPathDepth)
 
 // deepPath is a dotted path of depth segments, as JSON text.
 func deepPath(depth int) string {
@@ -69,21 +69,21 @@ func TestGroupingExtension_PathsReadEachSpelling(t *testing.T) {
 		{name: "a boolean", raw: `true`, misfit: true},
 		{name: "an object", raw: `{"group":"a"}`, misfit: true},
 		{
-			name: "a path as deep as the bound", raw: deepPath(lowering.MaxGroupPathDepth),
+			name: "a path as deep as the bound", raw: deepPath(service.MaxGroupPathDepth),
 			segments: deep, groups: [][]string{deep},
 		},
-		{name: "a path past the bound", raw: deepPath(lowering.MaxGroupPathDepth + 1), misfit: true},
+		{name: "a path past the bound", raw: deepPath(service.MaxGroupPathDepth + 1), misfit: true},
 		{
-			name: "a list as deep as the bound", raw: `["` + strings.Repeat("a.", lowering.MaxGroupPathDepth-2) + `a","a"]`,
+			name: "a list as deep as the bound", raw: `["` + strings.Repeat("a.", service.MaxGroupPathDepth-2) + `a","a"]`,
 			segments: deep, groups: [][]string{deep[1:], {"a"}},
 		},
 		{
-			name: "a list past the bound", raw: `["` + strings.Repeat("a.", lowering.MaxGroupPathDepth-1) + `a","a"]`,
+			name: "a list past the bound", raw: `["` + strings.Repeat("a.", service.MaxGroupPathDepth-1) + `a","a"]`,
 			groups: [][]string{deep, {"a"}},
 			// Only the entries' sum is past it, and ListsAreGroups reads each alone.
 			misfitAsSegments: true,
 		},
-		{name: "a list holding an entry past the bound", raw: `["a",` + deepPath(lowering.MaxGroupPathDepth+1) + `]`, misfit: true},
+		{name: "a list holding an entry past the bound", raw: `["a",` + deepPath(service.MaxGroupPathDepth+1) + `]`, misfit: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -93,14 +93,14 @@ func TestGroupingExtension_PathsReadEachSpelling(t *testing.T) {
 				segments = [][]string{tc.segments}
 			}
 			for _, read := range []struct {
-				lists  lowering.ExtensionLists
+				lists  service.ExtensionLists
 				want   [][]string
 				misfit bool
 			}{
-				{lowering.ListsAreSegments, segments, tc.misfit || tc.misfitAsSegments},
-				{lowering.ListsAreGroups, tc.groups, tc.misfit},
+				{service.ListsAreSegments, segments, tc.misfit || tc.misfitAsSegments},
+				{service.ListsAreGroups, tc.groups, tc.misfit},
 			} {
-				got, ok := lowering.GroupingExtension{Key: "x-group", Lists: read.lists}.Paths(ir.RawValue(tc.raw))
+				got, ok := service.GroupingExtension{Key: "x-group", Lists: read.lists}.Paths(ir.RawValue(tc.raw))
 				assert.Equal(t, !read.misfit, ok, "%s: whether the value states group paths", read.lists)
 				assert.Equal(t, read.want, got, "%s: the paths read", read.lists)
 			}
@@ -149,13 +149,13 @@ func TestGroupingExtension_AliasPathsReadEachSpelling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, read := range []struct {
-				lists lowering.ExtensionLists
+				lists service.ExtensionLists
 				want  [][]string
 			}{
-				{lowering.ListsAreSegments, tc.segments},
-				{lowering.ListsAreGroups, tc.groups},
+				{service.ListsAreSegments, tc.segments},
+				{service.ListsAreGroups, tc.groups},
 			} {
-				ext := lowering.GroupingExtension{Key: "x-group", Lists: read.lists, Aliases: "x-aliases"}
+				ext := service.GroupingExtension{Key: "x-group", Lists: read.lists, Aliases: "x-aliases"}
 				got, ok := ext.AliasPaths(ir.RawValue(tc.raw))
 				assert.Equal(t, !tc.misfit, ok, "%s: whether the value lists aliases", read.lists)
 				assert.Equal(t, read.want, got, "%s: the paths read", read.lists)
@@ -170,9 +170,9 @@ func TestGroupingExtension_AliasPathsReadEachSpelling(t *testing.T) {
 // every such operation one level too high.
 func TestDefaultGroupingExtension_ReadsAListAsOnePath(t *testing.T) {
 	t.Parallel()
-	ext := lowering.DefaultGroupingExtension()
+	ext := service.DefaultGroupingExtension()
 	assert.Equal(t, "x-fern-sdk-group-name", ext.Key)
-	assert.Equal(t, lowering.ListsAreSegments, ext.Lists)
+	assert.Equal(t, service.ListsAreSegments, ext.Lists)
 	assert.Equal(t, "x-forge-aliases", ext.Aliases, "the aliases its key's convention restates it in")
 	assert.Empty(t, ext.Fallback, "the fallback is the caller's, defaulted by the compiler's options")
 }
@@ -183,21 +183,21 @@ func TestDefaultGroupingExtension_ReadsAListAsOnePath(t *testing.T) {
 // extension names.
 func TestGroupingExtension_KeysAreWhatGroupingReads(t *testing.T) {
 	t.Parallel()
-	both := lowering.DefaultGroupingExtension()
-	keyAlone := lowering.GroupingExtension{Key: "x-k", Lists: lowering.ListsAreGroups}
-	aliasesAlone := lowering.GroupingExtension{Aliases: "x-a"}
+	both := service.DefaultGroupingExtension()
+	keyAlone := service.GroupingExtension{Key: "x-k", Lists: service.ListsAreGroups}
+	aliasesAlone := service.GroupingExtension{Aliases: "x-a"}
 	for _, tc := range []struct {
 		name     string
-		ext      lowering.GroupingExtension
-		strategy lowering.GroupingStrategy
+		ext      service.GroupingExtension
+		strategy service.GroupingStrategy
 		want     []string
 	}{
-		{"the key and its aliases", both, lowering.GroupByExtension, []string{"x-fern-sdk-group-name", "x-forge-aliases"}},
-		{"a key with no aliases", keyAlone, lowering.GroupByExtension, []string{"x-k"}},
-		{"aliases with no key", aliasesAlone, lowering.GroupByExtension, []string{"x-a"}},
-		{"nothing named", lowering.GroupingExtension{}, lowering.GroupByExtension, nil},
-		{"by tags", both, lowering.GroupByTags, nil},
-		{"by path prefix", both, lowering.GroupByPathPrefix, nil},
+		{"the key and its aliases", both, service.GroupByExtension, []string{"x-fern-sdk-group-name", "x-forge-aliases"}},
+		{"a key with no aliases", keyAlone, service.GroupByExtension, []string{"x-k"}},
+		{"aliases with no key", aliasesAlone, service.GroupByExtension, []string{"x-a"}},
+		{"nothing named", service.GroupingExtension{}, service.GroupByExtension, nil},
+		{"by tags", both, service.GroupByTags, nil},
+		{"by path prefix", both, service.GroupByPathPrefix, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

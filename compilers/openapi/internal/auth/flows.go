@@ -12,9 +12,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -156,7 +156,7 @@ func flowsMissing(ss *soa.SecurityScheme) bool {
 // decl, and a $ref entry holds no flows either way. The message names no entry,
 // so the copies every alias of one declaration draws dedup to one report, placed
 // in whichever document holds the declaration (GitHub #874).
-func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
+func oauthNoFlowDiag(c service.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityWarning, diag.OAuth2NoFlow, decl,
 		"oauth2 security scheme declares no flow and no oauth2MetadataUrl, "+
 			"so it states no way to obtain a token")
@@ -168,7 +168,7 @@ func oauthNoFlowDiag(c lowering.Ctx, decl jsontext.Pointer) ir.Diagnostic {
 // lists are one ordered reading of the same object — scheme.Flows came from
 // oauthFlows, which walks presentFlows — so the i-th lowered flow is the i-th
 // declared one and the two cannot differ in length.
-func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
+func applyFlowAnnotations(c service.Ctx, lowered []ir.OAuthFlow, flows *soa.OAuthFlows, flowsPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
 		fptr := flowsPtr + ids.Ptr(f.keyword)
@@ -193,7 +193,7 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 // It reads the flow's mapping as the parser does, as every preservation site
 // does, so a field merged in through a `<<` key is kept as a written one is
 // (GitHub #384).
-func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
+func preserveUndefinedFlowFields(c service.Ctx, fl *ir.OAuthFlow, f sourceFlow, fptr jsontext.Pointer) []ir.Diagnostic {
 	defined := flowFieldsDefinedBy(f.keyword)
 	var diags []ir.Diagnostic
 	for _, field := range flowFields() {

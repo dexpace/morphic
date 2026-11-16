@@ -29,6 +29,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/stream"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -120,7 +121,8 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → document metadata;
 	// assembles Document
-	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), inferencesOf(formatOpts), compile.NewTypes(),
+	out, lowerDiags, err := run(ctx, service.New(rootSrcIndex, loadedDoc, loweringPolicy(formatOpts)),
+		inferencesOf(formatOpts), compile.NewTypes(),
 		whole.New)
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
@@ -194,7 +196,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // the phases honouring ctx stop mid-registry, leaving references to types never
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
-func run(ctx context.Context, c lowering.Ctx, inf inferences, ts *compile.Types,
+func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
 	newWhole func(*ir.Document) *whole.Document,
 ) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
@@ -206,7 +208,7 @@ func run(ctx context.Context, c lowering.Ctx, inf inferences, ts *compile.Types,
 	// copies; compile.Diags.Append is what collapses them, and it has to see the
 	// whole stream to do it.
 	var acc compile.Diags
-	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts))
+	acc.AppendAll(schema.LowerComponentSchemas(ctx, c.Ctx, ts, c.Doc.Components.GetSchemas().All()))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
@@ -223,7 +225,7 @@ func run(ctx context.Context, c lowering.Ctx, inf inferences, ts *compile.Types,
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
-	schema.PromiseLandings(c, ts)
+	schema.PromiseLandings(c.Ctx, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
 	// (compile.Types.Promise), and what was deferred until the registry is whole
@@ -284,7 +286,7 @@ func run(ctx context.Context, c lowering.Ctx, inf inferences, ts *compile.Types,
 		return nil, []ir.Diagnostic{refusal}, nil
 	}
 	out.IRVersion = ir.IRVersion
-	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
+	out.IDSpaces = ids.Namespaces(service.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
 	return out, acc.List(), nil
 }
@@ -329,26 +331,26 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 	return out
 }
 
-// loweringCtx builds the lowering context over a loaded document under the
-// caller's options, and is the loadOptions of the phase below: it projects
-// Options onto lowering.Policy, that package's own input, deliberately not this
-// public type. It reads the budgets the lowering holds, on enums and on what
-// $refs and path items copy, as loadOptions reads the others.
-func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	return lowering.New(rootSrcIndex, doc, lowering.Policy{
-		Grouping:          o.Grouping,
-		GroupingExtension: o.GroupingExtension,
-		Limits: lowering.Limits{
-			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
-			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+// loweringPolicy projects the caller's options onto the lowerings', and is the
+// loadOptions of the phase below: service.Policy is that package's own input,
+// deliberately not this public type. It reads the budgets the lowering holds,
+// on enums and on what $refs and path items copy, as loadOptions reads the
+// others.
+func loweringPolicy(o Options) service.Policy {
+	return service.Policy{
+		Schema: lowering.Policy{
+			Limits:                 lowering.Limits{MaxEnumMembers: budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers)},
+			Promotions:             o.Promotions,
+			NullableInference:      o.NullableInference,
+			DiscriminatorInference: o.DiscriminatorInference,
+			TitleNames:             o.TitleNames,
 		},
-		StreamingInference:     o.StreamingInference,
-		BinaryInference:        o.BinaryInference,
-		Promotions:             o.Promotions,
-		NullableInference:      o.NullableInference,
-		DiscriminatorInference: o.DiscriminatorInference,
-		TitleNames:             o.TitleNames,
-	})
+		Grouping:              o.Grouping,
+		GroupingExtension:     o.GroupingExtension,
+		MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+		StreamingInference:    o.StreamingInference,
+		BinaryInference:       o.BinaryInference,
+	}
 }
 
 // inferences holds the policies of what run infers once the document is whole,
@@ -359,7 +361,7 @@ type inferences struct {
 	convention  convention.Policy
 }
 
-// inferencesOf projects Options onto the inference policies, as loweringCtx
+// inferencesOf projects Options onto the inference policies, as loweringPolicy
 // projects it onto the lowering's.
 func inferencesOf(o Options) inferences {
 	return inferences{

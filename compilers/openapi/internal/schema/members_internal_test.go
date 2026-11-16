@@ -26,7 +26,7 @@ func settledUnder(t *testing.T, schemas string, limit budget.Limit) (*ir.Documen
 	t.Helper()
 	l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas))
 	membersOf(l.Ctx).reads = budget.New(limit)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 	return doc, append(diags, l.Diags.List()...), membersOf(l.Ctx).reads.Spent()
 }

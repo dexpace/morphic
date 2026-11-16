@@ -9,9 +9,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -22,7 +22,7 @@ import (
 // on that response instead, with the finding that says why: a link is lowered
 // whole or not at all, so no consumer reads one missing a value its source
 // states. c is the source's context.
-func (l *Links) Resolve(c lowering.Ctx, w *whole.Document, srv *servers.Registry) []ir.Diagnostic {
+func (l *Links) Resolve(c service.Ctx, w *whole.Document, srv *servers.Registry) []ir.Diagnostic {
 	if len(l.pending) == 0 {
 		return nil
 	}
@@ -159,7 +159,7 @@ type opIndex struct {
 
 // indexOperations indexes ops, the document's operations (whole.Document.Ops).
 // byDecl holds those the source declares, whose provenance names c's source.
-func indexOperations(c lowering.Ctx, ops []*ir.Operation) opIndex {
+func indexOperations(c service.Ctx, ops []*ir.Operation) opIndex {
 	ix := opIndex{byID: map[ir.OpID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
 	source := c.Place().Source
 	for _, op := range ops {

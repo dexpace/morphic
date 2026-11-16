@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -82,20 +83,20 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	require.NotNil(t, loaded)
 	unlisted := *loaded
 	unlisted.Others = load.Others{}
-	c := lowering.New(0, &unlisted, lowering.Policy{})
+	c := service.New(0, &unlisted, service.Policy{})
 	js, ok := c.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
 	d := js.GetSchema().GetDiscriminator()
 	at, decl, ok := c.RefScope().MappingTarget(d, "./ext.yaml#/X")
 	require.True(t, ok, "the bindings read ext.yaml")
 
-	_, ok = declaredAt(c, at, decl)
+	_, ok = declaredAt(c.Ctx, at, decl)
 	assert.False(t, ok, "a document the compile does not list")
-	_, ok = chainOf(c, d, "./ext.yaml#/X")
+	_, ok = chainOf(c.Ctx, d, "./ext.yaml#/X")
 	assert.False(t, ok)
-	_, ok = declaredAt(c, bind.Position{Pointer: "/components/schemas/Ghost"}, nil)
+	_, ok = declaredAt(c.Ctx, bind.Position{Pointer: "/components/schemas/Ghost"}, nil)
 	assert.False(t, ok, "an undeclared component")
-	_, ok = declaredAt(c, bind.Position{Pointer: "/x-none"}, nil)
+	_, ok = declaredAt(c.Ctx, bind.Position{Pointer: "/x-none"}, nil)
 	assert.False(t, ok, "no schema")
 }
 
@@ -231,7 +232,7 @@ func TestDeclaredAt_NamesAPositionByItsPointerBeforeItIsInterned(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, want, chain.end().id, "nothing is interned yet, and the position is named all the same")
 
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	_, finished := l.Types.Finish(t.Context())
 	l.Diags.AppendAll(finished)
 	after, ok := declaredAt(l.Ctx, chain.end().at, chain.end().decl)
@@ -277,7 +278,7 @@ func TestMappingWhy_SaysBothReadingsOfAValueWithNoHash(t *testing.T) {
 		"    P: {oneOf: [{$ref: '#/components/schemas/T'}], discriminator: {propertyName: k, mapping: {u: Undeclared}}}\n")
 	l, _ := LoweredFor(t, deep.String())
 	require.True(t, l.Ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
-	p, ok := l.Ctx.Doc.Components.GetSchemas().Get("P")
+	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
 	d := p.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)
@@ -303,7 +304,7 @@ func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 	}
 	deep.WriteString("components:\n  schemas:\n    T: {properties: {k: {type: string}}}\n    P: {<<: *c70}\n")
 	l, _ := LoweredFor(t, deep.String())
-	p, ok := l.Ctx.Doc.Components.GetSchemas().Get("P")
+	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
 	d := p.GetSchema().GetDiscriminator()
 	require.NotNil(t, d, "the parser expands the whole chain")

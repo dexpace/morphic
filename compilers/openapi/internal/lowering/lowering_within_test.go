@@ -14,7 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -43,7 +43,7 @@ components:
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
-	c := lowering.New(0, doc, lowering.Policy{})
+	c := service.New(0, doc, service.Policy{})
 	declared := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
 		t.Helper()
 		js, ok := doc.Doc.Components.Schemas.Get(name)

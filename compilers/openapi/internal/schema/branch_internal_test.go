@@ -20,7 +20,7 @@ func TestRefBranchTarget_InlineBranchNamesNothing(t *testing.T) {
       allOf:
         - {type: object}
 `))
-	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
+	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
 	assert.Nil(t, refBranchTarget(l.Ctx.Bindings(), decl.GetSchema().GetAllOf()[0]))
 }

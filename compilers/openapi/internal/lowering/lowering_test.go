@@ -4,7 +4,6 @@
 package lowering_test
 
 import (
-	"encoding/json/jsontext"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -23,12 +22,12 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -90,7 +89,7 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, &load.Document{Doc: tc.doc}, lowering.Policy{})
+			c := service.New(0, &load.Document{Doc: tc.doc}, service.Policy{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -99,26 +98,6 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestNew_KeepsTheDocumentItWasGiven pins the rest of the context: the document,
-// grouping policy and its extension, source identity and index arrive
-// unchanged, since every Provenance the compile stamps is built from the last
-// two.
-func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
-	t.Parallel()
-	doc := openapitest.DocDeclaring("User")
-	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-
-	ext := lowering.GroupingExtension{Key: "x-group", Lists: lowering.ListsAreGroups, Fallback: lowering.GroupByPathPrefix}
-	c := lowering.New(7, &load.Document{Doc: doc, Source: src},
-		lowering.Policy{Grouping: lowering.GroupByExtension, GroupingExtension: ext})
-
-	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
-	assert.Equal(t, src, c.Source)
-	assert.Equal(t, lowering.GroupByExtension, c.Grouping)
-	assert.Equal(t, ext, c.GroupingExtension)
-	assert.Equal(t, 7, c.SrcIndex)
 }
 
 // TestSchemaRules_FollowsTheDeclaredVersion pins which rows a document's
@@ -140,8 +119,8 @@ func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := loweringtest.Context(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
-				lowering.Policy{})
+			c := servicetest.Context(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
+				service.Policy{})
 			rules := c.SchemaRules()
 			assert.Equal(t, tc.v30, rules.Defines("nullable"))
 			assert.Equal(t, tc.v30, rules.Takes("exclusiveMinimum", oas.Boolean))
@@ -156,9 +135,9 @@ func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 // resolution through any copy is visible to the compiler.
 func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 	require.NotNil(t, c.RefScope().Reached)
-	assert.Same(t, c.RefScope().Reached, atSource(t, c).RefScope().Reached, "copies share one record")
+	assert.Same(t, c.RefScope().Reached, atSource(t, c.Ctx).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
 }
 
@@ -168,7 +147,7 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.ComponentSpec("    User: {type: object}\n"), lowering.Policy{})
+	c := servicetest.Context(t, openapitest.ComponentSpec("    User: {type: object}\n"), service.Policy{})
 
 	scope := c.RefScope()
 
@@ -189,7 +168,7 @@ func TestRefScope_ReadsTheSourceWhereItLies(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 
-	scope := lowering.New(0, doc, lowering.Policy{}).RefScope()
+	scope := service.New(0, doc, service.Policy{}).RefScope()
 
 	assert.Equal(t, located, scope.SelfPath)
 	_, internal := scope.InternalPointer(located + "#/components/schemas/User")
@@ -222,10 +201,10 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	alias, ok := loaded.Doc.Components.Schemas.Get("Alias")
 	require.True(t, ok)
 
-	carrying := lowering.New(0, loaded, lowering.Policy{})
+	carrying := service.New(0, loaded, service.Policy{})
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
-	assert.Same(t, loaded.Bindings, atSource(t, carrying).Bindings(), "a copy shares it")
+	assert.Same(t, loaded.Bindings, atSource(t, carrying.Ctx).Bindings(), "a copy shares it")
 	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
@@ -249,7 +228,7 @@ components:
 x-lib:
   Cat: {type: object}
 `
-	c := loweringtest.Context(t, spec, lowering.Policy{})
+	c := servicetest.Context(t, spec, service.Policy{})
 	pet, ok := c.Doc.Components.Schemas.Get("Pet")
 	require.True(t, ok)
 	d := pet.GetSchema().GetDiscriminator()
@@ -272,20 +251,20 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 		reads++
 		return reads
 	}
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 
-	assert.Equal(t, 1, lowering.Remembered(c, "k", read))
-	assert.Equal(t, 1, lowering.Remembered(atSource(t, c), "k", read), "a copy shares what c read")
-	assert.Equal(t, 2, lowering.Remembered(c, "other", read), "another key is another reading")
-	other := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
-	assert.Equal(t, 3, lowering.Remembered(other, "k", read), "another context remembers nothing of c's")
+	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "k", read))
+	assert.Equal(t, 1, lowering.Remembered(atSource(t, c.Ctx), "k", read), "a copy shares what c read")
+	assert.Equal(t, 2, lowering.Remembered(c.Ctx, "other", read), "another key is another reading")
+	other := servicetest.Context(t, bindingsSpec, service.Policy{})
+	assert.Equal(t, 3, lowering.Remembered(other.Ctx, "k", read), "another context remembers nothing of c's")
 }
 
 // TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer pins a key asked for two
 // types of answer: each is read once, and neither is taken for the other.
 func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 	reads := 0
 	number := func() int {
 		reads++
@@ -296,10 +275,10 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 		return "s"
 	}
 
-	assert.Equal(t, 1, lowering.Remembered(c, "k", number))
-	assert.Equal(t, "s", lowering.Remembered(c, "k", text))
-	assert.Equal(t, 1, lowering.Remembered(c, "k", number))
-	assert.Equal(t, "s", lowering.Remembered(c, "k", text))
+	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "k", number))
+	assert.Equal(t, "s", lowering.Remembered(c.Ctx, "k", text))
+	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "k", number))
+	assert.Equal(t, "s", lowering.Remembered(c.Ctx, "k", text))
 	assert.Equal(t, 2, reads, "each type of answer is read once")
 }
 
@@ -308,7 +287,7 @@ func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 // its own.
 func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 	reads := 0
 	inner := func() int {
 		reads++
@@ -316,11 +295,11 @@ func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
 	}
 	outer := func() int {
 		reads++
-		return lowering.Remembered(c, "inner", inner) + 1
+		return lowering.Remembered(c.Ctx, "inner", inner) + 1
 	}
 
-	assert.Equal(t, 2, lowering.Remembered(c, "outer", outer))
-	assert.Equal(t, 1, lowering.Remembered(c, "inner", inner))
+	assert.Equal(t, 2, lowering.Remembered(c.Ctx, "outer", outer))
+	assert.Equal(t, 1, lowering.Remembered(c.Ctx, "inner", inner))
 	assert.Equal(t, 2, reads, "inner was read once, within outer")
 }
 
@@ -336,73 +315,16 @@ func TestSettled_BuildsOneStorePerRun(t *testing.T) {
 		builds++
 		return &counts{n: builds}
 	}
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 
-	first := lowering.Settled(c, build)
-	assert.Same(t, first, lowering.Settled(atSource(t, c), build), "a copy shares c's store")
-	assert.Equal(t, &names{s: "n"}, lowering.Settled(c, func() *names { return &names{s: "n"} }),
+	first := lowering.Settled(c.Ctx, build)
+	assert.Same(t, first, lowering.Settled(atSource(t, c.Ctx), build), "a copy shares c's store")
+	assert.Equal(t, &names{s: "n"}, lowering.Settled(c.Ctx, func() *names { return &names{s: "n"} }),
 		"another type of store is another store")
-	assert.Same(t, first, lowering.Settled(c, build), "a store of another type replaces none")
-	other := lowering.Settled(loweringtest.Context(t, bindingsSpec, lowering.Policy{}), build)
+	assert.Same(t, first, lowering.Settled(c.Ctx, build), "a store of another type replaces none")
+	other := lowering.Settled(servicetest.Context(t, bindingsSpec, service.Policy{}).Ctx, build)
 	assert.NotSame(t, first, other, "another context builds its own")
 	assert.Equal(t, 2, builds, "one store of a type per run")
-}
-
-// referenceKinds is a source declaring one component of each kind the library
-// models as a reference, and beside each an alias naming it.
-const referenceKinds = `openapi: 3.1.0
-info: {title: T, version: "1"}
-paths: {}
-components:
-  pathItems: {P: {get: {responses: {"200": {description: ok}}}}, A: {$ref: '#/components/pathItems/P'}}
-  parameters: {P: {name: q, in: query, schema: {type: string}}, A: {$ref: '#/components/parameters/P'}}
-  headers: {P: {schema: {type: string}}, A: {$ref: '#/components/headers/P'}}
-  requestBodies: {P: {content: {application/json: {schema: {type: string}}}}, A: {$ref: '#/components/requestBodies/P'}}
-  responses: {P: {description: ok}, A: {$ref: '#/components/responses/P'}}
-  examples: {P: {value: 1}, A: {$ref: '#/components/examples/P'}}
-  links: {P: {operationRef: '#/paths/~1x/get'}, A: {$ref: '#/components/links/P'}}
-  callbacks: {P: {'{$request.body#/u}': {post: {responses: {"200": {description: ok}}}}}, A: {$ref: '#/components/callbacks/P'}}
-  securitySchemes: {P: {type: http, scheme: basic}, A: {$ref: '#/components/securitySchemes/P'}}
-`
-
-// TestDeclared_ReadsEachReferenceKind pins that a component alias of every
-// kind the library models as a reference is read as one, so it is declared
-// where its chain ends, as the bindings' table reads it. A kind the load phase
-// left out of its index would lower at the alias.
-func TestDeclared_ReadsEachReferenceKind(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "root.yaml")
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
-	require.NoError(t, err)
-	c := lowering.New(0, doc, lowering.Policy{})
-	cs := doc.Doc.Components
-	for kind, decl := range map[string]jsontext.Pointer{
-		"pathItems":       declaredAt[soa.PathItem](c, cs.PathItems.GetOrZero("A")),
-		"parameters":      declaredAt[soa.Parameter](c, cs.Parameters.GetOrZero("A")),
-		"headers":         declaredAt[soa.Header](c, cs.Headers.GetOrZero("A")),
-		"requestBodies":   declaredAt[soa.RequestBody](c, cs.RequestBodies.GetOrZero("A")),
-		"responses":       declaredAt[soa.Response](c, cs.Responses.GetOrZero("A")),
-		"examples":        declaredAt[soa.Example](c, cs.Examples.GetOrZero("A")),
-		"links":           declaredAt[soa.Link](c, cs.Links.GetOrZero("A")),
-		"callbacks":       declaredAt[soa.Callback](c, cs.Callbacks.GetOrZero("A")),
-		"securitySchemes": declaredAt[soa.SecurityScheme](c, cs.SecuritySchemes.GetOrZero("A")),
-	} {
-		assert.Equal(t, jsontext.Pointer("/components/"+kind+"/P"), decl, kind)
-	}
-}
-
-// declaredAt is the pointer Declared declares what ref, written at /use,
-// names at.
-func declaredAt[T, S any, R interface {
-	*S
-	resolve.Referenced[T]
-	GetCoreAny() any
-}, P interface {
-	*T
-	GetRootNode() *yaml.Node
-}](c lowering.Ctx, ref R) jsontext.Pointer {
-	_, _, decl := lowering.Declared[T, S, R, P](c, ref, "/use")
-	return decl
 }
 
 // TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
@@ -411,7 +333,7 @@ func declaredAt[T, S any, R interface {
 // as silently, since nothing downstream can tell a wrong one from a right one.
 func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(7, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
+	c := service.New(7, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/components/schemas/User"},
 		c.Place().At("/components/schemas/User"))
@@ -425,7 +347,7 @@ func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 // converted leaves could not be while only the accumulating form existed.
 func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(3, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
+	c := service.New(3, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
 
 	got := c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/paths/~1x", "dropped %d of %d", 1, 2)
 
@@ -461,7 +383,7 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, lowering.Policy{})
+	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, service.Policy{})
 
 	require.Len(t, c.Sources(), 2)
 	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
@@ -476,7 +398,7 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src}, lowering.Policy{})
+	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src}, service.Policy{})
 
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
@@ -492,7 +414,7 @@ func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, lowering.Policy{})
+	c := service.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, service.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
 		c.Place().At("/info/description"), "the overlay wrote this position of the source")
@@ -503,65 +425,6 @@ func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 		"a diagnostic is stamped through the same question")
 }
 
-// TestSiblings_ReadsTheLoadPhasesModel holds where a lowering reads the fields
-// beside a path item's $ref: from the load phase's model, which the context
-// carries.
-func TestSiblings_ReadsTheLoadPhasesModel(t *testing.T) {
-	t.Parallel()
-	spec := openapitest.PathsSpec(`  /a:
-    $ref: '#/paths/~1b'
-    put: {responses: {"200": {description: ok}}}
-  /b:
-    get: {responses: {"200": {description: ok}}}
-`)
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
-	require.NoError(t, err)
-	openapitest.RequireNoErrorDiags(t, diags)
-	c := lowering.New(0, doc, lowering.Policy{})
-	rp, ok := doc.Doc.GetPaths().Get("/a")
-	require.True(t, ok)
-
-	sib, ok := c.Siblings().Of(rp)
-	require.True(t, ok, "the context reads the load phase's model")
-	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
-	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
-}
-
-// TestMediaTypeUse_ReadsTheLoadPhasesModel holds where a lowering reads the
-// model of a content entry written as a $ref: from the load phase's, which the
-// context carries.
-func TestMediaTypeUse_ReadsTheLoadPhasesModel(t *testing.T) {
-	t.Parallel()
-	spec := openapitest.PathsSpecVer("3.2.0", `  /a:
-    get:
-      responses:
-        "200":
-          description: ok
-          content:
-            application/json: {$ref: '#/components/mediaTypes/M'}
-            text/plain: {schema: {type: string}}
-components:
-  mediaTypes:
-    M: {schema: {type: string}}
-`)
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
-	require.NoError(t, err)
-	openapitest.RequireNoErrorDiags(t, diags)
-	c := lowering.New(0, doc, lowering.Policy{})
-	item, ok := doc.Doc.GetPaths().Get("/a")
-	require.True(t, ok)
-	response, ok := item.GetObject().Get().GetResponses().Get("200")
-	require.True(t, ok)
-	content := response.GetObject().GetContent()
-
-	use, isUse := c.MediaTypeUse(content.GetOrZero("application/json"))
-	require.True(t, isUse)
-	require.NotNil(t, use)
-	assert.True(t, use.IsReference(), "the context reads the load phase's model")
-	_, isUse = c.MediaTypeUse(content.GetOrZero("text/plain"))
-	assert.False(t, isUse, "an entry written inline is no use")
-}
-
 // TestDynamicAnchor_ReadsTheBindingsOfItsDocument pins that the declarations
 // are the table's for the document c reads, every one of them counted.
 func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
@@ -570,7 +433,7 @@ func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := lowering.New(0, doc, lowering.Policy{})
+	c := service.New(0, doc, service.Policy{})
 
 	assert.Equal(t, bind.DynamicAnchor{Site: bind.Position{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
 		c.DynamicAnchor("m"))
@@ -580,7 +443,7 @@ func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 // the source places a pointer in the source.
 func TestPosition_PlacesAPointerInTheContextsDocument(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{})
 	assert.Equal(t, bind.Position{Pointer: "/a"}, c.Position("/a"))
 }
 
@@ -590,7 +453,7 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	t.Parallel()
 	limits := lowering.Limits{MaxEnumMembers: budget.AtMost(12)}
 
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Grouping: lowering.GroupByTags, Limits: limits})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Limits: limits}, Grouping: service.GroupByTags})
 
 	assert.Equal(t, limits, c.Limits)
 }
@@ -603,7 +466,7 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 	policy := promotion.ExtensionPromotions{Targets: map[promotion.ExtensionTarget][]promotion.ExtensionSource{
 		promotion.TargetRedaction: {{Key: "x-k"}},
 	}}
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Promotions: policy})
+	c := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Promotions: policy}})
 	assert.Equal(t, []string{"x-k"}, slices.Collect(c.Promoter().Keys()))
 
 	reads := 0
@@ -613,10 +476,10 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 	}
 	at := bind.Position{Pointer: "/components/schemas/S"}
 	assert.True(t, c.Promoter().Referent(at, false, entries).Redacted)
-	assert.True(t, atSource(t, c).Promoter().Referent(at, false, entries).Redacted)
+	assert.True(t, atSource(t, c.Ctx).Promoter().Referent(at, false, entries).Redacted)
 	assert.Equal(t, 1, reads, "a copy of the context reads the promoter the context does")
 
-	off := loweringtest.Context(t, bindingsSpec, lowering.Policy{Promotions: promotion.ExtensionPromotions{Disabled: true}})
+	off := servicetest.Context(t, bindingsSpec, service.Policy{Schema: lowering.Policy{Promotions: promotion.ExtensionPromotions{Disabled: true}}})
 	assert.Empty(t, slices.Collect(off.Promoter().Keys()))
 }
 

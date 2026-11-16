@@ -342,7 +342,7 @@ components:
 	}{{limit: 3}, {limit: 2, refused: true}} {
 		l, _ := schema.LoweredFor(t, spec)
 		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
-		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 		doc := l.Document(t)
 		u, isUnion := typeByName(doc, "H").(*ir.Union)
 		assert.Equal(t, tc.refused, isUnion, "limit %d: a union only where the branch is past the budget", tc.limit)

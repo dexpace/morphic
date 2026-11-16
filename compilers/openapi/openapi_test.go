@@ -19,9 +19,9 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -258,7 +258,7 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	types := compile.NewTypes()
 	types.Register("", nil)
 
-	_, diags, err := openapi.Run(t.Context(), loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}),
+	_, diags, err := openapi.Run(t.Context(), servicetest.Context(t, openapitest.EmptySpec, service.Policy{}),
 		openapi.InferencesOf(openapi.Options{}), types, whole.New)
 	require.NoError(t, err)
 

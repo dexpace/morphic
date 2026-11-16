@@ -9,8 +9,8 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,8 +23,8 @@ import (
 // additionalOperations entries times what the item declares (GitHub #1428), as
 // no fixed method's do. Every entry is charged, the first too, so a mount's
 // charge is the same in any order.
-func chargeItemCopy(c lowering.Ctx, kept, servers int, taken []sourcedParam) {
-	lowering.ChargeExpansion(c, kept+servers)
+func chargeItemCopy(c service.Ctx, kept, servers int, taken []sourcedParam) {
+	service.ChargeExpansion(c, kept+servers)
 	for _, sp := range taken {
 		if _, isRef := c.Bindings().Reference(sp.ref); isRef {
 			continue
@@ -34,7 +34,7 @@ func chargeItemCopy(c lowering.Ctx, kept, servers int, taken []sourcedParam) {
 			pc = *sp.in
 		}
 		if p := resolve.Object[soa.Parameter](c.Bindings(), sp.ref); p != nil {
-			lowering.ChargeExpansionAt(pc, sp.pointer, p.GetRootNode())
+			service.ChargeExpansionAt(pc, sp.pointer, p.GetRootNode())
 		}
 	}
 }

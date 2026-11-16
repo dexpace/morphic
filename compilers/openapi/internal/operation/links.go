@@ -11,8 +11,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -54,11 +54,11 @@ type linkDraft struct {
 	// at is the context of the response whose links map writes the entry, and
 	// use the entry's pointer there, where a finding about it is reported: one
 	// declaration shared by several responses can fail in one alone.
-	at  lowering.Ctx
+	at  service.Ctx
 	use jsontext.Pointer
 	// c is the context of the document declaring the link, and ptr its pointer
 	// there, which its provenance and its server's ID name.
-	c   lowering.Ctx
+	c   service.Ctx
 	ptr jsontext.Pointer
 
 	name         string
@@ -84,7 +84,7 @@ type draftParam struct {
 // finding, and drafts nothing. The summary and description written beside a link's $ref
 // describe that use of it, so they fold over the declaration's docs
 // (docs/compilers/openapi.md#reference-object-siblings).
-func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {
+func draftLinks(c service.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {
 	links := r.GetLinks()
 	if links == nil {
 		return nil, nil
@@ -93,13 +93,13 @@ func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkD
 	var diags []ir.Diagnostic
 	for name, rl := range links.All() {
 		use := rptr + ids.Ptr("links", name)
-		l, lc, lptr := lowering.Declared[soa.Link](c, rl, use)
+		l, lc, lptr := service.Declared[soa.Link](c, rl, use)
 		if l == nil {
 			continue
 		}
 		d, draftDiags := draftLink(lc, l, lptr, name)
 		d.docs = resolve.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
-		beside, besideDiags := lowering.Beside[soa.Link](c, rl, use, true)
+		beside, besideDiags := service.Beside[soa.Link](c, rl, use, true)
 		d.extra = annotation.MergeUnmodeled(d.extra, beside)
 		diags = append(diags, besideDiags...)
 		d.at, d.use = c, use
@@ -111,7 +111,7 @@ func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkD
 
 // draftLink drafts the link l named name, declared at ptr in c's document. It
 // holds l whole, as it resolved, for keep.
-func draftLink(c lowering.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (linkDraft, []ir.Diagnostic) {
+func draftLink(c service.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (linkDraft, []ir.Diagnostic) {
 	d := linkDraft{
 		c: c, ptr: ptr, name: name,
 		operationID: l.OperationID, operationRef: l.OperationRef,

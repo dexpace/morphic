@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -148,7 +148,7 @@ func TestPathItem_DocsAddNoMarker(t *testing.T) {
     get:
       operationId: getX
       responses: {"200": {description: ok}}
-`), lowering.GroupByPathPrefix)
+`), service.GroupByPathPrefix)
 	openapitest.RequireNoErrorDiags(t, diags)
 	require.Len(t, svc.Groups, 1)
 	require.Len(t, svc.Groups[0].Operations, 1)
@@ -500,7 +500,7 @@ info: {title: T, version: "1"}
 paths:
   /a: {servers: [{url: 'https://a.example'}]}
   /b: {servers: [{url: 'https://b.example'}]}
-`, lowering.GroupByTags)
+`, service.GroupByTags)
 
 	var at []string
 	for _, d := range diags {
@@ -537,7 +537,7 @@ func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
-				"paths:\n  /unmounted: "+tc.item+"\n", lowering.GroupByTags)
+				"paths:\n  /unmounted: "+tc.item+"\n", service.GroupByTags)
 			announced := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 				return strings.Contains(d.Message, "declares no operation this compiler lowers")
 			})
@@ -567,7 +567,7 @@ func TestPathItem_UnmountedAnnouncementSaysWhatLanded(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
-				"paths:\n  /unmounted: "+tc.item+"\n", lowering.GroupByTags)
+				"paths:\n  /unmounted: "+tc.item+"\n", service.GroupByTags)
 			var found []string
 			for _, d := range diags {
 				if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "declares no operation") {
@@ -639,7 +639,7 @@ info: {title: T, version: "1"}
 paths:
   /empty: {}
   /blank: {summary: "", description: ""}
-`, lowering.GroupByTags)
+`, service.GroupByTags)
 
 	assert.Empty(t, svc.Unmodeled)
 	for _, d := range diags {
