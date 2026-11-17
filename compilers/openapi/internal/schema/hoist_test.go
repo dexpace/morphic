@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -418,15 +419,17 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 
 // TestAlias_CarriesTheBoundsWrittenBesideIt pins that an alias a position
 // hoists to own what it wrote keeps the value constraints written beside it:
-// beside an applicator its lowered node has no home for. The alias owns the
-// pointer, so hoistDeclarationHome hoists nothing else that could carry them.
+// beside an applicator its lowered node has no home for, as an untyped one
+// with the kind-inference policy off. The alias owns the pointer, so
+// hoistDeclarationHome hoists nothing else that could carry them.
 func TestAlias_CarriesTheBoundsWrittenBesideIt(t *testing.T) {
 	t.Parallel()
 	one, two := ir.BigVal("1"), ir.BigVal("2")
 	six := int64(6)
 	want := ir.Constraints{Min: &two, ExclusiveMin: &one, MinLength: &six}
-	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(
-		"    A: {items: {type: string}, minimum: 2, exclusiveMinimum: 1, minLength: 6}\n"))
+	doc, diags := schema.LowerSpecWith(t, openapitest.ComponentSpec(
+		"    A: {items: {type: string}, minimum: 2, exclusiveMinimum: 1, minLength: 6}\n"),
+		lowering.Policy{KindInference: lowering.KindInference{Disabled: true}})
 	openapitest.RequireNoErrorDiags(t, diags)
 	sc, ok := typeByName(doc, "A").(*ir.Scalar)
 	require.True(t, ok, "the position hoists an alias of its own")

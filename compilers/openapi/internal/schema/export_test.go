@@ -81,7 +81,13 @@ func LoweredWith(t *testing.T, src string, policy lowering.Policy) (*Lowerer, []
 // under construction and all diagnostics.
 func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
-	l, diags := LoweredFor(t, src)
+	return LowerSpecWith(t, src, lowering.Policy{})
+}
+
+// LowerSpecWith is LowerSpec under policy.
+func LowerSpecWith(t *testing.T, src string, policy lowering.Policy) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	l, diags := LoweredWith(t, src, policy)
 	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 	return doc, append(diags, l.Diags.List()...)

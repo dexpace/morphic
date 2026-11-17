@@ -1,0 +1,13 @@
+openapi: 3.1.0
+info: {title: Kinds, version: "1"}
+paths: {}
+components:
+  schemas:
+    # Shape keywords of an object and of an array beside no type speak of both
+    # kinds, so each lowers to a union of the two, whichever is written first.
+    ObjectFirst: {properties: {a: {type: string}, b: {type: string}}, required: [a, b], items: {type: string}}
+    ArrayFirst: {items: {type: string}, additionalProperties: {type: integer}}
+    Holder:
+      type: object
+      properties:
+        both: {prefixItems: [{type: string}], patternProperties: {'^x': {type: string}}}

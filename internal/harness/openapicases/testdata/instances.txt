@@ -1,9 +1,8 @@
 # What the instance oracle finds at the core cases, and the reason each finding
 # stands: case name, what was found, reason (Reasons).
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/beside	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	inferred-kind
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/beside	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/entry	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/nested	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
@@ -479,14 +478,12 @@
 3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
 3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
 3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/beside	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fobject properties validation/property/entry	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fobject properties validation/property/nested	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fobject properties validation/property/wrap	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/beside	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	inferred-kind
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	inferred-kind
+3.1.0/properties.json%2Fobject properties validation/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
+3.1.0/properties.json%2Fobject properties validation/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
+3.1.0/properties.json%2Fobject properties validation/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
@@ -499,10 +496,9 @@
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/beside	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind
-3.1.0/required.json%2Frequired validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind
-3.1.0/required.json%2Frequired validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind
-3.1.0/required.json%2Frequired validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	inferred-kind
+3.1.0/required.json%2Frequired validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
+3.1.0/required.json%2Frequired validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
+3.1.0/required.json%2Frequired validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/entry	"array is valid"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/nested	"array is valid"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/wrap	"array is valid"	any-kind-model

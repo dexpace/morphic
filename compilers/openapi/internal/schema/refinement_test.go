@@ -1351,17 +1351,18 @@ func TestRefinement_DecidedByTheSetInEveryOrder(t *testing.T) {
 }
 
 // TestRefinement_ANoKindConjunctIsNeverThePrincipal pins that a conjunct naming
-// no kind cannot decide what the position is: its `format` or `items` qualifies a
-// kind, so it stays beside the conjunct that names one, in either order, and the
-// position is no top type.
+// no kind cannot decide what the position is: its `format` or `maxItems`
+// qualifies a kind, so it stays beside the conjunct that names one, in either
+// order, and the position is no top type. An `items` is no such conjunct: the
+// kind-inference policy reads it as an array.
 func TestRefinement_ANoKindConjunctIsNeverThePrincipal(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		kinded, unkinded string
 		want             ir.TypeID
 	}{
-		"format": {"{type: integer}", "{format: int32}", "t/prim/integer"},
-		"items":  {"{type: string}", "{items: {type: string}}", "t/prim/string"},
+		"format":   {"{type: integer}", "{format: int32}", "t/prim/integer"},
+		"maxItems": {"{type: string}", "{maxItems: 2}", "t/prim/string"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

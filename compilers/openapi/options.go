@@ -189,6 +189,16 @@ type DiscriminatorInference = lowering.DiscriminatorInference
 // and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
+// KindInference is the kind-inference policy: whether a schema naming no kind
+// lowers as one writing the type its shape keywords speak of. It is another
+// injectable-policy seam (architecture principle 6), named here for the reason
+// GroupingStrategy is.
+type KindInference = lowering.KindInference
+
+// KindInferenceHeuristic is the name a type node's Provenance.Inferred carries
+// where the kind-inference policy read its kind off its shape keywords.
+const KindInferenceHeuristic = lowering.KindInferenceHeuristic
+
 // IdempotencyInference is the idempotency policy: whether an operation
 // declaring an `Idempotency-Key` header parameter, and no idempotency, takes it
 // as its idempotency token. It is another injectable-policy seam (architecture
@@ -299,6 +309,11 @@ type Options struct {
 	// off the strings it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
+	// KindInference selects whether a schema naming no kind lowers as one
+	// writing the type its shape keywords speak of, the node marked as
+	// inferred. The zero value is on; a caller who wants such a schema read as
+	// the top type, its keywords kept, disables it.
+	KindInference KindInference `json:"kindInference"`
 	// IdempotencyInference selects whether an operation declaring an
 	// `Idempotency-Key` header parameter, and no idempotency, takes it as its
 	// idempotency token, marked as inferred. The zero value is on; a caller who
@@ -606,6 +621,7 @@ func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
 		string(NullableInferenceHeuristic):            &o.NullableInference.Disabled,
 		string(DiscriminatorInferenceHeuristic):       &o.DiscriminatorInference.Disabled,
+		string(KindInferenceHeuristic):                &o.KindInference.Disabled,
 		string(IdempotencyInferenceHeuristic):         &o.IdempotencyInference.Disabled,
 		string(SecretInferenceHeuristic):              &o.SecretInference.Disabled,
 		string(HTTPDateInferenceHeuristic):            &o.HTTPDateInference.Disabled,

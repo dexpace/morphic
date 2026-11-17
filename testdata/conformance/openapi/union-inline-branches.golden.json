@@ -70,7 +70,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Check/oneOf/0"
+        "pointer": "/components/schemas/Check/oneOf/0",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -147,7 +148,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Check/oneOf/1"
+        "pointer": "/components/schemas/Check/oneOf/1",
+        "inferred": "kind-inference"
       },
       "properties": [
         {

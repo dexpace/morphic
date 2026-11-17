@@ -614,7 +614,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Untyped"
+        "pointer": "/components/schemas/Untyped",
+        "inferred": "kind-inference"
       },
       "properties": [
         {

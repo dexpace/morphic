@@ -871,3 +871,28 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat-A")}, pet.Discriminator.Mapping,
 		"the encoded mapping target names the declared component, and the entry is kept")
 }
+
+// TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy pins a schema writing
+// no type whose statement lies on a cycle of conjunct edges, a union branch
+// naming it, so the run's admission cannot read what it names: its shape
+// keywords decide, under the kind-inference policy and marked by it, and with
+// the policy off it is the top type keeping them.
+func TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpecVer("3.1.0",
+		"    A: {oneOf: [{$ref: '#/components/schemas/A'}, {type: 'null'}], properties: {a: {type: string}}}\n")
+	for _, off := range []bool{false, true} {
+		doc, diags := schema.LowerSpecWith(t, spec, lowering.Policy{KindInference: lowering.KindInference{Disabled: off}})
+		openapitest.RequireNoErrorDiags(t, diags)
+		td := typeByName(doc, "A")
+		marked := td.Common().Provenance.Inferred == lowering.KindInferenceHeuristic
+		if off {
+			assert.Equal(t, ir.KindScalar, td.Kind(), "the top type with the policy off")
+			assert.Contains(t, td.Common().Unmodeled, "openapi:properties")
+			assert.False(t, marked)
+			continue
+		}
+		assert.Equal(t, ir.KindModel, td.Kind(), "the policy reads its properties as an object")
+		assert.True(t, marked)
+	}
+}

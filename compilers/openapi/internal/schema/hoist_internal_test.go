@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
@@ -173,4 +174,29 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 			assert.Equal(t, "t", node.Common().Name.Hint, "the node the variant holds reaches T either way")
 		})
 	}
+}
+
+// TestMarkKindInferred_ReportsAMissAndMarksAHit pins that the kind-inference
+// marker joins what a node's provenance already names, and that a node absent
+// from the registry is reported rather than marked in silence.
+func TestMarkKindInferred_ReportsAMissAndMarksAHit(t *testing.T) {
+	t.Parallel()
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	ts := compile.NewTypes()
+	const at = "/components/schemas/User"
+
+	diags := markKindInferred(c.Ctx, ts, "t/absent", at)
+	require.Len(t, diags, 1, "a miss is announced")
+	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
+
+	id := internNode(c.Ctx, ts, at, func(cm ir.TypeCommon) ir.TypeDef {
+		cm.Provenance.Inferred = lowering.NullableInferenceHeuristic
+		return &ir.Model{TypeCommon: cm}
+	})
+	assert.Empty(t, markKindInferred(c.Ctx, ts, id, at))
+	assert.Empty(t, markKindInferred(c.Ctx, ts, id, at), "a second mark is the first")
+	td, ok := ts.Node(id)
+	require.True(t, ok)
+	assert.Equal(t, ir.JoinInferred(lowering.NullableInferenceHeuristic, lowering.KindInferenceHeuristic),
+		td.Common().Provenance.Inferred)
 }

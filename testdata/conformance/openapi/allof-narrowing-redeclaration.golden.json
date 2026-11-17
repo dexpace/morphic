@@ -106,7 +106,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -188,7 +189,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p"
+        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -3457,7 +3459,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedObject"
+        "pointer": "/components/schemas/UntypedObject",
+        "inferred": "kind-inference"
       },
       "properties": [
         {

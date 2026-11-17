@@ -799,7 +799,7 @@
       }
     },
     "t/openapi/components/schemas/UntypedDiscriminator": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/UntypedDiscriminator",
       "name": {
         "source": "UntypedDiscriminator",
@@ -808,26 +808,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:discriminator": {
-          "reason": "degraded_lowering",
-          "value": {
-            "propertyName": "kind"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UntypedDiscriminator/discriminator"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedDiscriminator"
+        "pointer": "/components/schemas/UntypedDiscriminator",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/prim/any",
-        "nullable": false
-      }
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "propertyName": "kind",
+        "inferred": false
+      },
+      "inputOnly": false
     },
     "t/openapi/components/schemas/UntypedFormat": {
       "kind": "scalar",
@@ -859,7 +851,7 @@
       }
     },
     "t/openapi/components/schemas/UntypedItems": {
-      "kind": "scalar",
+      "kind": "list",
       "id": "t/openapi/components/schemas/UntypedItems",
       "name": {
         "source": "UntypedItems",
@@ -868,29 +860,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:items": {
-          "reason": "degraded_lowering",
-          "value": {
-            "type": "string"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UntypedItems/items"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedItems"
+        "pointer": "/components/schemas/UntypedItems",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/prim/any",
+      "elem": {
+        "target": "t/prim/string",
         "nullable": false
       }
     },
     "t/openapi/components/schemas/UntypedPrefixItems": {
-      "kind": "scalar",
+      "kind": "tuple",
       "id": "t/openapi/components/schemas/UntypedPrefixItems",
       "name": {
         "source": "UntypedPrefixItems",
@@ -899,31 +880,24 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:prefixItems": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "type": "string"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UntypedPrefixItems/prefixItems"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedPrefixItems"
+        "pointer": "/components/schemas/UntypedPrefixItems",
+        "inferred": "kind-inference"
       },
-      "base": {
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
         "target": "t/prim/any",
         "nullable": false
       }
     },
     "t/openapi/components/schemas/UntypedRequired": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/UntypedRequired",
       "name": {
         "source": "UntypedRequired",
@@ -932,26 +906,17 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:required": {
-          "reason": "degraded_lowering",
-          "value": [
-            "name"
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UntypedRequired/required"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedRequired"
+        "pointer": "/components/schemas/UntypedRequired",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/prim/any",
-        "nullable": false
-      }
+      "requires": [
+        "name"
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/any": {
       "kind": "primitive",
@@ -995,46 +960,10 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"primitive\", which has no home for items declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UntypedItems"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"primitive\", which has no home for prefixItems declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UntypedPrefixItems"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"primitive\", which has no home for required declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UntypedRequired"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
       "message": "this position lowered to a node of kind \"primitive\", which has no home for format declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/UntypedFormat"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"primitive\", which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UntypedDiscriminator"
       }
     },
     {
@@ -1186,7 +1115,7 @@
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "1da2631ca04450d576529ea9b45cc7bee71057d896a75ea056569503c09bf2a8"
+      "hash": "92fc9f8d4660db2ee040c92bd2674ee5dd151ee5d21d0ec2e6e98a26ae70be3c"
     }
   ]
 }

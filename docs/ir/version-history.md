@@ -891,5 +891,14 @@ it sees. Changes made together in one bump are listed together under it.
   A `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, a numeric or string bound beside a
   schema that lowers to one being kept under its keyword, or with the `allOf` branch writing it, and
   `irverify` reports a structural node holding a bound of another kind (`ir/bound-of-another-kind`).
-  A consumer pinned to 0.69.0 refuses the document; one reading such a bound off `Constraints` finds
-  it under `Unmodeled`, and one reading a carrier's bound finds it on the node the carrier names.
+  A type node's `Provenance.Inferred` may name `kind-inference`: the OpenAPI compiler marks a node
+  whose kind it read off the shape keywords of a schema naming none, under a policy that turned off
+  lowers such a schema to the top type
+  ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads a kind off every
+  keyword applying to one kind alone, an `items`, an `additionalProperties`, a `required` or a
+  `discriminator` among them, where only a `properties` listing a member was read, and keywords of
+  both kinds as a union of the two. A consumer pinned to 0.69.0 refuses the document; one reading
+  such a bound off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it
+  on the node the carrier names, one reading a node's kind as declared finds the marker where it was
+  not, and one reading an untyped shape keyword under `Unmodeled` finds it typed on the node its
+  kind lowers to.

@@ -26,8 +26,9 @@ type reading struct {
 	// meeting a $dynamicRef the bindings read as no $ref, which an election
 	// cannot read; loose one meeting a keyword the read does not follow that
 	// could refuse a kind (looseIn), so admits may claim more than the schema
-	// admits.
-	cut, dynamic, loose bool
+	// admits; inferred one naming no kind, whose kinds its shape keywords
+	// claim (claimedKinds).
+	cut, dynamic, loose, inferred bool
 	// reads and members are the schemas and value-set members the read takes
 	// in, each counted per path and held to one past a reader's cap.
 	reads, members int
@@ -254,8 +255,8 @@ func (w *admissionWalk) settle(f *admissionFrame) {
 // conjoined with its allOf entries, the join of each union's branches and what
 // its $ref lands on, in conjunctsOf's order. A statement stating no schema
 // object admits nothing where it reads as `false`, and anything else. One
-// whose kinds that leaves every kind and whose `properties` lists a member
-// lowers to an object.
+// whose kinds that leaves every kind lowers to those its shape keywords claim
+// (claimedKinds), where they claim any.
 func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Statement) *reading {
 	if st.Truth != statement.Stated {
 		if st.Truth.ReadsFalse() {
@@ -288,8 +289,11 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 		r.cut = r.cut || target.cut
 		r.loose = r.loose || target.loose
 	}
-	if r.kinds == anyInstance && len(objectIn(st.Schema).Properties) > 0 {
-		r.kinds = kindObject
+	if r.kinds != anyInstance {
+		return r
+	}
+	if claims := claimedKinds(w.c, st.Schema); claims != 0 {
+		r.kinds, r.inferred = claims, true
 	}
 	return r
 }

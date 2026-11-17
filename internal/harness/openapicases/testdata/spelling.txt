@@ -610,6 +610,7 @@
 3.0.3/union/type~/none/responseBody/entry	services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:type	kept-key
 3.0.3/union/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.0.3/union/xml~/none/branch/beside	types.name.hint	hint-by-spelling
+3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/allOf.json%2FallOf simple types/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/allOf.json%2FallOf with boolean schemas, all true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/allOf.json%2FallOf with one empty schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
@@ -1564,10 +1565,13 @@
 3.1.0/pattern.json%2Fpattern is not anchored/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/pattern.json%2Fpattern validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/beside	diagnostics:pass/default-outside-type	any-kind-model
+3.1.0/properties.json%2Fobject properties validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
+3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/ref.json%2F$ref to boolean schema true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/ref.json%2Frelative pointer ref to array/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
+3.1.0/required.json%2Frequired validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/string/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
 3.1.0/string/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/string/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside

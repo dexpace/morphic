@@ -358,6 +358,7 @@ func loweringPolicy(o Options) service.Policy {
 			Promotions:             o.Promotions,
 			NullableInference:      o.NullableInference,
 			DiscriminatorInference: o.DiscriminatorInference,
+			KindInference:          o.KindInference,
 			TitleNames:             o.TitleNames,
 		},
 		Grouping:              o.Grouping,

@@ -14,8 +14,6 @@ func Reasons() map[string]string {
 			"the allOf spelling hoists a Model",
 		"union-beside-allof": "#1986: a union beside an allOf whose conjuncts name no kind composes a model, " +
 			"which excludes the instances of other kinds the schema admits",
-		"inferred-kind": "#1987: a schema writing properties, required or additionalProperties and no type " +
-			"lowers to a model, whose kind excludes the instances of other kinds the keywords admit",
 		"kept-key":     "#1989: a keyword on an inline allOf branch kept whole loses its own key, reason and report",
 		"nested-title": "#1997: a title on an allOf entry nested in another names no union variant",
 		"entry-closure": "#1998: a closure keyword on an inline allOf entry is kept where beside the allOf it " +

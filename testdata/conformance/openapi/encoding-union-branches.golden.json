@@ -766,7 +766,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0"
+        "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/0",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -812,7 +813,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1"
+        "pointer": "/paths/~1composed/post/requestBody/content/multipart~1form-data/schema/allOf/0/oneOf/1",
+        "inferred": "kind-inference"
       },
       "properties": [
         {

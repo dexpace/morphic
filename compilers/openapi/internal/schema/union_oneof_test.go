@@ -1274,12 +1274,15 @@ func TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase(t *testing.T
 // TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel holds a branch that
 // writes a keyword declaring shape the body does not hold, where the body is no
 // model to distribute into, to the union alone where every branch says the
-// body's `type` and to the degraded lowering where a bare branch does not.
+// body's `type`, a bare `items` or `prefixItems` saying array as the
+// kind-inference policy reads it, and to the degraded lowering where a bare
+// branch does not.
 func TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel(t *testing.T) {
 	t.Parallel()
 	alone := map[string]bool{
 		"ItemsBesideTheType": true, "FormatBesideTheType": true, "ItemsBesideANot": true,
-		"FormatBesideANot": true, "ConstBesideANot": true,
+		"FormatBesideANot": true, "ConstBesideANot": true, "ItemsInABareBranch": true,
+		"PrefixItemsInABareBranch": true,
 	}
 	for name, schemaText := range map[string]string{
 		"ItemsBesideTheType": `      type: array
