@@ -2158,7 +2158,9 @@ an object and another kind composes that list's object variant, the one node of 
 holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, …]}` over `Pet: {type: [object, string],
 properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
 keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or `anyOf` writes is not unpacked: it
-may hold several objects, or none a model is, so one admitting another kind is kept as above.
+may hold several objects, or none a model is, so one admitting another kind is kept as above. The
+list is read only where the entry's `$ref` lands: one landing on another `$ref` to `Pet`, as
+`{$ref: Chain}` over `Chain: {$ref: Pet}` does, is kept as above too.
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
@@ -2230,9 +2232,12 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
    `type` that excludes an object ([`allof-inline-residue`](#allof-inline-residue)). Where neither
    holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
    names the contradiction.
+5. a `$dynamicRef` the position does not expand stands beside it: `{allOf: [{$ref: T}], $dynamicRef:
+   '#m'}` is a `Model` keeping the `$dynamicRef`, even where `T` admits no object and its `$ref` is
+   kept too.
 
-A `$dynamicRef` masks no kind: one the position expands is read as the schema it names, and one it
-does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
+A `$dynamicRef` a conjunct writes masks no kind: one the position expands is read as the schema it
+names, and one it does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
@@ -2407,7 +2412,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
-  consumes (#1067).
+  consumes (#1067), and a `$dynamicRef` beside the `allOf` keeps a `Model` over a target admitting no
+  object (#2009).
 
 ### `allof-beside-ref`
 

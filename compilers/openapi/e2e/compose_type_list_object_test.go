@@ -126,3 +126,39 @@ func TestAllOfCompose_OnlyATypeListsObjectVariantIsComposed(t *testing.T) {
 		}
 	})
 }
+
+// TestAllOfCompose_TheObjectVariantIsTheOneTheUnionHolds holds that a subtype
+// composes the object variant the type list's union itself holds wherever the
+// list writes its object, null among the others included, so a list whose
+// null stands before the object names no node the document lacks.
+func TestAllOfCompose_TheObjectVariantIsTheOneTheUnionHolds(t *testing.T) {
+	t.Parallel()
+	for _, types := range []string{
+		"[string, 'null', object]", "['null', object, string]",
+		"[integer, string, 'null', object]", "[string, object, integer]",
+	} {
+		schemas := []string{
+			"Pet: {type: " + types + ", properties: {kind: {type: string}}}",
+			"Cat: {allOf: [{$ref: '#/components/schemas/Pet'}, {type: object, properties: {meow: {type: boolean}}}]}",
+		}
+		t.Run(types, func(t *testing.T) {
+			t.Parallel()
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, diags := compileAnnotationSpec(t, "variant", admissionSpec("3.1.0", "", schemas...))
+				requireErrorsAndWarnings(t, diags, nil)
+				requireModelsNameModels(t, doc)
+				pet, ok := kindNode(t, doc, componentID("Pet")).(*ir.Union)
+				require.True(t, ok, "a type list is a union")
+				i := slices.IndexFunc(pet.Variants, func(v ir.Variant) bool {
+					_, model := doc.Types[v.Type.Target].(*ir.Model)
+					return model
+				})
+				require.GreaterOrEqual(t, i, 0, "the union holds an object variant")
+				cat := requireModelOf(t, doc, "Cat")
+				require.NotNil(t, cat.Base)
+				assert.Equal(t, pet.Variants[i].Type.Target, cat.Base.Target)
+				assert.Equal(t, []string{"kind", "meow"}, flattenedNames(doc, componentID("Cat")))
+			})
+		})
+	}
+}
