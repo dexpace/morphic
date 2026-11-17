@@ -29,9 +29,9 @@ func TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema(t *testing.T) {
     B: {type: object, properties: {b: {type: integer}}}
     Beside:
       allOf: [{$ref: '#/components/schemas/Obj'}]
-      oneOf: [{$ref: '#/components/schemas/B'}, {type: string}]
+      oneOf: [{$ref: '#/components/schemas/B'}, {anyOf: [{type: object}, {type: string}]}]
     Entry:
-      allOf: [{$ref: '#/components/schemas/Obj'}, {oneOf: [{$ref: '#/components/schemas/B'}, {type: string}]}]
+      allOf: [{$ref: '#/components/schemas/Obj'}, {oneOf: [{$ref: '#/components/schemas/B'}, {anyOf: [{type: object}, {type: string}]}]}]
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
@@ -42,10 +42,10 @@ func TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema(t *testing.T) {
 		v, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
 		require.True(t, ok, name)
 		require.NotNil(t, v.Base, name)
-		assert.Equal(t, componentID("Obj"), v.Base.Target, "%s: the composition's base, and no string", name)
+		assert.Equal(t, componentID("Obj"), v.Base.Target, "%s: the composition's base, and no union", name)
 		assert.Empty(t, v.Mixins, name)
 		assert.Equal(t, []string{key}, slices.Sorted(maps.Keys(v.Unmodeled)), name)
-		assert.JSONEq(t, `{"type":"string"}`, string(v.Unmodeled[key].Value), name)
+		assert.JSONEq(t, `{"anyOf":[{"type":"object"},{"type":"string"}]}`, string(v.Unmodeled[key].Value), name)
 		at := "/components/schemas/" + name + "/" + strings.TrimPrefix(key, "openapi:")
 		assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, at), 1, "one info at %s", at)
 	}

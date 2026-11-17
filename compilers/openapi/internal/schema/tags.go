@@ -41,7 +41,7 @@ func deferUnionTags(c lowering.Ctx, ts *compile.Types, u unionAt, n *ir.Union, p
 	tags := unionTags{c: c, id: n.ID, pointer: pointer}
 	if u.disc != nil {
 		tags.at = u.discAt + ids.Ptr("discriminator")
-		tags.implicit = implicitRoutes(c, u.holder)
+		tags.implicit = implicitRoutes(c, u)
 	}
 	ts.Defer(tags)
 }

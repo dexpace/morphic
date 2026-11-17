@@ -239,8 +239,8 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
-		if nullBranch(c, st) {
-			continue // null branches lift to the enclosing ref's Nullable bit
+		if !u.variantBranch(c, i, st) {
+			continue // a null branch lifts to the enclosing ref's Nullable bit; a dead one is kept
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
 		t := variantType(st, vptr)
@@ -264,7 +264,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
 	diags = append(diags, keepBranchDiscriminatorKeys(c, node, u)...)
-	diags = append(diags, spellImplicitRoutes(c, u.holder, node, common.Provenance.Pointer)...)
+	diags = append(diags, spellImplicitRoutes(c, u, node, common.Provenance.Pointer)...)
 	deferUnionTags(c, ts, u, node, common.Provenance.Pointer)
 	return node, diags
 }
@@ -306,6 +306,18 @@ type unionAt struct {
 	discAt jsontext.Pointer
 	// branch marks a holder that is an allOf branch, no schema at a position.
 	branch bool
+	// dead marks, by branch index, each branch of a distributed union no
+	// instance of its body satisfies (deadBranches), which is no variant; nil
+	// for a union distributing nothing.
+	dead []bool
+}
+
+// variantBranch reports whether st, the branch of u at index i, is a variant
+// of the Union u lowers to: every branch but a null one, which lifts to the
+// reference's Nullable, and one no instance of the body u is distributed over
+// satisfies. Each reader aligning branches with variants asks it.
+func (u unionAt) variantBranch(c lowering.Ctx, i int, st *statement.Statement) bool {
+	return !nullBranch(c, st) && (u.dead == nil || !u.dead[i])
 }
 
 // besideUnion is the union s, written at pointer, writes itself, with the
@@ -344,7 +356,7 @@ func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 		u.disc, u.discAt = d, e.pointer
 	}
 	how := classifyConjoined(c, s, u, pointer)
-	return u, how, how != unionHierarchyBase
+	return u, how, how == unionDistributed || how == unionRoutedSubtype
 }
 
 // branchUnionIndexOf returns findBranchUnion's reading of s, read once a run, as
@@ -672,6 +684,10 @@ const (
 	// union would be no subtype of that ancestor, so it stays a Model composing
 	// the union as a mixin (lowerSubtypeUnion).
 	unionRoutedSubtype
+	// unionNoLiveBranch marks a union no branch of which an instance of the
+	// body satisfies (deadBranch), a null branch aside: distributing it would
+	// build no variant a value inhabits.
+	unionNoLiveBranch
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
@@ -704,15 +720,18 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 // conjoins with a composing body, beside it or on a branch of its allOf, once
 // u's own shape allows distribution: kept whole where the discriminator standing
 // with u routes to branches composing s (composedByBranch), composed as a mixin
-// where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion); else
-// distributed, the discriminator routing the composed variants
-// (indexBranches).
+// where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion), kept
+// whole where no branch lives beside s (deadBranches); else distributed, the
+// discriminator routing the composed variants (indexBranches).
 func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
 	}
 	if routedSubtype(c, s, pointer) {
 		return unionRoutedSubtype
+	}
+	if !hasLiveBranch(c, u, deadBranches(c, s, u.holder)) {
+		return unionNoLiveBranch
 	}
 	return unionDistributed
 }
@@ -814,6 +833,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	case unionRoutedSubtype:
 		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
+	case unionNoLiveBranch:
+		id, diags := beside(ir.ReasonDegradedLowering,
+			"none of its branches admits a value its body admits, so no instance satisfies them together")
+		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
@@ -936,10 +959,12 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 // not residue each variant keeps (allOfComposition.conjoins).
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
+	u.dead = deadBranches(c, s, u.holder)
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
 			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s)}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
+		diags = append(diags, keepDeadBranches(c, &common.Unmodeled, s, u, pointer)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
 			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)

@@ -175,7 +175,7 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		// spellImplicitRoutes reports; it routes nothing here.
 		i := len(x.pointers)
 		st := c.Statements().Sub(b)
-		if nullBranch(c, st) || i == len(variants) {
+		if !u.variantBranch(c, n, st) || i == len(variants) {
 			continue
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(n))

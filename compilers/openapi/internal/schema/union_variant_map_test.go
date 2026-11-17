@@ -25,7 +25,7 @@ func TestOneOf_AVariantKeepingItsBranchBesideAMapIsAMap(t *testing.T) {
     M:
       type: object
       additionalProperties: {type: string}
-      oneOf: [{$ref: '#/components/schemas/B'}, {type: string}]
+      oneOf: [{$ref: '#/components/schemas/B'}, {anyOf: [{type: object}, {type: string}]}]
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, v := range irverify.Verify(doc) {

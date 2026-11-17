@@ -103,9 +103,9 @@ func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T)
 // own pointer, which an outside $ref to it finds too, and each variant composes
 // the body with that node, one redeclaring a property of the body among them,
 // whose variant takes the narrower declaration. A branch admitting no object
-// is no Base: its variant keeps it verbatim with an info. A bare null branch
-// is no variant, and a body writing `type: object` leaves the reference to the
-// position non-nullable.
+// is no variant: the Union keeps it verbatim, the schema warning of it. A bare
+// null branch is no variant, and a body writing `type: object` leaves the
+// reference to the position non-nullable.
 func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Shape:
@@ -126,7 +126,10 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 
 	shape, ok := typeByName(doc, "Shape").(*ir.Union)
 	require.True(t, ok, "the union is the value")
-	require.Len(t, shape.Variants, 3)
+	require.Len(t, shape.Variants, 2, "no instance of the body is a string")
+	assert.JSONEq(t, `{"type":"string"}`, string(shape.Unmodeled["openapi:oneOf/2"].Value), "the branch is kept")
+	assert.Equal(t, ir.ReasonDegradedLowering, shape.Unmodeled["openapi:oneOf/2"].Reason)
+	assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Shape"), 1, "one warning")
 	branches := []ir.TypeID{"t/anon/components/schemas/Shape/oneOf/0", "t/anon/components/schemas/Shape/oneOf/1"}
 	for i := range shape.Variants {
 		v, ok := doc.Types[shape.Variants[i].Type.Target].(*ir.Model)
@@ -142,13 +145,6 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 		} else {
 			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Shape/properties/kind"), kind.ID,
 				"under the one identity the body declares it with")
-		}
-		if i == len(branches) {
-			assert.Nil(t, v.Base, "a model composes no string")
-			assert.JSONEq(t, `{"type":"string"}`, string(v.Unmodeled["openapi:oneOf/2"].Value), "the branch is kept")
-			assert.Equal(t, ir.ReasonDegradedLowering, v.Unmodeled["openapi:oneOf/2"].Reason)
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Shape/oneOf/2"))
-			continue
 		}
 		require.NotNil(t, v.Base)
 		assert.Equal(t, branches[i], v.Base.Target, "variant %d conjoins its branch", i)

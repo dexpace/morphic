@@ -31,7 +31,7 @@ func TestOneOf_AKeptBranchIsHeldOnceAndReportedOnce(t *testing.T) {
       oneOf:
         - $ref: '#/components/schemas/B'
         - {required: [x]}
-        - {type: string, minLength: 3}
+        - {type: [object, string], minLength: 3}
         - {$ref: '#/components/schemas/TL', minProperties: 2}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)

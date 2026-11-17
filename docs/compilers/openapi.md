@@ -3385,13 +3385,14 @@ source declares: a `true` entry, a `format` and a `properties` state nothing. A 
 value by itself, the null included, that says so where it is written is its own to report, and the
 `allOf` composing it draws nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch)
 reports, and a `$ref` landing on `false`, on a schema whose value set holds no value its own type
-admits, an empty `enum` among them ([`enum-const`](#enum-const)), or on a schema whose own
-conjuncts share no value, which is reported where it is written, each read through a chain of
-`$ref`s each admitting no value, up to 256 of them. So a schema composing a reported one draws no
-second report. Any other conjunct admitting no value is named `no value` in the report, alone or
+admits, an empty `enum` among them ([`enum-const`](#enum-const)), on a schema whose own
+conjuncts share no value, or on one writing a union beside its object body no branch of which an
+instance of the body satisfies ([`union-beside-structure`](#union-beside-structure)), which is
+reported where it is written, each read through a chain of `$ref`s each admitting no value, up to
+256 of them. So a schema composing a reported one draws no second report. Any other conjunct admitting no value is named `no value` in the report, alone or
 beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
-a schema that admits none and says nothing of it, such as a `type` beside a union none of whose
-branches it admits, or beside a `$ref` to another kind. A read cut short decides
+a schema that admits none and says nothing of it, such as a `type` other than `object` beside a
+union none of whose branches it admits, or beside a `$ref` to another kind. A read cut short decides
 nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
 converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
 no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
@@ -3613,9 +3614,9 @@ finds too. The referent is the variant's `Base` or a `Mixin` only where the bran
 object alone, null aside, or its read is cut short, as an `allOf`'s `$ref` entry composes
 ([`allof-classification`](#allof-classification)), and a `$ref` to a schema whose `type` list holds
 an object composes that list's object variant, unless the branch writes a keyword beside its `$ref`,
-which binds the whole list and which no node the variant names would hold. Any other branch,
-admitting another kind or every kind, is kept verbatim on its variant under its path from the
-schema, `openapi:oneOf/<i>` or `openapi:anyOf/<i>` beside the body and
+which binds the whole list and which no node the variant names would hold. Any other branch that
+an instance of the body may satisfy, admitting an object among other kinds or every kind, is kept
+verbatim on its variant under its path from the schema, `openapi:oneOf/<i>` or `openapi:anyOf/<i>` beside the body and
 `openapi:allOf/<n>/oneOf/<i>` on an entry (`degraded_lowering`), with an info
 `openapi/degraded-construct` at the branch. That is the branch's one home: it lowers at no pointer
 of its own, and the target of a `$ref` it writes is the node it is wherever it is named. Such a
@@ -3623,7 +3624,7 @@ variant composes nothing, so beside a body that is a map and nothing else it is 
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
 and one no variant takes is kept on the `Union` ([`constraints`](#constraints)): beside `type:
-object`, a variant over a string holds no property count. Object keywords written with no `type`, a
+object`, a `minLength` bounds no variant. Object keywords written with no `type`, a
 `properties`, a `patternProperties`, a `required`, a closure or a catch-all, are a body too where
 the kinds the position lowers to are an object alone ([`shape-applicator`](#shape-applicator)):
 what the branches declare, each an object, or, where nothing declares a kind, what the
@@ -3636,6 +3637,28 @@ the body admits it too, so beside a body writing `type: object` it admits none, 
 writing no `type`, or listing `null` in its `type`, it admits the union's
 ([`nullable`](#nullable)), and a union written on an `allOf` branch distributes past its null branch
 alike.
+
+A branch no instance of the body satisfies is no variant either. Every instance of the schema is one
+of the body, which admits objects alone, null aside, so a branch is dead where the kinds it lowers
+to, as the admission reads them ([`allof-refinement`](#allof-refinement)), hold no object, and it
+admits no null or the body's own `type` keeps null out: a string, an array, a value set of strings,
+`false`, a `type` list holding no object. A branch whose kinds the kind-inference policy read, or
+whose read is cut short, decides nothing and lives, as does one naming a `$dynamicRef` the position
+does not expand, which admits every kind, and every branch beside a body the policy made an object;
+a branch admitting null lives beside a body that may admit it, and under the nullable-inference
+policy a body writing `nullable: true` or an `allOf` is read as one that may. The `Union` keeps each
+dead branch verbatim under its path from the schema, the key a kept branch takes on a variant
+(`degraded_lowering`), and the schema draws one warning `openapi/degraded-construct` naming each
+with the kinds it admits, the code [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) gives
+conjuncts sharing no value, of which a dead branch and the body are two; no finding is made at the
+branch, and it lowers nowhere. Leaving out a branch no instance satisfies changes what neither a
+`oneOf`'s "exactly one" nor an `anyOf`'s "at least one" admits, so `{type: object, anyOf: [{type:
+object}, {type: array}, {type: string}]}` is a `Union` of one variant, as a union written with one
+branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the warning of that
+rule already says no instance satisfies the schema, and no branch is read as dead. Where no branch
+lives, the union is shape 6 below. A `mapping` entry naming the component a dead branch names routes
+to that component, which is no variant of the union, as an entry naming any schema the union does
+not list does, and `pass/validate` reports it; no route is implied to it.
 
 A `discriminator` standing with the union, where no branch composes the schema (shape 3), routes
 the distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
@@ -3686,7 +3709,13 @@ reach these shapes:
 5. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
    no instance satisfies the two together and a variant would hold no value: the position lowers as
    the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
-   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union.
+   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union;
+6. every branch but a null one of a union the body would distribute is dead (above), so no variant
+   would hold a value: the position lowers as the body does, and the schema draws the warning naming
+   the dead branches beside the info, a report a schema composing it through `allOf` takes for its
+   own ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Such a union on an `allOf` entry
+   shares no kind with the other conjuncts, so it stays with its entry
+   ([`allof-inline-residue`](#allof-inline-residue)) under that rule's warning.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -3832,7 +3861,7 @@ judged as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
   `schema.TestOneOf_CoDeclaredTypeReadsNullableByItsDialect`,
   `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
-  `schema.TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant`,
+  `schema.TestOneOf_CoDeclaredBranchNoObjectSatisfiesIsNoVariant`,
   `schema.TestOneOf_CoDeclaredUnpreservableBranchIsNotAnnounced`,
   `schema.TestOneOf_CoDeclaredBranchReadCutShortIsComposed`,
   `e2e.TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase`,
@@ -3845,6 +3874,11 @@ judged as one whose branches declare shape.
   `e2e.TestCompile_AVariantKeepingItsBranchBesideAMapIsThatMap`,
   `schema.TestOneOf_AKeptBranchIsHeldOnceAndReportedOnce`,
   `e2e.TestCompile_ABranchAVariantKeepsLowersNowhereElse`,
+  `e2e.TestCompile_ABranchNoObjectSatisfiesIsNoVariant`,
+  `e2e.TestCompile_AnUntypedBranchLivesWithKindInferenceOff`,
+  `e2e.TestCompile_AMappingToADeadBranchRoutesToNoVariant`,
+  `e2e.TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept`,
+  `schema.TestOneOf_AnUnpreservableDeadBranchIsNotAnnounced`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,

@@ -71,10 +71,11 @@ func TestVariantBounds_AVariantOverATypeListComposesItsObject(t *testing.T) {
 }
 
 // TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject holds
-// that a branch naming a type list with no object, or a union a oneOf writes,
-// which is not unpacked though it holds an object, is no variant's Base: the
-// variant keeps the branch verbatim with an info, in either order of the
-// branches and of every mapping.
+// that a branch naming a union a oneOf writes, which is not unpacked though it
+// holds an object, is no variant's Base: the variant keeps the branch verbatim
+// with an info. A branch naming a type list with no object is no variant at
+// all, kept on the union, in either order of the branches and of every
+// mapping.
 func TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject(t *testing.T) {
 	t.Parallel()
 	written := []string{"Obj", "NoObj", "Chosen"}
@@ -88,11 +89,17 @@ func TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject(t *test
 			inBothMappingOrders(t, conjunctionSpec("3.1.0", typeListUnion(order), typeListComponents...),
 				func(t *testing.T, spec string) {
 					doc, diags := compileAnnotationSpec(t, "kept", spec)
-					requireErrorsAndWarnings(t, diags, nil)
+					noObj := slices.Index(order, "NoObj")
+					requireErrorsAndWarnings(t, diags, deadWarnings("oneOf", []variantBranch{
+						{name: order[0], object: noObj != 0}, {name: order[1], object: noObj != 1}, {name: order[2], object: noObj != 2},
+					}))
 					requireModelsNameModels(t, doc)
 					for _, at := range conjunctionPositions {
-						union := variantUnionAt(t, doc, string(at), len(order))
-						for j, name := range order {
+						union := variantUnionAt(t, doc, string(at), len(order)-1)
+						assert.Equal(t, entryKept(fmt.Sprintf("openapi:oneOf/%d", noObj)), keptOn(union),
+							"NoObj admits no object, so the union keeps it at %s", at)
+						live := slices.DeleteFunc(slices.Clone(order), func(name string) bool { return name == "NoObj" })
+						for j, name := range live {
 							v, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
 							require.True(t, ok, "the variant over %s at %s is a model", name, at)
 							if name == "Obj" {
@@ -101,7 +108,8 @@ func TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject(t *test
 								continue
 							}
 							assert.Nil(t, v.Base, "the variant over %s at %s names no base", name, at)
-							assert.Equal(t, entryKept(fmt.Sprintf("openapi:oneOf/%d", j)), keptOn(v), "%s at %s", name, at)
+							assert.Equal(t, entryKept(fmt.Sprintf("openapi:oneOf/%d", slices.Index(order, name))), keptOn(v),
+								"%s at %s", name, at)
 						}
 					}
 				})

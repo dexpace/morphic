@@ -927,7 +927,10 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry, a branch so
   kept lowering at no pointer of its own and a variant keeping one beside a map being that map's
   `MapT`, and holds only the bounds the kinds it admits take, its branch's within the body's, where
-  it held each the position took. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
+  it held each the position took. A branch admitting no object, nor a null the body admits, is no
+  variant: the `Union` keeps it under that key, the schema warning of it, where a variant over it
+  kept it, and a body none of whose branches lives lowers as itself, keeping the union whole under
+  `openapi:oneOf` or `openapi:anyOf`, where it was a `Union` of variants no value inhabits. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
   distributed. A composed `Model` takes `Additional` and `AdditionalProps` from the one schema
   object of its `allOf` whose `additionalProperties` reads every member the position and its entries
@@ -960,7 +963,9 @@ it sees. Changes made together in one bump are listed together under it.
   `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` or a variant's
   branch kept instead, and over a `type` list holding an object the list's object variant where it
   found the union, and one reading a variant's `Constraints` finds a property count only where the
-  variant admits an object, and one reading an `additionalProperties` finds it typed where the
+  variant admits an object, and one reading a distributed union's variants finds none over a branch
+  no object satisfies, the branch kept on the `Union` instead, and one reading an
+  `additionalProperties` finds it typed where the
   schema object writing it declares every member the position and its entries do, on an entry as
   beside the `allOf`, and kept elsewhere, and one reading the first entry of a tie as the position's
   finds the conjunct those rules elect, or none, and one naming a value set's node by its entry's ID
