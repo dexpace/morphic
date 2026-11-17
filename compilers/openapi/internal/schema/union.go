@@ -1120,8 +1120,8 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(objectIn(body.schema).Required, body.comp))
-	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
-	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
+	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
+	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
 	conjoinBranch(m, branch)
 	// No variant carries a DiscriminatorValue, which tags a hierarchy's
 	// subtype: a schema a discriminated ancestor routes to is never distributed

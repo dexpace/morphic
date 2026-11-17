@@ -2161,8 +2161,8 @@ and depth first, each keeping the pointer it was written at, and its `properties
 merge after them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A,
 B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
 the merge does not consume is kept beside the composition as residue
-([`allof-inline-residue`](#allof-inline-residue)), so `{additionalProperties: false, allOf: [A, B]}`
-composes `A` and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside
+([`allof-inline-residue`](#allof-inline-residue)), so `{unevaluatedProperties: false, allOf: [A,
+B]}` composes `A` and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside
 32 flattened entries is not flattened itself, so its `allOf` is residue, and it is reported as nested
 past the flattening depth of 32. This is not the flattening the
 [design rules](../ir/README.md#design-rules) leave to emitters: every `$ref` entry still composes as
@@ -2418,7 +2418,9 @@ hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under 
 A branch written inline rather than as a `$ref` owns no node, so composition has nowhere to point
 ([models](../ir/models.md#composition)) and the branch is merged into the composing model in place.
 That merge consumes the branch's `properties`, its `required` list, a `type` that is exactly
-`object`, which the composed `Model` already restates, for an entry flattened under
+`object`, which the composed `Model` already restates, its `additionalProperties` and
+`patternProperties` where it is the schema object the model takes its catch-all from
+([`additional-properties`](#additional-properties)), for an entry flattened under
 [`allof-classification`](#allof-classification), its `allOf`, and the `oneOf` or `anyOf` the
 position lowers, distributing it across its variants or composing it as a mixin, with the
 `discriminator` the branch writes beside it, which routes it
@@ -3250,9 +3252,10 @@ it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) ke
 the other branches contributed stays — closing is the nearest shape the IR has, and emptying the
 model would trade one silent loss for another. The model's catch-all keeps only its patterns, as
 beside `additionalProperties: false` ([catch-alls](../ir/models.md#catch-alls)), since the closure
-forbids every key they leave: its value goes, an `additionalProperties` the schema writes being kept
-verbatim under `openapi:additionalProperties` (`degraded_lowering`), and a catch-all left no pattern
-goes whole. A `true` conjunct admits everything, so contributing nothing from it is exact and
+forbids every key they leave: its value goes, the `additionalProperties` the model took, beside the
+`allOf` or on the entry closing it ([`additional-properties`](#additional-properties)), being kept
+verbatim under `openapi:additionalProperties` (`degraded_lowering`) at the keyword, and a catch-all
+left no pattern goes whole. A `true` conjunct admits everything, so contributing nothing from it is exact and
 nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is distributed
 ([`union-beside-structure`](#union-beside-structure)), every composed variant is closed and keeps
 the branch, and the branch is reported once.
@@ -3261,7 +3264,8 @@ the branch, and the branch is reported once.
 - Codes: `openapi/false-schema`
 - Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
   `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`,
-  `schema.TestAllOf_FalseBranchClosesTheCatchAllItForbids`
+  `schema.TestAllOf_FalseBranchClosesTheCatchAllItForbids`,
+  `e2e.TestEntryClosure_AFalseEntryKeepsTheCatchAllAnEntryTypes`
 
 ### `allof-disjoint-conjuncts`
 
@@ -4207,7 +4211,29 @@ where composition evaluates it, and the source writes no schema for it, so the c
 patterns and no `Value` beside `Additional` closed after composition. That object stays a
 `Model`, since a `MapT` has no field for a pattern-scoped value.
 
-- Cases: `maps`, `constraints`, `allof-position-constraints`
+`additionalProperties` reads the `properties` and `patternProperties` of the schema object writing
+it, and no other's (JSON Schema 2020-12 §10.3.2.3), so a composing `Model` takes its openness and
+catch-all from one schema object of the `allOf`: the position's own where it writes
+`additionalProperties` or `patternProperties` and no entry declares a property or a pattern, else
+the one inline entry writing either where no other object declares one, which the merge then
+consumes ([`allof-inline-residue`](#allof-inline-residue)). A `$ref` entry's target declares
+nothing here, and what is written beside the `$ref` does. So `{allOf: [{$ref: User},
+{additionalProperties: false}]}` closes the `Model` over `User` as `{allOf: [{$ref: User}],
+additionalProperties: false}` does, and an entry closing its own `properties` closes the model
+holding them. A closure no object takes is kept: beside the `allOf` under
+`openapi:additionalProperties` (`degraded_lowering`) with an info `openapi/degraded-construct` at the
+position, and on an entry as that entry whole. It applies to the members another object declares
+too, so the schema refuses every instance setting one of them that the closure does not admit, as
+`{allOf: [{properties: {a: …}}], additionalProperties: false}` admits no object with an `a`, and it
+cannot mean a model closed over them: typing it would close or type members it never read.
+Two entries writing `additionalProperties` beside no closure are both kept, since the catch-all
+would be what both admit. `patternProperties` beside the `allOf` types the catch-all whatever the
+entries declare, as a pattern applies to every name it matches and reads no `properties`
+(§10.3.2.2). An `unevaluatedProperties: false` beside the `allOf` is inert beside an entry closing
+the model with an `additionalProperties`, which evaluates every member, and is kept as validation
+logic; beside one writing patterns alone it closes the model after composition.
+
+- Cases: `maps`, `constraints`, `allof-position-constraints`, `allof-nested-inline`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`,
   `schema.TestObject_AnInertClosureLeavesAMap`,
@@ -4215,12 +4241,27 @@ patterns and no `Value` beside `Additional` closed after composition. That objec
   `schema.TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert`,
   `annotation.TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside`,
   `e2e.TestKindInference_AClosureBesideAUnionOfObjectsDistributes`,
-  `e2e.TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes`
+  `e2e.TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes`,
+  `schema.TestCloserOf_NamesTheObjectWhoseClosureTypesTheModel`,
+  `schema.TestKeepUnclosing_AClosureBesideAnEntrysMembersIsKeptOnce`,
+  `e2e.TestEntryClosure_AClosureOfTheOnlyEntryDeclaringMembersIsTyped`,
+  `e2e.TestEntryClosure_TheEntryAndTheBesideSpellingsAreOneModel`,
+  `e2e.TestEntryClosure_AClosureThatIsNotTheOnlyDeclarationOfMembersIsKeptWhole`,
+  `e2e.TestEntryClosure_ABesideClosureReadingAnotherConjunctsMembersIsKept`,
+  `e2e.TestEntryClosure_AClosureBesideTheAllOfOfAnObjectWritingItIsTyped`,
+  `e2e.TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare`,
+  `e2e.TestEntryClosure_TheClosureBesideTheAllOfIsTheModelsBeforeAnEntrys`,
+  `e2e.TestEntryClosure_TwoEntriesWritingAClosureTypeNeither`,
+  `e2e.TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry`,
+  `e2e.TestEntryClosure_ARefEntrysOwnMembersAreDeclaredBesideTheClosure`,
+  `e2e.TestEntryClosure_AClosureBesideAUnionReadsTheAllOfAlike`,
+  `e2e.TestEntryClosure_AUseRepeatedLeavesTheModelOfTheClosureAlone`,
+  `e2e.TestEntryClosure_TheEntryOrderLeavesTheDocumentAlone`
 - Status: partly built: the closure is typed beside an applicator kept verbatim that evaluates a
-  member, an inline `allOf` branch's `additionalProperties` or `patternProperties`, `then`, `else`
-  or `dependentSchemas`, so the typed members refuse one the source admits (#1904); and what a
-  target does with a model closed after composition is open, as no emitter rule reads it yet
-  (#1868).
+  member, an inline `allOf` branch kept whole for its `additionalProperties` or
+  `patternProperties`, `then`, `else` or `dependentSchemas`, so the typed members refuse one the
+  source admits (#1904); and what a target does with a model closed after composition is open, as
+  no emitter rule reads it yet (#1868).
 
 ### `required-members`
 

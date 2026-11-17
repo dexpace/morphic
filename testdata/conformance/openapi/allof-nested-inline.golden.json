@@ -328,27 +328,6 @@
         "description": "grouped"
       },
       "sensitive": false,
-      "unmodeled": {
-        "openapi:allOf/0": {
-          "reason": "degraded_lowering",
-          "value": {
-            "additionalProperties": false,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/A"
-              },
-              {
-                "$ref": "#/components/schemas/B"
-              }
-            ],
-            "description": "grouped"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Described/allOf/0"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described"
@@ -363,6 +342,7 @@
           "nullable": false
         }
       ],
+      "additional": "closed",
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -718,22 +698,13 @@
         "source": 0,
         "pointer": "/components/schemas/U"
       }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch (additionalProperties) is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Described/allOf/0"
-      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "allof-nested-inline.yaml",
-      "hash": "549a003a5e76ab47245f9f266b5d9f908712c395efa7d1772800888127bc12f0"
+      "hash": "ec5b776fab20eeda87ee49e745fa8c332c8189c99985df3d746963d9072c8a1e"
     }
   ]
 }

@@ -52,9 +52,9 @@ components:
             - properties:
                 a: {type: string}
             - allOf: [false]
-    # A wrapper that also writes a keyword nothing consumes is flattened, so A
-    # and B are Mixins, and is kept whole under openapi:allOf/0 with one
-    # degraded-construct naming that keyword. Its description folds.
+    # A wrapper that also writes a closure is flattened, so A and B are Mixins.
+    # No conjunct declares a member the closure would not read, so it closes
+    # the model, and its description folds: nothing of the wrapper is kept.
     Described:
       allOf:
         - additionalProperties: false
