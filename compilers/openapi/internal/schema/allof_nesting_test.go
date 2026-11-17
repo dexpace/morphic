@@ -69,6 +69,10 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	residue, _ := compileView(t, byName["a residue"])
 	assert.Positive(t, residue.Kept, "the residue is kept")
 
+	closure, _ := compileView(t, byName["a closure"])
+	assert.Equal(t, ir.AdditionalClosed, closure.Additional, "the wrapper declaring no member closes the model")
+	assert.Zero(t, closure.Kept, "and nothing of it is kept")
+
 	subtype, _ := compileView(t, byName["a discriminated base inside a wrapper"])
 	assert.Equal(t, "dog", subtype.DiscValue)
 	assert.Equal(t, componentID("Pet"), ir.TypeID(subtype.Base), "the discriminated ref is the base")
@@ -317,7 +321,7 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 	}{
 		{"discriminator", "discriminator: {propertyName: kind}", "discriminator"},
 		{"oneOf", "oneOf: [{type: string}]", "oneOf"},
-		{"additionalProperties false", "additionalProperties: false", "additionalProperties"},
+		{"unevaluatedProperties false", "unevaluatedProperties: false", "unevaluatedProperties"},
 		{"type set with null", `type: [object, "null"]`, "type"},
 	}
 	for _, tc := range tests {
@@ -600,6 +604,16 @@ var equivalencePairs = []struct {
       allOf: [{$ref: '#/components/schemas/A'}, false]
 `},
 	{"a residue", `    M:
+      allOf:
+        - unevaluatedProperties: false
+          allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+`, `    M:
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
+        - unevaluatedProperties: false
+`},
+	{"a closure", `    M:
       allOf:
         - additionalProperties: false
           allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]

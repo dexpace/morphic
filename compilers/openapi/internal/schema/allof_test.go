@@ -324,7 +324,7 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			const branches = "      allOf: [false, {type: object, properties: {a: {type: string}}}]\n"
+			const branches = "      allOf: [false, {type: object, required: [a]}]\n"
 			spec := openapitest.ComponentSpec(pq + "    M:\n" + branches + tc.beside +
 				"    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n" + branches + tc.beside)
 			doc, diags := schema.LowerSpec(t, spec)
@@ -362,7 +362,7 @@ func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
 func TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
-      allOf: [{type: object, properties: {a: {type: string}}}]
+      allOf: [{type: object, required: [a]}]
       additionalProperties: {type: integer}
       unevaluatedProperties: false
 `))

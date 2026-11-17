@@ -65,8 +65,9 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // assertAllOfNestedInline pins the flattening of
 // docs/compilers/openapi.md#allof-classification: a nested spelling classifies
 // as the flat one does and keeps each property's own pointer. A wrapper writing
-// nothing else is kept nowhere; one that also writes a keyword is kept whole,
-// with one diagnostic.
+// nothing else is kept nowhere, and one that also writes a closure reading
+// every member the conjunction declares closes the model and is kept nowhere
+// either.
 func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[componentID("M")].(*ir.Model)
 	require.True(t, ok)
@@ -108,7 +109,8 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.Len(t, described.Mixins, 2, "the wrapper's refs compose despite its description")
 	assert.Equal(t, componentID("A"), described.Mixins[0].Target)
 	assert.Equal(t, componentID("B"), described.Mixins[1].Target)
-	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+	assert.Equal(t, ir.AdditionalClosed, described.Additional, "the wrapper's closure, reading no member, closes the model")
+	assert.Empty(t, described.Unmodeled, "nothing of the wrapper is kept")
 	assert.Equal(t, "grouped", described.Docs.Description, "and what it says of the position lands there")
 
 	for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
@@ -122,9 +124,6 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	}
 
 	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Described/allOf/0" {
-			continue // the one kept wrapper
-		}
 		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
 	}
 }

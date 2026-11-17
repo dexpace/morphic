@@ -354,8 +354,19 @@ func requireMembers(m *ir.Model, required []string) {
 // which this sets only for `false` and for an `unevaluatedProperties: false`
 // no additionalProperties leaves inert (annotation.ClosesAfterComposition).
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	return fillCatchAll(c, ts, depth, m, objectIn(s).AdditionalProperties, s, pointer, annotation.ClosesAfterComposition(s))
+}
+
+// fillCatchAll is fillAdditional with its sources named: the
+// additionalProperties additional, and the patternProperties s writes, both
+// written in the schema object at pointer, and whether an
+// unevaluatedProperties: false closes m after composition. A composition reads
+// them off the object closing it (fillComposedAdditional).
+func fillCatchAll(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, additional statement.Sub,
+	s *statement.Schema, pointer jsontext.Pointer, closes bool,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	ap := c.Statements().Sub(objectIn(s).AdditionalProperties)
+	ap := c.Statements().Sub(additional)
 	switch {
 	case ap.Truth == statement.Unwritten:
 		// Left out, or a null, which states nothing: no catch-all is written.
@@ -366,7 +377,6 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 		diags = append(diags, refDiags...)
 		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
-	closes := annotation.ClosesAfterComposition(s)
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
