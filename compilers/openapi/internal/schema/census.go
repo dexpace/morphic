@@ -464,10 +464,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Sch
 // modifier with no bound beside it, which a node of nodes keeps, and a count the
 // load phase refuses (refusedCount) are not kept and reported a second time.
 func unreadBounds(s *statement.Schema, nodes []ir.TypeDef, takes kindSet) []string {
-	if !slices.ContainsFunc(nodes, constraintsHome) {
-		takes = 0
-	}
-	return slices.DeleteFunc(untakenBounds(s, takes), func(keyword string) bool {
+	return slices.DeleteFunc(untakenBounds(s, heldAmong(nodes, takes)), func(keyword string) bool {
 		return slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {
 			_, kept := td.Common().Unmodeled[annotation.EntryKey("", keyword)]
 			return kept

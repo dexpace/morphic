@@ -79,9 +79,10 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 
 // TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion pins a bound written
 // beside a union of string consts: the Union holds it, which an Enum has no
-// field for, so pass.ConstUnions leaves the union, and its carrier restates it,
-// while the enum spelling's Enum keeps the bound verbatim and its carrier holds
-// none (docs/compilers/openapi.md#string-const-union, GitHub #1924).
+// field for, so pass.ConstUnions leaves the union, while the enum spelling's
+// Enum keeps the bound verbatim. Neither carrier holds it, each leaving it to
+// the node it names (docs/compilers/openapi.md#string-const-union, GitHub
+// #1924, #1988).
 func TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion(t *testing.T) {
 	t.Parallel()
 	doc := compileComponentSpec(t, openapitest.ComponentSpec(`
@@ -111,9 +112,9 @@ func TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion(t *testing.T) {
 	}
 	h, ok := typeByName(got, "H").(*ir.Model)
 	require.True(t, ok)
-	for wire, held := range map[string]*ir.Constraints{"u": want, "e": nil} {
+	for _, wire := range []string{"u", "e"} {
 		p, ok := propByWire(h, wire)
 		require.True(t, ok)
-		assert.Equal(t, held, p.Constraints, wire)
+		assert.Nil(t, p.Constraints, wire)
 	}
 }

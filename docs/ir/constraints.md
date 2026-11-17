@@ -59,6 +59,15 @@ bound beside a set of strings nothing the set holds. An encoded value holds thos
 takes, where the paragraph above places them: a length or pattern beside a `string` written as
 bytes or an instant, and a numeric bound beside a number written as an instant.
 
+A bound has one home, the node a use owns, else its carrier
+([annotations](./annotations.md#one-structural-home-per-declaration)), and stands only on a node
+whose kind takes it: a `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, whatever the
+source admits at that use, as its instances are objects, and a `List` or a `Tuple` `MinItems`,
+`MaxItems` and `UniqueItems` alone. A compiler keeps any other written there verbatim, as above.
+`irverify` reports a structural node holding a bound of another kind (`ir/bound-of-another-kind`).
+It stops at structural nodes on purpose: a `Scalar`'s bounds turn on its encoding, a `Union`'s on
+its variants and a carrier's on what it names, which a compiler's placement holds.
+
 **Bounds that admit no value.** `pass.Validate` reports a position or a type whose bounds, joined
 with those of the alias scalars its reference reaches, admit no value of the kind they apply to,
 `pass/bounds-admit-no-value`, a warning: a `Min` above a `Max`, an exclusive bound that meets the

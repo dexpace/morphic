@@ -2371,8 +2371,9 @@ field for it, as one beside the `allOf` reaches none ([`constraints`](#constrain
 collection bound no type the position admits takes, the types of the schemas it names among them,
 one no type its own branch declares takes, since such a branch
 admits no value it bounds, or one on a node with no `Constraints` for one, the `Union` of a type
-list holding one where a variant whose type takes it does, and a collection bound on any node but a
-`List` or a `Tuple`, that `Union` holding one where such a variant does; a collection bound
+list holding one where a variant whose type takes it does, a value bound but a property count on a
+`Model` or a `MapT`, and a collection bound on any node but a `List` or a `Tuple`, that `Union`
+holding one where such a variant does; a collection bound
 `Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
 `$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)),
 where a union beside it is one more conjunct, and neither changes anything else here: where the
@@ -2732,7 +2733,11 @@ Values are refused before one is kept, so a value the field takes is never lost 
 written after it.
 
 Constraint keywords fold over the declarations folded into the field, each taking the value that
-says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`,
+says what they all do, so no order decides it. A declaration's are those its property holds and,
+where the fold composes the field's model, those of the node it owns, which its property leaves to
+that node ([`constraints`](#constraints)): the composed model stands at no position of its own and
+holds none, so the field holds them. Where the field's type is one declaration's node, or one the
+merge builds holding the bounds the nodes say together, the bounds stay on that node. `minimum`, `exclusiveMinimum`, `minLength`,
 `minItems` and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`,
 `maxLength`, `maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways
 keeping the last spelling; `uniqueItems` holds where any declaration sets it. A bound and its
@@ -2885,6 +2890,9 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `merge.TestFold_OnlyTwoOrMoreModelsCompose`,
   `merge.TestFold_AComposedFieldIntersectsNull`,
   `merge.TestFold_AComposedFieldKeepsEveryDeclarationsDetail`,
+  `merge.TestFold_AComposedFieldHoldsTheBoundsOfEachDeclarationsOwnNode`,
+  `merge.TestOwnBounds_ReadsTheNodeADeclarationOwns`,
+  `e2e.TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds`,
   `merge.TestFold_AComposedFieldAdoptsOnlyANull`,
   `merge.TestFold_ComposesOnlyTheDeclarationsItJudges`,
   `merge.TestFieldSpan_NamesEachSetOfDeclarations`,
@@ -4060,7 +4068,8 @@ closed for `false` and a catch-all for anything else, and the inert keyword is k
 ([`validation-only`](#validation-only)); `{type: object, additionalProperties: {…},
 unevaluatedProperties: false}` is a `MapT`. `minProperties` and `maxProperties` lower to the
 `Model`'s `Constraints`, which bound the property set's cardinality as against `Additional`'s
-openness, or to a `MapT`'s, which bound its entry count.
+openness, or to a `MapT`'s, which bound its entry count, and to the node alone: a property, a
+parameter or a header naming the node holds neither ([`constraints`](#constraints)).
 
 `true` writes a catch-all; an absent keyword does not. In JSON Schema, `additionalProperties: true`
 is the empty schema, so it types the catch-all as the top type exactly as `{}` does: alone it is a
@@ -4552,10 +4561,10 @@ wherever it stands.
 
 `minimum`, `maximum` and `multipleOf` lower to `Min`, `Max` and `MultipleOf`, and `minLength`,
 `maxLength` and `pattern` to `MinLength`, `MaxLength` and `Pattern` as written, in the `Constraints`
-of the node or carrier the position owns (a `Scalar`, the `Union` a `oneOf` or `anyOf` lowers to, a
-`Property` or a `Parameter`); `minItems`, `maxItems` and `uniqueItems` to the `List`'s, and a
-`Tuple`'s per [`tuples`](#tuples), which its carrier does not restate, or, where the position lowers
-to a reference (a `$ref` site, a collapsed union or an expanded `$dynamicRef`), to the `Constraints`
+of the node the position owns (a `Scalar`, the `Union` a `oneOf` or `anyOf` lowers to), or of its
+carrier, a `Property` or a `Parameter`, where it owns none; `minItems`, `maxItems` and `uniqueItems`
+to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), or, where the position lowers to a
+reference (a `$ref` site, a collapsed union or an expanded `$dynamicRef`), to the `Constraints`
 of the alias or carrier it owns where the types the position admits include `array`, as does one on
 an inline `allOf` branch ([`allof-inline-residue`](#allof-inline-residue)); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
@@ -4605,14 +4614,22 @@ rather than by their shape: one under `not`, `if` or `propertyNames`, or beside 
 reported as one the lowering reads, and an aliased value once. A bound beside a `oneOf` or an
 `anyOf` lowering to a `Union` of its branches ([`union`](#union)), or on an `allOf` branch folding
 there, is that `Union`'s: no variant can hold it, each being its branch's node, which every use of
-the branch shares. A carrier restates the value bounds the node its position owns holds, or a
-distributed union's variants do, but for a type list's ([`type-arrays`](#type-arrays)), and holds
-none beside a node with no `Constraints` field to take them (an `Enum`, a `Literal`, the `Union` of
-literals a mixed `enum` lowers to, a `List` for a value bound): such a bound is kept verbatim on the
-node under `openapi:<keyword>` (`degraded_lowering`), once, with an info
-`openapi/degraded-construct` naming the node it lowered to, as
+the branch shares. A bound has one home: the node its position owns, else the carrier, which holds
+one only where its position owns no node, over a reference or a primitive every use shares, else a
+node hoisted there ([one home](../ir/annotations.md#one-structural-home-per-declaration)). A
+property, a parameter or a header whose position owns its node holds none of its bounds, which a
+`$ref` naming that position reads on the node alone; one naming a position that owns none, a shared
+primitive's, reads a `Scalar` hoisted there holding them, while the carrier keeps its own. The
+node's kind decides what it holds, whatever the position admits: a `Model` or a `MapT` the property
+counts alone, as its instances are objects, a `List` or a `Tuple` the collection bounds, and a
+`Union` those its variants take, or its variants where the position builds them, a type list's
+([`type-arrays`](#type-arrays)) or a distributed union's. A bound its kind does not take, and one
+beside a node with no `Constraints` field (an `Enum`, a `Literal`, the `Union` of literals a mixed
+`enum` lowers to), is kept verbatim on the node under `openapi:<keyword>` (`degraded_lowering`),
+once, with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object
-([unions](../ir/unions.md#bounds-beside-a-union)). A collection bound beside a reference that
+([unions](../ir/unions.md#bounds-beside-a-union)), and one an inline `allOf` branch writes there
+keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)). A collection bound beside a reference that
 `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`, which a bool cannot
 tell from one never written, and a count that does not fit in 64 bits. A count,
 `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
@@ -4625,8 +4642,8 @@ a `BigVal` holds, which reaches the IR in no form
 of one position, its schema and the branches folding into it, give one such keyword, the one
 binding the rest is kept, the smallest maximum or the largest minimum, compared exactly however
 large, the first of one value written twice, with one report. Two declarations of one field are
-not such writers: each keeps its own on the property, and their fold compares the two entries as it
-does any kept under `Unmodeled` ([`allof-redeclared-property`](#allof-redeclared-property)), so
+not such writers: each keeps its own where it is written, and their fold compares the two entries as
+it does any kept under `Unmodeled` ([`allof-redeclared-property`](#allof-redeclared-property)), so
 of two such counts the later declaration's is kept and the other is reported and kept with its
 declaration. A count literal that is no non-negative integer is the rule table's to report
 ([`validation`](#validation)) and reaches no field, nor is it kept. A number carried as text holds
@@ -4667,7 +4684,16 @@ no bound ([`string-formats`](#string-formats)).
   `operation.TestParams_ABoundBesideAReferenceIsReadByItsNamedType`,
   `e2e.TestConstraints_ANamedTypeIsReadInItsOwnDocument`,
   `schema.TestConstraints_ABoundAListKeepsIsKeptOnce`,
-  `schema.TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes`,
+  `schema.TestConstraints_ACarrierOwningItsNodeHoldsNoBound`,
+  `e2e.TestCompile_APropertyOverANodeOfItsOwnHoldsNoBoundThatNodeHolds`,
+  `e2e.TestCompile_AParameterOverANodeOfItsOwnHoldsNoBoundThatNodeHolds`,
+  `e2e.TestCompile_AHeaderOverANodeOfItsOwnHoldsNoBoundThatNodeHolds`,
+  `e2e.TestCompile_AReferenceNamingAPropertyReadsTheNodeHoldingItsBound`,
+  `e2e.TestCompile_AReferenceNamingASharedPrimitivePropertyReadsANodeHoistedThere`,
+  `e2e.TestCompile_ACarrierOverAReferenceOrASharedPrimitiveKeepsItsBound`,
+  `e2e.TestCompile_ABoundBesideAReferenceToAModelIsHeldOnce`,
+  `e2e.TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant`,
+  `schema.TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch`,
   `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
   `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
   `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`,

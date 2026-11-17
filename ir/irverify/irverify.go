@@ -63,6 +63,7 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 	vs = append(vs, checkMaps(doc)...)
 	vs = append(vs, checkMapKeys(doc)...)
 	vs = append(vs, checkCatchAlls(doc)...)
+	vs = append(vs, checkBoundKinds(doc)...)
 	vs = append(vs, checkRequires(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, checkDocument(doc)...)

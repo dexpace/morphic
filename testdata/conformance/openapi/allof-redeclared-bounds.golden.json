@@ -718,10 +718,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "uniqueItems": false,
-            "maxProps": 5
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
@@ -768,10 +764,6 @@
           "defaultAdded": false,
           "visibility": {
             "none": false
-          },
-          "constraints": {
-            "maxLength": 5,
-            "uniqueItems": false
           },
           "flatten": false,
           "eventHeader": false,
@@ -961,11 +953,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "uniqueItems": false,
-            "minProps": 1,
-            "maxProps": 5
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
@@ -1012,11 +999,6 @@
           "defaultAdded": false,
           "visibility": {
             "none": false
-          },
-          "constraints": {
-            "minLength": 1,
-            "maxLength": 5,
-            "uniqueItems": false
           },
           "flatten": false,
           "eventHeader": false,

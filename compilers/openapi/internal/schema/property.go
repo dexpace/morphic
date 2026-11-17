@@ -20,11 +20,9 @@ import (
 // the declaration's annotations, secrecy among them. Annotations present at a
 // $ref use-site override the target's (docs/compilers/openapi.md#ref-use-site).
 //
-// The property holds the value constraints where its schema lowered to no node
-// of its own, and restates those its node holds, so a reader of the property
-// finds them either way. Beside a node keeping them verbatim, such as an Enum
-// or a Literal, it holds none, and it restates no collection bound
-// (CarrierConstraintsOf).
+// The property holds the constraints where its schema lowered to no node of
+// its own, and none where it did: the node holds them, or keeps them verbatim
+// where its kind takes none, so each is written once (CarrierConstraintsOf).
 func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
 	if js.Truth != statement.Stated {
 		return nil
