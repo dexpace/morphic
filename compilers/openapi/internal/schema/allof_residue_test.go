@@ -29,7 +29,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
         - type: object
           properties: {a: {type: string}}
           required: [a]
-          additionalProperties: false
+          unevaluatedProperties: false
           not: {type: string}
           minProperties: 2
           description: BranchDoc
@@ -50,14 +50,14 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), entry.Provenance.Pointer,
 		"the entry locates the branch, not the composed schema")
 	for _, kept := range []string{
-		`"additionalProperties":false`, `"not":{"type":"string"}`, `"minProperties":2`,
+		`"unevaluatedProperties":false`, `"not":{"type":"string"}`, `"minProperties":2`,
 		`"description":"BranchDoc"`, `"x-vendor":"keepme"`,
 	} {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
-		"the branch (additionalProperties)", "the diagnostic names what nothing read")
+		"the branch (unevaluatedProperties)", "the diagnostic names what nothing read")
 	assert.Equal(t, "BranchDoc", m.Docs.Description)
 	require.NotNil(t, m.Constraints)
 	assert.Equal(t, new(int64(2)), m.Constraints.MinProps)
@@ -107,7 +107,7 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    O: {type: object, properties: {o: {type: string}}}
-    Shared: &br {additionalProperties: false, type: string, maxLength: 3}
+    Shared: &br {unevaluatedProperties: false, type: string, maxLength: 3}
     Aliased: {allOf: [{$ref: '#/components/schemas/O'}, *br]}
     Merged: {allOf: [{$ref: '#/components/schemas/O'}, {<<: *br}]}
     Overridden: {allOf: [{$ref: '#/components/schemas/O'}, {<<: *br, type: object, properties: {a: {type: string}}}]}
@@ -119,9 +119,9 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 		name, wantKeys string
 		sev            ir.Severity
 	}{
-		{"Aliased", "additionalProperties, type, maxLength", ir.SeverityInfo},
-		{"Merged", "additionalProperties, type, maxLength", ir.SeverityInfo},
-		{"Overridden", "additionalProperties, maxLength", ir.SeverityInfo},
+		{"Aliased", "unevaluatedProperties, type, maxLength", ir.SeverityInfo},
+		{"Merged", "unevaluatedProperties, type, maxLength", ir.SeverityInfo},
+		{"Overridden", "unevaluatedProperties, maxLength", ir.SeverityInfo},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -266,7 +266,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
         - type: object
           properties: {c: {type: string}}
           description: BranchDoc
-          patternProperties: {'^x': {type: string}}
+          unevaluatedProperties: false
       oneOf:
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}

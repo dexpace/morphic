@@ -736,8 +736,8 @@ func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
 // object variant holds no discriminator (GitHub #853): no type can be its
 // subtype, so the census keeps the discriminator on the union, whatever it
 // routes to and whether or not a union is written beside it. A subtype keeps
-// the tag the discriminator gives it, and keeps its $ref to the union verbatim:
-// the union admits a string, so a model composes no node of it.
+// the tag the discriminator gives it, and composes the union's object variant
+// as its Base: the union admits a string, which no model composes.
 func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 	t.Parallel()
 	const pet, holder = "/components/schemas/Pet", "/components/schemas/Holder/properties/pet"
@@ -782,8 +782,10 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 				for name, tag := range c.tags {
 					sub, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s is a model", name)
-					assert.Nil(t, sub.Base, "%s composes no union admitting a string", name)
-					assert.Contains(t, sub.Unmodeled, "openapi:allOf/0", name)
+					require.NotNil(t, sub.Base, name)
+					assert.Equal(t, ir.TypeID("t/anon"+string(c.at)+"/type/0"), sub.Base.Target,
+						"%s composes the union's object variant", name)
+					assert.Equal(t, c.variant, doc.Types[sub.Base.Target].Kind(), name)
 					assert.Equal(t, tag, sub.DiscriminatorValue, name)
 				}
 			}

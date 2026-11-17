@@ -6,6 +6,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -100,10 +101,11 @@ func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T)
 // beside a model body distributes across an inline branch as across a $ref one
 // (docs/compilers/openapi.md#union-beside-structure): the branch lowers at its
 // own pointer, which an outside $ref to it finds too, and each variant composes
-// the body with that node, carried as written, a branch admitting no object and
-// one redeclaring a property of the body among them, whose variant takes the
-// narrower declaration. A bare null branch is no variant, and a body writing
-// `type: object` leaves the reference to the position non-nullable.
+// the body with that node, one redeclaring a property of the body among them,
+// whose variant takes the narrower declaration. A branch admitting no object
+// is no Base: its variant keeps it verbatim with an info. A bare null branch
+// is no variant, and a body writing `type: object` leaves the reference to the
+// position non-nullable.
 func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Shape:
@@ -125,10 +127,8 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	shape, ok := typeByName(doc, "Shape").(*ir.Union)
 	require.True(t, ok, "the union is the value")
 	require.Len(t, shape.Variants, 3)
-	branches := []ir.TypeID{
-		"t/anon/components/schemas/Shape/oneOf/0", "t/anon/components/schemas/Shape/oneOf/1", "t/prim/string",
-	}
-	for i, branch := range branches {
+	branches := []ir.TypeID{"t/anon/components/schemas/Shape/oneOf/0", "t/anon/components/schemas/Shape/oneOf/1"}
+	for i := range shape.Variants {
 		v, ok := doc.Types[shape.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d is a composed model", i)
 		require.Len(t, v.Properties, 2, "the body rides on variant %d", i)
@@ -143,8 +143,15 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 			assert.Equal(t, ir.PropID("p/openapi/components/schemas/Shape/properties/kind"), kind.ID,
 				"under the one identity the body declares it with")
 		}
+		if i == len(branches) {
+			assert.Nil(t, v.Base, "a model composes no string")
+			assert.JSONEq(t, `{"type":"string"}`, string(v.Unmodeled["openapi:oneOf/2"].Value), "the branch is kept")
+			assert.Equal(t, ir.ReasonDegradedLowering, v.Unmodeled["openapi:oneOf/2"].Reason)
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Shape/oneOf/2"))
+			continue
+		}
 		require.NotNil(t, v.Base)
-		assert.Equal(t, branch, v.Base.Target, "variant %d conjoins its branch", i)
+		assert.Equal(t, branches[i], v.Base.Target, "variant %d conjoins its branch", i)
 	}
 	redeclaring, ok := doc.Types[branches[1]].(*ir.Model)
 	require.True(t, ok, "the branch redeclaring kind is a model of its own")
@@ -260,11 +267,11 @@ func TestOneOf_CoDeclaredBesideAComposingAllOfDistributes(t *testing.T) {
 // written as an inline allOf branch, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
-// nodes, the branch keeps nothing, another branch folds onto the union, a null
-// branch is no variant, and an unexpanded $dynamicRef stays beside it. One
-// declaring no shape, one of two that do, one beside the schema's own union,
-// one past the flattening depth and one beside a branch's $ref, which it
-// conjoins with, stay with their branch; an enum beside the allOf decides.
+// nodes, the branch keeps nothing, another folds onto the union, a null branch
+// is no variant, and an unexpanded $dynamicRef stays beside it. Of a oneOf and
+// an anyOf declaring shape, the oneOf distributes in either order. One
+// declaring none, the anyOf, one beside the schema's union, one past the flattening
+// depth and one beside a $ref stay with their branch; an enum beside decides.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -296,6 +303,11 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - oneOf: [{$ref: '#/components/schemas/A'}]
         - anyOf: [{$ref: '#/components/schemas/B'}]
+        - {type: object, properties: {c: {type: string}}}
+    TwoRev:
+      allOf:
+        - anyOf: [{$ref: '#/components/schemas/B'}]
+        - oneOf: [{$ref: '#/components/schemas/A'}]
         - {type: object, properties: {c: {type: string}}}
     BesideToo:
       allOf:
@@ -375,7 +387,6 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
 		"Shapeless": {"openapi:allOf/0"},
-		"Two":       {"openapi:allOf/0", "openapi:allOf/1"},
 		"RefBranch": nil,
 		"Capped":    {capped},
 	} {
@@ -383,6 +394,16 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
 		for _, key := range kept {
 			assert.Contains(t, m.Unmodeled, key, "%s keeps its union with its branch", name)
+		}
+	}
+	for name, anyOf := range map[string]string{"Two": "openapi:allOf/1", "TwoRev": "openapi:allOf/0"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s distributes its oneOf; got %T", name, typeByName(doc, name))
+		assert.True(t, u.Exclusive, name)
+		for _, v := range variantModels(t, doc, name) {
+			require.NotNil(t, v.Base)
+			assert.Equal(t, componentID("A"), v.Base.Target, name)
+			assert.Equal(t, []string{anyOf}, slices.Sorted(maps.Keys(v.Unmodeled)), "%s keeps its anyOf on each variant", name)
 		}
 	}
 	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)
