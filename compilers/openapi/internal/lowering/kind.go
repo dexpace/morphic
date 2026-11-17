@@ -20,8 +20,8 @@ const KindInferenceHeuristic ir.Inferred = "kind-inference"
 // passes every other, so `{properties: …}` admits a string, yet a document
 // writing one means an object.
 type KindInference struct {
-	// Disabled turns the reading off: such a schema is then the top type, the
-	// keywords that cannot hold it kept verbatim.
+	// Disabled turns the reading off: such a schema is then the top type, its
+	// shape keywords kept verbatim.
 	Disabled bool `json:"disabled,omitzero"`
 }
 
