@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -338,19 +337,12 @@ func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
 	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node) })
 }
 
-// recordVoicedResidue is recordDeclarationResidue for what voices write, each
-// reported at the keyword it wrote, in ResidueWriters' order: an entry several
-// write is the nearest voice's kept apart, and the schema written at the
-// position records after them.
-func recordVoicedResidue(c lowering.Ctx, ts *compile.Types, voices []annotation.Voice, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
-	if home != annotation.HomeOwnNode {
-		return nil
-	}
-	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
-	if !ok {
-		return nil
-	}
-	var diags []ir.Diagnostic
+// recordVoicedResidue keeps on td, in hand, what binds a use that voices write
+// (recordResidue), each reported at the keyword it wrote, in ResidueWriters'
+// order: an entry several write is the nearest voice's kept apart, and the
+// schema written at the position records after them.
+func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, voices []annotation.Voice) []ir.Diagnostic {
+	diags := make([]ir.Diagnostic, 0, len(voices))
 	for _, v := range ResidueWriters(voices) {
 		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At)...)
 	}

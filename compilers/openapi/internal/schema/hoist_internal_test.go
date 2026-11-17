@@ -73,8 +73,8 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 		return &ir.Model{TypeCommon: common}
 	}
 
-	first := internNode(c.Ctx, ts, at, build)
-	second := internNode(c.Ctx, ts, at, build)
+	first := internNode(c.Ctx, ts, at, build, nil)
+	second := internNode(c.Ctx, ts, at, build, nil)
 
 	assert.Equal(t, ids.Document{}.ForPointer(at), first, "the ID is derived from the pointer")
 	assert.Equal(t, first, second, "a second visit returns the interned ID")
@@ -85,54 +85,69 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	assert.Equal(t, first, td.Common().ID, "and carries that same ID")
 }
 
-// TestRegisteredNode_ReportsAMissRatherThanDroppingIt pins the invariant check.
-// Outside its build, every ID interning returns has a node, so a miss is a
-// compiler bug no source can provoke — and the caller was about to attach docs
-// or preserved constructs to that node, which would vanish without a word.
-func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
-	t.Parallel()
-	c := service.New(4, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
-	ts := compile.NewTypes()
-
-	_, ok, diags := registeredNode(c.Ctx, ts, "t/absent", "/components/schemas/Ghost")
-
-	assert.False(t, ok)
-	require.Len(t, diags, 1, "a miss is announced, not swallowed")
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/components/schemas/Ghost"}, diags[0].Provenance)
-
-	id := internNode(c.Ctx, ts, "/components/schemas/User", func(cm ir.TypeCommon) ir.TypeDef {
-		return &ir.Model{TypeCommon: cm}
-	})
-	td, ok, diags := registeredNode(c.Ctx, ts, id, "/components/schemas/User")
-	assert.True(t, ok)
-	assert.Empty(t, diags, "a hit reports nothing")
-	assert.Equal(t, id, td.Common().ID)
-}
-
-// TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder pins the one miss
-// that is no bug: a revisit while the node's build is still running further up
-// the walk. That frame finishes the node once its build returns, so the
-// revisit hands back nothing and reports nothing (GitHub #749).
-func TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
+// TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt pins where a node
+// is finished: on the node its build returned, in hand, before the registry
+// holds it, and only by the visit building it, so a later visit writes nothing.
+func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 	t.Parallel()
 	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
-	var midBuild bool
-	var midBuildDiags []ir.Diagnostic
-	id := internNode(c.Ctx, ts, at, func(cm ir.TypeCommon) ir.TypeDef {
-		_, midBuild, midBuildDiags = registeredNode(c.Ctx, ts, cm.ID, at)
-		return &ir.Model{TypeCommon: cm}
+	var finished []ir.TypeDef
+	var stored []bool
+	fin := finisher(func(td ir.TypeDef) {
+		_, held := ts.Node(td.Common().ID)
+		finished, stored = append(finished, td), append(stored, held)
 	})
-	assert.False(t, midBuild, "there is no node to hand back yet")
-	assert.Empty(t, midBuildDiags, "and that is not a broken invariant")
+	build := func(common ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: common} }
+	id := internNode(c.Ctx, ts, at, build, fin)
+	internNode(c.Ctx, ts, at, build, fin)
 
-	_, ok, diags := registeredNode(c.Ctx, ts, id, at)
-	assert.True(t, ok, "once the build returns, the node is there")
-	assert.Empty(t, diags)
+	require.Len(t, finished, 1, "only the visit building the node finishes it")
+	assert.Equal(t, []bool{false}, stored, "before the registry holds it")
+	td, ok := ts.Node(id)
+	require.True(t, ok)
+	assert.Same(t, td, finished[0], "the node in hand is the node stored")
+}
+
+// TestFinisher_ThenRunsBothInOrder pins the composition the frames of a
+// position build their finishing from: each in turn, a nil one skipped.
+func TestFinisher_ThenRunsBothInOrder(t *testing.T) {
+	t.Parallel()
+	var ran []string
+	first := finisher(func(ir.TypeDef) { ran = append(ran, "first") })
+	second := finisher(func(ir.TypeDef) { ran = append(ran, "second") })
+	var none finisher
+	first.then(second)(&ir.Model{})
+	none.then(first)(&ir.Model{})
+	first.then(none)(&ir.Model{})
+	assert.Equal(t, []string{"first", "second", "first", "first"}, ran)
+	assert.Nil(t, none.then(none), "two nil finishers finish nothing")
+}
+
+// TestCensusedNode_ReportsAMissRatherThanDroppingIt pins the invariant check
+// on a node a census reads but does not finish. Every ID a lowering returns
+// has a node, so a miss is a compiler bug no source can provoke, and the
+// census was about to keep what that node cannot hold, which would vanish.
+func TestCensusedNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
+	t.Parallel()
+	c := service.New(4, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	ts := compile.NewTypes()
+
+	td, diags := censusedNode(c.Ctx, ts, "t/absent", "/components/schemas/Ghost")
+
+	assert.Nil(t, td)
+	require.Len(t, diags, 1, "a miss is announced, not swallowed")
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
+	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/components/schemas/Ghost"}, diags[0].Provenance)
+
+	id := ts.PrimID(ir.PrimString)
+	td, diags = censusedNode(c.Ctx, ts, id, "/components/schemas/User")
+	assert.Empty(t, diags, "a hit reports nothing")
+	require.NotNil(t, td)
+	assert.Equal(t, id, td.Common().ID)
 }
 
 // TestUnionVariant_StopsAtTheHopCap pins naming.MaxHops through a compile.
@@ -176,27 +191,14 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 	}
 }
 
-// TestMarkKindInferred_ReportsAMissAndMarksAHit pins that the kind-inference
-// marker joins what a node's provenance already names, and that a node absent
-// from the registry is reported rather than marked in silence.
-func TestMarkKindInferred_ReportsAMissAndMarksAHit(t *testing.T) {
+// TestMarkKindInferred_JoinsWhatTheNodeNames pins that the kind-inference
+// marker joins what a node's provenance already names, once however often it
+// is written.
+func TestMarkKindInferred_JoinsWhatTheNodeNames(t *testing.T) {
 	t.Parallel()
-	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
-	ts := compile.NewTypes()
-	const at = "/components/schemas/User"
-
-	diags := markKindInferred(c.Ctx, ts, "t/absent", at)
-	require.Len(t, diags, 1, "a miss is announced")
-	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
-
-	id := internNode(c.Ctx, ts, at, func(cm ir.TypeCommon) ir.TypeDef {
-		cm.Provenance.Inferred = lowering.NullableInferenceHeuristic
-		return &ir.Model{TypeCommon: cm}
-	})
-	assert.Empty(t, markKindInferred(c.Ctx, ts, id, at))
-	assert.Empty(t, markKindInferred(c.Ctx, ts, id, at), "a second mark is the first")
-	td, ok := ts.Node(id)
-	require.True(t, ok)
+	node := &ir.Model{Provenance: ir.Provenance{Inferred: lowering.NullableInferenceHeuristic}}
+	markKindInferred(node)
+	markKindInferred(node)
 	assert.Equal(t, ir.JoinInferred(lowering.NullableInferenceHeuristic, lowering.KindInferenceHeuristic),
-		td.Common().Provenance.Inferred)
+		node.Provenance.Inferred)
 }

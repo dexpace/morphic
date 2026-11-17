@@ -70,7 +70,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 			Members:    members,
 			Closed:     true,
 		}
-	})
+	}, site.finish)
 	return id, diags
 }
 
@@ -342,7 +342,7 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
 	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
 		return &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
-	})
+	}, site.finish)
 }
 
 // hoistLiteral hoists a single node as a Literal type at the site's position,
@@ -370,7 +370,7 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *ya
 			return &ir.Any{TypeCommon: common}
 		}
 		return &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
-	})
+	}, site.finish)
 	return id, diags
 }
 

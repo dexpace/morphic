@@ -19,7 +19,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
@@ -45,28 +44,17 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 	assert.False(t, unionHeld(&cut, r, StandaloneSchema(js.GetSchema()), "anyOf"), "the integer branch's read runs past it")
 }
 
-// TestOutcomeKeeps_ReportsANodeTheRegistryLacks pins the one way recordOn keeps
-// nothing: the node it was handed is not in the registry, a compiler bug no source
-// provokes, which it reports rather than dropping what it holds.
-func TestOutcomeKeeps_ReportsANodeTheRegistryLacks(t *testing.T) {
-	t.Parallel()
-	l, s, at := lowererDeclaringS(t)
-	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape(allOfComposition{})}.recordOn(l.Ctx, l.Types, "t/anon/none", s, at)
-	require.Len(t, diags, 1)
-	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
-}
-
-// TestRecordVoicedResidue_NeedsANodeItsPositionOwns pins the two positions that
-// record nothing: a carrier holds what binds a use itself, and a pointer no node
-// stands at has nowhere to keep it.
-func TestRecordVoicedResidue_NeedsANodeItsPositionOwns(t *testing.T) {
+// TestRecordVoicedResidue_KeepsWhatItsVoicesWrite pins the residue a
+// position's voices write, kept on the node in hand and reported, and nothing
+// where no voice speaks.
+func TestRecordVoicedResidue_KeepsWhatItsVoicesWrite(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
 	voices := []annotation.Voice{{Node: s, At: at}}
-	assert.Empty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeCarrier))
-	assert.Empty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeOwnNode))
-	internNode(l.Ctx, l.Types, at, func(cm ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: cm} })
-	assert.NotEmpty(t, recordVoicedResidue(l.Ctx, l.Types, voices, at, annotation.HomeOwnNode))
+	assert.Empty(t, recordVoicedResidue(l.Ctx, &ir.Model{}, nil), "no voice keeps nothing")
+	node := &ir.Model{}
+	assert.NotEmpty(t, recordVoicedResidue(l.Ctx, node, voices))
+	assert.Contains(t, node.Unmodeled, "openapi:readOnly", "the node in hand keeps what its voice writes")
 }
 
 // componentSchema returns the schema the component name declares.

@@ -28,8 +28,9 @@ import (
 // Variant per non-null branch (oneOf exclusive, anyOf not), never collapsing a
 // union into optional fields. The Union holds the value bounds written beside
 // it, as a branch's node, which every use of the branch shares, cannot
-// (docs/compilers/openapi.md#constraints).
-func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+// (docs/compilers/openapi.md#constraints). fin finishes the node built.
+func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok {
 		ref, diags := Ref(c, ts, depth, inner, ip)
 		// The null branches say the null, so the reference admits it whatever
@@ -39,25 +40,28 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, s, pointer)...)
 	}
 	if allNullUnion(c, s) {
-		return lowerNullOnlyUnion(c, ts, s, pointer)
+		return lowerNullOnlyUnion(c, ts, s, pointer, fin)
 	}
-	var diags []ir.Diagnostic
-	tid := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		def, unionDiags := buildUnion(c, ts, besideUnion(s, pointer), common,
-			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
-				ref, refDiags := Ref(c, ts, depth, b, vptr)
-				diags = append(diags, refDiags...)
-				return ref
-			})
-		diags = append(diags, unionDiags...)
-		cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
-		def.Constraints = cons
-		diags = append(diags, consDiags...)
-		return def
-	})
-	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, tid, dispatch{said: branchesSay(c, s)})
+	owner, diags := censused(c, ts, s, pointer, pointer, dispatch{said: branchesSay(c, s)}, fin,
+		func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			var diags []ir.Diagnostic
+			tid := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+				def, unionDiags := buildUnion(c, ts, besideUnion(s, pointer), common,
+					func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
+						ref, refDiags := Ref(c, ts, depth, b, vptr)
+						diags = append(diags, refDiags...)
+						return ref
+					})
+				diags = append(diags, unionDiags...)
+				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
+				def.Constraints = cons
+				diags = append(diags, consDiags...)
+				return def
+			}, fin)
+			return tid, diags
+		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
-	return ref, slices.Concat(diags, unhomedDiags, nullDiags, liftedNullFindings(c, s, pointer))
+	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
@@ -113,23 +117,23 @@ func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
 // are declared, carries no shape the node's fields could hold, so it is kept
 // verbatim under Unmodeled instead of dropped
 // (docs/compilers/openapi.md#union-null-only).
-func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	owner, diags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, lowerNullAlone(c, ts, ownValueSet(s, pointer)), dispatch{})
-	diags = append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
+func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
+	var branches finished
+	owner, diags := censused(c, ts, s, pointer, pointer, dispatch{},
+		branches.on(func(td ir.TypeDef) []ir.Diagnostic { return preserveNullOnlyUnion(c, td, s, pointer) }).then(fin),
+		func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), nil
+		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
-	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
+	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(c, s, pointer))
 }
 
 // preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the Unmodeled of
-// the node lowerNullOnlyUnion built at id, an Enum with no member, which holds
-// no branch set of its own, and reports what it kept.
-func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
-	if !ok {
-		return diags
-	}
-	kept, keepDiags := preserveBranchSets(c, &td.Common().Unmodeled, s, ir.ReasonDegradedLowering, pointer)
-	diags = append(diags, keepDiags...)
+// td, in hand, the node lowerNullOnlyUnion built, an Enum with no member, which
+// holds no branch set of its own, and reports what it kept.
+func preserveNullOnlyUnion(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	kept, diags := preserveBranchSets(c, &td.Common().Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	if len(kept) == 0 {
 		return diags
 	}
@@ -494,10 +498,13 @@ func variantNamesTarget(s *statement.Schema, branches []allOfBranch) bool {
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 // Each variant reads what the position's folding allOf branches write, at the
 // pointers they are written at.
-func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, types []statement.Kind) (ir.TypeID, []ir.Diagnostic) {
+func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, list typeArray,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
+	types := list.types
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		list := typeArray{types: types, voices: positionVoices(c, s, pointer, ir.TypeRef{})}
+		list.voices = positionVoices(c, s, pointer, ir.TypeRef{})
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
@@ -514,15 +521,18 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			Exclusive:  typesDisjoint(types),
 			Closed:     true,
 		}
-	})
+	}, fin)
 	return id, diags
 }
 
 // typeArray is what every variant of one type array reads beside its schema: the
-// types it lists, and the voices of the position it is written at.
+// types it lists, the voices of the position it is written at, and the mark an
+// object or array variant's build writes, where the kind-inference policy read
+// the types (lowerUntypedUnion).
 type typeArray struct {
 	types  []statement.Kind
 	voices []annotation.Voice
+	mark   finisher
 }
 
 // lowerTypeVariant lowers the variant of s's type array that st names, at
@@ -537,15 +547,15 @@ func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 	takes := typeKinds(st) & boundKinds(c, s)
 	switch st {
 	case statement.KindObject:
-		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes)
+		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark)
 	case statement.KindArray:
-		return lowerArray(c, ts, depth, s, pointer)
+		return lowerArray(c, ts, depth, s, pointer, list.mark)
 	default:
 		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
 		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
 			return ts.PrimID(shape.base), nil
 		}
-		return hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer)
+		return hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, nil)
 	}
 }
 
@@ -848,17 +858,18 @@ func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
 const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywords intersects with them, and "
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
-// keywords, per classifyUnionSiblings.
-func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// keywords, per classifyUnionSiblings, fin finishing the node built at pointer.
+func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 		if why != "" {
 			why = coDeclaredUnionWhyPrefix + why
 		}
-		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why)
+		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why, fin)
 	}
 	switch classifyUnionSiblings(c, s, pointer) {
 	case unionDistributed:
-		return lowerDistributedUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
+		return lowerDistributedUnion(c, ts, depth, s, besideUnion(s, pointer), pointer, fin)
 	case unionValidationOnly:
 		return beside(ir.ReasonValidationOnly, "")
 	case unionSharesNoKind:
@@ -871,7 +882,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 			"a branch's $ref names no referent this compilation resolves")
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	case unionRoutedSubtype:
-		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
+		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer, fin)
 	case unionNoLiveBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
@@ -910,35 +921,31 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; lowerCoDeclaredUnion picks
 // both from classifyUnionSiblings' verdict. A discriminator the body's model
-// holds is settled once every node is interned (deferDiscriminatorBesideUnion).
-func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
-	inner, diags := lower(c, ts, depth, s, pointer)
+// holds is settled once every node is interned (discriminatorBesideUnion).
+func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
+	reason ir.UnmodeledReason, why string, fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
+	var siblings finished
+	beside := discriminatorBesideUnion(c, ts, s, s, pointer).then(siblings.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)
+	})).then(fin)
+	inner, diags := lower(c, ts, depth, s, pointer, beside, nil)
 	owner := inner
-	if !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: inner}) {
+	if !siblings.ran && !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: inner}) {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
 		var aliasDiags []ir.Diagnostic
-		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner})
+		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner}, beside)
 		diags = append(diags, aliasDiags...)
 	}
-	deferDiscriminatorBesideUnion(c, ts, owner, s, s, pointer)
-	return owner, append(diags, preserveUnionSiblings(c, ts, owner, s, pointer, reason, why)...)
+	return owner, append(diags, siblings.diags...)
 }
 
-// preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Unmodeled. A validation-only union joins the validation-only keywords and is
-// reported with it; anything else is a degraded lowering and says so.
-func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *statement.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
-	if !ok {
-		return diags
-	}
-	return append(diags, preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)...)
-}
-
-// preserveUnionSiblingsAt is preserveUnionSiblings' body, addressed by the
-// Unmodeled map to write into. why is the caller's complete sentence.
+// preserveUnionSiblingsAt stores the raw oneOf/anyOf of s under p, the
+// Unmodeled of the node standing at the position. A validation-only union joins
+// the validation-only keywords and is reported with it; anything else is a
+// degraded lowering and says so. why is the caller's complete sentence.
 func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	kept, diags := preserveBranchSets(c, p, s, reason, pointer)
 	if reason == ir.ReasonValidationOnly || len(kept) == 0 {
@@ -979,8 +986,11 @@ func buildsVariants(c lowering.Ctx, s *statement.Schema) bool {
 // branch, so the composition is carried on every variant rather than merged
 // into one or dropped. A union an allOf branch writes is the branch's to give,
 // not residue each variant keeps (allOfComposition.conjoins).
-func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
+	var census finished
 	u.distributed = true
 	u.dead = deadBranches(c, s, u.holder)
 	u.deadRoutes = deadRoutesOf(c, u)
@@ -997,9 +1007,9 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 			})
 		diags = append(diags, unionDiags...)
 		return def
-	})
+	}, census.on(variantsCensus(c, ts, s, taglessShape(nil, s, distributedShape), nil, pointer)).then(fin))
 	// The union read s's discriminator, so one it cannot hold says why.
-	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, taglessShape(nil, s, distributedShape), nil, pointer)...)
+	diags = append(diags, census.diags...)
 	where := "co-declared with structural keywords"
 	if u.holder != s {
 		where = "written on an allOf branch conjoins with the rest of the composition"
@@ -1016,13 +1026,15 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 // discriminator written beside u is the Union's, so the Model neither lowers nor
 // keeps it, unless the Union cannot hold it (tagLocated). The Model's build
 // composes the union (composeMixin), so only a position's first lowering does.
-func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	d := dispatchOf(s)
 	d.mixin = &u
 	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
-	id, diags := lowerElected(c, ts, depth, s, pointer, d)
+	id, diags := lowerElected(c, ts, depth, s, pointer, d, fin)
 	if d.won != "allOf" {
 		// A discriminator routes to s through the allOf naming its ancestor
 		// (subtypeDiscriminatorValue), so no other election composes it.

@@ -22,16 +22,24 @@ import (
 // node is the position's while its members and reports stay where they are
 // written (docs/compilers/openapi.md#allof-refinement). position is nil for a
 // member of an enum lowered as a union of literals, which no conjunct types.
+// finish finishes the node at pointer, nil for a member's.
 type valueSetSite struct {
 	set      *statement.Schema
 	written  jsontext.Pointer
 	position *statement.Schema
 	pointer  jsontext.Pointer
+	finish   finisher
 }
 
 // ownValueSet is the site of the value set s, written at pointer, lowers to.
 func ownValueSet(s *statement.Schema, pointer jsontext.Pointer) valueSetSite {
 	return valueSetSite{set: s, written: pointer, position: s, pointer: pointer}
+}
+
+// finishedBy returns vs, its node finished by fin.
+func (vs valueSetSite) finishedBy(fin finisher) valueSetSite {
+	vs.finish = fin
+	return vs
 }
 
 // memberSite is the site of a member of vs's set lowered as a Literal of its
@@ -99,26 +107,31 @@ func principalDispatch(e allOfBranch) dispatch {
 // at pointer, the position s is written at, so one node stands for the
 // position whichever conjunct decides it (docs/compilers/openapi.md#allof-refinement).
 // What e writes beside its set that the node has no field for is kept on it,
-// each keyword at its own pointer, as on any node a schema lowers to.
-func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, e allOfBranch, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// each keyword at its own pointer, as on any node a schema lowers to, before
+// fin finishes it.
+func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, e allOfBranch, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	bs := e.schema.Schema
-	site := valueSetSite{set: bs, written: e.pointer, position: s, pointer: pointer}
 	d := principalDispatch(e)
+	var kept, own finished
+	site := valueSetSite{set: bs, written: e.pointer, position: s, pointer: pointer, finish: kept.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return censusOn(c, ts, bs, e.pointer, td, d)
+	}).then(own.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return censusOn(c, ts, s, pointer, td, dispatchOf(s).besideAllOf())
+	})).then(fin)}
 	var id ir.TypeID
-	var diags []ir.Diagnostic
+	var built []ir.Diagnostic
 	switch d.won {
 	case "const":
-		id, diags = lowerConst(c, ts, site)
+		id, built = lowerConst(c, ts, site)
 	case "enum":
-		id, diags = lowerEnum(c, ts, site)
+		id, built = lowerEnum(c, ts, site)
 	default:
 		id = lowerNullAlone(c, ts, site)
 	}
-	diags = append(diags, missingArrayItems(c, bs, e.pointer)...)
-	_, kept := preserveUnhomedKeywords(c, ts, bs, pointer, e.pointer, id, d)
-	diags = append(diags, kept...)
-	_, own := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, dispatchOf(s).besideAllOf())
-	return id, append(diags, own...)
+	// The value set is the position's node, which its build censuses.
+	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags)
 }
 
 // setType is the ValueType of the Enum or Literal a refinement's value set

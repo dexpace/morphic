@@ -181,11 +181,11 @@ func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.
 ) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
-	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
-	// skips this position because a parameter is an annotation.HomeCarrier, and
-	// ir.Parameter has no Visibility field. Keeping them after the guard would
-	// drop them for exactly the parameters whose schema owns a node — an object,
-	// an enum, an array.
+	// but readOnly/writeOnly have no home on either: the residue a declaration
+	// keeps on its node skips this position because a parameter is an
+	// annotation.HomeCarrier, and ir.Parameter has no Visibility field. Keeping
+	// them after the guard would drop them for exactly the parameters whose
+	// schema owns a node — an object, an enum, an array.
 	var diags []ir.Diagnostic
 	for _, v := range schema.ResidueWriters(use.Written()) {
 		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)

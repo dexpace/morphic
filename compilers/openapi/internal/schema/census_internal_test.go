@@ -14,39 +14,29 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPreserveUnhomedKeywords_MissingNode drives the invariant no source can
-// break: an ID a lowering returned that the registry does not hold. The keywords
-// it would keep have nowhere to go, so the guard reports the broken invariant
-// rather than preserving them onto nothing.
-func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
+// TestCensusShared_MissingNode drives the invariant no source can break: an ID
+// a lowering returned that the registry does not hold. The keywords it would
+// keep have nowhere to go, so the guard reports the broken invariant rather
+// than preserving them onto nothing.
+func TestCensusShared_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "/p", "t/anon/missing", dispatch{})
+	got, diags := censusShared(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "/p", "t/anon/missing", dispatch{}, nil)
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }
 
-// TestRecordUnhomedKeywords_MissingOwner drives the same invariant one step
-// later, where the owning node is the one absent. Its caller cannot produce this
-// state — the owner is either the node it just looked up or one internAlias just
-// interned — so it is reached directly, as preserveUnionSiblings' guard is.
-func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
+// TestVariantsCensus_NeedsAUnionAndItsVariants drives the states its callers
+// cannot produce, each handing it the Union its build just made: a node of
+// another kind, which has no variants to ask, and a variant no node stands
+// for.
+func TestVariantsCensus_NeedsAUnionAndItsVariants(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := recordUnhomedKeywords(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}), []string{"items"}, nodeShape(ir.KindPrimitive), "/p")
-	assertInternalInvariant(t, diags)
-}
-
-// TestPreserveVariantsUnhomed_NeedsAUnion drives the two states its callers
-// cannot produce, each having just interned the Union under id: no node there,
-// and a node of another kind, which has no variants to ask.
-func TestPreserveVariantsUnhomed_NeedsAUnion(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "t/anon/missing", distributedShape, nil, "/p"))
-
-	l.Types.Register("t/anon/scalar", &ir.Scalar{ID: "t/anon/scalar"})
-	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "t/anon/scalar", distributedShape, nil, "/p"))
+	census := variantsCensus(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), distributedShape, nil, "/p")
+	assertInternalInvariant(t, census(&ir.Scalar{ID: "t/anon/scalar"}))
+	assertInternalInvariant(t, census(&ir.Union{ID: "t/anon/union",
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/anon/missing"}}}}))
 }
 
 // TestKeywordHome_AnUnknownKeywordIsHomedNowhere reaches the arm censusKeywords

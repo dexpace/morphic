@@ -523,10 +523,10 @@ func TestParams_OwnAnnotationsWinOverTheSchema(t *testing.T) {
 // TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode pins the half of the
 // parameter-visibility rescue that the own-node guard used to swallow. A
 // parameter whose schema is an object, an enum or an array hoists a node, and
-// neither home held the keywords: recordDeclarationResidue skips the position
-// because a parameter is an annotation.HomeCarrier, and ir.Parameter has no
-// Visibility field, so they were dropped for exactly the shapes that own a
-// node.
+// neither home held the keywords: the residue a declaration keeps skips the
+// position because a parameter is an annotation.HomeCarrier, and ir.Parameter
+// has no Visibility field, so they were dropped for exactly the shapes that own
+// a node.
 func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:

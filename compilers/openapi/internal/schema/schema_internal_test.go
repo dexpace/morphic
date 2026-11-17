@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -68,22 +67,10 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "one fewer is mended whole")
 }
 
-// TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
-// keyword families the dispatch passed over. It is reached directly for the
-// reason TestRecordUnhomedKeywords_MissingOwner is: the caller hands it either
-// the node it just looked up or one internAlias just interned, so no source
-// reaches this.
-func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := recordSkippedFamilies(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}),
-		dispatch{won: "const", skipped: []string{"enum"}}, "/p")
-	assertInternalInvariant(t, diags)
-}
-
 // TestDeclaresFamily_AnUnknownNameDeclaresNothing reaches the arm familyOrder
-// cannot reach today, the way TestRecordSkippedFamilies_MissingOwner reaches its
-// own: every name dispatchOf passes in is one of the three with a case here.
+// cannot reach today, the way TestKeywordHome_AnUnknownKeywordIsHomedNowhere
+// reaches its own: every name dispatchOf passes in is one of the three with a
+// case here.
 //
 // It guards the direction the default falls. Answering an unknown name from
 // another family's guard would let a familyOrder entry added without a case be

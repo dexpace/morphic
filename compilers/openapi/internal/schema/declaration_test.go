@@ -430,7 +430,7 @@ func TestInlinePosition_OutsideRefDoesNotMoveTheHome(t *testing.T) {
 // TestInlinePosition_HoistGateFollowsWhatIsKept walks every keyword that only a
 // node of its own can hold, one at a time, and requires each to give the
 // position that node. The gate and the three things that fill it —
-// attachDeclaredAnnotations, internAlias and recordDeclarationResidue — have to
+// attachDeclaredAnnotations, internAlias and recordResidue — have to
 // agree keyword for
 // keyword: one listed here but stored nowhere hoists an empty node, and one
 // stored but missing here is still dropped.

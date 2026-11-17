@@ -23,9 +23,13 @@ import (
 // is, and an allOf entry whose reference names nothing, read whole, is no
 // position a reference reaches, as one to it reads on through its own. So
 // such a site writes nothing beside its target for a node to keep.
-func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+//
+// fin finishes the alias the site's declaration hoists, if any.
+func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home,
+	fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
-	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, false)
+	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, false, fin)
 	return ref, append(diags, homeDiags...)
 }
 
@@ -228,11 +232,14 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement
 	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
-	nodeDiags := internOwnNode(c, ts, decl, pointer, ref)
-	diags = append(diags, nodeDiags...)
 	// As in lowerComponentSchema: this node is the first the pointer owns, so
-	// the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
+	// the annotations Ref had nowhere to put now have a home, which its build
+	// gives them.
+	var annotated finished
+	diags = append(diags, internOwnNode(c, ts, decl, pointer, ref, annotated.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return attachDeclaredAnnotations(c, ts, s.Node, pointer, ref, td)
+	}))...)
+	return append(diags, annotated.diags...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load

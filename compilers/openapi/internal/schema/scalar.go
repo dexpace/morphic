@@ -26,12 +26,14 @@ import (
 //
 // byte and a number carried as text put the logical primitive in Base and the
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
-func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, st statement.Kind, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, st statement.Kind, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	shape := scalarShapeOf(s, st, writtenFormat(s))
 	if shape.shared {
 		return ts.PrimID(shape.base), nil
 	}
-	return hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer)
+	return hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer, fin)
 }
 
 // writtenFormat returns the format s writes, but for a redaction, which names no
@@ -154,7 +156,11 @@ func baseForType(st statement.Kind) ir.PrimKind {
 // hoistDeclarationHome hoisting the alias that would otherwise carry them: that
 // fallback resolves to whatever node the pointer already owns. A scalar hoisted
 // for its format must not lose the bounds written beside it (invariant 2).
-func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, shape scalarShape, takes kindSet, voices []annotation.Voice, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+//
+// fin finishes the Scalar once built.
+func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, shape scalarShape, takes kindSet,
+	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		baseRef := ts.PrimRef(shape.base)
@@ -176,7 +182,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 		diags = append(diags, consDiags...)
 		sc.Constraints = cons
 		return sc
-	})
+	}, fin)
 	return id, diags
 }
 

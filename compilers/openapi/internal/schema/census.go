@@ -391,53 +391,113 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 	return referenceUnhomed(c, s, branchesSay(c, s)), collapsedShape
 }
 
-// preserveUnhomedKeywords keeps verbatim the census keywords and value
-// constraints a position declared that its node or types do not take, and the
-// families lower()'s election skipped, returning the position's resulting ID.
-// docs/compilers/openapi.md#shape-applicator covers a contradictory schema's
-// dropped half and an untyped applicator such as `items`. s is written at
-// written.
-//
-// A lowering that reduced to a shared node gets an alias first, with the
-// position's constraints, so a shared node never carries one declaration's
-// keywords. A node the position owns gets none.
+// censused lowers the position s, written at written, through build, at
+// pointer, its census (censusOn) finishing the node build interns there before
+// fin, the outer frames' finisher. One lowering to a node the position does
+// not own takes its census on an alias (censusShared). It returns the
+// position's resulting ID and the build's findings, the census's after them,
+// as they always stood. docs/compilers/openapi.md#shape-applicator covers a
+// contradictory schema's dropped half and an untyped applicator such as
+// `items`.
+func censused(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, written jsontext.Pointer, d dispatch, fin finisher,
+	build func(fin finisher) (ir.TypeID, []ir.Diagnostic),
+) (ir.TypeID, []ir.Diagnostic) {
+	var census finished
+	id, diags := build(func(td ir.TypeDef) {
+		census.ran = true
+		census.diags = censusOn(c, ts, s, written, td, d)
+		if fin != nil {
+			fin(td)
+		}
+	})
+	if census.ran || LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id}) {
+		// A node the position owns that this visit found built was censused by
+		// the visit building it.
+		return id, append(diags, census.diags...)
+	}
+	owner, sharedDiags := censusShared(c, ts, s, pointer, written, id, d, fin)
+	return owner, append(diags, sharedDiags...)
+}
+
+// censusOn keeps verbatim on td, the node the position owns, in hand, the
+// census keywords and value constraints s, written at written, declares that
+// td does not take, and the families d's election skipped. No alias will be
+// hoisted over a node the position owns, so a bound it did not read reaches no
+// Constraints field anywhere; one carrying a number as text kept every bound
+// itself (keepTextBounds).
 //
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
-func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, written jsontext.Pointer, id ir.TypeID, d dispatch,
-) (ir.TypeID, []ir.Diagnostic) {
-	td, ok, diags := registeredNode(c, ts, id, written)
-	if !ok {
-		return id, diags
-	}
-	owns := LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id})
+func censusOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, written jsontext.Pointer, td ir.TypeDef, d dispatch,
+) []ir.Diagnostic {
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
-	switch {
-	case !owns:
-		// The alias hoisted over a shared node reads the bounds the types the
-		// position admits take, and only those.
-		unhomed = append(unhomed, untakenBounds(s, boundKinds(c, s))...)
-	case !carriesNumberAsText(td):
-		// No alias will be hoisted over a node the position already owns, so a
-		// bound it did not read reaches no Constraints field anywhere. One carrying
-		// a number as text kept every bound itself (keepTextBounds).
+	if !carriesNumberAsText(td) {
 		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, boundKinds(c, s))...)
 	}
+	return keepCensus(c, ts, td, s, d, unhomed, written)
+}
+
+// keepCensus keeps on td what a census found unhomed, and the families d's
+// election skipped, reporting both.
+func keepCensus(c lowering.Ctx, ts *compile.Types, td ir.TypeDef, s *statement.Schema, d dispatch, unhomed []string,
+	written jsontext.Pointer,
+) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	if len(unhomed) > 0 {
+		diags = recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, positionShape(td, s), written)
+	}
+	return append(diags, recordSkippedFamilies(c, td, s, d, written)...)
+}
+
+// censusShared is censusOn for a position that lowered to id, a shared node it
+// does not own: the alias hoisted over it, finished by the census and then
+// fin, holds the census keywords id has no field for and the bounds the types
+// the position admits take, and only those. It returns id itself, fin
+// unfinished, where nothing is kept.
+func censusShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, written jsontext.Pointer, id ir.TypeID, d dispatch,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
+	td, diags := censusedNode(c, ts, id, written)
+	if td == nil {
+		return id, diags
+	}
+	unhomed := append(unhomedKeywords(s, td, slices.Concat(d.skipped, d.said)), untakenBounds(s, boundKinds(c, s))...)
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
 	}
-	owner := id
-	if !owns {
-		var aliasDiags []ir.Diagnostic
-		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: id})
-		diags = append(diags, aliasDiags...)
+	keep := keepUnhomedOn(c, ts, s, unhomed, positionShape(td, s), written)
+	var census finished
+	owner, aliasDiags := internAlias(c, ts, s, pointer, ir.TypeRef{Target: id}, census.on(func(alias ir.TypeDef) []ir.Diagnostic {
+		return append(keep(alias), recordSkippedFamilies(c, alias, s, d, written)...)
+	}).then(fin))
+	return owner, slices.Concat(diags, aliasDiags, census.diags)
+}
+
+// keepUnhomedOn returns what keeps unhomed, the keywords a census found s,
+// written at pointer, declares that the position's node has no field for, on
+// that node in hand, reporting what the position lowered to as shape.
+func keepUnhomedOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
+) func(td ir.TypeDef) []ir.Diagnostic {
+	return func(td ir.TypeDef) []ir.Diagnostic {
+		return recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, shape, pointer)
 	}
-	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), written)...)
-	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, written)...)
+}
+
+// censusedNode returns the node registered under id, which a census reads where
+// it is not the node it finishes: the shared node a position lowered to
+// (censusShared), or a variant a union built (variantsCensus). A miss is a
+// compiler bug no source can provoke, so it is reported as one: the census was
+// about to keep what that node cannot hold, which would otherwise vanish.
+func censusedNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
+	if td, ok := ts.Node(id); ok {
+		return td, nil
+	}
+	return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+		"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)}
 }
 
 // censusReads reports whether the census of a node a position owns reads
-// keyword, homing or keeping it (preserveUnhomedKeywords): a census keyword or
+// keyword, homing or keeping it (censusOn): a census keyword or
 // a value bound.
 func censusReads(keyword string) bool {
 	return slices.Contains(censusKeywords, keyword) || slices.Contains(valueConstraintKeywords, keyword)
@@ -513,51 +573,40 @@ func taglessShape(m *ir.Model, s *statement.Schema, shape string) string {
 // lowers to, for that same diagnostic.
 const distributedShape = "a union of models conjoining its body with each branch"
 
-// preserveVariantsUnhomed keeps verbatim on the Union at id what s declares that
-// no variant carries, for a Union each variant of which s itself builds: a type
-// array's (lowerUnion) and a distributed composition's (composedVariant). The
-// Union has no field for what they consume, so the census asks them; handled is
-// as unhomedKeywords takes it. A value bound reaches each variant reading it, a
-// type array's whose type takes it and every composed one, so it is kept where
-// none does (unreadBounds). A discriminator the Union holds is homed there,
-// routing its variants.
-func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *statement.Schema, id ir.TypeID, shape string, handled []string, pointer jsontext.Pointer) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
-	if !ok {
-		return diags
-	}
-	u, isUnion := td.(*ir.Union)
-	if !isUnion {
-		return append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-			"internal: type %q is not the union its variants were built for", id))
-	}
-	if discriminatorHome(u) {
-		handled = append(slices.Clip(handled), "discriminator")
-	}
-	nodes := make([]ir.TypeDef, 0, len(u.Variants))
-	for _, v := range u.Variants {
-		node, held, nodeDiags := registeredNode(c, ts, v.Type.Target, pointer)
-		diags = append(diags, nodeDiags...)
-		if held {
-			nodes = append(nodes, node)
+// variantsCensus returns the census of the Union a position's own schema s
+// builds the variants of, in hand: a type array's (lowerUnion) and a
+// distributed composition's (composedVariant). It keeps on the Union what s
+// declares that no variant carries, as the Union has no field for what they
+// consume; handled is as unhomedKeywords takes it. A value bound reaches each
+// variant reading it, a type array's whose type takes it and every composed
+// one, so it is kept where none does (unreadBounds). A discriminator the Union
+// holds is homed there, routing its variants. shape describes the Union.
+func variantsCensus(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shape string, handled []string, pointer jsontext.Pointer,
+) func(td ir.TypeDef) []ir.Diagnostic {
+	return func(td ir.TypeDef) []ir.Diagnostic {
+		u, isUnion := td.(*ir.Union)
+		if !isUnion {
+			return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+				"internal: type %q is not the union its variants were built for", td.Common().ID)}
 		}
+		if discriminatorHome(u) {
+			handled = append(slices.Clip(handled), "discriminator")
+		}
+		var diags []ir.Diagnostic
+		nodes := make([]ir.TypeDef, 0, len(u.Variants))
+		for _, v := range u.Variants {
+			node, nodeDiags := censusedNode(c, ts, v.Type.Target, pointer)
+			diags = append(diags, nodeDiags...)
+			if node != nil {
+				nodes = append(nodes, node)
+			}
+		}
+		unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, boundKinds(c, s))...)
+		if len(unhomed) == 0 {
+			return diags
+		}
+		return append(diags, recordUnhomedAt(c, ts, &u.Unmodeled, s, unhomed, shape, pointer)...)
 	}
-	unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, boundKinds(c, s))...)
-	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
-}
-
-// recordUnhomedKeywords stores each unhomed keyword on the node owner names.
-// shape describes what the position lowered to, so a reader is told which half
-// of a contradictory schema the IR describes.
-func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
-	if len(unhomed) == 0 {
-		return nil
-	}
-	td, ok, diags := registeredNode(c, ts, owner, pointer)
-	if !ok {
-		return diags
-	}
-	return append(diags, recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
 }
 
 // recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once

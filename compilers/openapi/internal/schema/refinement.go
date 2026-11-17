@@ -734,14 +734,14 @@ func (w *admission) conesOver(conjuncts []conjunct, read admitted) int {
 // what it writes to the position, as a voice. Either takes a frame of its own, so
 // a refinement counts two against maxSchemaDepth, a limit no real schema nears. A
 // $ref the principal beat is still resolved: nothing else may lower what it names.
-func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) (ir.TypeID, []ir.Diagnostic) {
+func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement, fin finisher) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
 	resolveBeaten(c, ts, r)
+	home := annotation.HomeCarrier
 	if e.schema.Ref != nil {
-		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
-		return ref.Target, diags
+		home = annotation.HomeOwnNode
 	}
-	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
+	ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, home, fin)
 	return ref.Target, diags
 }
 
@@ -1057,15 +1057,6 @@ func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool
 	return key == "anyOf" || (within == 1 && overlaps == 0)
 }
 
-// recordOn keeps k on the node owner names.
-func (k outcomeKeeps) recordOn(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, owner, pointer)
-	if !ok {
-		return diags
-	}
-	return append(diags, k.record(c, ts, &td.Common().Unmodeled, s, pointer)...)
-}
-
 // record keeps k on p and reports it. A branch the IR cannot hold is reported by
 // the keeper, and nothing here claims it was kept.
 func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
@@ -1097,19 +1088,23 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // lowerUndecided lowers s, written at pointer, which writes no kind and no
 // shape keyword, by the types its allOf, refining electing no entry, admits
 // (undecidedTypes), as a type list naming them lowers, and to the top type
-// where it admits none of a primitive's kinds alone.
+// where it admits none of a primitive's kinds alone. fin finishes the node
+// standing at pointer after its census.
 func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
+	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	types := undecidedTypes(c, s, pointer)
 	switch len(types) {
 	case 0:
-		return preserveUnhomedKeywords(c, ts, s, pointer, pointer, ts.PrimID(ir.PrimAny), d)
+		return censused(c, ts, s, pointer, pointer, d, fin, func(finisher) (ir.TypeID, []ir.Diagnostic) {
+			return ts.PrimID(ir.PrimAny), nil
+		})
 	case 1:
-		id, diags := lowerTyped(c, ts, depth, s, pointer, types[0])
-		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, d)
-		return owner, append(diags, ownDiags...)
+		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
+		})
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false)
+		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin)
 	}
 }
 
@@ -1266,13 +1261,19 @@ func keptWhy(comp allOfComposition, b keptBranch) string {
 	}
 }
 
-// recordPrincipalResidue keeps what binds a use on a node r's principal owns,
-// where no carrier reads it: lowered with no home of its own, the branch keeps it
-// as any declaration owning a node does.
-func recordPrincipalResidue(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
+// principalResidue returns the finisher keeping what binds a use on the node
+// the principal of s, written at pointer, builds, where no carrier reads it,
+// its report into into: a principal lowers with no home of its own
+// (lowerPrincipal), so the branch keeps it as any declaration owning a node
+// does. It is nil where s has no principal, or home is a carrier, which keeps
+// it.
+func principalResidue(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home, into *[]ir.Diagnostic) finisher {
 	r, refined := refinementOf(c, s, pointer)
-	if !refined || r.principal == nil {
+	if home != annotation.HomeOwnNode || !refined || r.principal == nil || !stated(r.principal.schema.Schema) {
 		return nil
 	}
-	return recordDeclarationResidue(c, ts, r.principal.schema.Schema, r.principal.pointer, home)
+	principal := r.principal
+	return func(td ir.TypeDef) {
+		*into = recordResidue(c, td.Common(), principal.schema.Schema, principal.pointer)
+	}
 }
