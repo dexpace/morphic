@@ -268,6 +268,14 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    the compiler is fixed or the line is given the reason, a key of `Reasons`, of the issue it stands
    under. A line whose finding changed keeps its reason, so check the reason still holds.
 
+   The lines of `testdata/full` are the findings outside the core, which the gate does not run:
+   `make cases` checks them, as the nightly job does, and this rewrites them the same way, in a few
+   minutes:
+
+   ```bash
+   go test ./internal/harness/openapicases -run TestFull_ -full -update
+   ```
+
    A regeneration that changes nothing looks exactly like a broken `-update`, and nothing checks
    that an assertion asserts anything: delete the construct from your spec once and watch the case
    go red before trusting it.
