@@ -2056,12 +2056,17 @@ such null is reported once as an info `openapi/inferred-nullable`, at the `nulla
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
 whatever references its schema. The policy is the Go option `Options.NullableInference`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
-its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
-`openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
-model does not name. Under either policy only the boolean `true` states a null: a `nullable`
-holding a string states none at any version, a YAML 1.1 truth word the parser decodes as true, such
-as `"yes"` or a plain `on`, among them, and neither does any other value that is no boolean.
+`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema that the policy
+does not read is a keyword its dialect does not define, kept verbatim under `openapi:nullable`
+(`out_of_scope`) with an info `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys)
+keeps a keyword the schema model does not name: every one with the policy off, and with it on every
+one that is not the boolean `true`, a `false` among them, wherever it is written, beside a `$ref`
+included. Written on an inline `allOf` branch or a union's null branch, it keeps the branch whole
+as the policy off does, since no fold reads it. Under either policy only the boolean `true` states a
+null: a `nullable` holding a string states none at any version, a YAML 1.1 truth word the parser
+decodes as true, such as `"yes"` or a plain `on`, among them, and neither does any other value that
+is no boolean. A `null` written for `nullable` is the keyword left out
+([`null-keywords`](#null-keywords)).
 
 Whether a 3.0 `nullable: true` has an effect is a fact of the specification, not of the policy: with
 no `type` written in the same Schema Object, a `type` written `null` being none, it has none, beside
@@ -2086,7 +2091,10 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `oas.TestCheck_NullableAppliesBesideAType`,
   `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
   `schema.TestNullableInference_OnlyABooleanStatesNull`,
-  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`
+  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`,
+  `e2e.TestNullable_AValueThePolicyDoesNotReadIsKeptAtOpenAPI31`,
+  `e2e.TestNullable_AValueNoPolicyReadsIsKeptOnANullBranch`,
+  `e2e.TestNullable_OpenAPI30KeepsNoValueAsAnUnknownKeyword`
 
 ### `schema-examples`
 
@@ -6786,8 +6794,8 @@ to ignore a keyword it does not know, and a position that lowers to a shared nod
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
 `$dynamicRef`, and 2019-09's `$recursiveAnchor` and `$recursiveRef` where the schema's dialect
 defines them, are decided elsewhere and left out. A keyword the model names and the dialect the
-schema is read in does not define, which only `nullable` is, with the nullable-inference policy off
-([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
+schema is read in does not define, which only `nullable` is, where the nullable-inference policy is
+off or does not read its value ([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
 object.
