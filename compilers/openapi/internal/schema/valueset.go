@@ -116,7 +116,9 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	}
 	diags = append(diags, missingArrayItems(c, bs, e.pointer)...)
 	_, kept := preserveUnhomedKeywords(c, ts, bs, pointer, e.pointer, id, d)
-	return id, append(diags, kept...)
+	diags = append(diags, kept...)
+	_, own := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, dispatchOf(s).besideAllOf())
+	return id, append(diags, own...)
 }
 
 // setType is the ValueType of the Enum or Literal a refinement's value set
