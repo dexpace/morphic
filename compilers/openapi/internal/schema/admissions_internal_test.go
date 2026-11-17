@@ -405,3 +405,56 @@ func TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo(t *testing.T) {
 		}
 	}
 }
+
+// TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart holds the kinds a
+// statement admits only in part to the keywords that refuse some instance of
+// them, read through its conjuncts and unions: a bound, a value set, a format,
+// a keyword of arrays or objects alone, and a oneOf whose branches share a
+// kind, while a type, a redaction, a keyword written null, a schema applied to
+// parts that states nothing and a `then` without an `if` leave every kind they
+// admit whole.
+func TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart(t *testing.T) {
+	t.Parallel()
+	rows := map[string]struct {
+		schema  string
+		partial kindSet
+	}{
+		"Int":        {"{type: integer}", 0},
+		"Min":        {"{type: integer, minimum: 5}", kindInteger},
+		"UntypedMin": {"{minimum: 5}", kindNumber},
+		"Enum":       {"{enum: [1, a]}", kindInteger | kindString},
+		"Pattern":    {"{type: string, pattern: '^a'}", kindString},
+		"Format":     {"{format: int32}", kindString | kindNumber},
+		"Redaction":  {"{type: string, format: password}", 0},
+		"Items":      {"{items: {type: string}}", kindArray},
+		"AnyItems":   {"{type: array, items: {}}", 0},
+		"TrueItems":  {"{type: array, items: true, unevaluatedItems: true}", 0},
+		"AnyPrefix":  {"{prefixItems: [{}, true]}", 0},
+		"Prefix":     {"{prefixItems: [{}, {type: string}]}", kindArray},
+		"Contains":   {"{contains: {}}", kindArray},
+		"NullItems":  {"{items: null}", 0},
+		"Props":      {"{properties: {a: {type: string}}}", kindObject},
+		"AnyProps":   {"{properties: {a: {}}, patternProperties: {b: true}, propertyNames: {}}", 0},
+		"OpenProps":  {"{additionalProperties: true, unevaluatedProperties: {}}", 0},
+		"Closed":     {"{additionalProperties: false}", kindObject},
+		"Required":   {"{required: [a]}", kindObject},
+		"Dependent":  {"{dependentSchemas: {a: {}}}", kindObject},
+		"Then":       {"{then: {type: string}}", 0},
+		"AnyOfWhole": {"{anyOf: [{type: integer}, {type: integer, minimum: 5}]}", 0},
+		"AnyOfPart":  {"{anyOf: [{type: object}, {type: integer, minimum: 5}]}", kindInteger},
+		"OneOfApart": {"{oneOf: [{type: object}, {type: integer}]}", 0},
+		"OneOfBoth":  {"{oneOf: [{type: integer}, {type: integer, minimum: 5}]}", kindInteger},
+		"AllOf":      {"{allOf: [{type: integer}, {$ref: '#/components/schemas/UntypedMin'}]}", kindInteger},
+		"Ref":        {"{$ref: '#/components/schemas/Min'}", kindInteger},
+	}
+	var schemas strings.Builder
+	for name, row := range rows {
+		schemas.WriteString("    " + name + ": " + row.schema + "\n")
+	}
+	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas.String()))
+	for name, row := range rows {
+		st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		r := admissionOf(l.Ctx, st)
+		assert.Equal(t, row.partial, r.partial&r.admits, "%s: %s", name, row.schema)
+	}
+}

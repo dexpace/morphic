@@ -129,7 +129,8 @@ func (f modelFields) Alike(a, b ir.Provenance) bool {
 
 // Admits is merge.Walk.Admits: the schema written at p admits every instance
 // of kind, as the run reads what its statement admits (admissionOf), its value
-// sets, unions and the keywords beside a $ref among them. A site place does
+// sets, unions and the keywords beside a $ref among them, and no keyword it
+// takes in refuses some instance of kind (narrowedWithin). A site place does
 // not place, one holding no schema object, and a read cut short or meeting a
 // keyword it does not follow that could refuse a kind (looseIn) are not exact,
 // which keeps the verdict a structure had before its source was read.
@@ -143,16 +144,16 @@ func (f modelFields) Admits(p ir.Provenance, kind merge.Instance) (admits, exact
 		return false, false
 	}
 	r := admissionOf(f.c, st)
-	kinds, inexact := r.admits, r.cut || r.loose
+	kinds, partial, inexact := r.admits, r.partial, r.cut || r.loose
 	if union, ok := unionHolding(f.c, at, st); ok {
 		u := admissionOf(f.c, union)
-		kinds, inexact = kinds&u.admits, inexact || u.cut || u.loose
+		kinds, partial, inexact = kinds&u.admits, partial|u.partial, inexact || u.cut || u.loose
 	}
 	if inexact {
 		return false, false
 	}
 	want := instanceKinds(kind)
-	return want != 0 && kinds&want == want, true
+	return want != 0 && kinds&want == want && partial&want == 0, true
 }
 
 // unionHolding returns the statement writing the oneOf or anyOf whose branch

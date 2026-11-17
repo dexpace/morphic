@@ -9,6 +9,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -26,6 +27,10 @@ type reading struct {
 	// kind-inference policy reads off its own shape keywords (claimedKinds),
 	// united with the kinds of each conjunct whose kinds are claims.
 	firm, claims kindSet
+	// partial is the kinds some instance of which a keyword the read took in
+	// refuses while admitting others (narrowedWithin), so admits holds every
+	// instance of a kind only where partial does not hold it.
+	partial kindSet
 	// cut marks a statement on or reaching a cycle of conjunct edges, a $ref
 	// landing on no schema or a value set no reading converts; dynamic one
 	// meeting a $dynamicRef the bindings read as no $ref, which an election
@@ -40,9 +45,11 @@ type reading struct {
 }
 
 // conjoin adds what r's conjunct child admits, declares and claims, and what
-// its read took in, to r.
+// its read took in, to r. A kind child admits only in part is admitted so by
+// both.
 func (r *reading) conjoin(child *reading) {
 	r.admits &= child.admits
+	r.partial |= child.partial
 	r.conjoinKinds(child)
 	if r.took(child) {
 		r.admitted = r.admitted.and(child.admitted)
@@ -108,7 +115,7 @@ func (r *reading) past(child *reading) {
 // cap.
 func cycleRead() *reading {
 	return &reading{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance,
-		firm: anyInstance, cut: true, reads: maxAdmissionReads + 1}
+		firm: anyInstance, partial: anyInstance, cut: true, reads: maxAdmissionReads + 1}
 }
 
 // admissionsIn keys a run's admissions. A statement the bindings do not place
@@ -301,9 +308,9 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 		r.conjoin(w.store.read[e])
 	}
 	edges = edges[len(st.AllOf):]
-	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+	for i, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
-			r.conjoin(w.join(edges[:len(branches)]))
+			r.conjoin(w.join(edges[:len(branches)], i == 0))
 			edges = edges[len(branches):]
 		}
 	}
@@ -316,6 +323,7 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 	case len(edges) > 0:
 		target := w.store.read[edges[0]]
 		r.admits &= target.admits
+		r.partial |= target.partial
 		r.conjoinKinds(target)
 		r.cut = r.cut || target.cut
 		r.loose = r.loose || target.loose
@@ -331,6 +339,7 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 	r := &reading{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
 	r.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
 	r.firm, r.claims = r.admits, claimedKinds(w.c, st.Schema)
+	r.partial = narrowedWithin(w.c.Statements(), st.Schema)
 	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
 	if r.members > maxAdmissionMembers {
 		r.past(r)
@@ -344,14 +353,19 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 // join is what any of a union's settled branches admits, declares and lowers
 // to, with what their reads took in: a branch reading as every kind leaves
 // what the join declares open, so the kinds the branches lower to reach the
-// position as a claim where any branch's is one.
-func (w *admissionWalk) join(branches []*statement.Statement) *reading {
+// position as a claim where any branch's is one. A kind is admitted whole
+// where some branch admits it whole and, for an exclusive union, which refuses
+// an instance two branches admit, no other branch admits it at all.
+func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *reading {
 	first := w.store.read[branches[0]]
 	out := &reading{admitted: first.admitted, admits: first.admits, kinds: first.kinds, firm: first.firm,
 		inferred: first.inferred}
 	out.took(first)
+	whole, shared := first.admits&^first.partial, kindSet(0)
 	for _, b := range branches[1:] {
 		branch := w.store.read[b]
+		shared |= out.admits & branch.admits
+		whole |= branch.admits &^ branch.partial
 		out.admits |= branch.admits
 		out.kinds |= branch.kinds
 		out.firm |= branch.firm
@@ -360,7 +374,85 @@ func (w *admissionWalk) join(branches []*statement.Statement) *reading {
 			out.admitted = out.admitted.or(branch.admitted)
 		}
 	}
+	out.partial = out.admits &^ whole
+	if exclusive {
+		out.partial |= shared
+	}
 	return out
+}
+
+// narrowedWithin returns the kinds some instance of which s's own keywords may
+// refuse while admitting others: every kind for a value set, a number for a
+// numeric bound, a string for a string bound, a string and a number for a
+// format, and an array or an object for a keyword applying to that kind alone
+// (oas.SlotOf), `dependentSchemas` and the drafts' `dependencies` among them,
+// but one refusing none (refusesNothing). A `type` refuses a kind whole, which
+// admits holds; a `not` or an `if` makes the read loose (looseIn); and a
+// keyword written null is left out.
+func narrowedWithin(t *statement.Table, s *statement.Schema) kindSet {
+	var out kindSet
+	for _, k := range s.Keys {
+		if k.Null {
+			continue
+		}
+		switch k.Slot {
+		case oas.SlotValues:
+			out |= anyInstance
+		case oas.SlotFormat:
+			if _, ok := formOf(s); ok {
+				out |= kindString | kindNumber
+			}
+		case oas.SlotNumber:
+			out |= kindNumber
+		case oas.SlotText:
+			out |= kindString
+		case oas.SlotArray:
+			if !refusesNothing(t, s, k.Name) {
+				out |= kindArray
+			}
+		case oas.SlotObject:
+			if !refusesNothing(t, s, k.Name) {
+				out |= kindObject
+			}
+		case oas.SlotLogic:
+			if k.Name == "dependentSchemas" || k.Name == "dependencies" {
+				out |= kindObject
+			}
+		default:
+		}
+	}
+	return out
+}
+
+// refusesNothing reports whether the keyword name s writes refuses no instance
+// of the kind it applies to: a schema applied to each of an instance's parts
+// that states nothing, `true` or `{}`, or a `properties`, `patternProperties`
+// or `prefixItems` each of whose schemas states nothing. Any other array or
+// object keyword is read as refusing some.
+func refusesNothing(t *statement.Table, s *statement.Schema, name string) bool {
+	statesNothing := func(sub statement.Sub) bool {
+		return sub.Truth() == statement.Anything || sub.Truth() == statement.Stated && len(t.Sub(sub).Keys) == 0
+	}
+	switch name {
+	case "items":
+		return statesNothing(arrayIn(s).Items)
+	case "unevaluatedItems":
+		return statesNothing(arrayIn(s).UnevaluatedItems)
+	case "prefixItems":
+		return !slices.ContainsFunc(arrayIn(s).PrefixItems, func(sub statement.Sub) bool { return !statesNothing(sub) })
+	case "additionalProperties":
+		return statesNothing(objectIn(s).AdditionalProperties)
+	case "propertyNames":
+		return statesNothing(objectIn(s).PropertyNames)
+	case "unevaluatedProperties":
+		return statesNothing(objectIn(s).UnevaluatedProperties)
+	case "properties":
+		return !slices.ContainsFunc(objectIn(s).Properties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+	case "patternProperties":
+		return !slices.ContainsFunc(objectIn(s).PatternProperties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+	default:
+		return false
+	}
 }
 
 // looseIn reports whether s writes a keyword the read of what it admits does

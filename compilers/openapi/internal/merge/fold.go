@@ -67,10 +67,12 @@ type Walk interface {
 	// Admits reports whether the schema written at a node's provenance admits
 	// every instance of kind, so the structure it lowered to admits each value
 	// of another type of that kind: `properties` alone constrains objects and
-	// admits a string (docs/compilers/openapi.md#allof-redeclared-property). It
-	// is exact where the read follows all the source writes; one it cannot
-	// place, or one writing what the read does not follow but which could
-	// refuse a value of some kind, is not, and decides nothing.
+	// admits a string (docs/compilers/openapi.md#allof-redeclared-property),
+	// while a bound or a value set beside it refuses some integers, so it
+	// admits integers but not every one. It is exact where the read follows all
+	// the source writes; one it cannot place, or one writing what the read does
+	// not follow but which could refuse a value of some kind, is not, and
+	// decides nothing.
 	Admits(at ir.Provenance, kind Instance) (admits, exact bool)
 }
 

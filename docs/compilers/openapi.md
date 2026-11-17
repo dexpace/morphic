@@ -2636,7 +2636,16 @@ admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
 `enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
 `$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
-the union admits too. Where that read meets what it does not follow but which could refuse a value of
+the union admits too. It admits a kind whole only where no keyword it takes in refuses some instance
+of that kind while admitting others: a value set, a numeric or a string bound, a `format`, and a
+keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
+kinds in part, and a union admits a kind whole where a branch does and, for a `oneOf`, which refuses
+what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
+`{enum: [1, 2]}` and `{anyOf: [{type: object}, {type: integer, minimum: 5}]}` each admit some
+integers and not every one, and a structure composing one of them is judged against `integer` as a
+structure stating its type is: the conflict is reported and the declaration the field does not keep
+is kept verbatim, since a field of either type alone would lose what the other says. Where that read
+meets what it does not follow but which could refuse a value of
 some kind, a `not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a
 `$recursiveRef` the bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no
 schema, the structure reads as stating its type; a `not` or an `if` written `null` is the keyword
@@ -2814,7 +2823,7 @@ whose say the field kept. A dropped declaration is reported against the winner a
 warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
 against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
 admits, two `const`s of different values, two enums sharing no value, a scalar against a
-structure stating its instance type, two structures of different instance types each stating
+structure stating its instance type or admitting the scalar's kind only in part, two structures of different instance types each stating
 theirs, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
@@ -2941,6 +2950,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_ANullNotOrIfIsTheKeywordLeftOut`,
   `schema.TestAllOf_ADistributedVariantIsReadWithItsUnion`,
   `e2e.TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict`,
+  `e2e.TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt`,
+  `schema.TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart`,
   `e2e.TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestTypeJudge_ModelsAlikeAreCopies`,
