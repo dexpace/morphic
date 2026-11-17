@@ -4693,6 +4693,7 @@ no bound ([`string-formats`](#string-formats)).
   `e2e.TestCompile_ACarrierOverAReferenceOrASharedPrimitiveKeepsItsBound`,
   `e2e.TestCompile_ABoundBesideAReferenceToAModelIsHeldOnce`,
   `e2e.TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant`,
+  `e2e.TestCorpus_NoCarrierRestatesABoundItsOwnNodeHolds`,
   `schema.TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch`,
   `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
   `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
