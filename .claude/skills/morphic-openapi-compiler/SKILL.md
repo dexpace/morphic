@@ -20,7 +20,7 @@ drew it (`references/lossless-and-diagnostics.md`).
   restate a behaviour or name a library version.
 - **Packages.** `compilers/openapi` is the public face, and the work is in
   `compilers/openapi/internal`, whose import order `internal/archtest` enforces. Read the order
-  from the `rules` map there, not from memory.
+  from `rules` there and the layer from `layers`.
 - **Tests.** End-to-end tests, goldens and the conformance corpus run in `compilers/openapi/e2e`.
   `TestLoweringSpec` holds the rules document and the code to each other in both directions.
   `CONTRIBUTING.md` has the recipe for a new lowering rule.

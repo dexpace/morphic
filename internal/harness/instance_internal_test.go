@@ -143,6 +143,8 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 		list   = `"L": {"items": {"type": "string"}, "maxItems": 1}`
 		typed  = `"U": {"type": "object", "properties": {"a": {"type": "string"}}}`
 		nested = `"O": {"type": "object", "properties": {"m": {"properties": {"a": {"type": "string"}}, "default": "s"}}}`
+		alias  = `"A": {"allOf": [{"$ref": "#/components/schemas/L"}], "description": "d"}`
+		aliasU = `"AU": {"allOf": [{"$ref": "#/components/schemas/U"}], "description": "d"}`
 	)
 	tests := []struct {
 		name    string
@@ -161,6 +163,8 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 		{"marked list against a wrong-typed element", list, "L", `[1]`, true, "", `"t"`},
 		{"marked list against a bound", list, "L", `["a", "b"]`, false, "", `"t"`},
 		{"marked node nested in an unmarked one", nested, "O", `"s"`, false, kindM, `"t"`},
+		{"alias of a marked list against an object", list + ", " + alias, "A", `{"a": 1}`, false, "", ""},
+		{"alias of an unmarked model against a string", typed + ", " + aliasU, "AU", `"s"`, false, "", `"t"`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

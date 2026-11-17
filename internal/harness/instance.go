@@ -82,13 +82,14 @@ func carriers(doc *ir.Document) map[string]carrier {
 }
 
 // excused reports whether a finding on c is the kind inference's known cost:
-// the node c is checked against names kind-inference in its
-// Provenance.Inferred, which narrows a schema admitting every kind to one, and
-// the default is of another kind. A finding of what the default holds, a bound
-// or a member, is the node's own and is never excused, nor is one on a node
-// that carries no such mark or against a default of the node's kind.
+// the node c is checked against, past any alias of it (aliased), names
+// kind-inference in its Provenance.Inferred, which narrows a schema admitting
+// every kind to one, and the default is of another kind. A finding of what the
+// default holds, a bound or a member, is the node's own and is never excused,
+// nor is one on a node that carries no such mark or against a default of the
+// node's kind.
 func excused(doc *ir.Document, c carrier) bool {
-	td := doc.Types[c.typ.Target]
+	td := aliased(doc, c.typ.Target)
 	var kind ir.ValueKind
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:
@@ -100,6 +101,22 @@ func excused(doc *ir.Document, c carrier) bool {
 	}
 	inferred := strings.Split(string(td.Common().Provenance.Inferred), ",")
 	return slices.Contains(inferred, kindInference) && c.def.Kind != kind
+}
+
+// aliased returns the node target names, past each scalar whose base is
+// another node, as the validate pass judges a default against what an alias
+// names: a use of an inferred node beside a bound or a description is such an
+// alias. The chain holds at most one scalar per node of doc.
+func aliased(doc *ir.Document, target ir.TypeID) ir.TypeDef {
+	td := doc.Types[target]
+	for range len(doc.Types) {
+		s, ok := td.(*ir.Scalar)
+		if !ok || s.Base == nil {
+			break
+		}
+		td = doc.Types[s.Base.Target]
+	}
+	return td
 }
 
 // excluded is the verdict on instances, each held at its carrier, given what

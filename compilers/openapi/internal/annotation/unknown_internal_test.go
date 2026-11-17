@@ -560,3 +560,24 @@ func TestWritesKeywordLeftOut_TellsANullThatStatesNothing(t *testing.T) {
 		assert.Equal(t, want, WritesKeywordLeftOut(standaloneSchema(s), key), key)
 	}
 }
+
+// TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry pins the three
+// keywords whose map with no entry is the keyword left out, and what is not
+// one: a map with an entry, another keyword written empty, one written as a
+// list, and `dependencies` where the rows define none, which is an unknown
+// keyword and kept whatever it holds.
+func TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "{dependentSchemas: {}, dependentRequired: {}, dependencies: {}, definitions: {}, "+
+		"properties: {}, title: t}\n")
+	for key, want := range map[string]bool{
+		"dependentSchemas": true, "dependentRequired": true, "dependencies": false,
+		"definitions": false, "properties": false, "title": false, "absent": false,
+	} {
+		assert.Equal(t, want, WritesEmptyDependencyMap(standaloneSchema(s), key), key)
+		assert.Equal(t, want, WritesKeywordLeftOut(standaloneSchema(s), key), key)
+	}
+	filled := schemaFromYAML(t, "{dependentSchemas: {a: {required: [b]}}, dependentRequired: [a]}\n")
+	assert.False(t, WritesEmptyDependencyMap(standaloneSchema(filled), "dependentSchemas"))
+	assert.False(t, WritesEmptyDependencyMap(standaloneSchema(filled), "dependentRequired"), "a list is no map")
+}

@@ -135,6 +135,10 @@ type Key struct {
 	Modeled bool
 }
 
+// Defined reports whether the rows the schema is read with define the key, as
+// they do not for an extension or a keyword of another dialect.
+func (k Key) Defined() bool { return k.Slot != oas.SlotUnknown }
+
 // read reports whether the key's value is read: any but a null, which is
 // read only where the keyword holds an instance.
 func (k Key) read() bool {

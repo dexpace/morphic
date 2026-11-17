@@ -100,3 +100,30 @@ components:
 		assert.Equal(t, want, k.Node.Value, name)
 	}
 }
+
+// TestKey_DefinedTellsAKeywordTheRowsDefine pins that a key is defined where
+// the rows the schema is read with place it: `dependencies` by the drafts and
+// not by 2020-12, an extension by neither.
+func TestKey_DefinedTellsAKeywordTheRowsDefine(t *testing.T) {
+	t.Parallel()
+	const draft07 = "http://json-schema.org/draft-07/schema#"
+	for _, tc := range []struct {
+		named string
+		want  map[string]bool
+	}{
+		{"", map[string]bool{"type": true, "dependencies": false, "x-a": false}},
+		{draft07, map[string]bool{"type": true, "dependencies": true, "x-a": false}},
+	} {
+		src := document("3.1.0", "A: {type: object, dependencies: {a: [b]}, x-a: 1}")
+		if tc.named != "" {
+			src = "jsonSchemaDialect: '" + tc.named + "'\n" + src
+		}
+		table, c := tableOver(t, src, rulesAt(t, "3.1.0", tc.named))
+		a := table.At(component(c, "A"))
+		for key, want := range tc.want {
+			k, read := a.Key(key)
+			require.True(t, read, key)
+			assert.Equal(t, want, k.Defined(), "%q reading %q", key, tc.named)
+		}
+	}
+}

@@ -71,7 +71,12 @@ func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"/components/schemas/Holder/properties/shaped/items/nullable",
 		"/components/schemas/Name/nullable",
 	}, openapitest.PointersOf(diags, diag.InferredNullable))
-	assert.Empty(t, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads the keyword, so none is unknown")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Holder/properties/notNullable/nullable"},
+		openapitest.PointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads only a true, so a false is unknown")
+	notNullable := props["notNullable"]
+	require.Contains(t, notNullable.Unmodeled, "openapi:nullable")
+	assert.Equal(t, ir.ReasonOutOfScope, notNullable.Unmodeled["openapi:nullable"].Reason)
+	assert.JSONEq(t, "false", string(notNullable.Unmodeled["openapi:nullable"].Value))
 }
 
 // assertNullableKeyword30 pins each 3.0 shape the declared reading gives no
@@ -306,10 +311,11 @@ func TestNullableInference_AKeywordIsReportedOnceAtItself(t *testing.T) {
 
 // TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine pins the policy
 // off: a `nullable` in a 3.1 schema is a keyword that dialect does not define,
-// kept verbatim where any unknown keyword is and reported as one. A 3.0
+// kept verbatim where any unknown keyword is and reported as one. With the
+// policy on it keeps only the one the policy does not read, a `false`. A 3.0
 // schema's nullable, one beside its $ref included, is read by its declared
-// effect instead, and the policy on reads every one, so neither keeps anything.
-// The one beside a 3.0 $ref is still a later minor's construct.
+// effect instead, so it keeps nothing. The one beside a 3.0 $ref is still a
+// later minor's construct.
 func TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T) {
 	t.Parallel()
 	const rest = "    N: {type: string, nullable: false}\n"
@@ -323,7 +329,7 @@ func TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T
 			"/components/schemas/N/nullable",
 		}},
 		{"3.0 off", "3.0.3", true, nil},
-		{"3.1 on", "3.1.0", false, nil},
+		{"3.1 on", "3.1.0", false, []jsontext.Pointer{"/components/schemas/N/nullable"}},
 		{"3.0 on", "3.0.3", false, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

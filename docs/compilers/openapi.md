@@ -2056,12 +2056,17 @@ such null is reported once as an info `openapi/inferred-nullable`, at the `nulla
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
 whatever references its schema. The policy is the Go option `Options.NullableInference`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
-its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
-`openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
-model does not name. Under either policy only the boolean `true` states a null: a `nullable`
-holding a string states none at any version, a YAML 1.1 truth word the parser decodes as true, such
-as `"yes"` or a plain `on`, among them, and neither does any other value that is no boolean.
+`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema that the policy
+does not read is a keyword its dialect does not define, kept verbatim under `openapi:nullable`
+(`out_of_scope`) with an info `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys)
+keeps a keyword the schema model does not name: every one with the policy off, and with it on every
+one that is not the boolean `true`, a `false` among them, wherever it is written, beside a `$ref`
+included. Written on an inline `allOf` branch or a union's null branch, it keeps the branch whole
+as the policy off does, since no fold reads it. Under either policy only the boolean `true` states a
+null: a `nullable` holding a string states none at any version, a YAML 1.1 truth word the parser
+decodes as true, such as `"yes"` or a plain `on`, among them, and neither does any other value that
+is no boolean. A `null` written for `nullable` is the keyword left out
+([`null-keywords`](#null-keywords)).
 
 Whether a 3.0 `nullable: true` has an effect is a fact of the specification, not of the policy: with
 no `type` written in the same Schema Object, a `type` written `null` being none, it has none, beside
@@ -2086,7 +2091,10 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `oas.TestCheck_NullableAppliesBesideAType`,
   `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
   `schema.TestNullableInference_OnlyABooleanStatesNull`,
-  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`
+  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`,
+  `e2e.TestNullable_AValueThePolicyDoesNotReadIsKeptAtOpenAPI31`,
+  `e2e.TestNullable_AValueNoPolicyReadsIsKeptOnANullBranch`,
+  `e2e.TestNullable_OpenAPI30KeepsNoValueAsAnUnknownKeyword`
 
 ### `schema-examples`
 
@@ -3585,7 +3593,7 @@ union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape onl
 which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
 keeps the body where a branch composes it (shape 3).
 
-A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 4 written on an
+A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
 `allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
@@ -4343,7 +4351,10 @@ composed as a model where no conjunct declares a kind, as one over two `$ref`s t
 spelling: `{allOf: [{properties: …}, {items: …}]}` is a marked composition keeping the `items`
 entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
 already says what a keyword does, as a union lowered alone restating the body's `type` or a body
-whose union branches restate it, reads the kind the policy lowers what it compares to. A bound
+whose union branches restate it, reads the kind what it compares to lowers to, whether its
+conjuncts declare it or the policy reads it: keywords written with no `type` beside branches each
+declaring an object are that object, so branches restating it only narrow the body under either
+policy, as beside `type: object`. A bound
 beside such a schema is placed by the kind it lowers to, and the reading decides whether the schema
 names no kind. Where a conjunct beside it names kinds, as a union kept
 beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords name a kind only
@@ -4666,7 +4677,8 @@ declares no type, unlike `type: "null"`, and nothing is kept verbatim for want o
 `default` and `example` hold an instance, of which `null` is one, so a `null` there is that value
 ([`enum-const`](#enum-const), [`nullable`](#nullable)), as an `enum` member is. A keyword of no
 vocabulary has no type to break and is kept with the `null` it wrote, as
-[`unknown-keys`](#unknown-keys) keeps any value. The load phase reports each such `null` at the node
+[`unknown-keys`](#unknown-keys) keeps any value. An empty dependency map is read the same way
+([`validation-only`](#validation-only)). The load phase reports each such `null` at the node
 as the warning a field left out draws ([`validation`](#validation)); the lowering reports nothing
 of its own, since reading it so loses nothing.
 
@@ -4934,6 +4946,16 @@ leave the keyword live, and an entry holding only unevaluated keywords holds liv
 `allOf` branch writes stays with the branch kept whole, whatever its form
 ([`allof-inline-residue`](#allof-inline-residue)), since at the position it would exempt what the
 other conjuncts evaluate.
+A keyword whose value is the empty collection JSON Schema equates with its absence states nothing,
+and is read as the keyword left out, as [`null-keywords`](#null-keywords) reads a `null`: nothing
+is typed, kept or reported for it, and the schema lowers as it does with the key removed.
+`dependentSchemas`, `dependentRequired` and a draft's `dependencies` are read so when written as a
+mapping with no entry, at every position, an inline `allOf` branch writing only one included, which
+says nothing for the position and is no conjunct another branch's keyword disagrees with. Where
+the dialect defines no `dependencies`, an empty one is an unknown keyword like any other
+([`unknown-keys`](#unknown-keys)), as `definitions` is, and kept whatever it holds. A keyword
+holding a schema, `not`, `if`, `then`, `else`, `propertyNames`, `contains` and the unevaluated
+keywords, states something when it holds `{}`, the schema every instance satisfies, and is kept.
 Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
 4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
@@ -4957,7 +4979,11 @@ document lands on, hop by hop, as it would one a lowered keyword names.
   `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
   `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
   `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
-  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`
+  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`,
+  `annotation.TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry`,
+  `statement.TestKey_DefinedTellsAKeywordTheRowsDefine`,
+  `e2e.TestEmptyDependencyMap_IsTheKeywordLeftOut`,
+  `e2e.TestEmptyDependencyMap_AnEntryWritingOnlyOneSaysNothing`
 
 ### `dynamic-ref`
 
@@ -5241,7 +5267,8 @@ reader to notice, and a finding that stands is listed with its reason in the pac
 `morphic-harness -cases full` asks it of every case, an entry written before the `$ref` among them,
 and reports what the record does not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
-another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the positions
+another would still pass. A dependency map with no entry is no value in that sense but the keyword
+left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions
 they land on are lowered ([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
@@ -6812,8 +6839,8 @@ to ignore a keyword it does not know, and a position that lowers to a shared nod
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
 `$dynamicRef`, and 2019-09's `$recursiveAnchor` and `$recursiveRef` where the schema's dialect
 defines them, are decided elsewhere and left out. A keyword the model names and the dialect the
-schema is read in does not define, which only `nullable` is, with the nullable-inference policy off
-([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
+schema is read in does not define, which only `nullable` is, where the nullable-inference policy is
+off or does not read its value ([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
 object.
