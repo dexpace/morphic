@@ -21,7 +21,7 @@ import (
 func TestPreserveUnhomedKeywords_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	got, diags := preserveUnhomedKeywords(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "t/anon/missing", dispatch{})
+	got, diags := preserveUnhomedKeywords(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "/p", "t/anon/missing", dispatch{})
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }

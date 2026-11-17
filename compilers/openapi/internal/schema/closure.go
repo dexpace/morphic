@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -37,9 +38,10 @@ func (c closure) entryAt(at jsontext.Pointer) bool {
 // That object is the position, or else the one inline entry writing a catch-all
 // keyword, so the model's catch-all has one source. A $ref entry's members
 // beside its $ref count; its target's do not.
-func closerOf(s *statement.Schema, comp allOfComposition) closure {
+func closerOf(c lowering.Ctx, s *statement.Schema, comp allOfComposition) closure {
 	var entry, declarer closure
 	entries, declarers := 0, 0
+	distributes := unionDeclares(c, s)
 	for _, e := range comp.branches {
 		if e.schema.Truth != statement.Stated {
 			continue
@@ -53,6 +55,7 @@ func closerOf(s *statement.Schema, comp allOfComposition) closure {
 			declarers++
 			declarer = at
 		}
+		distributes = distributes || unionDeclares(c, e.schema.Schema)
 	}
 
 	switch {
@@ -61,7 +64,7 @@ func closerOf(s *statement.Schema, comp allOfComposition) closure {
 			return closure{schema: s, at: comp.pointer, own: true}
 		}
 		return closure{}
-	case entries != 1 || declarers > 1 || (declarers == 1 && declarer != entry) || declaresMembers(s):
+	case entries != 1 || declarers > 1 || (declarers == 1 && declarer != entry) || declaresMembers(s) || distributes:
 		return closure{}
 	default:
 		return entry
@@ -79,6 +82,20 @@ func writesCatchAll(s *statement.Schema) bool {
 // leaves alone: a property, or a pattern.
 func declaresMembers(s *statement.Schema) bool {
 	return len(objectIn(s).Properties) > 0 || len(objectIn(s).PatternProperties) > 0
+}
+
+// unionDeclares reports whether an inline branch of the oneOf or anyOf s
+// writes declares a member, which the union distributes into the composed
+// model, where an entry's additionalProperties applies to it as well.
+func unionDeclares(c lowering.Ctx, s *statement.Schema) bool {
+	choice := choiceIn(s)
+	for _, sub := range slices.Concat(choice.OneOf, choice.AnyOf) {
+		b := c.Statements().Sub(sub)
+		if b.Truth == statement.Stated && b.Ref == nil && declaresMembers(b.Schema) {
+			return true
+		}
+	}
+	return false
 }
 
 // catchAllKeyword reports whether keyword is one the in-place merge takes off

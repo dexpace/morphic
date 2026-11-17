@@ -22,10 +22,5 @@ func Reasons() map[string]string {
 			"and beside an allOf of it keeps a model where the target is no object",
 		"union-beside-ref": "#2010: a union beside a $ref is kept verbatim where beside an allOf of that $ref it is " +
 			"consumed, distributed or read as validation logic",
-		"entry-value-set": "#2017: an enum or const on an inline allOf entry builds its node at the entry's " +
-			"pointer where beside the allOf it builds it at the position's",
-		"entry-object-value": "#2019: an enum of objects or a const object on an inline allOf entry over an " +
-			"object is kept verbatim on a model over it, where beside the allOf it lowers the value set and " +
-			"keeps the allOf",
 	}
 }

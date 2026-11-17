@@ -13,14 +13,14 @@ components:
     # lower in silence.
     #
     # allOf beside enum is the narrowing idiom: a Base whose value set this
-    # declaration restricts. The enum is the value and the composition is kept,
-    # so the relationship to Base stays recoverable.
+    # declaration restricts. The enum is the value and the $ref it beats is
+    # kept, so the relationship to Base stays recoverable.
     NarrowedEnum:
       allOf:
         - {$ref: '#/components/schemas/Base'}
       enum: [a, b]
-    # The same shape with a single value rather than a set. const outranks both
-    # of the others, so this keeps the composition against the Literal.
+    # The same shape with a single value rather than a set: the Literal keeps
+    # the $ref it beats.
     NarrowedConst:
       allOf:
         - {$ref: '#/components/schemas/Base'}

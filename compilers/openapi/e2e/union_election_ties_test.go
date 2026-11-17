@@ -90,7 +90,8 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 	})
 	requireErrorsAndWarnings(t, diags, nil)
 	use := requireScalarOver(t, doc, "Refs", "t/anon/components/schemas/Refs/allOf/0")
-	requireKeptEntries(t, use, "the entry whose text is the greater, the bare $ref", 1)
+	assert.Equal(t, degradedKept("openapi:$ref"), keptOn(use), "the entry whose text is the greater, the bare $ref")
+	assert.Equal(t, entryPointer("Refs", 1), use.Unmodeled["openapi:$ref"].Provenance.Pointer)
 	requireOneInfoAtEach(t, diags, "Refs", "the bare $ref", 1)
 }
 
@@ -98,8 +99,8 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 // entries admitting alike, the pick turns on the keywords a node reads from
 // its principal alone, whichever is written first: the one writing all the
 // other does and more is the principal, keeping nothing of its own, and two
-// writing them otherwise elect neither, the position the top type keeping
-// both.
+// writing them otherwise, or writing one keyword with values that differ,
+// elect neither, the position the top type keeping both.
 func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -113,6 +114,10 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 			"{type: string, contentMediaType: application/json, contentSchema: {type: object}}", ir.KindScalar, []int{0}},
 		{"OtherContent", "{type: string, contentEncoding: base64}",
 			"{type: string, contentMediaType: application/json}", ir.KindPrimitive, []int{0, 1}},
+		{"DisagreeingContent", "{type: string, contentMediaType: application/json}",
+			"{type: string, contentMediaType: text/plain}", ir.KindPrimitive, []int{0, 1}},
+		{"DisagreeingTuple", "{type: array, prefixItems: [{type: string}]}",
+			"{type: array, prefixItems: [{type: integer}]}", ir.KindPrimitive, []int{0, 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -145,11 +150,8 @@ func TestElection_ValueSetsAlikeGoByTheirText(t *testing.T) {
 				return pairSchemas(swapped, "Sets", "{enum: [a, b]}", "{enum: [b, a], description: d}", "")
 			})
 			requireErrorsAndWarnings(t, diags, nil)
-			use, ok := kindNode(t, doc, componentID("Sets")).(*ir.Scalar)
-			require.True(t, ok)
-			require.NotNil(t, use.Base)
-			enum, ok := kindNode(t, doc, use.Base.Target).(*ir.Enum)
-			require.True(t, ok)
+			enum, ok := kindNode(t, doc, componentID("Sets")).(*ir.Enum)
+			require.True(t, ok, "the value set stands at the position")
 			require.Len(t, enum.Members, 2)
 			assert.Equal(t, "b", enum.Members[0].Value.Str, "the entry writing the description is the least text")
 			assert.Zero(t, degradedInfosAt(diags, "Sets"))
