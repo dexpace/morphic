@@ -98,7 +98,7 @@ var schemaRecursion = []string{
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerPrincipalValueSet", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
-	"lowerTyped", "lowerUnion",
+	"lowerTyped", "lowerUndecided", "lowerUnion",
 	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "outcomeKeeps.recordOn", "patternProps",
 	"preserveUnhomedKeywords", "preserveUnmergedBranch", "preserveVariantsUnhomed", "recordEntryUnhomed",
 	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "recordUnhomedKeywords", "refSiteRef", "refTypeRef",

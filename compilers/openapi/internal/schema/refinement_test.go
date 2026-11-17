@@ -1308,7 +1308,8 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
 // TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone pins two
 // conjuncts naming kinds neither of which lies within the other, as many
 // conjuncts lying within each: no rule ranks them, so neither is the
-// principal, and in either order the position is the top type keeping both
+// principal, and in either order the position is the primitive of the kinds
+// they admit together, or the top type where those are an array, keeping both
 // with a report at each: whole where they write one keyword apart, else each
 // keyword under its own key. Beside the allOf, the keywords there decide, as
 // they do wherever no branch is elected.
@@ -1316,16 +1317,21 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		a, b string
-		// keys are what the top type keeps, both branches whole where nil.
+		// prim is what the position is.
+		prim ir.PrimKind
+		// keys are what it keeps, both branches whole where nil.
 		keys []string
 	}{
-		"two hoisting formats":             {"{type: string, format: email}", "{type: string, format: hostname}", nil},
-		"two table formats":                {"{type: string, format: date}", "{type: string, format: uuid}", nil},
-		"a format and a bare wider one":    {"{type: integer, format: int32}", "{type: integer, format: uint32}", nil},
-		"an overlap of value sets":         {"{enum: [a, b]}", "{enum: [b, c]}", nil},
-		"two element types":                {"{type: array, items: {type: string}}", "{type: array, items: {type: integer}}", nil},
-		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}", []string{"openapi:enum", "openapi:type"}},
-		"two type lists":                   {"{type: [string, boolean]}", "{type: [string, integer]}", nil},
+		"two hoisting formats": {"{type: string, format: email}", "{type: string, format: hostname}", ir.PrimString, nil},
+		"two table formats":    {"{type: string, format: date}", "{type: string, format: uuid}", ir.PrimString, nil},
+		"a format and a bare wider one": {"{type: integer, format: int32}", "{type: integer, format: uint32}",
+			ir.PrimInteger, nil},
+		"an overlap of value sets": {"{enum: [a, b]}", "{enum: [b, c]}", ir.PrimString, nil},
+		"two element types": {"{type: array, items: {type: string}}", "{type: array, items: {type: integer}}",
+			ir.PrimAny, nil},
+		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}", ir.PrimString,
+			[]string{"openapi:enum", "openapi:type"}},
+		"two type lists": {"{type: [string, boolean]}", "{type: [string, integer]}", ir.PrimString, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1334,7 +1340,7 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 					"      properties:\n        f: {allOf: ["+branches+"]}\n"))
 				openapitest.RequireNoErrorDiags(t, diags)
 				p := propertyOf(t, doc, "Holder", "f")
-				assert.Equal(t, ir.PrimTypeID(ir.PrimAny), p.Type.Target, branches)
+				assert.Equal(t, ir.PrimTypeID(tc.prim), p.Type.Target, branches)
 				keys := tc.keys
 				if keys == nil {
 					keys = []string{"openapi:allOf/0", "openapi:allOf/1"}
@@ -1361,7 +1367,7 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 // TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads pins ties between
 // conjuncts admitting alike, in either order: the one writing a keyword its
 // node reads from it alone is the principal, keeping nothing; two writing such
-// keywords otherwise elect neither, the top type keeping both; a union written
+// keywords otherwise elect neither, the string both admit keeping both; a union written
 // twice is one, kept nowhere; and words beside the allOf tying with a branch
 // stand for the position, the branch folding, so a value set there is the
 // position's own node.
@@ -1380,7 +1386,7 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 		// The type both write alike is kept once; each content keyword is
 		// reported at itself, and each branch's type at the branch.
 		"each writes other": {"", "{type: string, contentEncoding: base64}", "{type: string, contentMediaType: text/plain}",
-			3, true, "", 4},
+			3, false, ir.PrimTypeID(ir.PrimString), 4},
 		"a union written twice":  {"", union, union, 0, false, "", 0},
 		"words beside the allOf": {"type: string, ", "{type: string, description: d}", "{type: string, minLength: 1}", 0, false, "", 0},
 		"a set beside the allOf": {"enum: [a, b], ", "{enum: [b, a]}", "{enum: [a, b], description: d}", 0, false,

@@ -994,10 +994,65 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	return diags
 }
 
+// lowerUndecided lowers s, written at pointer, which writes no kind and no
+// shape keyword, by the types its allOf, refining electing no entry, admits
+// (undecidedTypes), as a type list naming them lowers, and to the top type
+// where it admits none of a primitive's kinds alone.
+func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
+) (ir.TypeID, []ir.Diagnostic) {
+	types := undecidedTypes(c, s, pointer)
+	switch len(types) {
+	case 0:
+		return preserveUnhomedKeywords(c, ts, s, pointer, pointer, ts.PrimID(ir.PrimAny), d)
+	case 1:
+		id, diags := lowerTyped(c, ts, depth, s, pointer, types[0])
+		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, d)
+		return owner, append(diags, ownDiags...)
+	default:
+		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false)
+	}
+}
+
+// primitiveKinds are the kinds a primitive holds.
+const primitiveKinds = kindString | kindNumber | kindBoolean
+
+// undecidedTypes returns the types s, written at pointer, lowers by where its
+// allOf refines electing no entry: the kinds its conjuncts admit together, null
+// aside (lowersTo), in one order whatever the order written. It returns none
+// where they are none, or hold an object or an array, whose shape no entry was
+// elected to give, every kind among them, or the kind-inference policy read
+// them, as it reads only those: the position is then the top type.
+func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.Kind {
+	r, refines := refinementOf(c, s, pointer)
+	if !refines || r.principal != nil {
+		return nil
+	}
+	kinds, inferred := lowersTo(c, c.Statements().Read(s))
+	kinds &^= kindNull
+	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
+		return nil
+	}
+	var out []statement.Kind
+	if kinds&kindString != 0 {
+		out = append(out, statement.KindString)
+	}
+	switch kinds & kindNumber {
+	case 0:
+	case kindInteger:
+		out = append(out, statement.KindInteger)
+	default:
+		out = append(out, statement.KindNumber)
+	}
+	if kinds&kindBoolean != 0 {
+		out = append(out, statement.KindBoolean)
+	}
+	return out
+}
+
 // undecidedShape describes what a refinement electing no entry lowers to, for
 // the report of what an entry of it keeps.
 const undecidedShape = "what the keywords beside it say, as no entry of it is the one it lowers from " +
-	"(the top type where they name no kind)"
+	"(where they name no kind, the primitive kinds its entries admit together, else the top type)"
 
 // keptRef is the key a kept $ref conjunct is kept under, and where the entry
 // is said to be written.
@@ -1046,8 +1101,9 @@ func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
 	}
 	of := comp.subject()
 	if undecided {
-		return "no conjunct of " + of + " is the one it lowers from, so it lowered by the keywords beside them, the " +
-			"top type where those name no kind, and nothing there homes what this inline branch adds; the branch (" +
+		return "no conjunct of " + of + " is the one it lowers from, so it lowered by the keywords beside them, " +
+			"where those name no kind by the primitive kinds its entries admit together, else to the top type, and " +
+			"nothing there homes what this inline branch adds; the branch (" +
 			strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 	}
 	return of + " lowered to a use of one of its conjuncts, which has no home for what this inline branch " +

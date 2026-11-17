@@ -2315,8 +2315,14 @@ writing both: `{allOf: [{anyOf: [{type: number}, {type: boolean}]}, {oneOf: [{ty
 integer}]}]}` is a use of the `oneOf`, keeping the `anyOf`. Two unions of one keyword elect neither,
 as no rule ranks their branches, and nor do words neither of which lies within the other: two
 formats neither of which narrows the other, two `items` saying different things, or value sets that
-only overlap. The position then lowers by the keywords beside the `allOf`, the top type where they
-name no kind, keeping each entry with an info. Words admitting alike part only where a node reads a
+only overlap. The position then lowers by the keywords beside the `allOf`, keeping each entry with
+an info. Where they name no kind, it is what its conjuncts admit together, null aside, as a `type`
+list naming those kinds lowers, where those are a string, a number or a boolean alone or together:
+`{allOf: [{type: string, format: email}, {type: string, format: uuid}]}` is a `string`, two type lists
+sharing a string and an integer the `Union` of the two, two `enum`s the kinds each holds a member
+of, as `{allOf: [{enum: [true, a]}, {enum: [true, b]}]}` is the `Union` of a string and a boolean. Where they admit an object or an array, every kind among them, it is the top type, as no entry
+was elected to give that shape and a node of the kind would assert members or items none states.
+Words admitting alike part only where a node reads a
 keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
 vocabulary: of those writing every such keyword another writes, and alike, one is elected, and
 where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand
@@ -2461,6 +2467,10 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_ARefToAPrincipalNamesItsTypedNode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone`,
+  `schema.TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit`,
+  `schema.TestRefinementUndecided_SeveralSharedKindsAreTheirUnion`,
+  `schema.TestRefinementUndecided_ANullTheEntriesAllAdmitStays`,
+  `schema.TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged`,
   `schema.TestElect_ComparesEachPairOnce`,
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
   `e2e.TestElection_TwoUnionsOfOneKeywordElectNeither`,
