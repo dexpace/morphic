@@ -219,12 +219,18 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Union)
 	require.True(t, ok, "an inline branch distributes the body as a $ref branch does")
 	require.Len(t, mixed.Variants, 2)
-	for i, branch := range []ir.TypeID{componentID("A"), "t/prim/string"} {
+	for i := range mixed.Variants {
 		v, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d composes as a model", i)
 		require.Len(t, v.Properties, 1, "the body rides on every variant")
-		require.NotNil(t, v.Base)
-		assert.Equal(t, branch, v.Base.Target, "the branch is carried as written")
+		if i == 0 {
+			require.NotNil(t, v.Base)
+			assert.Equal(t, componentID("A"), v.Base.Target, "an object branch is the variant's base")
+			continue
+		}
+		assert.Nil(t, v.Base, "a model composes no string")
+		require.Contains(t, v.Unmodeled, "openapi:oneOf/1", "so the variant keeps the branch")
+		assert.JSONEq(t, `{"type":"string"}`, string(v.Unmodeled["openapi:oneOf/1"].Value))
 	}
 
 	bounded, ok := doc.Types[componentID("BoundedKinds")].(*ir.Scalar)

@@ -218,6 +218,18 @@
       "anonymous": true,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MixedKinds/oneOf/1"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MixedKinds/oneOf/1"
@@ -251,10 +263,6 @@
           }
         }
       ],
-      "base": {
-        "target": "t/prim/string",
-        "nullable": false
-      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -709,6 +717,15 @@
     },
     {
       "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this branch is not an object alone, and the model distributing the body over it composes only models, so the branch is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedKinds/oneOf/1"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/composition-lowering",
       "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
       "provenance": {
@@ -730,7 +747,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "1486e94170f16b4d73de46cf2421584dc29e33c8753d8ecd8a3d0dcb27e3f491"
+      "hash": "7ae4016596ea9e5d2ea73bf20294a8ac8a9ec45e4f58fd4ca7200bb11351f926"
     }
   ]
 }

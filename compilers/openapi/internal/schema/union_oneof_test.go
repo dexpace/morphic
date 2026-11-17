@@ -354,35 +354,108 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	assert.Equal(t, "combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
 }
 
-// TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten pins what
-// docs/ir/models.md#composition-beside-a-union says Base/Mixins may name. JSON
-// Schema lets a composition conjoin any schema, so a branch can reference a
-// scalar, an enum or another union; the referent is carried as written, because
-// narrowing it would mean dropping a branch the source declared. fillAllOf
-// classifies an allOf entry the same way.
-func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
+// TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant pins what
+// docs/ir/models.md#composition-entries says Base/Mixins may name: a variant
+// composes its branch as an allOf entry is composed, only where the branch is
+// an object alone. A branch referencing a scalar or an enum is kept verbatim on
+// its variant under its path, with an info at the branch, and its variant holds
+// no property count, which only the object's variant takes; the union keeps
+// nothing. The branches' own nodes still lower.
+func TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Scalar: {type: string, minLength: 2}
     Choice: {enum: [a, b]}
+    A: {type: object, properties: {a: {type: string}}}
     Combo:
       type: object
       properties: {kind: {type: string}}
-      oneOf: [{$ref: '#/components/schemas/Scalar'}, {$ref: '#/components/schemas/Choice'}]
+      minProperties: 1
+      oneOf: [{$ref: '#/components/schemas/Scalar'}, {$ref: '#/components/schemas/Choice'}, {$ref: '#/components/schemas/A'}]
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 2)
+	require.Len(t, u.Variants, 3)
+	assert.Empty(t, u.Unmodeled, "the object's variant holds the count")
 	for i, want := range []string{"Scalar", "Choice"} {
 		v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok)
-		require.NotNil(t, v.Base, "variant %d conjoins its branch", i)
-		assert.Equal(t, componentID(want), v.Base.Target)
+		assert.Nil(t, v.Base, "variant %d composes no %s", i, want)
+		assert.Empty(t, v.Mixins)
+		assert.Nil(t, v.Constraints, "variant %d admits no object to count", i)
+		key := fmt.Sprintf("openapi:oneOf/%d", i)
+		require.Contains(t, v.Unmodeled, key)
+		assert.JSONEq(t, `{"$ref":"#/components/schemas/`+want+`"}`, string(v.Unmodeled[key].Value))
+		assert.Equal(t, ir.ReasonDegradedLowering, v.Unmodeled[key].Reason)
+		assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, fmt.Sprintf("/components/schemas/Combo/oneOf/%d", i)), 1)
 	}
+	object, ok := doc.Types[u.Variants[2].Type.Target].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, object.Base)
+	assert.Equal(t, componentID("A"), object.Base.Target)
+	assert.Empty(t, object.Unmodeled)
+	require.NotNil(t, object.Constraints)
+	require.NotNil(t, object.Constraints.MinProps)
+	assert.Equal(t, int64(1), *object.Constraints.MinProps)
 	assert.IsType(t, &ir.Scalar{}, doc.Types[componentID("Scalar")])
 	assert.IsType(t, &ir.Enum{}, doc.Types[componentID("Choice")])
+}
+
+// TestOneOf_CoDeclaredUnpreservableBranchIsNotAnnounced pins the pairing
+// GitHub #144 exists for at a variant's kept branch: a branch that fails to
+// convert is reported as such, and nothing claims it was kept.
+func TestOneOf_CoDeclaredUnpreservableBranchIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    Combo:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/A'}, {type: string, x-t: `+unpreservableValue+`}]
+`))
+
+	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	v, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, v.Base)
+	assert.NotContains(t, v.Unmodeled, "openapi:oneOf/1", "the conversion failed, so nothing was kept")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.Empty(t, openapitest.PreservationClaims(diags),
+		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// TestOneOf_CoDeclaredBranchReadCutShortIsComposed pins the one branch a
+// variant composes though its kinds are not read as an object: one whose read
+// is cut short, here by a loop of $refs, which leaves the composition as it is,
+// as an allOf's $ref entry to such a target is composed. The variant holds the
+// property count, which the read cannot exclude.
+func TestOneOf_CoDeclaredBranchReadCutShortIsComposed(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    Loop1: {$ref: '#/components/schemas/Loop2'}
+    Loop2: {$ref: '#/components/schemas/Loop1'}
+    Combo:
+      type: object
+      properties: {kind: {type: string}}
+      minProperties: 1
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Loop1'}]
+`))
+	require.True(t, openapitest.HasDiag(diags, diag.CyclicRef), "the loop is reported where it is")
+
+	u, ok := typeByName(doc, "Combo").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	v, ok := doc.Types[u.Variants[1].Type.Target].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, v.Base)
+	assert.Equal(t, componentID("Loop1"), v.Base.Target)
+	assert.Empty(t, v.Unmodeled)
+	require.NotNil(t, v.Constraints)
+	require.NotNil(t, v.Constraints.MinProps)
+	assert.Equal(t, int64(1), *v.Constraints.MinProps)
 }
 
 // TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed covers the branches
