@@ -949,7 +949,8 @@ it sees. Changes made together in one bump are listed together under it.
   value set lowers to stands at the position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
   carrier holding the `$ref` it narrows; and a `$ref` conjunct a refinement does not lower is kept
   under `openapi:$ref`, or `openapi:$ref/<i>` by reference text where several are, where it was kept
-  under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set. A keyword an inline
+  under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set, an `allOf` of `$ref`
+  entries alone the election of competing keywords passes over among them. A keyword an inline
   `allOf` entry writes that no reader consumes is kept under its own key, `openapi:<keyword>`, with
   the reason and the report it has beside the `allOf`, its provenance the keyword on the entry, where
   the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; an inline entry is now

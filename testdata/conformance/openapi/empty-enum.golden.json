@@ -178,16 +178,12 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/Base"
-            }
-          ],
+          "value": "#/components/schemas/Base",
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/BesideAllOf/allOf"
+            "pointer": "/components/schemas/BesideAllOf/allOf/0"
           }
         }
       },

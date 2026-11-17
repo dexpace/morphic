@@ -80,8 +80,9 @@ func TestValueSet_TwoRefsWrittenAlikeAreKeptOnce(t *testing.T) {
 
 // TestValueSet_AnEmptyEnumBesideACompositionIsNotElected pins the value set
 // whose own keywords leave it no value: it is no set to lower, so the allOf
-// beside it composes and the election of competing keywords keeps it whole,
-// and a use of the position reads through neither $ref.
+// beside it composes and the election of competing keywords keeps each $ref
+// it passes over by reference text, and a use of the position reads through
+// neither $ref.
 func TestValueSet_AnEmptyEnumBesideACompositionIsNotElected(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}, description: a}
@@ -95,7 +96,8 @@ func TestValueSet_AnEmptyEnumBesideACompositionIsNotElected(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	en, ok := typeByName(doc, "S").(*ir.Enum)
 	require.True(t, ok, "got %T", typeByName(doc, "S"))
-	assert.Equal(t, []string{"openapi:allOf"}, unmodeledKeys(en.Unmodeled))
+	assert.Equal(t, []string{"openapi:$ref/0", "openapi:$ref/1"}, unmodeledKeys(en.Unmodeled))
+	assert.JSONEq(t, `"#/components/schemas/B"`, string(en.Unmodeled["openapi:$ref/1"].Value))
 	assert.Empty(t, propertyOf(t, doc, "Holder", "f").Docs.Description)
 }
 

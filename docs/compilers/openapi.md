@@ -2292,7 +2292,9 @@ beside the `allOf` first, so long as its own keywords leave it a value. So `{all
 `$ref` kept with an info saying they share no value, and where their instance types share none the
 warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names the value set it lowered
 as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
-set is elected: one leaving itself no value, as `enum: []`, or two neither lying within the other.
+set is elected, one leaving itself no value, as `enum: []`, or two neither lying within the other,
+and the `allOf` writes an inline entry: one of `$ref` entries alone keeps each as below then too, as
+the `$ref` written beside the value set is kept.
 
 The principal is chosen from the whole set:
 
@@ -4075,8 +4077,10 @@ an `allOf` that refines being no such sibling but a conjunction the unions are c
 ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
-each conjunct it beats kept as that rule keeps it, so the election passes over the `allOf` whole
-only where no value set is elected, one whose own keywords leave it no value among them. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+each conjunct it beats kept as that rule keeps it, so the election passes over the `allOf` only where
+no value set is elected, one whose own keywords leave it no value among them, keeping it whole where
+it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, as the `$ref` beside it
+is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
 an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
@@ -4089,7 +4093,8 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
   `schema.TestUnionCombinators_UnpreservableIsNotAnnounced`,
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
-  `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`
+  `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
+  `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
 ### `discriminator`
 
