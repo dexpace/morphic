@@ -2525,8 +2525,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AShapelessUnionBesideIsValidationLogic`,
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
-- Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
-  consumes (#1067).
+- Status: partly built: an elected inline union stands at its entry, so a bound beside it is held
+  by its use, not by `Union.Constraints` (#2053).
 
 ### `allof-beside-ref`
 
