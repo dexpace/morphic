@@ -185,7 +185,13 @@ func failedEntry(s *Schema) bool {
 	}
 	at := string(s.At.Pointer)
 	i := strings.LastIndexByte(at, '/')
-	return i >= 0 && strings.HasSuffix(at[:i], "/allOf")
+	if i < 0 || !strings.HasSuffix(at[:i], "/allOf") {
+		return false
+	}
+	// An entry's last token is its index: an items, a not or a property
+	// under a property named allOf is no entry.
+	_, err := strconv.Atoi(at[i+1:])
+	return err == nil
 }
 
 // refKey returns the place in s, which writes a reference, of the key naming
