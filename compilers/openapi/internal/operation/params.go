@@ -94,7 +94,7 @@ func lowerParameter(c service.Ctx, w walk, id ir.ParamID, p *soa.Parameter, pptr
 		// The media type serializes the value, so no style is stated for it.
 		binding.Style = ""
 	}
-	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	diags = append(diags, fillParamDetail(c, &param, p, pptr, elected)...)
 	if p.AllowReserved != nil {
 		return param, binding, diags
 	}
@@ -151,14 +151,14 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 	// schema.UseOf reads the end of a $ref chain, since one hop would take the
 	// default and description off an intermediate reference instead of the
 	// schema that declares them.
-	use := schema.UseOf(c.Ctx, ts, c.Statements().Of(js), param.Type, pointer)
+	use := schema.UseOf(c.Ctx, c.Statements().Of(js), param.Type, pointer)
 	def, diags := use.Default(c.Ctx, c.Statements().Of(js).Schema, pointer)
 	param.Default = def
 
 	cons, consDiags := schema.CarrierConstraintsOf(c.Ctx, ts, written, c.Statements().Of(js).Schema, use.Voices, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
-	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, written, c.Statements().Of(js).Schema, use, pointer)...)
+	diags = append(diags, fillParamSchemaAnnotations(c, param, written, c.Statements().Of(js).Schema, use, pointer)...)
 	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
 	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
 	// property and a header keep them (schema.FillPropertyDetail).
@@ -176,7 +176,7 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 // back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
 // visibility keywords stay with the position, which they describe, and its
 // voices. What has no field of the parameter goes to written.
-func fillParamSchemaAnnotations(c service.Ctx, ts *compile.Types, param *ir.Parameter, written *ir.Unmodeled,
+func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.Unmodeled,
 	s *statement.Schema, use schema.Use, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
@@ -191,7 +191,7 @@ func fillParamSchemaAnnotations(c service.Ctx, ts *compile.Types, param *ir.Para
 		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(c, written, s, pointer)...)
-	if schema.LoweredToOwnNode(c.Ctx, ts, pointer, param.Type) {
+	if schema.LoweredToOwnNode(c.Ctx, pointer, param.Type) {
 		return diags
 	}
 	a, readDiags := annotation.Read(use.SiteAt(c.Ctx, s, pointer), pointer, c.Place())
@@ -279,7 +279,7 @@ func paramHoldsResidue(keyword string) bool {
 // been preserved: a promotion reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
-func fillParamDetail(c service.Ctx, ts *compile.Types, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
+func fillParamDetail(c service.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
@@ -297,7 +297,7 @@ func fillParamDetail(c service.Ctx, ts *compile.Types, param *ir.Parameter, p *s
 	// Redaction and deprecation hold where the parameter or an object it carries
 	// states them, as they hold where its schema's $ref target does; a value is
 	// read at the nearest key writing one, and a misfit reported at each.
-	lent := c.Promoter().Lent(schema.KeysLentTo(c.Ctx, ts, c.Statements().Of(elected.js), param.Type, elected.pointer), param.Unmodeled,
+	lent := c.Promoter().Lent(schema.KeysLentTo(c.Ctx, c.Statements().Of(elected.js), param.Type, elected.pointer), param.Unmodeled,
 		elected.carries...)
 	carried := promotion.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
 	diags = append(diags, schema.PromoteUse(c.Ctx, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)

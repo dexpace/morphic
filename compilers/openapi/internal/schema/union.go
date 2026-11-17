@@ -50,7 +50,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 				return ref
 			})
 		diags = append(diags, unionDiags...)
-		cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
+		cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
 		def.Constraints = cons
 		diags = append(diags, consDiags...)
 		return def
@@ -437,7 +437,7 @@ func decorates(td ir.TypeDef) bool {
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, types []statement.Kind) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		list := typeArray{types: types, voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
+		list := typeArray{types: types, voices: positionVoices(c, s, pointer, ir.TypeRef{})}
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
@@ -859,7 +859,7 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 	inner, diags := lower(c, ts, depth, s, pointer)
 	owner := inner
-	if got, _ := ts.Lookup(c.IDs().Coordinate(pointer)); got != inner {
+	if !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: inner}) {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
@@ -945,7 +945,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
-			voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
+			voices: positionVoices(c, s, pointer, ir.TypeRef{})}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
 			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {

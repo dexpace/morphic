@@ -63,7 +63,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 ) []ir.Diagnostic {
 	// The one check covers an absent position, a boolean one, and a caller
 	// passing nil.
-	if js == nil || !stated(js.Schema) || LoweredToOwnNode(c, ts, pointer, t) {
+	if js == nil || !stated(js.Schema) || LoweredToOwnNode(c, pointer, t) {
 		return nil
 	}
 	if js.Ref == nil {
@@ -254,7 +254,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement
 	// c reads the document that declares pointer already (resolveAt), which is
 	// where the bindings place decl.
 	ref, diags := Ref(c, ts, TopLevelDepth, decl, pointer)
-	if _, ok := ts.Lookup(c.IDs().Coordinate(pointer)); ok {
+	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
 	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)

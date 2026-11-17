@@ -58,9 +58,9 @@ func LowerComponentSchemas(ctx context.Context, c lowering.Ctx, ts *compile.Type
 func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
 	s := annotation.At(js)
 	ref, diags := Ref(c, ts, TopLevelDepth, js, pointer)
-	// A body that interned the component's own node at its component ID needs no
-	// alias, and its annotations were attached where it was lowered.
-	if _, owned := ts.Lookup(c.IDs().Coordinate(pointer)); owned {
+	// A body that lowered to the component's own node needs no alias, and its
+	// annotations were attached where it was lowered.
+	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
 	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
@@ -206,7 +206,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
 	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)
-	if !keeps.holdsAny() || (home != annotation.HomeOwnNode && !LoweredToOwnNode(c, ts, pointer, ref)) {
+	if !keeps.holdsAny() || (home != annotation.HomeOwnNode && !LoweredToOwnNode(c, pointer, ref)) {
 		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
 	}
 	return ref, append(diags, keeps.recordOn(c, ts, ref.Target, schema, pointer)...)

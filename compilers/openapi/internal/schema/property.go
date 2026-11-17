@@ -27,12 +27,12 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *s
 	if js.Truth != statement.Stated {
 		return nil
 	}
-	use := UseOf(c, ts, js, p.Type, pointer)
+	use := UseOf(c, js, p.Type, pointer)
 	def, diags := use.Default(c, js.Schema, pointer)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(js.Schema).Chain(), pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, ts, p, js.Schema, use.Voices, pointer)...)
-	diags = append(diags, fillPropertyAnnotations(c, ts, p, js.Schema, use, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, p, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
@@ -84,8 +84,8 @@ func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 //
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
-func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *statement.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
-	if LoweredToOwnNode(c, ts, pointer, p.Type) {
+func fillPropertyAnnotations(c lowering.Ctx, p *ir.Property, ref *statement.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
+	if LoweredToOwnNode(c, pointer, p.Type) {
 		return nil
 	}
 	a, diags := annotation.Read(use.SiteAt(c, ref, pointer), pointer, c.Place())
@@ -139,23 +139,22 @@ func PromoteUse(c lowering.Ctx, from promotion.Referent, unmodeled ir.Unmodeled,
 // lend it, js written at pointer and lowered to t (Use.lentKeys). A position
 // owning a node lends its carrier none, as it lends no keyword: the node takes
 // them (attachDeclaredAnnotations).
-func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
-	if js.Truth != statement.Stated || LoweredToOwnNode(c, ts, pointer, t) {
+func KeysLentTo(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
+	if js.Truth != statement.Stated || LoweredToOwnNode(c, pointer, t) {
 		return promotion.Referent{}
 	}
-	return UseOf(c, ts, js, t, pointer).lentKeys(c)
+	return UseOf(c, js, t, pointer).lentKeys(c)
 }
 
-// LoweredToOwnNode reports whether the declaration at pointer, in c's
-// document, lowered to a type node of its own — the node
+// LoweredToOwnNode reports whether t, what the declaration at pointer in c's
+// document lowered to, is a type node of its own — the node
 // attachDeclaredAnnotations then fills, leaving its carrier nothing to hold.
 //
-// It asks whether the node interned at pointer is the one the declaration
-// lowered to, not merely whether a node is interned there. A $ref naming an
-// inline position hoists that position's home for its own use, in either
-// declaration order, and a carrier reading the registry alone would keep its
-// schema's annotations only when it happened to lower first.
-func LoweredToOwnNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef) bool {
-	id, owned := ts.Lookup(c.IDs().Coordinate(pointer))
-	return owned && id == t.Target
+// A position's node, whatever its kind, takes the ID its pointer names
+// (internNode), so t names it exactly when t names that ID. Nothing asks the
+// registry what is interned there: a $ref naming an inline position hoists that
+// position's home for its own use, and an answer read off the registry would
+// turn on which lowering reached the position first (GitHub #1991).
+func LoweredToOwnNode(c lowering.Ctx, pointer jsontext.Pointer, t ir.TypeRef) bool {
+	return t.Target == c.IDs().ForPointer(pointer)
 }

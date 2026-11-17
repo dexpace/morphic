@@ -344,7 +344,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
 		// inline branch on the node it owns, a type array's census included.
-		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, ts, e.pointer, target)) {
+		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, e.pointer, target)) {
 			continue
 		}
 		switch {
@@ -372,7 +372,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 // type list lowers to the bounds its variants do, each the bounds of its own type
 // (lowerTypeVariant).
 func homesAt(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
-	if !LoweredToOwnNode(c, ts, pointer, target) {
+	if !LoweredToOwnNode(c, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
 		takes := boundKinds(c, s)
 		return boundHomes{value: takes, collection: refined && r.principal != nil && takes&kindArray != 0}

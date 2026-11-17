@@ -33,7 +33,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
