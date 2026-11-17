@@ -15,47 +15,26 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// fourSpellings are the four ways a schema writes keywords k beside a $ref to
-// T: beside it, beside an allOf of it, on its allOf entry, and on an entry of
-// their own.
-func fourSpellings(k string) map[string]string {
-	ref := "$ref: '#/components/schemas/T'"
-	return map[string]string{
-		"beside the $ref":  "{" + ref + ", " + k + "}",
-		"beside an allOf":  "{allOf: [{" + ref + "}], " + k + "}",
-		"on its entry":     "{allOf: [{" + ref + ", " + k + "}]}",
-		"on an entry next": "{allOf: [{" + ref + "}, {" + k + "}]}",
-	}
-}
+// Pending: an enum on an entry next to a $ref naming no schema composes a
+// Model, where beside the $ref or the allOf it lowers as the enum keeping the
+// $ref: the failed reference cuts the read the election makes. The entry
+// writing both, `{allOf: [{$ref: Missing, enum: [a]}]}`, is read whole, its
+// keys kept by the composition (docs/compilers/openapi.md#allof-inline-residue),
+// so that spelling is held to the composition.
 
-// requireOneDocument holds the four spellings of k beside a $ref to the
-// target, at each of the sites given, to one document up to the entries'
-// pointers.
-func requireOneDocument(t *testing.T, sites []conjSite, target, k string) {
-	t.Helper()
+// TestRefConjunction_AValueSetBesideAFailedRefLowersAsBesideItsRef holds an
+// enum beside a $ref naming no schema to one document in each spelling but an
+// entry writing both, which is read whole.
+func TestRefConjunction_AValueSetBesideAFailedRefLowersAsBesideItsRef(t *testing.T) {
+	t.Parallel()
+	const target, k = "Other: {type: string}", "enum: [a]"
 	spellings := fourSpellings(k)
-	for _, site := range sites {
+	for _, site := range conjSites {
 		want := writtenAnyway(t, site, target, spellings["beside the $ref"])
-		for name, schema := range spellings {
-			got := writtenAnyway(t, site, target, schema)
+		for _, name := range []string{"beside an allOf", "on an entry next"} {
+			got := writtenAnyway(t, site, target, spellings[name])
 			assert.Empty(t, cmp.Diff(want, got, cmp.AllowUnexported(entryWritten{})), "%s, %s", site.name, name)
 		}
-	}
-}
-
-// Pending: the election reads a conjunct's value keywords together, so an
-// entry writing a const and an enum sharing no value, or an enum beside a
-// $ref naming no schema, states no value set, and the allOf composes a Model
-// over a string where the value set beside the $ref or the allOf lowers as
-// the const, or the enum, keeping the $ref.
-
-// TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef holds the four
-// spellings of a value set the election of competing keywords decides beside
-// a $ref to one document, at every site.
-func TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef(t *testing.T) {
-	t.Parallel()
-	for _, tc := range passedOverRefs {
-		requireOneDocument(t, conjSites, tc.target, tc.keywords)
 	}
 }
 

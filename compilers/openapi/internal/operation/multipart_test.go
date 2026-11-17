@@ -348,8 +348,9 @@ components:
 // models declare apart, a file and a list of files, to the member the body
 // declares for it (docs/compilers/openapi.md#allof-redeclared-property): one
 // key whichever the allOf lists last, with the flags read off the type the
-// member keeps, the later entry's, as no value is both, which is reported at
-// the entry that lost. Both are files, so Filename shows nothing either way.
+// member keeps, the later entry's, as no value is both, which is reported
+// where the declaration that lost is written. Both are files, so Filename
+// shows nothing either way.
 func TestPartEncodings_KeyedOnTheMemberTheBodyDeclares(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -395,8 +396,9 @@ components:
 			assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
 			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the type the member keeps")
 			assert.True(t, pe.Filename, "a file and a list of files are both files")
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.ConflictingRedecl, string(body+ids.Ptr("allOf", "0"))),
-				"no value is both, which is reported at the entry that lost")
+			lost := ids.Ptr("components", "schemas", tc.first, "properties", "file")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.ConflictingRedecl, string(lost)),
+				"no value is both, which is reported where the declaration that lost is written")
 		})
 	}
 }

@@ -1020,7 +1020,7 @@
       "message": "declarations of field \"file\" disagree: incompatible types t/anon/components/schemas/FileList/properties/file and t/prim/bytes; kept what the declaration at /components/schemas/FileList/properties/file says over the one at /components/schemas/UploadForm/properties/file, which stays declared on its model",
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema/allOf/0",
+        "pointer": "/components/schemas/UploadForm/properties/file",
         "node": "p/composed/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema/allOf/properties/file"
       }
     }

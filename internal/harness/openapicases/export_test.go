@@ -30,8 +30,8 @@ func Reasons() map[string]string {
 		"residue-per-variant": "#2054: a keyword kept verbatim beside a union on an inline allOf entry is " +
 			"copied onto each variant the union distributes into, where beside the allOf it is kept once on " +
 			"the Union",
-		"unfiled-disjoint-value-keywords": "no issue yet: a value keyword contradicting another, or the union " +
-			"beside it, on an inline allOf entry composes a Model over the $ref, where beside the $ref or the " +
-			"allOf it lowers as the value keyword elected",
+		"entry-type-beside-union": "#2063: a type sharing no kind with the union beside it on an inline " +
+			"allOf entry composes a Model, where beside the $ref or the allOf the union is left aside and " +
+			"the position is a use of the $ref",
 	}
 }
