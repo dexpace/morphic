@@ -58,7 +58,6 @@ func TestCore_SpellingsHoldTheRecord(t *testing.T) {
 var colliding = []string{
 	"if-then-else.json%2Fnon-interference across combined schemas",
 	"unevaluatedItems.json%2FunevaluatedItems depends on multiple nested contains",
-	"unevaluatedItems.json%2FunevaluatedItems with nested unevaluatedItems (prefixItems)",
 	"unevaluatedProperties.json%2Fcousin unevaluatedProperties, true and false, false with properties",
 }
 

@@ -114,6 +114,13 @@ func WritesUnknownKeyword(s *statement.Schema) bool {
 	return len(keys) > 0
 }
 
+// UnknownKeyword reports whether key, a key s writes, is one UnknownKeywordsIn
+// would consider keeping, for a reader telling one keyword's slot.
+func UnknownKeyword(s *statement.Schema, key string) bool {
+	keys, _ := unknownSchemaKeys(s)
+	return slices.Contains(keys, key)
+}
+
 // WritesEmptyDependencyMap reports whether s writes key, `dependentSchemas`,
 // `dependentRequired` or a draft's `dependencies`, as a mapping with no entry:
 // JSON Schema equates it with the keyword left out, so nothing of it is kept

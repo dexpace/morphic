@@ -54,7 +54,7 @@ func TestValueSet_AnEnumPastTheBudgetOnAnEntryIsRefusedWhereWritten(t *testing.T
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/1/format"), node.Unmodeled["openapi:format"].Provenance.Pointer)
 	formatted, ok := typeByName(l.Document(t), "F").(*ir.Any)
 	require.True(t, ok, "got %T", typeByName(l.Document(t), "F"))
-	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(formatted.Unmodeled))
+	assert.Equal(t, []string{"openapi:format"}, unmodeledKeys(formatted.Unmodeled))
 	refused := withCode(diags, diag.BudgetExceeded)
 	require.Len(t, refused, 2)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/1"), refused[0].Provenance.Pointer)

@@ -180,8 +180,8 @@ func TestParameter_XMLAndBranchKeptOnceEndToEnd(t *testing.T) {
 	doc, diags = compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_branch_kept_once"))
 	g := opTree(t, doc, "g")
 	id := namedItem(t, at(g, "params"), "schema_id")
-	assert.Equal(t, []string{"openapi:schema/allOf/1"}, sortedKeys(keptValues(at(id, "unmodeled"))),
-		"the branch is kept whole, and the readOnly read out of it is not kept again")
+	assert.Equal(t, []string{"openapi:schema/format", "openapi:schema/readOnly"}, sortedKeys(keptValues(at(id, "unmodeled"))),
+		"each keyword the branch keeps is kept once, under its own key")
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1",
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/readOnly",

@@ -196,7 +196,7 @@ func TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs(t *testing.T) {
 // TestOlderDrafts_DependenciesAreValidationOnly pins `dependencies` in each
 // draft that defines it, 4, 6 and 7, kept as a validation-only keyword, and
 // folded from an inline allOf branch as its 2020-12 twins are, and in 2019-09
-// and 2020-12, which split it, as an unknown keyword, which keeps its branch.
+// and 2020-12, which split it, as an unknown keyword, on a branch as beside it.
 func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 	t.Parallel()
 	for draft, want := range map[string]ir.UnmodeledReason{
@@ -215,8 +215,8 @@ func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 			assert.Equal(t, want == ir.ReasonValidationOnly, openapitest.HasDiag(diags, diag.ValidationOnlyKeyword))
 			f, ok := doc.Types[componentID("F")].(*ir.Model)
 			require.True(t, ok)
-			_, folded := f.Unmodeled["openapi:dependencies"]
-			assert.Equal(t, want == ir.ReasonValidationOnly, folded, "an allOf branch's folds as dependentRequired does")
+			assert.Equal(t, want, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason,
+				"an allOf branch's is kept as the one beside it is")
 		})
 	}
 }
@@ -419,8 +419,8 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *
 				return td.Common().Unmodeled
 			}
 			assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, unmodeled(root), "openapi:dependencies").Reason)
-			assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, unmodeled("Now"), "openapi:allOf/1").Reason,
-				"2020-12 defines no dependencies, so the branch is kept")
+			assert.Equal(t, ir.ReasonOutOfScope, unmodeledEntry(t, unmodeled("Now"), "openapi:dependencies").Reason,
+				"2020-12 defines no dependencies, so it is a keyword no dialect reads")
 			assert.NotNil(t, requestContent(t, operationAt(t, doc, "POST", "/a")).File, "draft 4's id is $id")
 			assert.Nil(t, requestContent(t, operationAt(t, doc, "POST", "/b")).File, "2020-12 defines no id")
 			bound := func(at string) *ir.Constraints {

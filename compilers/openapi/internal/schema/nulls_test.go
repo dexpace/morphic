@@ -427,7 +427,7 @@ func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	assert.Len(t, withCode(diags, diag.InferredNullable), 1)
 	doc, _ = compileNullable(t, besideType, true)
 	assert.False(t, holderP(t, doc).Nullable)
-	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:allOf/1", "and with the policy off it stays kept")
+	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:nullable", "and with the policy off it stays kept")
 
 	// The one `true` is beside a $ref, which no fold compares, so the `false`
 	// branch speaks: it must widen nothing the spelling without it leaves alone.
@@ -456,12 +456,12 @@ func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	doc, _ = compileNullable(t, properties, false)
 	kept, ok := doc0Model(doc)
 	require.True(t, ok)
-	assert.Contains(t, kept.Unmodeled, "openapi:allOf/1", "a nullable that folds nothing stays with its branch")
+	assert.Contains(t, kept.Unmodeled, "openapi:nullable", "a nullable that folds nothing is kept under its own key")
 
 	off, offDiags := compileNullable(t, src, true)
 	m, ok := doc0Model(off)
 	require.True(t, ok)
-	assert.Contains(t, m.Unmodeled, "openapi:allOf/1", "with the policy off nothing reads the keyword, so it stays")
+	assert.Contains(t, m.Unmodeled, "openapi:nullable", "with the policy off nothing reads the keyword, so it stays")
 	assert.Len(t, withCode(offDiags, diag.DegradedConstruct), 1)
 }
 

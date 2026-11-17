@@ -143,17 +143,17 @@ func TestParameter_XMLKeptOnce(t *testing.T) {
 	}, entries(t, at(q, "unmodeled"))))
 }
 
-// TestParameter_BranchKeptWholeOnce holds an allOf branch a parameter's schema
-// keeps whole to that entry alone: the readOnly read out of the branch is
-// inside it, so it is not kept a second time, and both findings that say the
-// branch and the keyword are kept verbatim are still drawn.
-func TestParameter_BranchKeptWholeOnce(t *testing.T) {
+// TestParameter_BranchKeptOnce holds the keywords an allOf branch of a
+// parameter's schema keeps to one entry each, beneath the schema's scope: the
+// format no use of its string holds, and the readOnly the parameter has no
+// field for, each reported where the keyword's keeper reports it.
+func TestParameter_BranchKeptOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "param_branch_kept_once"))
 	id := namedItem(t, at(opTree(t, doc, "g"), "params"), "schema_id")
 	assert.Empty(t, cmp.Diff(map[string]string{
-		"openapi:schema/allOf/1": `degraded_lowering {"format":"uuid","readOnly":true,"type":"string"} ` +
-			`/paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1`,
+		"openapi:schema/format":   `degraded_lowering "uuid" /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/format`,
+		"openapi:schema/readOnly": `no_ir_home true /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1/readOnly`,
 	}, entries(t, at(id, "unmodeled"))))
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1",

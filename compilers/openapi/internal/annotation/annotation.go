@@ -285,16 +285,22 @@ func DeclaresRedaction(s *statement.Schema) bool {
 
 // Read reads every site-local annotation at st: what its schema writes at
 // pointer, then what each voice writes at its own. A voice agrees with what
-// spoke before it wherever both write a keyword (schema.voicesAmong), so a
-// keyword is taken once and nothing here chooses between two. A voice's
-// unevaluated keywords fold nowhere (schema.foldEntry), so the position keeps
-// none: its branch, kept whole, is their one record.
+// spoke before it wherever both write a keyword (schema.voicesAmong), so an
+// entry is kept once: the site's own, else, where several voices write it, at
+// pointer, no one writer's (underlayVoice). A voice's unevaluated keywords fold
+// nowhere (schema.foldEntry): its branch, kept whole, is their one record.
 //
-// This is the one place the site-versus-referent choice is made, rather than
-// at each position that attaches annotations: three attachment points used to
-// make it separately and disagreed.
+// This is the one place the site-versus-referent choice is made: three
+// attachment points used to make it separately and disagreed.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
+	var own map[string]bool
+	if len(st.Voices) > 0 {
+		own = make(map[string]bool, len(out.Unmodeled))
+		for key := range out.Unmodeled {
+			own[key] = true
+		}
+	}
 	for _, v := range st.Voices {
 		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: st.Dialect.Dependencies}, false)
 		diags = append(diags, voiceDiags...)
@@ -304,7 +310,7 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 		if len(out.Examples) == 0 {
 			out.Examples = voice.Examples
 		}
-		out.Unmodeled = underlayUnmodeled(out.Unmodeled, voice.Unmodeled)
+		out.Unmodeled = underlayVoice(out.Unmodeled, voice.Unmodeled, own, doc.At(pointer))
 	}
 	chain := st.Chain()
 	FillCarrierDocs(&out.Docs, chain)
@@ -499,24 +505,29 @@ func dialectRead(keyword string, dialect Dialect) string {
 func dialectAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
-	keep := func(keyword string) {
-		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, doc)
-		diags = append(diags, keptDiags...)
-		if !kept {
-			return
-		}
-		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, doc.At(pointer+ids.Ptr(keyword)),
-			"%s identifies or configures a JSON Schema resource rather than describing data; "+
-				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
-			dialectRead(keyword, dialect)))
-	}
 	if dialect.Identifier == "id" {
-		keep("id")
+		diags = append(diags, KeepDialectKeyword(&p, s, "id", pointer, doc, dialect)...)
 	}
 	for _, keyword := range dialectKeywords {
-		keep(keyword)
+		diags = append(diags, KeepDialectKeyword(&p, s, keyword, pointer, doc, dialect)...)
 	}
 	return p, diags
+}
+
+// KeepDialectKeyword keeps keyword, one of DialectKeywords or draft 4's `id`,
+// verbatim on p where s, the schema at pointer, writes it, out of scope, and
+// announces it at the keyword, as dialectAt does for each one a site writes.
+func KeepDialectKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string, pointer jsontext.Pointer,
+	doc provenance.Doc, dialect Dialect,
+) []ir.Diagnostic {
+	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonOutOfScope, pointer, doc)
+	if !kept {
+		return diags
+	}
+	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, doc.At(pointer+ids.Ptr(keyword)),
+		"%s identifies or configures a JSON Schema resource rather than describing data; "+
+			"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
+		dialectRead(keyword, dialect)))
 }
 
 // schemaExamplesAt reads a schema's example and examples keywords.

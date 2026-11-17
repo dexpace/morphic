@@ -12,7 +12,6 @@ func Reasons() map[string]string {
 			"it refines",
 		"decorated-object": "#1874: a redaction beside a $ref with no carrier hoists a Scalar over a model, where " +
 			"the allOf spelling hoists a Model",
-		"kept-key":     "#1989: a keyword on an inline allOf branch kept whole loses its own key, reason and report",
 		"nested-title": "#1997: a title on an allOf entry nested in another names no union variant",
 		"carrier-or-model": "#1999: a use of an object keeps what it writes on its carrier beside a $ref and on a " +
 			"model in the allOf spelling",

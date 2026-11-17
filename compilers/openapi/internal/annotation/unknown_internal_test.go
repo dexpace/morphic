@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -538,6 +540,9 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, tc.schema)
 			assert.Equal(t, tc.want, WritesUnknownKeyword(standaloneSchema(s)))
+			assert.Equal(t, tc.want, slices.ContainsFunc(standaloneSchema(s).Keys, func(k statement.Key) bool {
+				return UnknownKeyword(standaloneSchema(s), k.Name)
+			}), "a keyword of it answers alike")
 			var kept ir.Unmodeled
 			UnknownKeywordsIn(&kept, standaloneSchema(s), "/s", sourced(0))
 			assert.Equal(t, tc.want, len(kept) > 0)

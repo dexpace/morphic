@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -278,7 +277,9 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 				kept = append(kept, key)
 			}
 			assert.ElementsMatch(t, tc.kept, kept)
-			assert.Len(t, withCode(diags, diag.DegradedConstruct), len(tc.kept))
+			// A branch holding validation logic alone is reported as that.
+			reports := append(withCode(diags, diag.DegradedConstruct), withCode(diags, diag.ValidationOnlyKeyword)...)
+			assert.Len(t, reports, len(tc.kept))
 		})
 	}
 	// A disagreeing branch folds nothing, not only the keyword it disagrees on.
@@ -353,9 +354,9 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 // TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a value bound
 // written beside a Base declaring an object: the allOf lowers to a model, which
 // takes property counts alone, so it holds the count written beside the allOf
-// and keeps the string bound there under its keyword, and each inline branch
-// writing a numeric bound is kept whole, each with one info, in either order of
-// the branches (docs/compilers/openapi.md#constraints).
+// and keeps the string bound there under its keyword, and the numeric bound each
+// inline branch writes under its own, each with one info at its branch, in
+// either order of the branches (docs/compilers/openapi.md#constraints).
 func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
@@ -366,16 +367,17 @@ func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, "%v", order)
 		assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "%v", order)
-		assert.ElementsMatch(t, []string{"openapi:allOf/1", "openapi:allOf/2", "openapi:minLength"},
+		assert.ElementsMatch(t, []string{"openapi:multipleOf", "openapi:maximum", "openapi:minLength"},
 			slices.Collect(maps.Keys(m.Unmodeled)), "%v", order)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 			"no home for minLength", "%v", order)
 		for i, branch := range order {
 			at := fmt.Sprintf("/components/schemas/S/allOf/%d", i+1)
-			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:allOf/"+strconv.Itoa(i+1)].Reason, "%v", order)
 			keyword := strings.Trim(strings.Split(branch, ":")[0], "{")
+			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:"+keyword].Reason, "%v", order)
+			assert.Equal(t, jsontext.Pointer(at+"/"+keyword), m.Unmodeled["openapi:"+keyword].Provenance.Pointer, "%v", order)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
-				"("+keyword+")", "%v", order)
+				"no home for "+keyword+" written on this inline branch", "%v", order)
 		}
 	}
 }
@@ -461,11 +463,11 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	_, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Str: {type: string}\n    T: {allOf: [{$ref: '#/components/schemas/Str'}, {format: uuid}, {description: d}]}\n"))
 	got := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
-	assert.Contains(t, got, "has no home for what this inline branch adds", "nothing was disagreed on")
+	assert.Contains(t, got, "has no home for format written on this inline branch", "nothing was disagreed on")
 
 	_, diags = compileNullable(t, openapitest.ComponentSpec(
 		"    Str: {type: string}\n    T: {allOf: [{$ref: '#/components/schemas/Str'}, {nullable: true}]}\n"), true)
-	got = openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
+	got = openapitest.DiagMessageAt(t, diags, diag.UnknownSchemaKeyword, ir.SeverityInfo, "/components/schemas/T/allOf/1/nullable")
 	assert.NotContains(t, got, disagreed, "a keyword the policy keeps from folding was disagreed on by nothing")
 
 	_, diags = parseFull(t, openapitest.ComponentSpec("    Obj: {type: object}\n"+
