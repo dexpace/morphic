@@ -1776,7 +1776,10 @@ applying to it is true, and an occurrence `false` as one omitted, so `deprecated
 `$ref` to a deprecated target leaves the use deprecated, in the 3.1 spelling and in the `allOf`
 decorator spelling alike, whose [fold](../emitters/refine/decorators.md) reads the use deprecated
 where any of its annotations is. An extension the promotion
-policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
+policy maps is read the same way ([`extension-promotion`](#extension-promotion)). Over a target
+that lowers to an object alone the keywords beside the `$ref` are a conjunct at a carrier too: the
+property, parameter or header names the `Model` over the target, a decorator holding them that the
+emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
 the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over

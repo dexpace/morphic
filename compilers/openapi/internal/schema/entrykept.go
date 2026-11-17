@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -397,7 +399,7 @@ func recordKeptEntry(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, comp al
 	}
 	e := k.entry
 	if k.keptWhole() {
-		kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(e.pointer), e.schema.Node, k.reason, c.Place().At(e.pointer))
+		kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(e.pointer), wordsNode(e.schema.Schema), k.reason, c.Place().At(e.pointer))
 		if !kept {
 			return diags
 		}
@@ -412,6 +414,25 @@ func recordKeptEntry(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, comp al
 		}
 	}
 	return append(diags, mergeKept(c, p, held, e.pointer)...)
+}
+
+// wordsNode is the node of s, an inline entry: for the rest of an entry
+// writing a $ref beside other keys (statement.Schema.BesideRef), the object
+// less the pair naming the reference, which is a conjunct of its own,
+// composed or kept apart; for any other, its node.
+func wordsNode(s *statement.Schema) *yaml.Node {
+	n := s.Node
+	if s.BesideRef == nil || n == nil || n.Kind != yaml.MappingNode {
+		return n
+	}
+	out := *n
+	out.Content = make([]*yaml.Node, 0, len(n.Content))
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if n.Content[i].Value != s.BesideRef.Ref.Keyword {
+			out.Content = append(out.Content, n.Content[i], n.Content[i+1])
+		}
+	}
+	return &out
 }
 
 // dropFoldedIntoWhole removes from p each entry an allOf entry kept whole

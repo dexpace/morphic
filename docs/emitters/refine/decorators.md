@@ -6,8 +6,10 @@ be an object the compiler keeps that losslessly, as an anonymous `Model` whose `
 which carries the description ([models](../../ir/models.md#composition-entries)); where it cannot,
 the position is a use of `Status` as the 3.1 spelling is
 ([models](../../ir/models.md#an-allof-no-object-satisfies)). 3.1's spelling of the same use,
-`{$ref: Status, description: …}`, hoists an anonymous `Scalar` alias over `Status` wherever no
-property or parameter holds the annotations
+`{$ref: Status, description: …}`, is the same conjunction and lowers as that `allOf` does
+([`ref-use-site`](../../compilers/openapi.md#ref-use-site)), to the same `Model` at a property or
+parameter too; where no `Model` stands it hoists an anonymous `Scalar` alias over `Status` wherever
+no property or parameter holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
 annotation alone on a non-carrier position, `items: {type: string, example: x}`. None of these nodes
 says anything about a value that its `Base` does not. Lowered as written, each would be a type of
