@@ -922,7 +922,13 @@ it sees. Changes made together in one bump are listed together under it.
   so no `Model` names a base or a mixin that is no object; any other is kept under
   `openapi:allOf/<n>`. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
-  distributed. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
+  distributed. Which conjunct an `allOf` lowers from, and which union on its entries a composition
+  distributes, does not follow the order written: a `oneOf` goes before an `anyOf` and a union
+  before words admitting as much, two unions of one keyword or two conjuncts neither within the
+  other elect none, the position then lowering by the keywords beside the `allOf`, and a schema
+  written twice is one conjunct, where each tie went to the entry written first
+  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A consumer pinned to 0.69.0
+  refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
@@ -932,4 +938,6 @@ it sees. Changes made together in one bump are listed together under it.
   found a union of models over each branch, and one reading a union with a null branch beside a body
   finds it distributed, behind a reference admitting null as the body does, one reading an `allOf`
   over a target that is no object alone as a model finds a use of the target, and one reading a
-  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` kept instead.
+  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` kept instead, and
+  one reading the first entry of a tie as the position's finds the conjunct those rules elect, or
+  none.

@@ -6,6 +6,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -260,11 +261,11 @@ func TestOneOf_CoDeclaredBesideAComposingAllOfDistributes(t *testing.T) {
 // written as an inline allOf branch, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
-// nodes, the branch keeps nothing, another branch folds onto the union, a null
-// branch is no variant, and an unexpanded $dynamicRef stays beside it. One
-// declaring no shape, one of two that do, one beside the schema's own union,
-// one past the flattening depth and one beside a branch's $ref, which it
-// conjoins with, stay with their branch; an enum beside the allOf decides.
+// nodes, the branch keeps nothing, another folds onto the union, a null branch
+// is no variant, and an unexpanded $dynamicRef stays beside it. Of a oneOf and
+// an anyOf declaring shape, the oneOf distributes in either order. One
+// declaring none, the anyOf, one beside the schema's union, one past the flattening
+// depth and one beside a $ref stay with their branch; an enum beside decides.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -296,6 +297,11 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - oneOf: [{$ref: '#/components/schemas/A'}]
         - anyOf: [{$ref: '#/components/schemas/B'}]
+        - {type: object, properties: {c: {type: string}}}
+    TwoRev:
+      allOf:
+        - anyOf: [{$ref: '#/components/schemas/B'}]
+        - oneOf: [{$ref: '#/components/schemas/A'}]
         - {type: object, properties: {c: {type: string}}}
     BesideToo:
       allOf:
@@ -375,7 +381,6 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
 		"Shapeless": {"openapi:allOf/0"},
-		"Two":       {"openapi:allOf/0", "openapi:allOf/1"},
 		"RefBranch": nil,
 		"Capped":    {capped},
 	} {
@@ -383,6 +388,16 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
 		for _, key := range kept {
 			assert.Contains(t, m.Unmodeled, key, "%s keeps its union with its branch", name)
+		}
+	}
+	for name, anyOf := range map[string]string{"Two": "openapi:allOf/1", "TwoRev": "openapi:allOf/0"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s distributes its oneOf; got %T", name, typeByName(doc, name))
+		assert.True(t, u.Exclusive, name)
+		for _, v := range variantModels(t, doc, name) {
+			require.NotNil(t, v.Base)
+			assert.Equal(t, componentID("A"), v.Base.Target, name)
+			assert.Equal(t, []string{anyOf}, slices.Sorted(maps.Keys(v.Unmodeled)), "%s keeps its anyOf on each variant", name)
 		}
 	}
 	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)

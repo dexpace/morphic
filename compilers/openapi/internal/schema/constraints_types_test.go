@@ -437,7 +437,7 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ schema, keyword, branch string }{
 		{"{allOf: [{type: string, minimum: 1}, {type: string, minimum: 2}]}", "minimum", "openapi:allOf/1"},
-		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/1"},
+		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{type: [string, integer], format: x-mine, allOf: [{type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{allOf: [{$ref: '#/components/schemas/O'}, {type: object, properties: {a: {type: string}}, maxLength: 3}]}",
 			"maxLength", "openapi:allOf/1"},

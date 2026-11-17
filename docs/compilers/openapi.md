@@ -2244,25 +2244,39 @@ The principal is chosen from the whole set:
    what a `$ref` fixes: it says which values the position holds, and what it narrows cannot;
 2. else a `$ref`, since a narrower inline `type` replacing it would drop what its target says: of
    several, the one within the most conjuncts, a tie going to the least reference text, bytewise,
-   so no order written decides and `{allOf: [{$ref: Str}, {$ref: Uuid}]}` is a use of `Uuid`
-   keeping the other `$ref` with an info. A `$ref` is no principal where the kind-inference policy
+   then to the least text of the entry writing it, so no order written decides and
+   `{allOf: [{$ref: Str}, {$ref: Uuid}]}` is a use of `Uuid` keeping the other `$ref` with an info. A `$ref` is no principal where the kind-inference policy
    reads its target as a kind the position's declarations exclude, or where its target admits every
    kind beside a position declaring one: a declared kind decides before an inference
    ([`policies`](#policies)) and before a target saying nothing of the kind, so `{allOf: [{$ref: E},
    {type: string}]}` over `E: {items: …}` is the string, the `$ref` kept with an info naming the
    policy, and over `R: {required: [a]}` the string too, the info saying the target admits every
    kind;
-3. else, of the conjuncts naming a kind by `type`, `enum` or `const`, the one within the most others,
-   the keywords beside the `allOf` among them, those first and then source order on a tie. A conjunct
-   is within another where its kinds, its values, its `format` and its `items` are. Two formats of the
-   table ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)) compare by what
-   they select, a format narrows the bare kind it applies to, one the table does not list included,
+3. else, of the conjuncts naming a kind by `type`, `enum` or `const`, or by a union they write, the
+   one within the most others, the keywords beside the `allOf` among them. A conjunct is within
+   another where its kinds, its values, its `format` and its `items` are. Two formats of the table
+   ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)) compare by what they
+   select, a format narrows the bare kind it applies to, one the table does not list included,
    `items` narrow an `array` writing none, and two `items` compare by what each says, so `uuid` beats
    `string`, `email` beats `string` and a list of `uuid` beats a list of `string`, in either order,
    as a field redeclared the same ways does
-   ([`allof-redeclared-property`](#allof-redeclared-property)). A tie, such as two formats neither of
-   which narrows the other, is the one place order decides, and the loser is kept and reported, again
-   as such a field is.
+   ([`allof-redeclared-property`](#allof-redeclared-property)).
+
+No tie goes by the order the conjuncts are written in. Of conjuncts lying within as many others, or
+of inline value sets holding the same values, a union goes before the words, which then bound it,
+and a `oneOf` before an `anyOf`, as [`competing-keywords`](#competing-keywords) elects of one schema
+writing both: `{allOf: [{anyOf: [{type: number}, {type: boolean}]}, {oneOf: [{type: string}, {type:
+integer}]}]}` is a use of the `oneOf`, keeping the `anyOf`. Two unions of one keyword elect neither,
+as no rule ranks their branches, and nor do words neither of which lies within the other: two
+formats neither of which narrows the other, two `items` saying different things, or value sets that
+only overlap. The position then lowers by the keywords beside the `allOf`, the top type where they
+name no kind, keeping each entry with an info. Words admitting alike part only where a node reads a
+keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
+vocabulary: of those writing every such keyword another writes, and alike, one is elected, and
+where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand,
+else the entry whose text, its keys sorted, is the least. A schema written twice is one conjunct,
+its first copy standing for both and the other saying nothing more, so the order written shows only
+in the pointer of the node it lowers to.
 
 A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
 `{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second branch kept, in
@@ -2378,7 +2392,19 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AValueSetIsTypedByEveryConjunct`,
   `schema.TestRefinement_ARefToAPrincipalNamesItsTypedNode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
-  `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
+  `schema.TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone`,
+  `schema.TestElect_ComparesEachPairOnce`,
+  `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
+  `e2e.TestElection_TwoUnionsOfOneKeywordElectNeither`,
+  `e2e.TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole`,
+  `e2e.TestElection_ARefIsThePrincipalOverAUnionWhichSaysNothingMoreOfIt`,
+  `e2e.TestElection_ARefTieGoesByReferenceText`, `e2e.TestElection_TwoRefsWrittenAlikeGoByTheirEntries`,
+  `e2e.TestElection_TwoInlineEntriesThatDisagreeOnItemsElectNeither`,
+  `e2e.TestElection_TwoInlineEntriesTieOnTheOneWritingItems`,
+  `e2e.TestElection_AUnionTyingWithTheWordsIsThePrincipal`,
+  `e2e.TestElection_ASchemaWrittenTwiceIsOneConjunct`,
+  `e2e.TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads`,
+  `e2e.TestElection_ValueSetsAlikeGoByTheirText`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
   `e2e.TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim`,
   `e2e.TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt`,
@@ -3556,7 +3582,9 @@ A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoin
 the composition as one written beside the `allOf` does, so it lowers the same way, where the schema
 writes no union of its own, its `allOf` composes rather than refines
 ([`allof-refinement`](#allof-refinement)), and the union is the one branch union whose branches
-declare shape (below). The `discriminator` standing with it is the one its branch writes, else the
+declare shape (below), or of several the one written as a `oneOf`, as
+[`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
+is kept on every variant, whichever is written first. The `discriminator` standing with it is the one its branch writes, else the
 one beside the `allOf`: where both write one, nothing says which routes the union, so it stays whole
 with its branch and the `Model` holds the schema's own. It routes the union as one beside it does,
 a `mapping` entry naming no schema reported at the entry under the schema writing it, and it routes
@@ -3568,9 +3596,10 @@ OpenAPI defines for no Discriminator Object ride on the `Union` holding it
 ([`allof-inline-residue`](#allof-inline-residue)). Whether a route names the schema
 is read at the position, as for a union beside the `allOf`, so an inline schema below a
 discriminated base no route names distributes. A union on a branch that is one of the shapes below,
-one of two branch unions declaring shape, distributing either of which would drop the other, or one
-on a branch nested past the flattening depth stays whole with its branch, and so does one whose
-branches declare no shape, on each variant where another union distributes. Distribution cannot
+one of two branch unions declaring shape and written under one keyword, distributing either of which
+would drop the other and no rule ranking them, or one on a branch nested past the flattening depth
+stays whole with its branch, and so does one whose branches declare no shape, on each variant where
+another union distributes. Distribution cannot
 reach these shapes:
 
 1. the structural body is not a `Model`: a `const`, an `enum`, a scalar, or keywords written with
@@ -3737,6 +3766,9 @@ judged as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
+  `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
+  `e2e.TestElection_TwoAnyOfUnionsBesideABodyDistributeNeither`,
+  `e2e.TestElection_TwoOneOfUnionsBesideABodyDistributeNeither`,
   `schema.TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin`,
   `schema.TestUnion_ARoutedSubtypeSharedByTwoOperationsComposesItsUnionOnce`,
   `schema.TestComposeMixin_NeedsAModel`, `schema.TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside`,
@@ -3799,7 +3831,10 @@ nothing at all. And a `{X, null}` `oneOf` written beside an `anyOf` does **not**
 nullable `X` ([type-graph](../ir/type-graph.md#type-references)), because the collapse
 asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins with it, and
 collapsing would resolve the position to a shared primitive, which must never carry one
-declaration's keywords. Where a *structural* sibling is written as well,
+declaration's keywords. The same preference decides between a `oneOf` and an `anyOf` written on two
+entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
+([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
+with its entry. Where a *structural* sibling is written as well,
 [`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept,
 an `allOf` that refines being no such sibling but a conjunction the unions are conjuncts of
 ([`allof-refinement`](#allof-refinement)).
@@ -3816,7 +3851,9 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestCoDeclaredFamily_EveryPassedOverKeywordIsKept`,
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
-  `schema.TestUnionCombinators_UnpreservableIsNotAnnounced`
+  `schema.TestUnionCombinators_UnpreservableIsNotAnnounced`,
+  `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
+  `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`
 
 ### `discriminator`
 

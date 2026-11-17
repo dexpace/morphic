@@ -355,29 +355,36 @@ func branchUnionIndexOf(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 }
 
 // findBranchUnion is branchUnion's reading of s alone: where s lowers its
-// allOf, composing, not refining, the one branch whose union declares shape
-// against s, where that branch lies within the flattening depth and
-// classifyBranchSet distributes its union. Two such unions leave none, either
-// dropping the other, and one declaring no shape stays residue. A union s and
-// its branch each write a discriminator beside leaves none either: nothing says
-// which routes it. A $ref site or a union beside the allOf lowers first
-// (lowerSchemaBody), and is no reading of a branch's.
+// allOf, composing, not refining, the branch whose union declares shape
+// against s, where it lies within the flattening depth and classifyBranchSet
+// distributes it. Of several, the one writing a oneOf, as a schema writing
+// both lowers to its oneOf, each other kept on every variant; two writing a
+// oneOf, or several anyOfs, leave none, in any order. One declaring no shape
+// stays residue. A discriminator on both s and the branch leaves none: nothing
+// says which routes it. A $ref site or a union beside the allOf lowers first.
 func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
 	branches := allOfBranches(c, s, "").branches
-	index, count := 0, 0
+	var shaped, oneOfs []int
 	for i, e := range branches {
 		choice := choiceIn(e.schema.Schema)
 		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 			continue
 		}
-		index, count = i, count+1
+		shaped = append(shaped, i)
+		if len(choice.OneOf) > 0 {
+			oneOfs = append(oneOfs, i)
+		}
 	}
-	if count != 1 || branches[index].capped {
+	if len(shaped) > 1 {
+		shaped = oneOfs
+	}
+	if len(shaped) != 1 || branches[shaped[0]].capped {
 		return branchUnionIndex{}
 	}
+	index := shaped[0]
 	if discriminatorIn(branches[index].schema.Schema) != nil && discriminatorIn(s) != nil ||
 		classifyBranchSet(c, branches[index].schema.Schema) != unionDistributed {
 		return branchUnionIndex{}
