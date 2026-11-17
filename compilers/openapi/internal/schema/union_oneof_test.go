@@ -403,6 +403,42 @@ func TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant(t *testing.T) {
 	assert.IsType(t, &ir.Enum{}, doc.Types[componentID("Choice")])
 }
 
+// TestOneOf_CoDeclaredTypeListBranchComposesItsObject pins a branch naming a
+// schema whose type list holds an object: its variant composes the list's
+// object variant, as an allOf entry naming it does, unless the branch writes a
+// keyword beside its $ref, which its own node holds over the whole list; then
+// the variant keeps the branch.
+func TestOneOf_CoDeclaredTypeListBranchComposesItsObject(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Mixed: {type: [object, string], properties: {m: {type: string}}}
+    Bare:
+      type: object
+      properties: {a: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/Mixed'}]
+    Beside:
+      type: object
+      properties: {a: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/Mixed', description: the branch}]
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for name, want := range map[string]ir.TypeID{"Bare": "t/anon/components/schemas/Mixed/type/0", "Beside": ""} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
+		require.True(t, ok, name)
+		if want == "" {
+			assert.Nil(t, v.Base, name)
+			assert.Contains(t, v.Unmodeled, "openapi:oneOf/0", name)
+			continue
+		}
+		require.NotNil(t, v.Base, name)
+		assert.Equal(t, want, v.Base.Target)
+		assert.IsType(t, &ir.Model{}, doc.Types[want], "the object variant is a model")
+		assert.Empty(t, v.Unmodeled, name)
+	}
+}
+
 // TestOneOf_CoDeclaredUnpreservableBranchIsNotAnnounced pins the pairing
 // GitHub #144 exists for at a variant's kept branch: a branch that fails to
 // convert is reported as such, and nothing claims it was kept.

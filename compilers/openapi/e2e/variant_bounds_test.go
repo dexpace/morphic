@@ -176,7 +176,7 @@ func TestVariantBounds_ABoundNoVariantTakesIsKeptOnceOnTheUnion(t *testing.T) {
 								assert.Equal(t, entryKept(kept...), keptOn(union), "what the union keeps at %s", at)
 								infos := degradedUnder(diags, at)
 								assert.Equal(t, 1, countOf(infos, at), "one info for what is kept at %s", at)
-								assert.Len(t, infos, len(branches), "and one at each branch a variant keeps, all but A's, at %s", at)
+								assert.Len(t, infos, 1+keptBranches(branches), "and one at each branch a variant keeps at %s", at)
 								for j, b := range branches {
 									held := variantConstraints(t, doc, union.Variants[j].Type.Target)
 									for _, bound := range variantBounds {
@@ -327,12 +327,32 @@ func TestVariantBounds_ABoundOfAKindNoBranchTakesIsNotLostToTheVariants(t *testi
 	}
 }
 
+// variantBases are the Bases of the variants over the branches that compose:
+// an object, and the object variant of each type list holding one.
+var variantBases = map[string]ir.TypeID{
+	"A":  componentID("A"),
+	"AS": "t/anon/components/schemas/AS/type/0",
+	"AI": "t/anon/components/schemas/AI/type/0",
+}
+
+// keptBranches counts the branches no variant composes (variantBases).
+func keptBranches(branches []variantBranch) int {
+	n := 0
+	for _, b := range branches {
+		if _, composed := variantBases[b.name]; !composed {
+			n++
+		}
+	}
+	return n
+}
+
 // TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase holds that the
-// variant over a branch that is an object alone names it as its Base, and that
-// the variant over any other branch, a string, an array, an integer or an
-// object among other kinds, names none and keeps the branch verbatim under its
-// path from the position, with one info at the branch, in either order of the
-// branches and of every mapping, under oneOf and anyOf.
+// variant over a branch that is an object alone names it as its Base, the one
+// over a type list holding an object that list's object variant, and that the
+// variant over any other branch, a string, an array or an integer, names none
+// and keeps the branch verbatim under its path from the position, with one
+// info at the branch, in either order of the branches and of every mapping,
+// under oneOf and anyOf.
 func TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
@@ -352,9 +372,9 @@ func TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase(t *testing.T) {
 									require.True(t, ok, "the variant over %s at %s is a model", b.name, at)
 									assert.Empty(t, v.Mixins, "%s at %s", b.name, at)
 									branchAt := at + jsontext.Pointer(fmt.Sprintf("/%s/%d", keyword, j))
-									if b.name == "A" {
-										require.NotNil(t, v.Base, "the variant over A at %s", at)
-										assert.Equal(t, componentID("A"), v.Base.Target)
+									if base, composed := variantBases[b.name]; composed {
+										require.NotNil(t, v.Base, "the variant over %s at %s", b.name, at)
+										assert.Equal(t, base, v.Base.Target, "the variant over %s at %s", b.name, at)
 										assert.Empty(t, v.Unmodeled, "%s keeps nothing at %s", b.name, at)
 										assert.Zero(t, countOf(degradedUnder(diags, branchAt), branchAt))
 										continue

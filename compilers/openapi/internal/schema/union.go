@@ -1118,7 +1118,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, body.comp.bounds&kinds)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
-	composes := composesBranch(c, b)
+	branch, composes := branchReferent(c, b, branch, m.Provenance.Pointer)
 	if composes {
 		// The branch is distributed into the body, whose own declarations are
 		// read after it, as a model's own declarations follow what it composes.
@@ -1140,20 +1140,29 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	return m, diags
 }
 
-// composesBranch reports whether the variant composed over the union branch b
-// names it as its Base or a Mixin: where the kinds b lowers to are an object
-// alone, null aside, or its read is cut short, as an allOf's $ref entry
-// composes (composesRef), since a model composes only models.
-func composesBranch(c lowering.Ctx, b *statement.Statement) bool {
+// branchReferent returns what the variant composed over the union branch b,
+// written at at and lowered to branch, names as its Base or a Mixin, and
+// whether it names one, as an allOf's $ref entry composes (composesRef): the
+// branch where it lowers to an object alone, null aside, or its read is cut
+// short; the object variant of a type list it names (objectVariant) where it
+// writes nothing beside its $ref, which its own node holds over the list
+// (LoweredToOwnNode); else nothing, since a model composes only models.
+func branchReferent(c lowering.Ctx, b *statement.Statement, branch ir.TypeID, at jsontext.Pointer) (ir.TypeID, bool) {
 	if admissionOf(c, b).cut {
-		return true
+		return branch, true
 	}
-	kinds, _ := lowersTo(c, b)
-	return kinds == kindObject
+	if kinds, _ := lowersTo(c, b); kinds == kindObject {
+		return branch, true
+	}
+	variant, unpacked := objectVariant(c, b)
+	if !unpacked || LoweredToOwnNode(c, at, ir.TypeRef{Target: branch}) {
+		return "", false
+	}
+	return variant, true
 }
 
 // keepUncomposedBranch keeps the union branch b, which the variant m does not
-// compose (composesBranch), verbatim under m's Unmodeled, keyed by its path
+// compose (branchReferent), verbatim under m's Unmodeled, keyed by its path
 // from the body comp composes, and reports it, as keepUncomposedRef keeps an
 // allOf's $ref entry.
 func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, b *statement.Statement) []ir.Diagnostic {

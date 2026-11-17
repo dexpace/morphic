@@ -921,10 +921,10 @@ it sees. Changes made together in one bump are listed together under it.
   in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
-  union's variant composes its branch only where it is an object alone, keeping any other under
-  `openapi:oneOf/<i>` or `openapi:anyOf/<i>`, and holds only the bounds the kinds it admits take, its
-  branch's within the body's, where it held each the position took. A union beside an `allOf` naming
-  no kind is the `Union`, holding the bound in
+  union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
+  such a list aside, keeping any other under `openapi:oneOf/<i>` or `openapi:anyOf/<i>`, and holds
+  only the bounds the kinds it admits take, its branch's within the body's, where it held each the
+  position took. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
   distributed. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
