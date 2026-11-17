@@ -164,7 +164,9 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 // variant requires the names of its branch, which keeps its null, and a branch
 // that may be no object, a keyword beside `required` or a branch read past its
 // bounds leaves the body nothing to compose
-// (docs/compilers/openapi.md#union-beside-structure).
+// (docs/compilers/openapi.md#union-beside-structure). The report says which:
+// beside a branch that may be a string the body is the top type, and the other
+// two are models declaring no property.
 func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -193,12 +195,18 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	assert.False(t, nullable.Variants[0].Type.Nullable)
 	assert.True(t, nullable.Variants[1].Type.Nullable, "a required list leaves the branch's null alone")
 
-	for _, name := range []string{"BesideString", "BesideItems", "CutShort"} {
+	for name, why := range map[string]string{
+		"BesideString": "the body is not a model",
+		"BesideItems":  "the body declares no property",
+		"CutShort":     "the body declares no property",
+	} {
 		assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, name), name)
 		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 			return d.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
-				strings.Contains(d.Message, "the body is not a model")
+				strings.Contains(d.Message, why)
 		}), "%s: %+v", name, diags)
+		_, isModel := typeByName(doc, name).(*ir.Model)
+		assert.Equal(t, name != "BesideString", isModel, "%s: the report names the body the document holds", name)
 	}
 }
 
