@@ -97,10 +97,11 @@ promotion reads the kept entries ([promotion](#promotion)).
 
 A keyword an inline `allOf` entry writes is the same construct as that keyword beside the `allOf`,
 so it takes the same key, reason and report there, its provenance naming the keyword on the entry:
-`openapi:format`, never `openapi:allOf/1`. A path key such as `openapi:allOf/1` names only an entry
-kept whole, where a keyword of it is read against the rest of it or another conjunct writes it
-otherwise, so one key cannot hold it apart
-([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
+`openapi:format`, never `openapi:allOf/1`. An inline entry is kept under a path key such as
+`openapi:allOf/1` only where it is kept whole, a keyword of it being read against the rest of it or
+held apart by no one key ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue));
+a `$ref` entry a `Model` does not compose keeps its path key too
+([`allof-classification`](../compilers/openapi.md#allof-classification)). A keyword several entries
 write alike is one entry, its provenance the position's pointer, as no one writer's is the same in
 every order of the entries.
 

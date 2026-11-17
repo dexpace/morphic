@@ -952,22 +952,25 @@ it sees. Changes made together in one bump are listed together under it.
   under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set. A keyword an inline
   `allOf` entry writes that no reader consumes is kept under its own key, `openapi:<keyword>`, with
   the reason and the report it has beside the `allOf`, its provenance the keyword on the entry, where
-  the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; `openapi:allOf/<n>` now
-  names only an entry kept whole for a closure or an unevaluated keyword read against the rest of it,
+  the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; an inline entry is now
+  kept under `openapi:allOf/<n>` only where it is kept whole, for a closure or an unevaluated keyword read against the rest of it,
   an `allOf` of its own not flattened, a relative `$ref` read against another base, or a keyword
   another conjunct writes otherwise, under the reason its keywords share, else `degraded_lowering`
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
   keep alike is kept once, at the position's pointer, what an entry kept whole folds and would keep
-  beside it is kept once, inside the entry, a key the promotion policy reads aside, and an entry's
-  `$comment`, `$anchor` and `$defs` are read as beside the `allOf` and kept nowhere. A `$ref` entry
-  naming no schema, which was kept nowhere with each keyword beside it, is kept under `openapi:$ref`,
-  or `openapi:$ref/<i>` by reference text where several are, with each keyword beside it under its
-  own key, or the entry whole under `openapi:allOf/<n>` where one cannot be kept apart. A `$ref` and the keywords
+  beside it is kept once, inside the entry, a key the promotion policy reads and one another entry
+  folds alike, which the position keeps too, aside, and an entry's `$comment`, `$anchor` and `$defs`
+  are read as beside the `allOf` and kept nowhere. A `$ref` entry naming no schema, which was kept
+  nowhere with each keyword beside it, is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
+  reference text where several are, with each keyword beside it under its own key, or the entry
+  whole under `openapi:allOf/<n>` where one cannot be kept apart. A `$ref` and the keywords
   written beside it are one conjunction, lowered as the `allOf` of the two is, where the `$ref`
   site was an alias keeping what it could not hold: a use of an object saying anything beside its
   `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
   value set, a union and a bound beside it lower as beside an `allOf` of it; an entry's keywords
-  beside its `$ref` are conjuncts of the position, which hoists no node at the entry. An `allOf`
+  beside its `$ref` are conjuncts of the position, which hoists no node at the entry, and a `$ref`
+  kept, a refinement's, a composition's for a target it does not compose, or a failed one's, holds
+  the reference's text, where a refinement's held the object `{$ref: …}`. An `allOf`
   of one `$ref` saying nothing else is the reference, hoisting no node, where it hoisted an
   anonymous `Model` over an object, and a component or a position a `$ref` names written as either
   spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
