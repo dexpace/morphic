@@ -16,7 +16,8 @@ import (
 // holds the shape the bound is reported for: a union of an array and a string
 // beside object keywords and a string bound is a union of the two, the
 // string's variant holding the bound, the array's none, and nothing kept for
-// it, in either order of the branches.
+// it, in either order of the branches. Today the position is the top type,
+// keeping the union and the members (GitHub #2046).
 func TestVariantBounds_AStringBoundBesideAnArrayAndAStringBranchGoesToTheString(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
