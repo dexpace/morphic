@@ -2232,9 +2232,12 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
    `type` that excludes an object ([`allof-inline-residue`](#allof-inline-residue)). Where neither
    holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
    names the contradiction.
+5. a `$dynamicRef` the position does not expand stands beside it: `{allOf: [{$ref: T}], $dynamicRef:
+   '#m'}` is a `Model` keeping the `$dynamicRef`, even where `T` admits no object and its `$ref` is
+   kept too.
 
-A `$dynamicRef` masks no kind: one the position expands is read as the schema it names, and one it
-does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
+A `$dynamicRef` a conjunct writes masks no kind: one the position expands is read as the schema it
+names, and one it does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
@@ -2409,7 +2412,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
-  consumes (#1067).
+  consumes (#1067), and a `$dynamicRef` beside the `allOf` keeps a `Model` over a target admitting no
+  object (#2009).
 
 ### `allof-beside-ref`
 

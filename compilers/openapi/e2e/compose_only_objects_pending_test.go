@@ -73,7 +73,7 @@ func TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal(t 
 // the position does not expand, written beside an allOf, admits every kind as
 // it does on an entry: the position is a use of what its conjuncts declare, not
 // a Model, and keeps the $dynamicRef. It stays behind the pending tag until
-// allOfMayRefine stops refusing a schema declaring a $dynamicRef.
+// #2009 is fixed.
 func TestAllOfRefine_ADynamicRefBesideTheAllOfMasksNoKind(t *testing.T) {
 	t.Parallel()
 	schemas := []string{

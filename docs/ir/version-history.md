@@ -917,8 +917,8 @@ it sees. Changes made together in one bump are listed together under it.
   other kinds, it is a use of the target holding the bound beside it, and a `properties` beside a
   declared string is kept on the use with an info. Of several `$ref`s none of which is an object, the
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
-  declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` masks no kind
-  in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
+  declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` a conjunct
+  writes masks no kind in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A union beside an
   `allOf` naming no kind is the `Union`, holding the bound in `Union.Constraints`, and one sharing no
