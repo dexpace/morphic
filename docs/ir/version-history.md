@@ -903,9 +903,9 @@ it sees. Changes made together in one bump are listed together under it.
   branches each declare a kind the keywords speak of, such a schema lowers to that kind unmarked,
   where it was the top type. A kind the conjuncts of a schema declare decides before one the policy
   reads off shape keywords: a conjunct writing such keywords narrows nothing a declared conjunct
-  says, and an `allOf` naming a `$ref` the policy reads as a kind its other conjuncts exclude is a
-  use of the declared kind, keeping the `$ref`, where it composed a model over a target writing
-  `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
+  says, and an `allOf` naming a `$ref` the policy reads as kinds leaving out one its other
+  conjuncts declare is a use of the declared kinds, keeping the `$ref`, where it composed a model
+  over a target writing `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
   Object keywords written with no `type` beside a union are a body it distributes across where the
   kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
   objects among them, and nowhere else: a `properties` beside a union naming another kind is the top
@@ -917,8 +917,9 @@ it sees. Changes made together in one bump are listed together under it.
   other kinds, it is a use of the target holding the bound beside it, and a `properties` beside a
   declared string is kept on the use with an info. Of several `$ref`s none of which is an object, the
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
-  declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` a conjunct
-  writes masks no kind in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
+  declared kind, or a conjunct naming one, a union beside the `allOf` among them, decides before a
+  `$ref` whose target admits every kind. A `$dynamicRef` a conjunct writes masks no kind in that
+  reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A union beside an
   `allOf` naming no kind is the `Union`, holding the bound in `Union.Constraints`, and one sharing no

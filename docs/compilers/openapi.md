@@ -2258,13 +2258,16 @@ The principal is chosen from the whole set:
 2. else a `$ref`, since a narrower inline `type` replacing it would drop what its target says: of
    several, the one within the most conjuncts, a tie going to the least reference text, bytewise,
    then to the least text of the entry writing it, so no order written decides and
-   `{allOf: [{$ref: Str}, {$ref: Uuid}]}` is a use of `Uuid` keeping the other `$ref` with an info. A `$ref` is no principal where the kind-inference policy
-   reads its target as a kind the position's declarations exclude, or where its target admits every
-   kind beside a position declaring one: a declared kind decides before an inference
-   ([`policies`](#policies)) and before a target saying nothing of the kind, so `{allOf: [{$ref: E},
-   {type: string}]}` over `E: {items: …}` is the string, the `$ref` kept with an info naming the
-   policy, and over `R: {required: [a]}` the string too, the info saying the target admits every
-   kind;
+   `{allOf: [{$ref: Str}, {$ref: Uuid}]}` is a use of `Uuid` keeping the other `$ref` with an info.
+   A `$ref` is no principal where the kind-inference policy reads its target as kinds leaving out
+   one the position's declarations name, null aside, as the target then admits that kind whole, or
+   where its target admits every kind beside a position declaring one or a conjunct naming one: a
+   declared kind decides before an inference ([`policies`](#policies)) and before a target saying
+   nothing of the kind, so `{allOf: [{$ref: E}, {type: string}]}` over `E: {items: …}` is the
+   string, the `$ref` kept with an info naming the policy, `{type: [object, string], allOf: [{$ref:
+   U}]}` over `U: {properties: …}` the union of an object and a string, and `{allOf: [{$ref: R},
+   {type: string}]}` over `R: {required: [a]}` the string too, the info saying the target admits
+   every kind, as does a union beside the `allOf` over `R`;
 3. else, of the conjuncts naming a kind by `type`, `enum` or `const`, or by a union they write, the
    one within the most others, the keywords beside the `allOf` among them. A conjunct is within
    another where its kinds, its values, its `format` and its `items` are. Two formats of the table
@@ -2418,6 +2421,9 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestElection_ASchemaWrittenTwiceIsOneConjunct`,
   `e2e.TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads`,
   `e2e.TestElection_ValueSetsAlikeGoByTheirText`,
+  `e2e.TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal`,
+  `e2e.TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingIs`,
+  `e2e.TestAllOfRefine_ARefLosingATieIsReportedAsATie`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
   `e2e.TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim`,
   `e2e.TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt`,
@@ -4442,8 +4448,8 @@ what the position declares, its `type` and value sets and those of each conjunct
 and a union's branches among them, and lowers to that wherever it names a kind; only where nothing
 declares one do the claims decide, the keywords' own united with those of each conjunct whose kind
 is a claim, and only then is the node marked. So that schema is a use of the string keeping its
-entry with an info, as with the policy off, and a `$ref` whose target the policy reads as a kind
-the declarations exclude is no principal ([`allof-refinement`](#allof-refinement)). An `allOf`
+entry with an info, as with the policy off, and a `$ref` whose target the policy reads as kinds
+leaving out one the declarations name is no principal ([`allof-refinement`](#allof-refinement)). An `allOf`
 composed as a model where no conjunct declares a kind, as one over two `$ref`s to schemas writing
 `properties` alone, is marked. Split over entries, keywords of both kinds part from their flat
 spelling: `{allOf: [{properties: …}, {items: …}]}` admits an object and an array, so it is no model

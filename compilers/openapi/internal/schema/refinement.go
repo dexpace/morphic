@@ -200,8 +200,11 @@ func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kind
 
 // voteRefs returns how each $ref conjunct stands where the position lowers to
 // kinds, declared unless inferred, indexed by branch, and the conjuncts of
-// those that may be the principal.
+// those that may be the principal. The position says what it is where those
+// kinds are declared, or where a conjunct names a kind, a union beside the
+// allOf among them.
 func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool, branches int) ([]refVote, []*conjunct) {
+	says := !inferred && kinds != anyInstance || slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
 	votes := make([]refVote, branches)
 	var electable []*conjunct
 	for i := range conjuncts {
@@ -209,7 +212,7 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 		if cj.branch == nil || cj.branch.schema.Ref == nil {
 			continue
 		}
-		votes[cj.at] = voteOf(c, kinds, inferred, cj)
+		votes[cj.at] = voteOf(c, kinds, says, cj)
 		if votes[cj.at] == refElectable {
 			electable = append(electable, cj)
 		}
@@ -218,16 +221,17 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 }
 
 // voteOf returns how the $ref conjunct ref stands where the position lowers
-// to kinds, declared unless inferred. What the document declares decides
+// to kinds and says, or not, what it is. What the document declares decides
 // first (docs/compilers/openapi.md#policies): before a kind the policy reads
-// off the target's shape keywords that kinds exclude, and before a target
+// off the target's shape keywords where kinds hold one, null aside, that it
+// leaves out, as the target then admits that kind whole, and before a target
 // admitting every kind, which says nothing of what the position is.
-func voteOf(c lowering.Ctx, kinds kindSet, inferred bool, ref *conjunct) refVote {
+func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
 	target, targetInferred := lowersTo(c, ref.branch.schema)
 	switch {
-	case targetInferred && target&kinds == 0:
+	case targetInferred && kinds&^kindNull&^target != 0:
 		return refInferredApart
-	case !targetInferred && target == anyInstance && !inferred && kinds != anyInstance:
+	case !targetInferred && target == anyInstance && says:
 		return refAdmitsEvery
 	default:
 		return refElectable
@@ -871,14 +875,15 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 func keptWhy(b keptBranch) string {
 	switch {
 	case b.vote == refInferredApart:
-		return "the kind-inference policy reads this $ref's target as a kind the other conjuncts of this allOf " +
-			"declare none of, and a declared kind decides first, so the $ref is kept verbatim under Unmodeled"
+		return "the kind-inference policy reads this $ref's target as kinds leaving out one the other conjuncts " +
+			"of this allOf declare, and a declared kind decides first, so the $ref is kept verbatim under Unmodeled"
 	case b.vote == refAdmitsEvery:
 		return "this $ref's target admits every kind, and the kind the other conjuncts of this allOf declare " +
 			"decides first, so the $ref is kept verbatim under Unmodeled"
 	case b.vote == refNarrowed:
-		return "another $ref of this allOf lies within more of its conjuncts, and a use names one target, so " +
-			"this $ref is kept verbatim under Unmodeled"
+		return "another $ref of this allOf lies within as many of its conjuncts or more, a tie going to the " +
+			"least reference text, then to the least text of its entry, and a use names one target, so this " +
+			"$ref is kept verbatim under Unmodeled"
 	case len(b.residue) == 0:
 		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"
