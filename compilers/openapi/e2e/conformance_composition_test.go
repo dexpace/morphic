@@ -386,9 +386,11 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	mode := props["mode"]
 	narrowed, ok := doc.Types[mode.Type.Target].(*ir.Enum)
 	require.True(t, ok, "the enum is the value set")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Zone/properties/mode"), narrowed.ID, "standing at the property")
 	assert.Len(t, narrowed.Members, 1)
-	assert.Equal(t, "What to do", mode.Docs.Description, "and the $ref it narrows still speaks")
-	unmodeledEntry(t, mode.Unmodeled, "openapi:allOf/0")
+	assert.Equal(t, "What to do", narrowed.Docs.Description, "and the $ref it narrows still speaks")
+	assert.Empty(t, mode.Unmodeled, "the node the property owns keeps the $ref")
+	unmodeledEntry(t, narrowed.Unmodeled, "openapi:$ref")
 
 	assert.Equal(t, componentID("Port"), props["width"].Type.Target, "a $ref beats a narrower inline type")
 	unmodeledEntry(t, props["width"].Unmodeled, "openapi:allOf/1")

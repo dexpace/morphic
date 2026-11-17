@@ -333,7 +333,7 @@ func TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead(t *testing.T) {
 		list, ok := doc.Types[id].(*ir.List)
 		require.True(t, ok, "%s: got %T", at, doc.Types[id])
 		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(2))}, list.Constraints, at)
-		assert.ElementsMatch(t, []string{"openapi:allOf/0", "openapi:minLength"}, unmodeledKeys(list.Unmodeled), at)
+		assert.ElementsMatch(t, []string{"openapi:$ref", "openapi:minLength"}, unmodeledKeys(list.Unmodeled), at)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at+"/allOf/0"),
 			"admits every kind", at)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),

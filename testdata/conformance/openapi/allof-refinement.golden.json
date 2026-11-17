@@ -226,7 +226,7 @@
         "kind": "number",
         "num": "80"
       },
-      "valueType": "int32"
+      "valueType": "number"
     },
     "t/anon/components/schemas/Scores/items": {
       "kind": "scalar",
@@ -280,7 +280,7 @@
       },
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": {
             "$ref": "#/components/schemas/Mode"
@@ -313,23 +313,37 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Zone/properties/mode/allOf/1": {
+    "t/anon/components/schemas/Zone/properties/mode": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Zone/properties/mode/allOf/1",
+      "id": "t/anon/components/schemas/Zone/properties/mode",
       "name": {
         "hint": "mode"
       },
       "anonymous": true,
-      "docs": {},
+      "docs": {
+        "description": "What to do"
+      },
       "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/mode/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Zone/properties/mode/allOf/1"
+        "pointer": "/components/schemas/Zone/properties/mode"
       },
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Zone/properties/mode/allOf/1/s:set",
+          "id": "e/anon/components/schemas/Zone/properties/mode/s:set",
           "name": {
             "source": "set",
             "canonical": "set"
@@ -754,7 +768,7 @@
       }
     },
     "t/openapi/components/schemas/Port80": {
-      "kind": "scalar",
+      "kind": "literal",
       "id": "t/openapi/components/schemas/Port80",
       "name": {
         "source": "Port80",
@@ -767,10 +781,11 @@
         "source": 0,
         "pointer": "/components/schemas/Port80"
       },
-      "base": {
-        "target": "t/anon/components/schemas/Port80/allOf/1",
-        "nullable": false
-      }
+      "value": {
+        "kind": "number",
+        "num": "80"
+      },
+      "valueType": "int32"
     },
     "t/openapi/components/schemas/Prim": {
       "kind": "scalar",
@@ -1094,7 +1109,7 @@
           },
           "wireName": "mode",
           "type": {
-            "target": "t/anon/components/schemas/Zone/properties/mode/allOf/1",
+            "target": "t/anon/components/schemas/Zone/properties/mode",
             "nullable": false
           },
           "required": false,
@@ -1107,21 +1122,7 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {
-            "description": "What to do"
-          },
-          "unmodeled": {
-            "openapi:allOf/0": {
-              "reason": "degraded_lowering",
-              "value": {
-                "$ref": "#/components/schemas/Mode"
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/components/schemas/Zone/properties/mode/allOf/0"
-              }
-            }
-          },
+          "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/mode"
@@ -1431,7 +1432,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "c7a3949bd6f5f1b7c986f4e0028c1d249f78c524270fac86b83180adc637d794"
+      "hash": "19180a0a966d49e1ee8afccb07fdf2d3d8ff7bb5c282184af4efe660da01a9e3"
     }
   ]
 }

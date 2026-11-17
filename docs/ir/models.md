@@ -346,11 +346,14 @@ conjuncts.
 
 A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
 admits none, so it is no composition, nor is `allOf: [{$ref: AnyT}]` over a schema admitting every
-kind, which admits strings a `Model` excludes. An `allOf` whose kinds are not an object alone lowers
-to one use of the conjunct that decides it, short of the cases the OpenAPI compiler's rule
-[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing: a reference to its
-`$ref`, of several the one lying within more conjuncts, a node at an inline branch's own pointer,
-and an alias only where the position writes what no carrier holds. A union written beside the
+kind, which admits strings a `Model` excludes. An `allOf` whose kinds are not an object alone, or
+one of whose conjuncts states a value set, which is elected before a composition as beside the
+`allOf`, lowers to one use of the conjunct that decides it, short of the cases the OpenAPI
+compiler's rule [`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing: a
+reference to its `$ref`, of several the one lying within more conjuncts, the `Enum` or `Literal` an
+inline branch's value set lowers to standing at the position's own pointer, any other inline
+branch's node at its own pointer, and an alias only where the position writes what no carrier
+holds. A union written beside the
 `allOf` is one more conjunct, as one on a branch is, unless it shares no kind with the rest, when it
 is kept beside what the rest lowers to.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
@@ -359,8 +362,8 @@ them a single `$ref` entry.
 Nothing here is the flattening the [design rules](./README.md#design-rules) leave to emitters. No
 member of one node is copied into another, and no conjunct is lost: it is the reference the position
 names, an annotation read where the same keyword beside the `allOf` is read, what the position
-already says, or kept whole under its path, as a `$ref` a value set narrows is. An `allOf` whose
-kinds are an object alone composes as it always did, one sole `$ref` with nothing beside it a
+already says, or kept whole under its path, a `$ref` a value set narrows under `openapi:$ref`. An
+`allOf` whose kinds are an object alone, stating no value set, composes as it always did, one sole `$ref` with nothing beside it a
 decorator ([annotations](./annotations.md#decorators)) for emitters to collapse.
 
 The designs this was weighed against:
@@ -384,6 +387,9 @@ The designs this was weighed against:
   wrote (invariant 3).
 - **An alias for a narrowing**, as `{$ref: Op, enum: [set]}` lowers beside a 3.1 `$ref`: the field
   then keeps its value set only under `Unmodeled`, where the position has a typed `Enum` to hold it.
+- **The value set's node at the entry writing it**: its ID then follows the entry's index and the
+  spelling, a component or `items` stands as an alias over it, and the `$ref` it narrows is kept on
+  another node than the value set (#2017).
 
 ## Composition beside a union
 
