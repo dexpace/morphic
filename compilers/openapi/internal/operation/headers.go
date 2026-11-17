@@ -86,7 +86,7 @@ func lowerHeader(c, dc service.Ctx, w walk, h *soa.Header, name string, hptr, hd
 	promotion.DropContained(dc.Promoter(), &p.Unmodeled)
 	p.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), p.Unmodeled), elected.unmodeled)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	lent := dc.Promoter().Lent(schema.KeysLentTo(dc.Ctx, w.types, c.Statements().Of(elected.js), p.Type, elected.pointer), p.Unmodeled,
+	lent := dc.Promoter().Lent(schema.KeysLentTo(dc.Ctx, c.Statements().Of(elected.js), p.Type, elected.pointer), p.Unmodeled,
 		elected.carries...)
 	own := promotion.Carried(dc.Promoter(), p.Unmodeled, elected.carries...)
 	diags = append(diags, schema.PromoteUse(dc.Ctx, lent, own, &p.Deprecation, &p.Secret, &p.Provenance)...)

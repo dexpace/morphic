@@ -479,3 +479,39 @@ components:
 	require.NotNil(t, f.Examples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "at-reference"}, *f.Examples[0].Value)
 }
+
+// TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo holds the reading to what a
+// position lowered to, decided before anything is built: a reference naming the
+// ID the position's pointer names is its own node whether or not that node is
+// interned yet, and one naming any other ID is not, whatever the registry holds
+// at the pointer (GitHub #1991).
+func TestLoweredToOwnNode_ReadsWhatThePositionLoweredTo(t *testing.T) {
+	t.Parallel()
+	const src = "    A:\n      type: object\n      properties:\n        p: {type: string, format: byte}\n"
+	const at = jsontext.Pointer("/components/schemas/A/properties/p")
+	own := ir.TypeID("t/anon/components/schemas/A/properties/p")
+	tests := []struct {
+		name   string
+		built  bool
+		target ir.TypeID
+		want   bool
+	}{
+		{"its own node, nothing built yet", false, own, true},
+		{"its own node, built", true, own, true},
+		{"a shared primitive, nothing built", false, "t/prim/string", false},
+		{"a shared primitive, its node built there", true, "t/prim/string", false},
+		{"another position's node", true, componentID("A"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			l, _ := schema.LoweredFor(t, openapitest.ComponentSpec(src))
+			if tt.built {
+				l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+				_, interned := l.Types.Lookup(l.Ctx.IDs().Coordinate(at))
+				require.True(t, interned, "the format hoists a Scalar at the property")
+			}
+			assert.Equal(t, tt.want, schema.LoweredToOwnNode(l.Ctx, at, ir.TypeRef{Target: tt.target}))
+		})
+	}
+}

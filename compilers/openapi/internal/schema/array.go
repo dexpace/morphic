@@ -42,7 +42,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		return &ir.List{
 			TypeCommon:  common,
 			Elem:        elem,
-			Constraints: collectionConstraints(c, ts, s, pointer),
+			Constraints: collectionConstraints(c, s, pointer),
 		}
 	})
 	return id, diags
@@ -105,7 +105,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, s, pointer)}
 	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
@@ -196,7 +196,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, s, pointer)}
 	if items := c.Statements().Sub(itemsSchema(s)); !items.Truth.ReadsFalse() {
 		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)
@@ -211,8 +211,8 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // Only the integer and boolean bounds are read here, as the statement holds the
 // model's, each count where the model holds the number its literal states
 // (annotation.ExactCount); the census keeps one it does not (keptCount).
-func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) *ir.Constraints {
-	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, ts, s, pointer, ir.TypeRef{}))
+func collectionConstraints(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) *ir.Constraints {
+	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, s, pointer, ir.TypeRef{}))
 }
 
 // ownCollectionConstraints reads the collection bounds s itself writes, and nil

@@ -28,7 +28,7 @@ import (
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	voices := positionVoices(c, ts, s, pointer, target)
+	voices := positionVoices(c, s, pointer, target)
 	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
 	if stated(s) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
@@ -42,10 +42,10 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, tar
 // (declaresPositionScoped; GitHub #116), since a shared node must never carry
 // one declaration's annotations.
 //
-// A declaration already owning a node at pointer resolves to it, checked after
-// that gate so a position declaring nothing still resolves to its target. A
-// $ref naming the position only promises one (resolvePointer), so no home
-// depends on declaration order (docs/ir/models.md#composition-beside-a-union).
+// One owning its node keeps it, checked after that gate so a position declaring
+// nothing resolves to its target. Any other interns its alias, which the first
+// lowering of the position builds, so no home turns on declaration order
+// (docs/ir/models.md#composition-beside-a-union).
 //
 // unhomed is the census verdict of a position lowered to a reference
 // (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
@@ -57,13 +57,12 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 	if !unhomed && !declaresPositionScoped(c, s, pointer) {
 		return ref, nil
 	}
+	if LoweredToOwnNode(c, pointer, ref) {
+		return ref, nil
+	}
 	// The home stands where its target stood, so it keeps what the reference
 	// said of null, the marker naming a heuristic that read it in included.
 	out := ref
-	if id, owned := ts.Lookup(c.IDs().Coordinate(pointer)); owned {
-		out.Target = id
-		return out, nil
-	}
 	id, diags := internReferenceAlias(c, ts, s, pointer, ref)
 	out.Target = id
 	return out, diags
@@ -197,7 +196,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	if !ok {
 		return nil
 	}
-	use := nodeUse(c, ts, s, pointer, target)
+	use := nodeUse(c, s, pointer, target)
 	site := use.SiteAt(c, s, pointer)
 	site.Closure = closureTyped(c, ts, s, td)
 	a, diags := annotation.Read(site, pointer, c.Place())

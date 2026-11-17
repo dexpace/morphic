@@ -315,7 +315,7 @@ func foldsNullable(bs *statement.Schema) bool {
 // what the position holds takes them. A refinement's inline principal is one
 // only where it reduced to a shared node, target being what the position lowered
 // to: a branch owning that node keeps what it writes there.
-func positionVoices(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
+func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
 	if !allOfDecides(c, s) {
 		return nil
 	}
@@ -323,7 +323,7 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *statement.Schema, poin
 	var out []annotation.Voice
 	for i, speaks := range voicesAmong(c, s) {
 		e := comp.branches[i]
-		if !speaks || LoweredToOwnNode(c, ts, e.pointer, target) {
+		if !speaks || LoweredToOwnNode(c, e.pointer, target) {
 			continue
 		}
 		out = append(out, annotation.Voice{Node: e.schema.Schema, At: e.pointer})
