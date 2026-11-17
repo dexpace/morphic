@@ -7,7 +7,9 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1283,63 +1285,87 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
 	}
 }
 
-// TestRefinement_ATieTakesTheFirstAndKeepsTheOther pins the one place order
-// decides: two kinds neither of which holds the other, of which the first
-// lowers and the other stays verbatim with a report.
-func TestRefinement_ATieTakesTheFirstAndKeepsTheOther(t *testing.T) {
+// TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone pins two
+// conjuncts naming kinds neither of which lies within the other, as many
+// conjuncts lying within each: no rule ranks them, so neither is the
+// principal, and in either order the position is the top type keeping both
+// with a report at each. Beside the allOf, the keywords there decide, as they
+// do wherever no branch is elected.
+func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	t.Parallel()
-	for name, tc := range map[string]struct {
-		schema string
-		key    string
-		report string
-	}{
-		"two hoisting formats": {
-			"{allOf: [{type: string, format: email}, {type: string, format: hostname}]}",
-			"openapi:allOf/1", "the branch (format)",
-		},
-		"two table formats": {
-			"{allOf: [{type: string, format: date}, {type: string, format: uuid}]}",
-			"openapi:allOf/1", "the branch (format)",
-		},
-		"a format and a bare wider one": {
-			"{allOf: [{type: integer, format: int32}, {type: integer, format: uint32}]}",
-			"openapi:allOf/1", "the branch (format)",
-		},
-		"an overlap of value sets": {
-			"{allOf: [{enum: [a, b]}, {enum: [b, c]}]}",
-			"openapi:allOf/1", "the branch (enum)",
-		},
-		"two element types": {
-			"{allOf: [{type: array, items: {type: string}}, {type: array, items: {type: integer}}]}",
-			"openapi:allOf/1", "the branch (items)",
-		},
-		"beside the allOf": {
-			"{type: string, format: email, allOf: [{type: string, format: hostname}]}",
-			"openapi:allOf/0", "the branch (format)",
-		},
-		"a value set reaching past a type": {
-			"{allOf: [{type: string}, {enum: [a, 1]}]}",
-			"openapi:allOf/1", "the branch (enum)",
-		},
+	for name, tc := range map[string]struct{ a, b string }{
+		"two hoisting formats":             {"{type: string, format: email}", "{type: string, format: hostname}"},
+		"two table formats":                {"{type: string, format: date}", "{type: string, format: uuid}"},
+		"a format and a bare wider one":    {"{type: integer, format: int32}", "{type: integer, format: uint32}"},
+		"an overlap of value sets":         {"{enum: [a, b]}", "{enum: [b, c]}"},
+		"two element types":                {"{type: array, items: {type: string}}", "{type: array, items: {type: integer}}"},
+		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}"},
+		"two type lists":                   {"{type: [string, boolean]}", "{type: [string, integer]}"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
-				"      properties:\n        f: "+tc.schema+"\n"))
-			openapitest.RequireNoErrorDiags(t, diags)
-			p := propertyOf(t, doc, "Holder", "f")
-			held := p.Unmodeled
-			if owned, ok := doc.Types[p.Type.Target]; ok && len(held) == 0 {
-				held = owned.Common().Unmodeled
+			for _, branches := range []string{tc.a + ", " + tc.b, tc.b + ", " + tc.a} {
+				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
+					"      properties:\n        f: {allOf: ["+branches+"]}\n"))
+				openapitest.RequireNoErrorDiags(t, diags)
+				p := propertyOf(t, doc, "Holder", "f")
+				assert.Equal(t, ir.PrimTypeID(ir.PrimAny), p.Type.Target, branches)
+				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, slices.Sorted(maps.Keys(p.Unmodeled)), branches)
+				assert.Equal(t, []jsontext.Pointer{
+					"/components/schemas/Holder/properties/f/allOf/0", "/components/schemas/Holder/properties/f/allOf/1",
+				}, openapitest.PointersOf(diags, diag.DegradedConstruct), branches)
 			}
-			_, ok := held[tc.key]
-			assert.True(t, ok, "%s is kept: got %v", tc.key, held)
-			assert.NotEqual(t, ir.PrimTypeID(ir.PrimAny), p.Type.Target, "the first conjunct lowers")
-			var said string
-			for _, d := range withCode(diags, diag.DegradedConstruct) {
-				said += d.Message
+		})
+	}
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
+		"      properties:\n        f: {type: string, format: email, allOf: [{type: string, format: hostname}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	p := propertyOf(t, doc, "Holder", "f")
+	assert.NotEqual(t, ir.PrimTypeID(ir.PrimAny), p.Type.Target, "beside the allOf, the keywords there decide")
+	held := p.Unmodeled
+	if owned, ok := doc.Types[p.Type.Target]; ok && len(held) == 0 {
+		held = owned.Common().Unmodeled
+	}
+	assert.Contains(t, held, "openapi:allOf/0")
+}
+
+// TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads pins ties between
+// conjuncts admitting alike, in either order: the one writing a keyword its
+// node reads from it alone is the principal, keeping nothing; two writing such
+// keywords otherwise elect neither, the top type keeping both; a union written
+// twice is one, kept nowhere; and words beside the allOf tying with a branch
+// stand for the position, the branch folding, so a value set there is the
+// position's own node.
+func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
+	t.Parallel()
+	const union = "{oneOf: [{type: string}, {type: integer}]}"
+	for name, tc := range map[string]struct {
+		beside, a, b string
+		kept         int
+		top          bool
+		node         ir.TypeID
+	}{
+		"one writes content":     {"", "{type: string}", "{type: string, contentEncoding: base64}", 0, false, ""},
+		"each writes other":      {"", "{type: string, contentEncoding: base64}", "{type: string, contentMediaType: text/plain}", 2, true, ""},
+		"a union written twice":  {"", union, union, 0, false, ""},
+		"words beside the allOf": {"type: string, ", "{type: string, description: d}", "{type: string, minLength: 1}", 0, false, ""},
+		"a set beside the allOf": {"enum: [a, b], ", "{enum: [b, a]}", "{enum: [a, b], description: d}", 0, false,
+			"t/anon/components/schemas/Holder/properties/f"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for _, branches := range []string{tc.a + ", " + tc.b, tc.b + ", " + tc.a} {
+				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
+					"      properties:\n        f: {"+tc.beside+"allOf: ["+branches+"]}\n"))
+				openapitest.RequireNoErrorDiags(t, diags)
+				p := propertyOf(t, doc, "Holder", "f")
+				assert.Equal(t, tc.top, p.Type.Target == ir.PrimTypeID(ir.PrimAny), branches)
+				assert.Len(t, p.Unmodeled, tc.kept, branches)
+				assert.Len(t, withCode(diags, diag.DegradedConstruct), tc.kept, branches)
+				if tc.node != "" {
+					assert.Equal(t, tc.node, p.Type.Target, branches)
+				}
 			}
-			assert.Contains(t, said, tc.report)
 		})
 	}
 }
@@ -2129,23 +2155,25 @@ func TestRefinement_DeclaredBeforeItsTarget(t *testing.T) {
 }
 
 // TestRefinement_TheValueSetWithinMostOthersWins pins the election past a value set
-// within every other: none is here, and the one within the most others wins, what
-// holds it consumed and the one overlapping it kept.
+// within every other: none is here, and the one within the most others wins, in
+// either order, what holds it consumed and the one overlapping it kept.
 func TestRefinement_TheValueSetWithinMostOthersWins(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
-      type: object
-      properties:
-        f: {allOf: [{enum: [a, b, c]}, {enum: [a, b]}, {enum: [b, c]}]}
-`))
-	openapitest.RequireNoErrorDiags(t, diags)
-	p := propertyOf(t, doc, "Holder", "f")
-	en, ok := doc.Types[p.Type.Target].(*ir.Enum)
-	require.True(t, ok, "got %T", doc.Types[p.Type.Target])
-	assert.Len(t, en.Members, 2)
-	assert.Empty(t, p.Unmodeled, "the node the position owns keeps what it keeps")
-	assert.NotContains(t, en.Unmodeled, "openapi:allOf/0", "it holds the narrower set")
-	assert.Contains(t, en.Unmodeled, "openapi:allOf/2", "and this one overlaps it")
+	for branches, overlapping := range map[string]string{
+		"{enum: [a, b, c]}, {enum: [a, b]}, {enum: [b, c, d]}": "openapi:allOf/2",
+		"{enum: [b, c, d]}, {enum: [a, b]}, {enum: [a, b, c]}": "openapi:allOf/0",
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
+			"      properties:\n        f: {allOf: ["+branches+"]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		p := propertyOf(t, doc, "Holder", "f")
+		en, ok := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%s: got %T", branches, doc.Types[p.Type.Target])
+		assert.Len(t, en.Members, 2, branches)
+		assert.Empty(t, p.Unmodeled, "%s: the node the position owns keeps what it keeps", branches)
+		assert.Equal(t, []string{overlapping}, slices.Sorted(maps.Keys(en.Unmodeled)),
+			"%s: it holds the narrower set, and keeps the one overlapping it", branches)
+	}
 }
 
 // TestRefinement_ANullBothConjunctsAdmitIsAValue pins the reading of OpenAPI 3.0's

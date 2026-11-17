@@ -303,7 +303,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.True(t, ok, "the inline branch still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false,
+	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"unevaluatedProperties":false,
 		"description":"A narrowed base.","maxProperties":3}`,
 		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
 	assert.Equal(t, "A narrowed base.", narrowed.Docs.Description, "and the position reads what it can")

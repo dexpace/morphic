@@ -65,8 +65,9 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // assertAllOfNestedInline pins the flattening of
 // docs/compilers/openapi.md#allof-classification: a nested spelling classifies
 // as the flat one does and keeps each property's own pointer. A wrapper writing
-// nothing else is kept nowhere; one that also writes a keyword is kept whole,
-// with one diagnostic.
+// nothing else is kept nowhere, and one that also writes a closure reading
+// every member the conjunction declares closes the model and is kept nowhere
+// either.
 func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[componentID("M")].(*ir.Model)
 	require.True(t, ok)
@@ -108,7 +109,8 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.Len(t, described.Mixins, 2, "the wrapper's refs compose despite its description")
 	assert.Equal(t, componentID("A"), described.Mixins[0].Target)
 	assert.Equal(t, componentID("B"), described.Mixins[1].Target)
-	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+	assert.Equal(t, ir.AdditionalClosed, described.Additional, "the wrapper's closure, reading no member, closes the model")
+	assert.Empty(t, described.Unmodeled, "nothing of the wrapper is kept")
 	assert.Equal(t, "grouped", described.Docs.Description, "and what it says of the position lands there")
 
 	for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
@@ -122,9 +124,6 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	}
 
 	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Described/allOf/0" {
-			continue // the one kept wrapper
-		}
 		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
 	}
 }
@@ -219,12 +218,18 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Union)
 	require.True(t, ok, "an inline branch distributes the body as a $ref branch does")
 	require.Len(t, mixed.Variants, 2)
-	for i, branch := range []ir.TypeID{componentID("A"), "t/prim/string"} {
+	for i := range mixed.Variants {
 		v, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d composes as a model", i)
 		require.Len(t, v.Properties, 1, "the body rides on every variant")
-		require.NotNil(t, v.Base)
-		assert.Equal(t, branch, v.Base.Target, "the branch is carried as written")
+		if i == 0 {
+			require.NotNil(t, v.Base)
+			assert.Equal(t, componentID("A"), v.Base.Target, "an object branch is the variant's base")
+			continue
+		}
+		assert.Nil(t, v.Base, "a model composes no string")
+		require.Contains(t, v.Unmodeled, "openapi:oneOf/1", "so the variant keeps the branch")
+		assert.JSONEq(t, `{"type":"string"}`, string(v.Unmodeled["openapi:oneOf/1"].Value))
 	}
 
 	bounded, ok := doc.Types[componentID("BoundedKinds")].(*ir.Scalar)
@@ -561,8 +566,10 @@ func assertTypeArrayDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Dia
 	for name, value := range map[string]string{"Cat": "cat", "Dog": "Dog"} {
 		sub, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s composes as a Model", name)
-		assert.Nil(t, sub.Base, "%s composes no union admitting a string", name)
-		assert.Contains(t, sub.Unmodeled, "openapi:allOf/0", "%s keeps its $ref to the union", name)
+		require.NotNil(t, sub.Base, name)
+		assert.Equal(t, variant.ID, sub.Base.Target, "%s composes the union's object variant", name)
+		assert.Empty(t, sub.Unmodeled, "%s keeps nothing", name)
+		assert.Contains(t, ir.ExposedProps(doc, sub.ID), variant.Properties[0].ID, "%s inherits the variant's member", name)
 		assert.Equal(t, value, sub.DiscriminatorValue)
 	}
 }

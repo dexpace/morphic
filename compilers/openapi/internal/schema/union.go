@@ -355,29 +355,36 @@ func branchUnionIndexOf(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 }
 
 // findBranchUnion is branchUnion's reading of s alone: where s lowers its
-// allOf, composing, not refining, the one branch whose union declares shape
-// against s, where that branch lies within the flattening depth and
-// classifyBranchSet distributes its union. Two such unions leave none, either
-// dropping the other, and one declaring no shape stays residue. A union s and
-// its branch each write a discriminator beside leaves none either: nothing says
-// which routes it. A $ref site or a union beside the allOf lowers first
-// (lowerSchemaBody), and is no reading of a branch's.
+// allOf, composing, not refining, the branch whose union declares shape
+// against s, where it lies within the flattening depth and classifyBranchSet
+// distributes it. Of several, the one writing a oneOf, as a schema writing
+// both lowers to its oneOf, each other kept on every variant; two writing a
+// oneOf, or several anyOfs, leave none, in any order. One declaring no shape
+// stays residue. A discriminator on both s and the branch leaves none: nothing
+// says which routes it. A $ref site or a union beside the allOf lowers first.
 func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
 	branches := allOfBranches(c, s, "").branches
-	index, count := 0, 0
+	var shaped, oneOfs []int
 	for i, e := range branches {
 		choice := choiceIn(e.schema.Schema)
 		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 			continue
 		}
-		index, count = i, count+1
+		shaped = append(shaped, i)
+		if len(choice.OneOf) > 0 {
+			oneOfs = append(oneOfs, i)
+		}
 	}
-	if count != 1 || branches[index].capped {
+	if len(shaped) > 1 {
+		shaped = oneOfs
+	}
+	if len(shaped) != 1 || branches[shaped[0]].capped {
 		return branchUnionIndex{}
 	}
+	index := shaped[0]
 	if discriminatorIn(branches[index].schema.Schema) != nil && discriminatorIn(s) != nil ||
 		classifyBranchSet(c, branches[index].schema.Schema) != unionDistributed {
 		return branchUnionIndex{}
@@ -1079,7 +1086,7 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composed
 	if body.inferred && !admitsObjectsAlone(c, b) {
 		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
 	}
-	def, variantDiags := buildComposedVariant(c, ts, depth, body, branch.Target, common)
+	def, variantDiags := buildComposedVariant(c, ts, depth, body, b, branch.Target, common)
 	ts.Register(id, def)
 	return composedVariantRef(c, id, body.schema, branch), append(diags, variantDiags...)
 }
@@ -1107,27 +1114,74 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, br
 // them first.
 //
 // The enclosing schema's value constraints, its folding branches' among them,
-// are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy
-// of those a model takes, read by what the whole position admits, so a variant
-// holds a count its own branch cannot take (GitHub #1936).
-func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, body.comp.bounds)
+// are read as lowerAllOf reads them (GitHub #407), for the kinds the variant
+// admits: those b lowers to among the model's. So a variant over a branch no
+// object satisfies holds none, and the census keeps a bound no variant holds
+// on the Union (GitHub #1936).
+func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, b *statement.Statement,
+	branch ir.TypeID, common ir.TypeCommon,
+) (ir.TypeDef, []ir.Diagnostic) {
+	kinds, _ := lowersTo(c, b)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, body.comp.bounds&kinds)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
-	// The branch is distributed into the body, whose own declarations are read
-	// after it, as a model's own declarations follow what it composes.
-	fields.compose(branch, m.Provenance.Pointer)
+	branch, composes := branchReferent(c, b, branch, m.Provenance.Pointer)
+	if composes {
+		// The branch is distributed into the body, whose own declarations are
+		// read after it, as a model's own declarations follow what it composes.
+		fields.compose(branch, m.Provenance.Pointer)
+	}
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(objectIn(body.schema).Required, body.comp))
-	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
-	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
+	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
+	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
+	if !composes {
+		return m, append(diags, keepUncomposedBranch(c, m, body.comp, b)...)
+	}
 	conjoinBranch(m, branch)
 	// No variant carries a DiscriminatorValue, which tags a hierarchy's
 	// subtype: a schema a discriminated ancestor routes to is never distributed
 	// (unionRoutedSubtype), and a discriminator beside the union routes its
 	// variants by its mapping (spellImplicitRoutes).
 	return m, diags
+}
+
+// branchReferent returns what the variant composed over the union branch b,
+// written at at and lowered to branch, names as its Base or a Mixin, and
+// whether it names one, as an allOf's $ref entry composes (composesRef): the
+// branch where it lowers to an object alone, null aside, or its read is cut
+// short; the object variant of a type list it names (objectVariant) where it
+// writes nothing beside its $ref, which its own node holds over the list
+// (LoweredToOwnNode); else nothing, since a model composes only models.
+func branchReferent(c lowering.Ctx, b *statement.Statement, branch ir.TypeID, at jsontext.Pointer) (ir.TypeID, bool) {
+	if admissionOf(c, b).cut {
+		return branch, true
+	}
+	if kinds, _ := lowersTo(c, b); kinds == kindObject {
+		return branch, true
+	}
+	variant, unpacked := objectVariant(c, b)
+	if !unpacked || LoweredToOwnNode(c, at, ir.TypeRef{Target: branch}) {
+		return "", false
+	}
+	return variant, true
+}
+
+// keepUncomposedBranch keeps the union branch b, which the variant m does not
+// compose (branchReferent), verbatim under m's Unmodeled, keyed by its path
+// from the body comp composes, and reports it, as keepUncomposedRef keeps an
+// allOf's $ref entry.
+func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, b *statement.Statement) []ir.Diagnostic {
+	at := m.Provenance.Pointer
+	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(at), b.Node,
+		ir.ReasonDegradedLowering, c.Place().At(at))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at, "%s",
+		"this branch is not an object alone, and the model distributing the body over it composes only "+
+			"models, so the branch is kept verbatim under Unmodeled"))
 }
 
 // conjoinBranch adds one union branch's referent to the variant model,

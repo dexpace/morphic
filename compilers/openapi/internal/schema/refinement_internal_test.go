@@ -428,3 +428,32 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 	assert.Equal(t, 1, walked(4000, 1), "a longer target walks no more")
 	assert.Equal(t, 999, walked(1000, 999), "a narrowing walks its own members")
 }
+
+// TestElect_ComparesEachPairOnce pins what an election of many conjuncts
+// tying with each other costs: one comparison of each conjunct naming a kind
+// with every conjunct (mostWithin), and breaking the tie at most one more per
+// conjunct. Unions of one keyword and words admitting alike are the two ties
+// that read every tied conjunct.
+func TestElect_ComparesEachPairOnce(t *testing.T) {
+	t.Parallel()
+	for _, entry := range []string{
+		"{oneOf: [{type: string, maxLength: %d}, {type: integer}]}",
+		"{type: string, maxLength: %d}",
+	} {
+		for _, n := range []int{16, 32, 64} {
+			entries := make([]string, n)
+			for i := range n {
+				entries[i] = fmt.Sprintf(entry, i+1)
+			}
+			l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
+			s := StatedIn(l, componentSchema(t, l, "T"))
+			w := newAdmission(l.Ctx)
+			conjuncts, _ := w.conjuncts(s, allOfBranches(l.Ctx, s, ""))
+			compared := 0
+			w.compared = func() { compared++ }
+			w.elect(conjuncts, nil)
+			assert.LessOrEqual(t, compared, n*len(conjuncts)+2*n, "%s at %d", entry, n)
+			assert.GreaterOrEqual(t, compared, n*len(conjuncts), "%s at %d: every pair is compared", entry, n)
+		}
+	}
+}

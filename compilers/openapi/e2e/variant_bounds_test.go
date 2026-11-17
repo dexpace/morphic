@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"strings"
@@ -173,7 +174,9 @@ func TestVariantBounds_ABoundNoVariantTakesIsKeptOnceOnTheUnion(t *testing.T) {
 							for _, at := range conjunctionPositions {
 								union := variantUnionAt(t, doc, string(at), len(branches))
 								assert.Equal(t, entryKept(kept...), keptOn(union), "what the union keeps at %s", at)
-								assert.Len(t, degradedUnder(diags, at), 1, "one info for what is kept at %s", at)
+								infos := degradedUnder(diags, at)
+								assert.Equal(t, 1, countOf(infos, at), "one info for what is kept at %s", at)
+								assert.Len(t, infos, 1+keptBranches(branches), "and one at each branch a variant keeps at %s", at)
 								for j, b := range branches {
 									held := variantConstraints(t, doc, union.Variants[j].Type.Target)
 									for _, bound := range variantBounds {
@@ -247,5 +250,143 @@ func TestVariantBounds_AUseRepeatedLeavesTheVariantsAlone(t *testing.T) {
 			branches := variantBranchesAt(version, false)
 			requireRepeatedUsesLeaveNodesAlone(t, version, variantSchema("oneOf", branches), variantComponentsOf(branches)...)
 		})
+	}
+}
+
+// TestVariantBounds_AVariantHoldsOnlyTheBoundsItsBranchTakes holds that each
+// variant of a union distributed over an object body holds the bounds of the
+// kinds its own branch takes beside that body: a variant over an object, or
+// over a branch that is an object among others, the bounds of an object, and
+// a variant over a string, an array or an integer, which the body leaves no
+// instance of, none. The variant is still made for the branch, in either
+// order of the branches and under oneOf and anyOf.
+func TestVariantBounds_AVariantHoldsOnlyTheBoundsItsBranchTakes(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		for _, keyword := range []string{"oneOf", "anyOf"} {
+			for _, reverse := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/reversed-%t", version, keyword, reverse), func(t *testing.T) {
+					t.Parallel()
+					branches := variantBranchesAt(version, reverse)
+					inBothMappingOrders(t, conjunctionSpec(version, variantSchema(keyword, branches), variantComponentsOf(branches)...),
+						func(t *testing.T, spec string) {
+							doc, diags := compileAnnotationSpec(t, "variants", spec)
+							requireErrorsAndWarnings(t, diags, nil)
+							for _, at := range conjunctionPositions {
+								union := variantUnionAt(t, doc, string(at), len(branches))
+								for j, b := range branches {
+									want := map[string]any{}
+									if b.object {
+										want = map[string]any{"minProps": 1.0, "maxProps": 5.0}
+									}
+									assert.Equal(t, want, variantConstraints(t, doc, union.Variants[j].Type.Target),
+										"the bounds of the variant over %s at %s", b.name, at)
+								}
+							}
+						})
+				})
+			}
+		}
+	}
+}
+
+// TestVariantBounds_ABoundOfAKindNoBranchTakesIsNotLostToTheVariants holds that
+// a body bounded by an object's and a string's, beside two branches one of
+// which is a string, gives the object's to the variant over the object and
+// keeps the string's once on the union, whichever order the branches are
+// written in: the bound each takes is held and the other is neither dropped
+// nor copied onto the variant that cannot take it.
+func TestVariantBounds_ABoundOfAKindNoBranchTakesIsNotLostToTheVariants(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		for _, order := range [][]string{{"Str", "A"}, {"A", "Str"}} {
+			t.Run(fmt.Sprintf("%s/%v", version, order), func(t *testing.T) {
+				t.Parallel()
+				branches := make([]variantBranch, 0, len(order))
+				for _, name := range order {
+					branches = append(branches, variantBranch{name: name, object: name == "A"})
+				}
+				schema := "{type: object, properties: {a: {type: string}}, minLength: 1, minProperties: 1, oneOf: [" +
+					"{$ref: '#/components/schemas/" + order[0] + "'}, {$ref: '#/components/schemas/" + order[1] + "'}]}"
+				doc, diags := compileAnnotationSpec(t, "lost", conjunctionSpec(version, schema, variantComponentsOf(branches)...))
+				requireErrorsAndWarnings(t, diags, nil)
+				for _, at := range conjunctionPositions {
+					union := variantUnionAt(t, doc, string(at), 2)
+					assert.Equal(t, entryKept("openapi:minLength"), keptOn(union), "kept at %s", at)
+					for j, b := range branches {
+						want := map[string]any{}
+						if b.object {
+							want = map[string]any{"minProps": 1.0}
+						}
+						assert.Equal(t, want, variantConstraints(t, doc, union.Variants[j].Type.Target), "variant over %s at %s", b.name, at)
+					}
+					assert.Equal(t, ir.KindUnion, kindNode(t, doc, usedAt(t, doc, at)).Kind(), at)
+				}
+			})
+		}
+	}
+}
+
+// variantBases are the Bases of the variants over the branches that compose:
+// an object, and the object variant of each type list holding one.
+var variantBases = map[string]ir.TypeID{
+	"A":  componentID("A"),
+	"AS": "t/anon/components/schemas/AS/type/0",
+	"AI": "t/anon/components/schemas/AI/type/0",
+}
+
+// keptBranches counts the branches no variant composes (variantBases).
+func keptBranches(branches []variantBranch) int {
+	n := 0
+	for _, b := range branches {
+		if _, composed := variantBases[b.name]; !composed {
+			n++
+		}
+	}
+	return n
+}
+
+// TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase holds that the
+// variant over a branch that is an object alone names it as its Base, the one
+// over a type list holding an object that list's object variant, and that the
+// variant over any other branch, a string, an array or an integer, names none
+// and keeps the branch verbatim under its path from the position, with one
+// info at the branch, in either order of the branches and of every mapping,
+// under oneOf and anyOf.
+func TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		for _, keyword := range []string{"oneOf", "anyOf"} {
+			for _, reverse := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/reversed-%t", version, keyword, reverse), func(t *testing.T) {
+					t.Parallel()
+					branches := variantBranchesAt(version, reverse)
+					inBothMappingOrders(t, conjunctionSpec(version, variantSchema(keyword, branches), variantComponentsOf(branches)...),
+						func(t *testing.T, spec string) {
+							doc, diags := compileAnnotationSpec(t, "bases", spec)
+							requireErrorsAndWarnings(t, diags, nil)
+							for _, at := range conjunctionPositions {
+								union := variantUnionAt(t, doc, string(at), len(branches))
+								for j, b := range branches {
+									v, ok := doc.Types[union.Variants[j].Type.Target].(*ir.Model)
+									require.True(t, ok, "the variant over %s at %s is a model", b.name, at)
+									assert.Empty(t, v.Mixins, "%s at %s", b.name, at)
+									branchAt := at + jsontext.Pointer(fmt.Sprintf("/%s/%d", keyword, j))
+									if base, composed := variantBases[b.name]; composed {
+										require.NotNil(t, v.Base, "the variant over %s at %s", b.name, at)
+										assert.Equal(t, base, v.Base.Target, "the variant over %s at %s", b.name, at)
+										assert.Empty(t, v.Unmodeled, "%s keeps nothing at %s", b.name, at)
+										assert.Zero(t, countOf(degradedUnder(diags, branchAt), branchAt))
+										continue
+									}
+									assert.Nil(t, v.Base, "the variant over %s at %s names no base", b.name, at)
+									assert.Equal(t, entryKept(fmt.Sprintf("openapi:%s/%d", keyword, j)), keptOn(v), "%s at %s", b.name, at)
+									assert.Equal(t, 1, countOf(degradedUnder(diags, branchAt), branchAt), "%s at %s", b.name, at)
+								}
+							}
+						})
+				})
+			}
+		}
 	}
 }

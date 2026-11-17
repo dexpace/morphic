@@ -116,3 +116,22 @@ func TestValueSet_ABoundBesideAnEntrysValueSetIsKeptByItsKeyword(t *testing.T) {
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 		"/components/schemas/S/allOf/1"), "no home for minLength")
 }
+
+// TestValueSet_SetsAlikeTheElectionCannotTellApartElectNone pins two value sets
+// of one value, beside a $ref they share none with, parting on the `items`
+// each lowers its elements by: no rule picks one, so none is elected before
+// the composition, which keeps every entry and reports the contradiction, in
+// either order.
+func TestValueSet_SetsAlikeTheElectionCannotTellApartElectNone(t *testing.T) {
+	t.Parallel()
+	const ints, nums = "{enum: [[1]], items: {type: integer}}", "{enum: [[1]], items: {type: number}}"
+	for _, entries := range []string{ints + ", " + nums, nums + ", " + ints} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Str: {type: string}\n"+
+			"    S: {allOf: [{$ref: '#/components/schemas/Str'}, "+entries+"]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok, "%s: got %T", entries, typeByName(doc, "S"))
+		assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1", "openapi:allOf/2"}, unmodeledKeys(m.Unmodeled), entries)
+		assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), entries)
+	}
+}

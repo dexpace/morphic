@@ -453,3 +453,33 @@ func TestEntryValueSet_AnObjectValueSetIsElectedBeforeTheComposition(t *testing.
 		}
 	}
 }
+
+// TestEntryValueSet_AValueSetWrittenTwiceIsOneNodeInEveryOrder holds that a
+// value set two entries write alike beside a $ref is one conjunct whose node
+// stands at the position: written ahead of the $ref, after it or around it,
+// the documents are one but for the index each entry is written at, where the
+// node stood at whichever copy came first.
+func TestEntryValueSet_AValueSetWrittenTwiceIsOneNodeInEveryOrder(t *testing.T) {
+	t.Parallel()
+	for _, vs := range entryValueSets() {
+		for _, version := range entryVersions(vs) {
+			t.Run(fmt.Sprintf("%s/%s", version, vs.name), func(t *testing.T) {
+				t.Parallel()
+				set := "{" + vs.keyword + "}"
+				var trees []string
+				for _, entries := range []string{entryRef + ", " + set + ", " + set, set + ", " + entryRef + ", " + set,
+					set + ", " + set + ", " + entryRef} {
+					doc, diags := compileAnnotationSpec(t, "twice", conjunctionSpec(version, "{allOf: ["+entries+"]}", vs.target))
+					requireErrorsAndWarnings(t, diags, nil)
+					requireNoEntryIndexedType(t, doc)
+					node := kindNode(t, doc, componentID("Pos"))
+					vs.check(t, doc, node)
+					assert.Equal(t, entryKept("openapi:$ref"), keptOn(node), entries)
+					trees = append(trees, entryTree(t, doc))
+				}
+				assert.Equal(t, trees[0], trees[1], "the order decided the document")
+				assert.Equal(t, trees[0], trees[2], "the order decided the document")
+			})
+		}
+	}
+}

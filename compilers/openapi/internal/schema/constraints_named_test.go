@@ -587,9 +587,9 @@ components:
 // TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes pins a bound beside
 // a union distributed over an allOf naming an object: each variant, a model,
 // holds the bounds an object takes, and the union keeps the one no variant
-// takes, once, with its report. Over a schema admitting every kind beside a
-// union admitting a string, the position is a use of that schema, which holds
-// both bounds and keeps the union.
+// takes, once, with its report. Beside a schema admitting every kind, which
+// says nothing of the kind, a union admitting a string is the Union its flat
+// spelling is, holding both bounds and keeping the $ref.
 func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, distributedSpec)
@@ -615,13 +615,13 @@ func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 		assert.NotContains(t, msg, "minProperties")
 		assert.NotContains(t, marshalForTest(t, doc), `"openapi:minProperties"`)
 	})
-	t.Run("a use of a schema admitting every kind holds both", func(t *testing.T) {
+	t.Run("the union beside a schema admitting every kind holds both", func(t *testing.T) {
 		t.Parallel()
-		e, ok := typeByName(doc, "E").(*ir.Scalar)
+		e, ok := typeByName(doc, "E").(*ir.Union)
 		require.True(t, ok, "got %T", typeByName(doc, "E"))
-		assert.Equal(t, componentID("Open"), e.Base.Target)
 		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1)), MinProps: new(int64(2))}, e.Constraints)
-		assert.Equal(t, []string{"openapi:oneOf"}, unmodeledKeys(e.Unmodeled))
+		assert.Equal(t, []string{"openapi:$ref"}, unmodeledKeys(e.Unmodeled))
+		assert.EqualValues(t, "/components/schemas/E/allOf/0", e.Unmodeled["openapi:$ref"].Provenance.Pointer)
 	})
 }
 

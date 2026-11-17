@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json/jsontext"
 	"maps"
@@ -79,8 +80,42 @@ type conjunct struct {
 	branch *allOfBranch
 	at     int
 	read   admitted
-	// says marks an inline conjunct writing what kind of value this is.
+	// schema writes the conjunct's keywords: the branch's, or the position's
+	// for the keywords beside the allOf.
+	schema *statement.Schema
+	// says marks an inline conjunct writing what kind of value this is, and
+	// form how it names it.
 	says bool
+	form conjunctForm
+}
+
+// conjunctForm is how an inline conjunct names its kinds, ranked for a tie
+// between two lying within as many conjuncts: a union before the words, which
+// then bound it, and a oneOf before an anyOf, as the one Union a schema
+// writing both lowers to is its oneOf's
+// (docs/compilers/openapi.md#competing-keywords).
+type conjunctForm uint8
+
+const (
+	// formWords marks a conjunct naming its kinds by `type`, `enum` or `const`.
+	formWords conjunctForm = iota
+	// formAnyOf marks one writing an anyOf and no oneOf.
+	formAnyOf
+	// formOneOf marks one writing a oneOf.
+	formOneOf
+)
+
+// unionForm is the form of a conjunct whose keywords s writes, its unions
+// among them.
+func unionForm(s *statement.Schema) conjunctForm {
+	switch choice := choiceIn(s); {
+	case len(choice.OneOf) > 0:
+		return formOneOf
+	case len(choice.AnyOf) > 0:
+		return formAnyOf
+	default:
+		return formWords
+	}
 }
 
 // refinementAt keys a position's decision: where a schema is read from says where
@@ -171,10 +206,11 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 }
 
 // setElected returns the conjunct stating a value set that is elected before
-// a composition: the one whose set lies within every other stated, s's own
-// first, and nil where none states one or none lies within the rest. A $ref's
-// target is no statement of the position's, and a set its own keywords leave
-// no value is none to lower: the composition reports it.
+// a composition: of the sets lying within every other stated, the one untie
+// picks among sets alike, and nil where none states one, none lies within the
+// rest, or untie elects none. A $ref's target is no statement of the
+// position's, and a set its own keywords leave no value is none to lower: the
+// composition reports it.
 func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjunct {
 	var sets []*conjunct
 	for i := range conjuncts {
@@ -188,10 +224,14 @@ func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjun
 			sets = append(sets, cj)
 		}
 	}
-	for _, cj := range sets {
-		if !slices.ContainsFunc(sets, func(o *conjunct) bool { return o != cj && !w.setWithin(cj.read, o.read) }) {
-			return cj
-		}
+	within := slices.DeleteFunc(slices.Clone(sets), func(cj *conjunct) bool {
+		return slices.ContainsFunc(sets, func(o *conjunct) bool { return o != cj && !w.setWithin(cj.read, o.read) })
+	})
+	if len(within) == 0 {
+		return nil
+	}
+	if elected := untie(w, conjuncts, strongest(within)); slices.Contains(within, elected) {
+		return elected
 	}
 	return nil
 }
@@ -211,8 +251,11 @@ func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kind
 
 // voteRefs returns how each $ref conjunct stands where the position lowers to
 // kinds, declared unless inferred, indexed by branch, and the conjuncts of
-// those that may be the principal.
+// those that may be the principal. The position says what it is where those
+// kinds are declared, or where a conjunct names a kind, a union beside the
+// allOf among them.
 func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool, branches int) ([]refVote, []*conjunct) {
+	says := !inferred && kinds != anyInstance || slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
 	votes := make([]refVote, branches)
 	var electable []*conjunct
 	for i := range conjuncts {
@@ -220,7 +263,7 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 		if cj.branch == nil || cj.branch.schema.Ref == nil {
 			continue
 		}
-		votes[cj.at] = voteOf(c, kinds, inferred, cj)
+		votes[cj.at] = voteOf(c, kinds, says, cj)
 		if votes[cj.at] == refElectable {
 			electable = append(electable, cj)
 		}
@@ -229,16 +272,17 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 }
 
 // voteOf returns how the $ref conjunct ref stands where the position lowers
-// to kinds, declared unless inferred. What the document declares decides
+// to kinds and says, or not, what it is. What the document declares decides
 // first (docs/compilers/openapi.md#policies): before a kind the policy reads
-// off the target's shape keywords that kinds exclude, and before a target
+// off the target's shape keywords where kinds hold one, null aside, that it
+// leaves out, as the target then admits that kind whole, and before a target
 // admitting every kind, which says nothing of what the position is.
-func voteOf(c lowering.Ctx, kinds kindSet, inferred bool, ref *conjunct) refVote {
+func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
 	target, targetInferred := lowersTo(c, ref.branch.schema)
 	switch {
-	case targetInferred && target&kinds == 0:
+	case targetInferred && kinds&^kindNull&^target != 0:
 		return refInferredApart
-	case !targetInferred && target == anyInstance && !inferred && kinds != anyInstance:
+	case !targetInferred && target == anyInstance && says:
 		return refAdmitsEvery
 	default:
 		return refElectable
@@ -295,16 +339,17 @@ func refinableBranches(comp allOfComposition) bool {
 // read alone: its entries are conjuncts of their own.
 func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	out = append(out, conjunct{read: w.written(s, w.nullable), says: saysKind(s), at: -1})
+	out = append(out, conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s), at: -1})
 	for i := range comp.branches {
 		e := &comp.branches[i]
+		bs := e.schema.Schema
 		switch {
-		case !stated(e.schema.Schema):
+		case !stated(bs):
 		case e.schema.Ref != nil:
-			out = append(out, conjunct{branch: e, at: i, read: w.of(e.schema)})
+			out = append(out, conjunct{branch: e, at: i, read: w.of(e.schema), schema: bs})
 		default:
-			out = append(out, conjunct{branch: e, at: i, read: inlineConjunct(w, e.schema.Schema),
-				says: saysKind(e.schema.Schema) || declaresUnion(e.schema.Schema)})
+			out = append(out, conjunct{branch: e, at: i, read: inlineConjunct(w, bs), schema: bs,
+				says: saysKind(bs) || declaresUnion(bs), form: unionForm(bs)})
 		}
 	}
 	if !declaresUnion(s) {
@@ -317,7 +362,7 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]con
 	if rest.reachable() && union.kinds&^kindNull != 0 && rest.kinds&union.kinds == 0 {
 		return out, true
 	}
-	out[0].read, out[0].says = out[0].read.and(union), true
+	out[0].read, out[0].says, out[0].form = out[0].read.and(union), true, unionForm(s)
 	return out, false
 }
 
@@ -365,46 +410,199 @@ func disjoint(joint admitted, conjuncts []conjunct) bool {
 }
 
 // elect picks the conjunct the position lowers from, of refs the $refs that
-// may be: the inline value set within every other, since it fixes the values
+// may be: an inline value set within every other, since it fixes the values
 // and what it narrows cannot; else a $ref, since replacing it drops what its
 // target says (narrowestRef); else, of those naming a kind, the conjunct
-// within the most others, the keywords beside the allOf first, a tie going to
-// the first and leaving the other kept and reported. A `format` or `items`
-// naming no kind only qualifies one, so it never decides, and where nothing
-// names a kind no branch does.
+// within the most others. A `format` or `items` naming no kind only qualifies
+// one, so it never decides, and where nothing names a kind no branch does. No
+// tie goes by the order written: untie breaks one, and words neither within
+// the other elect none.
 func (w *admission) elect(conjuncts []conjunct, refs []*conjunct) *conjunct {
 	for i := range conjuncts {
 		if w.narrowsAll(conjuncts, i, refs) {
-			return &conjuncts[i]
+			return untie(w, conjuncts, strongest(narrowingSets(conjuncts, i, refs)))
 		}
 	}
 	if len(refs) > 0 {
 		return narrowestRef(w, conjuncts, refs)
 	}
-	best, most := 0, 0
-	for i := range conjuncts {
-		if !conjuncts[i].says {
-			continue
-		}
-		if n := w.conesOver(conjuncts, conjuncts[i].read); n > most {
-			best, most = i, n
+	tied := strongest(mostWithin(w, conjuncts))
+	if len(tied) > 1 && tied[0].form == formWords && !admitAlike(w, tied) {
+		return &conjuncts[0]
+	}
+	return untie(w, conjuncts, tied)
+}
+
+// narrowingSets returns the value sets within every other conjunct, the first
+// of them at i: those after it whose kinds and values are its own, as each
+// set within every other is within the first, and the first within it.
+func narrowingSets(conjuncts []conjunct, i int, refs []*conjunct) []*conjunct {
+	first := &conjuncts[i]
+	sets := []*conjunct{first}
+	for j := i + 1; j < len(conjuncts); j++ {
+		cj := &conjuncts[j]
+		if cj.read.fixed && !slices.Contains(refs, cj) && sameValues(cj.read, first.read) {
+			sets = append(sets, cj)
 		}
 	}
-	return &conjuncts[best]
+	return sets
+}
+
+// sameValues reports whether a and b, two value sets, admit the same kinds and
+// hold the same members.
+func sameValues(a, b admitted) bool {
+	return a.kindsWithin(b) && b.kindsWithin(a) && a.valuesWithin(b) && b.valuesWithin(a)
+}
+
+// mostWithin returns the conjuncts naming a kind that lie within the most
+// conjuncts, in the order written.
+func mostWithin(w *admission, conjuncts []conjunct) []*conjunct {
+	var tied []*conjunct
+	most := 0
+	for i := range conjuncts {
+		cj := &conjuncts[i]
+		if !cj.says {
+			continue
+		}
+		switch n := w.conesOver(conjuncts, cj.read); {
+		case n > most:
+			tied, most = append(tied[:0], cj), n
+		case n == most:
+			tied = append(tied, cj)
+		}
+	}
+	return tied
+}
+
+// strongest returns those of tied whose form ranks first (conjunctForm).
+func strongest(tied []*conjunct) []*conjunct {
+	top := formWords
+	for _, cj := range tied {
+		top = max(top, cj.form)
+	}
+	return slices.DeleteFunc(tied, func(cj *conjunct) bool { return cj.form != top })
+}
+
+// admitAlike reports whether each of tied lies within every other: what they admit
+// is one, so far as a reading holds it.
+func admitAlike(w *admission, tied []*conjunct) bool {
+	first := tied[0].read
+	return !slices.ContainsFunc(tied[1:], func(cj *conjunct) bool {
+		return !w.within(first, cj.read) || !w.within(cj.read, first)
+	})
+}
+
+// untie returns which of tied, conjuncts of one form, the position lowers
+// from: the one there is; of words admitting alike, the pick untieWords makes;
+// of unions of one keyword, the first where each is that one schema written
+// again, else none, as no rule ranks their branches, and the keywords beside
+// the allOf decide (docs/compilers/openapi.md#allof-refinement). A tie of no
+// conjunct leaves those keywords too.
+func untie(w *admission, conjuncts []conjunct, tied []*conjunct) *conjunct {
+	switch {
+	case len(tied) == 0:
+		return &conjuncts[0]
+	case len(tied) == 1:
+		return tied[0]
+	case tied[0].form == formWords:
+		return untieWords(w, &conjuncts[0], tied)
+	case writtenAlike(w, tied):
+		return tied[0]
+	default:
+		return &conjuncts[0]
+	}
+}
+
+// writtenAlike reports whether each of tied is an allOf branch written as the
+// first is (admission.sameText): one schema written several times.
+func writtenAlike(w *admission, tied []*conjunct) bool {
+	return !slices.ContainsFunc(tied, func(cj *conjunct) bool {
+		return cj.branch == nil || !w.sameText(tied[0].branch.schema, cj.branch.schema)
+	})
+}
+
+// principalKeywords are the keywords a node's build reads from the principal
+// alone and no other conjunct folds into, so two conjuncts admitting alike
+// still part on them: what each lowers its elements or its content by.
+var principalKeywords = slices.Concat([]string{"items", "prefixItems", "additionalItems"}, contentKeywords)
+
+// untieWords returns which of tied, conjuncts admitting alike that name their
+// kinds by words, the position lowers from. The pick shows only in
+// principalKeywords: of those writing every such keyword any other does, and
+// alike, one is elected, and where none does, none is, and beside, the
+// keywords beside the allOf, decide. Where nothing tells them apart, beside
+// stands if tied, else the least text (leastText).
+func untieWords(w *admission, beside *conjunct, tied []*conjunct) *conjunct {
+	most := slices.MaxFunc(tied, func(a, b *conjunct) int {
+		return countKeys(a.schema, principalKeywords) - countKeys(b.schema, principalKeywords)
+	})
+	if slices.ContainsFunc(tied, func(cj *conjunct) bool { return !writesWithin(cj.schema, most.schema) }) {
+		return beside
+	}
+	tied = slices.DeleteFunc(slices.Clone(tied), func(cj *conjunct) bool { return !writesWithin(most.schema, cj.schema) })
+	if slices.Contains(tied, beside) {
+		return beside
+	}
+	return leastText(w, tied)
+}
+
+// countKeys counts the keys of keys s writes (hasKey).
+func countKeys(s *statement.Schema, keys []string) int {
+	n := 0
+	for _, key := range keys {
+		if hasKey(s, key) {
+			n++
+		}
+	}
+	return n
+}
+
+// writesWithin reports whether each of principalKeywords a writes, b writes
+// alike.
+func writesWithin(a, b *statement.Schema) bool {
+	return !slices.ContainsFunc(principalKeywords, func(key string) bool {
+		return hasKey(a, key) && (!hasKey(b, key) || !foldValue(a, key).agrees(foldValue(b, key)))
+	})
+}
+
+// leastText returns the one of tied, allOf branches admitting alike, whose
+// text is the least, bytewise: the pick shows in little more than where its
+// node stands, and the text, its keys sorted, reads no order the branches are
+// written in. Of a schema written twice, the first copy stands for both, the
+// one place order shows, and only in that node's pointer.
+func leastText(w *admission, tied []*conjunct) *conjunct {
+	best := tied[0]
+	for _, cj := range tied[1:] {
+		if bytes.Compare(w.text(cj.branch.schema), w.text(best.branch.schema)) < 0 {
+			best = cj
+		}
+	}
+	return best
 }
 
 // narrowestRef returns the one of refs lying within the most conjuncts, a tie
-// going to the least reference text: a $ref's name stays put under edits to
-// what it names, so no order written decides.
+// going to the least reference text, then to the least text of the entry
+// writing it: a $ref's name stays put under edits to what it names, so no
+// order written decides. Of a $ref written twice alike, the first copy stands
+// for both, and keepsAtOutcome keeps neither.
 func narrowestRef(w *admission, conjuncts []conjunct, refs []*conjunct) *conjunct {
 	best, most := refs[0], w.conesOver(conjuncts, refs[0].read)
 	for _, ref := range refs[1:] {
 		n := w.conesOver(conjuncts, ref.read)
-		if n > most || n == most && refText(ref) < refText(best) {
+		if n > most || n == most && refBefore(w, ref, best) {
 			best, most = ref, n
 		}
 	}
 	return best
+}
+
+// refBefore reports whether the $ref conjunct a goes before b where both lie
+// within as many conjuncts: by reference text, then by the text of the entry.
+func refBefore(w *admission, a, b *conjunct) bool {
+	if order := strings.Compare(refText(a), refText(b)); order != 0 {
+		return order < 0
+	}
+	return bytes.Compare(w.text(a.branch.schema), w.text(b.branch.schema)) < 0
 }
 
 // refText is the reference the $ref conjunct cj writes, as written.
@@ -539,10 +737,11 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 	set, setAtPosition := valueSetPrincipal(r)
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
-		// inline branch on the node it owns, a type array's census included. A value
+		// inline branch on the node it owns, a type array's census included. A
+		// branch written as the principal is says nothing it does not. A value
 		// set's census ran on the position's node, which keeps the rest as any
 		// conjunct's.
-		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, e.pointer, target)) {
+		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, e.pointer, target)) || principalTwin(&w, r, e) {
 			continue
 		}
 		censused := setAtPosition && set.pointer == e.pointer
@@ -561,6 +760,13 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		}
 	}
 	return k
+}
+
+// principalTwin reports whether e, a branch of r other than its principal, is
+// written as the principal is (admission.sameText): one schema written twice,
+// whose first copy the election takes for both.
+func principalTwin(w *admission, r refinement, e allOfBranch) bool {
+	return r.principal != nil && !r.principalIs(e) && w.sameText(r.principal.schema, e.schema)
 }
 
 // homesAt returns which bounds the position s is written at, lowered to target,
@@ -770,14 +976,15 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 func keptWhy(b keptBranch) string {
 	switch {
 	case b.vote == refInferredApart:
-		return "the kind-inference policy reads this $ref's target as a kind the other conjuncts of this allOf " +
-			"declare none of, and a declared kind decides first, so the $ref is kept verbatim under Unmodeled"
+		return "the kind-inference policy reads this $ref's target as kinds leaving out one the other conjuncts " +
+			"of this allOf declare, and a declared kind decides first, so the $ref is kept verbatim under Unmodeled"
 	case b.vote == refAdmitsEvery:
 		return "this $ref's target admits every kind, and the kind the other conjuncts of this allOf declare " +
 			"decides first, so the $ref is kept verbatim under Unmodeled"
 	case b.vote == refNarrowed:
-		return "another $ref of this allOf lies within more of its conjuncts, and a use names one target, so " +
-			"this $ref is kept verbatim under Unmodeled"
+		return "another $ref of this allOf lies within as many of its conjuncts or more, a tie going to the " +
+			"least reference text, then to the least text of its entry, and a use names one target, so this " +
+			"$ref is kept verbatim under Unmodeled"
 	case b.vote == refOutsideSet:
 		return "the conjuncts of this allOf share no value, and its value set is elected before the rest, " +
 			"holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled"

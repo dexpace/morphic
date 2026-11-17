@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -46,8 +47,8 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
 		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
 		requireMembers(m, compositionRequired(objectIn(s).Required, comp))
-		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
-		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
+		diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
+		diags = append(diags, applyFalseBranches(c, m, comp)...)
 		if discriminated {
 			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
 			diags = append(diags, discDiags...)
@@ -108,6 +109,9 @@ type allOfComposition struct {
 	// reads, those of the types the position admits (boundKinds) that it takes
 	// (modelTakes), so a branch's bound folds where they take it.
 	bounds kindSet
+	// closer names the schema object whose additionalProperties and
+	// patternProperties the Model composing the branches types (closerOf).
+	closer closure
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -137,6 +141,7 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 	comp := allOfBranches(c, s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
 	comp.bounds = modelTakes(boundKinds(c, s))
+	comp.closer = closerOf(s, comp)
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
@@ -215,9 +220,10 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // fillAllOf classifies and lowers the branches of comp into m (GitHub #599).
 //
 // An inline branch merges in place: its `properties` and `required`
-// (requireMembers) merge, what it writes for the position folds there
-// (voicesAmong), and the rest stays verbatim beside the model
-// (preserveUnmergedBranch, GitHub #123).
+// (requireMembers) merge, its catch-all keywords where it closes the model
+// (closerOf), what it writes for the position folds there (voicesAmong), and
+// the rest stays verbatim beside the model (preserveUnmergedBranch, GitHub
+// #123).
 //
 // A $ref branch owns a node: keywords beside its $ref, if any, go on an alias
 // that homeDeclaration hoists there, and the composition points at it (GitHub
@@ -244,16 +250,39 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 
 // composesRef reports whether the $ref entry e is a Base or a Mixin of the
 // composition: the schema it lands on lowers to an object alone, null aside
-// (lowersTo), or its read is cut short, which leaves the composition as it is
-// with no read. A model composes only models
+// (lowersTo), or to the union of a type list holding an object, whose object
+// variant it composes (objectVariant), or its read is cut short, which leaves
+// the composition as it is with no read. A model composes only models
 // (docs/compilers/openapi.md#allof-classification).
 func composesRef(c lowering.Ctx, e allOfBranch) bool {
 	target, _ := declaredOf(c, e.schema)
 	if target == nil || admissionOf(c, target).cut {
 		return true
 	}
-	kinds, _ := lowersTo(c, target)
-	return kinds == kindObject
+	if kinds, _ := lowersTo(c, target); kinds == kindObject {
+		return true
+	}
+	_, unpacked := objectVariant(c, e.schema)
+	return unpacked
+}
+
+// objectVariant returns the ID of the object variant of the union the $ref
+// conjunct ref lands on, an allOf entry or a distributed union's branch, where
+// that schema lowers by a type list holding an object (lowerUnion), and false
+// for any other: the variant stands at the list's position, one per type, so
+// it is named before the union is built. A union a oneOf or anyOf writes may
+// hold several objects, or none a model is, and is not unpacked.
+func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
+	target, at := declaredOf(c, ref)
+	if target == nil || target.Ref != nil || declaresUnion(target.Schema) {
+		return "", false
+	}
+	in, placed := lowering.InDocument(c, at.Doc)
+	i := slices.Index(effectiveTypes(target.Schema), statement.KindObject)
+	if !placed || i < 0 || !lowersTypeArray(in, target.Schema, at.Pointer) {
+		return "", false
+	}
+	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true
 }
 
 // keepUncomposedRef keeps the $ref entry e, whose target is no object alone,
@@ -273,7 +302,8 @@ func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allO
 
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
 // builds as its Base, when isBase, or as a Mixin, recording the entry
-// (modelFields.compose). A $ref it cannot resolve adds nothing, and is reported
+// (modelFields.compose): what it names, or the object variant of the type
+// list it names (objectVariant). A $ref it cannot resolve adds nothing, and is reported
 // unless it lies on a loop of $refs, which load reports once (onLoop).
 func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -286,6 +316,9 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(c, b)))
 		}
 		return diags
+	}
+	if variant, unpacked := objectVariant(c, e.schema); unpacked {
+		id = variant
 	}
 	unhomed := refSiteUnhomedKeywords(c, b.Schema, compositionCensusHandled)
 	hasUnion := declaresUnion(b.Schema)
@@ -305,8 +338,8 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 }
 
 // applyFalseBranches closes m for each boolean `false` allOf branch and keeps
-// the branch verbatim under Unmodeled. It runs after fillAdditional, whose
-// result it overrides, the catch-all included
+// the branch verbatim under Unmodeled. It runs after fillComposedAdditional,
+// whose result it overrides, the catch-all included
 // (docs/compilers/openapi.md#allof-false-branch).
 //
 // A `false` branch admits nothing, so m must not stay open; the rule
@@ -315,7 +348,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 // would trade one silent loss for another. The verbatim branch tells this from
 // a plain `additionalProperties: false`; a diagnostic does not, being no part
 // of the document. A `true` branch constrains nothing and is skipped.
-func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *statement.Schema, comp allOfComposition) []ir.Diagnostic {
+func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range comp.branches {
 		if !e.schema.Truth.ReadsFalse() {
@@ -330,9 +363,10 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *statement.Schema, comp a
 				"composed model closed and the branch kept verbatim under Unmodeled"))
 	}
 
-	if m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
-		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, s, "additionalProperties",
-			ir.ReasonDegradedLowering, comp.pointer, c.Place())
+	closer := comp.closer
+	if closer.schema != nil && m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
+		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, closer.schema, "additionalProperties",
+			ir.ReasonDegradedLowering, closer.at, c.Place())
 		diags = append(diags, keptDiags...)
 	}
 	forbidRest(m)
@@ -357,9 +391,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 	}
 	speaks := comp.branchSpeaks(i)
 	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
+	closes := comp.closer.entryAt(e.pointer)
 	residue := unmergedBranchKeys(e.schema.Schema, func(keyword string) bool {
 		return mergeConsumes(e.schema.Schema, keyword, e.wrapper) || (speaks && folds(c, e.schema.Schema, keyword, boundHomes{value: comp.bounds})) ||
-			(conjoined && conjoinedKeyword(keyword))
+			(conjoined && conjoinedKeyword(keyword)) || (closes && catchAllKeyword(keyword))
 	})
 	if len(residue) == 0 {
 		return nil
