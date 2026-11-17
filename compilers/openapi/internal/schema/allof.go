@@ -30,13 +30,16 @@ import (
 // that folds, are read as lowerModel reads a plain object's, so they land on the
 // same field, not Unmodeled (GitHub #407). A composition that leaves only a
 // catch-all is a map, as a plain object's is (objectNode). Where discriminated is
-// false, a union the model composes took s's discriminator (lowerSubtypeUnion).
-func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
+// false, a union the model composes, mixin where not nil, took s's discriminator
+// (lowerSubtypeUnion).
+func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool, mixin *unionAt,
+) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		// The one flattened list; the readers composeModel calls take it, not s.
 		td, modelDiags := composeModel(c, ts, depth, s, pointer, discriminated, common, readAllOf(c, s, pointer))
 		diags = modelDiags
+		diags = append(diags, composeMixin(c, ts, depth, td, mixin, pointer)...)
 		return td
 	})
 	return id, diags

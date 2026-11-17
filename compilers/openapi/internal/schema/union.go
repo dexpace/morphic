@@ -1013,23 +1013,22 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 // Model its composition lowers to, a subtype of that ancestor, and names as its
 // last Mixin a Union minted for u (mintUnion), as an allOf naming a component
 // holding u composes it (docs/ir/models.md#a-union-a-composition-names). A
-// discriminator written beside u is the Union's, routing its variants, so the
-// Model neither lowers nor keeps it, unless the Union cannot hold it
-// (tagLocated). The position's first lowering composes the union; a later one
-// finds it.
+// discriminator written beside u is the Union's, so the Model neither lowers nor
+// keeps it, unless the Union cannot hold it (tagLocated). The Model's build
+// composes the union (composeMixin), so only a position's first lowering does.
 func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	_, lowered := ts.Lookup(c.IDs().Coordinate(pointer))
 	d := dispatchOf(s)
+	d.mixin = &u
 	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
 	id, diags := lowerElected(c, ts, depth, s, pointer, d)
-	if lowered {
-		return id, diags
+	if d.won != "allOf" {
+		// A discriminator routes to s through the allOf naming its ancestor
+		// (subtypeDiscriminatorValue), so no other election composes it.
+		diags = append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+			"internal: a routed subtype lowers through its allOf, so its union is composed into no model"))
 	}
-	mixin, mintDiags := mintUnion(c, ts, depth, u)
-	diags = append(diags, mintDiags...)
-	diags = append(diags, composeMixin(c, ts, id, mixin, pointer)...)
 	where := "co-declared with"
 	if u.holder != s {
 		where = "written on an allOf branch of"
@@ -1059,21 +1058,23 @@ func mintUnion(c lowering.Ctx, ts *compile.Types, depth int, u unionAt) (ir.Type
 	return id, slices.Concat(diags, unionDiags)
 }
 
-// composeMixin appends mixin to the Mixins of the model id names, last, so the
-// $ref entries its source writes classify first. Its one caller has just
-// lowered the model, so any other node there is a compiler bug.
-func composeMixin(c lowering.Ctx, ts *compile.Types, id, mixin ir.TypeID, pointer jsontext.Pointer) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
-	if !ok {
-		return diags
+// composeMixin mints the union u, where not nil, and appends it to the Mixins
+// of td, the node a routed subtype's build has just made, last, so the $ref
+// entries its source writes classify first. Any node but a Model has no Mixins
+// to compose it into, and the lowering that builds it elects one only for a
+// subtype that composes, so that is a compiler bug.
+func composeMixin(c lowering.Ctx, ts *compile.Types, depth int, td ir.TypeDef, u *unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
+	if u == nil {
+		return nil
 	}
+	mixin, diags := mintUnion(c, ts, depth, *u)
 	m, isModel := td.(*ir.Model)
 	if !isModel {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-			"internal: type %q is not the model a routed subtype composes its union into", id)}
+		return append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+			"internal: type %q is not the model a routed subtype composes its union into", td.Common().ID))
 	}
 	m.Mixins = append(m.Mixins, ir.TypeRef{Target: mixin})
-	return nil
+	return diags
 }
 
 // composedBody is the schema every distributed variant carries: the enclosing
