@@ -999,3 +999,82 @@ func findingsUnder(diags []ir.Diagnostic, prefix string) []string {
 	}
 	return out
 }
+
+// TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal
+// holds that a $ref whose target the kind-inference policy reads as an object
+// alone is no principal beside a type list or a union declaring a string too:
+// the position is the union its own keywords declare, as the inline spelling
+// is, and the $ref is kept with one info.
+func TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Unt: {properties: {b: {type: integer}}}",
+		"TypeListRef: {type: [object, string], allOf: [{$ref: '#/components/schemas/Unt'}]}",
+		"UnionRef: {oneOf: [{type: object, properties: {u: {type: string}}}, {type: string}], " +
+			"allOf: [{$ref: '#/components/schemas/Unt'}]}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "narrower", admissionSpec("3.1.0", "", schemas...))
+		requireErrorsAndWarnings(t, diags, nil)
+		requireModelsNameModels(t, doc)
+		for _, name := range []string{"TypeListRef", "UnionRef"} {
+			union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
+			require.True(t, ok, "%s is the union its own keywords declare", name)
+			assert.True(t, slices.ContainsFunc(union.Variants, func(v ir.Variant) bool {
+				return v.Type.Target == ir.TypeID("t/prim/string")
+			}), "%s admits the string it declares", name)
+			assert.Equal(t, degradedKept("openapi:allOf/0"), keptOn(union), name)
+			assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/"+name+"/allOf/0"), name)
+		}
+	})
+}
+
+// TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingIs
+// holds that a union beside an allOf whose one conjunct is a $ref to a schema
+// saying nothing of its kind is the Union holding the bounds, as the same
+// schema written inline or with no allOf is, the $ref kept with one info: a
+// conjunct naming a kind outvotes such a $ref.
+func TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingIs(t *testing.T) {
+	t.Parallel()
+	union := "oneOf: [{properties: {a: {type: string}}, required: [a]}, {type: string}], minLength: 1, minProperties: 2"
+	schemas := []string{
+		"Open: {description: declares no type}",
+		"ERef: {allOf: [{$ref: '#/components/schemas/Open'}], " + union + "}",
+		"EInline: {allOf: [{description: declares no type}], " + union + "}",
+		"EFlat: {" + union + "}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "every", admissionSpec("3.1.0", "", schemas...))
+		requireErrorsAndWarnings(t, diags, nil)
+		want := &ir.Constraints{MinLength: new(int64(1)), MinProps: new(int64(2))}
+		for _, name := range []string{"ERef", "EInline", "EFlat"} {
+			u, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
+			require.True(t, ok, "%s is the union its flat spelling is", name)
+			assert.Equal(t, want, u.Constraints, name)
+		}
+		u, ok := kindNode(t, doc, componentID("ERef")).(*ir.Union)
+		require.True(t, ok)
+		assert.Equal(t, degradedKept("openapi:allOf/0"), keptOn(u))
+		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/ERef/allOf/0"))
+	})
+}
+
+// TestAllOfRefine_ARefLosingATieIsReportedAsATie holds that the info a $ref
+// kept beside an equal one draws says the tie went by reference text, not that
+// the other lies within more conjuncts, which it does not.
+func TestAllOfRefine_ARefLosingATieIsReportedAsATie(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"S1: {type: string}",
+		"S2: {type: string}",
+		"Tie: {allOf: [{$ref: '#/components/schemas/S2'}, {$ref: '#/components/schemas/S1'}]}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "tie", admissionSpec("3.1.0", "", schemas...))
+		requireErrorsAndWarnings(t, diags, nil)
+		requireScalarOver(t, doc, "Tie", componentID("S1"))
+		msg := diagMessageOf(t, diags, "/components/schemas/Tie/allOf/0")
+		assert.NotContains(t, msg, "lies within more")
+		assert.Contains(t, msg, "least reference text")
+	})
+}

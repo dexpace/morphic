@@ -361,6 +361,9 @@ type admission struct {
 	// looks up, for a test to hold it to the sets it compares; a compile leaves
 	// it nil.
 	walked func(int)
+	// compared hears each comparison of two readings (within), for a test to
+	// hold an election to one per pair of conjuncts; a compile leaves it nil.
+	compared func()
 }
 
 // newAdmission returns a read with the whole budget, in the dialect c reads its
@@ -708,6 +711,9 @@ func readMembers(members []*yaml.Node) memberSet {
 // within reports whether every value a admits b admits, so far as what a reading
 // holds can say.
 func (w *admission) within(a, b admitted) bool {
+	if w.compared != nil {
+		w.compared()
+	}
 	return a.kindsWithin(b) && a.valuesWithin(b) && a.formsWithin(b) && w.itemsWithin(a, b)
 }
 

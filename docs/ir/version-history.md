@@ -903,9 +903,9 @@ it sees. Changes made together in one bump are listed together under it.
   branches each declare a kind the keywords speak of, such a schema lowers to that kind unmarked,
   where it was the top type. A kind the conjuncts of a schema declare decides before one the policy
   reads off shape keywords: a conjunct writing such keywords narrows nothing a declared conjunct
-  says, and an `allOf` naming a `$ref` the policy reads as a kind its other conjuncts exclude is a
-  use of the declared kind, keeping the `$ref`, where it composed a model over a target writing
-  `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
+  says, and an `allOf` naming a `$ref` the policy reads as kinds leaving out one its other
+  conjuncts declare is a use of the declared kinds, keeping the `$ref`, where it composed a model
+  over a target writing `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
   Object keywords written with no `type` beside a union are a body it distributes across where the
   kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
   objects among them, and nowhere else: a `properties` beside a union naming another kind is the top
@@ -917,8 +917,9 @@ it sees. Changes made together in one bump are listed together under it.
   other kinds, it is a use of the target holding the bound beside it, and a `properties` beside a
   declared string is kept on the use with an info. Of several `$ref`s none of which is an object, the
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
-  declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` a conjunct
-  writes masks no kind in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
+  declared kind, or a conjunct naming one, a union beside the `allOf` among them, decides before a
+  `$ref` whose target admits every kind. A `$dynamicRef` a conjunct writes masks no kind in that
+  reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
   union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
@@ -931,7 +932,13 @@ it sees. Changes made together in one bump are listed together under it.
   ([`additional-properties`](../compilers/openapi.md#additional-properties)): an entry closing such
   a model types its closure, where the entry was kept whole, and a closure beside an `allOf` whose
   entries declare members is kept under `openapi:additionalProperties`, where it closed or typed the
-  model. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
+  model. Which conjunct an `allOf` lowers from, and which union on its entries a composition
+  distributes, does not follow the order written: a `oneOf` goes before an `anyOf` and a union
+  before words admitting as much, two unions of one keyword or two conjuncts neither within the
+  other elect none, the position then lowering by the keywords beside the `allOf`, and a schema
+  written twice is one conjunct, where each tie went to the entry written first
+  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A consumer pinned to 0.69.0
+  refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
@@ -946,4 +953,5 @@ it sees. Changes made together in one bump are listed together under it.
   found the union, and one reading a variant's `Constraints` finds a property count only where the
   variant admits an object, and one reading an `additionalProperties` finds it typed where the
   schema object writing it declares every member of the composition, on an entry as beside the
-  `allOf`, and kept elsewhere.
+  `allOf`, and kept elsewhere, and one reading the first entry of a tie as the position's finds the
+  conjunct those rules elect, or none.
