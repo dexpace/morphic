@@ -2636,7 +2636,10 @@ admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
 `enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
 `$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
-the union admits too. It admits a kind whole only where no keyword it takes in refuses some instance
+the union admits too, and each schema holding that one in turn as an `allOf` entry or a union
+branch, up to the first that is neither: a union written in an `allOf` entry of `{type: object}`
+admits no array, however deep the entry. A schema read as an `allOf` entry and no union's branch is
+read alone. It admits a kind whole only where no keyword it takes in refuses some instance
 of that kind while admitting others: a value set, a numeric or a string bound, a `format`, and a
 keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
 kinds in part, and a union admits a kind whole where a branch does and, for a `oneOf`, which refuses
@@ -2951,6 +2954,8 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_ADistributedVariantIsReadWithItsUnion`,
   `e2e.TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict`,
   `e2e.TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt`,
+  `e2e.TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion`,
+  `schema.TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch`,
   `schema.TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart`,
   `e2e.TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,

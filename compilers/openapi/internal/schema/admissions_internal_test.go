@@ -308,35 +308,49 @@ func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
 	assert.Greater(t, compared, 1000, "the corpus reaches what it compares")
 }
 
-// TestUnionHolding_FindsTheUnionABranchIsAVariantOf pins which statement a node
-// written at a union's branch is read with (modelFields.Admits): the one
-// writing that oneOf or anyOf, and none for a position that is no such branch,
-// whether its pointer ends elsewhere or names a branch its holder lacks.
-func TestUnionHolding_FindsTheUnionABranchIsAVariantOf(t *testing.T) {
+// TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch pins which
+// statements a node written at a position is read with (modelFields.Admits):
+// a union's branch with the schema writing the union and each schema holding
+// that one as an allOf entry or a union branch, and any other position alone:
+// an allOf entry, an entry of another keyword, a pointer naming an entry its
+// holder lacks, and a statement read elsewhere.
+func TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    U: {type: object, anyOf: [{type: object}, {type: array}]}
     O: {oneOf: [{type: string}]}
+    N: {type: object, allOf: [{allOf: [{oneOf: [{anyOf: [{type: string}]}]}]}]}
+    T: {prefixItems: [{type: string}]}
 `))
 	at := func(p string) bind.Position { return bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer(p)} }
 	for _, tc := range []struct {
-		branch, holder string
+		from    string
+		holders []string
 	}{
-		{"/components/schemas/U/anyOf/1", "/components/schemas/U"},
-		{"/components/schemas/O/oneOf/0", "/components/schemas/O"},
-		{"/components/schemas/U/anyOf/2", ""},
-		{"/components/schemas/U/oneOf/0", ""},
-		{"/components/schemas/U", ""},
+		{"/components/schemas/U/anyOf/1", []string{"/components/schemas/U"}},
+		{"/components/schemas/O/oneOf/0", []string{"/components/schemas/O"}},
+		{"/components/schemas/N/allOf/0/allOf/0/oneOf/0/anyOf/0", []string{
+			"/components/schemas/N/allOf/0/allOf/0/oneOf/0", "/components/schemas/N/allOf/0/allOf/0",
+			"/components/schemas/N/allOf/0", "/components/schemas/N",
+		}},
+		{"/components/schemas/N/allOf/0", nil},
+		{"/components/schemas/T/prefixItems/0", nil},
+		{"/components/schemas/U/anyOf/2", nil},
+		{"/components/schemas/U/oneOf/0", nil},
+		{"/components/schemas/U", nil},
 	} {
-		st := l.Ctx.Statements().At(at(tc.branch))
-		holder, ok := unionHolding(l.Ctx, at(tc.branch), st)
-		assert.Equal(t, tc.holder != "", ok, tc.branch)
-		if ok {
-			assert.Same(t, l.Ctx.Statements().At(at(tc.holder)), holder, tc.branch)
+		want := []*statement.Statement{l.Ctx.Statements().At(at(tc.from))}
+		for _, h := range tc.holders {
+			want = append(want, l.Ctx.Statements().At(at(h)))
+		}
+		got := variantHolders(l.Ctx, at(tc.from), want[0])
+		require.Len(t, got, len(want), tc.from)
+		for i := range want {
+			assert.Same(t, want[i], got[i], "%s: holder %d", tc.from, i)
 		}
 	}
 	other := l.Ctx.Statements().At(at("/components/schemas/O/oneOf/0"))
-	_, ok := unionHolding(l.Ctx, at("/components/schemas/U/anyOf/0"), other)
-	assert.False(t, ok, "a statement read elsewhere is no branch of the union")
+	assert.Len(t, variantHolders(l.Ctx, at("/components/schemas/U/anyOf/0"), other), 1,
+		"a statement read elsewhere is no branch of the union")
 }
 
 // loweredKinds returns the kinds of instance the node id names admits, past
