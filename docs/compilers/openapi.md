@@ -3664,8 +3664,10 @@ object alone, null aside, or its read is cut short, as an `allOf`'s `$ref` entry
 an object composes that list's object variant, unless the branch writes a keyword beside its `$ref`,
 which binds the whole list and which no node the variant names would hold. Any other branch that
 an instance of the body may satisfy, admitting an object among other kinds or every kind, is kept
-verbatim on its variant under its path from the schema, `openapi:oneOf/<i>` or `openapi:anyOf/<i>` beside the body and
-`openapi:allOf/<n>/oneOf/<i>` on an entry (`degraded_lowering`), with an info
+verbatim on its variant under its keyword and index, `openapi:oneOf/<i>` or `openapi:anyOf/<i>`
+(`degraded_lowering`), beside the body as on an `allOf` entry, its provenance naming where it is
+written, as an entry's own keywords are kept ([`allof-inline-residue`](#allof-inline-residue)); a
+position distributes one union, so no two such keys meet. It draws an info
 `openapi/degraded-construct` at the branch. That is the branch's one home: it lowers at no pointer
 of its own, and the target of a `$ref` it writes is the node it is wherever it is named. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
@@ -3695,7 +3697,7 @@ whose read is cut short, decides nothing and lives, as does one naming a `$dynam
 does not expand, which admits every kind, and every branch beside a body the policy made an object;
 a branch admitting null lives beside a body that may admit it, and under the nullable-inference
 policy a body writing `nullable: true` or an `allOf` is read as one that may. The `Union` keeps each
-dead branch verbatim under its path from the schema, the key a kept branch takes on a variant
+dead branch verbatim under the key a kept branch takes on a variant
 (`degraded_lowering`), and the schema draws one warning `openapi/degraded-construct` naming each
 with the kinds it admits, the code [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) gives
 conjuncts sharing no value, of which a dead branch and the body are two; no finding is made at the
@@ -3764,8 +3766,9 @@ reach these shapes:
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
    own ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Such a union on an `allOf` entry
-   shares no kind with the other conjuncts, so it stays with its entry
-   ([`allof-inline-residue`](#allof-inline-residue)) under that rule's warning.
+   shares no kind with the other conjuncts, so it is kept as an entry's keyword is, under
+   `openapi:oneOf` or `openapi:anyOf` at the position
+   ([`allof-inline-residue`](#allof-inline-residue)), under that rule's warning.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -3919,7 +3922,7 @@ judged as one whose branches declare shape.
   `e2e.TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject`,
   `e2e.TestVariantBounds_ATypeListBranchWritingBesideItsRefIsKept`,
   `schema.TestOneOf_CoDeclaredTypeListBranchComposesItsObject`,
-  `schema.TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema`,
+  `schema.TestOneOf_AKeptBranchIsKeyedByItsKeywordAndIndex`,
   `schema.TestOneOf_AVariantKeepingItsBranchBesideAMapIsAMap`,
   `e2e.TestCompile_AVariantKeepingItsBranchBesideAMapIsThatMap`,
   `schema.TestOneOf_AKeptBranchIsHeldOnceAndReportedOnce`,
@@ -3928,7 +3931,9 @@ judged as one whose branches declare shape.
   `e2e.TestCompile_AnUntypedBranchLivesWithKindInferenceOff`,
   `e2e.TestCompile_AMappingToADeadBranchRoutesToNoVariant`,
   `e2e.TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept`,
+  `e2e.TestCompile_TwoUnionsOnEntriesKeepTheirBranchesApart`,
   `schema.TestOneOf_AnUnpreservableDeadBranchIsNotAnnounced`,
+  `schema.TestOneOf_ADeadBranchIsReadForTheNullTheBodyAdmits`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,

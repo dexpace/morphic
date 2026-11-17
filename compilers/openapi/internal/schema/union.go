@@ -1178,7 +1178,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
 	if !composes {
 		// A variant composing nothing over a body that is a map alone is that map.
-		diags = append(diags, keepUncomposedBranch(c, m, body.comp, b)...)
+		diags = append(diags, keepUncomposedBranch(c, m, b)...)
 		return objectNode(m), diags
 	}
 	conjoinBranch(m, branch)
@@ -1212,14 +1212,13 @@ func branchReferent(c lowering.Ctx, b *statement.Statement) (variant ir.TypeID, 
 }
 
 // keepUncomposedBranch keeps the union branch b, which the variant m does not
-// compose (branchReferent), verbatim under m's Unmodeled, keyed by its path
-// from the body comp composes, and reports it, as keepUncomposedRef keeps an
-// allOf's $ref entry. b lowers nowhere, so this is its one home; the target of
-// a $ref it writes lowers where the $ref lands, as every landing does
-// (PromiseLandings).
-func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, b *statement.Statement) []ir.Diagnostic {
+// compose (branchReferent), verbatim under m's Unmodeled (unionBranchKey), and
+// reports it, as keepUncomposedRef keeps an allOf's $ref entry. b lowers
+// nowhere, so this is its one home; the target of a $ref it writes lowers
+// where the $ref lands, as every landing does (PromiseLandings).
+func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, b *statement.Statement) []ir.Diagnostic {
 	at := m.Provenance.Pointer
-	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(at), b.Node,
+	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, unionBranchKey(at), b.Node,
 		ir.ReasonDegradedLowering, c.Place().At(at))
 	if !kept {
 		return diags

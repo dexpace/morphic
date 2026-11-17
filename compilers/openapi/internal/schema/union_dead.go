@@ -103,15 +103,15 @@ func deadOf(c lowering.Ctx, u unionAt, dead []bool) []deadBranchAt {
 
 // keepDeadBranches keeps each branch of u, a union distributed over body,
 // written at pointer, that no instance of body satisfies (u.dead) verbatim
-// under p, the Union's Unmodeled, keyed by its path from body, and reports
-// them once, at body (diagDeadBranches). Such a branch is no variant and
-// lowers nowhere, so this is its one home.
+// under p, the Union's Unmodeled (unionBranchKey), and reports them once, at
+// body (diagDeadBranches). Such a branch is no variant and lowers nowhere, so
+// this is its one home.
 func keepDeadBranches(c lowering.Ctx, p *ir.Unmodeled, body *statement.Schema, u unionAt, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	all := true
 	for _, d := range deadOf(c, u, u.dead) {
-		kept, keptDiags := annotation.PreserveNodeInto(p, "openapi:"+pathFrom(pointer, d.at), d.st.Node,
+		kept, keptDiags := annotation.PreserveNodeInto(p, unionBranchKey(d.at), d.st.Node,
 			ir.ReasonDegradedLowering, c.Place().At(d.at))
 		diags = append(diags, keptDiags...)
 		all = all && kept
@@ -193,4 +193,15 @@ func keepsDeadUnion(c lowering.Ctx, s *statement.Schema) bool {
 	}
 	in, _ := lowering.InDocument(c, at.Doc)
 	return classifyUnionSiblings(in, s, at.Pointer) == unionNoLiveBranch
+}
+
+// unionBranchKey is the Unmodeled key a branch of a distributed union, written
+// at at, is kept under: `openapi:<keyword>/<index>`, the last two tokens of at,
+// its provenance saying where it is written, beside the body or on an allOf
+// entry, as an entry's own keywords are kept. A position distributes one union
+// (findBranchUnion), so no two branches it keeps share a key.
+func unionBranchKey(at jsontext.Pointer) string {
+	index := strings.LastIndexByte(string(at), '/')
+	keyword := strings.LastIndexByte(string(at[:index]), '/')
+	return "openapi:" + string(at[keyword+1:])
 }

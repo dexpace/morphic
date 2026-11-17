@@ -174,9 +174,11 @@ func requireDeadBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, 
 	v := 0
 	for i, b := range branches {
 		at := fmt.Sprintf("/components/schemas/P/%s/%d", path, i)
-		key := fmt.Sprintf("openapi:%s/%d", path, i)
-		_, kept := union.Unmodeled[key]
+		entry, kept := union.Unmodeled[fmt.Sprintf("openapi:%s/%d", keyword, i)]
 		assert.Equal(t, b.dead, kept, "the union keeps %s exactly where it is dead", at)
+		if kept {
+			assert.Equal(t, at, string(entry.Provenance.Pointer), "the key names its keyword, provenance where it is")
+		}
 		if b.dead {
 			requireNothingAt(t, doc, diags, at)
 		}
@@ -275,4 +277,38 @@ func TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept(t *testing
 			}
 		})
 	}
+}
+
+// TestCompile_TwoUnionsOnEntriesKeepTheirBranchesApart holds that the
+// branches a distributed union on an allOf entry keeps, on a variant, on the
+// Union or as its null, are keyed by their keyword and index, the provenance
+// naming the entry, and that no key collides with another entry's union, which
+// is kept whole under its own keyword: a position distributes one union.
+func TestCompile_TwoUnionsOnEntriesKeepTheirBranchesApart(t *testing.T) {
+	t.Parallel()
+	spec := admissionSpec("3.1.0", "", append([]string{"P: {allOf: [{$ref: '#/components/schemas/A'}, " +
+		"{oneOf: [{$ref: '#/components/schemas/B'}, {anyOf: [{type: object}, {type: string}]}, {type: string}, " +
+		"{type: 'null', description: n}]}, {anyOf: [{$ref: '#/components/schemas/B'}, {type: [object, string]}]}]}",
+	}, deadBranchComponents...)...)
+	res := harness.Check(t.Context(), "spec.yaml", []byte(spec))
+	require.Equal(t, harness.OutcomeOK, res.Outcome, res.Detail)
+	inBothMappingOrders(t, spec, func(t *testing.T, spec string) {
+		doc, _ := compileAnnotationSpec(t, "entries", spec)
+		union, ok := kindNode(t, doc, componentID("P")).(*ir.Union)
+		require.True(t, ok, "the oneOf on the entry distributes")
+		require.Len(t, union.Variants, 2)
+		const entry = "/components/schemas/P/allOf/"
+		want := map[ir.TypeID]map[string]string{
+			union.ID:                      {"openapi:oneOf/2": entry + "1/oneOf/2", "openapi:oneOf/3": entry + "1/oneOf/3"},
+			union.Variants[0].Type.Target: {"openapi:anyOf": entry + "2/anyOf"},
+			union.Variants[1].Type.Target: {"openapi:anyOf": entry + "2/anyOf", "openapi:oneOf/1": entry + "1/oneOf/1"},
+		}
+		for id, keys := range want {
+			got := map[string]string{}
+			for key, kept := range kindNode(t, doc, id).Common().Unmodeled {
+				got[key] = string(kept.Provenance.Pointer)
+			}
+			assert.Equal(t, keys, got, "what %s keeps, and where each is written", id)
+		}
+	})
 }

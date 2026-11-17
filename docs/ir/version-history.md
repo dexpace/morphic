@@ -923,8 +923,8 @@ it sees. Changes made together in one bump are listed together under it.
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
   union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
-  such a list aside, keeping any other under its path from the schema, `openapi:oneOf/<i>` or
-  `openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry, a branch so
+  such a list aside, keeping any other under its keyword and index, `openapi:oneOf/<i>` or
+  `openapi:anyOf/<i>`, beside the body as on an entry, whose provenance names it, a branch so
   kept lowering at no pointer of its own and a variant keeping one beside a map being that map's
   `MapT`, and holds only the bounds the kinds it admits take, its branch's within the body's, where
   it held each the position took. A branch admitting no object, nor a null the body admits, is no

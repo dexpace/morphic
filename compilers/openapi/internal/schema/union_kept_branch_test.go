@@ -6,7 +6,6 @@ package schema_test
 import (
 	"maps"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,12 +17,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema pins the key a variant
-// keeps a branch it does not compose under: the branch's path from the schema
-// (docs/compilers/openapi.md#union-beside-structure), so a union written on an
-// allOf entry keeps it under that entry's path, and one beside the allOf under
-// its keyword and index alone. Each draws one info at the branch.
-func TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema(t *testing.T) {
+// TestOneOf_AKeptBranchIsKeyedByItsKeywordAndIndex pins the key a variant
+// keeps a branch it does not compose under: its union's keyword and its index
+// (docs/compilers/openapi.md#union-beside-structure), whether the union is
+// written beside the allOf or on an entry of it, its provenance saying which.
+// Each draws one info at the branch.
+func TestOneOf_AKeptBranchIsKeyedByItsKeywordAndIndex(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Obj: {type: object, properties: {o: {type: string}}}
     B: {type: object, properties: {b: {type: integer}}}
@@ -35,7 +34,8 @@ func TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	for name, key := range map[string]string{"Beside": "openapi:oneOf/1", "Entry": "openapi:allOf/1/oneOf/1"} {
+	for name, at := range map[string]string{"Beside": "/oneOf/1", "Entry": "/allOf/1/oneOf/1"} {
+		const key = "openapi:oneOf/1"
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, "%s distributes", name)
 		require.Len(t, u.Variants, 2, name)
@@ -46,7 +46,8 @@ func TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema(t *testing.T) {
 		assert.Empty(t, v.Mixins, name)
 		assert.Equal(t, []string{key}, slices.Sorted(maps.Keys(v.Unmodeled)), name)
 		assert.JSONEq(t, `{"anyOf":[{"type":"object"},{"type":"string"}]}`, string(v.Unmodeled[key].Value), name)
-		at := "/components/schemas/" + name + "/" + strings.TrimPrefix(key, "openapi:")
+		at = "/components/schemas/" + name + at
+		assert.Equal(t, at, string(v.Unmodeled[key].Provenance.Pointer), name)
 		assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, at), 1, "one info at %s", at)
 	}
 }
