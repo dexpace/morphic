@@ -82,14 +82,6 @@ var partlyAdmitted = []struct {
 	target                []string
 	facts                 [][]string
 }{
-	{"bound", "integer", refStructure, []string{"T: {type: integer, minimum: 5}"},
-		[][]string{{`"min":"5"`, `"minimum":5`}}},
-	{"value set", "integer", refStructure, []string{"T: {enum: [1, 2]}"},
-		[][]string{{`"num":"1"`}, {`"num":"2"`}}},
-	{"pattern", "string", refStructure, []string{"T: {type: string, pattern: '^a'}"},
-		[][]string{{`"pattern":"^a"`}}},
-	{"union branch", "integer", refStructure, []string{"T: {anyOf: [{type: object}, {type: integer, minimum: 5}]}"},
-		[][]string{{`"min":"5"`}}},
 	{"untyped bound", "integer", refStructure, []string{"T: {minimum: 5}"},
 		[][]string{{`"min":"5"`, `"minimum":5`}}},
 	{"untyped format", "integer", refStructure, []string{"T: {format: int32}"},
@@ -101,10 +93,56 @@ var partlyAdmitted = []struct {
 // refStructure is a structure composing T beside a property of its own.
 const refStructure = "{allOf: [{$ref: '#/components/schemas/T'}], properties: {a: {type: string}}}"
 
+// typedTargets are what refStructure composes where T admits no object alone,
+// each with the fact T's narrowing writes.
+var typedTargets = []struct {
+	name, kind, target, fact string
+}{
+	{"bound", "integer", "T: {type: integer, minimum: 5}", `"min":"5"`},
+	{"value set", "integer", "T: {enum: [1, 2]}", `"num":"2"`},
+	{"pattern", "string", "T: {type: string, pattern: '^a'}", `"pattern":"^a"`},
+	{"union branch", "integer", "T: {anyOf: [{type: object}, {type: integer, minimum: 5}]}", `"min":"5"`},
+}
+
+// TestCompile_AnAllOfOverATypedTargetFoldsAsItsRef holds that refStructure over
+// a T admitting no object alone is no structure but a use of T keeping its
+// `properties`, so beside the kind in the other allOf branch it folds as the
+// $ref to T does, the field the same node as D's, which writes the $ref:
+// nothing conflicts, and T's narrowing reaches the field, at 3.0 and 3.1, in
+// both orders of the components and of the branches.
+func TestCompile_AnAllOfOverATypedTargetFoldsAsItsRef(t *testing.T) {
+	t.Parallel()
+	for _, tc := range typedTargets {
+		for _, version := range []string{"3.0.3", "3.1.0"} {
+			for _, swapped := range []bool{false, true} {
+				kind, ref := "{properties: {p: {type: "+tc.kind+"}}}", "{properties: {p: {$ref: '#/components/schemas/T'}}}"
+				first, later, refFirst, refLater := kind, "{properties: {p: "+refStructure+"}}", kind, ref
+				if swapped {
+					first, later, refFirst, refLater = later, first, refLater, refFirst
+				}
+				schemas := []string{"C: {allOf: [" + first + ", " + later + "]}", "D: {allOf: [" + refFirst + ", " + refLater + "]}",
+					tc.target}
+				t.Run(fmt.Sprintf("%s/%s/branches-swapped-%t", tc.name, version, swapped), func(t *testing.T) {
+					t.Parallel()
+					inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+						doc, diags := compileAnnotationSpec(t, "typed", admissionSpec(version, "", schemas...))
+						requireErrorsAndWarnings(t, diags, nil)
+						target, _ := redeclaredField(t, doc, diags, "t/openapi/components/schemas/C", "p", "/components/schemas/C")
+						refTarget, _ := redeclaredField(t, doc, diags, "t/openapi/components/schemas/D", "p", "/components/schemas/D")
+						assert.Equal(t, refTarget, target, "the field is what the $ref spelling gives")
+						requireHeld(t, fieldClosure(t, doc, "t/openapi/components/schemas/C", "p"),
+							[][]string{{tc.fact}, {`"openapi:properties"`}})
+					})
+				})
+			}
+		}
+	}
+}
+
 // TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt holds that a field
 // declared as a kind in one allOf branch and, in the other, as a structure
 // whose source admits that kind but refuses some instance of it, through a
-// bound, a value set, a pattern, a format or a union branch narrowing it, is
+// bound or a format a target declaring no kind writes, or a bound beside it, is
 // reported as a conflict: the later declaration's type is the field's and the
 // earlier is kept verbatim, so every keyword either writes stays in the
 // document, at 3.0 and 3.1, in both orders of the components and of the

@@ -692,21 +692,37 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 	}
 }
 
-// TestRefinement_ASecondRefStaysAComposition pins that no reference is ever
-// dropped for another: two of them keep composing, each typed, whatever they
-// admit (docs/ir/models.md#composition-entries).
-func TestRefinement_ASecondRefStaysAComposition(t *testing.T) {
+// TestRefinement_SeveralRefsUseTheNarrowest pins two $refs no object can
+// satisfy: the position is a use of the one lying within more conjuncts, the
+// enum within the string, and keeps the other with one info, in either order
+// of the entries; two alike tie to the least reference text.
+func TestRefinement_SeveralRefsUseTheNarrowest(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+
-		"    Two: {allOf: [{$ref: '#/components/schemas/Str'}, {$ref: '#/components/schemas/Mode'}]}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "Two").(*ir.Model)
-	require.True(t, ok, "got %T", typeByName(doc, "Two"))
-	assert.Len(t, m.Mixins, 2)
+	const str, mode = "{$ref: '#/components/schemas/Str'}", "{$ref: '#/components/schemas/Mode'}"
+	for _, entries := range [][2]string{{str, mode}, {mode, str}} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+
+			"    Two: {allOf: ["+entries[0]+", "+entries[1]+"]}\n"+
+			"    Same: {allOf: [{$ref: '#/components/schemas/Mail'}, {$ref: '#/components/schemas/MailToo'}]}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		kept := "openapi:allOf/0"
+		if entries[0] == mode {
+			kept = "openapi:allOf/1"
+		}
+		two, ok := typeByName(doc, "Two").(*ir.Scalar)
+		require.True(t, ok, "got %T", typeByName(doc, "Two"))
+		assert.Equal(t, componentID("Mode"), two.Base.Target, entries)
+		assert.Equal(t, []string{kept}, unmodeledKeys(two.Unmodeled), entries)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Two/"+strings.TrimPrefix(kept, "openapi:")), "another $ref", entries)
+		same, ok := typeByName(doc, "Same").(*ir.Scalar)
+		require.True(t, ok, "got %T", typeByName(doc, "Same"))
+		assert.Equal(t, componentID("Mail"), same.Base.Target, "the least reference text")
+	}
 }
 
 // TestRefinement_ReachesNoFurtherThanItCanRead pins each input the reading
-// declines: all of them stay the composition they were, with nothing dropped.
+// declines, and each whose kinds are an object alone: all of them stay the
+// composition they were, with nothing dropped.
 func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -714,21 +730,11 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 		errs    bool
 	}{
 		"an object target": {schemas: "    S: {allOf: [{$ref: '#/components/schemas/Owner'}]}\n"},
-		"a target saying nothing": {
-			schemas: "    Any: {}\n    S: {allOf: [{$ref: '#/components/schemas/Any'}]}\n",
-		},
 		"a target with properties alone": {
 			schemas: "    Bare: {properties: {a: {type: string}}}\n    S: {allOf: [{$ref: '#/components/schemas/Bare'}]}\n",
 		},
-		"a target that may be an object": {
-			schemas: "    Mixed: {type: [string, object]}\n    S: {allOf: [{$ref: '#/components/schemas/Mixed'}]}\n",
-		},
-		"a union that may be an object": {
-			schemas: "    U: {oneOf: [{type: string}, {type: object}]}\n    S: {allOf: [{$ref: '#/components/schemas/U'}]}\n",
-		},
 		"an object value": {schemas: "    S: {allOf: [{enum: [{a: 1}]}]}\n"},
 		"an object const": {schemas: "    S: {allOf: [{const: {a: 1}}]}\n"},
-		"a true target":   {schemas: "    Yes: true\n    S: {allOf: [{$ref: '#/components/schemas/Yes'}]}\n"},
 		"a false target": {
 			schemas: "    No: false\n    S: {allOf: [{$ref: '#/components/schemas/No'}, {type: string}]}\n",
 		},
@@ -738,9 +744,7 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 		"a cycle of two": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/R'}]}\n    R: {allOf: [{$ref: '#/components/schemas/S'}]}\n",
 		},
-		"an unresolved $ref":     {schemas: "    S: {allOf: [{$ref: '#/components/schemas/Gone'}, {type: string}]}\n", errs: true},
-		"properties in a branch": {schemas: "    S: {allOf: [{type: string, properties: {a: {type: string}}}]}\n"},
-		"required beside":        {schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}], required: [a]}\n"},
+		"an unresolved $ref": {schemas: "    S: {allOf: [{$ref: '#/components/schemas/Gone'}, {type: string}]}\n", errs: true},
 		"a target narrowing an object": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Owner'}, {type: object}]}\n",
 		},
@@ -752,6 +756,49 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 			assert.Equal(t, tc.errs, failed, "%+v", diags)
 			_, ok := typeByName(doc, "S").(*ir.Model)
 			assert.True(t, ok, "got %T", typeByName(doc, "S"))
+		})
+	}
+}
+
+// TestRefinement_KindsBeyondAnObjectAreAUse pins each allOf whose kinds are
+// more than an object, or another kind a keyword only a model holds speaks of:
+// none is a model, which would assert an object the source does not, so each
+// is a use of what decides it, keeping what it cannot hold.
+func TestRefinement_KindsBeyondAnObjectAreAUse(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		schemas string
+		base    ir.TypeID
+	}{
+		"a target saying nothing": {
+			schemas: "    Any: {}\n    S: {allOf: [{$ref: '#/components/schemas/Any'}]}\n", base: componentID("Any"),
+		},
+		"a target that may be an object": {
+			schemas: "    Mixed: {type: [string, object]}\n    S: {allOf: [{$ref: '#/components/schemas/Mixed'}]}\n",
+			base:    componentID("Mixed"),
+		},
+		"a union that may be an object": {
+			schemas: "    U: {oneOf: [{type: string}, {type: object}]}\n    S: {allOf: [{$ref: '#/components/schemas/U'}]}\n",
+			base:    componentID("U"),
+		},
+		"a true target": {
+			schemas: "    Yes: true\n    S: {allOf: [{$ref: '#/components/schemas/Yes'}]}\n", base: componentID("Yes"),
+		},
+		"properties in a branch": {
+			schemas: "    S: {allOf: [{type: string, properties: {a: {type: string}}}]}\n",
+			base:    "t/anon/components/schemas/S/allOf/0",
+		},
+		"required beside": {
+			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}], required: [a]}\n", base: componentID("Str"),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+tc.schemas))
+			openapitest.RequireNoErrorDiags(t, diags)
+			s, ok := typeByName(doc, "S").(*ir.Scalar)
+			require.True(t, ok, "got %T", typeByName(doc, "S"))
+			assert.Equal(t, tc.base, s.Base.Target)
 		})
 	}
 }
@@ -1803,9 +1850,10 @@ func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
 	}
 }
 
-// TestRefinement_ADynamicRefIsNotRead pins that a $dynamicRef, on a branch or in
-// what a $ref lands on, ends the reading: what it names is settled elsewhere.
-func TestRefinement_ADynamicRefIsNotRead(t *testing.T) {
+// TestRefinement_ADynamicRefIsReadAsWhatItNames pins that a $dynamicRef, on a
+// branch or in what a $ref lands on, masks no kind: one the position expands
+// is read as the string it names, so beside a string the allOf is no model.
+func TestRefinement_ADynamicRefIsReadAsWhatItNames(t *testing.T) {
 	t.Parallel()
 	for name, s := range map[string]string{
 		"on a branch": "    S: {allOf: [{$dynamicRef: '#node'}, {type: string}]}\n",
@@ -1813,9 +1861,10 @@ func TestRefinement_ADynamicRefIsNotRead(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
 				"    Node: {$dynamicAnchor: node, type: string}\n"+s))
-			_, ok := typeByName(doc, "S").(*ir.Model)
+			openapitest.RequireNoErrorDiags(t, diags)
+			_, ok := typeByName(doc, "S").(*ir.Scalar)
 			assert.True(t, ok, "got %T", typeByName(doc, "S"))
 		})
 	}

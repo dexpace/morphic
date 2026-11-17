@@ -1200,9 +1200,6 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"ComposedReachesNoDeclaration": {"3.1.0", `      allOf: [{$ref: '#/components/schemas/Target'}]
       oneOf: [{properties: {z: {type: string}}}]
 `, "openapi:oneOf"},
-		"ComposedTypeDiffers": {"3.1.0", `      allOf: [{$ref: '#/components/schemas/Target'}]
-      oneOf: [{type: array, items: {type: string}}]
-`, "openapi:oneOf"},
 		"ComposedRefDiffers": {"3.1.0", `      allOf: [{properties: {a: {$ref: '#/components/schemas/Target'}}}]
       oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Other'}}}]
 `, "openapi:oneOf"},

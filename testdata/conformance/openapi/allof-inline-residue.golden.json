@@ -284,11 +284,32 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Contradicted/allOf/0"
+          }
+        },
         "openapi:allOf/1": {
           "reason": "degraded_lowering",
           "value": {
             "maxLength": 3,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "provenance": {
             "source": 0,
@@ -688,6 +709,15 @@
       }
     },
     {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Contradicted/allOf/0"
+      }
+    },
+    {
       "severity": "warning",
       "code": "openapi/degraded-construct",
       "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type, maxLength) is kept verbatim under Unmodeled",
@@ -764,7 +794,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-inline-residue.yaml",
-      "hash": "3214272a16ce555a3f10b9992e578a38af1861cd455f5ff470a610fa669230c2"
+      "hash": "2c90f03c79f298d78b0b30a2f27a234b30261dfb5a899bf7a4efe6f01f18b359"
     }
   ]
 }

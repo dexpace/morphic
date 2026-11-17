@@ -20,17 +20,17 @@ components:
           description: A narrowed base.
           maxProperties: 3
     # This branch declares a type that cannot be an object, which the composed
-    # model asserts it is — the same residue, reported one severity higher. It
-    # composes an entry writing `properties` and no type, which a string
-    # satisfies: beside the Base the conjuncts would share no value, and
-    # allof-disjoint-conjuncts would report that once at the schema, leaving the
-    # branch an info. A $ref to the same untyped schema is no composition: the
-    # declared string decides (allof-refinement).
+    # model asserts it is — the same residue, reported one severity higher. The
+    # two entries share only null, a value, so allof-disjoint-conjuncts reports
+    # nothing; were they to share none it would report that once at the schema,
+    # leaving the branch an info. Beside an entry declaring no object the
+    # declared string decides, and the allOf is no composition (allof-refinement).
     Contradicted:
       allOf:
-        - properties:
+        - type: [object, 'null']
+          properties:
             id: {type: string}
-        - {type: string, maxLength: 3}
+        - {type: [string, 'null'], maxLength: 3}
     # Beside a union the branch folds as it does alone: the Union the
     # distribution lowers to takes its description, each composed variant its
     # bound, and no variant keeps the branch.

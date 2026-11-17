@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -207,8 +208,9 @@ var inferredTargets = map[string]bool{"E": true, "P": true}
 // kind: the document declares the string, so the position is a use of it, the
 // $ref entry is kept with one info naming the policy, nothing warns and the
 // target is still the node the policy reads it as. With the policy off, or a
-// target whose keywords infer no kind, the target is the top type and the
-// position a use of it, keeping the string.
+// target whose keywords infer no kind, the target is the top type, which says
+// nothing of the kind: the string decides as well, the info saying the target
+// admits every kind.
 func TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
@@ -240,19 +242,17 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 		doc, diags := compileKindInference(t, "outvoted", spec, off)
 		requireErrorsAndWarnings(t, diags, nil)
 		assert.Equal(t, inferred, markedKindInference(kindNode(t, doc, componentID(target))), "off=%t", off)
+		why := "admits every kind"
+		if inferred {
+			why = "kind-inference"
+		}
 		for _, at := range conjunctionPositions {
-			want, kept := prim(ir.PrimString), refAt
-			if !inferred {
-				want, kept = componentID(target), 1-refAt
-			}
-			entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", kept))
-			assert.Equal(t, want, usedAt(t, doc, at), "off=%t at %s", off, at)
+			entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", refAt))
+			assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry: ir.ReasonDegradedLowering},
 				keptUnder(doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "off=%t at %s", off, at)
-			if inferred {
-				assert.Contains(t, diagMessageOf(t, diags, string(entry)), "kind-inference", "the info names the policy at %s", at)
-			}
+			assert.Contains(t, diagMessageOf(t, diags, string(entry)), why, "the info says why at %s", at)
 		}
 	}
 }
@@ -261,8 +261,9 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 // $ref names a schema the policy reads as a list: nothing beside it declares
 // another kind, so the position is a use of the list, holding the bound
 // written beside it and keeping nothing, a `type: array` beside it among what
-// the list already says. With the policy off the target is the top type, which
-// an allOf naming no other kind composes as a model.
+// the list already says. With the policy off the target is the top type: the
+// position is a use of it holding the bound, and beside a declared array a use
+// of the entry declaring it, keeping the $ref, which says nothing of the kind.
 func TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt(t *testing.T) {
 	t.Parallel()
 	ref := "{$ref: '#/components/schemas/E'}"
@@ -272,8 +273,8 @@ func TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt(t *testing.T) {
 		off                ir.TypeKind
 		offKept            bool
 	}{
-		{"alone", ref, "", ", description: d", 0, ir.KindModel, false},
-		{"bound", ref, "{minItems: 1}", "", 1, ir.KindModel, true},
+		{"alone", ref, "", ", description: d", 0, ir.KindScalar, false},
+		{"bound", ref, "{minItems: 1}", "", 1, ir.KindScalar, false},
 		{"typed bound", ref, "{type: array, minItems: 1}", "", 1, ir.KindScalar, true},
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
@@ -299,7 +300,7 @@ func TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt(t *testing.T) {
 						assert.Empty(t, degradedUnder(onDiags, conjunctionPositions[0]))
 						assertMinItems(t, alias.Constraints, tc.minItems)
 						off, offDiags := compileKindInference(t, "use", spec, true)
-						requireErrorsAndWarnings(t, offDiags, nil)
+						requireErrorsAndWarnings(t, offDiags, missingItemsOf(version, tc.offKept, entries, tc.b))
 						assert.Equal(t, tc.off, kindNode(t, off, componentID("Pos")).Kind())
 						assert.Equal(t, tc.offKept, len(keptUnder(off, conjunctionPositions[0])) == 1)
 					})
@@ -307,6 +308,17 @@ func TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt(t *testing.T) {
 			}
 		}
 	}
+}
+
+// missingItemsOf is the warning a 3.0 array writing no items draws where the
+// entry typed, written among entries, is what the position is a use of, the
+// $ref beside it kept.
+func missingItemsOf(version string, kept bool, entries []string, typed string) []wantFinding {
+	if version != "3.0.3" || !kept {
+		return nil
+	}
+	return []wantFinding{{code: diag.MissingArrayItems, pointer: fmt.Sprintf("/components/schemas/Pos/allOf/%d",
+		slices.Index(entries, typed))}}
 }
 
 // assertMinItems holds c to a minItems of want, and to none where want is 0.
@@ -325,7 +337,9 @@ func assertMinItems(t *testing.T, c *ir.Constraints, want int) {
 // the marker on an allOf composed as a model: one whose conjuncts name the
 // object only by the policy's reading of their keywords, two untyped $ref
 // targets or untyped entries, names the policy, and one a conjunct declares an
-// object beside does not. With the policy off no node is marked.
+// object beside does not. With the policy off no node is marked. Entries
+// speaking of an object and an array compose no model at all
+// (TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel).
 func TestKindInference_ACompositionIsMarkedWhereNoConjunctDeclaresItsKind(t *testing.T) {
 	t.Parallel()
 	targets := []string{"P: {properties: {a: {type: string}}}", "Q: {properties: {b: {type: string}}}"}
@@ -336,7 +350,6 @@ func TestKindInference_ACompositionIsMarkedWhereNoConjunctDeclaresItsKind(t *tes
 		{"Declared", "{$ref: '#/components/schemas/P'}", "{type: object}", false},
 		{"TwoRefs", "{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}", true},
 		{"Required", "{properties: {a: {type: string}}}", "{required: [a]}", true},
-		{"TwoKinds", "{properties: {a: {type: string}}}", "{items: {type: string}}", true},
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, swap := range []bool{false, true} {

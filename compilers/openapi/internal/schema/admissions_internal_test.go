@@ -146,7 +146,7 @@ func TestAdmissionOf_AgreesWithAReadOfItsOwn(t *testing.T) {
 			r := admissionOf(l.Ctx, st)
 			former := newAdmission(l.Ctx)
 			want := former.formerWhole(st)
-			if r.cut || r.dynamic || r.reads > maxAdmissionReads || r.members > maxAdmissionMembers || former.incomplete() {
+			if r.cut || r.reads > maxAdmissionReads || r.members > maxAdmissionMembers || former.incomplete() {
 				return
 			}
 			compared++

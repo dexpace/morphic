@@ -110,7 +110,8 @@ repeat without the one that narrows what the union admits.
 ## Bounds beside a union
 
 `Constraints` holds the bounds a source writes beside the union itself, as JSON Schema writes
-`{oneOf: [{type: string}, {type: integer}], minLength: 1}`. Each bounds a value of the kind it
+`{oneOf: [{type: string}, {type: integer}], minLength: 1}`, or in an `allOf` beside it no conjunct of
+which names a kind, `{allOf: [{minLength: 1}], oneOf: […]}`, which reads as that. Each bounds a value of the kind it
 applies to, whichever variant holds the value, and admits every value of another kind, as it does
 beside any type ([constraints](./constraints.md#constraints)): there `minLength` bounds the strings
 the union admits and lets every integer through. A variant cannot hold it, since its node is its

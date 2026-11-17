@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -229,19 +230,75 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c, comp.branches)
 	for i, e := range comp.branches {
-		if e.schema.Ref == nil {
+		switch {
+		case e.schema.Ref == nil:
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.Schema, e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
-			continue
+		case composesRef(c, e):
+			diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
+		default:
+			diags = append(diags, keepUncomposedRef(c, ts, m, comp, e)...)
 		}
-		diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
 	}
 	return diags
 }
 
+// composesRef reports whether the $ref entry e is a Base or a Mixin of the
+// composition: the schema it lands on lowers to an object alone, null aside
+// (lowersTo), or to the union of a type list holding an object, whose object
+// variant it composes (objectVariant), or its read is cut short, which leaves
+// the composition as it is with no read. A model composes only models
+// (docs/compilers/openapi.md#allof-classification).
+func composesRef(c lowering.Ctx, e allOfBranch) bool {
+	target, _ := declaredOf(c, e.schema)
+	if target == nil || admissionOf(c, target).cut {
+		return true
+	}
+	if kinds, _ := lowersTo(c, target); kinds == kindObject {
+		return true
+	}
+	_, unpacked := objectVariant(c, e)
+	return unpacked
+}
+
+// objectVariant returns the ID of the object variant of the union the $ref
+// entry e lands on, where that schema lowers by a type list holding an object
+// (lowerUnion), and false for any other: the variant stands at the list's
+// position, one per type, so it is named before the union is built. A union a
+// oneOf or anyOf writes may hold several objects, or none a model is, and is
+// not unpacked.
+func objectVariant(c lowering.Ctx, e allOfBranch) (ir.TypeID, bool) {
+	target, at := declaredOf(c, e.schema)
+	if target == nil || target.Ref != nil || declaresUnion(target.Schema) {
+		return "", false
+	}
+	in, placed := lowering.InDocument(c, at.Doc)
+	i := slices.Index(effectiveTypes(target.Schema), statement.KindObject)
+	if !placed || i < 0 || !lowersTypeArray(in, target.Schema, at.Pointer) {
+		return "", false
+	}
+	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true
+}
+
+// keepUncomposedRef keeps the $ref entry e, whose target is no object alone,
+// verbatim under m's Unmodeled and reports it, resolving the target so the
+// document holds what it names.
+func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, e allOfBranch) []ir.Diagnostic {
+	resolveSchemaRef(c, ts, e.schema)
+	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
+		e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
+		"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
+			"is kept verbatim under Unmodeled"))
+}
+
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
 // builds as its Base, when isBase, or as a Mixin, recording the entry
-// (modelFields.compose). A $ref it cannot resolve adds nothing, and is reported
+// (modelFields.compose): what it names, or the object variant of the type
+// list it names (objectVariant). A $ref it cannot resolve adds nothing, and is reported
 // unless it lies on a loop of $refs, which load reports once (onLoop).
 func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -254,6 +311,9 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(c, b)))
 		}
 		return diags
+	}
+	if variant, unpacked := objectVariant(c, e); unpacked {
+		id = variant
 	}
 	unhomed := refSiteUnhomedKeywords(c, b.Schema, compositionCensusHandled)
 	hasUnion := declaresUnion(b.Schema)
@@ -466,12 +526,13 @@ func branchExcludesObject(bs *statement.Schema) bool {
 
 // selectAllOfBase returns the index into branches of the one that becomes
 // Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
-// Mixins): of several, the first whose $ref lands on a schema taking part in a
+// Mixins): of the $refs the composition takes (composesRef), the one, or of
+// several the first whose $ref lands on a schema taking part in a
 // discriminator hierarchy (inHierarchy).
 func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
-		if e.schema.Ref != nil {
+		if e.schema.Ref != nil && composesRef(c, e) {
 			refIdxs = append(refIdxs, i)
 		}
 	}

@@ -230,26 +230,45 @@ func passageOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (p
 	return passage{ref: ref}, true
 }
 
-// throughRef returns the one $ref a use of s reads on through, or nil: that of an
-// allOf an enum or a const beside it passed over, or of one saying nothing an
-// object holds, a refinement's or a decorator's. A union beside a composing allOf
-// is distributed across it or kept beside it, so that allOf lends nothing. It
-// reads the source and its bindings alone, since a chain asks it of every link.
+// throughRef returns the $ref a use of s reads on through, or nil: that of an
+// allOf an enum or a const beside it passed over, the one a refinement reads
+// through (readThrough), or that of a decorator, an allOf composing one $ref
+// beside nothing an object holds (decoratesOnly). A union beside a composing
+// allOf is distributed across it or kept beside it, so that allOf lends
+// nothing. It reads the source and its bindings alone, since a chain asks it of
+// every link.
 func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 	refs := slices.Collect(allOfRefBranches(c, s))
-	if len(refs) != 1 {
-		return nil
-	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
+		if len(refs) != 1 {
+			return nil
+		}
 		return refs[0]
 	}
-	if !allOfMayRefine(s) || hasAnyKey(s, objectKeywords) || !refinableBranches(allOfBranches(c, s, "")) {
-		return nil
+	if r, refines := refinementOf(c, s, ""); refines {
+		if r.ref == nil {
+			return nil
+		}
+		return r.ref.schema
 	}
-	if declaresUnion(s) && allOfComposes(c, s) {
+	if len(refs) != 1 || !allOfMayRefine(s) || declaresUnion(s) || !decoratesOnly(c, s) {
 		return nil
 	}
 	return refs[0]
+}
+
+// decoratesOnly reports whether s and each entry of its allOf write nothing
+// an object holds of its own: no shape keyword claiming an object
+// (shapeKinds), and no entry the composition reads apart, a `false` or one
+// nested past the flattening depth.
+func decoratesOnly(c lowering.Ctx, s *statement.Schema) bool {
+	comp := allOfBranches(c, s, "")
+	if shapeKinds(s)&kindObject != 0 || !refinableBranches(comp) {
+		return false
+	}
+	return !slices.ContainsFunc(comp.branches, func(e allOfBranch) bool {
+		return e.schema.Ref == nil && shapeKinds(e.schema.Schema)&kindObject != 0
+	})
 }
 
 // speakers returns what p's $ref says of a use, nearest first, as a Use's

@@ -298,16 +298,16 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 		"a null both conjuncts admit is a value they share")
 
 	ownType, ok := doc.Types[componentID("OwnType")].(*ir.Model)
-	require.True(t, ok)
-	require.NotNil(t, ownType.Base, "the lowering is unchanged: the sole $ref is the Base")
-	assert.Equal(t, componentID("List"), ownType.Base.Target)
+	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
+	assert.Nil(t, ownType.Base, "a model composes no list")
+	assert.Contains(t, ownType.Unmodeled, "openapi:allOf/0", "the $ref to the list is kept")
 
 	twoRefs, ok := doc.Types[componentID("TwoRefs")].(*ir.Model)
 	require.True(t, ok)
-	assert.Nil(t, twoRefs.Base)
-	require.Len(t, twoRefs.Mixins, 2, "both conjuncts still compose")
-	assert.Equal(t, componentID("Str"), twoRefs.Mixins[0].Target)
-	assert.Equal(t, componentID("Obj"), twoRefs.Mixins[1].Target)
+	require.NotNil(t, twoRefs.Base, "the one $ref to an object is the Base")
+	assert.Equal(t, componentID("Obj"), twoRefs.Base.Target)
+	assert.Empty(t, twoRefs.Mixins)
+	assert.Contains(t, twoRefs.Unmodeled, "openapi:allOf/0", "the $ref to the string is kept")
 
 	inline, ok := doc.Types[componentID("Inline")].(*ir.Model)
 	require.True(t, ok)
@@ -560,7 +560,9 @@ func assertTypeArrayDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Dia
 		sub, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s composes as a Model", name)
 		require.NotNil(t, sub.Base, name)
-		assert.Equal(t, componentID("Pet"), sub.Base.Target, "%s composes the union", name)
+		assert.Equal(t, variant.ID, sub.Base.Target, "%s composes the union's object variant", name)
+		assert.Empty(t, sub.Unmodeled, "%s keeps nothing", name)
+		assert.Contains(t, ir.ExposedProps(doc, sub.ID), variant.Properties[0].ID, "%s inherits the variant's member", name)
 		assert.Equal(t, value, sub.DiscriminatorValue)
 	}
 }

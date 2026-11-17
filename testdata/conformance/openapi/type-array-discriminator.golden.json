@@ -149,7 +149,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "t/anon/components/schemas/Pet/type/0",
         "nullable": false
       },
       "abstract": false,
@@ -201,7 +201,7 @@
         }
       ],
       "base": {
-        "target": "t/openapi/components/schemas/Pet",
+        "target": "t/anon/components/schemas/Pet/type/0",
         "nullable": false
       },
       "abstract": false,
@@ -318,7 +318,7 @@
     {
       "format": "openapi@3.1",
       "path": "type-array-discriminator.yaml",
-      "hash": "c9d266b96106303b78d6fb718d3ed5198c24fc38a0840f4b77c11104893884ff"
+      "hash": "9acbe39c91941ac551010338937bf9245ea1d1809d2bc136baa02695b58858d0"
     }
   ]
 }

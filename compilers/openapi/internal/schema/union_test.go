@@ -640,31 +640,34 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Flag/oneOf"), raw.Provenance.Pointer)
 }
 
+// TestLower_AllOfWithOneOfKeepsBoth pins an allOf composing an object beside a
+// oneOf none of whose branches can be an object: no instance satisfies the two
+// together, so no union is distributed into models no value fills. The
+// composition stands, the oneOf is kept beside it with one info, and the
+// schema draws the warning of conjuncts sharing no value.
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	t.Parallel()
-	// allOf co-declared with oneOf must not drop the allOf composition.
-	spec := openapitest.ComponentSpec(`    Base:
+	for _, branches := range []string{"[{type: string}, {type: integer}]", "[{type: array, items: {type: string}}]"} {
+		spec := openapitest.ComponentSpec(`    Base:
       type: object
       properties:
         id: {type: string}
     Combo:
       allOf:
         - {$ref: "#/components/schemas/Base"}
-      oneOf:
-        - {type: string}
-        - {type: integer}
-`)
-	doc, diags := schema.LowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := doc.Types[componentID("Combo")].(*ir.Union)
-	require.True(t, ok, "the oneOf is the value, the composition distributed across it")
-	require.Len(t, u.Variants, 2)
-	for i, prim := range []ir.TypeID{"t/prim/string", "t/prim/integer"} {
-		m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
-		require.True(t, ok, "variant %d is a composed model", i)
-		require.NotNil(t, m.Base, "the allOf $ref becomes Base")
-		assert.Equal(t, componentID("Base"), m.Base.Target)
-		assert.Equal(t, []ir.TypeRef{{Target: prim}}, m.Mixins, "the branch is carried as written")
+      oneOf: ` + branches + "\n")
+		doc, diags := schema.LowerSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("Combo")].(*ir.Model)
+		require.True(t, ok, "%s: got %T", branches, doc.Types[componentID("Combo")])
+		require.NotNil(t, m.Base, branches)
+		assert.Equal(t, componentID("Base"), m.Base.Target, branches)
+		assert.Equal(t, []string{"openapi:oneOf"}, unmodeledKeys(m.Unmodeled), branches)
+		assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:oneOf"].Reason, branches)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+			"/components/schemas/Combo"), "share no value", branches)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Combo"), "shares a kind", branches)
 	}
 }
 
@@ -733,7 +736,8 @@ func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
 // object variant holds no discriminator (GitHub #853): no type can be its
 // subtype, so the census keeps the discriminator on the union, whatever it
 // routes to and whether or not a union is written beside it. A subtype keeps
-// the union as its Base and the tag the discriminator gives it.
+// the tag the discriminator gives it, and composes the union's object variant
+// as its Base: the union admits a string, which no model composes.
 func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 	t.Parallel()
 	const pet, holder = "/components/schemas/Pet", "/components/schemas/Holder/properties/pet"
@@ -779,7 +783,9 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 					sub, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s is a model", name)
 					require.NotNil(t, sub.Base, name)
-					assert.Equal(t, c.union, sub.Base.Target, "%s composes the union", name)
+					assert.Equal(t, ir.TypeID("t/anon"+string(c.at)+"/type/0"), sub.Base.Target,
+						"%s composes the union's object variant", name)
+					assert.Equal(t, c.variant, doc.Types[sub.Base.Target].Kind(), name)
 					assert.Equal(t, tag, sub.DiscriminatorValue, name)
 				}
 			}
