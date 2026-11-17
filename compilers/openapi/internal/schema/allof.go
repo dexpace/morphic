@@ -266,25 +266,27 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	base, hasBase := selectAllOfBase(c, comp.branches, m.ID)
+	var failed []int
 	var uncomposed []keptBranch
+	base, hasBase := selectAllOfBase(c, comp.branches, m.ID)
 	for i, e := range comp.branches {
 		switch {
 		case e.schema.Ref == nil:
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.Schema, e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, ts, m, comp, i)...)
 		case composesRef(c, e):
-			diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
+			refDiags, resolved := fillRefBranch(c, ts, fields, e, hasBase && i == base)
+			diags = append(diags, refDiags...)
+			if !resolved {
+				failed = append(failed, i)
+			}
 		default:
 			uncomposed = append(uncomposed, keptBranch{entry: e})
 		}
 	}
-	// Kept as a refinement keeps a $ref it does not lower, by reference text.
-	refs := keptRefKeys(uncomposed, comp.pointer)
-	for _, b := range uncomposed {
-		diags = append(diags, keepUncomposedRef(c, ts, m, b.entry, refs[b.entry.pointer])...)
-	}
-	return diags
+	apart, failedDiags := keepFailedRefs(c, ts, m, comp, failed)
+	diags = append(diags, failedDiags...)
+	return append(diags, keepUncomposedRefs(c, ts, m, comp.pointer, apart, uncomposed)...)
 }
 
 // composesRef reports whether the $ref entry e is a Base or a Mixin of the
@@ -324,18 +326,25 @@ func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
 	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true
 }
 
-// keepUncomposedRef keeps the $ref entry e, whose target is no object alone,
-// verbatim under m's Unmodeled, as ref says, and reports it, resolving the
-// target so the document holds what it names. What the entry writes beside
-// its $ref is an entry of its own (statement.Entry), so e's node writes the
-// reference alone.
-func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch, ref keptRef) []ir.Diagnostic {
-	resolveSchemaRef(c, ts, e.schema)
-	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, ref.key, e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(ref.at))
-	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
-			"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
-				"is kept verbatim under Unmodeled"))
+// keepUncomposedRefs keeps beside m the $ref entries of its composition,
+// written at pointer, it does not compose: apart, those whose reference names
+// nothing (keepFailedRefs), and uncomposed, those whose target is no object
+// alone, ranked together (keepRefConjuncts). It reports each uncomposed one
+// kept, resolving its target so the document holds what it names; a failed
+// one is reported where it is written.
+func keepUncomposedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, pointer jsontext.Pointer,
+	apart, uncomposed []keptBranch,
+) []ir.Diagnostic {
+	for _, b := range uncomposed {
+		resolveSchemaRef(c, ts, b.entry.schema)
+	}
+	kept, diags := keepRefConjuncts(c, &m.Unmodeled, slices.Concat(apart, uncomposed), pointer)
+	for _, b := range uncomposed {
+		if kept[b.entry.pointer] {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s",
+				"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
+					"is kept verbatim under Unmodeled"))
+		}
 	}
 	return diags
 }
@@ -343,9 +352,10 @@ func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBr
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
 // builds as its Base, when isBase, or as a Mixin, recording the entry
 // (modelFields.compose): what it names, or the object variant of the type
-// list it names (objectVariant). A $ref it cannot resolve adds nothing, and is reported
-// unless it lies on a loop of $refs, which load reports once (onLoop).
-func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) []ir.Diagnostic {
+// list it names (objectVariant). A $ref it cannot resolve adds nothing and
+// reports false, which keepFailedRefs answers; it is reported unless it lies on a
+// loop of $refs, which load reports once (onLoop).
+func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) ([]ir.Diagnostic, bool) {
 	var diags []ir.Diagnostic
 	b := e.schema
 	id, ok := resolveSchemaRef(c, ts, b)
@@ -355,7 +365,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, e.pointer,
 				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(c, b)))
 		}
-		return diags
+		return diags, false
 	}
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
@@ -370,7 +380,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 		fields.m.Mixins = append(fields.m.Mixins, ref)
 	}
 	fields.compose(ref.Target, e.pointer)
-	return diags
+	return diags, true
 }
 
 // applyFalseBranches closes m for each boolean `false` allOf branch and keeps
@@ -430,11 +440,14 @@ func preserveUnmergedBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp
 // flattened branch's allOf is consumed: allOfBranches replaced it by its own
 // entries. A boolean branch has no keywords to leave a residue
 // (applyFalseBranches), and a $ref branch homes its siblings on an alias over
-// its target (fillRefBranch).
+// its target (fillRefBranch), unless it names nothing (failedRefResidue).
 func compositionResidue(c lowering.Ctx, comp allOfComposition, i int) []string {
 	e := comp.branches[i]
-	if e.schema.Ref != nil || e.schema.Truth != statement.Stated {
+	if e.schema.Truth != statement.Stated {
 		return nil
+	}
+	if e.schema.Ref != nil {
+		return failedRefResidue(c, e)
 	}
 	speaks := comp.branchSpeaks(i)
 	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins

@@ -48,10 +48,16 @@ var loweringRecursions = [][]string{
 	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
 	// self-referential allOf rather than anything in this shape. A $ref's hops
 	// are walked in a loop its chain's length bounds, and a loop of $refs has no
-	// end to walk to.
+	// end to walk to. A union's null branch counts only where the union is
+	// distributed, and a branch no instance of an object body satisfies is one
+	// that admits no null, so the walk and that classification ask each other.
+	// The branch is read so only where its admission read is whole, and each
+	// read it starts is of a statement that read took in, so the nesting is
+	// bounded by maxAdmissionReads.
 	{
+		"classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches", "distributesUnion",
 		"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage",
-		"nulls.widenByBranch",
+		"nulls.widenByBranch", "unionNullReading", "valueNulls",
 	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
@@ -86,7 +92,8 @@ var schemaRecursion = []string{
 	"composeModel", "composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
 	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "internOwnNode",
-	"keepUncomposedRef", "keepUnhomed", "lower",
+	"keepFailedRefs",
+	"keepUncomposedRefs", "keepUnhomed", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",

@@ -31,16 +31,18 @@ func aliasChain(name string, n int, last string) string {
 
 // TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing holds which schemas
 // admitting no value say so where they are written: `false`, a value set none
-// of whose members its type admits, an empty enum and an allOf of conjuncts
-// sharing no kind, each also through a chain of $refs up to the read's cap;
-// and which do not: a type beside a union none of whose branches it admits, a
-// type beside a $ref to another kind, a chain past the cap, and `true`, which
-// admits everything.
+// of whose members its type admits, an empty enum, an allOf of conjuncts
+// sharing no kind and an object beside a union no branch of which an object or
+// null satisfies, each also through a chain of $refs up to the read's cap; and
+// which do not: another type beside a union none of whose branches it admits,
+// a type beside a $ref to another kind, a chain past the cap, and `true`,
+// which admits everything.
 func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
 	t.Parallel()
 	rows := map[string]bool{
 		"F": true, "S": true, "K": true, "E": true, "D": true, "AliasS": true, "AliasF": true,
-		"Short0": true, "U": false, "AliasU": false, "Beside": false, "Long0": false, "T": false,
+		"Short0": true, "U": true, "AliasU": true, "W": false, "AliasW": false, "Str": false, "Beside": false, "Long0": false,
+		"T": false,
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    F: false
     T: true
@@ -53,6 +55,8 @@ func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
     AliasF: {$ref: '#/components/schemas/F'}
     U: {type: object, anyOf: [{type: string}, {type: integer}]}
     AliasU: {$ref: '#/components/schemas/U'}
+    W: {type: string, anyOf: [{type: integer}, {type: boolean}]}
+    AliasW: {$ref: '#/components/schemas/W'}
     Beside: {$ref: '#/components/schemas/Str', type: object}
 `+aliasChain("Short", maxAdmissionReads-1, "F")+aliasChain("Long", maxAdmissionReads, "F")))
 	for name, want := range rows {

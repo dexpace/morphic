@@ -923,10 +923,14 @@ it sees. Changes made together in one bump are listed together under it.
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
   union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
-  such a list aside, keeping any other under its path from the schema, `openapi:oneOf/<i>` or
-  `openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry, and holds
-  only the bounds the kinds it admits take, its branch's within the body's, where it held each the
-  position took. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
+  such a list aside, keeping any other under its keyword and index, `openapi:oneOf/<i>` or
+  `openapi:anyOf/<i>`, beside the body as on an entry, whose provenance names it, a branch so
+  kept lowering at no pointer of its own and a variant keeping one beside a map being that map's
+  `MapT`, and holds only the bounds the kinds it admits take, its branch's within the body's, where
+  it held each the position took. A branch admitting no object, nor a null the body admits, is no
+  variant: the `Union` keeps it under that key, the schema warning of it, where a variant over it
+  kept it, and a body none of whose branches lives lowers as itself, keeping the union whole under
+  `openapi:oneOf` or `openapi:anyOf`, where it was a `Union` of variants no value inhabits. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
   distributed. A composed `Model` takes `Additional` and `AdditionalProps` from the one schema
   object of its `allOf` whose `additionalProperties` reads every member the position and its entries
@@ -955,7 +959,10 @@ it sees. Changes made together in one bump are listed together under it.
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
   keep alike is kept once, at the position's pointer, what an entry kept whole folds and would keep
   beside it is kept once, inside the entry, a key the promotion policy reads aside, and an entry's
-  `$comment`, `$anchor` and `$defs` are read as beside the `allOf` and kept nowhere. A `$ref` and the keywords
+  `$comment`, `$anchor` and `$defs` are read as beside the `allOf` and kept nowhere. A `$ref` entry
+  naming no schema, which was kept nowhere with each keyword beside it, is kept under `openapi:$ref`,
+  or `openapi:$ref/<i>` by reference text where several are, with each keyword beside it under its
+  own key, or the entry whole under `openapi:allOf/<n>` where one cannot be kept apart. A `$ref` and the keywords
   written beside it are one conjunction, lowered as the `allOf` of the two is, where the `$ref`
   site was an alias keeping what it could not hold: a use of an object saying anything beside its
   `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
@@ -982,9 +989,13 @@ it sees. Changes made together in one bump are listed together under it.
   `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` or a variant's
   branch kept instead, and over a `type` list holding an object the list's object variant where it
   found the union, and one reading a variant's `Constraints` finds a property count only where the
-  variant admits an object, and one reading an `additionalProperties` finds it typed where the
+  variant admits an object, and one reading a distributed union's variants finds none over a branch
+  no object satisfies, the branch kept on the `Union` instead, and one reading an
+  `additionalProperties` finds it typed where the
   schema object writing it declares every member the position and its entries do, on an entry as
   beside the `allOf`, and kept elsewhere, and one reading the first entry of a tie as the position's
   finds the conjunct those rules elect, or none, and one naming a value set's node by its entry's ID
   finds it at the position's, and one reading `openapi:allOf/<n>` for what an entry keeps finds each
-  keyword under `openapi:<keyword>` on the same node, its provenance naming the entry.
+  keyword under `openapi:<keyword>` on the same node, its provenance naming the entry, and one
+  reading the keywords of a document with an unresolved `$ref` entry finds the reference and each
+  keyword beside it under `Unmodeled` where it found nothing.

@@ -352,14 +352,14 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	assert.Equal(t, "combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
 }
 
-// TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant pins what
-// docs/ir/models.md#composition-entries says Base/Mixins may name: a variant
-// composes its branch as an allOf entry is composed, only where the branch is
-// an object alone. A branch referencing a scalar or an enum is kept verbatim on
-// its variant under its path, with an info at the branch, and its variant holds
-// no property count, which only the object's variant takes; the union keeps
-// nothing. The branches' own nodes still lower.
-func TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant(t *testing.T) {
+// TestOneOf_CoDeclaredBranchNoObjectSatisfiesIsNoVariant pins a branch
+// referencing a scalar or an enum beside a body admitting objects alone: no
+// instance satisfies the two, so it is no variant
+// (docs/compilers/openapi.md#union-beside-structure). The Union keeps it
+// verbatim under its path, the schema draws one warning naming each and none
+// at the branch, and the object's variant holds the property count. The
+// components the branches name still lower as themselves.
+func TestOneOf_CoDeclaredBranchNoObjectSatisfiesIsNoVariant(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Scalar: {type: string, minLength: 2}
     Choice: {enum: [a, b]}
@@ -375,21 +375,19 @@ func TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant(t *testing.T) {
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
 	require.True(t, ok)
-	require.Len(t, u.Variants, 3)
-	assert.Empty(t, u.Unmodeled, "the object's variant holds the count")
+	require.Len(t, u.Variants, 1, "the object's branch alone is a variant")
 	for i, want := range []string{"Scalar", "Choice"} {
-		v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
-		require.True(t, ok)
-		assert.Nil(t, v.Base, "variant %d composes no %s", i, want)
-		assert.Empty(t, v.Mixins)
-		assert.Nil(t, v.Constraints, "variant %d admits no object to count", i)
 		key := fmt.Sprintf("openapi:oneOf/%d", i)
-		require.Contains(t, v.Unmodeled, key)
-		assert.JSONEq(t, `{"$ref":"#/components/schemas/`+want+`"}`, string(v.Unmodeled[key].Value))
-		assert.Equal(t, ir.ReasonDegradedLowering, v.Unmodeled[key].Reason)
-		assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, fmt.Sprintf("/components/schemas/Combo/oneOf/%d", i)), 1)
+		require.Contains(t, u.Unmodeled, key)
+		assert.JSONEq(t, `{"$ref":"#/components/schemas/`+want+`"}`, string(u.Unmodeled[key].Value))
+		assert.Equal(t, ir.ReasonDegradedLowering, u.Unmodeled[key].Reason)
+		assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, fmt.Sprintf("/components/schemas/Combo/oneOf/%d", i)))
 	}
-	object, ok := doc.Types[u.Variants[2].Type.Target].(*ir.Model)
+	reports := diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Combo")
+	require.Len(t, reports, 1)
+	assert.Equal(t, ir.SeverityWarning, reports[0].Severity)
+	assert.Contains(t, reports[0].Message, "(oneOf/0: string, oneOf/1: string)")
+	object, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, object.Base)
 	assert.Equal(t, componentID("A"), object.Base.Target)
@@ -446,7 +444,7 @@ func TestOneOf_CoDeclaredUnpreservableBranchIsNotAnnounced(t *testing.T) {
     Combo:
       type: object
       properties: {kind: {type: string}}
-      oneOf: [{$ref: '#/components/schemas/A'}, {type: string, x-t: `+unpreservableValue+`}]
+      oneOf: [{$ref: '#/components/schemas/A'}, {anyOf: [{type: object}, {type: string}], x-t: `+unpreservableValue+`}]
 `))
 
 	u, ok := typeByName(doc, "Combo").(*ir.Union)
@@ -1133,191 +1131,192 @@ const nodeTwice = "    N1: {$dynamicAnchor: node}\n    N2: {$dynamicAnchor: node
 // value set, a format, an element or a referent the body's declarations do not
 // hold, a property none of them declares, or a keyword declaring shape, such as
 // `readOnly` or `prefixItems`, bare or beside a repeated `type`, or any of
-// these in an `allOf` conjunct, a `$ref` conjunct of the branch among them.
+// these in an `allOf` conjunct, a `$ref` conjunct of the branch among them. A
+// branch no instance of the body satisfies keeps its union whole.
 func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 	t.Parallel()
-	for name, tc := range map[string]struct{ version, schema, keyword string }{
+	for name, tc := range map[string]struct{ version, schema, reading string }{
 		"OtherType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: integer}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"UndeclaredProperty": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {z: {type: string}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"LaterPropertyDiffers": {"3.1.0", `      type: object
       properties: {a: {type: string}, b: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}, b: {type: integer}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"LaterBranchDeclaresShape": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf:
         - {required: [a], properties: {a: {type: string}}}
         - {properties: {z: {type: string}}}
-`, "openapi:oneOf"},
+`, readDistributed},
 		"AnyOfBranchDeclaresShape": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       anyOf: [{required: [a], properties: {z: {type: string}}}]
-`, "openapi:anyOf"},
+`, readDistributed},
 		"ConstBesideTheType": {"3.1.0", `      type: object
       properties: {kind: {type: string}}
       oneOf: [{properties: {kind: {type: string, const: x}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"EnumBesideTheType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string, enum: [x, y]}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"KeywordReadingItsSiblings": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string}}, additionalProperties: false}}
       oneOf: [{required: [a], properties: {a: {additionalProperties: false}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"OtherRef": {"3.1.0", `      type: object
       properties: {a: {$ref: '#/components/schemas/Target'}}
       oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Other'}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"RefConjunctOfTheBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{allOf: [{$ref: '#/components/schemas/Target'}]}, {required: [a]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ConjunctDeclaringAnotherProperty": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{allOf: [{required: [a]}, {properties: {z: {type: string}}}]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"PropertyConjunctOfAnotherType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {allOf: [{type: integer}]}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"PropertyConjunctSayingMore": {"3.1.0", `      type: object
       properties: {a: {$ref: '#/components/schemas/Target'}}
       oneOf: [{required: [a], properties: {a: {allOf: [{$ref: '#/components/schemas/Target'}, {properties: {z: {type: string}}}]}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"PropertyConjunctRefLandingElsewhere": {"3.1.0", `      type: object
       properties: {a: {$ref: '#/components/schemas/Target'}}
       oneOf: [{required: [a], properties: {a: {allOf: [{$ref: '#/components/schemas/Other'}]}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"BooleanInTheBody": {"3.1.0", `      type: object
       properties: {a: true}
       oneOf: [{required: [a], properties: {a: {type: string}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"CatchAllBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, additionalProperties: false}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NestedUnionBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, oneOf: [{required: [a]}]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"AnyOfBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, anyOf: [{required: [a]}]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"AnyOfBesideBareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], anyOf: [{required: [a]}]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"OneOfBesideBareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], oneOf: [{required: [a]}]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideItems": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, items: {type: string}, not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideFormat": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, format: uri, not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideConst": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, const: {a: x}, not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideEnum": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, enum: [{a: x}], not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideACatchAll": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], additionalProperties: false, not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideANestedUnion": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], oneOf: [{required: [a]}], not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NotBesideAnotherType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{type: string, not: {const: x}}]
-`, "openapi:oneOf"},
+`, string(ir.ReasonDegradedLowering)},
 		"NotBesideAnUndeclaredProperty": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {z: {type: string}}, not: {required: [b]}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"AliasedBranchWithNotSayingMore": {"3.1.0", `      type: object
       x-branch: &b {required: [a], properties: {a: {type: string}}, format: uri, not: {required: [b]}}
       properties: {a: {type: string}}
       oneOf: [*b]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"DynamicRefBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{properties: {a: {type: string}}, $dynamicRef: '#node'}]
-` + nodeTwice, "openapi:oneOf"},
+` + nodeTwice, readDistributed},
 		"NestedPropertySaysMore": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string}}}}
       oneOf: [{required: [a], properties: {a: {type: object, properties: {x: {type: integer}}}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"NestedPropertyTheBodyLacks": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string}}}}
       oneOf: [{required: [a], properties: {a: {type: object, properties: {z: {type: string}}}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ElementSaysMore": {"3.1.0", `      type: object
       properties: {a: {type: array, items: {type: string}}}
       oneOf: [{required: [a], properties: {a: {type: array, items: {type: string, format: uuid}}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"FormatNeitherDeclarationSays": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       allOf: [{properties: {a: {format: uri}}}]
       oneOf: [{required: [a], properties: {a: {type: string, format: date}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ItemsInABareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], items: {type: string}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"PrefixItemsInABareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], prefixItems: [{type: string}]}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"DynamicRefAlone": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{$dynamicRef: '#node'}, {required: [a]}]
-` + nodeTwice, "openapi:oneOf"},
+` + nodeTwice, readDistributed},
 		"FormatInABareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], format: uri}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"UnevaluatedPropertiesClosing": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], unevaluatedProperties: false}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ReadOnlyBesideTheBodysType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{type: object, required: [a], readOnly: true}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"DefaultBesideTheBodysType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{type: object, required: [a], default: {a: x}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ComposedDeclarationDiffers": {"3.1.0", `      allOf: [{$ref: '#/components/schemas/Target'}]
       oneOf: [{required: [t], properties: {t: {type: integer}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ComposedReachesNoDeclaration": {"3.1.0", `      allOf: [{$ref: '#/components/schemas/Target'}]
       oneOf: [{properties: {z: {type: string}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"ComposedRefDiffers": {"3.1.0", `      allOf: [{properties: {a: {$ref: '#/components/schemas/Target'}}}]
       oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Other'}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 		"DeclaredInAComposedUnion": {"3.1.0", `      type: object
       allOf: [{anyOf: [{properties: {a: {type: string}}}, {required: [b]}]}]
       oneOf: [{required: [a], properties: {a: {type: string}}}]
-`, "openapi:oneOf"},
+`, readDistributed},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1325,7 +1324,7 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			assert.Equal(t, readDistributed, unionReading(doc, "S"))
+			assert.Equal(t, tc.reading, unionReading(doc, "S"))
 			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.ValidationOnlyKeyword, "/components/schemas/S"),
 				"%+v", diags)
 		})

@@ -400,16 +400,25 @@ must never return early on the combinator and drop the composition. It distribut
 is a `Model` carrying `S`'s own `Base`/`Mixins`/`Properties`/`required`/`Additional`, with that
 branch's referent conjoined by the same rule as an `allOf` entry (`Base` when the composition
 named none, else a `Mixin`), and so only where the branch is an object
-([above](#composition-entries)): a variant over a string names no `Base`, and the OpenAPI compiler
-keeps that branch verbatim on it. The composition rides on every variant rather than being merged
-into one or dropped, so no `allOf` branch is flattened. A property `S` declares appears on each
-variant under its single source-derived `PropID`, since the source declares it once.
+([above](#composition-entries)): a variant over a branch admitting another kind beside an object
+names no `Base`, and the OpenAPI compiler keeps that branch verbatim on it, so where `S` is a map
+and nothing else that variant is the map's `MapT` ([containers](containers.md)), as such a `Model`
+always is. The composition rides on every variant rather than being merged into one or dropped, so
+no `allOf` branch is flattened. A property `S` declares appears on each variant under its single
+source-derived `PropID`, since the source declares it once.
+
+A branch admitting no object, nor a null `S` admits, conjoins with `S`, which admits objects alone,
+to nothing, so it is no variant: a variant would be a type no value inhabits, which a consumer would
+still have to declare and dispatch to. The OpenAPI compiler keeps such a branch on the `Union`,
+which leaves `oneOf` and `anyOf` admitting what they did, and where no branch is left the node is
+what `S` lowers to alone, the union kept beside it. Keeping the variant and reporting it was
+weighed: it leaves a `Union` member every emitter must render for no payload.
 
 What `S` says of the position rather than of its shape, its docs, deprecation, examples and what a
 use binds, is said once, on the `Union` that stands there and the carriers using it, and a value
 bound, which constrains both sides of the disjunction, on each variant whose kinds it bounds: a
-property count on each variant admitting an object, and on none over a string, which `S` beside
-`type: object` leaves no instance. That holds whether `S` writes it beside the `allOf` or on an
+property count on each variant, each admitting an object, and a string's bound on none, which `S`
+beside `type: object` leaves no instance of. That holds whether `S` writes it beside the `allOf` or on an
 inline branch of it, which conjoins the same way. Keeping such a branch whole on each variant
 instead would let the source be rebuilt from any one variant, but it would copy one fact onto as
 many nodes as there are variants, none of them where a reader of the position looks, and tell apart

@@ -21,7 +21,8 @@ import (
 // two entries deep, beside a typed entry, under a null or beside a null branch,
 // is judged against what the object admits: no variant is an array or a
 // string, so the merge does not compare the two and keeps the later with its
-// own null, in both entry and component orders, at 3.0 and 3.1.
+// own null, in both entry and component orders, at 3.0 and 3.1. The holder
+// warns of its dead branches.
 func TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion(t *testing.T) {
 	t.Parallel()
 	const union = "{anyOf: [{type: object}, {type: array, items: {}}, {type: string}]}"
@@ -64,7 +65,8 @@ func TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion(t *testing.T) {
 					t.Parallel()
 					inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 						doc, diags := compileAnnotationSpec(t, "holders", admissionSpec(version, "", schemas...))
-						requireErrorsAndWarnings(t, diags, nil)
+						requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct,
+							pointer: "/components/schemas/Common/properties/r", contains: []string{"/anyOf/1: array", "/anyOf/2: string"}}})
 						var uncompared []string
 						for _, d := range diags {
 							if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "does not compare") {

@@ -857,7 +857,7 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
       properties: {x: {type: string}}
       required: [x]
       additionalProperties: {type: integer}
-      oneOf: [{type: string}, {type: integer}]
+      oneOf: [{type: object, properties: {s: {type: string}}}, {type: integer}]
     B:
       patternProperties: {'^x-': {type: string}}
       anyOf: [{type: string}, {type: integer}]
@@ -870,8 +870,9 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	// A's body is a model, so its union is distributed across it; the others'
-	// is none, so each keeps its union verbatim.
+	// A's body is a model, so its union is distributed across it, a branch
+	// admitting an object among them; the others' is none, so each keeps its
+	// union verbatim.
 	assert.Equal(t, readDistributed, unionReading(doc, "A"))
 	for _, name := range []string{"B", "C", "D"} {
 		td := typeByName(doc, name)

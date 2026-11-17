@@ -217,20 +217,17 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Union)
 	require.True(t, ok, "an inline branch distributes the body as a $ref branch does")
-	require.Len(t, mixed.Variants, 2)
-	for i := range mixed.Variants {
+	require.Len(t, mixed.Variants, 2, "no instance of the body is a string")
+	bases := []ir.TypeID{componentID("A"), "t/anon/components/schemas/MixedKinds/oneOf/1"}
+	for i, base := range bases {
 		v, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d composes as a model", i)
 		require.Len(t, v.Properties, 1, "the body rides on every variant")
-		if i == 0 {
-			require.NotNil(t, v.Base)
-			assert.Equal(t, componentID("A"), v.Base.Target, "an object branch is the variant's base")
-			continue
-		}
-		assert.Nil(t, v.Base, "a model composes no string")
-		require.Contains(t, v.Unmodeled, "openapi:oneOf/1", "so the variant keeps the branch")
-		assert.JSONEq(t, `{"type":"string"}`, string(v.Unmodeled["openapi:oneOf/1"].Value))
+		require.NotNil(t, v.Base)
+		assert.Equal(t, base, v.Base.Target, "an object branch is the variant's base")
 	}
+	require.Contains(t, mixed.Unmodeled, "openapi:oneOf/2", "the union keeps the string branch")
+	assert.JSONEq(t, `{"type":"string"}`, string(mixed.Unmodeled["openapi:oneOf/2"].Value))
 
 	bounded, ok := doc.Types[componentID("BoundedKinds")].(*ir.Scalar)
 	require.True(t, ok, "a body that is not a model reduces to a shared primitive and hoists an alias")

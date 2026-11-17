@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -972,15 +974,10 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
 	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
-	refs := keptRefKeys(k.branches, pointer)
+	kept, keptDiags := keepRefConjuncts(c, p, k.branches, pointer)
+	diags = append(diags, keptDiags...)
 	for _, b := range k.branches {
-		key, at := k.comp.branchKey(b.entry.pointer), b.entry.pointer
-		if ref, ok := refs[b.entry.pointer]; ok {
-			key, at = ref.key, ref.at
-		}
-		kept, keptDiags := annotation.PreserveNodeInto(p, key, b.entry.schema.Node, ir.ReasonDegradedLowering, c.Place().At(at))
-		diags = append(diags, keptDiags...)
-		if kept {
+		if kept[b.entry.pointer] {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(k.comp, b)))
 		}
 	}
@@ -1055,6 +1052,27 @@ func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
 	}
 	return of + " lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
 		"adds; the branch (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
+}
+
+// keepRefConjuncts keeps on p each $ref conjunct of branches, one a
+// refinement, a composition or a failed read leaves unlowered: the reference
+// as written, its text alone, under the key keptRefKeys ranks it by, at the
+// entry writing it. What an entry writes beside its $ref is kept apart, as an
+// inline entry's keywords are. It reports which it kept, by pointer.
+func keepRefConjuncts(c lowering.Ctx, p *ir.Unmodeled, branches []keptBranch, pointer jsontext.Pointer,
+) (map[jsontext.Pointer]bool, []ir.Diagnostic) {
+	keys := keptRefKeys(branches, pointer)
+	kept := make(map[jsontext.Pointer]bool, len(branches))
+	var diags []ir.Diagnostic
+	for _, b := range branches {
+		_, text := refSpelling(b.entry.schema)
+		ref := keys[b.entry.pointer]
+		ok, keptDiags := annotation.PreserveNodeInto(p, ref.key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
+			ir.ReasonDegradedLowering, c.Place().At(ref.at))
+		diags = append(diags, keptDiags...)
+		kept[b.entry.pointer] = ok
+	}
+	return kept, diags
 }
 
 // keptWhy words why a refinement keeps a $ref branch, naming the schema

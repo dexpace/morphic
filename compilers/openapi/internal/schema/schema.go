@@ -720,10 +720,10 @@ func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer
 	var written []string
 	var diags []ir.Diagnostic
 	if s.BesideRef != nil {
-		kept, keptDiags := annotation.PreserveNodeInto(p, "openapi:$ref", s.BesideRef.Node, ir.ReasonDegradedLowering,
-			c.Place().At(pointer))
+		e := allOfBranch{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
+		kept, keptDiags := keepRefConjuncts(c, p, []keptBranch{{entry: e}}, pointer)
 		diags = append(diags, keptDiags...)
-		if kept {
+		if kept[pointer] {
 			written = append(written, "$ref")
 		}
 	}
