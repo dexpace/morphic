@@ -2289,8 +2289,9 @@ only overlap. The position then lowers by the keywords beside the `allOf`, the t
 name no kind, keeping each entry with an info. Words admitting alike part only where a node reads a
 keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
 vocabulary: of those writing every such keyword another writes, and alike, one is elected, and
-where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand,
-else the entry whose text, its keys sorted, is the least. A schema written twice is one conjunct,
+where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand
+where they are among them, else the entry whose text, its keys sorted, is the least, so
+`{description: d, allOf: [{enum: [b, a]}, {enum: [a, b]}]}` is a use of the second entry. A schema written twice is one conjunct,
 its first copy standing for both and the other saying nothing more, so the order written shows only
 in the pointer of the node it lowers to.
 
