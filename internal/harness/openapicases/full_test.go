@@ -42,7 +42,7 @@ func outsideHeader(name string) string {
 // the core's records nor its parts explain (harness.Unexplained) is a line of
 // testdata/full, with its reason, and a line there naming no such finding
 // fails. -update rewrites those files, keeping each line's reason. No case
-// faults.
+// faults. It logs what each oracle asked and declined.
 func TestFull_EveryCaseHoldsTheRecords(t *testing.T) {
 	if !*full {
 		t.Skip("every case is checked with -full, as make cases does")
@@ -59,6 +59,7 @@ func TestFull_EveryCaseHoldsTheRecords(t *testing.T) {
 		require.NoError(t, err)
 	}
 	left := slices.DeleteFunc(harness.Unexplained(results, core), func(r harness.Result) bool { return r.Spec == r.Like })
+	t.Logf("what each case oracle asked and declined:\n%s", harness.CaseSummary(results))
 
 	for _, o := range harness.CaseOracles() {
 		path, name := outside[o][0], outside[o][1]
