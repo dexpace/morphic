@@ -2270,6 +2270,7 @@ The principal is chosen from the whole set:
    `{allOf: [{$ref: Str}, {$ref: Uuid}]}` is a use of `Uuid` keeping the other `$ref` with an info.
    A `$ref` is no principal where the kind-inference policy reads its target as kinds leaving out
    one the position's declarations name, null aside, as the target then admits that kind whole, or
+   as kinds sharing none with them, as beside a `type` of null alone, or
    where its target admits every kind beside a position declaring one or a conjunct naming one: a
    declared kind decides before an inference ([`policies`](#policies)) and before a target saying
    nothing of the kind, so `{allOf: [{$ref: E}, {type: string}]}` over `E: {items: …}` is the
@@ -2298,8 +2299,9 @@ only overlap. The position then lowers by the keywords beside the `allOf`, the t
 name no kind, keeping each entry with an info. Words admitting alike part only where a node reads a
 keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
 vocabulary: of those writing every such keyword another writes, and alike, one is elected, and
-where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand,
-else the entry whose text, its keys sorted, is the least. A schema written twice is one conjunct,
+where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand
+where they are among them, else the entry whose text, its keys sorted, is the least, so
+`{description: d, allOf: [{enum: [b, a]}, {enum: [a, b]}]}` is a use of the second entry. A schema written twice is one conjunct,
 its first copy standing for both and the other saying nothing more, so the order written shows only
 in the pointer of the node it lowers to.
 
@@ -4331,10 +4333,19 @@ catch-all from one schema object of the `allOf`: the position's own where it wri
 `additionalProperties` or `patternProperties` and no entry declares a property or a pattern, else
 the one inline entry writing either where no other object declares one, which the merge then
 consumes ([`allof-inline-residue`](#allof-inline-residue)). A `$ref` entry's target declares
-nothing here, and what is written beside the `$ref` does. So `{allOf: [{$ref: User},
-{additionalProperties: false}]}` closes the `Model` over `User` as `{allOf: [{$ref: User}],
-additionalProperties: false}` does, and an entry closing its own `properties` closes the model
-holding them. A closure no object takes is kept: beside the `allOf` under
+nothing here, and what is written beside the `$ref` does. That is the reading the spelling is
+written for, not JSON Schema's, as the closure applies to the target's members too: `{allOf:
+[{$ref: User}], additionalProperties: false}` admits no object setting `id`, yet is a `Model` over
+`User` closed over it, and nothing is reported. `{allOf: [{$ref: User}, {additionalProperties:
+false}]}` is that `Model` too, and an entry closing its own `properties` closes the model holding
+them. A closure beside the `allOf` reads the inline branches of a `oneOf` or `anyOf` written
+beside it or on an entry, which distribute into variants
+([`union-beside-structure`](#union-beside-structure)), as it reads a target: each variant takes the
+closure, though by JSON Schema it applies to a member a branch declares and the position does not.
+An entry's closure closes no such variant: where an inline branch of a union written beside the
+`allOf` or on an entry declares a member, no entry closes the model, as beside another entry
+declaring one, and the entry is kept whole.
+A closure no object takes is kept: beside the `allOf` under
 `openapi:additionalProperties` (`degraded_lowering`) with an info `openapi/degraded-construct` at the
 position, and on an entry as that entry whole. It applies to the members another object declares
 too, so the schema refuses every instance setting one of them that the closure does not admit, as
@@ -4366,6 +4377,7 @@ logic; beside one writing patterns alone it closes the model after composition.
   `e2e.TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare`,
   `e2e.TestEntryClosure_TheClosureBesideTheAllOfIsTheModelsBeforeAnEntrys`,
   `e2e.TestEntryClosure_TwoEntriesWritingAClosureTypeNeither`,
+  `e2e.TestEntryClosure_AClosureBesideAUnionsOwnMembersIsKept`,
   `e2e.TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry`,
   `e2e.TestEntryClosure_ARefEntrysOwnMembersAreDeclaredBesideTheClosure`,
   `e2e.TestEntryClosure_AClosureBesideAUnionReadsTheAllOfAlike`,

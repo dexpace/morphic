@@ -280,7 +280,7 @@ func voteRefs(c lowering.Ctx, conjuncts []conjunct, kinds kindSet, inferred bool
 func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
 	target, targetInferred := lowersTo(c, ref.branch.schema)
 	switch {
-	case targetInferred && kinds&^kindNull&^target != 0:
+	case targetInferred && (kinds&^kindNull&^target != 0 || kinds&target == 0):
 		return refInferredApart
 	case !targetInferred && target == anyInstance && says:
 		return refAdmitsEvery
@@ -701,10 +701,11 @@ type outcomeKeeps struct {
 // election (voteOf), and why what it writes did not fold where that is the
 // reason (unfoldedWhy).
 type keptBranch struct {
-	entry    allOfBranch
-	residue  []string
-	vote     refVote
-	unfolded string
+	entry     allOfBranch
+	residue   []string
+	vote      refVote
+	unfolded  string
+	undecided bool
 }
 
 // holdsAny reports whether k keeps anything.
@@ -754,7 +755,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 					said(&w, r, typed, e.schema.Schema, key) || censused && censusReads(key)
 			})
 			if len(residue) > 0 {
-				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
+				k.branches = append(k.branches, keptBranch{entry: e, residue: residue, undecided: r.principal == nil,
 					unfolded: unfoldedWhy(c, voices.speaks[i], voices.rebased[i], e.schema.Schema, residue)})
 			}
 		}
@@ -976,11 +977,11 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 func keptWhy(b keptBranch) string {
 	switch {
 	case b.vote == refInferredApart:
-		return "the kind-inference policy reads this $ref's target as kinds leaving out one the other conjuncts " +
-			"of this allOf declare, and a declared kind decides first, so the $ref is kept verbatim under Unmodeled"
+		return "the kind-inference policy reads this $ref's target as kinds leaving out one the rest of this " +
+			"allOf admits, so the $ref is kept verbatim under Unmodeled"
 	case b.vote == refAdmitsEvery:
-		return "this $ref's target admits every kind, and the kind the other conjuncts of this allOf declare " +
-			"decides first, so the $ref is kept verbatim under Unmodeled"
+		return "this $ref's target admits every kind, and what the other conjuncts of this allOf name, a kind " +
+			"or a union, decides first, so the $ref is kept verbatim under Unmodeled"
 	case b.vote == refNarrowed:
 		return "another $ref of this allOf lies within as many of its conjuncts or more, a tie going to the " +
 			"least reference text, then to the least text of its entry, and a use names one target, so this " +
@@ -993,6 +994,10 @@ func keptWhy(b keptBranch) string {
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"
 	case b.unfolded != "":
 		return b.unfolded
+	case b.undecided:
+		return "no entry of this allOf is the one it lowers from, so it lowered by the keywords beside it, the top " +
+			"type where those name no kind, and nothing there homes what this inline branch adds; the branch (" +
+			strings.Join(b.residue, ", ") + ") is kept verbatim under Unmodeled"
 	default:
 		return "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
 			"adds; the branch (" + strings.Join(b.residue, ", ") + ") is kept verbatim under Unmodeled"
