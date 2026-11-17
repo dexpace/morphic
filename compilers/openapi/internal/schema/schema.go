@@ -289,6 +289,9 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		return ref, append(unionDiags, nullDiags...)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
+	if how == unionNoLiveBranch {
+		bodyDiags = append(bodyDiags, diagDeadEntryUnion(c, schema, u, pointer)...)
+	}
 	if how == unionHierarchyBase {
 		// The union stays with its branch, and the discriminator standing with it
 		// on the model, held to its routes as one beside the union is.

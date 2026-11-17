@@ -3750,8 +3750,9 @@ conjuncts sharing no value, of which a dead branch and the body are two; no find
 branch, and it lowers nowhere. Leaving out a branch no instance satisfies changes what neither a
 `oneOf`'s "exactly one" nor an `anyOf`'s "at least one" admits, so `{type: object, anyOf: [{type:
 object}, {type: array}, {type: string}]}` is a `Union` of one variant, as a union written with one
-branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the warning of that
-rule already says no instance satisfies the schema, and no branch is read as dead. Where no branch
+branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the entry a union is
+written on aside, the warning of that rule already says no instance satisfies the schema, and no
+branch is read as dead. Where no branch
 lives, the union is shape 6 below. A `mapping` entry naming the component a dead branch names routes
 to that component, which is no variant of the union, as an entry naming any schema the union does
 not list does, and `pass/validate` reports it; no route is implied to it.
@@ -3812,9 +3813,15 @@ reach these shapes:
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
    own ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Such a union on an `allOf` entry
-   shares no kind with the other conjuncts, so it is kept as an entry's keyword is, under
-   `openapi:oneOf` or `openapi:anyOf` at the position
-   ([`allof-inline-residue`](#allof-inline-residue)), under that rule's warning.
+   is read against the rest of the `allOf`, its own entry aside, and kept as an entry's keyword is,
+   under `openapi:oneOf` or `openapi:anyOf` at the position
+   ([`allof-inline-residue`](#allof-inline-residue)). Its entry is a conjunct sharing no kind with
+   the rest, so the schema draws that rule's warning, unless the rest admits null, which that rule
+   reads a union as admitting too: the schema then draws the warning naming the dead branches,
+   which says that no instance satisfies it, as none of the branches admits null, or none but null
+   where a null branch takes it. A dead branch beside a live one on an entry is named as admitting
+   no value the rest of the `allOf` admits, which may hold kinds beside an object that no branch
+   holds.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -3978,6 +3985,12 @@ judged as one whose branches declare shape.
   `e2e.TestCompile_AMappingToADeadBranchRoutesToNoVariant`,
   `e2e.TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept`,
   `e2e.TestCompile_TwoUnionsOnEntriesKeepTheirBranchesApart`,
+  `e2e.TestCompile_AnEntryUnionNoBranchOfWhichLivesIsKeptOnTheEntry`,
+  `e2e.TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns`,
+  `e2e.TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets`,
+  `e2e.TestCompile_ABodyBesideANullBranchAndNoLiveOneAdmitsNull`,
+  `schema.TestOneOf_TheWarningOfADeadBranchSaysWhereTheUnionIs`,
+  `e2e.TestCompile_ABranchBesideABodyThePolicyMadeAnObjectLives`,
   `schema.TestOneOf_AnUnpreservableDeadBranchIsNotAnnounced`,
   `schema.TestOneOf_ADeadBranchIsReadForTheNullTheBodyAdmits`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,

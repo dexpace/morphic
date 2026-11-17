@@ -863,7 +863,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
 	case unionNoLiveBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
-			"none of its branches admits a value its body admits, so no instance satisfies them together")
+			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
 		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
