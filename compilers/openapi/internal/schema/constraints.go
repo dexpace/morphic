@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -81,6 +80,13 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 	sc, ok := td.(*ir.Scalar)
 	return ok && sc != nil && sc.Encoding != nil && sc.Encoding.Name == numberTextEncoding &&
 		sc.Encoding.WireType != nil
+}
+
+// carriesText reports whether the Scalar a type st that s writes lowers to is one
+// carriesNumberAsText holds, read off the shape scalarTypeID builds it by.
+func carriesText(s *statement.Schema, st statement.Kind) bool {
+	shape := scalarShapeOf(s, st, writtenFormat(s))
+	return shape.format == numberTextEncoding && shape.wire != nil
 }
 
 // keepTextBounds keeps each of bounds, value bounds s writes, verbatim on p,
@@ -326,9 +332,9 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 // so its carrier holds none. One owning none holds those a reference does
 // (referenceConstraintsOf), since the census hoists an alias to keep any other.
 // PreserveRefSiteKeywords draws the same line.
-func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+func CarrierConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !LoweredToOwnNode(c, pointer, t) {
-		return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
+		return referenceConstraintsOf(c, p, s, voices, t, pointer)
 	}
 	return nil, nil
 }
@@ -342,7 +348,7 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 // position admits, those of the schemas it names among them (boundKinds),
 // so a collection bound is held only where they admit an array, and the census
 // keeps one they do not (referenceUnhomed).
-func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+func referenceConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(s) {
 		return nil, nil
 	}
@@ -352,7 +358,7 @@ func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, 
 		return cons, diags
 	}
 	cons = merge.Constraints(cons, heldCollectionBounds(s))
-	if len(voices) > 0 && homesAt(c, ts, s, target, pointer).collection {
+	if len(voices) > 0 && homesAt(c, s, target, pointer).collection {
 		cons = voicedCollectionBounds(cons, voices)
 	}
 	return cons, diags

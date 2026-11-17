@@ -247,7 +247,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	// A body's census ran where its node was built, the only thing that can
 	// answer it. One lowering to a reference built none, so it takes the census
 	// of a position lowered to one, and its verdict homes an alias.
-	keeps := keepsAtOutcome(c, ts, schema, target, pointer)
+	keeps := keepsAtOutcome(c, schema, target, pointer)
 	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
 	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)

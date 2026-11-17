@@ -129,7 +129,7 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 // annotation.Read counts it as no writer of what it folds, as entryKeeps
 // counts no such entry as a writer of what it keeps: the entry holds it once.
 // One voice writes no keyword alike with another, so fewer than two stand.
-func markKeptWhole(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+func markKeptWhole(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 	voices []annotation.Voice,
 ) []annotation.Voice {
 	if len(voices) < 2 {
@@ -137,7 +137,7 @@ func markKeptWhole(c lowering.Ctx, ts *compile.Types, s *statement.Schema, point
 	}
 	var kept []keptEntry
 	if _, refined := refinementOf(c, s, pointer); refined {
-		kept = keepsAtOutcome(c, ts, s, target, pointer).entries
+		kept = keepsAtOutcome(c, s, target, pointer).entries
 	} else {
 		kept = readAllOf(c, s, pointer).kept
 	}
