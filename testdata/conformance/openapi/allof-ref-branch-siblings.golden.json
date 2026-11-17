@@ -59,13 +59,14 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/Annotated/allOf/0": {
-      "kind": "scalar",
-      "id": "t/anon/components/schemas/Annotated/allOf/0",
+    "t/openapi/components/schemas/Annotated": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Annotated",
       "name": {
-        "hint": "base"
+        "source": "Annotated",
+        "canonical": "annotated"
       },
-      "anonymous": true,
+      "anonymous": false,
       "docs": {
         "description": "Base as this composition uses it"
       },
@@ -80,116 +81,6 @@
           }
         }
       },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Annotated/allOf/0"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/Base",
-        "nullable": false
-      },
-      "constraints": {
-        "uniqueItems": false,
-        "minProps": 3
-      }
-    },
-    "t/anon/components/schemas/Mixed/allOf/0": {
-      "kind": "scalar",
-      "id": "t/anon/components/schemas/Mixed/allOf/0",
-      "name": {
-        "hint": "base"
-      },
-      "anonymous": true,
-      "docs": {
-        "description": "narrowed here"
-      },
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Mixed/allOf/0"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/Base",
-        "nullable": false
-      }
-    },
-    "t/anon/components/schemas/NestedAllOfBranch/allOf/0": {
-      "kind": "scalar",
-      "id": "t/anon/components/schemas/NestedAllOfBranch/allOf/0",
-      "name": {
-        "hint": "base"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "unmodeled": {
-        "openapi:allOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "type": "string"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf"
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/NestedAllOfBranch/allOf/0"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/Base",
-        "nullable": false
-      }
-    },
-    "t/anon/components/schemas/UnionBranch/allOf/0": {
-      "kind": "scalar",
-      "id": "t/anon/components/schemas/UnionBranch/allOf/0",
-      "name": {
-        "hint": "base"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "unmodeled": {
-        "openapi:oneOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "integer"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UnionBranch/allOf/0/oneOf"
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UnionBranch/allOf/0"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/Base",
-        "nullable": false
-      }
-    },
-    "t/openapi/components/schemas/Annotated": {
-      "kind": "model",
-      "id": "t/openapi/components/schemas/Annotated",
-      "name": {
-        "source": "Annotated",
-        "canonical": "annotated"
-      },
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Annotated"
@@ -224,8 +115,12 @@
         }
       ],
       "base": {
-        "target": "t/anon/components/schemas/Annotated/allOf/0",
+        "target": "t/openapi/components/schemas/Base",
         "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 3
       },
       "abstract": false,
       "positional": false,
@@ -355,7 +250,9 @@
         "canonical": "mixed"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "description": "narrowed here"
+      },
       "sensitive": false,
       "provenance": {
         "source": 0,
@@ -363,7 +260,7 @@
       },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/Mixed/allOf/0",
+          "target": "t/openapi/components/schemas/Base",
           "nullable": false
         },
         {
@@ -385,6 +282,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0/allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NestedAllOfBranch"
@@ -419,7 +328,7 @@
         }
       ],
       "base": {
-        "target": "t/anon/components/schemas/NestedAllOfBranch/allOf/0",
+        "target": "t/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
@@ -436,6 +345,26 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/Base",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionBranch/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/UnionBranch"
@@ -470,7 +399,7 @@
         }
       ],
       "base": {
-        "target": "t/anon/components/schemas/UnionBranch/allOf/0",
+        "target": "t/openapi/components/schemas/Base",
         "nullable": false
       },
       "abstract": false,
@@ -516,7 +445,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (oneOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/UnionBranch/allOf/0"
@@ -525,7 +454,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "the conjuncts of this allOf share no value (type: object, allOf/0/$ref: object, allOf/0: string), so no instance satisfies this schema, which a composition cannot state",
+      "message": "the conjuncts of this allOf share no value (type: object, allOf/0: object, allOf/0/allOf/0: string), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NestedAllOfBranch"
@@ -534,10 +463,10 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for allOf declared beside it; kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/NestedAllOfBranch/allOf/0"
+        "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf/0"
       }
     }
   ],

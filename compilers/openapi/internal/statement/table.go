@@ -5,6 +5,7 @@ package statement
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -32,6 +33,9 @@ type Table struct {
 	src        Source
 	schemas    map[*model]*Schema
 	statements map[*model]*Statement
+	// words and references hold the two conjuncts of each schema object
+	// writing a reference beside keys it reads (conjoins), each built once.
+	words, references map[*Schema]*Schema
 	// reads counts the schema objects read, which the tests hold to one each,
 	// and lookups the statements Of looks up, which they hold Read to none of
 	// for a schema Of has built the statement of.
@@ -41,7 +45,10 @@ type Table struct {
 // NewTable returns a table reading from src, which has read nothing yet. The
 // zero Rules reads every key with the zero rows, which define none.
 func NewTable(src Source) *Table {
-	return &Table{src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{}}
+	return &Table{
+		src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{},
+		words: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
+	}
 }
 
 // At returns the statement of the schema the bindings hold at p, an Unwritten
@@ -111,12 +118,13 @@ func index(s *Schema) {
 }
 
 // flatten lists the inline allOf entries of st's schema as the lowering
-// flattens them: in source order, depth first, an entry that names no
-// reference and writes an allOf of its own replaced by its entries and then
-// listed itself as a Wrapper, while at most MaxFlattenDepth lists hold it,
-// and listed Capped past that. It walks an explicit stack of at most
-// MaxFlattenDepth+1 lists, reading each entry's schema object and never an
-// entry's statement, so it adds no recursion.
+// flattens them: in source order, depth first, an entry writing a reference
+// beside what else it says (conjoins) listed as that reference and then the
+// rest, an entry that writes an allOf and names no reference beside nothing
+// else replaced by its entries and then listed itself as a Wrapper, while at
+// most MaxFlattenDepth lists hold it, and listed Capped past that. It walks an
+// explicit stack of at most MaxFlattenDepth+1 lists, reading each entry's
+// schema object and never an entry's statement, so it adds no recursion.
 func (t *Table) flatten(st *Statement) {
 	type frame struct {
 		list  []Sub
@@ -138,6 +146,10 @@ func (t *Table) flatten(st *Statement) {
 		entry := t.read(f.list[f.next].m)
 		rel := f.rel + "/allOf/" + jsontext.Pointer(strconv.Itoa(f.next))
 		f.next++
+		if conjoins(entry) {
+			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel})
+			entry = t.wordsOf(entry)
+		}
 		wraps := entry.Ref == nil && len(entry.AllOf) > 0
 		if wraps && len(stack) <= MaxFlattenDepth {
 			stack = append(stack, frame{list: entry.AllOf, owner: entry, rel: rel})
@@ -145,6 +157,75 @@ func (t *Table) flatten(st *Statement) {
 		}
 		st.Entries = append(st.Entries, Entry{Schema: entry, Rel: rel, Capped: wraps})
 	}
+}
+
+// conjoins reports whether s writes a reference and a key beside it that it
+// reads. JSON Schema applies the keywords beside a $ref to the instance with
+// it (Core 2020-12 §8.2.3.1), so s says what an allOf of the two says: the
+// reference is one conjunct and the rest another
+// (docs/compilers/openapi.md#ref-use-site). A reference merged in past
+// nodeview.MergeDepthLimit, which no key of s names, conjoins as any does.
+func conjoins(s *Schema) bool {
+	if s.Truth != Stated || s.Ref == nil {
+		return false
+	}
+	return slices.ContainsFunc(s.Keys, func(k Key) bool { return ReadBeside(k.Name, k.Node, s.Ref.Keyword) })
+}
+
+// refKey returns the place in s, which writes a reference, of the key naming
+// it, and false where none does: the model holds a $ref merged in past
+// nodeview.MergeDepthLimit, which s's keys do not list (Truncated).
+func refKey(s *Schema) (int, bool) {
+	i, _ := s.find(s.Ref.Keyword)
+	return i, i >= 0
+}
+
+// own returns the schema object js holds as its statement reads it: the
+// object itself, or, for one writing a reference beside other keys
+// (conjoins), the rest of it, whose reference is the statement's first entry.
+func (t *Table) own(js *model) *Schema {
+	s := t.read(js)
+	if conjoins(s) {
+		return t.wordsOf(s)
+	}
+	return s
+}
+
+// wordsOf returns s, which conjoins, less its reference: every key but the
+// one writing it, every slot it fills, and the reference as its BesideRef. It
+// shares s's values.
+func (t *Table) wordsOf(s *Schema) *Schema {
+	if w, ok := t.words[s]; ok {
+		return w
+	}
+	w := *s
+	w.Ref, w.of, w.BesideRef = nil, nil, t.reference(s)
+	w.Keys = slices.DeleteFunc(slices.Clone(s.Keys), func(k Key) bool { return k.Name == s.Ref.Keyword })
+	index(&w)
+	t.words[s] = &w
+	return &w
+}
+
+// reference returns the reference s, which conjoins, writes, as a schema
+// object writing it alone, its node too, and its statement, which lists no
+// entry. A reference no key of s names is read from its text.
+func (t *Table) reference(s *Schema) *Schema {
+	if r, ok := t.references[s]; ok {
+		return r
+	}
+	r := &Schema{At: s.At, Ref: s.Ref, m: s.m}
+	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Ref.Text}
+	if i, named := refKey(s); named {
+		r.Keys, value = []Key{s.Keys[i]}, s.Keys[i].Node
+	}
+	// Its node writes the reference alone, so it reads as the entry
+	// `{$ref: …}` would, not as the object it is written in.
+	r.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
+		{Kind: yaml.ScalarNode, Tag: "!!str", Value: s.Ref.Keyword}, value,
+	}}
+	r.of = &Statement{Schema: r}
+	t.references[s] = r
+	return r
 }
 
 // open makes s's struct of slot, where it has none yet: a key of the slot's

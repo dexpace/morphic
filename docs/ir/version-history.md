@@ -937,7 +937,16 @@ it sees. Changes made together in one bump are listed together under it.
   before words admitting as much, two unions of one keyword or two conjuncts neither within the
   other elect none, the position then lowering by the keywords beside the `allOf`, and a schema
   written twice is one conjunct, where each tie went to the entry written first
-  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A consumer pinned to 0.69.0
+  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A `$ref` and the keywords
+  written beside it are one conjunction, lowered as the `allOf` of the two is, where the `$ref`
+  site was an alias keeping what it could not hold: a use of an object saying anything beside its
+  `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
+  value set, a union and a bound beside it lower as beside an `allOf` of it; an entry's keywords
+  beside its `$ref` are conjuncts of the position, which hoists no node at the entry, and a kept
+  `$ref` written beside keywords is `openapi:$ref`. A node a use hoists is hinted by its position, a
+  variant naming one target that declares no member by that target, and a title on any inline
+  conjunct names (the names golden moves) ([`ref-use-site`](../compilers/openapi.md#ref-use-site),
+  [`allof-beside-ref`](../compilers/openapi.md#allof-beside-ref)). A consumer pinned to 0.69.0
   refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one

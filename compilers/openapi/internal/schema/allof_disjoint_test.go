@@ -72,6 +72,8 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{type: object, allOf: [` + refList + `]}`, "type: object, allOf/0: array"},
 		{"two $refs",
 			`{allOf: [` + refStr + `, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
+		{"an allOf beside a $ref, which joins its conjunction",
+			`{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "$ref: string, allOf/0: object"},
 		{"an inline branch against a $ref",
 			`{allOf: [` + refObj + `, {type: string}]}`, "allOf/0: object, allOf/1: string"},
 		{"an integer against a string",
@@ -206,7 +208,6 @@ func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 		{"an unresolved $ref", `{allOf: [{$ref: '#/components/schemas/Ghost'}, ` + refObj + `]}`, "", ""},
 		{"a $ref landing on a boolean", `{allOf: [{$ref: '#/components/schemas/Yes'}, ` + refObj + `]}`, "", ""},
 		{"a type no dialect defines", `{type: widget, allOf: [` + refObj + `]}`, "", ""},
-		{"an allOf beside a $ref", `{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "", ""},
 		{"a null read past its budget",
 			`{allOf: [` + strings.Repeat(`{$ref: '#/components/schemas/Props'}, `, 130) +
 				`{$ref: '#/components/schemas/NullStr'}, {$ref: '#/components/schemas/NullObj'}]}`, "", ""},

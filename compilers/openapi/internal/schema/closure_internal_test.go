@@ -38,7 +38,7 @@ func TestCloserOf_NamesTheObjectWhoseClosureTypesTheModel(t *testing.T) {
 		{"an entry, another declaring", "{allOf: [{properties: {b: {}}}, {additionalProperties: false}]}", ""},
 		{"an entry, the position declaring", "{properties: {a: {}}, allOf: [{additionalProperties: false}]}", ""},
 		{"an entry, a $ref entry's own members", "{allOf: [{$ref: '#/components/schemas/U', properties: {b: {}}}, {additionalProperties: false}]}", ""},
-		{"an entry, a $ref entry's own closure", "{allOf: [{$ref: '#/components/schemas/U', additionalProperties: false}, {additionalProperties: false}]}", "allOf/1"},
+		{"an entry, a $ref entry's own closure, a second", "{allOf: [{$ref: '#/components/schemas/U', additionalProperties: false}, {additionalProperties: false}]}", ""},
 		{"two entries", "{allOf: [{additionalProperties: true}, {additionalProperties: false}]}", ""},
 		{"none written", "{allOf: [" + ref + ", {properties: {b: {}}}]}", ""},
 	} {

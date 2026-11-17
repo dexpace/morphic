@@ -188,7 +188,7 @@
       }
     },
     "t/openapi/components/schemas/CatNote": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/CatNote",
       "name": {
         "source": "CatNote",
@@ -206,7 +206,11 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "CatNote",
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Dog": {
       "kind": "model",

@@ -2114,6 +2114,190 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/HintUses/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/HintUses/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintStr",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/HintUses/oneOf/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/HintUses/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/1"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintStr",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 2,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/HintUses/oneOf/2": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/HintUses/oneOf/2",
+      "name": {
+        "hint": "variant_2"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/2"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintStr",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/HintUses/oneOf/3": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/HintUses/oneOf/3",
+      "name": {
+        "hint": "variant_3"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/3"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintObj",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 1
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/HintUses/oneOf/4": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/HintUses/oneOf/4",
+      "name": {
+        "hint": "variant_4"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/4"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintObj",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 2
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/HintUses/oneOf/5": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/HintUses/oneOf/5",
+      "name": {
+        "hint": "variant_5"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/5"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintObj",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 3
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/HintUses/oneOf/6": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/HintUses/oneOf/6",
+      "name": {
+        "hint": "nested_mark"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Nested Mark"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/6"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintStr",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/HintUses/oneOf/7": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/HintUses/oneOf/7",
+      "name": {
+        "hint": "beside_mark"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Beside Mark"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses/oneOf/7"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/HintObj",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Keyed/$defs/items": {
       "kind": "model",
       "id": "t/anon/components/schemas/Keyed/$defs/items",
@@ -3522,7 +3706,7 @@
       "variants": [
         {
           "name": {
-            "hint": "pet"
+            "hint": "variant_0"
           },
           "type": {
             "target": "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0",
@@ -3537,36 +3721,31 @@
       "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0",
       "name": {
-        "hint": "pet"
+        "hint": "variant_0"
       },
       "anonymous": true,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:allOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/Owner"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Positions/properties/refBesideAllOf/oneOf/0/allOf"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Positions/properties/refBesideAllOf/oneOf/0"
       },
-      "base": {
-        "target": "t/openapi/components/schemas/Pet",
-        "nullable": false
-      }
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Pet",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Owner",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/routed": {
       "kind": "model",
@@ -4021,7 +4200,7 @@
       "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/5": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/5",
       "name": {
         "hint": "indoor"
@@ -4038,7 +4217,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Pet",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/titledVariants/oneOf/6": {
       "kind": "model",
@@ -6118,6 +6300,173 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/HintObj": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/HintObj",
+      "name": {
+        "source": "HintObj",
+        "canonical": "hint_obj"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintObj"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/HintObj/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/HintObj/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/HintStr": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/HintStr",
+      "name": {
+        "source": "HintStr",
+        "canonical": "hint_str"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintStr"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/HintUses": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/HintUses",
+      "name": {
+        "source": "HintUses",
+        "canonical": "hint_uses"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HintUses"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "hint_str"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "hint_str"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "hint_str"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/2",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "hint_obj"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/3",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "hint_obj"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/4",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "hint_obj"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/5",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "nested_mark"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/6",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "beside_mark"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/HintUses/oneOf/7",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Kennel": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Kennel",
@@ -7633,7 +7982,7 @@
         "source": 0,
         "pointer": "/components/schemas/***",
         "position": {
-          "line": 336,
+          "line": 352,
           "column": 7
         }
       }
@@ -7646,7 +7995,7 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 340,
+          "line": 356,
           "column": 7
         }
       }
@@ -7659,18 +8008,9 @@
         "source": 0,
         "pointer": "/components/mediaTypes/",
         "position": {
-          "line": 390,
+          "line": 406,
           "column": 7
         }
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for allOf declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Positions/properties/refBesideAllOf/oneOf/0"
       }
     },
     {
@@ -7768,7 +8108,7 @@
     {
       "format": "openapi@3.2",
       "path": "hint_positions.yaml",
-      "hash": "a1c5634e6e9a8fc9d174f872950e504755d62225859e68c968785dc96637ae4d"
+      "hash": "e08071f19f057cd98334397c47e8ae2d48ab276c19708e7c7177e20297626802"
     }
   ]
 }

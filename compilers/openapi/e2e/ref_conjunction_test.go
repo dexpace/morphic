@@ -6,6 +6,11 @@ package e2e_test
 import (
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestRefConjunction_ABareRefHoistsNoNode holds that a $ref to a string or an
@@ -43,4 +48,47 @@ func TestRefConjunction_TwoUnionsOnEntriesLowerTheOneOfWhicheverEntryWritesIt(t 
 			})
 		}
 	}
+}
+
+// TestRefConjunction_KeywordsAnOverlayWritesBesideARefConjoinAsWritten holds
+// that an overlay's update writing keywords beside a $ref makes the same
+// conjunction the source would: a bound and a description beside a $ref to a
+// string are the alias's own, and a oneOf of bounds beside one at a property
+// is validation logic, kept once on the property.
+func TestRefConjunction_KeywordsAnOverlayWritesBesideARefConjoinAsWritten(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileWithPatch(t, `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    T: {type: string}
+    U: {$ref: '#/components/schemas/T'}
+    H: {type: object, properties: {p: {$ref: '#/components/schemas/T'}}}
+`, `overlay: 1.0.0
+info: {title: p, version: '1'}
+actions:
+  - target: $.components.schemas.U
+    update: {description: d, minLength: 2}
+  - target: $.components.schemas.H.properties.p
+    update: {description: e, oneOf: [{minLength: 1}, {maxLength: 5}]}
+`)
+	requireErrorsAndWarnings(t, diags, nil)
+	u, ok := kindNode(t, doc, componentID("U")).(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, u.Base)
+	assert.Equal(t, componentID("T"), u.Base.Target)
+	assert.Equal(t, "d", u.Docs.Description)
+	require.NotNil(t, u.Constraints)
+	require.NotNil(t, u.Constraints.MinLength)
+	assert.Equal(t, int64(2), *u.Constraints.MinLength)
+	assert.Empty(t, u.Unmodeled)
+
+	h := requireModelNode(t, doc, componentID("H"))
+	p, ok := propByWire(h, "p")
+	require.True(t, ok)
+	assert.Equal(t, componentID("T"), p.Type.Target, "a carrier hoists no node")
+	assert.Equal(t, "e", p.Docs.Description)
+	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, p.Unmodeled, "openapi:oneOf").Reason)
+	assert.Len(t, p.Unmodeled, 1)
 }

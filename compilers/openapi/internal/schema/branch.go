@@ -18,10 +18,30 @@ func refBranchTarget(c lowering.Ctx, b *statement.Statement) *statement.Schema {
 	if b.Ref == nil {
 		return nil
 	}
-	if e := b.Ref.Entry; b.Ref.Bound && e.Chain.Status == bind.Resolved {
-		return c.Statements().At(e.Chain.End).Schema
+	if end, ok := runEnd(c, b); ok {
+		return end.Schema
 	}
 	return c.Statements().Read(nil).Schema
+}
+
+// runEnd returns the statement the run of $refs from st ends on: the first
+// schema it reaches writing no $ref, or writing keys beside one, which
+// conjoins the two rather than naming one (statement.Schema.BesideRef),
+// whether or not the chain the bindings follow past it resolves. It is false
+// where a hop before it lands on no schema, and for a loop of $refs, which
+// maxChainHops ends.
+func runEnd(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bool) {
+	for range maxChainHops {
+		next, _ := declaredOf(c, st)
+		switch {
+		case next == nil:
+			return nil, false
+		case next.Ref == nil:
+			return next, true
+		}
+		st = next
+	}
+	return nil, false
 }
 
 // declaredOf returns the statement of the schema written where st's $ref
@@ -61,6 +81,44 @@ func refKeyword(st *statement.Statement) string {
 		return ""
 	}
 	return st.Ref.Keyword
+}
+
+// writesConjuncts reports whether s says what an allOf says: it writes one,
+// or it is the rest of an object writing a reference beside it, whose
+// conjuncts are the reference and the rest (statement.Schema.BesideRef).
+func writesConjuncts(s *statement.Schema) bool {
+	return s != nil && (len(s.AllOf) > 0 || s.BesideRef != nil)
+}
+
+// conjunctsIn returns the statements of the conjuncts s writes beside its own
+// keywords, unflattened: the reference written beside them
+// (writesConjuncts), then each schema its allOf lists.
+func conjunctsIn(c lowering.Ctx, s *statement.Schema) []*statement.Statement {
+	if s == nil {
+		return nil
+	}
+	out := make([]*statement.Statement, 0, 1+len(s.AllOf))
+	if s.BesideRef != nil {
+		out = append(out, c.Statements().Read(s.BesideRef))
+	}
+	for _, b := range s.AllOf {
+		out = append(out, c.Statements().Sub(b))
+	}
+	return out
+}
+
+// referenceOf returns the statement of the $ref st writes: st where it writes
+// one alone, the reference written beside its keywords where it writes both
+// (statement.Schema.BesideRef), and nil where it writes none.
+func referenceOf(c lowering.Ctx, st *statement.Statement) *statement.Statement {
+	switch {
+	case st.Ref != nil:
+		return st
+	case st.BesideRef != nil:
+		return c.Statements().Read(st.BesideRef)
+	default:
+		return nil
+	}
 }
 
 // allOfIn returns the schemas s's allOf lists, nil for a nil s and one

@@ -89,9 +89,9 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) 
 	const at = "/components/schemas/Holder/properties/pet"
 	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"
 	holder := "    Holder:\n      type: object\n      properties:\n        pet:\n          type: object\n" +
-		"          additionalProperties: {type: string}\n          discriminator: {propertyName: kind}\n" +
-		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]\n" +
-		"          anyOf: [{$ref: '#/components/schemas/Cat'}]\n"
+		"          additionalProperties: {type: string}\n" +
+		"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
+		"          oneOf: [{required: [kind]}, {required: [x]}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
 		assertMovedToMap(t, doc.Types["t/anon"+at])
 		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
@@ -362,8 +362,7 @@ paths:
               type: object
               properties: {name: {type: string}}
               discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
-              oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
-              anyOf: [{$ref: '#/components/schemas/Cat'}]
+              oneOf: [{required: [kind]}, {required: [x]}]
       responses:
         "204": {description: none}
 components:
@@ -387,8 +386,7 @@ func TestDiscriminatorBesideUnion_SettlesAPositionAReferenceNamesFirst(t *testin
 	holder := "    Holder:\n      type: object\n      properties:\n        pet:\n          type: object\n" +
 		"          properties: {name: {type: string}}\n" +
 		"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
-		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]\n" +
-		"          anyOf: [{$ref: '#/components/schemas/Cat'}]\n"
+		"          oneOf: [{required: [kind]}, {required: [x]}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
 		pet, ok := doc.Types["t/anon"+at].(*ir.Model)
 		require.True(t, ok)
@@ -493,7 +491,6 @@ var degradedShapes = []struct {
 	name     string
 	branches string
 }{
-	{"oneOf beside anyOf", "      oneOf: [{$ref: '#/components/schemas/Cat'}]\n      anyOf: [{$ref: '#/components/schemas/Dog'}]\n"},
 	{"validation-only branches", "      oneOf: [{required: [kind]}, {required: [x]}]\n"},
 }
 

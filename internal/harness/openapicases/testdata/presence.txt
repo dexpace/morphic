@@ -1,27 +1,2 @@
 # What the presence oracle finds at the core cases, and the reason each finding
 # stands: case name, what was found, reason (Reasons).
-3.1.0/array/$dynamicRef/none/additionalProperties/beside	value discarded	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/branch/beside	value discarded	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/items/beside	value discarded	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/requestBody/beside	value discarded	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/responseBody/beside	value discarded	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/additionalProperties/beside	value discarded	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/branch/beside	value discarded	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/items/beside	value discarded	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/requestBody/beside	value discarded	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/responseBody/beside	value discarded	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/additionalProperties/beside	value discarded	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/branch/beside	value discarded	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/items/beside	value discarded	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/requestBody/beside	value discarded	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/responseBody/beside	value discarded	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/additionalProperties/beside	value discarded	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/branch/beside	value discarded	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/items/beside	value discarded	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/requestBody/beside	value discarded	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/responseBody/beside	value discarded	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/additionalProperties/beside	value discarded	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/branch/beside	value discarded	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/items/beside	value discarded	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/requestBody/beside	value discarded	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/responseBody/beside	value discarded	dynamic-ref-beside

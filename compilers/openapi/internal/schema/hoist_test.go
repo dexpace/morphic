@@ -83,10 +83,8 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 	assert.Equal(t, compile.NamingHint("Fish-Tank").Hint, choice.Variants[1].Name.Hint,
 		"and one naming a $ref with a percent escape takes its decoded name")
 
-	alias, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Mixed/allOf/0")].(*ir.Scalar)
-	require.True(t, ok, "a $ref branch with a sibling hoists an alias")
-	assert.Equal(t, compile.NamingHint("Cat/Dog").Hint, alias.Name.Hint,
-		"the alias a sibling-carrying branch hoists takes the same decoded hint")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Mixed/allOf/0"),
+		"what an entry writes beside its $ref is the position's, so the entry hoists no node")
 
 	def, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/a~1b")]
 	require.True(t, ok, "a $ref into $defs hoists the definition it names")

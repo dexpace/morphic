@@ -4,11 +4,14 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"iter"
 	"slices"
 	"strconv"
 	"strings"
+
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -198,9 +201,58 @@ func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
 	return "openapi:" + a.branchPath(bptr)
 }
 
-// branchPath is the path of the allOf branch at bptr from the composed schema.
+// branchPath is the path of the allOf branch at bptr from the composed schema,
+// "$ref" for the reference the composed schema writes beside its keywords.
 func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
+	if bptr == a.pointer {
+		return "$ref"
+	}
 	return strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
+}
+
+// subject names the schema writing a's conjuncts in a report: "this allOf",
+// or, where the schema writes a $ref beside its keywords, the conjunct that
+// reference is, "this schema", which writes no allOf to name.
+func (a allOfComposition) subject() string {
+	if len(a.branches) > 0 && a.branches[0].pointer == a.pointer {
+		return "this schema"
+	}
+	return "this allOf"
+}
+
+// keepRef keeps on p the $ref conjunct e of comp whole, under keptRefKey: the
+// reference as written, its keyword and its value, and not what else the
+// object writing it writes beside it, a conjunct of its own. It reports
+// whether it kept it (annotation.PreserveNodeInto).
+func keepRef(c lowering.Ctx, p *ir.Unmodeled, comp allOfComposition, e allOfBranch) (bool, []ir.Diagnostic) {
+	ref := e.schema.Ref
+	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: ref.Text}
+	if k, _ := e.schema.Key(ref.Keyword); k.Node != nil {
+		// The text as written; a $ref merged in past the merge bound has no key.
+		value = k.Node
+	}
+	written := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
+		{Kind: yaml.ScalarNode, Tag: "!!str", Value: ref.Keyword}, value,
+	}}
+	return annotation.PreserveNodeInto(p, keptRefKey(comp, e), written, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
+}
+
+// keptRefKey is the Unmodeled key the $ref conjunct e of comp is kept under:
+// "openapi:$ref" for the one the composed schema writes beside its keywords,
+// its entry's key for one an entry writes alone (branchKey), and that key's
+// "$ref" for one an entry writes beside other keys, whose rest is a conjunct
+// of its own at the same pointer (statement.Entry).
+func keptRefKey(comp allOfComposition, e allOfBranch) string {
+	switch {
+	case e.pointer == comp.pointer:
+		return "openapi:$ref"
+	case slices.ContainsFunc(comp.branches, func(o allOfBranch) bool {
+		return o.pointer == e.pointer && o.schema.Ref == nil
+	}):
+		return comp.branchKey(e.pointer) + "/$ref"
+	default:
+		return comp.branchKey(e.pointer)
+	}
 }
 
 // compositionRequired collects every required-property name declared across an
@@ -290,14 +342,13 @@ func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
 // document holds what it names.
 func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, e allOfBranch) []ir.Diagnostic {
 	resolveSchemaRef(c, ts, e.schema)
-	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
-		e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
-	if !kept {
-		return diags
+	kept, diags := keepRef(c, &m.Unmodeled, comp, e)
+	if kept {
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
+			"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
+				"is kept verbatim under Unmodeled"))
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
-		"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
-			"is kept verbatim under Unmodeled"))
+	return diags
 }
 
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
@@ -320,14 +371,10 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
 	}
-	unhomed := refSiteUnhomedKeywords(c, b.Schema, compositionCensusHandled)
-	hasUnion := declaresUnion(b.Schema)
-	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
+	unhomed := referenceUnhomed(c, b.Schema, compositionCensusHandled)
+	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, b.Schema, unhomed, refSiteShape, e.pointer)...)
-	if hasUnion {
-		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, b.Schema, e.pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
-	}
 	if isBase {
 		fields.m.Base = &ref
 	} else {
@@ -534,8 +581,9 @@ func branchExcludesObject(bs *statement.Schema) bool {
 // selectAllOfBase returns the index into branches of the one that becomes
 // Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
 // Mixins): of the $refs the composition takes (composesRef), the one, or of
-// several the first whose $ref lands on a schema taking part in a
-// discriminator hierarchy (inHierarchy).
+// several, of those whose $ref lands on a schema taking part in a
+// discriminator hierarchy (inHierarchy), the one whose reference text is the
+// least, so no order written decides.
 func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
@@ -543,6 +591,12 @@ func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
+	// Ranked by reference text, then by pointer, for a $ref written twice.
+	slices.SortStableFunc(refIdxs, func(i, j int) int {
+		_, a := refSpelling(branches[i].schema)
+		_, b := refSpelling(branches[j].schema)
+		return cmp.Or(strings.Compare(a, b), strings.Compare(string(branches[i].pointer), string(branches[j].pointer)))
+	})
 	return merge.SelectBase(refIdxs, func(i int) bool {
 		target := refBranchTarget(c, branches[i].schema)
 		return stated(target) && inHierarchy(c, target)

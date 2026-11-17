@@ -121,8 +121,11 @@ func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.True(t, ok)
 	owner, ok := propByWire(pet, "owner")
 	require.True(t, ok)
-	assert.Equal(t, inferred(componentID("Person")), owner.Type)
-	assert.Equal(t, "The pet's owner.", owner.Docs.Description, "the use site's description wins")
+	// The keywords beside the $ref are a conjunct of the use, so owner names
+	// the decorator over Person they make, which holds the description.
+	decorator := ir.TypeID("t/anon/components/schemas/Pet/properties/owner")
+	assert.Equal(t, inferred(decorator), owner.Type)
+	assert.Equal(t, "The pet's owner.", doc.Types[decorator].Common().Docs.Description, "the use site's description wins")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
 
 	alias := doc.Types[componentID("Owner")]
@@ -183,7 +186,10 @@ func TestSchemaRefSiblings_ApplyAsIn31(t *testing.T) {
 func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
-	maybe := ir.TypeRef{Target: componentID("Maybe"), Nullable: true}
+	// The keywords beside the $ref are a conjunct of the use, so p names the
+	// model over Maybe they make, as the allOf of the two does.
+	model := ir.TypeID("t/anon" + at)
+	maybe := ir.TypeRef{Target: model, Nullable: true}
 	for _, tc := range []struct {
 		name, version, p, rest string
 		off                    bool
@@ -195,7 +201,7 @@ func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 		{"3.0 on", "3.0.3", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
 			"    Maybe: {type: object, nullable: true}\n", false, maybe, nil},
 		{"3.1 off", "3.1.0", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
-			"    Maybe: {type: [object, \"null\"]}\n", true, ir.TypeRef{Target: componentID("Maybe")},
+			"    Maybe: {type: [object, \"null\"]}\n", true, ir.TypeRef{Target: model},
 			[]jsontext.Pointer{at + "/nullable"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -641,18 +641,37 @@ func TestVoices_APromotedExtensionReadsFromABranch(t *testing.T) {
 	assert.Equal(t, "gone", f.Deprecation.Message)
 }
 
-// TestVoices_ARefBranchIsNoVoice pins that what a $ref branch writes beside its
-// $ref stays on the alias it hoists: it neither folds to the position nor
-// disagrees with a branch that does.
-func TestVoices_ARefBranchIsNoVoice(t *testing.T) {
+// TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice pins that what an allOf
+// entry writes beside its $ref is a conjunct of the position, as an inline
+// entry is: it folds where it agrees with every other conjunct, and where it
+// disagrees neither folds and each entry is kept whole. The $ref is the Base
+// itself in both, with no node hoisted at the entry.
+func TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: beside}, {title: mine, description: other}]}"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
-	require.True(t, ok)
-	assert.Equal(t, "other", m.Docs.Description)
-	assert.Equal(t, "mine", m.Docs.Summary)
-	assert.Empty(t, m.Unmodeled)
-	require.NotNil(t, m.Base)
-	assert.Equal(t, "beside", doc.Types[m.Base.Target].Common().Docs.Description)
+	for _, tc := range []struct {
+		name, beside string
+		kept         []string
+		description  string
+	}{
+		{"agreeing", "same", nil, "same"},
+		{"disagreeing", "beside", []string{"openapi:allOf/0", "openapi:allOf/1"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			other := "same"
+			if tc.kept != nil {
+				other = "other"
+			}
+			doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: "+tc.beside+
+				"}, {title: mine, description: "+other+"}]}"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			require.NotNil(t, m.Base)
+			assert.Equal(t, componentID("Base"), m.Base.Target, "the $ref is the Base itself")
+			assert.Equal(t, tc.description, m.Docs.Description)
+			assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(m.Unmodeled)))
+			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/S/allOf/0"), "no node at the entry")
+		})
+	}
 }

@@ -253,8 +253,9 @@ func TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference(t *testing.T) {
 
 // TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling pins that a
 // reference that reads as a $ref, beside a keyword that shapes the type, lowers
-// as its $ref twin does: an alias over its target keeping the sibling, and
-// nothing of the reference kept, since it resolved.
+// as its $ref twin does: the conjunction of the two, a model over the object
+// it names whose type the target already says, and nothing of the reference
+// kept, since it resolved.
 func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileText(t, "spec.yaml", dynHead+dynPet+
@@ -263,12 +264,15 @@ func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 		"    C: {$ref: '#pet', description: d, type: object}\n", openapi.Options{})
 	require.NotNil(t, doc)
 	require.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"))
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C"),
-		"%+v", diags)
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C"), "%+v", diags)
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C/$dynamicRef"), "%+v", diags)
 	assert.Equal(t, jsonOf(t, twin), jsonOf(t, doc))
 	assert.Equal(t, twinDiags, diags)
-	assert.Contains(t, jsonOf(t, doc), `"openapi:type"`)
+	c, ok := doc.Types[componentID("C")].(*ir.Model)
+	require.True(t, ok, "got %T", doc.Types[componentID("C")])
+	require.NotNil(t, c.Base)
+	assert.Equal(t, componentID("Pet"), c.Base.Target)
+	assert.Empty(t, c.Unmodeled)
 }
 
 // TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds pins that a $ref

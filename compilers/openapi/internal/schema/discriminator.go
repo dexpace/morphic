@@ -287,7 +287,7 @@ func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		if _, id, ok := componentNamed(scope, c.Statements().Sub(b)); ok {
+		if _, id, ok := componentNamed(scope, referenceOf(c, c.Statements().Sub(b))); ok {
 			named = append(named, id)
 		}
 	}
@@ -297,8 +297,11 @@ func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 // componentNamed returns the source component the union branch b names by
 // $ref, by name and by ID: the route OpenAPI's implicit mapping takes to it. It
 // is false for a branch naming none, one written inline or a $ref to any other
-// position.
+// position. b is the branch's reference (referenceOf), nil for none.
 func componentNamed(scope resolve.Scope, b *statement.Statement) (string, ir.TypeID, bool) {
+	if b == nil {
+		return "", "", false
+	}
 	at, ok := landsAt(b)
 	if !ok || at.Doc != bind.Source {
 		return "", "", false
@@ -403,7 +406,7 @@ func implicitRoutes(c lowering.Ctx, s *statement.Schema) []implicitRoute {
 		if nullBranch(c, st) {
 			continue
 		}
-		name, id, ok := componentNamed(scope, st)
+		name, id, ok := componentNamed(scope, referenceOf(c, st))
 		routes = append(routes, implicitRoute{name: name, component: id, named: ok})
 	}
 	return routes

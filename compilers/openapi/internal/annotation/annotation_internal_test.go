@@ -419,8 +419,8 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 			body: "{$ref: '#/$defs/Missing'}\n", wantKind: Reference, wantNode: true,
 		},
 		{
-			name: "a $ref with a body beside it is still a reference",
-			body: "{$ref: '#/$defs/T', description: d}\n", wantKind: Reference, wantNode: true,
+			name: "a $ref with a body beside it is a declaration, the $ref one conjunct of it",
+			body: "{$ref: '#/$defs/T', description: d}\n", wantKind: Declaration, wantNode: true,
 		},
 		{
 			name: "an empty $ref resolves nowhere, so it is a declaration",
@@ -449,15 +449,16 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 	})
 }
 
-// TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef pins that a reference
-// site's Node is the body written at the position, the $ref and what sits
-// beside it, and not what the $ref names. The referent is no part of the site
-// At builds (see TestAt_ClassifiesEveryPositionShape).
+// TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef pins that the site of a
+// schema writing keywords beside its $ref is the declaration of those
+// keywords, its Node the body written at the position, and not what the $ref
+// names, a conjunct of it. The referent is no part of the site At builds (see
+// TestAt_ClassifiesEveryPositionShape).
 func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 	t.Parallel()
 	got := At(standalone(openapitest.SchemaFromYAML(t.Context(), t, "{$ref: '#/$defs/Target', description: fromSite}\n")))
 
-	require.Equal(t, Reference, got.Kind)
+	require.Equal(t, Declaration, got.Kind)
 	require.NotNil(t, statement.Parsed(got.Node), "the body written beside the $ref is the site's own")
 	assert.Equal(t, "fromSite", statement.Parsed(got.Node).GetDescription())
 	assert.Nil(t, got.Referents, "and the schema the $ref names is not read here")

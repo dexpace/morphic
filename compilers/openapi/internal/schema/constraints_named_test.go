@@ -215,8 +215,8 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2,
 		},
 		{
-			name: "row 2: a $ref site", schema: "{$ref: '#/components/schemas/Arr', minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"an alias over its $ref target"},
+			name: "row 2: a $ref site, the conjunction row 1 writes", schema: "{$ref: '#/components/schemas/Arr', minLength: 1}",
+			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2, msgs: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 4: a collapsed nullable union", schema: "{anyOf: [" + refTo("Arr") + ", {enum: [null]}], minLength: 1}",
@@ -255,10 +255,9 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			kept: []keptAt{{key: "minimum"}}, base: componentID("NilAlias"),
 		},
 		{
-			name:   "row 13: a type beside a $ref that contradicts it",
-			schema: "{$ref: '#/components/schemas/Arr', type: string, minLength: 1}",
-			kept:   []keptAt{{key: "type", value: `"string"`}, {key: "minLength", value: "1"}},
-			msgs:   []string{"type, minLength"},
+			name:    "row 13: a type beside a $ref that contradicts it, which shares no value with it",
+			schema:  "{$ref: '#/components/schemas/Arr', type: string, minLength: 1}",
+			keptOnS: []string{"$ref", "type", "minLength"},
 		},
 		{
 			name:   "row 14: an allOf beside a oneOf",
@@ -397,15 +396,15 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 	for _, tc := range []namedRow{
 		{
 			name: "row 22: a $ref to a string", schema: "{$ref: '#/components/schemas/Str', minItems: 1}",
-			kept: []keptAt{{key: "minItems", value: "1"}}, msgs: []string{"an alias over its $ref target"},
+			kept: []keptAt{{key: "minItems", value: "1"}}, msgs: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 23: a refinement of a string", schema: "{allOf: [" + refTo("Str") + "], minItems: 1, uniqueItems: true}",
 			kept: []keptAt{{key: "minItems"}, {key: "uniqueItems"}}, msgs: []string{"minItems, uniqueItems"},
 		},
 		{
-			name: "a $ref to an object", schema: "{$ref: '#/components/schemas/Obj', minItems: 1}",
-			kept: []keptAt{{key: "minItems", value: "1"}},
+			name: "a $ref to an object, the model over it", schema: "{$ref: '#/components/schemas/Obj', minItems: 1}",
+			keptOnS: []string{"minItems"},
 		},
 		{
 			name: "a $ref to a tuple", schema: "{$ref: '#/components/schemas/Tup', minItems: 1}",
@@ -808,21 +807,20 @@ func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 	}
 }
 
-// TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget pins a bound written
-// beside the $ref of an allOf branch: it is that branch's, read by what its
-// reference names, so the alias the branch owns keeps one the target cannot
-// take, with a report at the branch, and holds one it can.
-func TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget(t *testing.T) {
+// TestAllOf_ABoundBesideABranchsOwnRefIsThePositions pins a bound written
+// beside the $ref of an allOf entry: a conjunct of the position, as the same
+// bound on an entry of its own is, read by what the position lowers to. One
+// its node takes is held there; one it cannot take keeps the entry, with a
+// report at it; and no node stands at the entry.
+func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, schema, branch, keyword string
-		held                          *ir.Constraints
+		name, schema string
+		held         *ir.Constraints
 	}{
-		{name: "a value bound beside an array", branch: "allOf/0", keyword: "minLength",
-			schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}]}"},
-		{name: "a collection bound beside a string", branch: "allOf/0", keyword: "minItems",
-			schema: "{allOf: [{$ref: '#/components/schemas/Str', minItems: 2}]}"},
-		{name: "a value bound the target takes", branch: "allOf/0", held: &ir.Constraints{MinLength: new(int64(1))},
+		{name: "a value bound beside an array", schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}]}"},
+		{name: "a collection bound beside a string", schema: "{allOf: [{$ref: '#/components/schemas/Str', minItems: 2}]}"},
+		{name: "a value bound the target takes", held: &ir.Constraints{MinLength: new(int64(1))},
 			schema: "{allOf: [{$ref: '#/components/schemas/Str', minLength: 1}]}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -830,21 +828,19 @@ func TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget(t *testing.T) {
 			doc, diags := parseFull(t, namedSpec("3.1.0", tc.schema, "", false))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			at := namedS + "/" + tc.branch
-			alias, ok := doc.Types["t/anon"+ir.TypeID(at)].(*ir.Scalar)
-			require.True(t, ok, "got %T", doc.Types["t/anon"+ir.TypeID(at)])
-			assert.Equal(t, tc.held, alias.Constraints)
+			at := namedS + "/allOf/0"
+			assert.NotContains(t, doc.Types, "t/anon"+ir.TypeID(at), "no node at the entry")
+			s, ok := doc.Types[componentID("S")].(*ir.Scalar)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			assert.Equal(t, tc.held, s.Constraints)
 			if tc.held != nil {
-				assert.Empty(t, alias.Unmodeled)
+				assert.Empty(t, s.Unmodeled)
 				assert.Empty(t, diags)
 				return
 			}
-			entry, kept := alias.Unmodeled["openapi:"+tc.keyword]
-			require.True(t, kept, "got %v", unmodeledKeys(alias.Unmodeled))
-			assert.Equal(t, at+"/"+tc.keyword, string(entry.Provenance.Pointer))
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
-			assert.Contains(t, msg, "an alias over its $ref target")
-			assert.Contains(t, msg, "no home for "+tc.keyword)
+			assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(s.Unmodeled))
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+				"has no home for what this inline branch adds")
 		})
 	}
 }
@@ -902,7 +898,7 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 	for _, row := range []namedRow{
 		{
 			name: "beside a $ref", schema: "{$ref: '#/components/schemas/DL', minLength: 1}", extra: extra,
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"an alias over its $ref target"},
+			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "beside a $ref naming a string", schema: "{$ref: '#/components/schemas/DS', minLength: 1}", extra: extra,

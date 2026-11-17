@@ -685,7 +685,7 @@
       "inputOnly": false
     },
     "t/anon/components/schemas/Lookup/oneOf/5": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Lookup/oneOf/5",
       "name": {
         "hint": "indoor_pet"
@@ -702,7 +702,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Pet",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Lookup/oneOf/6": {
       "kind": "model",

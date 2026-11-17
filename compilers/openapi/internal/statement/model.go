@@ -19,14 +19,17 @@ import (
 type model = oas3.JSONSchema[oas3.Referenceable]
 
 // Of returns the statement of js, read on the first ask and remembered: its
-// schema object and its inline allOf entries, flattened. A nil js reads as
-// Unwritten.
+// schema object, the reference that object writes beside other keys, and its
+// inline allOf entries, flattened. A nil js reads as Unwritten.
 func (t *Table) Of(js *model) *Statement {
 	t.lookups++
 	if st, ok := t.statements[js]; ok {
 		return st
 	}
-	st := &Statement{Schema: t.read(js)}
+	st := &Statement{Schema: t.own(js)}
+	if st.BesideRef != nil {
+		st.Entries = []Entry{{Schema: st.BesideRef}}
+	}
 	st.of = st
 	t.flatten(st)
 	t.statements[js] = st

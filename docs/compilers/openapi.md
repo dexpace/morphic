@@ -1289,7 +1289,7 @@ the item as what else it writes.
   `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
-  `schema.TestSchema_ARefThroughAnEmptyRefLendsNothing`,
+  `schema.TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
   `bind.TestBind_CountsWorkLinearInTheDocument`,
@@ -2429,7 +2429,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt`,
   `schema.TestRefinement_NoConjunctNamingAKindLeavesTheTopType`,
   `schema.TestRefinement_DecidedByTheSetInEveryOrder`, `schema.TestRefinement_TwinsTheRefSpelling`,
-  `schema.TestRefinement_StructuralKeywordsPartFromTheRefSpelling`,
+  `schema.TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf`,
   `schema.TestRefinement_ABranchHoldsWhatItsNodeDoes`,
   `schema.TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds`,
   `schema.TestRefinement_FlattensAsItsFlatSpelling`,
@@ -2449,15 +2449,18 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 
 ### `allof-beside-ref`
 
-An `allOf` written beside a `$ref` at the same level is not composed. A `$ref` site lowers to the
-alias over its target ([models](../ir/models.md#composition-entries)), which elects no
-composition family for the `allOf` to win or lose, so the alias's census of the keywords it cannot
-hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under `openapi:allOf`
-(`degraded_lowering`), with an info `openapi/degraded-construct` at the position.
+A schema's `$ref` is one conjunct of it and the keywords written beside it another, so an `allOf`
+written beside a `$ref` adds its entries to that conjunction: `{$ref: T, allOf: [E], K}` lowers as
+`{allOf: [{$ref: T}, E], K}` does ([`allof-classification`](#allof-classification),
+[`ref-use-site`](#ref-use-site)), the entries flattened as any are, so nothing of it is kept for want
+of a home. JSON Schema 2020-12 applies the keywords beside a `$ref` with it; a 3.0 document's are
+read the same way, with the warning `openapi/later-version-construct` at each such keyword
+([`later-version-construct`](#later-version-construct)).
 
 - Cases: `allof-ref-branch-siblings`
-- Codes: `openapi/degraded-construct`
-- Tests: `schema.TestRefSiteKeywords_KeptAtEveryPosition`
+- Codes: `openapi/later-version-construct`
+- Tests: `e2e.TestRefConjunction_AUseWritingKeywordsBesideItsRefCompilesAsTheAllOfSpelling`,
+  `schema.TestRefinement_AnAllOfBesideARefJoinsItsConjunction`
 
 ### `allof-inline-residue`
 
@@ -3843,14 +3846,18 @@ judged as one whose branches declare shape.
 
 ### `union-beside-ref`
 
-A `oneOf` or `anyOf` written beside a `$ref` at the same level, rather than beside a structural
-body, has nothing at that position to distribute the union across either: it lowers to the alias
-over the `$ref` target with the union kept verbatim beside it, under `openapi:oneOf` or
-`openapi:anyOf` (`degraded_lowering`), through the same keeper as the structural-body case, and
-reported as an info `openapi/degraded-construct` at the position.
+A `oneOf` or `anyOf` written beside a `$ref` is a union beside the conjunction the `$ref` is one
+conjunct of, and lowers as the same union written beside an `allOf` of the `$ref` does
+([`union-beside-structure`](#union-beside-structure), [`allof-refinement`](#allof-refinement)):
+consumed where the target already says it, kept as validation logic where its branches declare no
+shape, distributed over an object where they declare one, with an info
+`openapi/composition-lowering` at the position, and kept, with the warning
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) gives, where it shares no kind with the
+target.
 
 - Cases: `union-beside-ref`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/composition-lowering`
+- Tests: `e2e.TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt`
 
 ### `competing-keywords`
 
@@ -5011,7 +5018,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder`,
   `schema.TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch`,
   `schema.TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept`,
-  `schema.TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget`,
+  `schema.TestAllOf_ABoundBesideABranchsOwnRefIsThePositions`,
   `schema.TestConstraints_ATypeListReadsWhatThePositionAdmits`,
   `schema.TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough`,
   `schema.TestConstraints_AnInlineBranchIsReadAtItsOwnPointer`,

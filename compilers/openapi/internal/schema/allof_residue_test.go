@@ -309,9 +309,11 @@ func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 		"no degradation is announced for a branch that was not kept")
 }
 
-// TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced pins the same for a $ref
-// entry a composition keeps rather than composes, its target no object: where
-// the keeping fails, nothing announces it was kept.
+// TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced pins the same for an
+// entry writing beside a $ref a composition keeps rather than composes, its
+// target no object: the reference is kept, and announced, and the extension
+// the rest of the entry writes, a conjunct of its own, folds and is reported
+// where it fails to convert, which claims no preservation.
 func TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Str: {type: string}
@@ -324,10 +326,11 @@ func TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced(t *testing.T) {
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
 	assert.Nil(t, m.Base, "a model composes no string")
-	assert.NotContains(t, m.Unmodeled, "openapi:allOf/0", "the entry did not convert")
-	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct))
-	assert.Empty(t, openapitest.PreservationClaims(diags),
-		"no degradation is announced for an entry that was not kept")
+	assert.Contains(t, m.Unmodeled, "openapi:allOf/0/$ref", "the reference converts")
+	assert.NotContains(t, m.Unmodeled, "openapi:allOf/0", "the rest of the entry, which folds, is no residue")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/components/schemas/M/allOf/0"), `extension "x-t" could not be serialized`)
+	assert.Len(t, openapitest.PreservationClaims(diags), 1, "only the reference is announced")
 }
 
 // TestAllOf_ANullTypeExcludesNoObject pins that a branch's `type: null` is the

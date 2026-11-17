@@ -450,8 +450,6 @@ func TestCollectionBound_BesideAReferenceReachesTheAlias(t *testing.T) {
 			"t/anon/components/schemas/S/additionalProperties", "/components/schemas/S/additionalProperties"},
 		{"union branch", "{oneOf: [" + boundedRef + ", {type: string}]}",
 			"t/anon/components/schemas/S/oneOf/0", "/components/schemas/S/oneOf/0"},
-		{"allOf branch", "{allOf: [" + boundedRef + "], properties: {f: {type: string}}}",
-			"t/anon/components/schemas/S/allOf/0", "/components/schemas/S/allOf/0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -89,13 +89,14 @@ func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bi
 // follow returns the chain from start: each $ref read in turn, to the first
 // position writing none, or past maxChainHops to the one the bound reached. A
 // component is read through as any other position: one writing a $ref lowers
-// to an alias over what it names, which is no subtype or variant, so a route
-// naming it means what its $ref names.
+// to a use of what it names, which is no subtype or variant, so a route
+// naming it means what its $ref names, written beside other keys too
+// (referenceOf).
 func follow(c lowering.Ctx, start link) valueChain {
 	chain := valueChain{links: []link{start}}
 	for range maxChainHops {
-		decl := chain.end().decl
-		if decl.Ref == nil || !decl.Ref.Bound {
+		decl := referenceOf(c, chain.end().decl)
+		if decl == nil || !decl.Ref.Bound {
 			break
 		}
 		at, ok := landsAt(decl)

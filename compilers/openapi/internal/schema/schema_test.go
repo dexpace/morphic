@@ -892,7 +892,13 @@ func TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy(t *testing.T) {
 			assert.False(t, marked)
 			continue
 		}
-		assert.Equal(t, ir.KindModel, td.Kind(), "the policy reads its properties as an object")
-		assert.True(t, marked)
+		u, ok := td.(*ir.Union)
+		require.True(t, ok, "the policy reads its properties as an object the oneOf distributes across")
+		require.Len(t, u.Variants, 1)
+		variant := doc.Types[u.Variants[0].Type.Target]
+		assert.Equal(t, ir.KindModel, variant.Kind())
+		assert.Equal(t, lowering.KindInferenceHeuristic, variant.Common().Provenance.Inferred)
+		assert.Contains(t, variant.Common().Unmodeled, "openapi:anyOf", "the anyOf kept on the variant")
+		assert.False(t, marked)
 	}
 }

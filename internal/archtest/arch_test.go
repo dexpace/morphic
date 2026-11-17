@@ -158,7 +158,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/statement", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and budget for the steps its measure takes, and nothing

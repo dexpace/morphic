@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -160,26 +161,39 @@ func (t *titles) words(node *yaml.Node) string {
 }
 
 // titleWords returns the words of the title the schema written as node holds:
-// its own, else the one the inline branches of its allOf write between them,
-// since a conjunct describes the instance the schema does. It is "" where
-// neither writes one with a word, and where those branches write two; a
-// branch holding a $ref or a $dynamicRef is named by it, and one nested in a
-// branch is not read. A $dynamicRef is read in any dialect, so one a dialect
-// defining none writes lends no title either, which keeps the positional name.
+// its own, else the one its inline conjuncts write between them, read through
+// the flattening docs/compilers/openapi.md#allof-classification gives, since a
+// conjunct describes the instance the schema does. A title written beside an
+// entry's $ref is that entry's conjunct's; the schema a $ref names lends none.
+// It is "" where none writes one with a word, and where they write two. It
+// walks an explicit stack of at most statement.MaxFlattenDepth+1 lists.
 func titleWords(node *yaml.Node) string {
 	if words := ownTitle(node); words != "" {
 		return words
 	}
+	type list struct {
+		entries []*yaml.Node
+		next    int
+	}
 	found := ""
-	for _, branch := range items(nodeview.Child(node, "allOf")) {
-		branch = nodeview.Deref(branch)
-		words := ownTitle(branch)
-		switch {
-		case words == "" || nodeview.Child(branch, "$ref") != nil || nodeview.Child(branch, "$dynamicRef") != nil:
+	stack := []list{{entries: items(nodeview.Child(node, "allOf"))}}
+	for len(stack) > 0 {
+		top := &stack[len(stack)-1]
+		if top.next == len(top.entries) {
+			stack = stack[:len(stack)-1]
+			continue
+		}
+		entry := nodeview.Deref(top.entries[top.next])
+		top.next++
+		switch words := ownTitle(entry); {
+		case words == "":
 		case found != "" && words != found:
 			return ""
 		default:
 			found = words
+		}
+		if nested := items(nodeview.Child(entry, "allOf")); len(nested) > 0 && len(stack) <= statement.MaxFlattenDepth {
+			stack = append(stack, list{entries: nested})
 		}
 	}
 	return found

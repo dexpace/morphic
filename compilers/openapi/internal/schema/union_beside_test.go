@@ -387,7 +387,6 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
 		"Shapeless": {"openapi:allOf/0"},
-		"RefBranch": nil,
 		"Capped":    {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
@@ -406,6 +405,13 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 			assert.Equal(t, []string{anyOf}, slices.Sorted(maps.Keys(v.Unmodeled)), "%s keeps its anyOf on each variant", name)
 		}
 	}
+	// An entry's union beside its $ref is the position's, as one on an entry
+	// of its own is: it distributes across what the rest composes.
+	refBranch := variantModels(t, doc, "RefBranch")
+	require.Len(t, refBranch, 1)
+	require.NotNil(t, refBranch[0].Base)
+	assert.Equal(t, componentID("A"), refBranch[0].Base.Target)
+
 	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)
 	require.True(t, ok, "the enum beside the allOf decides it; got %T", typeByName(doc, "EnumBeside"))
 	assert.Contains(t, enum.Unmodeled, "openapi:allOf")

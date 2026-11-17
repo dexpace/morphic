@@ -864,7 +864,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/site"
@@ -918,7 +918,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for minItems declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for minItems declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/counted"
@@ -945,7 +945,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1names~1{name}/get/parameters/1/schema"

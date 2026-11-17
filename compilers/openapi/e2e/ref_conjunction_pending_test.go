@@ -8,6 +8,7 @@ package e2e_test
 import (
 	"encoding/json/v2"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -749,11 +750,13 @@ func wrapSpelling(target, keywords string) string {
 var entryNumbers = regexp.MustCompile(`openapi:allOf/\d+|/allOf/\d+`)
 
 // spellingView is doc as two spellings of one use are held equal: no sources
-// table, no position, the findings as a multiset of severity and code, and no
-// entry of an allOf numbered, in an ID, a pointer or an Unmodeled key, since a
-// spelling that writes a $ref as an entry and one that writes it beside has no
-// other name for the entry. later-version-construct, the warning a 3.0
-// document draws for a keyword beside a $ref, is left out of the findings.
+// table, no position, no provenance pointer, the findings as a multiset of
+// severity and code, and no entry of an allOf numbered, in an ID, a pointer or
+// an Unmodeled key, since a spelling that writes a $ref as an entry and one
+// that writes it beside has no other name for the entry. later-version-construct,
+// the warning a 3.0 document draws for a keyword beside a $ref, is left out of
+// the findings, and so is the validation-no-effect it stands in for at a
+// `nullable` (docs/compilers/openapi.md#nullable).
 func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 	t.Helper()
 	raw, err := json.Marshal(doc)
@@ -766,7 +769,7 @@ func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 	findings := []string{}
 	if list, ok := tree["diagnostics"].([]any); ok {
 		for _, d := range list {
-			if at(d, "code") == "openapi/later-version-construct" {
+			if statedBesideARef(d) {
 				continue
 			}
 			findings = append(findings, fmt.Sprintf("%v %v", at(d, "severity"), at(d, "code")))
@@ -774,10 +777,48 @@ func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 	}
 	slices.Sort(findings)
 	delete(tree, "diagnostics")
-	view, ok := withoutPositions(tree).(map[string]any)
+	view, ok := withoutProvenancePointers(withoutPositions(tree)).(map[string]any)
 	require.True(t, ok)
 	view["findings"] = findings
 	return view
+}
+
+// statedBesideARef reports whether the diagnostic d is one a spelling states
+// for a keyword beside a $ref at 3.0: the later-version warning, or the
+// warning that a `nullable` has no effect, which it stands in for.
+func statedBesideARef(d any) bool {
+	code := at(d, "code")
+	pointer := fmt.Sprint(at(d, "provenance", "pointer"))
+	return code == "openapi/later-version-construct" ||
+		code == "openapi/validation/validation-no-effect" && strings.HasSuffix(pointer, "/nullable")
+}
+
+// withoutProvenancePointers returns tree with no provenance naming a pointer:
+// a $ref kept whole is written at the use in one spelling and at an entry in
+// the other.
+func withoutProvenancePointers(tree any) any {
+	switch x := tree.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for key, value := range x {
+			if p, ok := value.(map[string]any); ok && key == "provenance" {
+				p = maps.Clone(p)
+				delete(p, "pointer")
+				out[key] = p
+				continue
+			}
+			out[key] = withoutProvenancePointers(value)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, value := range x {
+			out[i] = withoutProvenancePointers(value)
+		}
+		return out
+	default:
+		return tree
+	}
 }
 
 // requireSpellingsEqual holds the two documents equal up to spellingView, with

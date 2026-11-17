@@ -49,8 +49,8 @@ func (w *admission) formerWhole(js *statement.Statement) admitted {
 		w.reads.Exhaust()
 	}
 	out := w.written(js.Schema, definesNullableAt(w.c, js))
-	for _, b := range js.AllOf {
-		out = out.and(w.formerWhole(w.c.Statements().Sub(b)))
+	for _, b := range conjunctsIn(w.c, js.Schema) {
+		out = out.and(w.formerWhole(b))
 	}
 	choice := choiceIn(js.Schema)
 	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
