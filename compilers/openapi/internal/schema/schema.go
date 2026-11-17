@@ -361,7 +361,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
 		return unhomed(lowerNullAlone(c, ts, s, pointer), nil)
 	default:
-		return unhomed(lowerUntyped(c, ts, depth, s, pointer))
+		return lowerUntyped(c, ts, depth, s, pointer, d)
 	}
 }
 
@@ -377,16 +377,49 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	}
 }
 
-// lowerUntyped handles a schema with no declared type and no const, enum or
-// allOf, which lower() elects first: a property set makes it a model; anything
-// else is schemaless.
-func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	if len(objectIn(s).Properties) > 0 {
-		// The node asserts an object, as the bounds beside it read it
-		// (boundKinds): one an object does not take is kept.
-		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s))
+// lowerUntyped lowers s, which names no kind and no family lower() elects
+// first, by the election d, as one writing the type its shape keywords speak of
+// (claimedKinds), its node marked as the kind-inference policy's reading, else
+// to the top type. The keywords the node cannot hold are kept beside it
+// (preserveUnhomedKeywords), as for a schema writing that type.
+func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
+) (ir.TypeID, []ir.Diagnostic) {
+	if claimedKinds(c, s) == 0 {
+		return preserveUnhomedKeywords(c, ts, s, pointer, ts.PrimID(ir.PrimAny), d)
 	}
-	return ts.PrimID(ir.PrimAny), nil
+	// The node asserts an object, as the bounds beside it read it
+	// (boundKinds): one an object does not take is kept.
+	id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s))
+	diags = append(diags, markKindInferred(c, ts, id, pointer)...)
+	owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
+	return owner, append(diags, ownDiags...)
+}
+
+// claimedKinds returns the kinds the shape keywords s writes speak of, read
+// under c's kind-inference policy, none where it is off: an object for a
+// `properties` listing a member (docs/compilers/openapi.md#shape-applicator).
+// It is the one reading of them: lowerUntyped lowers a schema naming no kind
+// by it, the run's admission reads it as the kinds such a schema lowers to
+// (readOne), and an election as what it admits (writtenKinds).
+func claimedKinds(c lowering.Ctx, s *statement.Schema) kindSet {
+	if !c.KindInference.Honours() || len(objectIn(s).Properties) == 0 {
+		return 0
+	}
+	return kindObject
+}
+
+// markKindInferred names the kind-inference policy in the provenance of id,
+// the node pointer owns, whose kind lowerUntyped read off its shape keywords
+// (docs/compilers/openapi.md#policies). A node still building is marked by the
+// frame building it.
+func markKindInferred(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) []ir.Diagnostic {
+	td, ok, diags := registeredNode(c, ts, id, pointer)
+	if !ok {
+		return diags
+	}
+	common := td.Common()
+	common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
+	return nil
 }
 
 // familyOrder is the order lower() tries the keyword families that outrank the

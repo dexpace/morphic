@@ -4222,9 +4222,22 @@ one half is taken and the other must stay recoverable
 (`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering to the enum is a
 reasonable degradation), and an applicator written with no type at all, where the position lowers to
 the top type, which says strictly less than the applicator does (`{items: {type: string}}`
-constrains every array instance). The IR could model the untyped case by reading the applicator as
-the shape it implies — an untyped `items` as a list — but that is a lowering decision this document
-has not taken, and keeping the source leaves it open.
+constrains every array instance), but for the one the kind-inference policy reads.
+
+A schema naming no kind, one writing no `type` or a null one and no family
+[`competing-keywords`](#competing-keywords) elects first, whose `properties` lists a member lowers
+as the same schema writing `type: object` does, under the kind-inference policy
+([`policies`](#policies)): the Go option `Options.KindInference`, whose zero value is on, and the
+text option `kind-inference`, which `false` turns off. JSON Schema applies `properties` to an object
+alone and passes an instance of any other kind (JSON Schema Core 2020-12 §7.6.1), so the object is
+the policy's reading of what the document means: the node it builds, at a component, a property, an
+element, a body or a union's branch alike, names `kind-inference` in its `Provenance.Inferred`, and
+nothing is reported, as the document leaves the kind unsaid. A `properties` written null or with no
+member claims no kind. The run's reading of what a schema admits reads the same claim
+([`constraints`](#constraints)), so a bound beside it is placed by the object. With the policy off,
+such a schema is the top type, its `properties` kept as any unhomed keyword is. The other
+applicators written with no type lower to the top type: reading one as the shape it implies is a
+lowering decision this document has not taken, and keeping the source leaves it open.
 
 Each unhomed keyword is kept verbatim in `Unmodeled["openapi:<keyword>"]` under `degraded_lowering`,
 reported as one info `openapi/degraded-construct` at the position naming the kind it lowered to and
@@ -4263,6 +4276,16 @@ union of models.
 - Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
+  `e2e.TestKindInference_AnUntypedPropertiesSchemaIsMarked`,
+  `e2e.TestKindInference_AnInlineSchemaIsMarkedAtEachPositionOwningANode`,
+  `e2e.TestKindInference_ANullTypeStillInfersTheKind`,
+  `e2e.TestKindInference_ANullableWithNoTypeStillInfersTheKind`,
+  `e2e.TestKindInference_ATypedSchemaIsNeverMarked`,
+  `e2e.TestKindInference_AKindTheSchemaNamesKeepsItsStrayKeywordsUnmarked`,
+  `e2e.TestKindInference_ANullOrEmptyShapeKeywordClaimsNoKind`,
+  `e2e.TestKindInference_DisabledLowersAnUntypedShapeToTheTopType`,
+  `e2e.TestKindInference_DisabledReportsEveryKeywordOfASchemaOnce`,
+  `e2e.TestKindInference_TheTextOptionSwitchesThePolicy`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
   `schema.TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead`,
@@ -6701,8 +6724,8 @@ how operations are arranged rather than filling a fact a node holds.
    root follows a reference, as which components the root keeps turns on what was reached. The
    audits of what the policies read come last, once the document's own keys are merged in as
    well. A reading a node needs while it lowers, as nullable inference's
-   ([`nullable`](#nullable)), or while the registry settles, as discriminator inference's, is made
-   there instead.
+   ([`nullable`](#nullable)) and kind inference's ([`shape-applicator`](#shape-applicator)), or while
+   the registry settles, as discriminator inference's, is made there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
   `promotion.TestPromoter_WritesSeesAKeyWhateverItSays`, `promotion.TestPromoter_WritesKnowsEveryTarget`,

@@ -129,11 +129,14 @@ func (c groupCases) Write(at []int) (harness.Document, bool) {
 func within[T any](i int, of []T) bool { return i >= 0 && i < len(of) }
 
 // groupDocument returns the document of g's case: root, holding a carrier of
-// each of tests at its node, and g's schema, held as schema.
+// each of tests at its node, and g's schema, held as schema. It compiles with
+// the kind-inference policy off: the suite's instances are valid against the
+// kind a schema declares, not one its shape keywords imply
+// (docs/compilers/openapi.md#shape-applicator).
 func groupDocument(root, schema []byte, g *Group, tests []Test, nodes []string) harness.Document {
 	doc := harness.Document{
 		Sources: []compilers.Source{{Path: specPath, Data: root}, {Path: groupPath, Data: schema}},
-		Options: map[string]string{"allow-external-refs": "true"},
+		Options: map[string]string{"allow-external-refs": "true", "kind-inference": "false"},
 	}
 	for _, uri := range slices.Sorted(maps.Keys(g.External)) {
 		doc.Sources = append(doc.Sources, compilers.Source{Path: uri, Data: g.External[uri]})

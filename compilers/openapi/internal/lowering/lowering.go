@@ -51,10 +51,12 @@ type Ctx struct {
 	// shares it, and a resolve.Names lets none write to it.
 	schemas resolve.Names
 
-	// NullableInference is the nullable-inference policy, and
-	// DiscriminatorInference the discriminator-inference policy.
+	// NullableInference is the nullable-inference policy,
+	// DiscriminatorInference the discriminator-inference policy, and
+	// KindInference the kind-inference policy.
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
+	KindInference          KindInference
 
 	// shared is what the load phase resolved with the document. It sits behind
 	// one pointer because every lowering takes a copy of the context, and a
@@ -120,6 +122,7 @@ type Policy struct {
 	Promotions             promotion.ExtensionPromotions
 	NullableInference      NullableInference
 	DiscriminatorInference DiscriminatorInference
+	KindInference          KindInference
 	TitleNames             TitleNames
 }
 
@@ -165,6 +168,7 @@ func New(in Loaded, p Policy) Ctx {
 		promoter:               &promoter,
 		NullableInference:      p.NullableInference,
 		DiscriminatorInference: p.DiscriminatorInference,
+		KindInference:          p.KindInference,
 
 		shared: &shared{documents: maps.Clone(in.Documents), dialects: in.Rules, sources: slices.Clone(in.Sources),
 			names:    naming.New(in.Bindings.Table(), p.TitleNames.Honours()),

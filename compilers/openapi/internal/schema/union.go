@@ -615,7 +615,7 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 func branchSays(w *admission, branch admitted, s *statement.Schema, key string) bool {
 	switch key {
 	case "type":
-		return branch.kinds&^writtenKinds(s, w.nullable) == 0
+		return branch.kinds&^writtenKinds(w.c, s, w.nullable) == 0
 	case "items":
 		_, listed := listedItems(s)
 		return !listed && w.holds(branch, s, key)
@@ -736,10 +736,11 @@ func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 // composesAsModel reports whether the structural siblings lower to a Model,
 // which is the only node with composition fields for a union to distribute
 // across. It mirrors lower's dispatch: const and enum win over everything, then
-// an allOf that composes, then a declared object type or a bare property set. A
-// bare `required` is one too where every branch admits only an object, the one
+// an allOf that composes, then a declared object type or a bare property set,
+// which the kind-inference policy reads as an object (claimedKinds). A bare
+// `required` is one too where every branch admits only an object, the one
 // instance it constrains, or null, which it leaves alone
-// (branchesAdmitOnlyObjects).
+// (branchesAdmitOnlyObjects), and so is a bare property set with the policy off.
 func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 	if constIn(s) != nil || enumWritten(s) {
 		return false
@@ -752,7 +753,7 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 		return len(types) == 1 && types[0] == statement.KindObject
 	}
 	if len(objectIn(s).Properties) > 0 {
-		return true
+		return claimedKinds(c, s) == kindObject || branchesAdmitOnlyObjects(c, s)
 	}
 	return slices.Equal(siblingKeywords(s), []string{"required"}) && branchesAdmitOnlyObjects(c, s)
 }

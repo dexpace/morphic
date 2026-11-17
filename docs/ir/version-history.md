@@ -884,5 +884,10 @@ it sees. Changes made together in one bump are listed together under it.
   kind and its `properties` lists a member, and a read of any size, where it read every bound beside
   a value set naming no `type` and past 256 named schemas: a numeric bound beside an `enum` of
   strings, or a string bound beside a schema that is an object by its `properties`, is kept and no
-  longer held ([`constraints`](../compilers/openapi.md#constraints)). A consumer pinned to 0.69.0
-  refuses the document; one reading such a bound off `Constraints` finds it under `Unmodeled`.
+  longer held ([`constraints`](../compilers/openapi.md#constraints)). A type node's
+  `Provenance.Inferred` may name `kind-inference`: the OpenAPI compiler marks a node whose kind it
+  read off the shape keywords of a schema naming none, an object off a `properties` listing a
+  member, under a policy that turned off lowers such a schema to the top type
+  ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). A consumer pinned to 0.69.0
+  refuses the document; one reading such a bound off `Constraints` finds it under `Unmodeled`, and
+  one reading a node's kind as declared finds the marker where it was not.

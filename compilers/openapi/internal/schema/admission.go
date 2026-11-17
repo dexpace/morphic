@@ -457,11 +457,10 @@ func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
 
 // written reads the keywords s itself writes that say what a value is, in a
 // dialect defining nullable where nullable says: `type`, which a `nullable`
-// adds null to there, `format`, `enum`, `const` and `items`. A `properties`
-// with no type beside it claims an object, as lowerUntyped reads one. A schema
-// in c's document is read in w.nullable's dialect.
+// adds null to there, `format`, `enum`, `const` and `items`. A schema in c's
+// document is read in w.nullable's dialect.
 func (w *admission) written(s *statement.Schema, nullable bool) admitted {
-	out := admitted{kinds: writtenKinds(s, nullable)}
+	out := admitted{kinds: writtenKinds(w.c, s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
 		out.items = items
@@ -481,14 +480,15 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 	return out
 }
 
-// writtenKinds reads a schema's `type`, or a type implied by what it declares,
-// with the null a `nullable: true` adds to it, beside a $ref as anywhere, where
-// the dialect defines the keyword, as nullable says. A null `type` writes none
-// (writesType).
-func writtenKinds(s *statement.Schema, nullable bool) kindSet {
+// writtenKinds reads a schema's `type`, with the null a `nullable: true` adds
+// to it, beside a $ref as anywhere, where the dialect defines the keyword, as
+// nullable says. A schema writing none, a null `type` among them (writesType),
+// admits what its shape keywords claim, as lowerUntyped lowers it
+// (claimedKinds), and every kind where they claim none.
+func writtenKinds(c lowering.Ctx, s *statement.Schema, nullable bool) kindSet {
 	if !writesType(s) {
-		if len(objectIn(s).Properties) > 0 {
-			return kindObject
+		if claims := claimedKinds(c, s); claims != 0 {
+			return claims
 		}
 		return kindAny
 	}
@@ -653,7 +653,7 @@ func (w *admission) text(js *statement.Statement) ir.RawValue {
 func (w *admission) holds(held admitted, s *statement.Schema, key string) bool {
 	switch key {
 	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
+		return held.kindsWithin(admitted{kinds: writtenKinds(w.c, s, w.nullable)})
 	case "format":
 		return held.formsWithin(w.written(s, w.nullable))
 	case "enum", "const":

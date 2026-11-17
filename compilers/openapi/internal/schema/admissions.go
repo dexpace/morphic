@@ -254,8 +254,8 @@ func (w *admissionWalk) settle(f *admissionFrame) {
 // conjoined with its allOf entries, the join of each union's branches and what
 // its $ref lands on, in conjunctsOf's order. A statement stating no schema
 // object admits nothing where it reads as `false`, and anything else. One
-// whose kinds that leaves every kind and whose `properties` lists a member
-// lowers to an object.
+// whose kinds that leaves every kind lowers to those its shape keywords claim
+// (claimedKinds), where they claim any.
 func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Statement) *reading {
 	if st.Truth != statement.Stated {
 		if st.Truth.ReadsFalse() {
@@ -288,8 +288,8 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 		r.cut = r.cut || target.cut
 		r.loose = r.loose || target.loose
 	}
-	if r.kinds == anyInstance && len(objectIn(st.Schema).Properties) > 0 {
-		r.kinds = kindObject
+	if claims := claimedKinds(w.c, st.Schema); r.kinds == anyInstance && claims != 0 {
+		r.kinds = claims
 	}
 	return r
 }

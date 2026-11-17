@@ -1,12 +1,11 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-//go:build pending
-
 package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -202,7 +201,7 @@ func TestKindInference_DisabledLowersAnUntypedShapeToTheTopType(t *testing.T) {
 			infos = append(infos, jsontext.Pointer("/components/schemas/"+tc.name))
 		}
 		for _, tc := range typedSchemas {
-			if !(tc.only31 && version == "3.0.3") {
+			if !tc.only31 || version != "3.0.3" {
 				schemas = append(schemas, tc.schema)
 			}
 		}
@@ -300,6 +299,145 @@ func TestKindInference_TheTextOptionSwitchesThePolicy(t *testing.T) {
 			td := kindNode(t, doc, componentID("Members"))
 			assert.Equal(t, tc.off, td.Kind() == ir.KindScalar, "off: the top type; on: a model, got %s", td.Kind())
 			assert.Equal(t, !tc.off, markedKindInference(td))
+		})
+	}
+}
+
+// untypedOutcome is what an untyped shape lowers to under one reading of the
+// kind-inference policy: its node's kind, a scalar's base, the keywords kept
+// on it, each under its key, and whether its provenance names the policy.
+type untypedOutcome struct {
+	kind   ir.TypeKind
+	base   ir.PrimKind
+	kept   []string
+	marked bool
+}
+
+// topKeeping is the top type keeping the keywords named.
+func topKeeping(kept ...string) untypedOutcome {
+	return untypedOutcome{kind: ir.KindScalar, base: ir.PrimAny, kept: kept}
+}
+
+// untypedTable is each shape a schema naming no kind writes, or a kind beside
+// a stray keyword, with what it lowers to with the policy on and off. A string
+// bound beside an inferred object is placed by the kind the policy reads: kept
+// beside the object, held by the top type.
+var untypedTable = []struct {
+	version, name, schema string
+	on, off               untypedOutcome
+}{
+	{"3.1.0", "PropsNull", "{properties: null}", topKeeping(), topKeeping()},
+	{"3.1.0", "PropsEmpty", "{properties: {}}", topKeeping("properties"), topKeeping("properties")},
+	{"3.1.0", "TypeNullProps", "{type: null, properties: {a: {type: string}}}",
+		untypedOutcome{kind: ir.KindModel, marked: true}, topKeeping("properties")},
+	{"3.1.0", "StrProps", "{type: string, properties: {a: {type: string}}}",
+		untypedOutcome{kind: ir.KindScalar, base: ir.PrimString, kept: []string{"properties"}},
+		untypedOutcome{kind: ir.KindScalar, base: ir.PrimString, kept: []string{"properties"}}},
+	{"3.1.0", "PropsItems", "{properties: {a: {type: string}}, items: {type: string}}",
+		untypedOutcome{kind: ir.KindModel, kept: []string{"items"}, marked: true}, topKeeping("properties", "items")},
+	{"3.1.0", "ReqOnly", "{required: [a]}", topKeeping("required"), topKeeping("required")},
+	{"3.1.0", "PatOnly", "{patternProperties: {'^x': {type: string}}}",
+		topKeeping("patternProperties"), topKeeping("patternProperties")},
+	{"3.1.0", "DiscOnly", "{discriminator: {propertyName: k}}", topKeeping("discriminator"), topKeeping("discriminator")},
+	{"3.1.0", "PrefixOnly", "{prefixItems: [{type: string}]}", topKeeping("prefixItems"), topKeeping("prefixItems")},
+	{"3.1.0", "PropsLen", "{properties: {a: {type: string}}, minLength: 2}",
+		untypedOutcome{kind: ir.KindModel, kept: []string{"minLength"}, marked: true}, topKeeping("properties")},
+	{"3.1.0", "AddlNull", "{additionalProperties: null}", topKeeping(), topKeeping()},
+	{"3.1.0", "ItemsNull", "{items: null}", topKeeping(), topKeeping()},
+	{"3.0.3", "NullableProps", "{nullable: true, properties: {a: {type: string}}}",
+		untypedOutcome{kind: ir.KindModel, marked: true}, topKeeping("properties")},
+}
+
+// TestKindInference_AnUntypedShapeLosesNothingUnderEitherPolicy holds each
+// untyped shape to what it lowers to with the policy on and off: every keyword
+// its node cannot hold is kept under its key and reason, one info names the
+// schema keeping any, and only a node whose kind the policy read is marked.
+func TestKindInference_AnUntypedShapeLosesNothingUnderEitherPolicy(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		for _, off := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/off=%t", version, off), func(t *testing.T) {
+				t.Parallel()
+				var schemas []string
+				for _, row := range untypedTable {
+					if row.version == version {
+						schemas = append(schemas, row.name+": "+row.schema)
+					}
+				}
+				doc, diags := compileKindInference(t, "table", admissionSpec(version, "", schemas...), off)
+				infos := degradedInfoPointers(diags)
+				for _, row := range untypedTable {
+					if row.version != version {
+						continue
+					}
+					want := row.on
+					if off {
+						want = row.off
+					}
+					assertUntypedOutcome(t, doc, row.name, want)
+					pointer := jsontext.Pointer("/components/schemas/" + row.name)
+					assert.Equal(t, min(len(want.kept), 1), countOf(infos, pointer), "%s: one info where a keyword is kept", row.name)
+				}
+			})
+		}
+	}
+}
+
+// assertUntypedOutcome holds the component name of doc to want.
+func assertUntypedOutcome(t *testing.T, doc *ir.Document, name string, want untypedOutcome) {
+	t.Helper()
+	td := kindNode(t, doc, componentID(name))
+	require.Equal(t, want.kind, td.Kind(), name)
+	if scalar, ok := td.(*ir.Scalar); ok {
+		require.NotNil(t, scalar.Base, name)
+		assert.Equal(t, prim(want.base), scalar.Base.Target, name)
+	}
+	kept := map[string]ir.UnmodeledReason{}
+	for _, keyword := range want.kept {
+		kept["openapi:"+keyword] = ir.ReasonDegradedLowering
+	}
+	assert.Equal(t, kept, keptOn(td), name)
+	assert.Equal(t, want.marked, markedKindInference(td), name)
+}
+
+// countOf counts the pointers equal to p.
+func countOf(pointers []jsontext.Pointer, p jsontext.Pointer) int {
+	n := 0
+	for _, q := range pointers {
+		if q == p {
+			n++
+		}
+	}
+	return n
+}
+
+// TestKindInference_APropertySetBesideAUnionComposesByThePolicy holds that a
+// `properties` naming no kind beside a union distributes into its variants
+// where the policy reads it as an object, and with the policy off only where
+// every branch declares one: else the union and the property set are kept
+// beside the top type.
+func TestKindInference_APropertySetBesideAUnionComposesByThePolicy(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"TypedBranches: {oneOf: [{type: object, properties: {a: {type: string}}}, " +
+			"{type: object, properties: {b: {type: string}}}], properties: {x: {type: string}}}",
+		"UntypedBranches: {oneOf: [{properties: {a: {type: string}}}, {properties: {b: {type: string}}}], " +
+			"properties: {x: {type: string}}}",
+	}
+	for _, off := range []bool{false, true} {
+		t.Run(fmt.Sprintf("off=%t", off), func(t *testing.T) {
+			t.Parallel()
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, _ := compileKindInference(t, "beside", admissionSpec("3.1.0", "", schemas...), off)
+				assert.Equal(t, ir.KindUnion, kindNode(t, doc, componentID("TypedBranches")).Kind(),
+					"branches declaring objects compose the property set under either policy")
+				untyped := kindNode(t, doc, componentID("UntypedBranches"))
+				if !off {
+					assert.Equal(t, ir.KindUnion, untyped.Kind(), "the policy reads the property set as an object")
+					return
+				}
+				assertUntypedOutcome(t, doc, "UntypedBranches", topKeeping("oneOf", "properties"))
+			})
 		})
 	}
 }
