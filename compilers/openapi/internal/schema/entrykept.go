@@ -82,21 +82,22 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 	for i := range comp.branches {
 		out[i] = keptEntry{entry: comp.branches[i], residue: residueOf(i)}
 	}
-	apart := map[string]bool{}
-	for _, k := range out {
-		for _, key := range keptOf(c, k) {
-			if _, read := apart[key]; !read {
-				apart[key] = writtenApart(s, comp, key)
-			}
-		}
+	kepts := make([][]string, len(out))
+	for i, k := range out {
+		kepts[i] = keptOf(c, k)
 	}
+	apart, apartKept := writtenApartKeys(c, s, comp, kepts)
 	held := map[string]int{}
 	for i, k := range out {
-		kept := keptOf(c, k)
+		kept := kepts[i]
 		if len(kept) == 0 {
 			continue
 		}
-		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apart)
+		apartHere := apart
+		if failedRef(c, k.entry) {
+			apartHere = apartKept
+		}
+		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apartHere)
 		if out[i].whole != keptApart {
 			out[i].reason = sharedReason(c, s, comp, i, kept)
 			continue
@@ -113,6 +114,25 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 		out[i].alike = slices.DeleteFunc(slices.Clone(out[i].own), func(key string) bool { return held[key] < 2 })
 	}
 	return out
+}
+
+// writtenApartKeys returns which of the keywords the entries of comp keep, kepts
+// by index, their writers write apart (writtenApart): as the writers are, and
+// as the entries keeping the keyword are, which is how a $ref naming nothing is
+// asked, as no merge or fold of another entry parts it.
+func writtenApartKeys(c lowering.Ctx, s *statement.Schema, comp allOfComposition, kepts [][]string) (writers, keepers map[string]bool) {
+	writers, keepers = map[string]bool{}, map[string]bool{}
+	for i, kept := range kepts {
+		for _, key := range kept {
+			if _, read := writers[key]; !read {
+				writers[key] = writtenApart(c, s, comp, key, nil)
+			}
+			if _, read := keepers[key]; !read && failedRef(c, comp.branches[i]) {
+				keepers[key] = writtenApart(c, s, comp, key, kepts)
+			}
+		}
+	}
+	return writers, keepers
 }
 
 // keptOf is what of k's residue a rule does not consume (consumedByRule):
@@ -141,16 +161,20 @@ func consumedByRule(c lowering.Ctx, bs *statement.Schema, key string, pointer js
 	}
 }
 
-// writtenApart reports whether the writers of key, s and the inline entries of
-// comp writing it, write it otherwise than one another. One that cannot be
-// rendered agrees with nothing.
-func writtenApart(s *statement.Schema, comp allOfComposition, key string) bool {
+// writtenApart reports whether the writers of key, s and the entries of comp
+// keeping their own keywords (inline ones, and $refs naming nothing) writing
+// it, write it otherwise than one another. One that cannot be rendered agrees
+// with nothing. Where kepts, what each entry keeps by index, is not nil, an
+// entry counts only if it keeps key, not where the merge or a fold reads it:
+// that is what one entry under key holds.
+func writtenApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, key string, kepts [][]string) bool {
 	writers := make([]*statement.Schema, 0, len(comp.branches)+1)
 	if hasKey(s, key) {
 		writers = append(writers, s)
 	}
-	for _, e := range comp.branches {
-		if e.schema.Ref == nil && stated(e.schema.Schema) && hasKey(e.schema.Schema, key) {
+	for i, e := range comp.branches {
+		if (e.schema.Ref == nil || failedRef(c, e)) && stated(e.schema.Schema) && hasKey(e.schema.Schema, key) &&
+			(kepts == nil || slices.Contains(kepts[i], key)) {
 			writers = append(writers, e.schema.Schema)
 		}
 	}
@@ -182,13 +206,33 @@ func wholeCauseOf(c lowering.Ctx, comp allOfComposition, i int, residue []string
 		return wholeUnflattened
 	case v.rebased != nil && v.rebased[i] || readsElsewhere(c, comp, e, kept):
 		return wholeElsewhere
-	case (v.speaks == nil || !v.speaks[i]) && disagreed(c, e.schema.Schema, residue):
+	case e.schema.Ref == nil && (v.speaks == nil || !v.speaks[i]) && disagreed(c, e.schema.Schema, residue):
 		return wholeDisagreed
 	case slices.ContainsFunc(kept, func(key string) bool { return apart[key] }):
 		return wholeApart
 	default:
 		return keptApart
 	}
+}
+
+// failedRef reports whether e is a $ref entry whose reference lands on no
+// schema, as resolveSchemaRef finds, a loop of $refs among them: no node stands
+// for it, so nothing reads what it writes.
+func failedRef(c lowering.Ctx, e allOfBranch) bool {
+	return e.schema.Ref != nil && !namesReferent(c, e.schema)
+}
+
+// failedRefResidue is what the $ref entry e writes that nothing reads, in the
+// order written, where its reference names nothing, else nil: every keyword
+// beside the reference but `required`, which the composition's members read
+// (compositionRequired). Where the reference resolves, its target's alias homes
+// the keywords beside it (fillRefBranch).
+func failedRefResidue(c lowering.Ctx, e allOfBranch) []string {
+	if !failedRef(c, e) {
+		return nil
+	}
+	keyword, _ := refSpelling(e.schema)
+	return unmergedBranchKeys(e.schema.Schema, func(key string) bool { return key == keyword || key == "required" })
 }
 
 // unevaluatedKeyword reports whether keyword is an unevaluated one, which on an
@@ -397,8 +441,8 @@ func mergeKept(c lowering.Ctx, p *ir.Unmodeled, held ir.Unmodeled, pointer jsont
 // recordOwnKeywords keeps each keyword of k.own verbatim on p, under its own
 // key and the reason its slot gives, and reports them as beside the allOf: an
 // unknown, content, dialect or dynamic reference keyword at the keyword, a
-// union of validation logic at the entry, and the rest in one finding at the
-// entry (recordEntryUnhomed).
+// vendor extension in no finding, a union of validation logic at the entry,
+// and the rest in one finding at the entry (recordEntryUnhomed).
 func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k keptEntry, shape string, warn bool,
 ) []ir.Diagnostic {
 	bs, at := k.entry.schema.Schema, k.entry.pointer
@@ -411,6 +455,9 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 			// PreserveUnknownKeywords meets it.
 			dialect := dialectIn(c.Rules().At(c.Position(at)), bs)
 			diags = append(diags, annotation.KeepDialectKeyword(p, bs, key, at, c.Place(), dialect)...)
+		case strings.HasPrefix(key, "x-"):
+			_, keptDiags := annotation.PreserveSchemaKeyword(p, bs, key, ir.ReasonVendorExtension, at, c.Place())
+			diags = append(diags, keptDiags...)
 		case writesUnknown(c, bs, key, at):
 			unknown = append(unknown, key)
 		case slices.Contains(contentKeywords, key):
@@ -424,7 +471,11 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 		}
 	}
 	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
-	return append(diags, recordEntryUnhomed(c, ts, p, bs, unhomed, shape, at, warn)...)
+	where := "on this inline branch"
+	if k.entry.schema.Ref != nil {
+		where = "beside this $ref, which names nothing"
+	}
+	return append(diags, recordEntryUnhomed(c, ts, p, bs, unhomed, shape, where, at, warn)...)
 }
 
 // keepEntryDynamicRef keeps the dynamic reference keyword the inline entry bs
@@ -459,13 +510,13 @@ func keepUnknownOf(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, keys [
 	return append(diags, annotation.UndefinedKeywordsIn(p, bs, undefined, pointer, c.Place())...)
 }
 
-// recordEntryUnhomed keeps each of unhomed, keywords the inline entry bs at
-// pointer writes that no home the position lowered to, shape, holds, as
+// recordEntryUnhomed keeps each of unhomed, keywords the entry bs at pointer
+// writes that no home the position lowered to, shape, holds, as
 // degraded_lowering (keepUnhomed), and reports them in one finding at the
-// entry: a warning where warn says bs declares a type no object is, which the
-// composed model asserts it is.
+// entry, where says how they are written: a warning where warn says bs
+// declares a type no object is, which the composed model asserts it is.
 func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, bs *statement.Schema, unhomed []string,
-	shape string, pointer jsontext.Pointer, warn bool,
+	shape, where string, pointer jsontext.Pointer, warn bool,
 ) []ir.Diagnostic {
 	kept, diags := keepUnhomed(c, ts, p, bs, unhomed, pointer)
 	if len(kept) == 0 {
@@ -477,8 +528,8 @@ func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, bs *
 				"%s, written on it, kept verbatim under Unmodeled", strings.Join(kept, ", ")))
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"this allOf lowered to %s, which has no home for %s written on this inline branch; kept verbatim under Unmodeled",
-		shape, strings.Join(kept, ", ")))
+		"this allOf lowered to %s, which has no home for %s written %s; kept verbatim under Unmodeled",
+		shape, strings.Join(kept, ", "), where))
 }
 
 // wholeWhy words why k is kept whole where its cause says so whatever the
@@ -508,4 +559,41 @@ func wholeCode(k keptEntry) string {
 		return diag.ValidationOnlyKeyword
 	}
 	return diag.DegradedConstruct
+}
+
+// keepFailedRefs keeps the $ref entries of comp at the indices failed, each
+// reference of which names nothing, beside the composed model m: the reference
+// as written under openapi:$ref, or openapi:$ref/<i> where several are kept,
+// and each keyword written beside it as an inline entry's is kept (entryKeeps),
+// or the entry whole where one is. The failure itself is reported where the
+// reference is written (fillRefBranch), so nothing here reports it again.
+func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, failed []int) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	var apart []keptBranch
+	for _, i := range failed {
+		k := comp.kept[i]
+		if k.whole == keptApart {
+			apart = append(apart, keptBranch{entry: k.entry})
+		}
+		diags = append(diags, recordKeptEntry(c, ts, &m.Unmodeled, comp, k, nodeShape(ir.KindModel), false,
+			func(k keptEntry) ir.Diagnostic {
+				return c.DiagAt(ir.SeverityInfo, wholeCode(k), k.entry.pointer, "%s", failedRefWholeWhy(k))
+			})...)
+	}
+	keys := keptRefKeys(apart, comp.pointer)
+	for _, b := range apart {
+		keyword, _ := refSpelling(b.entry.schema)
+		ref := keys[b.entry.pointer]
+		_, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, ref.key, keyNode(b.entry.schema.Schema, keyword),
+			ir.ReasonDegradedLowering, c.Place().At(ref.at))
+		diags = append(diags, keptDiags...)
+	}
+	return diags
+}
+
+// failedRefWholeWhy words why the $ref entry k, naming nothing, is kept whole.
+func failedRefWholeWhy(k keptEntry) string {
+	return "this allOf branch's $ref names nothing, so nothing reads what it writes, and a keyword that reads the " +
+		"others beside it, or that another conjunct writes otherwise, cannot be kept apart; the branch (" +
+		strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
 }

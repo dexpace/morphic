@@ -2144,7 +2144,8 @@ admits every kind, or another kind than an object, composes nothing, so no `Mode
 mixin that is no object: it is kept verbatim under `openapi:allOf/<n>` (`degraded_lowering`) with an
 info `openapi/degraded-construct` at the entry, and its target still lowers. A composition meets one
 only where its read is cut short or its conjuncts share no value, as `{allOf: [{$ref: List}], type:
-object}` over an array does. The election reads the source, so no declaration order decides it, and a field
+object}` over an array does. A `$ref` entry naming no schema composes nothing either, and is kept
+under `openapi:$ref` ([`allof-inline-residue`](#allof-inline-residue)). The election reads the source, so no declaration order decides it, and a field
 redeclared as several models composes them as such an `allOf` does
 ([`allof-redeclared-property`](#allof-redeclared-property)), reading the hierarchy off the
 discriminator a model or a union holds and each model's supertypes. An inline entry merges into the
@@ -2611,13 +2612,27 @@ branch alias [models](../ir/models.md#composition-entries) describes rather than
 a boolean branch declares no keywords at all, so there is nothing to keep — it is a decision about the
 composed node instead, stated with the `false`-schema rule [`allof-false-branch`](#allof-false-branch).
 
+A `$ref` branch whose reference lands on no schema, a branch lying on a loop of `$ref`s among them,
+owns no node, so what it writes is residue as an inline branch's is, but for its `required` list,
+which the model's members read, and its folding keywords, which fold nothing and so disagree with
+nothing: the reference is kept as written under `openapi:$ref`, or `openapi:$ref/<i>` where several
+are kept, `i` the rank of the reference text, then of the entry as written, so no order of the
+branches decides, and each keyword beside it under its own key, reason and report as above, in a
+finding that words them as written beside a `$ref` naming nothing. Branches written alike are one
+entry, at the position. The branch is kept whole, reference inside, only where an inline branch would
+be, a keyword it keeps measured against the branches and the position that keep it. The failure is
+reported once, where the `$ref` is written ([`references`](#references)), by the
+`openapi/unresolved-ref` error, or on a loop by its one `openapi/cyclic-ref`, and keeping the branch
+adds no second report of it.
+
 A flattened entry kept whole is whole too, its own entries included, so an entry inside it that
 is kept on its own account, or a `false` one ([`allof-false-branch`](#allof-false-branch)), is in
 `Unmodeled` twice: inside the flattened entry's copy and under its own path. A consumer that reads
 every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
-- Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`
+- Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`,
+  `openapi/unresolved-ref`, `openapi/cyclic-ref`
 - Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
   `e2e.TestKeptEntryKeyword_EverySpellingOfAContentOrUnknownKeywordKeepsOneKeyAndReason`,
   `e2e.TestKeptEntryKeyword_AKindKeywordIsKeptUnderItsOwnKey`,
@@ -2635,6 +2650,14 @@ every entry reads that one twice.
   `e2e.TestKeptEntryKeyword_TwoEntriesKeepingOneKeywordAlikeKeepOneEntryAtThePosition`,
   `schema.TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce`,
   `schema.TestEntryKept_AnEntryOfAnUndecidedAllOfIsReportedAgainstTheKeywordsBesideIt`,
+  `schema.TestEntryKept_AFailedRefKeepsItsReferenceAndEachKeywordBesideIt`,
+  `schema.TestEntryKept_FailedRefsAreKeptByTheirReferenceInEitherOrder`,
+  `schema.TestEntryKept_AFailedRefIsKeptWholeWhereItsKeywordsCannotBeKeptApart`,
+  `e2e.TestKeptFailedRef_EveryKeyBesideAFailedRefIsKeptAndTheFailureReportedOnce`,
+  `e2e.TestKeptFailedRef_SeveralFailedRefsAreKeptByAscendingReferenceText`,
+  `e2e.TestKeptFailedRef_ARefInsideAnEntryOrAtAnItemIsKept`,
+  `e2e.TestKeptFailedRef_ARefOnALoopIsKeptLikeOneThatNamesNothing`,
+  `e2e.TestKeptFailedRef_TheFailureIsReportedOnceWhereTheRefIsWritten`,
   `schema.TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason`,
   `annotation.TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite`,
   `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,

@@ -238,6 +238,7 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	var failed []int
 	base, hasBase := selectAllOfBase(c, comp.branches)
 	for i, e := range comp.branches {
 		switch {
@@ -245,12 +246,16 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.Schema, e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, ts, m, comp, i)...)
 		case composesRef(c, e):
-			diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
+			refDiags, resolved := fillRefBranch(c, ts, fields, e, hasBase && i == base)
+			diags = append(diags, refDiags...)
+			if !resolved {
+				failed = append(failed, i)
+			}
 		default:
 			diags = append(diags, keepUncomposedRef(c, ts, m, comp, e)...)
 		}
 	}
-	return diags
+	return append(diags, keepFailedRefs(c, ts, m, comp, failed)...)
 }
 
 // composesRef reports whether the $ref entry e is a Base or a Mixin of the
@@ -308,9 +313,10 @@ func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allO
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
 // builds as its Base, when isBase, or as a Mixin, recording the entry
 // (modelFields.compose): what it names, or the object variant of the type
-// list it names (objectVariant). A $ref it cannot resolve adds nothing, and is reported
-// unless it lies on a loop of $refs, which load reports once (onLoop).
-func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) []ir.Diagnostic {
+// list it names (objectVariant). A $ref it cannot resolve adds nothing and
+// reports false, which keepFailedRefs answers; it is reported unless it lies on a
+// loop of $refs, which load reports once (onLoop).
+func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allOfBranch, isBase bool) ([]ir.Diagnostic, bool) {
 	var diags []ir.Diagnostic
 	b := e.schema
 	id, ok := resolveSchemaRef(c, ts, b)
@@ -320,7 +326,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef, e.pointer,
 				"unresolved allOf %s %q%s", keyword, ref, unresolvedWhy(c, b)))
 		}
-		return diags
+		return diags, false
 	}
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
@@ -339,7 +345,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 		fields.m.Mixins = append(fields.m.Mixins, ref)
 	}
 	fields.compose(ref.Target, e.pointer)
-	return diags
+	return diags, true
 }
 
 // applyFalseBranches closes m for each boolean `false` allOf branch and keeps
@@ -399,11 +405,14 @@ func preserveUnmergedBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp
 // flattened branch's allOf is consumed: allOfBranches replaced it by its own
 // entries. A boolean branch has no keywords to leave a residue
 // (applyFalseBranches), and a $ref branch homes its siblings on an alias over
-// its target (fillRefBranch).
+// its target (fillRefBranch), unless it names nothing (failedRefResidue).
 func compositionResidue(c lowering.Ctx, comp allOfComposition, i int) []string {
 	e := comp.branches[i]
-	if e.schema.Ref != nil || e.schema.Truth != statement.Stated {
+	if e.schema.Truth != statement.Stated {
 		return nil
+	}
+	if e.schema.Ref != nil {
+		return failedRefResidue(c, e)
 	}
 	speaks := comp.branchSpeaks(i)
 	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
