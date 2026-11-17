@@ -2145,10 +2145,13 @@ placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
 An `allOf` whose kinds are an object alone lowers to the composing `Model`'s `Base` and `Mixins`
 ([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s.
 An `allOf` of one `$ref` saying nothing else is neither: where its other entries and the schema
-writing it state nothing of the instance (an empty schema, a comment, an anchor, `$defs`, a keyword
-left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, so it is the reference, hoisting no
-node, and a carrier reads the target's documentation as through a bare `$ref`
-([`ref-use-site`](#ref-use-site)). A component, or a position a `$ref` names, still owns a node: over
+writing it state nothing of the instance (an empty schema, `true`, a comment, an anchor, `$defs`, a
+keyword left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, whatever that is, so it is the
+reference, hoisting no node, and a carrier reads the target's documentation as through a bare `$ref`
+([`ref-use-site`](#ref-use-site)): over `false` it names `false`'s node, and a reference naming no
+schema lowers to the top type with its one `openapi/unresolved-ref`, read or not. Only a read cut
+short past the bounds of [`allof-refinement`](#allof-refinement), or by a cycle of such `allOf`s,
+still composes. A component, or a position a `$ref` names, still owns a node: over
 an object alone the `Model` whose `Base` is that object, in this spelling and the bare `$ref`'s;
 over any other target, one admitting null, which a `Base` does not carry, or a reference no node
 answers, the `Scalar` alias. A
@@ -2207,6 +2210,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `e2e.TestRefConjunction_AnAllOfOfOneRefHoistsNoNode`,
   `e2e.TestRefConjunction_AComponentOverAnObjectIsTheModelThatOwnsIt`,
   `e2e.TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs`,
+  `e2e.TestRefConjunction_AUseSayingNothingMoreIsTheBareRefOverAnyTarget`,
+  `e2e.TestRefConjunction_AnAllOfOfOneRefToFalseIsTheReference`,
   `e2e.TestRefConjunction_TwoBasesInADiscriminatorHierarchyElectTheLeastReference`,
   `e2e.TestAllOfCompose_ObjectsAloneStayAModel`, `e2e.TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed`,
   `e2e.TestAllOfCompose_ConjunctsNoInstanceSatisfiesNameNoPlainBase`,

@@ -80,11 +80,13 @@ func componentSchema(t *testing.T, l *Lowerer, name string) *oas3.Schema {
 // TestRefinementOf_ReadsAPositionOnce pins that a position's decision is read once
 // a run, however many of its readers ask: its own type changes after the first
 // read, which no lowering does, so only a remembered answer stays. Where it is
-// read from is part of the answer, so a pointer not yet asked reads afresh.
+// read from is part of the answer, so a pointer not yet asked reads afresh. The
+// note beside the allOf makes it more than a use of its one $ref, which is the
+// reference whatever its kinds.
 func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
-    T: {allOf: [{$ref: '#/components/schemas/Port'}]}
+    T: {allOf: [{$ref: '#/components/schemas/Port'}], description: d}
 `))
 	const at = "/components/schemas/T"
 	s := componentSchema(t, l, "T")

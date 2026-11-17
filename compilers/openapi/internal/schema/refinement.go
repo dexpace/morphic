@@ -165,13 +165,18 @@ func unionAside(c lowering.Ctx, s *statement.Schema) bool {
 }
 
 // usesOneRef reports whether s, whose flattened conjuncts are comp, is a use of
-// one target saying nothing of it: one conjunct is a $ref, and s and every
-// other conjunct state nothing (statesNothing). It is the reference, as the
-// $ref alone is (docs/compilers/openapi.md#allof-classification).
+// one target saying nothing of it: one conjunct is a $ref writing nothing
+// read beside it, as an entry read whole may (statement.ReadBeside), and s
+// and every other conjunct state nothing (statesNothing). It is the
+// reference, as the $ref alone is (docs/compilers/openapi.md#allof-classification).
 func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
 	refs := 0
 	for _, e := range comp.branches {
 		switch {
+		case e.schema.Ref != nil && slices.ContainsFunc(e.schema.Keys, func(k statement.Key) bool {
+			return statement.ReadBeside(k.Name, k.Node, e.schema.Ref.Keyword)
+		}):
+			return false
 		case e.schema.Ref != nil:
 			refs++
 		case !statesNothing(e.schema.Schema):
@@ -181,11 +186,16 @@ func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
 	return refs == 1 && statesNothing(s)
 }
 
-// statesNothing reports whether s, a schema object, writes nothing but the
-// allOf its statement flattens, a list holding an entry, and keys that say
-// nothing of the instance (statement.ReadBeside): a comment, an anchor,
-// schemas a reference reaches, a keyword left out.
+// statesNothing reports whether s states nothing of the instance: `true`, a
+// value written as no schema (docs/compilers/openapi.md#null-schema), or a
+// schema object writing nothing but the allOf its statement flattens, a list
+// holding an entry, and keys that say nothing of the instance
+// (statement.ReadBeside): a comment, an anchor, schemas a reference reaches,
+// a keyword left out.
 func statesNothing(s *statement.Schema) bool {
+	if s.Truth == statement.Anything || s.Truth == statement.Unwritten {
+		return true
+	}
 	return s.Truth == statement.Stated && !slices.ContainsFunc(s.Keys, func(k statement.Key) bool {
 		return (k.Name != "allOf" || len(s.AllOf) == 0) && statement.ReadBeside(k.Name, k.Node, "")
 	})
@@ -195,7 +205,8 @@ func statesNothing(s *statement.Schema) bool {
 // no value, or the kinds the position lowers to, null aside, are an object
 // alone, it composes, unless a conjunct states a value set, which is elected
 // first (docs/compilers/openapi.md#competing-keywords); it composes too where
-// the read is cut short. Anything else is one use of its principal.
+// the read is cut short. Anything else, and a use of one target saying nothing
+// more (usesOneRef), whatever that target admits, is one use of its principal.
 func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
 	comp := allOfBranches(c, s, pointer)
 	if !refinableBranches(comp) {
@@ -212,8 +223,9 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 		kinds, inferred = restKinds(c, s, comp)
 	}
 	var principal *conjunct
-	contradicts := disjoint(joint, conjuncts)
-	if contradicts || kinds == kindObject && !usesOneRef(s, comp) {
+	one := usesOneRef(s, comp)
+	contradicts := !one && disjoint(joint, conjuncts)
+	if contradicts || kinds == kindObject && !one {
 		if principal = setElected(&w, s, conjuncts); principal == nil {
 			return decision{aside: aside}
 		}
@@ -233,7 +245,10 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 			r.votes[cj.at] = refOutsideSet
 		}
 	}
-	return decision{r: r, refines: !w.incomplete(), aside: aside}
+	// A use saying nothing more of a reference naming no schema is that
+	// reference, which has nothing for the read to finish.
+	failed := one && r.ref != nil && !namesReferent(c, r.ref.schema)
+	return decision{r: r, refines: failed || !w.incomplete(), aside: aside}
 }
 
 // setElected returns the conjunct stating a value set that is elected before
