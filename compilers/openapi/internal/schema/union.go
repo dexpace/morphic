@@ -195,13 +195,23 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 //
 // A schema writing both conjoins them, but one ir.Union carries one branch set,
 // so the other stays recoverable beside the elected one
-// (docs/compilers/openapi.md#competing-keywords). Beside a body the union
-// distributes across, each variant keeps it instead (buildComposedVariant).
+// (docs/compilers/openapi.md#competing-keywords), as validation logic where
+// its branches declare no shape against s. Beside a body the union distributes
+// across, each variant keeps it instead (buildComposedVariant).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
-	if choice := choiceIn(s); len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
+	choice := choiceIn(s)
+	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
-	unused := otherCombinator[won]
+	unused, set := otherCombinator[won], choice.OneOf
+	if unused == "anyOf" {
+		set = choice.AnyOf
+	}
+	if !setsDeclareShape(c, s, set) {
+		// Branches narrowing only what s declares are validation logic, as the
+		// same union on an entry of an allOf is (entryUnionReason).
+		return annotation.PreserveValidationOnlyKeyword(p, s, unused, pointer, c.Place())
+	}
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.Place())
 	if !kept {
 		return diags
