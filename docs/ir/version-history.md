@@ -897,8 +897,9 @@ it sees. Changes made together in one bump are listed together under it.
   ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads a kind off every
   keyword applying to one kind alone, an `items`, an `additionalProperties`, a `required` or a
   `discriminator` among them, where only a `properties` listing a member was read, and keywords of
-  both kinds as a union of the two. A consumer pinned to 0.69.0 refuses the document; one reading
-  such a bound off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it
-  on the node the carrier names, one reading a node's kind as declared finds the marker where it was
-  not, and one reading an untyped shape keyword under `Unmodeled` finds it typed on the node its
-  kind lowers to.
+  both kinds as a union of the two. Beside a union kept whole whose branches each declare a kind the
+  keywords speak of, such a schema lowers to that kind unmarked, where it was the top type. A
+  consumer pinned to 0.69.0 refuses the document; one reading such a bound off `Constraints` finds
+  it under `Unmodeled`, one reading a carrier's bound finds it on the node the carrier names, one
+  reading a node's kind as declared finds the marker where it was not, and one reading an untyped
+  shape keyword under `Unmodeled` finds it typed on the node its kind lowers to.

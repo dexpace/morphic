@@ -40,9 +40,10 @@ stays auditable (INV6). A configuration that wants only what the source declares
 ([type-graph](../../ir/type-graph.md#type-references)).
 
 A node whose own `Provenance.Inferred` names the heuristic that chose its kind, as a model, map,
-list or union the OpenAPI compiler reads off shape keywords beside no `type` names `kind-inference`,
-renders as the node it is, with nothing to act on: the policy already chose the kind, and the marker passes to
-the target AST so that choice stays auditable (INV6, [provenance](../../ir/provenance.md)).
+list, tuple or union the OpenAPI compiler reads off shape keywords beside no `type` names
+`kind-inference`, renders as the node it is, with nothing to act on: the policy already chose the
+kind, and the marker passes to the target AST so that choice stays auditable (INV6,
+[provenance](../../ir/provenance.md)).
 
 A merge-patch body (`application/merge-patch+json`) is where all three states of an optional
 nullable member change the request: absent leaves the member as it is, `null` removes it (RFC 7396

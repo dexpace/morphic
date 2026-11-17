@@ -132,7 +132,8 @@ func within[T any](i int, of []T) bool { return i >= 0 && i < len(of) }
 // each of tests at its node, and g's schema, held as schema. It compiles with
 // the kind-inference policy off: the suite's instances are valid against the
 // kind a schema declares, not one its shape keywords imply
-// (docs/compilers/openapi.md#shape-applicator).
+// (docs/compilers/openapi.md#shape-applicator). So no case oracle reads what
+// the policy lowers such a schema to: compilers/openapi/e2e holds that.
 func groupDocument(root, schema []byte, g *Group, tests []Test, nodes []string) harness.Document {
 	doc := harness.Document{
 		Sources: []compilers.Source{{Path: specPath, Data: root}, {Path: groupPath, Data: schema}},
