@@ -2158,7 +2158,9 @@ an object and another kind composes that list's object variant, the one node of 
 holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, …]}` over `Pet: {type: [object, string],
 properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
 keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or `anyOf` writes is not unpacked: it
-may hold several objects, or none a model is, so one admitting another kind is kept as above.
+may hold several objects, or none a model is, so one admitting another kind is kept as above. The
+list is read only where the entry's `$ref` lands: one landing on another `$ref` to `Pet`, as
+`{$ref: Chain}` over `Chain: {$ref: Pet}` does, is kept as above too.
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
