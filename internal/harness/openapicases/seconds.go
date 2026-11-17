@@ -91,12 +91,11 @@ func secondRef(t target, _ version) (written, bool) {
 // its members, the components they name, the index of the construct row whose
 // first value it is, -1 for a second of no row, and where that row is written.
 // entries are allOf entries naming schemas by $ref, which every spelling
-// writes right after the target's reference, in whichever allOf holds it:
-// moved with the members, an entry spelling written first would also move
-// them before that reference, changing the order of the composition's mixins,
-// which the order written decides
-// (docs/compilers/openapi.md#allof-classification), and so compare something
-// besides the spelling.
+// writes right after the target's reference: moved with the members, an entry
+// written first would also move them before that reference, reordering the
+// composition's mixins, which the order written decides
+// (docs/compilers/openapi.md#allof-classification), so the two spellings would
+// differ by more than the spelling.
 type written struct {
 	members, components object
 	entries             []any

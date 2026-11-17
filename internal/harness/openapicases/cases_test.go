@@ -241,15 +241,23 @@ func TestNew_WritesNothingOutsideTheProduct(t *testing.T) {
 }
 
 // TestRecord_ReadsEachCaseOraclesRecord holds each record to its file and
-// every line's reason to Reasons.
+// every line's reason to Reasons, and the full record to holding each line of
+// the core's.
 func TestRecord_ReadsEachCaseOraclesRecord(t *testing.T) {
 	for _, o := range harness.CaseOracles() {
 		r, err := openapicases.Record(o)
 		require.NoError(t, err, o)
 		_, _, _, unreasoned := r.Judge(nil, openapicases.Reasons())
 		assert.Empty(t, unreasoned, o)
+		every, err := openapicases.FullRecord(o)
+		require.NoError(t, err, o)
+		for name := range r {
+			assert.Contains(t, every, name, o)
+		}
 	}
-	_, err := openapicases.Record(harness.OracleOrder)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `oracle "order-invariance" keeps no record`)
+	for _, read := range []func(harness.Oracle) (harness.Recorded, error){openapicases.Record, openapicases.FullRecord} {
+		_, err := read(harness.OracleOrder)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `oracle "order-invariance" keeps no record`)
+	}
 }

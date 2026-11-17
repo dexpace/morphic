@@ -106,3 +106,28 @@ func TestWrite_PanicsOnASecondOfNoRow(t *testing.T) {
 	assert.PanicsWithValue(t, `openapicases: second construct "unwritten" names no construct row and writes nothing`,
 		func() { c.Write([]int{0, 1, 1, 1, 0, 1}) })
 }
+
+// TestWrite_NamesTheTwoPartsOfAUnit pins the parts a case writing a construct
+// and a second names: the construct with no second, and the second alone,
+// which for a second named as a construct row is that row's case. A case
+// writing one keyword, or naming no partner, names none.
+func TestWrite_NamesTheTwoPartsOfAUnit(t *testing.T) {
+	c, ok := New().(cases)
+	require.True(t, ok)
+	parts := func(names ...string) [][]int {
+		doc, ok := c.Write(caseAt(t, c, names...))
+		require.True(t, ok, "%v", names)
+		if doc.Equal == nil {
+			return nil
+		}
+		return doc.Equal.Parts
+	}
+	at := func(name string) []int { return caseAt(t, c, strings.Split(name, "/")...) }
+	assert.Equal(t, [][]int{at("3.0.3/string/minLength/none/items/entry"), at("3.0.3/string/description/none/items/entry")},
+		parts("3.0.3", "string", "minLength", "description", "items", "entry"))
+	assert.Equal(t, [][]int{at("3.1.0/string/minLength/none/items/beside"), at("3.1.0/string/none/typeNull/items/beside")},
+		parts("3.1.0", "string", "minLength", "typeNull", "items", "beside"))
+	assert.Nil(t, parts("3.1.0", "string", "minLength", "none", "items", "beside"))
+	assert.Nil(t, parts("3.1.0", "string", "none", "typeNull", "items", "beside"))
+	assert.Nil(t, parts("3.1.0", "string", "minLength", "typeNull", "items", "inline"))
+}

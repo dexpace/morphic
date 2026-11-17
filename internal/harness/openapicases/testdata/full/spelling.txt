@@ -1,0 +1,3 @@
+# What the spelling oracle finds at the cases outside the core that what the core
+# cases find does not explain, and the reason each finding stands: case name,
+# what was found, reason (Reasons).

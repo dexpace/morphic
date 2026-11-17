@@ -3,6 +3,18 @@
 
 package openapicases
 
+import "github.com/dexpace/morphic/internal/harness"
+
+// Record returns what case oracle o is known to find at the core cases, the
+// lines the core tests hold their run to.
+func Record(o harness.Oracle) (harness.Recorded, error) {
+	core, _, err := records(o)
+	if err != nil {
+		return nil, err
+	}
+	return harness.ReadRecorded([]byte(core))
+}
+
 // Reasons maps each reason a record's line may give to the issue saying why
 // its finding stands, which the tests holding each record judge it by.
 func Reasons() map[string]string {

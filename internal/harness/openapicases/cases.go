@@ -160,8 +160,23 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
 		Equal:   c.equal(at, u),
 	}
+	if doc.Equal != nil && at[2] > 0 && at[3] > 0 {
+		doc.Equal.Parts = c.parts(at)
+	}
 	c.neighbours(&doc, v, t, at)
 	return doc, true
+}
+
+// parts returns the cases writing alone each keyword the case at writes in one
+// unit, the rest alike: its construct with no second, and its second with no
+// construct, which for a second named as a construct row is that row's case.
+func (c cases) parts(at []int) [][]int {
+	first := slices.Concat(at[:3], []int{0}, at[4:])
+	second := slices.Concat(at[:2], []int{0}, at[3:])
+	if row := c.rowOf(at[3]); row >= 0 {
+		second[2], second[3] = 1+2*row, 0
+	}
+	return [][]int{first, second}
 }
 
 // unit returns what the case at writes in one unit on t at v: its construct's
