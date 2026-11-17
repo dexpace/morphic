@@ -884,13 +884,21 @@ it sees. Changes made together in one bump are listed together under it.
   kind and its `properties` lists a member, and a read of any size, where it read every bound beside
   a value set naming no `type` and past 256 named schemas: a numeric bound beside an `enum` of
   strings, or a string bound beside a schema that is an object by its `properties`, is kept and no
-  longer held ([`constraints`](../compilers/openapi.md#constraints)). A type node's
-  `Provenance.Inferred` may name `kind-inference`: the OpenAPI compiler marks a node whose kind it
-  read off the shape keywords of a schema naming none, under a policy that turned off lowers such a
-  schema to the top type ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads
-  a kind off every keyword applying to one kind alone, an `items`, an `additionalProperties`, a
-  `required` or a `discriminator` among them, where only a `properties` listing a member was read,
-  and keywords of both kinds as a union of the two. A consumer pinned to 0.69.0
-  refuses the document; one reading such a bound off `Constraints` finds it under `Unmodeled`, and
-  one reading a node's kind as declared finds the marker where it was not; one reading an untyped
-  shape keyword under `Unmodeled` finds it typed on the node its kind lowers to.
+  longer held ([`constraints`](../compilers/openapi.md#constraints)). A bound has one home: a
+  `Property` or a `Parameter` whose use owns its node holds none of that node's bounds, where it
+  restated its value bounds, and a field the redeclared-property fold composes holds what its
+  declarations' own nodes bound ([annotations](./annotations.md#one-structural-home-per-declaration)).
+  A `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, a numeric or string bound beside a
+  schema that lowers to one being kept under its keyword, or with the `allOf` branch writing it, and
+  `irverify` reports a structural node holding a bound of another kind (`ir/bound-of-another-kind`).
+  A type node's `Provenance.Inferred` may name `kind-inference`: the OpenAPI compiler marks a node
+  whose kind it read off the shape keywords of a schema naming none, under a policy that turned off
+  lowers such a schema to the top type
+  ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads a kind off every
+  keyword applying to one kind alone, an `items`, an `additionalProperties`, a `required` or a
+  `discriminator` among them, where only a `properties` listing a member was read, and keywords of
+  both kinds as a union of the two. A consumer pinned to 0.69.0 refuses the document; one reading
+  such a bound off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it
+  on the node the carrier names, one reading a node's kind as declared finds the marker where it was
+  not, and one reading an untyped shape keyword under `Unmodeled` finds it typed on the node its
+  kind lowers to.

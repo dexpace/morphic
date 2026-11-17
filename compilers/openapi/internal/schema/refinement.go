@@ -382,7 +382,7 @@ func homesAt(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.T
 	if td, ok := ts.Node(target.Target); ok {
 		nodes := withVariants(ts, td)
 		if slices.ContainsFunc(nodes, constraintsHome) {
-			homes.value = boundKinds(c, s)
+			homes.value = heldAmong(nodes, boundKinds(c, s))
 		}
 		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}

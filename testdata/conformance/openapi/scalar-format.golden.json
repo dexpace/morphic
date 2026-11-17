@@ -337,10 +337,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "minLength": 4,
-            "uniqueItems": false
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
@@ -962,10 +958,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "minLength": 29,
-            "uniqueItems": false
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
@@ -992,10 +984,6 @@
           "defaultAdded": false,
           "visibility": {
             "none": false
-          },
-          "constraints": {
-            "min": "0",
-            "uniqueItems": false
           },
           "flatten": false,
           "eventHeader": false,

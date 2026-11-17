@@ -44,12 +44,39 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices 
 	return cons, append(diags, keepCounts(c, p, writers, takes)...)
 }
 
+// modelTakes returns the kinds of takes whose value bounds a Model or a MapT
+// holds: an object's, the property counts. Any other bound applies to instances
+// no such node admits, so it bounds nothing there and is kept on it verbatim
+// (docs/compilers/openapi.md#constraints), as irverify's
+// ir/bound-of-another-kind requires.
+func modelTakes(takes kindSet) kindSet {
+	return takes & kindObject
+}
+
+// heldAmong returns the kinds of takes whose value bounds some node of nodes
+// holds: none for a node that holds no bound (constraintsHome), an object's for
+// a Model or a MapT (modelTakes), and every one of takes for any other, a
+// Scalar's reader being given its own and a Union holding them for its variants.
+func heldAmong(nodes []ir.TypeDef, takes kindSet) kindSet {
+	var held kindSet
+	for _, td := range nodes {
+		switch {
+		case !constraintsHome(td):
+		case isKind(td, ir.KindModel), isKind(td, ir.KindMap):
+			held |= modelTakes(takes)
+		default:
+			held |= takes
+		}
+	}
+	return held
+}
+
 // carriesNumberAsText reports whether td is a Scalar over a number written as
 // its text (scalarTypeID), whose Constraints would speak of the number
 // (docs/ir/constraints.md#constraints). Every value bound written beside it
 // bounds something else, the text's length or pattern or an instance of
 // another kind than the string JSON Schema applies it to, so it holds none
-// (keepTextBounds), and so neither does a carrier of it (CarrierConstraintsOf).
+// (keepTextBounds).
 func carriesNumberAsText(td ir.TypeDef) bool {
 	sc, ok := td.(*ir.Scalar)
 	return ok && sc != nil && sc.Encoding != nil && sc.Encoding.Name == numberTextEncoding &&
@@ -60,8 +87,7 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 // openapi:<keyword> with no_ir_home, for a position carrying a number as text,
 // whose Constraints hold none (carriesNumberAsText), with an info at each. A
 // voice's is left to keep its branch whole, as a bound with no home does. The
-// node keeps them, and a carrier of it, restating only what its node holds,
-// keeps none.
+// node keeps them, and a carrier of it keeps none (CarrierConstraintsOf).
 func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range declaredConstraints(s) {
@@ -294,26 +320,16 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 }
 
 // CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type t.
-// A position owning its node leaves the collection bounds to it, one home per
-// declaration, so the carrier restates the value bounds alone, and only where
-// the node or a variant of it holds them (constraintsHome): none beside an Enum
-// or a Literal, which keeps them, nor beside a type array's Union, whose
-// variants hold each (lowersTypeArray). One owning none holds those a reference
-// does (referenceConstraintsOf), since the census hoists an alias to keep any
-// other. PreserveRefSiteKeywords draws the same line.
+// A position owning its node leaves every bound to it, held or kept there, one
+// home per declaration (docs/ir/annotations.md#one-structural-home-per-declaration),
+// so its carrier holds none. One owning none holds those a reference does
+// (referenceConstraintsOf), since the census hoists an alias to keep any other.
+// PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !LoweredToOwnNode(c, ts, pointer, t) {
 		return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
 	}
-	td, built := ts.Node(t.Target)
-	if built && !slices.ContainsFunc(withVariants(ts, td), constraintsHome) {
-		return nil, nil
-	}
-	var takes kindSet
-	if stated(s) && !lowersTypeArray(c, s, pointer) {
-		takes = boundKinds(c, s)
-	}
-	return ConstraintsOf(c, p, s, voices, pointer, takes)
+	return nil, nil
 }
 
 // referenceConstraintsOf is ConstraintsOf for a position that lowered to target,

@@ -22,7 +22,7 @@ import (
 var registryChecks = []func(*ir.Document) []Violation{
 	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimIDs, checkPrimKinds, checkAuthKinds, checkModelEnums, checkVersions, checkEnumMemberKinds,
 	checkUnresolvedSchemes, checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkCatchAlls,
-	checkRequires, checkVersion, checkDocument,
+	checkBoundKinds, checkRequires, checkVersion, checkDocument,
 }
 
 // registryCheckName is a registryChecks entry's function name, without its
@@ -91,9 +91,10 @@ func TestRegistryChecks_ACleanEntryCostsNothing(t *testing.T) {
 // cleanRegistry returns a sound document holding n of each entry a registry
 // check ranges over, beside a primitive of each of a few kinds: a model with
 // more properties and Requires entries than a map holds unallocated, a union, a
-// map, an enum whose members sit beneath a path longer than a string built on
-// the stack holds, an OAuth scheme with more scopes than a map holds
-// unallocated, a server, a declared namespace and a source.
+// map, a model and a map each holding a bound of its kind, an enum whose members
+// sit beneath a path longer than a string built on the stack holds, an OAuth
+// scheme with more scopes than a map holds unallocated, a server, a declared
+// namespace and a source.
 func cleanRegistry(n int) *ir.Document {
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion,
@@ -110,7 +111,7 @@ func cleanRegistry(n int) *ir.Document {
 	}
 	for i := range n {
 		suffix := fmt.Sprintf("%04d", i)
-		model := &ir.Model{ID: ir.TypeID("t/x/M" + suffix)}
+		model := &ir.Model{ID: ir.TypeID("t/x/M" + suffix), Constraints: &ir.Constraints{MinProps: new(int64(1))}}
 		for j := range 12 {
 			model.Properties = append(model.Properties, ir.Property{WireName: fmt.Sprintf("own%d", j)})
 			model.Requires = append(model.Requires, fmt.Sprintf("inherited%d", j))
@@ -123,7 +124,7 @@ func cleanRegistry(n int) *ir.Document {
 		for _, td := range []ir.TypeDef{
 			model, enum,
 			&ir.Union{ID: ir.TypeID("t/x/U" + suffix), Variants: []ir.Variant{{}}},
-			&ir.MapT{ID: ir.TypeID("t/x/Map" + suffix)},
+			&ir.MapT{ID: ir.TypeID("t/x/Map" + suffix), Constraints: &ir.Constraints{MaxProps: new(int64(1))}},
 		} {
 			doc.Types[td.Common().ID] = td
 		}

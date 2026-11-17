@@ -588,8 +588,8 @@ func visited(index map[string]int, n string) bool {
 }
 
 // TestLoweringCallGraph_RecordsAHandoffAsAnEdge holds the graph to the fix for
-// GitHub #210. Reading call position alone described these three functions as
-// depending on nothing, while each decides by a function it hands on by name.
+// GitHub #210. Reading call position alone misses the edge from each of these
+// three functions to one it decides by and hands on by name.
 //
 // It asserts the edges rather than the cycles because none of them closes one
 // today: a dependency the graph cannot see is unheld whether or not it currently
@@ -601,7 +601,7 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	handoffs := map[string]string{
 		"enumNullVerdict":  "isNullValue",
 		"setsDeclareShape": "branchDeclaresShape",
-		"unreadBounds":     "constraintsHome",
+		"homesAt":          "constraintsHome",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)
