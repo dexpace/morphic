@@ -42,6 +42,9 @@ type keptEntry struct {
 	whole wholeCause
 	// reason is what a whole entry is kept as (sharedReason).
 	reason ir.UnmodeledReason
+	// numberText says the position's own node carries a number as text, whose
+	// Constraints hold no value bound own keeps (keepTextBounds).
+	numberText bool
 }
 
 // keeps reports whether k keeps anything.
@@ -332,7 +335,7 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 		return ir.ReasonVendorExtension
 	case annotation.DialectKeyword(twin), writesUnknown(c, bs, key, e.pointer):
 		return ir.ReasonOutOfScope
-	case slices.Contains(logicKeywords, twin):
+	case slices.Contains(logicKeywords, twin), unevaluatedKeyword(twin):
 		return ir.ReasonValidationOnly
 	case key == "oneOf" || key == "anyOf":
 		return entryUnionReason(c, s, comp, i)
@@ -485,9 +488,11 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 ) []ir.Diagnostic {
 	bs, at := k.entry.schema.Schema, k.entry.pointer
 	var diags []ir.Diagnostic
-	var unknown, unhomed []string
+	var unknown, unhomed, text []string
 	for _, key := range k.own {
 		switch twin := TwinKeyword(c, bs, key); {
+		case k.numberText && slices.Contains(valueConstraintKeywords, key):
+			text = append(text, key)
 		case annotation.DialectKeyword(twin):
 			// Ahead of the unknown keywords, as Read keeps $vocabulary before
 			// PreserveUnknownKeywords meets it.
@@ -509,6 +514,7 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 		}
 	}
 	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
+	diags = append(diags, keepTextBounds(c, p, bs, text, at)...)
 	where := "on this inline branch"
 	if k.entry.schema.Ref != nil {
 		where = "beside this $ref, which names nothing"

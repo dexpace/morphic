@@ -2598,7 +2598,11 @@ reported at the keyword, the last by an `openapi/unknown-schema-keyword`, as is 
 ([`dynamic-ref`](#dynamic-ref)), kept `degraded_lowering`. A `oneOf` or `anyOf` is `validation_only` where its branches declare no shape
 against the position, reported by an `openapi/validation-only-keyword` at the branch, and
 `degraded_lowering` where they do or where it shares no kind with the rest
-([`union-beside-structure`](#union-beside-structure)). Every other keyword is `degraded_lowering`, and
+([`union-beside-structure`](#union-beside-structure)). A value bound where the position's own node
+carries a number as text is `no_ir_home`, reported at the keyword, as one beside it is
+([`string-formats`](#string-formats)). An `unevaluatedProperties` or `unevaluatedItems` keeps its
+branch whole (below), its slot `validation_only` as beside the `allOf`
+([`validation-only`](#validation-only)). Every other keyword is `degraded_lowering`, and
 those of one branch are reported by one `openapi/degraded-construct` at the branch naming them, an
 info, and a warning where the branch declares a `type` that excludes `object`, because the composing
 `Model` then asserts a shape the source contradicts. A `$comment`, `$anchor`, `$dynamicAnchor` or
@@ -2692,6 +2696,8 @@ every entry reads that one twice.
   `e2e.TestKeptFailedRef_ARefOnALoopIsKeptLikeOneThatNamesNothing`,
   `e2e.TestKeptFailedRef_TheFailureIsReportedOnceWhereTheRefIsWritten`,
   `schema.TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason`,
+  `schema.TestEntryKeptReason_ABoundOnANumberAsTextIsKeptAsBesideIt`,
+  `schema.TestEntryKeptReason_AnUnevaluatedKeywordKeepsItsEntryValidationOnly`,
   `annotation.TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite`,
   `annotation.TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne`,
   `schema.TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone`,
@@ -4854,9 +4860,8 @@ written beside it, but for a number carried as text, whose `Constraints` speak o
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
 `openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
-at it, one an inline `allOf` branch writes kept under its own key too but as `degraded_lowering`,
-reported at the branch ([`allof-inline-residue`](#allof-inline-residue)), and neither the `Scalar` nor a property or
-parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+at it, one an inline `allOf` branch writes the same way ([`allof-inline-residue`](#allof-inline-residue)),
+and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
 with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
 table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
 ([`type-arrays`](#type-arrays)).

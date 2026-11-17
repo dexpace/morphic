@@ -313,7 +313,8 @@ func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
 // properties compose as the flat spelling's do, and what it writes is kept as
 // any entry's is, each keyword under its own key at the wrapper, or the whole
 // wrapper under its key for an unevaluated keyword, reported once at the
-// wrapper naming the extra keyword and not allOf.
+// wrapper naming the extra keyword and not allOf, as the validation-only
+// keyword the unevaluated one is.
 func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -345,13 +346,17 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 				assert.Empty(t, model.Mixins)
 				_, hasW := openapitest.PropsByWire(model.Properties)["w"]
 				assert.True(t, hasW, "the wrapper's properties still merge")
+				code := diag.DegradedConstruct
+				if tc.whole {
+					code = diag.ValidationOnlyKeyword
+				}
 				var infos []ir.Diagnostic
 				for _, d := range doc.Diagnostics {
-					if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
+					if d.Code == code && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
 						infos = append(infos, d)
 					}
 				}
-				require.Len(t, infos, 1, "exactly one degraded-construct at the wrapper")
+				require.Len(t, infos, 1, "exactly one %s at the wrapper", code)
 				assert.NotContains(t, infos[0].Message, "(allOf")
 				if !tc.whole {
 					entry, ok := model.Unmodeled["openapi:"+tc.residue]
@@ -460,18 +465,18 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 		model, ok := typeByName(doc, "M").(*ir.Model)
 		require.True(t, ok, "M should be a model")
 		require.Len(t, model.Unmodeled, 3, "got %+v", model.Unmodeled)
-		for key, want := range map[string]string{
-			"openapi:allOf/0":         `"additionalProperties":false`,
-			"openapi:allOf/1/allOf/0": `"patternProperties":`,
-			"openapi:allOf/1/allOf/1": `"unevaluatedProperties":false`,
+		for key, want := range map[string][2]string{
+			"openapi:allOf/0":         {`"additionalProperties":false`, diag.DegradedConstruct},
+			"openapi:allOf/1/allOf/0": {`"patternProperties":`, diag.DegradedConstruct},
+			"openapi:allOf/1/allOf/1": {`"unevaluatedProperties":false`, diag.ValidationOnlyKeyword},
 		} {
 			entry, ok := model.Unmodeled[key]
 			require.True(t, ok, "missing %s in %+v", key, model.Unmodeled)
-			assert.Contains(t, string(entry.Value), want)
+			assert.Contains(t, string(entry.Value), want[0])
 			assert.Equal(t, "/components/schemas/M/"+strings.TrimPrefix(key, "openapi:"),
 				string(entry.Provenance.Pointer))
 			assert.Contains(t,
-				openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo,
+				openapitest.DiagMessageAt(t, doc.Diagnostics, want[1], ir.SeverityInfo,
 					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf branch")
 		}
 	}

@@ -808,6 +808,9 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		}
 	}
 	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties)
+	for i := range k.entries {
+		k.entries[i].numberText = homes.numberText
+	}
 	return k
 }
 
@@ -839,6 +842,7 @@ func homesAt(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.T
 	// A node still building holds nothing yet.
 	var homes boundHomes
 	if td, ok := ts.Node(target.Target); ok {
+		homes.numberText = carriesNumberAsText(td)
 		nodes := withVariants(ts, td)
 		if slices.ContainsFunc(nodes, constraintsHome) {
 			homes.value = heldAmong(nodes, boundKinds(c, s))
