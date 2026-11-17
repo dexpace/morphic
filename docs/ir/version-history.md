@@ -930,7 +930,12 @@ it sees. Changes made together in one bump are listed together under it.
   it held each the position took. A branch admitting no object, nor a null the body admits, is no
   variant: the `Union` keeps it under that key, the schema warning of it, where a variant over it
   kept it, and a body none of whose branches lives lowers as itself, keeping the union whole under
-  `openapi:oneOf` or `openapi:anyOf`, where it was a `Union` of variants no value inhabits. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
+  `openapi:oneOf` or `openapi:anyOf`, the union written beside it or on an entry of its `allOf`,
+  where it was a `Union` of variants no value inhabits. A discriminator's route to such a branch keys
+  nothing in the union's `Mapping`, a `mapping` entry or a `defaultMapping` kept verbatim under
+  `openapi:discriminator/mapping/<key>` or `openapi:discriminator/defaultMapping` on the `Union`,
+  where it routed to the variant composed over the branch, and a discriminator beside a union none
+  of whose branches lives is kept whole. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
   distributed. A composed `Model` takes `Additional` and `AdditionalProps` from the one schema
   object of its `allOf` whose `additionalProperties` reads every member the position and its entries

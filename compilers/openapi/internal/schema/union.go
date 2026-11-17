@@ -273,6 +273,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
 	diags = append(diags, keepBranchDiscriminatorKeys(c, node, u)...)
+	diags = append(diags, keepDeadRoutes(c, node, u)...)
 	diags = append(diags, spellImplicitRoutes(c, u, node, common.Provenance.Pointer)...)
 	deferUnionTags(c, ts, u, node, common.Provenance.Pointer)
 	return node, diags
@@ -288,16 +289,23 @@ func keepBranchDiscriminatorKeys(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Di
 	if !u.branch || u.disc == nil || u.discAt != u.at {
 		return nil
 	}
-	owner := u.at + ids.Ptr("discriminator")
-	scope := "discriminator"
-	if rest, beneath := strings.CutPrefix(string(owner), string(n.Provenance.Pointer)+"/"); beneath {
-		scope = rest
-	}
+	owner, scope := discriminatorScope(u, n.Provenance.Pointer)
 	// u.disc is the holder's, as discAt is at.
 	kept, diags := annotation.SchemaExtensions(u.disc.Extensions, c.Place(), owner, scope)
 	diags = append(diags, annotation.UnknownKeysNamed(&kept, u.disc.Unknown, u.disc.Node, c.Place(), owner, scope)...)
 	n.Unmodeled = annotation.MergeUnmodeled(n.Unmodeled, kept)
 	return diags
+}
+
+// discriminatorScope is where the discriminator standing with u is written,
+// and the scope what a node at pointer keeps of it is keyed by: its path
+// beneath pointer, or `discriminator` where it is not beneath it.
+func discriminatorScope(u unionAt, pointer jsontext.Pointer) (jsontext.Pointer, string) {
+	owner := u.discAt + ids.Ptr("discriminator")
+	if rest, beneath := strings.CutPrefix(string(owner), string(pointer)+"/"); beneath {
+		return owner, rest
+	}
+	return owner, "discriminator"
 }
 
 // unionAt is a union a position lowers: the oneOf or anyOf, whichever
@@ -322,6 +330,9 @@ type unionAt struct {
 	// instance of its body satisfies (deadBranches), which is no variant; nil
 	// for a union distributing nothing.
 	dead []bool
+	// deadRoutes are the routes disc takes to a dead branch (deadRoutesOf),
+	// which route to no variant.
+	deadRoutes []deadRoute
 }
 
 // variantBranch reports whether st, the branch of u at index i, is a variant
@@ -863,7 +874,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
 	case unionNoLiveBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
-			"none of its branches admits a value its body admits, so no instance satisfies them together")
+			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
 		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
@@ -972,6 +983,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	var diags []ir.Diagnostic
 	u.distributed = true
 	u.dead = deadBranches(c, s, u.holder)
+	u.deadRoutes = deadRoutesOf(c, u)
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
 			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s), union: u}
