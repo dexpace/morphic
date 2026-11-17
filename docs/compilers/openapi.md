@@ -2594,7 +2594,8 @@ from two places, under the reason its kept keywords share where they share one, 
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
 folds is typed as any branch's is, and what its fold would keep beside it, a vendor extension or a
 validation-only keyword, is kept once, inside it, but for a key the promotion policy reads
-([unmodeled](../ir/unmodeled.md#keys)). A keyword two branches
+([unmodeled](../ir/unmodeled.md#keys)) and for one another branch folds alike, which the position
+keeps too, at its own pointer, as below. A keyword two branches
 keep alike, and the keywords beside the `allOf` do not write, is kept once, its provenance the
 position's pointer, as no one writer's is the same in every order of the branches; one the keywords
 beside the `allOf` write alike is theirs, kept as they keep it. An entry two folding branches write
@@ -2648,6 +2649,7 @@ every entry reads that one twice.
   `e2e.TestKeptEntryKeyword_AnEntryDisagreeingWithAnotherKeepsItsKeywordsReasonWhenKeptWhole`,
   `e2e.TestKeptEntryKeyword_TwoWritersOfOneKeywordAndValueKeepOneEntryAtThePosition`,
   `e2e.TestKeptEntryKeyword_TwoEntriesKeepingOneKeywordAlikeKeepOneEntryAtThePosition`,
+  `e2e.TestKeptEntryKeyword_AKeywordWrittenAlikeBesideTheAllOfIsKeptAsThere`,
   `schema.TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce`,
   `schema.TestEntryKept_AnEntryOfAnUndecidedAllOfIsReportedAgainstTheKeywordsBesideIt`,
   `schema.TestEntryKept_AFailedRefKeepsItsReferenceAndEachKeywordBesideIt`,

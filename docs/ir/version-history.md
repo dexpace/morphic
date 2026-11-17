@@ -952,17 +952,18 @@ it sees. Changes made together in one bump are listed together under it.
   under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set. A keyword an inline
   `allOf` entry writes that no reader consumes is kept under its own key, `openapi:<keyword>`, with
   the reason and the report it has beside the `allOf`, its provenance the keyword on the entry, where
-  the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; `openapi:allOf/<n>` now
-  names only an entry kept whole for a closure or an unevaluated keyword read against the rest of it,
+  the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; an inline entry is now
+  kept under `openapi:allOf/<n>` only where it is kept whole, for a closure or an unevaluated keyword read against the rest of it,
   an `allOf` of its own not flattened, a relative `$ref` read against another base, or a keyword
   another conjunct writes otherwise, under the reason its keywords share, else `degraded_lowering`
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
   keep alike is kept once, at the position's pointer, what an entry kept whole folds and would keep
-  beside it is kept once, inside the entry, a key the promotion policy reads aside, and an entry's
-  `$comment`, `$anchor` and `$defs` are read as beside the `allOf` and kept nowhere. A `$ref` entry
-  naming no schema, which was kept nowhere with each keyword beside it, is kept under `openapi:$ref`,
-  or `openapi:$ref/<i>` by reference text where several are, with each keyword beside it under its
-  own key, or the entry whole under `openapi:allOf/<n>` where one cannot be kept apart. A consumer pinned to
+  beside it is kept once, inside the entry, a key the promotion policy reads and one another entry
+  folds alike, which the position keeps too, aside, and an entry's `$comment`, `$anchor` and `$defs`
+  are read as beside the `allOf` and kept nowhere. A `$ref` entry naming no schema, which was kept
+  nowhere with each keyword beside it, is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
+  reference text where several are, with each keyword beside it under its own key, or the entry
+  whole under `openapi:allOf/<n>` where one cannot be kept apart. A consumer pinned to
   0.69.0 refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one

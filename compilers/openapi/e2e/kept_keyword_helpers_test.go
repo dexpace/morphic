@@ -122,9 +122,7 @@ func keptKeywordReasons(got map[string][]keptKeywordEntry) map[string]ir.Unmodel
 }
 
 // keptFinding is one finding a schema draws: its severity and code, where it
-// is drawn relative to the schema, and words its message holds. An at of
-// "a|b" accepts either pointer, for a report anchored at the entry or at its
-// keyword.
+// is drawn relative to the schema, and words its message holds.
 type keptFinding struct {
 	severity ir.Severity
 	code     string
@@ -174,7 +172,7 @@ func keptFindingsUnder(t *testing.T, diags []ir.Diagnostic, name string, want []
 		found := false
 		for i, d := range got {
 			rel := strings.TrimPrefix(string(d.Provenance.Pointer), prefix)
-			if matched[i] || d.Severity != w.severity || d.Code != w.code || !slices.Contains(strings.Split(w.at, "|"), rel) {
+			if matched[i] || d.Severity != w.severity || d.Code != w.code || rel != w.at {
 				continue
 			}
 			matched[i], found = true, true
@@ -283,11 +281,7 @@ func runKept(t *testing.T, c keptKeywordCase) {
 					}
 					finds := make([]keptFinding, 0, len(c.finds))
 					for _, f := range c.finds {
-						ats := strings.Split(f.at, "|")
-						for n, at := range ats {
-							ats[n] = keptIndexed(c.pos+at, spelling.index)
-						}
-						f.at = strings.Join(ats, "|")
+						f.at = keptIndexed(c.pos+f.at, spelling.index)
 						finds = append(finds, f)
 					}
 					got := keptKeywordsOf(doc, spelling.name)
