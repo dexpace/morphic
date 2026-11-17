@@ -141,7 +141,7 @@ func compilesWithNoError(t *testing.T, c harness.Cases, byShard map[[2]int][][]i
 // eachCaseWritesADocumentOfItsOwn, each writing one source.
 func TestNew_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 	t.Parallel()
-	eachCaseWritesADocumentOfItsOwn(t, openapicases.New(), 1)
+	eachCaseWritesADocumentOfItsOwn(t, openapicases.New(), 1, alone)
 }
 
 // TestGroups_EachCaseWritesADocumentOfItsOwn holds the test suite's groups to
@@ -149,15 +149,21 @@ func TestNew_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 // at least.
 func TestGroups_EachCaseWritesADocumentOfItsOwn(t *testing.T) {
 	t.Parallel()
-	eachCaseWritesADocumentOfItsOwn(t, openapicases.Groups(), 2)
+	eachCaseWritesADocumentOfItsOwn(t, openapicases.Groups(), 2, func([]int) bool { return true })
 }
 
-// eachCaseWritesADocumentOfItsOwn writes every case of c's full product: each
-// document holds minSources sources or more, each JSON, is written alike
-// twice, and no two cases write the same one, as a value Write misreads would
-// make them; and each value of each axis is written by some case. Each case's
-// name is its own because CaseCount accepts the axes.
-func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources int) {
+// alone admits a schema case writing no second construct, and one writing a
+// second at the first position: a position places the unit it is handed and
+// reads neither construct, so a second written alike at every position needs
+// holding at one, and the walk does not grow by the product of the two axes.
+func alone(at []int) bool { return at[3] == 0 || at[4] == 0 }
+
+// eachCaseWritesADocumentOfItsOwn writes every case of c's full product pick
+// admits: each document holds minSources sources or more, each JSON, is
+// written alike twice, and no two cases write the same one, as a value Write
+// misreads would make them; and each value of each axis is written by some
+// case. Each case's name is its own because CaseCount accepts the axes.
+func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources int, pick func([]int) bool) {
 	t.Helper()
 	axes := c.Axes()
 
@@ -169,6 +175,9 @@ func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources i
 	each, err := harness.Each(c)
 	require.NoError(t, err)
 	for _, at := range each {
+		if !pick(at) {
+			continue
+		}
 		doc, ok := c.Write(at)
 		if !ok {
 			continue
@@ -197,7 +206,8 @@ func eachCaseWritesADocumentOfItsOwn(t *testing.T, c harness.Cases, minSources i
 }
 
 // TestNew_TheAxesInTheirOrder pins the axes' order and the values a later
-// version, a narrowed target or an entry written first is recorded under.
+// version, a narrowed target, a second construct or an entry written first is
+// recorded under.
 func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	axes := openapicases.New().Axes()
 	names := make([]string, len(axes))
@@ -211,6 +221,10 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	assert.Equal(t, []harness.Value{{Name: "object"}, {Name: "string"}, {Name: "integer"}, {Name: "array"},
 		{Name: "enum", Like: "string"}, {Name: "union"}, {Name: "formatted", Like: "string"},
 		{Name: "map", Like: "object"}}, axes[1].Values)
+	assert.Equal(t, harness.Value{Name: "none"}, axes[3].Values[0])
+	for _, v := range axes[3].Values[1:] {
+		assert.Equal(t, "none", v.Like, "a second construct, %s, is recorded under none", v.Name)
+	}
 	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
 		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}}, axes[5].Values)
 	assert.Len(t, axes[4].Values, 9)

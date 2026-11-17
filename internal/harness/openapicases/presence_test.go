@@ -116,9 +116,10 @@ func keywords(t *testing.T) []string {
 
 // TestWrite_NamesTheNeighboursOfEachKeyword holds each case the presence
 // oracle asks to its neighbours: the case leaving the keyword out, which
-// differs in the construct alone, and for a keyword something carries the
-// case writing its other value, one construct on. The case writing nothing
-// and a keyword's other value name none.
+// differs in the construct alone, or beside a second named as a construct is
+// that construct's case, and for a keyword something carries the case writing
+// its other value, one construct on. The case writing nothing and a keyword's
+// other value name none. A second is held at one position (alone).
 func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 	c := openapicases.New()
 	axes := c.Axes()
@@ -126,6 +127,9 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 	each, err := harness.Each(c)
 	require.NoError(t, err)
 	for _, at := range each {
+		if !alone(at) {
+			continue
+		}
 		doc, ok := c.Write(at)
 		if !ok {
 			continue
@@ -138,7 +142,12 @@ func TestWrite_NamesTheNeighboursOfEachKeyword(t *testing.T) {
 		}
 		with := func(neighbour []int) []int { return slices.Concat(at[:2], neighbour, at[3:]) }
 		absent := with([]int{0})
-		if s := axes[5].Values[at[5]].Name; s == "entry" || s == "entryFirst" {
+		second := axes[3].Values[at[3]].Name
+		row := slices.IndexFunc(axes[2].Values, func(v harness.Value) bool { return v.Name == second })
+		switch s := axes[5].Values[at[5]].Name; {
+		case second != "none" && row >= 0:
+			absent[2], absent[3] = row, 0 // a second named as a construct, alone, is that construct's case
+		case second == "none" && (s == "entry" || s == "entryFirst"):
 			absent[5] = slices.IndexFunc(axes[5].Values, func(v harness.Value) bool { return v.Name == "wrap" })
 		}
 		assert.Equal(t, absent, doc.Absent, "%v", at)
