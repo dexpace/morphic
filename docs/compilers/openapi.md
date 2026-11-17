@@ -1181,16 +1181,16 @@ request body's reading as a file among them, though not yet the walk of a form b
 reads what the parser expands. Nor is one its keys list from a source that a source past the bound,
 writing the keyword too and coming first, outranks: a key is read only where the parser read the
 keyword's value from it, and a keyword the parser holds no field for, whose value it read from no
-node to compare, only where the schema writes it itself, which no merge outranks. Two sources
-writing equal values are told apart all the same. The schema draws an `openapi/degraded-construct`
-warning of its own, at its pointer, once however many positions lower it; one kept verbatim, as a
-`not` is, is refused there instead ([`verbatim-preservation`](#verbatim-preservation)). Its
-extensions, and a key no keyword names, are read as the parser expands them, and
-[`unknown-keys`](#unknown-keys) reports the latter. A `$dynamicRef` naming no `$dynamicAnchor` is
-the `$ref` it spells, and is read as one in every respect here, its `openapi/unresolved-ref` worded
-with the keyword it is written under. A chain of references that closes on itself is
-[`reference-cycles`](#reference-cycles)', whose message names each link a `$ref`, whichever keyword
-wrote it.
+node to compare, only where the schema writes it itself, which no merge outranks; one left out is
+not kept as an unknown key either. Two sources writing equal values are told apart all the same. The
+schema draws an `openapi/degraded-construct` warning of its own, at its pointer, once however many
+positions lower it; one kept verbatim, as a `not` is, is refused there instead
+([`verbatim-preservation`](#verbatim-preservation)). Its extensions, and a key no keyword names, are
+read as the parser expands them, and [`unknown-keys`](#unknown-keys) reports the latter. A
+`$dynamicRef` naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every
+respect here, its `openapi/unresolved-ref` worded with the keyword it is written under. A chain of
+references that closes on itself is [`reference-cycles`](#reference-cycles)', whose message names
+each link a `$ref`, whichever keyword wrote it.
 
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,

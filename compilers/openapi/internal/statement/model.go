@@ -5,6 +5,7 @@ package statement
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
@@ -331,14 +332,17 @@ func keywordRow(name string) (fillKeyword, bool) {
 // another node: a source past nodeview.MergeDepthLimit writes the keyword too
 // and comes first, so the key lists the value that loses. A keyword the parser
 // holds no node for is kept only where s writes it itself, as no merge
-// outranks that (docs/parser-library.md#merge-keys).
+// outranks that (docs/parser-library.md#merge-keys); one left out leaves
+// s.Unknown too, so that no census reads it.
 func dropOutranked(s *Schema, m *oas3.Schema) {
 	own := nodeview.WrittenChildren(s.Node)
 	kept := make([]Key, 0, len(s.Keys))
 	for _, k := range s.Keys {
 		if !outranked(k, own, m) {
 			kept = append(kept, k)
+			continue
 		}
+		s.Unknown = slices.DeleteFunc(slices.Clone(s.Unknown), func(name string) bool { return name == k.Name })
 	}
 	if len(kept) == len(s.Keys) {
 		return
