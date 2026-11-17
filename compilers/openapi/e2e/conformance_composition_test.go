@@ -943,7 +943,8 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // the one that writes only `required`: one Model with the union kept under
 // validation_only, reported as that and not as a degradation. Branches saying
 // more than a model body distribute it, and more than one that is no model
-// degrade (docs/compilers/openapi.md#union-beside-structure).
+// degrade, but where each says its type, as a bare `items` says an array under
+// the kind-inference policy (docs/compilers/openapi.md#union-beside-structure).
 func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
@@ -966,16 +967,22 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	_, tagged := doc.Types[componentID("RenderTagged")].(*ir.Union)
 	assert.True(t, tagged, "RenderTagged distributes its body across its branches")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/RenderTagged"))
-	sizes, ok := doc.Types[componentID("RenderSizes")]
-	require.True(t, ok, "RenderSizes lowers")
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, sizes.Common().Unmodeled, "openapi:oneOf").Reason)
+	sizes, ok := doc.Types[componentID("RenderSizes")].(*ir.Union)
+	require.True(t, ok, "RenderSizes is the union its branches restate")
+	for _, v := range sizes.Variants {
+		_, isList := doc.Types[v.Type.Target].(*ir.List)
+		assert.True(t, isList, "each branch is the list its items imply")
+	}
+	formats, ok := doc.Types[componentID("RenderFormats")]
+	require.True(t, ok, "RenderFormats lowers")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, formats.Common().Unmodeled, "openapi:oneOf").Reason)
 	var degraded []string
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct {
 			degraded = append(degraded, string(d.Provenance.Pointer))
 		}
 	}
-	assert.ElementsMatch(t, []string{"/components/schemas/RenderSizes"}, degraded)
+	assert.ElementsMatch(t, []string{"/components/schemas/RenderFormats"}, degraded)
 }
 
 // assertUnionRestatedType pins a union beside keywords its branches all say,

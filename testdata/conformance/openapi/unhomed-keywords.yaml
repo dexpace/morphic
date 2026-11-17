@@ -4,21 +4,22 @@ paths: {}
 components:
   schemas:
     # An applicator constrains an instance whether or not a type is written
-    # beside it: this says every array instance has string elements. The IR has
-    # taken no decision to read an untyped applicator as a list shape, so the
-    # position lowers to the top type and the applicator is kept verbatim rather
-    # than dropped.
+    # beside it: this says every array instance has string elements. The
+    # kind-inference policy reads an untyped applicator as the kind it speaks
+    # of, so the position lowers to a list, marked as inferred, and keeps
+    # nothing.
     UntypedItems: {items: {type: string}}
-    # Same shape, positional: an untyped prefixItems.
+    # Same shape, positional: an untyped prefixItems is a tuple.
     UntypedPrefixItems: {prefixItems: [{type: string}]}
-    # required narrows an instance without declaring one; the top type has no
-    # property set for it to narrow.
+    # required narrows an object alone, so it speaks of one: a model requiring
+    # the name.
     UntypedRequired: {required: [name]}
     # format pairs with a declared type to select a primitive or hoist a scalar.
-    # With no type beside it, nothing reads it.
+    # It speaks of no kind, so with no type beside it nothing reads it, and the
+    # position lowers to the top type keeping it.
     UntypedFormat: {format: uuid}
-    # A discriminator is held by a Model or a Union that routes by it. The top
-    # type routes nothing, so the discriminator is kept rather than dropped.
+    # A discriminator is held by a Model or a Union that routes by it, and
+    # speaks of an object, so it is the model's.
     UntypedDiscriminator: {discriminator: {propertyName: kind}}
     # A contradictory schema: an instance cannot be both a two-member string
     # enum and an object. The enum is taken and the property set kept beside it,

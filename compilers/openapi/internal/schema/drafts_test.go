@@ -67,7 +67,7 @@ func TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    T: {"+d4+", type: array, items: [{type: string}], additionalItems: false}\n"+
-			"    U: {"+d4+", items: [{type: string}], additionalItems: false}\n"+
+			"    U: {"+d4+", type: object, items: [{type: string}], additionalItems: false}\n"+
 			"    V: {"+d4+", type: array, items: {type: string}, additionalItems: false}\n"+
 			"    D: {"+d4+", type: object, id: 'https://example.com/d', dependencies: {a: [b]}, definitions: {X: {}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)

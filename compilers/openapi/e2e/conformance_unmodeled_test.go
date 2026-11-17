@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -32,17 +33,24 @@ import (
 // Two source shapes reach it. A contradictory schema takes one half and keeps the
 // other beside it, the rule about a degraded lowering in
 // docs/ir/boundaries.md#degraded-constructs and
-// docs/compilers/openapi.md#shape-applicator. And an applicator with no `type`
-// beside it still constrains an instance — {items: {type: string}} constrains
-// every array — where the position lowers to the top type, which understates it
-// entirely.
+// docs/compilers/openapi.md#shape-applicator. And a keyword with no `type`
+// beside it that speaks of no kind, a `format`, where the position lowers to
+// the top type. An applicator with no `type` speaks of its kind, which the
+// kind-inference policy lowers it as, so it keeps nothing.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, kind := range map[string]ir.TypeKind{
+		"UntypedItems": ir.KindList, "UntypedPrefixItems": ir.KindTuple,
+		"UntypedRequired": ir.KindModel, "UntypedDiscriminator": ir.KindModel,
+	} {
+		td := doc.Types[componentID(name)]
+		require.NotNil(t, td, name)
+		assert.Equal(t, kind, td.Kind(), "%s lowers as the kind its keyword speaks of", name)
+		assert.Equal(t, openapi.KindInferenceHeuristic, td.Common().Provenance.Inferred, name)
+		assert.Empty(t, td.Common().Unmodeled, name)
+		assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name), name)
+	}
 	untyped := map[string]struct{ keyword, raw string }{
-		"UntypedItems":         {"items", `{"type":"string"}`},
-		"UntypedPrefixItems":   {"prefixItems", `[{"type":"string"}]`},
-		"UntypedRequired":      {"required", `["name"]`},
-		"UntypedFormat":        {"format", `"uuid"`},
-		"UntypedDiscriminator": {"discriminator", `{"propertyName":"kind"}`},
+		"UntypedFormat": {"format", `"uuid"`},
 	}
 	for name, want := range untyped {
 		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)

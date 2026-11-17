@@ -4220,24 +4220,31 @@ whose lowering produced the other of the two shapes (`{type: object, properties:
 lowers to a `Model`, which holds no element type). This covers both a contradictory schema, where
 one half is taken and the other must stay recoverable
 (`{type: string, enum: [a, b], properties: {f: …}}` is not satisfiable, so lowering to the enum is a
-reasonable degradation), and an applicator written with no type at all, where the position lowers to
-the top type, which says strictly less than the applicator does (`{items: {type: string}}`
-constrains every array instance), but for the one the kind-inference policy reads.
+reasonable degradation), and an applicator written with no type at all where the kind-inference
+policy is off, where the position lowers to the top type, which says strictly less than the
+applicator does (`{items: {type: string}}` constrains every array instance).
 
 A schema naming no kind, one writing no `type` or a null one and no family
-[`competing-keywords`](#competing-keywords) elects first, whose `properties` lists a member lowers
-as the same schema writing `type: object` does, under the kind-inference policy
-([`policies`](#policies)): the Go option `Options.KindInference`, whose zero value is on, and the
-text option `kind-inference`, which `false` turns off. JSON Schema applies `properties` to an object
-alone and passes an instance of any other kind (JSON Schema Core 2020-12 §7.6.1), so the object is
-the policy's reading of what the document means: the node it builds, at a component, a property, an
-element, a body or a union's branch alike, names `kind-inference` in its `Provenance.Inferred`, and
-nothing is reported, as the document leaves the kind unsaid. A `properties` written null or with no
-member claims no kind. The run's reading of what a schema admits reads the same claim
-([`constraints`](#constraints)), so a bound beside it is placed by the object. With the policy off,
-such a schema is the top type, its `properties` kept as any unhomed keyword is. The other
-applicators written with no type lower to the top type: reading one as the shape it implies is a
-lowering decision this document has not taken, and keeping the source leaves it open.
+[`competing-keywords`](#competing-keywords) elects first, lowers as the same schema writing the
+`type` its shape keywords speak of, under the kind-inference policy ([`policies`](#policies)): the
+Go option `Options.KindInference`, whose zero value is on, and the text option `kind-inference`,
+which `false` turns off. A keyword JSON Schema applies to instances of one kind alone, passing an
+instance of any other (JSON Schema Core 2020-12 §7.6.1), speaks of that kind: `properties`,
+`patternProperties`, `additionalProperties`, `required` and `discriminator` of an object, `items`
+and `prefixItems` of an array, each where it is written with something in it, so a `properties`
+written null or with no member, an empty `required` and a null `items` claim nothing. Keywords of
+both kinds lower as `type: [object, array]` beside them does ([`type-arrays`](#type-arrays)): a
+`Union` of the object's node and the array's, in that order whichever keyword is written first. The
+kind is the policy's reading of what the document means, so the node it builds, at a component, a
+property, an element, a body or a union's branch alike, and each variant of such a union, names
+`kind-inference` in its `Provenance.Inferred`, and nothing is reported, as the document leaves the
+kind unsaid. The run's reading of what a schema admits reads the same claim
+([`constraints`](#constraints)), so a bound beside such a schema is placed by its kind, and it
+decides whether the schema names no kind: where a conjunct beside it names kinds, as a union kept
+beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords pick those of
+them they speak of, unmarked, as the document declared them, and the top type where they speak of
+none. With the policy off, a schema naming no kind is the top type, its shape keywords kept as any
+unhomed keyword is.
 
 Each unhomed keyword is kept verbatim in `Unmodeled["openapi:<keyword>"]` under `degraded_lowering`,
 reported as one info `openapi/degraded-construct` at the position naming the kind it lowered to and
@@ -4286,6 +4293,15 @@ union of models.
   `e2e.TestKindInference_DisabledLowersAnUntypedShapeToTheTopType`,
   `e2e.TestKindInference_DisabledReportsEveryKeywordOfASchemaOnce`,
   `e2e.TestKindInference_TheTextOptionSwitchesThePolicy`,
+  `e2e.TestKindInference_AnUntypedShapeLosesNothingUnderEitherPolicy`,
+  `e2e.TestKindInference_APropertySetBesideAUnionComposesByThePolicy`,
+  `e2e.TestKindInference_EveryShapeKeywordInfersTheKindItSpeaksOf`,
+  `e2e.TestKindInference_AnInferredCollectionKeepsItsMemberTypes`,
+  `e2e.TestKindInference_AnInlineCollectionIsMarkedAtItsPosition`,
+  `e2e.TestKindInference_ASchemaSpeakingOfTwoKindsIsAMarkedUnionOfBoth`,
+  `e2e.TestKindInference_AThreeZeroSchemaSpeakingOfTwoKindsIsAMarkedUnion`,
+  `e2e.TestKindInference_EachVariantOfATwoKindUnionIsMarked`,
+  `e2e.TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
   `schema.TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead`,
@@ -4595,8 +4611,9 @@ alone, written with a `type` or not, admitting none a bound applies to
 ([`union-null-variant`](#union-null-variant)), and the target a `$dynamicRef` or `$recursiveRef`
 names ([`dynamic-ref`](#dynamic-ref)), read through as many of those as the named schemas write,
 from the source and never from what has been lowered, once a compile, so no answer turns on the
-order schemas are declared in or on how many the read takes in. Where that leaves every kind and the
-schema's `properties` lists a member, it admits an object, as it lowers to a `Model`. A read meeting
+order schemas are declared in or on how many the read takes in. Where that leaves every kind, it
+admits the kinds the schema's shape keywords speak of under the kind-inference policy, as it lowers
+to them ([`shape-applicator`](#shape-applicator)). A read meeting
 a cycle of `$ref`s, `allOf` entries or dynamic references, or a `$ref` landing on no schema,
 whichever schema of it is read first, leaves the position's own `type` to decide. A schema
 declaring no `type` and naming none excludes nothing, so it reads every bound; one declaring `null`

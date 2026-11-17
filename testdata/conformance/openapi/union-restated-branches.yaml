@@ -79,11 +79,17 @@ components:
       oneOf:
         - {required: [html], properties: {html: {type: string}}}
         - {required: [url], properties: {url: {type: string}}}
-    # A branch writing items names an element type, which is shape, so the
-    # union degrades, here beside a body that is no model.
+    # A branch writing items names an element type, which is shape, and an
+    # array, as the kind-inference policy reads it: each says the body's type,
+    # so the union is the whole, a union of two lists.
     RenderSizes:
       type: array
       oneOf: [{items: {type: string}}, {items: {type: integer}}]
+    # A branch writing a format says more than the body and no kind of its
+    # own, so the union degrades, here beside a body that is no model.
+    RenderFormats:
+      type: string
+      oneOf: [{format: date}, {format: uri}]
     # A property may repeat what two of the body's declarations say together,
     # and a property it nests what the body declares of that.
     RenderJoint:

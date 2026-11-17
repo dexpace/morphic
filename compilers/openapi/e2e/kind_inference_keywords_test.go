@@ -1,12 +1,12 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-//go:build pending
-
 package e2e_test
 
 import (
 	"encoding/json/v2"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +57,7 @@ func TestKindInference_EveryShapeKeywordInfersTheKindItSpeaksOf(t *testing.T) {
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		var schemas []string
 		for _, tc := range shapeTwins {
-			if !(tc.only31 && version == "3.0.3") {
+			if !tc.only31 || version != "3.0.3" {
 				schemas = append(schemas, tc.untyped, tc.twin)
 			}
 		}
@@ -174,7 +174,7 @@ func TestKindInference_ASchemaSpeakingOfTwoKindsIsAMarkedUnionOfBoth(t *testing.
 		{"ReqItems", "required: [a], items: {type: string}", "ReqItemsT"},
 		{"AddlItems", "additionalProperties: {type: string}, items: {type: string}", "AddlItemsT"},
 	}
-	var schemas []string
+	schemas := make([]string, 0, 2*len(rows))
 	for _, row := range rows {
 		schemas = append(schemas,
 			row.name+": {"+row.untyped+"}",
@@ -215,4 +215,89 @@ func TestKindInference_AThreeZeroSchemaSpeakingOfTwoKindsIsAMarkedUnion(t *testi
 		assert.Empty(t, keptOn(union))
 		assert.ElementsMatch(t, []string{"object:model", "array:list"}, unionShapeOf(t, doc, componentID("Both")).variants)
 	})
+}
+
+// TestKindInference_EachVariantOfATwoKindUnionIsMarked holds that the variants
+// of the union a schema speaking of two kinds lowers to carry the marker as the
+// union does: each variant's kind was read off the keywords too, unlike those of
+// the union a type array declares.
+func TestKindInference_EachVariantOfATwoKindUnionIsMarked(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Both: {properties: {a: {type: string}}, items: {type: string}}",
+		"BothT: {type: [object, array], properties: {a: {type: string}}, items: {type: string}}",
+	}
+	doc, _ := compileKindInference(t, "variants", admissionSpec("3.1.0", "", schemas...), false)
+	for name, marked := range map[string]bool{"Both": true, "BothT": false} {
+		union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
+		require.True(t, ok, name)
+		require.Len(t, union.Variants, 2, name)
+		for _, v := range union.Variants {
+			assert.Equal(t, marked, markedKindInference(kindNode(t, doc, v.Type.Target)), "%s: %s", name, v.Type.Target)
+		}
+	}
+}
+
+// TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder holds that the
+// union a schema speaking of two kinds lowers to reads no order off its
+// keywords: written object keyword first or array keyword first, the union,
+// its variants in order and the findings are one.
+func TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			objectFirst, objectDiags := compileKindInference(t, "object-first", admissionSpec(version, "",
+				"Both: {required: [a], properties: {a: {type: string}}, items: {type: string}}"), false)
+			arrayFirst, arrayDiags := compileKindInference(t, "array-first", admissionSpec(version, "",
+				"Both: {items: {type: string}, properties: {a: {type: string}}, required: [a]}"), false)
+			assert.Equal(t, unionShape{exclusive: true, variants: []string{"object:model", "array:list"}},
+				unionShapeOf(t, objectFirst, componentID("Both")))
+			assert.Equal(t, nodeWithoutNames(t, objectFirst, componentID("Both")),
+				nodeWithoutNames(t, arrayFirst, componentID("Both")))
+			union, ok := kindNode(t, objectFirst, componentID("Both")).(*ir.Union)
+			require.True(t, ok)
+			for _, v := range union.Variants {
+				assert.Equal(t, nodeWithoutNames(t, objectFirst, v.Type.Target), nodeWithoutNames(t, arrayFirst, v.Type.Target))
+			}
+			assert.Equal(t, kindFindings(objectDiags), kindFindings(arrayDiags))
+		})
+	}
+}
+
+// kindFindings lists each finding's code and pointer, sorted.
+func kindFindings(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, d.Code+" "+string(d.Provenance.Pointer))
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestKindInference_AKindAConjunctNamesIsDeclared holds a schema writing no
+// type beside a union kept whole, whose branches name kinds: its shape keywords
+// pick the kinds of those they speak of, which the document declared, so the
+// node is unmarked and the same under either policy, and the top type where
+// they speak of none.
+func TestKindInference_AKindAConjunctNamesIsDeclared(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Obj: {type: object, properties: {a: {type: string}}}",
+		"Closed: {oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Obj'}], additionalProperties: false}",
+		"Scalars: {oneOf: [{type: 'null'}, {type: string}, {type: integer}], items: {type: string}}",
+	}
+	for _, off := range []bool{false, true} {
+		t.Run(fmt.Sprintf("off=%t", off), func(t *testing.T) {
+			t.Parallel()
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, _ := compileKindInference(t, "declared", admissionSpec("3.1.0", "", schemas...), off)
+				closed := kindNode(t, doc, componentID("Closed"))
+				assert.Equal(t, ir.KindModel, closed.Kind(), "the branches declare an object")
+				assert.False(t, markedKindInference(closed), "the document declared the kind")
+				assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonDegradedLowering}, keptOn(closed))
+				assertUntypedOutcome(t, doc, "Scalars", topKeeping("items", "oneOf"))
+			})
+		})
+	}
 }

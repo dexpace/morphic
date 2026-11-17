@@ -152,6 +152,44 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/RenderSizes/oneOf/0": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/RenderSizes/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderSizes/oneOf/0",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/RenderSizes/oneOf/1": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/RenderSizes/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderSizes/oneOf/1",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/RenderTagged/oneOf/0": {
       "kind": "model",
       "id": "t/anon/components/schemas/RenderTagged/oneOf/0",
@@ -1279,6 +1317,42 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderFormats": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/RenderFormats",
+      "name": {
+        "source": "RenderFormats",
+        "canonical": "render_formats"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "format": "date"
+            },
+            {
+              "format": "uri"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderFormats/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderFormats"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/RenderJoint": {
       "kind": "model",
       "id": "t/openapi/components/schemas/RenderJoint",
@@ -1517,7 +1591,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/RenderSizes": {
-      "kind": "list",
+      "kind": "union",
       "id": "t/openapi/components/schemas/RenderSizes",
       "name": {
         "source": "RenderSizes",
@@ -1526,35 +1600,36 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:oneOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "items": {
-                "type": "string"
-              }
-            },
-            {
-              "items": {
-                "type": "integer"
-              }
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/RenderSizes/oneOf"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RenderSizes"
       },
-      "elem": {
-        "target": "t/prim/any",
-        "nullable": false
-      }
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/RenderSizes/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/RenderSizes/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/RenderTagged": {
       "kind": "union",
@@ -1597,9 +1672,9 @@
       "closed": true,
       "inputOnly": false
     },
-    "t/prim/any": {
+    "t/prim/integer": {
       "kind": "primitive",
-      "id": "t/prim/any",
+      "id": "t/prim/integer",
       "name": {},
       "anonymous": false,
       "docs": {},
@@ -1607,7 +1682,7 @@
       "provenance": {
         "source": -1
       },
-      "prim": "any"
+      "prim": "integer"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -1726,7 +1801,7 @@
       "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/RenderSizes"
+        "pointer": "/components/schemas/RenderFormats"
       }
     },
     {
@@ -1761,7 +1836,7 @@
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "9c0b79624426a0b62cbdfad0563e91eb89cadb715a75c1bea1e8d3a594a75438"
+      "hash": "c1f848e936c2280484a121fd6eeca4003bc0d8fb203e49d2ee263227548d42ab"
     }
   ]
 }

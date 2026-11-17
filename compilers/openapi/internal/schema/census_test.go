@@ -268,7 +268,7 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	assert.Empty(t, validated(t, doc))
 
 	owners := map[string]ir.Unmodeled{}
-	for _, name := range []string{"Str", "En", "Mixed", "Arr", "Bare", "RefD"} {
+	for _, name := range []string{"Str", "En", "Mixed", "Arr", "RefD"} {
 		owners["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
 	}
 	for _, at := range []string{"Items/items", "Sub/allOf/0", "Holder/properties/q"} {
@@ -296,13 +296,14 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 // TestHeldDiscriminator_IsNotKeptTwice pins the census's control: a union or a
 // model that routes by its discriminator holds it, so nothing is kept verbatim
 // and nothing is reported. A model needs no type to hold one: properties alone
-// make it.
+// make it, and so does the discriminator alone, both of an object.
 func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(cat + dog +
 		"    U: {oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}], discriminator: {propertyName: kind}}\n" +
 		"    Base: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
-		"    Untyped: {properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
+		"    Untyped: {properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
+		"    Bare: {discriminator: {propertyName: kind}}\n")
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc))
@@ -310,7 +311,7 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.NotNil(t, u.Discriminator)
-	for _, name := range []string{"Base", "Untyped"} {
+	for _, name := range []string{"Base", "Untyped", "Bare"} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, name)
 		assert.NotNil(t, m.Discriminator, name)
@@ -348,7 +349,7 @@ func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
 		sites      []string
 	}{
 		{"beside no union", homelessSpec + more, []string{"/paths/~1p/get/parameters/0/schema", "Str", "En", "Mixed", "Arr",
-			"Bare", "RefD", "Items/items", "Sub/allOf/0", "Holder/properties/p", "Holder/properties/q", "Multi", "Obj", "Collapsed"}},
+			"RefD", "Items/items", "Sub/allOf/0", "Holder/properties/p", "Holder/properties/q", "Multi", "Obj", "Collapsed"}},
 		{"beside a union", unplacedSpec, []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU", "RefSite",
 			"Holder/properties/n", "Holder/properties/r"}},
 	} {
@@ -466,7 +467,6 @@ components:
     En: {enum: [a, b], discriminator: {propertyName: kind}}
     Mixed: {enum: [1, a], discriminator: {propertyName: kind}}
     Arr: {type: array, items: {type: string}, discriminator: {propertyName: kind}}
-    Bare: {discriminator: {propertyName: kind}}
     RefD: {$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}
     Items: {type: array, items: {type: string, discriminator: {propertyName: kind}}}
     Sub: {allOf: [{$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}]}
