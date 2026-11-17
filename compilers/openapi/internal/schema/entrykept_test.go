@@ -41,7 +41,7 @@ func TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason(t *testing.
 // TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce pins an entry kept whole
 // for a closure it does not type while what else it writes folds: its vendor
 // extension and its validation-only keyword are kept inside it alone, and its
-// description is typed, at a component and at a property.
+// description is typed, where the allOf refines and where it composes.
 func TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce(t *testing.T) {
 	t.Parallel()
 	const entry = "{additionalProperties: false, x-a: 1, propertyNames: {pattern: '^a'}, description: d}"

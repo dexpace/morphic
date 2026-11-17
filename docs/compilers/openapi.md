@@ -2634,6 +2634,7 @@ every entry reads that one twice.
   `e2e.TestKeptEntryKeyword_AnEntryDisagreeingWithAnotherKeepsItsKeywordsReasonWhenKeptWhole`,
   `e2e.TestKeptEntryKeyword_TwoWritersOfOneKeywordAndValueKeepOneEntryAtThePosition`,
   `e2e.TestKeptEntryKeyword_TwoEntriesKeepingOneKeywordAlikeKeepOneEntryAtThePosition`,
+  `e2e.TestKeptEntryKeyword_AKeywordWrittenAlikeBesideTheAllOfIsKeptAsThere`,
   `schema.TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce`,
   `schema.TestEntryKept_AnEntryOfAnUndecidedAllOfIsReportedAgainstTheKeywordsBesideIt`,
   `schema.TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason`,

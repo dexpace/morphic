@@ -116,7 +116,7 @@ func TestKeptEntryKeyword_ANoteWithNoFieldIsKeptUnderItsOwnKeyAndTheRestAreTyped
 		name: "docs-and-visibility", principal: keptStr, twin: true,
 		keyword: "description: d, deprecated: true, readOnly: true, xml: {name: x}, example: q",
 		want:    map[string]ir.UnmodeledReason{"openapi:readOnly": ir.ReasonNoIRHome},
-		finds:   []keptFinding{keptDegraded("/allOf/{i}/readOnly|/allOf/{i}", "readOnly")},
+		finds:   []keptFinding{keptDegraded("/allOf/{i}/readOnly", "readOnly")},
 		check: func(t *testing.T, doc *ir.Document, name string) {
 			t.Helper()
 			assert.Equal(t, "d", kindNode(t, doc, componentID(name)).Common().Docs.Description, name)
@@ -293,7 +293,7 @@ func TestKeptEntryKeyword_ADynamicReferenceOnAnEntryOfAnItemIsKeptUnderItsOwnKey
 		name: "dynamic-ref-at-items", principal: keptStr, keyword: "$dynamicRef: '#m'", versions: keptOnly31,
 		wrap: "{type: array, items: %s}", pos: "/items", extra: []string{"Tree: {$dynamicAnchor: m, type: object}"},
 		want:  degradedKept("openapi:$dynamicRef"),
-		finds: []keptFinding{keptDegraded("/allOf/{i}/$dynamicRef|/allOf/{i}", "$dynamicRef")},
+		finds: []keptFinding{keptDegraded("/allOf/{i}/$dynamicRef", "$dynamicRef")},
 	}})
 }
 
@@ -307,17 +307,17 @@ func TestKeptEntryKeyword_AScopedKeywordIsKeptOutOfScopeAndAConsumedOneNowhere(t
 		{
 			name: "schema", principal: keptStr, keyword: "$schema: 'https://json-schema.org/draft/2020-12/schema'",
 			versions: keptOnly31, twin: true, want: oos("openapi:$schema"),
-			finds: []keptFinding{keptDegraded("/allOf/{i}/$schema|/allOf/{i}", "$schema")},
+			finds: []keptFinding{keptDegraded("/allOf/{i}/$schema", "$schema")},
 		},
 		{
 			name: "vocabulary", principal: keptStr, keyword: "$vocabulary: {'https://example.com/v': true}",
 			versions: keptOnly31, twin: true, want: oos("openapi:$vocabulary"),
-			finds: []keptFinding{keptDegraded("/allOf/{i}/$vocabulary|/allOf/{i}", "$vocabulary")},
+			finds: []keptFinding{keptDegraded("/allOf/{i}/$vocabulary", "$vocabulary")},
 		},
 		{
 			name: "id-beside-members", principal: keptObj, keyword: "$id: 'https://example.com/e3', properties: {x: {type: string}}",
 			versions: keptOnly31, want: oos("openapi:$id"),
-			finds: []keptFinding{keptDegraded("/allOf/{i}/$id|/allOf/{i}", "$id")},
+			finds: []keptFinding{keptDegraded("/allOf/{i}/$id", "$id")},
 			check: func(t *testing.T, doc *ir.Document, name string) {
 				t.Helper()
 				model := requireModelOf(t, doc, name)
@@ -469,6 +469,43 @@ func TestKeptEntryKeyword_TwoWritersOfOneKeywordAndValueKeepOneEntryAtThePositio
 			})
 		})
 	}
+}
+
+// TestKeptEntryKeyword_AKeywordWrittenAlikeBesideTheAllOfIsKeptAsThere holds a
+// keyword an entry writes as the keywords beside its allOf write it to what
+// those keep: one entry, at the keyword beside the allOf, with that keyword's
+// report alone, in both orders of the components.
+func TestKeptEntryKeyword_AKeywordWrittenAlikeBesideTheAllOfIsKeptAsThere(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, keyword, key string
+		reason             ir.UnmodeledReason
+		find               keptFinding
+	}{
+		{"Format", "format: email", "format", ir.ReasonDegradedLowering, keptDegraded("", "format")},
+		{"Unknown", "foo: 1", "foo", ir.ReasonOutOfScope, keptInfo(diag.UnknownSchemaKeyword, "/foo", "foo")},
+		{
+			"Content", "contentMediaType: text/html", "contentMediaType", ir.ReasonNoIRHome,
+			keptDegraded("/contentMediaType", "contentMediaType"),
+		},
+	}
+	schemas := make([]string, 0, 1+len(cases))
+	schemas = append(schemas, "Str: {type: string}")
+	for _, c := range cases {
+		schemas = append(schemas, c.name+": {allOf: ["+keptStr+", {"+c.keyword+"}], "+c.keyword+"}")
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "alike", admissionSpec("3.1.0", "", schemas...))
+		for _, c := range cases {
+			got := keptKeywordsOf(doc, c.name)
+			key := "openapi:" + c.key
+			require.Equal(t, map[string]ir.UnmodeledReason{key: c.reason}, keptKeywordReasons(got), c.name)
+			require.Len(t, got[key], 1, c.name)
+			assert.Equal(t, "/components/schemas/"+c.name+"/"+c.key, got[key][0].pointer,
+				"%s: the keyword beside the allOf holds the entry", c.name)
+			keptFindingsUnder(t, diags, c.name, []keptFinding{c.find})
+		}
+	})
 }
 
 // keptEntryIssueSchemas is the schemas with Text, a string, and Obj, an
