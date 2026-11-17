@@ -5,6 +5,7 @@ package schema
 
 import (
 	"bytes"
+	"maps"
 	"slices"
 	"strings"
 
@@ -132,8 +133,9 @@ type admitted struct {
 	kinds kindSet
 	// fixed marks a value set, values then holding each member's key (memberOf)
 	// with its kind, none where the set is empty, and joined the sets a union
-	// adds to it, each still the branch's own: a union shares its branches'
-	// sets rather than copying them, and none is written to.
+	// adds to it (joinSets), each still the branch's own where it can be: a
+	// union shares its branches' sets rather than copying them, no member is
+	// held twice, and none is written to.
 	fixed  bool
 	values map[string]kindSet
 	joined []map[string]kindSet
@@ -154,8 +156,7 @@ func (a admitted) hasMember(key string) bool {
 	return false
 }
 
-// members yields each member of a's value set with its kind, one two joined
-// sets hold once for each.
+// members yields each member of a's value set with its kind, once.
 func (a admitted) members(yield func(string, kindSet) bool) {
 	for v, kind := range a.values {
 		if !yield(v, kind) {
@@ -171,8 +172,7 @@ func (a admitted) members(yield func(string, kindSet) bool) {
 	}
 }
 
-// size is how many members a's sets hold together, one two of them hold
-// counted for each.
+// size is how many members a's value set holds.
 func (a admitted) size() int {
 	n := len(a.values)
 	for _, set := range a.joined {
@@ -221,9 +221,45 @@ func sharedValues(a, b admitted) map[string]kindSet {
 func (a admitted) or(b admitted) admitted {
 	out := admitted{kinds: a.kinds | b.kinds, fixed: a.fixed && b.fixed}
 	if out.fixed {
-		out.values, out.joined = a.values, slices.Concat(a.joined, []map[string]kindSet{b.values}, b.joined)
+		out.values, out.joined = joinSets(a, b)
 	}
 	return out
+}
+
+// maxJoinedSets bounds the sets a value set joins beside its first, so asking
+// whether it holds a member reads at most that many more maps.
+const maxJoinedSets = 8
+
+// joinSets returns the sets the union of a's and b's value sets holds: the
+// larger's as they are, and the smaller's where the larger holds none of their
+// members, else one set of the members it lacks, so no member is held twice.
+// Past maxJoinedSets sets beside the first, they are copied into one.
+func joinSets(a, b admitted) (map[string]kindSet, []map[string]kindSet) {
+	if b.size() > a.size() {
+		a, b = b, a
+	}
+	added := slices.Concat([]map[string]kindSet{b.values}, b.joined)
+	for v := range b.members {
+		if a.hasMember(v) {
+			rest := make(map[string]kindSet, b.size())
+			for member, kind := range b.members {
+				if !a.hasMember(member) {
+					rest[member] = kind
+				}
+			}
+			added = []map[string]kindSet{rest}
+			break
+		}
+	}
+	joined := slices.Concat(a.joined, slices.DeleteFunc(added, func(set map[string]kindSet) bool { return len(set) == 0 }))
+	if len(joined) <= maxJoinedSets {
+		return a.values, joined
+	}
+	one := make(map[string]kindSet, a.size()+b.size())
+	for _, set := range slices.Concat([]map[string]kindSet{a.values}, joined) {
+		maps.Copy(one, set)
+	}
+	return one, nil
 }
 
 // reachable reports whether any value is left: a kind, and, under a value set, a
@@ -250,14 +286,13 @@ func (a admitted) valuesWithin(b admitted) bool {
 	return within
 }
 
-// walkWithin is valuesWithin with how many of a's members it looked up. The
-// members of one set are distinct, so where neither joins another set, one
-// larger than b's holds one b lacks, answered unwalked.
+// walkWithin is valuesWithin with how many of a's members it looked up. Those
+// are distinct, so a set larger than b's holds one b lacks, answered unwalked.
 func (a admitted) walkWithin(b admitted) (within bool, walked int) {
 	if !b.fixed {
 		return true, 0
 	}
-	if !a.fixed || len(a.joined) == 0 && len(b.joined) == 0 && len(a.values) > len(b.values) {
+	if !a.fixed || a.size() > b.size() {
 		return false, 0
 	}
 	for v := range a.members {

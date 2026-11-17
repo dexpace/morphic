@@ -552,5 +552,39 @@ func TestAdmitted_AUnionHoldsEveryMemberOfTheSetsItJoins(t *testing.T) {
 	assert.True(t, set("c").valuesWithin(union))
 	assert.False(t, union.valuesWithin(set("a", "b")))
 	assert.True(t, union.valuesWithin(set("a", "b", "c")))
-	assert.True(t, set("a").or(set("a")).valuesWithin(set("a")), "a member two joined sets hold is one value")
+	assert.True(t, set("a").or(set("a")).valuesWithin(set("a")), "a member two branches hold is one value")
+	overlap := set("a", "b").or(set("b", "c")).or(set("c", "d", "e"))
+	assert.Equal(t, 5, overlap.size(), "a member two branches hold is held once")
+	assert.False(t, overlap.valuesWithin(set("a", "b", "c", "d")), "a larger set is no narrowing of a smaller")
+	assert.True(t, overlap.valuesWithin(set("a", "b", "c", "d", "e")))
+	assert.Equal(t, 5, set("y", "p", "q", "r").or(set("x").or(set("y"))).size(),
+		"a member a joined set of the smaller holds is held once")
+}
+
+// TestAdmissionOf_AUnionHoldsFewSetsApart holds the sets a union of k
+// branches, each naming a set of its own, holds apart to maxJoinedSets beside
+// its first at k, 4k and 16k, so asking whether it holds a member reads a
+// bounded number of maps whatever its width, and its members to every
+// branch's.
+func TestAdmissionOf_AUnionHoldsFewSetsApart(t *testing.T) {
+	t.Parallel()
+	for _, k := range []int{4, 16, 64} {
+		var b strings.Builder
+		b.WriteString("    U: {oneOf: [")
+		for j := range k {
+			fmt.Fprintf(&b, "{$ref: '#/components/schemas/E%d'}, ", j)
+		}
+		b.WriteString("]}\n")
+		for j := range k {
+			fmt.Fprintf(&b, "    E%d: {enum: [a%d, b%d, c]}\n", j, j, j)
+		}
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
+		at := bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"}
+		union := admissionOf(l.Ctx, l.Ctx.Statements().At(at)).admitted
+		assert.LessOrEqual(t, len(union.joined), maxJoinedSets, "a union of %d", k)
+		assert.Equal(t, 2*k+1, union.size(), "a union of %d holds each member once", k)
+		for _, r := range admissionStore(l.Ctx).read {
+			assert.LessOrEqual(t, len(r.admitted.joined), maxJoinedSets, "a union of %d", k)
+		}
+	}
 }
