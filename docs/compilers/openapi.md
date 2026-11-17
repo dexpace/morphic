@@ -2642,8 +2642,9 @@ admits no array, however deep the entry. A schema read as an `allOf` entry and n
 read alone. It admits a kind whole only where no keyword it takes in refuses some instance
 of that kind while admitting others: a value set, a numeric or a string bound, a `format`, and a
 keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
-kinds in part, and a union admits a kind whole where a branch does and, for a `oneOf`, which refuses
-what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
+kinds in part, but for one whose schemas, applied to the instance's parts, each state nothing, as
+`items: {}` and `additionalProperties: true` do; and a union admits a kind whole where a branch does
+and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
 `{enum: [1, 2]}` and `{anyOf: [{type: object}, {type: integer, minimum: 5}]}` each admit some
 integers and not every one, and a structure composing one of them is judged against `integer` as a
 structure stating its type is: the conflict is reported and the declaration the field does not keep
