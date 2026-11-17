@@ -60,10 +60,10 @@
   ],
   "types": {
     "t/anon/components/schemas/Implied/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Implied/oneOf/0",
       "name": {
-        "hint": "cat"
+        "hint": "variant_0"
       },
       "anonymous": true,
       "docs": {
@@ -77,13 +77,16 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Pet/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Pet/oneOf/0",
       "name": {
-        "hint": "cat"
+        "hint": "variant_0"
       },
       "anonymous": true,
       "docs": {
@@ -97,13 +100,16 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Twins/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Twins/oneOf/0",
       "name": {
-        "hint": "cat"
+        "hint": "variant_0"
       },
       "anonymous": true,
       "docs": {
@@ -117,10 +123,13 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Twins/oneOf/1": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Twins/oneOf/1",
       "name": {
         "hint": "tabby"
@@ -137,13 +146,16 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Unknown/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Unknown/oneOf/0",
       "name": {
-        "hint": "cat"
+        "hint": "variant_0"
       },
       "anonymous": true,
       "docs": {},
@@ -165,7 +177,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Cat": {
       "kind": "model",

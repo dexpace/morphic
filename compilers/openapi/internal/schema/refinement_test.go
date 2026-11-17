@@ -1597,8 +1597,10 @@ func TestRefinement_TwinsTheRefSpelling(t *testing.T) {
 
 // TestRefinement_StructuralKeywordsPartFromTheRefSpelling pins where the twin
 // above stops: a structural keyword the reference already says is consumed
-// here, and kept beside a 3.1 $ref, which reads no target.
-func TestRefinement_StructuralKeywordsPartFromTheRefSpelling(t *testing.T) {
+// TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf pins
+// that a type the reference already says is consumed beside a 3.1 $ref as
+// beside an allOf of it: the two are one conjunction.
+func TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+`    Holder:
       type: object
@@ -1607,8 +1609,11 @@ func TestRefinement_StructuralKeywordsPartFromTheRefSpelling(t *testing.T) {
         beside: {$ref: '#/components/schemas/Port', type: integer}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, propertyOf(t, doc, "Holder", "allOf").Unmodeled)
-	assert.Contains(t, propertyOf(t, doc, "Holder", "beside").Unmodeled, "openapi:type")
+	for _, name := range []string{"allOf", "beside"} {
+		p := propertyOf(t, doc, "Holder", name)
+		assert.Empty(t, p.Unmodeled, name)
+		assert.Equal(t, componentID("Port"), p.Type.Target, name)
+	}
 }
 
 // TestRefinement_ABranchHoldsWhatItsNodeDoes pins an inline principal: a value
@@ -1658,8 +1663,11 @@ func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
 
 // TestRefinement_ARefBranchKeepsItsSiblings pins a $ref branch writing keywords
 // beside itself: the branch hoists its alias, as it does in a composition, and
-// a carrier reads them as it reads the target's.
-func TestRefinement_ARefBranchKeepsItsSiblings(t *testing.T) {
+// TestRefinement_ARefEntrysSiblingsAreThePositions pins a $ref entry writing
+// keywords beside itself: they are conjuncts of the position, as the same
+// keywords on an entry of their own are, so the carrier holds them and the
+// position is the use of the target, with no node at the entry.
+func TestRefinement_ARefEntrysSiblingsAreThePositions(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+`    Holder:
       type: object
@@ -1668,10 +1676,10 @@ func TestRefinement_ARefBranchKeepsItsSiblings(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	p := propertyOf(t, doc, "Holder", "f")
-	alias := aliasAt(t, doc, p.Type)
-	assert.Equal(t, componentID("Str"), alias.Base.Target)
+	assert.Equal(t, componentID("Str"), p.Type.Target)
 	assert.Equal(t, "beside", p.Docs.Description)
 	assert.NotEmpty(t, p.Visibility.Only)
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Holder/properties/f/allOf/0"))
 }
 
 // TestRefinement_VariantNamedAsItsRef pins a union branch refining a $ref: named
@@ -2146,8 +2154,12 @@ func TestRefinement_AnEmptyAllOfOnABranchIsKept(t *testing.T) {
 
 // TestRefinement_KeywordsBesideARefAreNotConjuncts pins where a refinement stops:
 // an allOf beside a $ref, or beside a $dynamicRef, is no refinement, and a branch
-// of it speaks for nothing.
-func TestRefinement_KeywordsBesideARefAreNotConjuncts(t *testing.T) {
+// TestRefinement_AnAllOfBesideARefJoinsItsConjunction pins that an allOf
+// beside a $ref adds its entries to the conjunction the $ref is one conjunct
+// of, so a branch speaks for the position as it would beside no $ref, and that
+// a $dynamicRef the position does not expand, kept on its carrier, masks no
+// kind: the conjuncts beside it decide, and nothing makes a model of a string.
+func TestRefinement_AnAllOfBesideARefJoinsItsConjunction(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+`    Node: {$dynamicAnchor: node, type: string}
     Holder:
@@ -2163,14 +2175,20 @@ func TestRefinement_KeywordsBesideARefAreNotConjuncts(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	beside := propertyOf(t, doc, "Holder", "beside")
-	assert.Equal(t, "from the target", beside.Docs.Description, "the branch is kept, not read")
-	assert.Nil(t, beside.Default)
-	assert.Contains(t, beside.Unmodeled, "openapi:allOf")
-	assert.Empty(t, propertyOf(t, doc, "Holder", "dynamic").Docs.Description)
-	assert.Empty(t, propertyOf(t, doc, "Holder", "dynamicRef").Visibility.Only)
+	assert.Equal(t, componentID("Str"), beside.Type.Target)
+	assert.Equal(t, "branch", beside.Docs.Description, "the branch speaks for the position")
+	require.NotNil(t, beside.Default)
+	assert.Empty(t, beside.Unmodeled)
+	dynamic := propertyOf(t, doc, "Holder", "dynamic")
+	assert.Equal(t, "branch", dynamic.Docs.Description)
+	assert.Contains(t, dynamic.Unmodeled, "openapi:$dynamicRef")
+	dynamicRef := propertyOf(t, doc, "Holder", "dynamicRef")
+	assert.Equal(t, componentID("Bound"), dynamicRef.Type.Target, "the $ref beside it decides")
+	assert.NotEmpty(t, dynamicRef.Visibility.Only)
+	assert.Contains(t, dynamicRef.Unmodeled, "openapi:$dynamicRef")
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	assert.Empty(t, doc.Types[items.Elem.Target].Common().Docs.Description, "nor does a branch beside a $ref")
+	assert.Equal(t, "branch", doc.Types[items.Elem.Target].Common().Docs.Description, "an items beside a $ref reads its branch too")
 }
 
 // TestRefinement_DeclaredBeforeItsTarget pins a use lowered before what it names:

@@ -642,9 +642,9 @@ var titleRows = func() []struct{ name, pointer, want string } {
 		{"two titles allOf branches write", keyed + "/properties/conjuncts", "conjuncts"},
 		{"one title allOf branches agree on", keyed + "/properties/agreeing", "one"},
 		{"a schema's own title before its branches'", keyed + "/properties/overruled", "own"},
-		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "referenced"},
-		{"a title beside a $dynamicRef in an allOf", keyed + "/properties/dynamic", "dynamic"},
-		{"a title an allOf branch nests", keyed + "/properties/nested", "nested"},
+		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "beside_a_ref"},
+		{"a title beside a $dynamicRef in an allOf", keyed + "/properties/dynamic", "beside_a_dynamic_ref"},
+		{"a title an allOf branch nests", keyed + "/properties/nested", "deep"},
 		{"a title under an allOf written as a mapping", keyed + "/properties/mapped", "mapped"},
 		{"a title a branch's allOf writes is its siblings' too", "/components/schemas/Conjoined/anyOf/0", "variant_0"},
 		{"a $defs entry keeps its key", keyed + "/$defs/Local", "Local"},
@@ -680,7 +680,14 @@ func TestAt_NamesNoSchemaByItsTitleWhereTitlesNameNothing(t *testing.T) {
 	differs := 0
 	for _, tc := range titleRows {
 		p := at(tc.pointer)
-		assert.Equal(t, written.At(p), off.At(p), tc.name)
+		if tc.pointer == "/components/schemas/Lookup/oneOf/8" {
+			// A title beside a $ref makes the branch a node of its own, named by
+			// its position, where the $ref alone is named after its target.
+			assert.Equal(t, "variant_8", off.At(p), tc.name)
+			assert.Equal(t, "Pet", written.At(p), tc.name)
+		} else {
+			assert.Equal(t, written.At(p), off.At(p), tc.name)
+		}
 		title, titled := off.Title(p)
 		assert.False(t, titled, tc.name)
 		assert.Empty(t, title, tc.name)

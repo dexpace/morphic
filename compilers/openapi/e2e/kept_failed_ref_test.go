@@ -86,10 +86,16 @@ func TestKeptFailedRef_AResolvedRefKeepsWhatIsWrittenBesideIt(t *testing.T) {
 			}
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "resolved", admissionSpec(version, "", schemas...))
+				// What the entry writes beside its $ref is a conjunct of the
+				// composition: the member merges, the note is the model's, and
+				// only the bound a model cannot hold is kept.
 				requireKeptKeywords(t, "YOk", keptKeywordsOf(doc, "YOk"),
-					degradedKept("openapi:properties", "openapi:minLength"), "/components/schemas/YOk/allOf/0", false)
+					degradedKept("openapi:minLength"), "/components/schemas/YOk/allOf/0", false)
+				yok := requireModelNode(t, doc, componentID("YOk"))
+				assert.Equal(t, []string{"a"}, propertyNames(yok), "the member beside the $ref merges")
+				assert.Equal(t, "why", yok.Docs.Description)
 				keptFindingsUnder(t, diags, "YOk", append([]keptFinding{
-					keptDegraded("/allOf/0", "properties", "minLength"),
+					keptDegraded("/allOf/0", "minLength"),
 				}, keptBesideARef(version, "/allOf/0", "description", "properties", "minLength")...))
 			})
 		})

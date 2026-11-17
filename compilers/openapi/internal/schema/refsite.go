@@ -17,34 +17,21 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// refSiteRef resolves a $ref position and keeps whatever is written beside the
-// $ref. In JSON Schema 2020-12 those siblings are conjoined with the $ref, so
-// they bind the position, not the referent, and cannot go on the target's
-// node; an alias over the target becomes their home. The alias carries the
-// position's constraints and annotations, and keeps verbatim the census
-// keywords those leave, allOf and oneOf/anyOf written beside the $ref, because
-// it has no property set, member set, value or encoding of its own (GitHub
-// #283, #406).
-//
-// At an annotation.HomeCarrier position no alias is hoisted: the carrier keeps
-// them through PreserveRefSiteKeywords (GitHub #114).
+// refSiteRef resolves a $ref position, a schema writing its reference beside
+// nothing it reads but what a reference leaves silent: any key read beside a
+// $ref makes a conjunction (statement.Table), lowered as its allOf spelling
+// is. What such a site keeps, an alias over the target holds, or, at an
+// annotation.HomeCarrier position, the carrier through PreserveRefSiteKeywords
+// (GitHub #114).
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
-	// A rule about the declaration holds the keywords beside its $ref as it holds
-	// a body's (schemaBody), with what the $ref lands on.
-	diags = append(missingArrayItemsBesideRef(c, js, pointer), diags...)
-	unhomed := refSiteUnhomedKeywords(c, s, nil)
-	hasUnion := declaresUnion(s)
-	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
+	unhomed := referenceUnhomed(c, s, nil)
+	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0)
 	diags = append(diags, homeDiags...)
 	if home != annotation.HomeOwnNode {
 		return ref, diags
 	}
-	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, s, unhomed, refSiteShape, pointer)...)
-	if hasUnion {
-		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
-	}
-	return ref, diags
+	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, s, unhomed, refSiteShape, pointer)...)
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
@@ -71,11 +58,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		// reference just as a $ref site does.
 		return keepsAtOutcome(c, ts, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer)
 	}
-	diags := recordUnhomedAt(c, ts, p, js.Schema, refSiteUnhomedKeywords(c, js.Schema, nil), refSiteShape, pointer)
-	if !declaresUnion(js.Schema) {
-		return diags
-	}
-	return append(diags, preserveUnionSiblingsAt(c, p, js.Schema, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
+	return recordUnhomedAt(c, ts, p, js.Schema, referenceUnhomed(c, js.Schema, nil), refSiteShape, pointer)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the
@@ -257,10 +240,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement
 	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
-	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
-	diags = append(diags, aliasDiags...)
-	// As in lowerComponentSchema: this alias is the first node the pointer owns,
-	// so the annotations Ref had nowhere to put now have a home.
+	nodeDiags := internOwnNode(c, ts, decl, pointer, ref)
+	diags = append(diags, nodeDiags...)
+	// As in lowerComponentSchema: this node is the first the pointer owns, so
+	// the annotations Ref had nowhere to put now have a home.
 	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 

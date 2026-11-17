@@ -193,6 +193,11 @@ func (n *nulls) schema(s *statement.Schema, site nullSite) nullReading {
 	if !stated(s) || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
+	if s.BesideRef != nil {
+		// The keywords written beside a $ref are read over what it lands on, as
+		// the policy reads its idiom there (docs/compilers/openapi.md#nullable).
+		return n.widenByBranch(s, n.usage(s, n.lands(n.c.Statements().Read(s.BesideRef)), site), site)
+	}
 	own := n.keywords(s, site)
 	return n.widenByBranch(s, n.widen(s, own, own, site), site)
 }
@@ -238,10 +243,15 @@ func (n *nulls) lands(js *statement.Statement) nullReading {
 	// Each read below is in its own document's dialect, and the walk returns to
 	// its own on every way out.
 	defer func(outer bool) { n.nullable = outer }(n.nullable)
-	last := sites[len(sites)-1]
-	if !last.kept {
-		n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
-		n.keep(last, n.conjunct(n.c.Statements().At(e.Chain.End), nullSite{}))
+	if last := sites[len(sites)-1]; !last.kept {
+		end, endDoc := hop, at.Doc
+		if hop == nil || hop.Ref != nil {
+			// The chain's end, unless a schema writing keys beside its $ref ended
+			// the run, the two one conjunction (statement.Schema.BesideRef).
+			end, endDoc = n.c.Statements().At(e.Chain.End), e.Chain.End.Doc
+		}
+		n.nullable = definesNullableIn(n.c, endDoc)
+		n.keep(last, n.conjunct(end, nullSite{}))
 	}
 	// Only the last site can be kept already: the walk stops at the first.
 	for i, a := range slices.Backward(aliases) {
@@ -577,7 +587,7 @@ func nullAloneReading(c lowering.Ctx, s *statement.Schema) (nullReading, bool) {
 // which lowers to the top type (lowerEnum); and it writes a const, which the
 // null reading holds to null, such an enum, or a type naming null alone.
 func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
-	if !stated(s) || refWritten(s) || len(s.AllOf) > 0 || declaresUnion(s) || declaresDynamicRef(s) {
+	if !stated(s) || refWritten(s) || writesConjuncts(s) || declaresUnion(s) || declaresDynamicRef(s) {
 		return false
 	}
 	if enumWritten(s) {

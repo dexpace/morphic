@@ -119,9 +119,7 @@ func viewOf(t *testing.T, src string) plusView {
 		v.Responses[name] = openapitest.BodyTarget(t, openapitest.FindOp(t, doc, name).Responses[0].Payload)
 	}
 	for _, name := range []string{"Plus", "Escaped", "Space"} {
-		scalar, ok := doc.Types[componentID(name)].(*ir.Scalar)
-		require.True(t, ok, "%s is an alias of the type its $ref names", name)
-		v.Components[name] = scalar.Base.Target
+		v.Components[name] = useTarget(t, doc, name)
 	}
 	return v
 }
@@ -237,9 +235,7 @@ components:
 `+tc.schemas)
 
 			openapitest.RequireNoErrorDiags(t, diags)
-			plus, ok := typeByName(doc, "Plus").(*ir.Scalar)
-			require.True(t, ok, "Plus is an alias of the type its $ref names")
-			assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)), plus.Base.Target)
+			assert.Equal(t, ids.Document{}.ForPointer(ids.Ptr(responseSchema("/a+b")...)), useTarget(t, doc, "Plus"))
 			for _, name := range []string{"Named", "Text"} {
 				assert.Equal(t, text, typeByName(doc, name).Common().Docs.Description, name)
 			}

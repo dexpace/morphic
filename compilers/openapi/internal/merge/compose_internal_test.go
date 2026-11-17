@@ -399,7 +399,8 @@ func TestFold_ComposesOnlyTheDeclarationsItJudges(t *testing.T) {
 }
 
 // TestSelectBase_ChoosesAsTheRuleSays pins the rule both readers take: the only
-// $ref, else the first discriminated one, else none.
+// $ref, else the first discriminated one in the order the caller ranks them,
+// else none.
 func TestSelectBase_ChoosesAsTheRuleSays(t *testing.T) {
 	t.Parallel()
 	never := func(int) bool { return false }
@@ -415,7 +416,7 @@ func TestSelectBase_ChoosesAsTheRuleSays(t *testing.T) {
 		{"the only ref, undiscriminated", []int{3}, never, 3, true},
 		{"several, none discriminated", []int{1, 2}, never, 0, false},
 		{"several, one discriminated", []int{1, 2}, only(2), 2, true},
-		{"several discriminated, the first wins", []int{4, 2}, func(int) bool { return true }, 4, true},
+		{"several discriminated, the first as ranked wins", []int{4, 2}, func(int) bool { return true }, 4, true},
 	} {
 		got, ok := SelectBase(tc.refs, tc.discriminated)
 		assert.Equal(t, tc.ok, ok, tc.name)

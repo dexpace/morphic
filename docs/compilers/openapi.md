@@ -1289,7 +1289,7 @@ the item as what else it writes.
   `bind.TestBind_ReadsADefinitionByTheDefsRule`,
   `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
-  `schema.TestSchema_ARefThroughAnEmptyRefLendsNothing`,
+  `schema.TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
   `bind.TestBind_CountsWorkLinearInTheDocument`,
@@ -1778,7 +1778,9 @@ decorator spelling alike, whose [fold](../emitters/refine/decorators.md) reads t
 where any of its annotations is. An extension the promotion
 policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
-component — the keywords beside the `$ref` bind an alias hoisted at that position instead
+component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
+the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
+anything else, and in an `allOf` entry they are an inline conjunct of the composition
 ([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
 than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
@@ -2132,17 +2134,28 @@ placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
 ### `allof-classification`
 
 An `allOf` whose kinds are an object alone lowers to the composing `Model`'s `Base` and `Mixins`
-([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s. A
+([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s.
+An `allOf` of one `$ref` saying nothing else is neither: where its other entries and the schema
+writing it state nothing of the instance (an empty schema, a comment, an anchor, `$defs`, a keyword
+left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, so it is the reference, hoisting no
+node, and a carrier reads the target's documentation as through a bare `$ref`
+([`ref-use-site`](#ref-use-site)). A component, or a position a `$ref` names, still owns a node: over
+an object alone the `Model` whose `Base` is that object, in this spelling and the bare `$ref`'s;
+over any other target, one admitting null, which a `Base` does not carry, or a reference no node
+answers, the `Scalar` alias. A
 `$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, or to
 the union of a `type` list holding an object, whose object variant it composes (below): the sole
-such entry becomes `Base`, and of several the first, in source order, to a schema taking part
-in a discriminator hierarchy: one declaring a `discriminator`, or composing through `allOf`, at any
+such entry becomes `Base`, and of several, of those to a schema taking part in a discriminator
+hierarchy, one whose hierarchy's mapping names the composing schema before one whose does not, then
+the one whose reference text is the least, whichever is written first: one declaring a `discriminator`, or composing through `allOf`, at any
 depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag
 off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
 discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
 admits every kind, or another kind than an object, composes nothing, so no `Model` names a base or a
-mixin that is no object: it is kept verbatim under `openapi:allOf/<n>` (`degraded_lowering`) with an
-info `openapi/degraded-construct` at the entry, and its target still lowers. A composition meets one
+mixin that is no object: its reference is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
+reference text where several are kept, a failed one's among them (`degraded_lowering`), with an
+info `openapi/degraded-construct` at the entry, and its target still lowers. What such an entry
+writes beside its `$ref` is a conjunct of its own, kept by keyword as an inline entry's is. A composition meets one
 only where its read is cut short or its conjuncts share no value, as `{allOf: [{$ref: List}], type:
 object}` over an array does. A `$ref` entry naming no schema composes nothing either, and is kept
 under `openapi:$ref` ([`allof-inline-residue`](#allof-inline-residue)). The election reads the source, so no declaration order decides it, and a field
@@ -2181,6 +2194,11 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 - Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
+  `schema.TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt`,
+  `e2e.TestRefConjunction_AnAllOfOfOneRefHoistsNoNode`,
+  `e2e.TestRefConjunction_AComponentOverAnObjectIsTheModelThatOwnsIt`,
+  `e2e.TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs`,
+  `e2e.TestRefConjunction_TwoBasesInADiscriminatorHierarchyElectTheLeastReference`,
   `e2e.TestAllOfCompose_ObjectsAloneStayAModel`, `e2e.TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed`,
   `e2e.TestAllOfCompose_ConjunctsNoInstanceSatisfiesNameNoPlainBase`,
   `e2e.TestAllOfCompose_ASubtypeOfATypeListComposesItsObjectVariant`,
@@ -2347,7 +2365,7 @@ another URI, the same spelling may name another schema, while an absolute one na
 wherever it is read. A copy in another document is read apart. One saying
 more is kept under its own keyword, `openapi:<keyword>`, on a branch as beside the `allOf`, each
 reported as an info `openapi/degraded-construct` at the branch or at the position, a branch kept
-whole only where [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept as written under
+whole only where [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept, its text alone, under
 `openapi:$ref`, or `openapi:$ref/<i>` where it keeps several, `i` its rank by reference text, then by
 the entry as written, so no order of the entries decides, two written alike being one entry at the
 position. One a value set beats still
@@ -2463,7 +2481,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt`,
   `schema.TestRefinement_NoConjunctNamingAKindLeavesTheTopType`,
   `schema.TestRefinement_DecidedByTheSetInEveryOrder`, `schema.TestRefinement_TwinsTheRefSpelling`,
-  `schema.TestRefinement_StructuralKeywordsPartFromTheRefSpelling`,
+  `schema.TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf`,
   `schema.TestRefinement_ABranchHoldsWhatItsNodeDoes`,
   `schema.TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds`,
   `schema.TestRefinement_FlattensAsItsFlatSpelling`,
@@ -2483,15 +2501,18 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 
 ### `allof-beside-ref`
 
-An `allOf` written beside a `$ref` at the same level is not composed. A `$ref` site lowers to the
-alias over its target ([models](../ir/models.md#composition-entries)), which elects no
-composition family for the `allOf` to win or lose, so the alias's census of the keywords it cannot
-hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under `openapi:allOf`
-(`degraded_lowering`), with an info `openapi/degraded-construct` at the position.
+A schema's `$ref` is one conjunct of it and the keywords written beside it another, so an `allOf`
+written beside a `$ref` adds its entries to that conjunction: `{$ref: T, allOf: [E], K}` lowers as
+`{allOf: [{$ref: T}, E], K}` does ([`allof-classification`](#allof-classification),
+[`ref-use-site`](#ref-use-site)), the entries flattened as any are, so nothing of it is kept for want
+of a home. JSON Schema 2020-12 applies the keywords beside a `$ref` with it; a 3.0 document's are
+read the same way, with the warning `openapi/later-version-construct` at each such keyword
+([`later-version-construct`](#later-version-construct)).
 
 - Cases: `allof-ref-branch-siblings`
-- Codes: `openapi/degraded-construct`
-- Tests: `schema.TestRefSiteKeywords_KeptAtEveryPosition`
+- Codes: `openapi/later-version-construct`
+- Tests: `e2e.TestRefConjunction_AUseWritingKeywordsBesideItsRefCompilesAsTheAllOfSpelling`,
+  `schema.TestRefinement_AnAllOfBesideARefJoinsItsConjunction`
 
 ### `allof-inline-residue`
 
@@ -3998,14 +4019,18 @@ judged as one whose branches declare shape.
 
 ### `union-beside-ref`
 
-A `oneOf` or `anyOf` written beside a `$ref` at the same level, rather than beside a structural
-body, has nothing at that position to distribute the union across either: it lowers to the alias
-over the `$ref` target with the union kept verbatim beside it, under `openapi:oneOf` or
-`openapi:anyOf` (`degraded_lowering`), through the same keeper as the structural-body case, and
-reported as an info `openapi/degraded-construct` at the position.
+A `oneOf` or `anyOf` written beside a `$ref` is a union beside the conjunction the `$ref` is one
+conjunct of, and lowers as the same union written beside an `allOf` of the `$ref` does
+([`union-beside-structure`](#union-beside-structure), [`allof-refinement`](#allof-refinement)):
+consumed where the target already says it, kept as validation logic where its branches declare no
+shape, distributed over an object where they declare one, with an info
+`openapi/composition-lowering` at the position, and kept, with the warning
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) gives, where it shares no kind with the
+target.
 
 - Cases: `union-beside-ref`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/composition-lowering`
+- Tests: `e2e.TestRefConjunction_AUnionBesideARefLowersAsBesideAnAllOfOfIt`
 
 ### `competing-keywords`
 
@@ -4174,7 +4199,9 @@ is a reference wherever its discriminator ends up.
 A subtype's wire tag lowers to `Model.DiscriminatorValue`, left empty on the base itself. It is read
 off the discriminators of the subtype's `allOf` ancestors — the `$ref` branches' targets, then
 theirs, level by level to the walk's depth bound, nearest first, a schema that declares none passed
-through and no schema its own ancestor — as the key an ancestor's `mapping` spells for the subtype,
+through and no schema its own ancestor, the hierarchy of the subtype's `Base` before any other, so
+two discriminated parents mapping it tag it as its `Base`'s does whichever is written first
+([`allof-classification`](#allof-classification)) — as the key an ancestor's `mapping` spells for the subtype,
 the mapping naming it by reference or by schema name, read through each `$ref`, a component's among
 them, as [`discriminator`](#discriminator) reads it, an inline subtype by its position's
 reference, and where several keys name it [`discriminator`](#discriminator) elects one. A key of
@@ -4204,7 +4231,8 @@ a tag. A discriminator standing with a union on a branch of its schema's `allOf`
 branch or beside the `allOf`, routes by name the schemas that union lists, as one beside it does.
 
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`, `oneof-discriminated`
-- Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
+- Tests: `schema.TestAllOf_TwoDiscriminatedBasesElectAndTagAlikeInEitherOrder`,
+  `schema.TestAllOf_DiscriminatorSubtypeValue`,
   `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
   `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`,
   `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`,
@@ -5177,7 +5205,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder`,
   `schema.TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch`,
   `schema.TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept`,
-  `schema.TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget`,
+  `schema.TestAllOf_ABoundBesideABranchsOwnRefIsThePositions`,
   `schema.TestConstraints_ATypeListReadsWhatThePositionAdmits`,
   `schema.TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough`,
   `schema.TestConstraints_AnInlineBranchIsReadAtItsOwnPointer`,

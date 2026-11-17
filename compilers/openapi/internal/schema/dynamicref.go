@@ -300,11 +300,11 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 // survives the position lowering without it (the irreducible half of
 // docs/compilers/openapi.md#dynamic-ref). An expanded one is already the
 // position's type and must not also be preserved — that would tell a consumer
-// the compiler ignored it — and one making its position a reference site
+// the compiler ignored it — and one s is a reference site under
 // (typed.Bindings.RefKeyword) is the $ref it spells, resolved as one.
 func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	ref, written := dynamicRefOf(c, s, pointer)
-	if !written || refKeyword(heldAt(c, pointer)) == ref.keyword {
+	if !written || s.Ref != nil && s.Ref.Keyword == ref.keyword {
 		return nil
 	}
 	_, why, expanded := dynamicExpansion(c, s, pointer)

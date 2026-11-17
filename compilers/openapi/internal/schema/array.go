@@ -12,7 +12,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -151,8 +150,8 @@ func writtenAt(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (l
 func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 	entries []*statement.Statement, rest *statement.Statement, ok bool,
 ) {
-	if r := js.Ref; r != nil && r.Bound && r.Entry.Chain.Status == bind.Resolved {
-		if end := c.Statements().At(r.Entry.Chain.End); end.Held() {
+	if js.Ref != nil {
+		if end, ok := runEnd(c, js); ok && end.Held() {
 			js = end
 		}
 	}
@@ -247,9 +246,8 @@ func arrayIn(s *statement.Schema) statement.Array {
 // a tuple or an enum is held to the rule as a List is, a 3.0 prefixItems
 // among them (docs/compilers/openapi.md#later-version-construct). `items: {}`
 // is silent, as is a list, read off the raw node, which no documented parser
-// behaviour models.
-// missingArrayItemsBesideRef holds a $ref site's keywords to it; a subschema
-// kept verbatim never reaches it.
+// behaviour models. missingArrayItemsConjoined reads past a schema's
+// conjuncts; a subschema kept verbatim never reaches it.
 func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if !slices.Contains(kindsIn(s), statement.KindArray) {
 		return nil
@@ -265,20 +263,21 @@ func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 			"so only its other keywords constrain its elements")}
 }
 
-// missingArrayItemsBesideRef is missingArrayItems for the keywords beside the
-// $ref js writes, which conjoin with what it lands on: a type array there
-// leaves its elements to that, so it is reported only where admission's
-// reading of the conjunction holds them to no items, which neither items: true
-// nor a union's branches do. An items the reading found holds however much of
-// the rest it read, and one cut short before reaching any leaves the keywords
-// held to the rule as they are written.
-func missingArrayItemsBesideRef(c lowering.Ctx, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := missingArrayItems(c, js.Schema, pointer)
-	if len(diags) == 0 {
-		return nil
+// missingArrayItemsConjoined is missingArrayItems for a schema writing
+// conjuncts beside its keywords (writesConjuncts), a $ref or an allOf, which
+// conjoin with them: a type array there leaves its elements to them, so it is
+// reported only where admission's reading of the conjunction holds them to no
+// items, which neither items: true nor a union's branches do. An items the
+// reading found holds however much of the rest it read, and one cut short
+// before reaching any leaves the keywords held to the rule as they are
+// written.
+func missingArrayItemsConjoined(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	diags := missingArrayItems(c, s, pointer)
+	if len(diags) == 0 || !writesConjuncts(s) {
+		return diags
 	}
 	w := newAdmission(c)
-	if w.of(js).items != nil {
+	if w.of(c.Statements().Read(s)).items != nil {
 		return nil
 	}
 	return diags

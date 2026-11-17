@@ -193,6 +193,22 @@ x-library:
   items: {type: object, properties: {cj: {type: string}}}
 components:
   schemas:
+    HintStr: {type: string}
+    HintObj: {type: object, properties: {a: {type: string}}}
+    # A use of one target saying more than a bare $ref, spelt beside it, beside
+    # an allOf of it and on an entry: the node is hinted by its position, the
+    # variant by its target. A title on an entry, nested or beside its $ref,
+    # names the variant and its node.
+    HintUses:
+      oneOf:
+        - {$ref: '#/components/schemas/HintStr', minLength: 1}
+        - {allOf: [{$ref: '#/components/schemas/HintStr'}], minLength: 2}
+        - {allOf: [{$ref: '#/components/schemas/HintStr'}, {minLength: 3}]}
+        - {$ref: '#/components/schemas/HintObj', minProperties: 1}
+        - {allOf: [{$ref: '#/components/schemas/HintObj'}], minProperties: 2}
+        - {allOf: [{$ref: '#/components/schemas/HintObj'}, {minProperties: 3}]}
+        - {allOf: [{allOf: [{$ref: '#/components/schemas/HintStr'}, {title: Nested Mark}]}]}
+        - {allOf: [{$ref: '#/components/schemas/HintObj', title: Beside Mark}]}
     Pet:
       type: object
       properties: {name: {type: string}}

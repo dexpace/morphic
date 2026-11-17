@@ -59,6 +59,44 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Carrier/properties/p": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Carrier/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Carrier/properties/p/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carrier/properties/p"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Base",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Base": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Base",
@@ -129,7 +167,7 @@
           },
           "wireName": "p",
           "type": {
-            "target": "t/openapi/components/schemas/Base",
+            "target": "t/anon/components/schemas/Carrier/properties/p",
             "nullable": false
           },
           "required": false,
@@ -143,23 +181,6 @@
           "eventPayload": false,
           "secret": false,
           "docs": {},
-          "unmodeled": {
-            "openapi:oneOf": {
-              "reason": "degraded_lowering",
-              "value": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ],
-              "provenance": {
-                "source": 0,
-                "pointer": "/components/schemas/Carrier/properties/p/oneOf"
-              }
-            }
-          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Carrier/properties/p"
@@ -171,7 +192,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/G": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/G",
       "name": {
         "source": "G",
@@ -204,10 +225,13 @@
       "base": {
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/H": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/H",
       "name": {
         "source": "H",
@@ -240,10 +264,13 @@
       "base": {
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/I": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/I",
       "name": {
         "source": "I",
@@ -253,16 +280,12 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf": {
+        "openapi:type": {
           "reason": "degraded_lowering",
-          "value": [
-            {
-              "type": "string"
-            }
-          ],
+          "value": "string",
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/I/allOf"
+            "pointer": "/components/schemas/I/allOf/0/type"
           }
         }
       },
@@ -273,7 +296,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -303,9 +329,9 @@
   },
   "diagnostics": [
     {
-      "severity": "info",
+      "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
+      "message": "the conjuncts of this schema share no value (oneOf: string or integer, $ref: object), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/G"
@@ -314,7 +340,16 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and none of its branches shares a kind with the allOf beside it, so no instance satisfies them together; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/G"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this schema share no value (anyOf: string or integer, $ref: object), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/H"
@@ -323,7 +358,16 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for allOf declared beside it; kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and none of its branches shares a kind with the allOf beside it, so no instance satisfies them together; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/H"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this schema share no value ($ref: object, allOf/0: string), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/I"
@@ -332,7 +376,25 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across; union branches kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"model\", which has no home for type written on this inline branch; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/I/allOf/0"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this schema share no value (oneOf: string or integer, $ref: object), so no instance satisfies this schema, which a composition cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Carrier/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and none of its branches shares a kind with the allOf beside it, so no instance satisfies them together; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Carrier/properties/p"

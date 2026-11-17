@@ -963,8 +963,23 @@ it sees. Changes made together in one bump are listed together under it.
   are read as beside the `allOf` and kept nowhere. A `$ref` entry naming no schema, which was kept
   nowhere with each keyword beside it, is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
   reference text where several are, with each keyword beside it under its own key, or the entry
-  whole under `openapi:allOf/<n>` where one cannot be kept apart. A consumer pinned to
-  0.69.0 refuses the document; one reading such a bound
+  whole under `openapi:allOf/<n>` where one cannot be kept apart. A `$ref` and the keywords
+  written beside it are one conjunction, lowered as the `allOf` of the two is, where the `$ref`
+  site was an alias keeping what it could not hold: a use of an object saying anything beside its
+  `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
+  value set, a union and a bound beside it lower as beside an `allOf` of it; an entry's keywords
+  beside its `$ref` are conjuncts of the position, which hoists no node at the entry, and a `$ref`
+  kept, a refinement's, a composition's for a target it does not compose, or a failed one's, holds
+  the reference's text, where a refinement's held the object `{$ref: …}`. An `allOf`
+  of one `$ref` saying nothing else is the reference, hoisting no node, where it hoisted an
+  anonymous `Model` over an object, and a component or a position a `$ref` names written as either
+  spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use
+  hoists is hinted by its position, a variant naming one target that declares no member by that
+  target, and a title on any inline conjunct names (the names golden moves)
+  ([`ref-use-site`](../compilers/openapi.md#ref-use-site),
+  [`allof-beside-ref`](../compilers/openapi.md#allof-beside-ref)). A consumer pinned to 0.69.0
+  refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,

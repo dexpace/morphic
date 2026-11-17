@@ -110,30 +110,46 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assertElectedLoweringKeywords(t, doc, diags)
 }
 
-// assertRefSiteKeywords pins the same census at a $ref site, where it did not
-// run at all (GitHub #283). $ref is an ordinary 2020-12 keyword, so its siblings
-// are conjoined with it; the position lowers to an alias over the target, which
-// has none of their fields, and each below reached no field, no Unmodeled entry
-// and no diagnostic.
+// assertRefSiteKeywords pins the census at a $ref site, where it did not run at
+// all (GitHub #283). $ref is an ordinary 2020-12 keyword, so the keywords beside
+// it are a conjunct of the position, lowered as they are beside an allOf of the
+// $ref: each typed on the node the position lowers to, or kept on it once, with
+// an info where something is kept.
 func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	for name, want := range map[string]struct{ keyword, target, raw string }{
-		"RefFormat":               {"format", "RefTargetStr", `"email"`},
-		"RefEnum":                 {"enum", "RefTargetStr", `["a","b"]`},
-		"RefConst":                {"const", "RefTargetStr", `"a"`},
-		"RefRequired":             {"required", "RefTargetObj", `["a"]`},
-		"RefAdditionalProperties": {"additionalProperties", "RefTargetObj", `false`},
-		"RefDiscriminator":        {"discriminator", "RefTargetObj", `{"propertyName":"a"}`},
-	} {
-		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
-		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
-		require.NotNil(t, sc.Base)
-		assert.Equal(t, componentID(want.target), sc.Base.Target, "%s still aliases its target", name)
-		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
-		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-		assert.JSONEq(t, want.raw, string(entry.Value))
+	format, ok := doc.Types[componentID("RefFormat")].(*ir.Scalar)
+	require.True(t, ok, "a format beside a $ref to a string is a use of it")
+	require.NotNil(t, format.Base)
+	assert.Equal(t, componentID("RefTargetStr"), format.Base.Target)
+	assert.JSONEq(t, `"email"`, string(unmodeledEntry(t, format.Unmodeled, "openapi:format").Value))
+	assert.Len(t, format.Unmodeled, 1)
+
+	for name, kind := range map[string]ir.TypeKind{"RefEnum": ir.KindEnum, "RefConst": ir.KindLiteral} {
+		td := kindNode(t, doc, componentID(name))
+		assert.Equal(t, kind, td.Kind(), "%s: the value set beside the $ref is the node", name)
+		entry := unmodeledEntry(t, td.Common().Unmodeled, "openapi:$ref")
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
+		assert.JSONEq(t, `"#/components/schemas/RefTargetStr"`, string(entry.Value), name)
+		assert.Len(t, td.Common().Unmodeled, 1, name)
+	}
+	for _, name := range []string{"RefFormat", "RefEnum", "RefConst"} {
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name))
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name), name)
+	}
+
+	// Beside a $ref to an object each is the composed model's own.
+	required := requireModelNode(t, doc, componentID("RefRequired"))
+	assert.Equal(t, []string{"a"}, required.Requires)
+	closed := requireModelNode(t, doc, componentID("RefAdditionalProperties"))
+	assert.Equal(t, ir.AdditionalClosed, closed.Additional)
+	discriminated := requireModelNode(t, doc, componentID("RefDiscriminator"))
+	require.NotNil(t, discriminated.Discriminator)
+	assert.Equal(t, "a", discriminated.Discriminator.PropertyName)
+	for name, m := range map[string]*ir.Model{"RefRequired": required, "RefAdditionalProperties": closed, "RefDiscriminator": discriminated} {
+		require.NotNil(t, m.Base, name)
+		assert.Equal(t, componentID("RefTargetObj"), m.Base.Target, name)
+		assert.Empty(t, m.Unmodeled, name)
+		assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name), name)
 	}
 
 	ctl, ok := doc.Types[componentID("RefConstrained")].(*ir.Scalar)
@@ -153,13 +169,6 @@ func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"and keeps the keyword on itself instead")
 }
 
-// unionWhy is the complete why refSiteUnionWhy (compilers/openapi/internal/
-// schema) gives a $ref site's own co-declared oneOf/anyOf: unlike the
-// structural-body path's five reasons, it opens with no "co-declared with
-// structural keywords" clause, because at a $ref site there is no structural
-// body for that clause to describe (GitHub #406).
-const unionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body"
-
 // assertUnionBesideRef pins oneOf/anyOf and allOf co-declared beside a $ref at
 // the same level (GitHub #406). Under JSON Schema 2020-12 — and so OpenAPI
 // 3.1 — $ref conjoins with its siblings, so the union narrows the referenced
@@ -170,37 +179,36 @@ const unionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composin
 // unhomed-keyword census refSiteRef already runs for format/const/enum/
 // required/additionalProperties (GitHub #283, #348), with allOf added to it.
 func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	for name, want := range map[string]struct{ keyword, raw, wantMsg string }{
-		"G": {"oneOf", `[{"type":"string"},{"type":"integer"}]`, unionWhy},
-		"H": {"anyOf", `[{"type":"string"},{"type":"integer"}]`, unionWhy},
-		"I": {"allOf", `[{"type":"string"}]`, "no home for allOf"},
-	} {
-		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
-		require.True(t, ok, "%s hoists an alias to hold what it wrote beside its $ref", name)
-		require.NotNil(t, sc.Base)
-		assert.Equal(t, componentID("Base"), sc.Base.Target, "%s still aliases Base", name)
-		entry := unmodeledEntry(t, sc.Unmodeled, "openapi:"+want.keyword)
-		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-		assert.JSONEq(t, want.raw, string(entry.Value))
+	// A union or an allOf beside a $ref joins the conjunction the $ref is one
+	// conjunct of: beside a $ref to an object a string or an integer shares no
+	// value with it, so each is the model over Base keeping what shares none,
+	// with the warning that the conjuncts share no value.
+	for name, key := range map[string]string{"G": "openapi:oneOf", "H": "openapi:anyOf", "I": "openapi:type"} {
+		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, name)
+		require.NotNil(t, m.Base, name)
+		assert.Equal(t, componentID("Base"), m.Base.Target, name)
+		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, m.Unmodeled, key).Reason, name)
+		assert.Len(t, m.Unmodeled, 1, "%s keeps what shares no value once", name)
 		assert.Contains(t,
-			openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo, "/components/schemas/"+name),
-			want.wantMsg, name)
+			openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityWarning, "/components/schemas/"+name),
+			"share no value", name)
 	}
-
-	carrier, ok := doc.Types[componentID("Carrier")].(*ir.Model)
-	require.True(t, ok)
+	// At a property the conjunction is a node of the use's own over Base,
+	// keeping the oneOf there, once.
+	carrier := requireModelNode(t, doc, componentID("Carrier"))
 	p, ok := propByWire(carrier, "p")
 	require.True(t, ok)
-	assert.Equal(t, componentID("Base"), p.Type.Target,
-		"a carrier hoists no node, so it still resolves straight to the target")
-	entry := unmodeledEntry(t, p.Unmodeled, "openapi:oneOf")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`, string(entry.Value),
-		"and keeps the union on itself instead of an alias")
+	use := requireModelNode(t, doc, p.Type.Target)
+	assert.True(t, use.Anonymous)
+	require.NotNil(t, use.Base)
+	assert.Equal(t, componentID("Base"), use.Base.Target)
+	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`, string(unmodeledEntry(t, use.Unmodeled, "openapi:oneOf").Value))
+	assert.Len(t, use.Unmodeled, 1)
+	assert.Empty(t, p.Unmodeled, "the property keeps nothing the node holds")
 	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
-			"/components/schemas/Carrier/properties/p"),
-		unionWhy, "the carrier position is announced the same way as the alias positions")
+		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityWarning,
+			"/components/schemas/Carrier/properties/p"), "share no value")
 }
 
 // assertElectedLoweringKeywords pins the keywords the *winning* family's
@@ -422,7 +430,11 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 		{model: "TwoComponents", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}, nullable: true},
 		{model: "DiscriminatedBase", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
 		{model: "DiscriminatedFirst", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
-		{model: "KeptDefault", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}},
+		// The default beside the first declaration's $ref is a conjunct of that
+		// use, which is then the node over Meeting it makes, as its allOf
+		// spelling is: the composition elects the named declaration its base.
+		{model: "KeptDefault", field: "data", naming: "1", base: "t/openapi" + schemas + "Recording",
+			mixins: []ir.TypeID{anon("KeptDefault", "0")}},
 	} {
 		owner, ok := doc.Types[ir.TypeID("t/openapi"+schemas+tc.model)].(*ir.Model)
 		require.True(t, ok, tc.model)
@@ -737,28 +749,23 @@ func narrowedProp(t *testing.T, doc *ir.Document, model string) ir.Property {
 }
 
 // assertAllOfRefBranchSiblings covers the other branch kind: keywords written
-// beside a `$ref` in an allOf branch bind that branch, not the schema it names,
-// so they cannot go on the shared target's node. The branch position gets a node
-// of its own to hold them, the alias any $ref position hoists when no Property
-// or Parameter holds them, and the composition points at that (GitHub #143). The
-// bare branch pins the other half: a `$ref` writing nothing beside itself still
-// composes straight to the target, costing no node.
+// beside a `$ref` in an allOf branch are a conjunct of the position, as an
+// entry of their own would be, so they bind the composition and never the
+// shared target's node, and the branch hoists no node of its own. The bare
+// branch pins the other half: a `$ref` writing nothing beside itself composes
+// straight to the target too.
 func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	annotated, ok := doc.Types[componentID("Annotated")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, annotated.Base, "the $ref branch still composes as Base")
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Annotated/allOf/0"), annotated.Base.Target,
-		"Base names the branch's own node, not the shared target")
-
-	branch, ok := doc.Types[annotated.Base.Target].(*ir.Scalar)
-	require.True(t, ok, "the branch position hoists an alias over its target")
-	require.NotNil(t, branch.Base)
-	assert.Equal(t, componentID("Base"), branch.Base.Target, "the alias still resolves to the referenced schema")
-	assert.Equal(t, "Base as this composition uses it", branch.Docs.Description)
-	require.NotNil(t, branch.Constraints)
-	require.NotNil(t, branch.Constraints.MinProps)
-	assert.Equal(t, int64(3), *branch.Constraints.MinProps)
-	entry := unmodeledEntry(t, branch.Unmodeled, "openapi:x-vendor")
+	assert.Equal(t, componentID("Base"), annotated.Base.Target, "Base names the target")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Annotated/allOf/0"),
+		"the branch hoists no node")
+	assert.Equal(t, "Base as this composition uses it", annotated.Docs.Description)
+	require.NotNil(t, annotated.Constraints)
+	require.NotNil(t, annotated.Constraints.MinProps)
+	assert.Equal(t, int64(3), *annotated.Constraints.MinProps)
+	entry := unmodeledEntry(t, annotated.Unmodeled, "openapi:x-vendor")
 	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
 	assert.JSONEq(t, `"keepme"`, string(entry.Value))
 
@@ -766,69 +773,54 @@ func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assertAllOfRefBranchUnion(t, doc, diags)
 }
 
-// assertAllOfRefBranchUnion pins the third $ref site the union/allOf keeper
-// reaches: an allOf branch spelled as a $ref, co-declaring oneOf or a nested
-// allOf beside it. Before this, fillAllOf's branch handling ran the plain
-// census (unhomedKeywords) directly, which never named any of the three, so
-// the branch composed straight to Base with the sibling read by nothing — no
-// alias, no Unmodeled, no diagnostic (GitHub #406). It is fixed the same way
-// as the other two $ref sites: refSiteUnhomedKeywords (allOf) and
-// preserveUnionSiblings (oneOf/anyOf), reused rather than duplicated.
+// assertAllOfRefBranchUnion pins the third $ref site, a branch's own $ref
+// beside a oneOf or a nested allOf (GitHub #406). The keywords beside the $ref
+// are conjuncts of the composition, as an inline entry's are: here they share
+// no value with Base, so the composition warns that no instance satisfies it,
+// still composes Base, and keeps what Base cannot hold, once, under its own
+// key, as an inline entry's keyword is kept.
 func assertAllOfRefBranchUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
-	union, ok := doc.Types[componentID("UnionBranch")].(*ir.Model)
-	require.True(t, ok)
-	require.NotNil(t, union.Base, "the branch still composes as Base")
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/UnionBranch/allOf/0"), union.Base.Target,
-		"the branch's own $ref siblings get a node of their own, not the shared Base")
-	branch, ok := doc.Types[union.Base.Target].(*ir.Scalar)
-	require.True(t, ok, "the branch position hoists an alias over its target")
-	require.NotNil(t, branch.Base)
-	assert.Equal(t, componentID("Base"), branch.Base.Target, "the alias still resolves to the referenced schema")
-	entry := unmodeledEntry(t, branch.Unmodeled, "openapi:oneOf")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `[{"type":"string"},{"type":"integer"}]`, string(entry.Value))
-	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
-			"/components/schemas/UnionBranch/allOf/0"),
-		unionWhy)
-
-	nested, ok := doc.Types[componentID("NestedAllOfBranch")].(*ir.Model)
-	require.True(t, ok)
-	require.NotNil(t, nested.Base)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/NestedAllOfBranch/allOf/0"), nested.Base.Target)
-	nestedBranch, ok := doc.Types[nested.Base.Target].(*ir.Scalar)
-	require.True(t, ok)
-	require.NotNil(t, nestedBranch.Base)
-	assert.Equal(t, componentID("Base"), nestedBranch.Base.Target)
-	entry = unmodeledEntry(t, nestedBranch.Unmodeled, "openapi:allOf")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `[{"type":"string"}]`, string(entry.Value))
-	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityInfo,
-			"/components/schemas/NestedAllOfBranch/allOf/0"),
-		"no home for allOf")
+	for name, want := range map[string]struct{ key, raw, at string }{
+		"UnionBranch": {"openapi:oneOf", `[{"type":"string"},{"type":"integer"}]`, "/allOf/0"},
+		// Its type disagrees with the one the composition writes, so the entry
+		// is kept whole.
+		"NestedAllOfBranch": {"openapi:allOf/0/allOf/0", `{"type":"string"}`, "/allOf/0/allOf/0"},
+	} {
+		m := requireModelNode(t, doc, componentID(name))
+		require.NotNil(t, m.Base, name)
+		assert.Equal(t, componentID("Base"), m.Base.Target, "%s composes Base itself, hoisting no node", name)
+		assert.Empty(t, anonymousNodesAt(doc, "/components/schemas/"+name+"/allOf/0"), name)
+		entry := unmodeledEntry(t, m.Unmodeled, want.key)
+		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
+		assert.JSONEq(t, want.raw, string(entry.Value), name)
+		assert.Len(t, m.Unmodeled, 1, name)
+		assert.Contains(t,
+			openapitest.DiagMessageAt(t, diags, "openapi/degraded-construct", ir.SeverityWarning,
+				"/components/schemas/"+name), "share no value", name)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name+want.at), name)
+	}
 }
 
 // assertAllOfRefBranchShapes checks the two branch shapes the annotated case
-// does not reach: a mixin position, and a bare $ref that hoists nothing.
+// does not reach: a mixin whose entry writes a note beside its $ref, which is
+// the composition's own as any entry's is and hoists no node, and a bare $ref
+// that hoists nothing.
 func assertAllOfRefBranchShapes(t *testing.T, doc *ir.Document) {
 	t.Helper()
-	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
-	require.True(t, ok)
+	mixed := requireModelNode(t, doc, componentID("Mixed"))
 	require.Len(t, mixed.Mixins, 2, "two unqualified refs stay mixins")
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Mixed/allOf/0"), mixed.Mixins[0].Target,
-		"a mixin's siblings get the same home a base's do")
-	assert.Equal(t, componentID("Extra"), mixed.Mixins[1].Target,
-		"the branch writing nothing beside its $ref is untouched")
+	assert.Equal(t, componentID("Base"), mixed.Mixins[0].Target, "the entry writing a note composes its target")
+	assert.Equal(t, componentID("Extra"), mixed.Mixins[1].Target)
+	assert.Equal(t, "narrowed here", mixed.Docs.Description, "the note is the composition's")
+	assert.Empty(t, mixed.Unmodeled)
+	assert.Empty(t, anonymousNodesAt(doc, "/components/schemas/Mixed"))
 
-	bare, ok := doc.Types[componentID("Bare")].(*ir.Model)
-	require.True(t, ok)
+	bare := requireModelNode(t, doc, componentID("Bare"))
 	require.NotNil(t, bare.Base)
-	assert.Equal(t, componentID("Base"), bare.Base.Target,
-		"a bare $ref branch composes straight to its target, hoisting no node")
-	_, hoisted := doc.Types[ir.TypeID("t/anon/components/schemas/Bare/allOf/0")]
-	assert.False(t, hoisted, "nothing to keep, so no node for the branch position")
+	assert.Equal(t, componentID("Base"), bare.Base.Target)
+	assert.Empty(t, anonymousNodesAt(doc, "/components/schemas/Bare"))
 }
 
 // assertParamXMLResidue pins a parameter schema's xml hints: ir.Parameter is the
@@ -1349,7 +1341,7 @@ func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir
 // keyword still lowers, the ones passed over are kept verbatim under
 // ReasonDegradedLowering, and the position says so.
 func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	base := `{"$ref":"#/components/schemas/Base"}`
+	base := `"#/components/schemas/Base"`
 	e, ok := doc.Types[componentID("NarrowedEnum")].(*ir.Enum)
 	require.True(t, ok, "the enum is the value")
 	assertKeptRaw(t, e.Unmodeled, "openapi:$ref", base)

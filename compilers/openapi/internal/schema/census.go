@@ -30,7 +30,7 @@ import (
 // The list and keywordHome's switch must agree. A keyword listed without an
 // arm is homeless and preserved everywhere, noisy but lossless; one in neither
 // is dropped in silence (GitHub #268, #283).
-// oneOf/anyOf/allOf stay out; see refSiteUnhomedKeywords (GitHub #406).
+// oneOf/anyOf/allOf stay out, lowered apart.
 var censusKeywords = []string{
 	"additionalItems", "additionalProperties", "const", "discriminator", "enum", "format", "items",
 	"maxItems", "minItems", "patternProperties", "prefixItems", "properties",
@@ -352,26 +352,6 @@ func referenceUnhomed(c lowering.Ctx, s *statement.Schema, handled []string) []s
 		slices.Sort(unhomed)
 	}
 	return append(unhomed, untakenBounds(s, takes)...)
-}
-
-// refSiteUnhomedKeywords is referenceUnhomed for a $ref site s, plus allOf.
-// handled passes through so an allOf branch spelled as a $ref still routes its
-// own `required` to requireMembers.
-//
-// allOf is as homeless here as a structural keyword, because none of the
-// $ref-site callers goes through dispatchOf, so it never wins an election.
-// Adding it to censusKeywords instead would also hit ordinarily composed
-// schemas, since keywordHome has no arm saying a Model built from a winning
-// allOf carries it.
-//
-// oneOf/anyOf stay out: callers check declaresUnion and call the union keepers
-// directly (GitHub #406).
-func refSiteUnhomedKeywords(c lowering.Ctx, s *statement.Schema, handled []string) []string {
-	unhomed := referenceUnhomed(c, s, handled)
-	if len(allOfIn(s)) > 0 {
-		unhomed = append(unhomed, "allOf")
-	}
-	return unhomed
 }
 
 // What a position lowering to a reference lowered to, for the diagnostic

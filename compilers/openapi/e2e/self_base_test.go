@@ -56,8 +56,8 @@ func TestCompile_ASelfURIIsTheNameOfTheDocumentAndItsBase(t *testing.T) {
 
 			assertNoErrorDiags(t, diags)
 			assert.Empty(t, rec.requests(), "the document names itself, so nothing is read")
-			assert.Equal(t, componentID("B"), aliasTarget(t, doc, "U"))
-			assert.Equal(t, componentID("B"), aliasTarget(t, doc, "V"))
+			assert.Equal(t, componentID("B"), useTarget(t, doc, "U"))
+			assert.Equal(t, componentID("B"), useTarget(t, doc, "V"))
 		})
 	}
 }
@@ -138,7 +138,7 @@ func TestCompile_ARelativeSelfIsResolvedAgainstWhereTheDocumentWasRead(t *testin
 
 		require.NoError(t, err, name)
 		assertNoErrorDiags(t, diags)
-		assert.Equal(t, ids.In("other.yaml").ForPointer("/OS"), aliasTarget(t, doc, "S"), name)
+		assert.Equal(t, ids.In("other.yaml").ForPointer("/OS"), useTarget(t, doc, "S"), name)
 		op, ok := opByName(doc, "a")
 		require.True(t, ok, name)
 		require.Len(t, op.Responses, 1, name)

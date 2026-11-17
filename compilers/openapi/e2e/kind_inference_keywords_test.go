@@ -270,7 +270,7 @@ func kindFindings(diags []ir.Diagnostic) []string {
 }
 
 // TestKindInference_AKindAConjunctNamesIsDeclared holds a schema writing no
-// type beside a union kept whole, whose branches name kinds: its shape keywords
+// type beside a union, whose branches name kinds: its shape keywords
 // pick the kinds of those they speak of, which the document declared, so the
 // node is unmarked and the same under either policy, and the top type where
 // they speak of none.
@@ -286,12 +286,15 @@ func TestKindInference_AKindAConjunctNamesIsDeclared(t *testing.T) {
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, _ := compileKindInference(t, "declared", admissionSpec("3.1.0", "", schemas...), off)
-				closed := kindNode(t, doc, componentID("Closed"))
-				assert.Equal(t, ir.KindModel, closed.Kind(), "the branches declare an object")
+				// The oneOf distributes across the body, the anyOf kept on each variant.
+				closed, ok := kindNode(t, doc, componentID("Closed")).(*ir.Union)
+				require.True(t, ok, "the branches declare an object")
 				assert.False(t, markedKindInference(closed), "the document declared the kind")
-				assert.Equal(t, map[string]ir.UnmodeledReason{
-					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
-				}, keptOn(closed))
+				require.Len(t, closed.Variants, 1)
+				variant := kindNode(t, doc, closed.Variants[0].Type.Target)
+				assert.Equal(t, ir.KindModel, variant.Kind())
+				assert.False(t, markedKindInference(variant))
+				assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:anyOf": ir.ReasonDegradedLowering}, keptOn(variant))
 				assertUntypedOutcome(t, doc, "Scalars", topKeeping("items", "oneOf"))
 			})
 		})

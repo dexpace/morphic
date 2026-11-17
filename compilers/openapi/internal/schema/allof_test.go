@@ -104,7 +104,7 @@ func TestAllOf_ARefToAHierarchyMemberIsTheBase(t *testing.T) {
 			mixins []string
 		}{
 			"Leaf": {"Mid", []string{"Other"}}, "Deeper": {"Low", []string{"Other"}}, "First": {"Mid", []string{"Other"}},
-			"Two": {"Mid2", []string{"Other", "Mid"}}, "Declaring": {"Root", []string{"Other"}}, "None": {"", []string{"Other", "Extra"}},
+			"Two": {"Mid", []string{"Other", "Mid2"}}, "Declaring": {"Root", []string{"Other"}}, "None": {"", []string{"Other", "Extra"}},
 		} {
 			m, ok := typeByName(doc, name).(*ir.Model)
 			require.True(t, ok, "%s composes; got %T", name, typeByName(doc, name))

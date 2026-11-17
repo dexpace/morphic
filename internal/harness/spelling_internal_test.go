@@ -112,10 +112,10 @@ func TestSpelled_ADifferenceIsFoundWithWhereItLies(t *testing.T) {
 			`{type: array, items: {$ref: '#/components/schemas/Obj', description: e}}`, "types.elem.use.docs.description"},
 		{"a bound", `{allOf: [{$ref: '#/components/schemas/T'}], pattern: '^a4'}`,
 			`{allOf: [{$ref: '#/components/schemas/T'}, {pattern: '^a3'}]}`, "types.constraints.pattern"},
-		{"a kept keyword on a property or on its decorator",
-			`{type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/Obj'}], not: {required: [a]}}}}`,
-			`{type: object, properties: {p: {$ref: '#/components/schemas/Obj', not: {required: [a]}}}}`,
-			"types.properties.decorator,types.properties.unmodeled"},
+		{"a decorator's description and kept keyword",
+			`{type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/Obj'}], description: d, not: {required: [a]}}}}`,
+			`{type: object, properties: {p: {$ref: '#/components/schemas/Obj', description: e, not: {required: [b]}}}}`,
+			"types.properties.decorator.unmodeled.openapi:not.value.required,types.properties.docs.description"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			v := spellingVerdict(t, spellingPair("3.1.0", tc.partner, tc.spelling, Equal{}))

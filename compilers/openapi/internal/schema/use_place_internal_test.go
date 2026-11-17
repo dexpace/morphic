@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -63,4 +64,20 @@ func TestUseOf_ARunTheBindingsDoNotKnowLendsWhatItWrites(t *testing.T) {
 	assert.Nil(t, s)
 	require.Len(t, u.Referents, 1)
 	assert.Same(t, ref.GetSchema(), statement.Parsed(u.Referents[0]))
+}
+
+// TestUseOf_ARunEndingUnresolvedLendsNothing pins lendRun on a $ref whose
+// chain the bindings read as ending nowhere: no schema of it is lent, and the
+// run ends on none.
+func TestUseOf_ARunEndingUnresolvedLendsNothing(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {$ref: '#/components/schemas/U'}\n"+
+		"    U: {$ref: '#/components/schemas/Missing'}\n"))
+	st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: "/components/schemas/T"})
+	require.NotNil(t, st.Ref)
+	var u Use
+	s, ok := u.lendRun(l.Ctx, st)
+	assert.False(t, ok)
+	assert.Nil(t, s)
+	assert.Empty(t, u.Referents)
 }

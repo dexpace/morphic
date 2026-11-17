@@ -51,7 +51,7 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 func TestOutcomeKeeps_ReportsANodeTheRegistryLacks(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
-	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape}.recordOn(l.Ctx, l.Types, "t/anon/none", s, at)
+	diags := outcomeKeeps{keywords: []string{"format"}, shape: refinedShape(allOfComposition{})}.recordOn(l.Ctx, l.Types, "t/anon/none", s, at)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
 }

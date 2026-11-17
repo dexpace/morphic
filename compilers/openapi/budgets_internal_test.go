@@ -415,8 +415,7 @@ components:
       type: object
       properties: {name: {type: string}}
       discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
-      oneOf: [{$ref: '#/components/schemas/Cat'}]
-      anyOf: [{$ref: '#/components/schemas/Cat'}]
+      oneOf: [{required: [name]}]
     Cat: {type: object}
 `
 	runUntil := func(live int) (int, []ir.Diagnostic, error) {

@@ -761,7 +761,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/Region": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Region",
       "name": {
         "source": "Region",
@@ -777,7 +777,10 @@
       "base": {
         "target": "t/anon/components/schemas/Placement/oneOf/0",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/bool": {
       "kind": "primitive",

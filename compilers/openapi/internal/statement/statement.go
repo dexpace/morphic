@@ -5,6 +5,7 @@ package statement
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -23,17 +24,22 @@ const MaxFlattenDepth = 32
 const indexAbove = 16
 
 // Statement is what the schema at a position writes: its own schema object,
-// and the entries of its inline allOf in the order the lowering flattens
-// them, each wrapper after its own entries.
+// and its conjuncts: first the reference that object writes beside other
+// keys, as an entry of its own at the object's pointer, which Schema then
+// leaves out, then the entries of its inline allOf in the order the lowering
+// flattens them, each wrapper after its own entries.
 type Statement struct {
 	*Schema
 	Entries []Entry
 }
 
-// Entry is one inline allOf entry of a statement: the schema object written
-// there, its pointer below the statement's schema, such as /allOf/0/allOf/1,
-// whether it is a wrapper whose own entries precede it, and whether it
-// writes an allOf nested past MaxFlattenDepth, which is not listed.
+// Entry is one conjunct of a statement: the schema object written there, its
+// pointer below the statement's schema, such as /allOf/0/allOf/1, empty for
+// the reference the statement's own object writes, whether it is a wrapper
+// whose own entries precede it, and whether it writes an allOf nested past
+// MaxFlattenDepth, which is not listed. An object writing a reference beside
+// other keys is two entries at one pointer: the reference alone, then the
+// rest.
 type Entry struct {
 	*Schema
 	Rel     jsontext.Pointer
@@ -60,7 +66,11 @@ type Schema struct {
 	// Unknown is.
 	Extensions []Extension
 	Ref        *Reference
-	AllOf      []Sub
+	// BesideRef is, for the rest of an object writing a reference beside
+	// other keys, that reference as a schema object writing it alone, which
+	// the statement lists as its first entry; nil for a whole object.
+	BesideRef *Schema
+	AllOf     []Sub
 
 	Kinds  *Kinds
 	Values *Values
@@ -144,6 +154,21 @@ func (k Key) Defined() bool { return k.Slot != oas.SlotUnknown }
 func (k Key) read() bool {
 	return !k.Null || k.Name == "const" || k.Name == "default" || k.Name == "example"
 }
+
+// ReadBeside reports whether a key named name, holding value, written beside
+// a reference under keyword, says something of the instance the schema
+// applies to, which makes the object the conjunction of the two (Table.Of):
+// any key but keyword's own whose value is read
+// (docs/compilers/openapi.md#null-keywords), and none that only names the
+// schema, holds schemas a reference reaches or comments, which the lowering
+// drops (docs/compilers/openapi.md#dialect-keywords).
+func ReadBeside(name string, value *yaml.Node, keyword string) bool {
+	return name != keyword && !slices.Contains(silentKeys, name) && Key{Name: name, Null: isNull(value)}.read()
+}
+
+// silentKeys are the keys that say nothing of the instance their schema
+// applies to: a comment, an anchor, and the schemas a reference reaches.
+var silentKeys = []string{"$comment", "$anchor", "$dynamicAnchor", "$recursiveAnchor", "$defs", "definitions"}
 
 // Extension is one x- key an object writes and its value, in the order the
 // parser's model holds them: in source order, a key written twice once.

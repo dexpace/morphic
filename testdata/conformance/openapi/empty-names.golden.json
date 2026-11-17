@@ -1237,7 +1237,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/Line": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Line",
       "name": {
         "source": "Line",
@@ -1253,7 +1253,10 @@
       "base": {
         "target": "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/List": {
       "kind": "model",
@@ -1346,7 +1349,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/MediaItem": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/MediaItem",
       "name": {
         "source": "MediaItem",
@@ -1362,10 +1365,13 @@
       "base": {
         "target": "t/anon/components/mediaTypes//schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/MediaItemSchema": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/MediaItemSchema",
       "name": {
         "source": "MediaItemSchema",
@@ -1381,7 +1387,10 @@
       "base": {
         "target": "t/anon/components/mediaTypes//itemSchema",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Mixed": {
       "kind": "model",
@@ -1484,7 +1493,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/ParamContentItem": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/ParamContentItem",
       "name": {
         "source": "ParamContentItem",
@@ -1500,10 +1509,13 @@
       "base": {
         "target": "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/ParamItem": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/ParamItem",
       "name": {
         "source": "ParamItem",
@@ -1519,7 +1531,10 @@
       "base": {
         "target": "t/anon/components/parameters/UnnamedList/schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Patterns": {
       "kind": "model",

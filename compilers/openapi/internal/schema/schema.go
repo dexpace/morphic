@@ -64,10 +64,10 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.State
 	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
-	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
-	diags = append(diags, aliasDiags...)
-	// This alias is the first node the pointer owns, so the annotations
-	// schemaBody had nowhere to put now have a home.
+	nodeDiags := internOwnNode(c, ts, js, pointer, ref)
+	diags = append(diags, nodeDiags...)
+	// This node is the first the pointer owns, so the annotations schemaBody
+	// had nowhere to put now have a home.
 	if stated(s.Node) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
@@ -241,7 +241,7 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 // declaration itself is checked here, above the dispatch that picks what it
 // lowers to (missingArrayItems).
 func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
-	diags := missingArrayItems(c, schema, pointer)
+	diags := missingArrayItemsConjoined(c, schema, pointer)
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
 	diags = append(diags, bodyDiags...)
 	// A body's census ran where its node was built, the only thing that can
@@ -309,7 +309,7 @@ func refinesToBranch(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // allOfComposes reports whether s writes an allOf that composes rather than
 // refines, the one a union beside it distributes across or is kept beside.
 func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
-	if len(allOfIn(s)) == 0 {
+	if !writesConjuncts(s) {
 		return false
 	}
 	_, refines := refinementOf(c, s, "")
@@ -349,7 +349,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 // and lowered to the value set elected before them, at s, as a composition
 // reports conjuncts sharing no value.
 func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Diagnostic {
-	shape := refinedShape
+	shape := refinedShape(r.comp)
 	switch {
 	case unionAside(c, s):
 	case r.contradicts:
@@ -593,7 +593,7 @@ func declaresFamily(s *statement.Schema, family string) bool {
 	case "enum":
 		return enumWritten(s)
 	case "allOf":
-		return len(allOfIn(s)) > 0
+		return writesConjuncts(s)
 	default:
 		return false
 	}
@@ -683,6 +683,12 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	common := td.Common()
 	kept := make([]string, 0, len(d.skipped))
 	for _, keyword := range d.skipped {
+		if keyword == "allOf" {
+			written, keptDiags := keepConjuncts(c, &common.Unmodeled, s, pointer)
+			diags = append(diags, keptDiags...)
+			kept = append(kept, written...)
+			continue
+		}
 		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword,
 			ir.ReasonDegradedLowering, pointer, c.Place())
 		diags = append(diags, storedDiags...)
@@ -704,6 +710,29 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	// over composes, and its conjuncts may share no value, as they are read where
 	// it wins (lowerAllOf), whether or not the allOf could be kept.
 	return append(diags, diagDisjointConjuncts(c, readAllOf(c, s, pointer), "the "+d.won+" it lowered as")...)
+}
+
+// keepConjuncts keeps on p the conjuncts s, written at pointer, writes beside
+// its own keywords, which an election passed over: the $ref written beside them
+// under openapi:$ref, its node writing the reference alone, and the allOf whole. It returns the keywords it kept, `$ref`
+// and `allOf`, in that order.
+func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	var written []string
+	var diags []ir.Diagnostic
+	if s.BesideRef != nil {
+		e := allOfBranch{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
+		kept, keptDiags := keepRefConjuncts(c, p, []keptBranch{{entry: e}}, pointer)
+		diags = append(diags, keptDiags...)
+		if kept[pointer] {
+			written = append(written, "$ref")
+		}
+	}
+	kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, "allOf", ir.ReasonDegradedLowering, pointer, c.Place())
+	diags = append(diags, keptDiags...)
+	if kept {
+		written = append(written, "allOf")
+	}
+	return written, diags
 }
 
 // writesType reports whether s writes a type. A YAML null, which the parser reads
@@ -790,7 +819,7 @@ var shapeKeywords = []siblingKeyword{
 		func(_ *statement.Table, s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }},
 	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }, 0, nil},
 	{"enum", enumWritten, 0, nil},
-	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }, 0, nil},
+	{"allOf", writesConjuncts, 0, nil},
 	{"additionalProperties", func(s *statement.Schema) bool {
 		return written(objectIn(s).AdditionalProperties)
 	}, kindObject, func(t *statement.Table, s *statement.Schema) bool {

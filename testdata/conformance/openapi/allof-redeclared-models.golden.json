@@ -241,6 +241,27 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/KeptDefault/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/KeptDefault/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data": {
       "kind": "list",
       "id": "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data",
@@ -1196,13 +1217,13 @@
         "source": 0,
         "pointer": "/components/schemas/KeptDefault/allOf/1/properties/data"
       },
+      "base": {
+        "target": "t/openapi/components/schemas/Recording",
+        "nullable": false
+      },
       "mixins": [
         {
-          "target": "t/openapi/components/schemas/Meeting",
-          "nullable": false
-        },
-        {
-          "target": "t/openapi/components/schemas/Recording",
+          "target": "t/anon/components/schemas/KeptDefault/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1853,7 +1874,7 @@
       }
     },
     "t/openapi/components/schemas/AtLeastTwoMembers": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/AtLeastTwoMembers",
       "name": {
         "source": "AtLeastTwoMembers",
@@ -1873,7 +1894,10 @@
       "constraints": {
         "uniqueItems": false,
         "minProps": 2
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/BareAndModel": {
       "kind": "model",
@@ -2675,7 +2699,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/MeetingAlias": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/MeetingAlias",
       "name": {
         "source": "MeetingAlias",
@@ -2693,7 +2717,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Meeting",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/ModelThenMap": {
       "kind": "model",

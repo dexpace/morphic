@@ -624,7 +624,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/PageSize": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/PageSize",
       "name": {
         "source": "PageSize",
@@ -640,7 +640,10 @@
       "base": {
         "target": "t/anon/components/parameters/Page/schema",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/integer": {
       "kind": "primitive",

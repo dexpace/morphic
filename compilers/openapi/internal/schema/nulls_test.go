@@ -138,18 +138,18 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 			`{oneOf: [{$ref: '#/components/schemas/N'}, {type: "null"}]}`, "    N: {type: string, nullable: true}\n",
 			ir.TypeRef{Target: componentID("N"), Nullable: true}, ir.TypeRef{Target: componentID("N"), Nullable: true},
 			"/components/schemas/N/nullable", "no nullable keyword", ""},
-		{"3.0 beside a $ref and a type, over an untyped target", "3.0.3",
+		{"3.0 beside a $ref and a type, over an untyped target, which the type decides", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: string, nullable: true}", "    Free: {}\n",
-			ir.TypeRef{Target: componentID("Free"), Nullable: true}, ir.TypeRef{Target: componentID("Free"), Nullable: true},
+			ir.TypeRef{Target: "t/prim/string", Nullable: true}, ir.TypeRef{Target: "t/prim/string", Nullable: true},
 			"", "", ""},
 		{"3.0 beside a $ref and a type, over a target excluding null", "3.0.3",
 			"{$ref: '#/components/schemas/Plain', type: string, nullable: true}", "",
 			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable",
 			"lands on excludes null", ""},
-		{"3.0 beside a $ref, a type and an allOf excluding null", "3.0.3",
+		{"3.0 beside a $ref, a type and an allOf excluding null, which compose", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: object, nullable: true, allOf: [{$ref: '#/components/schemas/Pet'}]}",
 			"    Free: {}\n",
-			inferred(componentID("Free")), ir.TypeRef{Target: componentID("Free")}, at + "/nullable", "allOf branch", ""},
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "allOf branch", ""},
 		{"3.1 in an allOf branch of the target a $ref lands on", "3.1.0", "{$ref: '#/components/schemas/N'}",
 			"    N: {allOf: [{type: string, nullable: true}]}\n",
 			inferred(componentID("N")), ir.TypeRef{Target: componentID("N")}, "/components/schemas/N/allOf/0/nullable",
@@ -351,7 +351,14 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
 	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
-	for _, name := range []string{"WrapModel", "WrapPlain"} {
+	// An allOf of one $ref saying nothing is the reference, and a component
+	// owns the node over it: over a model admitting null, which no Base
+	// carries, the alias whose Base is that use, null and all.
+	alias, ok := typeByName(doc, "WrapModel").(*ir.Scalar)
+	require.True(t, ok, "WrapModel is a use of NullableModel")
+	require.NotNil(t, alias.Base)
+	assert.Equal(t, ir.TypeRef{Target: componentID("NullableModel"), Nullable: true}, *alias.Base)
+	for _, name := range []string{"WrapPlain"} {
 		m, isModel := typeByName(doc, name).(*ir.Model)
 		require.True(t, isModel, "%s is a model", name)
 		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
@@ -429,14 +436,21 @@ func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	assert.False(t, holderP(t, doc).Nullable)
 	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:nullable", "and with the policy off it stays kept")
 
-	// The one `true` is beside a $ref, which no fold compares, so the `false`
-	// branch speaks: it must widen nothing the spelling without it leaves alone.
-	for name, branch := range map[string]string{"nullable false": "{nullable: false, description: d}", "none": "{description: d}"} {
+	// The `true` beside an entry's $ref is a conjunct of the position, as on an
+	// entry of its own: it folds beside a branch writing none, and a branch
+	// writing `false` disagrees with it, so neither folds.
+	for name, tc := range map[string]struct {
+		branch, description string
+		nullable            bool
+	}{
+		"nullable false": {"{nullable: false, description: d}", "", false},
+		"none":           {"{description: d}", "d", true},
+	} {
 		src := openapitest.HolderSpec("3.0.3",
-			"{type: string, allOf: [{$ref: '#/components/schemas/Plain', nullable: true}, "+branch+"]}", "")
+			"{type: string, allOf: [{$ref: '#/components/schemas/Plain', nullable: true}, "+tc.branch+"]}", "")
 		doc, _ = compileNullable(t, src, false)
-		assert.False(t, holderP(t, doc).Nullable, "%s: a branch writing no true widens nothing", name)
-		assert.Equal(t, "d", propertyOf(t, doc, "Holder", "p").Docs.Description, name)
+		assert.Equal(t, tc.nullable, holderP(t, doc).Nullable, name)
+		assert.Equal(t, tc.description, propertyOf(t, doc, "Holder", "p").Docs.Description, name)
 	}
 
 	for name, tc := range map[string]struct{ union, code string }{

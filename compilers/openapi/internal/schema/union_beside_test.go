@@ -153,9 +153,7 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	require.True(t, ok, "the branch redeclaring kind is a model of its own")
 	assert.Equal(t, "kind", redeclaring.Properties[0].WireName)
 
-	outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, branches[0], outside.Base.Target, "an outside $ref finds the branch node, not the variant")
+	assert.Equal(t, branches[0], useTargetOf(t, typeByName(doc, "Outside")), "an outside $ref finds the branch node, not the variant")
 
 	withNull, ok := typeByName(doc, "WithNull").(*ir.Union)
 	require.True(t, ok, "the union distributes past its null branch")
@@ -371,9 +369,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		require.NotNil(t, v.Base)
 		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Inline/allOf/0/oneOf/%d", i)), v.Base.Target)
 	}
-	outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, inline[1].Base.Target, outside.Base.Target, "an outside $ref finds the branch node")
+	assert.Equal(t, inline[1].Base.Target, useTargetOf(t, typeByName(doc, "Outside")), "an outside $ref finds the branch node")
 
 	for _, v := range variantModels(t, doc, "WithShapeless") {
 		assert.Equal(t, ir.ReasonValidationOnly, v.Unmodeled["openapi:anyOf"].Reason, "the union declaring no shape is kept as validation logic")
@@ -383,7 +379,6 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
 		"Shapeless": {"openapi:anyOf"},
-		"RefBranch": nil,
 		"Capped":    {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
@@ -402,6 +397,13 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 			assert.Equal(t, []string{anyOf}, slices.Sorted(maps.Keys(v.Unmodeled)), "%s keeps its anyOf on each variant", name)
 		}
 	}
+	// An entry's union beside its $ref is the position's, as one on an entry
+	// of its own is: it distributes across what the rest composes.
+	refBranch := variantModels(t, doc, "RefBranch")
+	require.Len(t, refBranch, 1)
+	require.NotNil(t, refBranch[0].Base)
+	assert.Equal(t, componentID("A"), refBranch[0].Base.Target)
+
 	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)
 	require.True(t, ok, "the enum beside the allOf decides it; got %T", typeByName(doc, "EnumBeside"))
 	assert.Contains(t, enum.Unmodeled, "openapi:oneOf", "each conjunct the value set beat is kept under its keyword")
@@ -683,9 +685,8 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
 		require.NotNil(t, wolfUnion.Discriminator)
 		assert.Empty(t, wolfUnion.Unmodeled, "and only there")
 		assert.True(t, ir.IsSubtype(doc, componentID("Kennel"), componentID("Pet")), "through Dog")
-		outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
-		require.True(t, ok, "an outside $ref names the branch itself; got %T", typeByName(doc, "Outside"))
-		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Bird/allOf/1"), outside.Base.Target)
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Bird/allOf/1"), useTargetOf(t, typeByName(doc, "Outside")),
+			"an outside $ref names the branch itself")
 	}
 }
 

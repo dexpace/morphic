@@ -60,7 +60,7 @@
   ],
   "types": {
     "t/anon/components/schemas/Combo/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
       "name": {
         "hint": "a"
@@ -75,7 +75,10 @@
       "base": {
         "target": "t/openapi/components/schemas/A",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/InlineHost/oneOf/0": {
       "kind": "scalar",

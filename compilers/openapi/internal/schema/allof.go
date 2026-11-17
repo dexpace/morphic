@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"iter"
 	"slices"
@@ -33,34 +34,48 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		if admissionOf(c, c.Statements().Read(s)).inferred {
-			// No conjunct declares the kind: the model is one by the
-			// kind-inference policy's reading of their shape keywords.
-			common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
-		}
-		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
-		diags = append(diags, consDiags...)
-		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
-		fields := newModelFields(c, ts, m)
-		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
-		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
-		requireMembers(m, compositionRequired(objectIn(s).Required, comp))
-		diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
-		diags = append(diags, applyFalseBranches(c, m, comp)...)
-		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
-			diags = append(diags, discDiags...)
-			m.Discriminator = d
-		}
-		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
-		m.DiscriminatorValue = tag.value
-		diags = append(diags, tagDiags...)
-		deferSubtypeTag(c, ts, tag, common.ID, pointer)
-		return objectNode(m)
+		// The one flattened list; the readers composeModel calls take it, not s.
+		td, modelDiags := composeModel(c, ts, depth, s, pointer, discriminated, common, readAllOf(c, s, pointer))
+		diags = modelDiags
+		return td
 	})
 	return id, diags
+}
+
+// composeModel builds the Model of s, written at pointer, composing comp, its
+// flattened conjuncts.
+func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
+	discriminated bool, common ir.TypeCommon, comp allOfComposition,
+) (ir.TypeDef, []ir.Diagnostic) {
+	if admissionOf(c, c.Statements().Read(s)).inferred {
+		// No conjunct declares the kind: the model is one by the
+		// kind-inference policy's reading of their shape keywords.
+		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
+	}
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
+	m := &ir.Model{TypeCommon: common, Constraints: cons}
+	diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
+	fields := newModelFields(c, ts, m)
+	base, hasBase := selectAllOfBase(c, comp.branches, common.ID)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp, base, hasBase)...)
+	diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
+	requireMembers(m, compositionRequired(objectIn(s).Required, comp))
+	diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
+	diags = append(diags, applyFalseBranches(c, m, comp)...)
+	if discriminated {
+		d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
+		diags = append(diags, discDiags...)
+		m.Discriminator = d
+	}
+	var first *statement.Schema // the base's hierarchy tags the model first
+	if hasBase {
+		first = refBranchTarget(c, comp.branches[base].schema)
+	}
+	tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer, first)
+	m.DiscriminatorValue = tag.value
+	diags = append(diags, tagDiags...)
+	deferSubtypeTag(c, ts, tag, common.ID, pointer)
+	return objectNode(m), diags
 }
 
 // compositionCensusHandled names the census keywords an allOf composition
@@ -203,9 +218,23 @@ func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
 	return "openapi:" + a.branchPath(bptr)
 }
 
-// branchPath is the path of the allOf branch at bptr from the composed schema.
+// branchPath is the path of the allOf branch at bptr from the composed schema,
+// "$ref" for the reference the composed schema writes beside its keywords.
 func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
+	if bptr == a.pointer {
+		return "$ref"
+	}
 	return strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
+}
+
+// subject names the schema writing a's conjuncts in a report: "this allOf",
+// or, where the schema writes a $ref beside its keywords, the conjunct that
+// reference is, "this schema", which writes no allOf to name.
+func (a allOfComposition) subject() string {
+	if len(a.branches) > 0 && a.branches[0].pointer == a.pointer {
+		return "this schema"
+	}
+	return "this allOf"
 }
 
 // compositionRequired collects every required-property name declared across an
@@ -236,10 +265,11 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
+	base int, hasBase bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var failed []int
-	base, hasBase := selectAllOfBase(c, comp.branches)
+	var uncomposed []keptBranch
 	for i, e := range comp.branches {
 		switch {
 		case e.schema.Ref == nil:
@@ -252,10 +282,12 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 				failed = append(failed, i)
 			}
 		default:
-			diags = append(diags, keepUncomposedRef(c, ts, m, comp, e)...)
+			uncomposed = append(uncomposed, keptBranch{entry: e})
 		}
 	}
-	return append(diags, keepFailedRefs(c, ts, m, comp, failed)...)
+	apart, failedDiags := keepFailedRefs(c, ts, m, comp, failed)
+	diags = append(diags, failedDiags...)
+	return append(diags, keepUncomposedRefs(c, ts, m, comp.pointer, apart, uncomposed)...)
 }
 
 // composesRef reports whether the $ref entry e is a Base or a Mixin of the
@@ -295,19 +327,27 @@ func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
 	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true
 }
 
-// keepUncomposedRef keeps the $ref entry e, whose target is no object alone,
-// verbatim under m's Unmodeled and reports it, resolving the target so the
-// document holds what it names.
-func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, e allOfBranch) []ir.Diagnostic {
-	resolveSchemaRef(c, ts, e.schema)
-	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
-		e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
-	if !kept {
-		return diags
+// keepUncomposedRefs keeps beside m the $ref entries of its composition,
+// written at pointer, it does not compose: apart, those whose reference names
+// nothing (keepFailedRefs), and uncomposed, those whose target is no object
+// alone, ranked together (keepRefConjuncts). It reports each uncomposed one
+// kept, resolving its target so the document holds what it names; a failed
+// one is reported where it is written.
+func keepUncomposedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, pointer jsontext.Pointer,
+	apart, uncomposed []keptBranch,
+) []ir.Diagnostic {
+	for _, b := range uncomposed {
+		resolveSchemaRef(c, ts, b.entry.schema)
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
-		"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
-			"is kept verbatim under Unmodeled"))
+	kept, diags := keepRefConjuncts(c, &m.Unmodeled, slices.Concat(apart, uncomposed), pointer)
+	for _, b := range uncomposed {
+		if kept[b.entry.pointer] {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s",
+				"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
+					"is kept verbatim under Unmodeled"))
+		}
+	}
+	return diags
 }
 
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
@@ -331,14 +371,10 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
 	}
-	unhomed := refSiteUnhomedKeywords(c, b.Schema, compositionCensusHandled)
-	hasUnion := declaresUnion(b.Schema)
-	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0 || hasUnion)
+	unhomed := referenceUnhomed(c, b.Schema, compositionCensusHandled)
+	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, b.Schema, unhomed, refSiteShape, e.pointer)...)
-	if hasUnion {
-		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, b.Schema, e.pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
-	}
 	if isBase {
 		fields.m.Base = &ref
 	} else {
@@ -543,22 +579,63 @@ func branchExcludesObject(bs *statement.Schema) bool {
 	return writesType(bs) && !slices.Contains(kindsIn(bs), statement.KindObject)
 }
 
-// selectAllOfBase returns the index into branches of the one that becomes
-// Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
-// Mixins): of the $refs the composition takes (composesRef), the one, or of
-// several the first whose $ref lands on a schema taking part in a
-// discriminator hierarchy (inHierarchy).
-func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
+// selectAllOfBase returns the index into branches, the conjuncts of the
+// composition whose node is id, of the one that becomes Model.Base, and false
+// when none qualifies (multiple non-hierarchy refs stay Mixins): of the $refs
+// the composition takes (composesRef), the one, or of several, of those whose
+// $ref lands on a schema taking part in a discriminator hierarchy
+// (inHierarchy), one whose hierarchy's mapping routes id before one whose does
+// not, then the one whose reference text is the least, so no order written
+// decides.
+func selectAllOfBase(c lowering.Ctx, branches []allOfBranch, id ir.TypeID) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
 		if e.schema.Ref != nil && composesRef(c, e) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
+	// Ranked by whether the hierarchy routes id, by reference text, then by
+	// pointer, for a $ref written twice.
+	// Only a target in a hierarchy can be elected, so only its routes are read:
+	// a walk of the ancestors per $ref costs a wide composition naming no
+	// hierarchy a walk of the whole graph each.
+	routes := make(map[int]bool, len(refIdxs))
+	for _, i := range refIdxs {
+		target := refBranchTarget(c, branches[i].schema)
+		routes[i] = len(refIdxs) > 1 && stated(target) && inHierarchy(c, target) && routesTo(c, target, id)
+	}
+	slices.SortStableFunc(refIdxs, func(i, j int) int {
+		_, a := refSpelling(branches[i].schema)
+		_, b := refSpelling(branches[j].schema)
+		return cmp.Or(compareTrueFirst(routes[i], routes[j]), strings.Compare(a, b),
+			strings.Compare(string(branches[i].pointer), string(branches[j].pointer)))
+	})
 	return merge.SelectBase(refIdxs, func(i int) bool {
 		target := refBranchTarget(c, branches[i].schema)
 		return stated(target) && inHierarchy(c, target)
 	})
+}
+
+// routesTo reports whether the mapping of a discriminator s, a stated schema,
+// or one of its discriminated ancestors declares names id, the node a
+// composition of s lowers to; an empty id is no node, which none names.
+func routesTo(c lowering.Ctx, s *statement.Schema, id ir.TypeID) bool {
+	return slices.ContainsFunc(append([]*statement.Schema{s}, discriminatedAncestors(c, s)...), func(a *statement.Schema) bool {
+		d := discriminatorIn(a)
+		return d != nil && len(mappingTagsFor(c, d, id)) > 0
+	})
+}
+
+// compareTrueFirst orders true before false.
+func compareTrueFirst(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return -1
+	default:
+		return 1
+	}
 }
 
 // inHierarchyOf keys what inHierarchy read of one schema.

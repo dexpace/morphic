@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -48,9 +50,11 @@ type refinement struct {
 	contradicts bool
 }
 
-// principalIs reports whether e is the branch the position lowers from.
+// principalIs reports whether e is the branch the position lowers from: its
+// schema at its pointer, as an entry writing a $ref beside other keys is two
+// branches at one pointer (statement.Entry).
 func (r refinement) principalIs(e allOfBranch) bool {
-	return r.principal != nil && r.principal.pointer == e.pointer
+	return r.principal != nil && r.principal.pointer == e.pointer && r.principal.schema == e.schema
 }
 
 // refVote is how a $ref conjunct stood in the election of a principal.
@@ -160,6 +164,33 @@ func unionAside(c lowering.Ctx, s *statement.Schema) bool {
 	return decisionOf(c, s, "").aside
 }
 
+// usesOneRef reports whether s, whose flattened conjuncts are comp, is a use of
+// one target saying nothing of it: one conjunct is a $ref, and s and every
+// other conjunct state nothing (statesNothing). It is the reference, as the
+// $ref alone is (docs/compilers/openapi.md#allof-classification).
+func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
+	refs := 0
+	for _, e := range comp.branches {
+		switch {
+		case e.schema.Ref != nil:
+			refs++
+		case !statesNothing(e.schema.Schema):
+			return false
+		}
+	}
+	return refs == 1 && statesNothing(s)
+}
+
+// statesNothing reports whether s, a schema object, writes nothing but the
+// allOf its statement flattens, a list holding an entry, and keys that say
+// nothing of the instance (statement.ReadBeside): a comment, an anchor,
+// schemas a reference reaches, a keyword left out.
+func statesNothing(s *statement.Schema) bool {
+	return s.Truth == statement.Stated && !slices.ContainsFunc(s.Keys, func(k statement.Key) bool {
+		return (k.Name != "allOf" || len(s.AllOf) == 0) && statement.ReadBeside(k.Name, k.Node, "")
+	})
+}
+
 // decide reads the decision refinementOf remembers. Where the conjuncts share
 // no value, or the kinds the position lowers to, null aside, are an object
 // alone, it composes, unless a conjunct states a value set, which is elected
@@ -182,7 +213,7 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	}
 	var principal *conjunct
 	contradicts := disjoint(joint, conjuncts)
-	if contradicts || kinds == kindObject {
+	if contradicts || kinds == kindObject && !usesOneRef(s, comp) {
 		if principal = setElected(&w, s, conjuncts); principal == nil {
 			return decision{aside: aside}
 		}
@@ -339,7 +370,12 @@ func refinableBranches(comp allOfComposition) bool {
 // read alone: its entries are conjuncts of their own.
 func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	out = append(out, conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s), at: -1})
+	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s), at: -1}
+	if nullIdiom(w.c, s) {
+		// The null is the reference's, which the policy widens (nulls.widenRef).
+		own.read.kinds, own.says = kindAny, false
+	}
+	out = append(out, own)
 	for i := range comp.branches {
 		e := &comp.branches[i]
 		bs := e.schema.Schema
@@ -389,6 +425,14 @@ func unionsIn(w *admission, s *statement.Schema) admitted {
 		}
 	}
 	return read
+}
+
+// nullIdiom reports whether s writes beside its $ref a type naming null alone,
+// which the nullable-inference policy reads as that reference or null
+// (docs/compilers/openapi.md#nullable): the null widens the reference rather
+// than conjoining with it, so the type says nothing else of the position.
+func nullIdiom(c lowering.Ctx, s *statement.Schema) bool {
+	return s.BesideRef != nil && c.NullableInference.Honours() && writesType(s) && len(effectiveTypes(s)) == 0
 }
 
 // saysKind reports whether s writes what kind of value it admits.
@@ -679,8 +723,13 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 }
 
 // refinedShape describes what a refinement lowers to, for the diagnostic
-// recordUnhomedAt reports.
-const refinedShape = "a use of one of its allOf conjuncts"
+// recordUnhomedAt reports, its conjuncts named as comp's subject names them.
+func refinedShape(comp allOfComposition) string {
+	if comp.subject() == "this schema" {
+		return "a use of one of its conjuncts"
+	}
+	return "a use of one of its allOf conjuncts"
+}
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
 // census keywords it wrote, described by shape, the $ref branches of its allOf
@@ -727,7 +776,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		}
 		return k
 	}
-	k := outcomeKeeps{shape: refinedShape, comp: r.comp, undecided: r.principal == nil}
+	k := outcomeKeeps{shape: refinedShape(r.comp), comp: r.comp, undecided: r.principal == nil}
 	typed := refinedValueType(c, r, s, pointer)
 	if r.principal != nil {
 		degraded, validation := keptUnion(c, r, s)
@@ -866,7 +915,7 @@ func keptUnion(c lowering.Ctx, r refinement, s *statement.Schema) (degraded, val
 // its ValueType, that format's primitive or a narrower one, or a redaction. A
 // type that ValueType holds, its values hold too.
 func said(w *admission, r refinement, typed setType, s *statement.Schema, key string) bool {
-	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) {
+	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) || key == "type" && nullIdiom(w.c, s) {
 		return true
 	}
 	return typed.ok && key == "format" && (annotation.DeclaresRedaction(s) || valueTypeHoldsFormat(typed.prim, s))
@@ -925,25 +974,20 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
 	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
-	refs := keptRefKeys(k.branches, pointer)
+	kept, keptDiags := keepRefConjuncts(c, p, k.branches, pointer)
+	diags = append(diags, keptDiags...)
 	for _, b := range k.branches {
-		key, at := k.comp.branchKey(b.entry.pointer), b.entry.pointer
-		if ref, ok := refs[b.entry.pointer]; ok {
-			key, at = ref.key, ref.at
-		}
-		kept, keptDiags := annotation.PreserveNodeInto(p, key, b.entry.schema.Node, ir.ReasonDegradedLowering, c.Place().At(at))
-		diags = append(diags, keptDiags...)
-		if kept {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))
+		if kept[b.entry.pointer] {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(k.comp, b)))
 		}
 	}
-	shape := refinedShape
+	shape := refinedShape(k.comp)
 	if k.undecided {
 		shape = undecidedShape
 	}
 	for _, e := range k.entries {
 		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, func(e keptEntry) ir.Diagnostic {
-			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(e, k.undecided))
+			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.undecided))
 		})...)
 	}
 	dropFoldedIntoWhole(c, p)
@@ -994,38 +1038,69 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 }
 
 // keptEntryWhy words why a refinement keeps an inline branch whole, undecided
-// saying it elected no entry.
-func keptEntryWhy(e keptEntry, undecided bool) string {
+// saying it elected no entry, naming the schema writing its conjuncts as comp's
+// subject does.
+func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
 	if why := wholeWhy(e); why != "" {
 		return why
 	}
+	of := comp.subject()
 	if undecided {
-		return "no entry of this allOf is the one it lowers from, so it lowered by the keywords beside it, the top " +
-			"type where those name no kind, and nothing there homes what this inline branch adds; the branch (" +
+		return "no conjunct of " + of + " is the one it lowers from, so it lowered by the keywords beside them, the " +
+			"top type where those name no kind, and nothing there homes what this inline branch adds; the branch (" +
 			strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 	}
-	return "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
+	return of + " lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
 		"adds; the branch (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
-// keptWhy words why a refinement keeps a $ref branch.
-func keptWhy(b keptBranch) string {
+// keepRefConjuncts keeps on p each $ref conjunct of branches, one a
+// refinement, a composition or a failed read leaves unlowered: the reference
+// as written, its text alone, under the key keptRefKeys ranks it by, at the
+// entry writing it. What an entry writes beside its $ref is kept apart, as an
+// inline entry's keywords are. It reports which it kept, by pointer.
+func keepRefConjuncts(c lowering.Ctx, p *ir.Unmodeled, branches []keptBranch, pointer jsontext.Pointer,
+) (map[jsontext.Pointer]bool, []ir.Diagnostic) {
+	var keys map[jsontext.Pointer]keptRef
+	if len(branches) == 1 {
+		// One kept $ref is openapi:$ref at its entry, as keptRefKeys ranks it.
+		keys = map[jsontext.Pointer]keptRef{branches[0].entry.pointer: {key: "openapi:$ref", at: branches[0].entry.pointer}}
+	} else {
+		keys = keptRefKeys(branches, pointer)
+	}
+	kept := make(map[jsontext.Pointer]bool, len(branches))
+	var diags []ir.Diagnostic
+	for _, b := range branches {
+		_, text := refSpelling(b.entry.schema)
+		ref := keys[b.entry.pointer]
+		ok, keptDiags := annotation.PreserveNodeInto(p, ref.key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
+			ir.ReasonDegradedLowering, c.Place().At(ref.at))
+		diags = append(diags, keptDiags...)
+		kept[b.entry.pointer] = ok
+	}
+	return kept, diags
+}
+
+// keptWhy words why a refinement keeps a $ref branch, naming the schema
+// writing its conjuncts as comp's subject does.
+func keptWhy(comp allOfComposition, b keptBranch) string {
+	of := comp.subject()
 	switch b.vote {
 	case refInferredApart:
-		return "the kind-inference policy reads this $ref's target as kinds leaving out one the rest of this " +
-			"allOf admits, so the $ref is kept verbatim under Unmodeled"
+		return "the kind-inference policy reads this $ref's target as kinds leaving out one the rest of " + of +
+			" admits, so the $ref is kept verbatim under Unmodeled"
 	case refAdmitsEvery:
-		return "this $ref's target admits every kind, and what the other conjuncts of this allOf name, a kind " +
+		return "this $ref's target admits every kind, and what the other conjuncts of " + of + " name, a kind " +
 			"or a union, decides first, so the $ref is kept verbatim under Unmodeled"
 	case refNarrowed:
-		return "another $ref of this allOf lies within as many of its conjuncts or more, a tie going to the " +
+		return "another $ref of " + of + " lies within as many of its conjuncts or more, a tie going to the " +
 			"least reference text, then to the least text of its entry, and a use names one target, so this " +
 			"$ref is kept verbatim under Unmodeled"
 	case refOutsideSet:
-		return "the conjuncts of this allOf share no value, and its value set is elected before the rest, " +
+		return "the conjuncts of " + of + " share no value, and its value set is elected before the rest, " +
 			"holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled"
 	default:
-		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
+		return "the value set of " + of + " narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"
 	}
 }

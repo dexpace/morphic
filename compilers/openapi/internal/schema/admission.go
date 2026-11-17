@@ -513,7 +513,7 @@ func (d *declarationSet) property(t *statement.Table, name string) *place {
 func (w *admission) declarations(s *statement.Schema) declarationSet {
 	out := newDeclarationSet()
 	out.add(w.c.Statements(), s)
-	w.declare(&out, statementsOf(w.c, allOfIn(s)))
+	w.declare(&out, conjunctsIn(w.c, s))
 	return out
 }
 
@@ -540,8 +540,8 @@ func (w *admission) innerAt(p *place) declarationSet {
 	return *p.inner
 }
 
-// declare adds to out what each schema on stack declares, its allOf conjuncts
-// and what its $ref lands on. A union's branches are left out, since an
+// declare adds to out what each schema on stack declares, its conjuncts
+// (conjunctsIn) and what its $ref lands on. A union's branches are left out, since an
 // instance need match only one. A declaration the walk does not reach, past the
 // budget or a $ref landing nowhere, is one fewer to restate, which errs towards
 // shape. The walk keeps its own stack, so it adds no recursion cycle, and the
@@ -552,9 +552,7 @@ func (w *admission) declare(out *declarationSet, stack []*statement.Statement) {
 		stack = stack[:len(stack)-1]
 		out.composed = append(out.composed, st)
 		out.add(w.c.Statements(), st.Schema)
-		for _, b := range st.AllOf {
-			stack = append(stack, w.c.Statements().Sub(b))
-		}
+		stack = append(stack, conjunctsIn(w.c, st.Schema)...)
 		if next, _ := declaredOf(w.c, st); next != nil {
 			stack = append(stack, next)
 		}

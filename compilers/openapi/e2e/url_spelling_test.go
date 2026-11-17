@@ -49,10 +49,10 @@ func TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType(t *testing.T) 
 		assert.Equal(t, []string{"/c.yaml", "/c.yaml?"}, hits, "%s: one request per document", name)
 		want := labelled(srv.URL+"/c.yaml", "/X")
 		for _, k := range []string{"A", "B", "C", "D", "E"} {
-			assert.Equal(t, want, aliasTarget(t, doc, k), "%s: %s", name, k)
+			assert.Equal(t, want, useTarget(t, doc, k), "%s: %s", name, k)
 		}
-		assert.NotEqual(t, want, aliasTarget(t, doc, "F"), "%s: c.yaml? is another resource", name)
-		assert.Equal(t, labelled(srv.URL+"/c.yaml?", "/X"), aliasTarget(t, doc, "F"), name)
+		assert.NotEqual(t, want, useTarget(t, doc, "F"), "%s: c.yaml? is another resource", name)
+		assert.Equal(t, labelled(srv.URL+"/c.yaml?", "/X"), useTarget(t, doc, "F"), name)
 		paths := sourcePaths(doc)
 		require.Len(t, paths, 3, "%s: the source and two documents: %v", name, paths)
 		slices.Sort(paths[1:])
@@ -86,7 +86,7 @@ func TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling(t *testing.T) {
 			doc, diags := compileText(t, "spec.yaml", src, openapi.Options{})
 
 			assertNoErrorDiags(t, diags)
-			assert.Equal(t, componentID("P"), aliasTarget(t, doc, "R"))
+			assert.Equal(t, componentID("P"), useTarget(t, doc, "R"))
 		})
 	}
 }

@@ -90,7 +90,7 @@ mapping routes by component name, and one holding an entry routes by its entries
 compiler writes into a `Mapping`, beside the entries its source writes, the route the source
 implies to each variant it declares none for, and writes the routes out too where a variant's type
 carries no name the source routes it by, as the OpenAPI compiler does for a variant composed over
-its branch or an alias for a keyword beside its `$ref`
+its branch or a node hoisted for a keyword beside its `$ref`
 ([`discriminator`](../compilers/openapi.md#discriminator)): a consumer reads a type's name to route
 only where the `Mapping` is nil. Reading a variant's name beside the entries, as OpenAPI's text
 routes a value no entry keys, would keep the IR nearer the source, but a variant whose type carries
@@ -207,9 +207,8 @@ lists that no member declares and the composition entries that name no model. It
 
 - *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
   of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
-  root's included, is read through alias scalars, since a `$ref` carrying siblings composes the
-  alias it hoists rather than the schema it names (below). A root naming no model has an empty
-  shape.
+  root's included, is read through alias scalars, which a use of a target that is no object alone
+  owns (below). A root naming no model has an empty shape.
 - *Members.* Declarations are one member when their wire names are equal: `WireName`, else
   `Name.Source` (`Property.EffectiveWireName`, [properties](./properties.md)). The empty name is a
   name, the JSON member keyed by the empty string. A per-format name (`WireNameByFormat`) and an
@@ -317,17 +316,17 @@ member there.
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](../compilers/openapi.md#allof-classification).
 
-A `$ref` entry that also writes keywords beside the `$ref` composes the *branch*, not the schema
-the branch names: those keywords bind this use of the target and cannot go on the shared node, so
-the branch position takes a node of its own — an alias over the target carrying them — and
-`Base`/`Mixins` point at that. It is the same alias any other `$ref`-with-siblings position hoists
-when it carries no `Property` or `Parameter` of its own to hold them — `items`, a union branch, a
-component — so nothing about composition is special here; a `$ref` entry writing nothing beside
-itself composes straight to the target and hoists no node. The alias's name hint is the hint the
-node the `$ref` resolves to carries — a component's name, or, for a position inside a schema, the
-hint its position gives it, an operation's or a response's included. A hint is a function of the
-documents and the position alone, so an outside `$ref` naming the branch pointer gives the same one,
-whichever lowering interns the node.
+A `$ref` and the keywords written beside it are two conjuncts, as JSON Schema applies them
+together: a `$ref` entry that also writes keywords beside the `$ref` is the reference, composed
+straight to the target, and an inline entry of those keywords at the same pointer, as
+`allOf: [{$ref: T}, {K}]` writes them, and a `$ref` written beside the composition's own keywords is
+one more such reference. Those keywords bind the composition, never the shared node, and no node
+stands at the entry, so every `$ref` entry composes the schema it names. An `allOf` of one `$ref`
+saying nothing else is that reference, and a position needing a node of its own over it, a
+component or one a `$ref` names, owns the `Model` over an object or the alias over anything else
+([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use hoists is
+hinted by its position, a function of the documents and the position alone, so an outside `$ref`
+naming that pointer gives the same one, whichever lowering interns the node.
 
 `Base` and `Mixins` name the referents a composition of objects composes: a `$ref` entry is one
 only where the schema it lands on lowers to an object alone, null aside, or, where that schema's
@@ -337,8 +336,8 @@ or a mixin that is no object. In JSON Schema any schema may be a conjunct: `allO
 the `$ref` to `Tags` verbatim under `openapi:allOf/1` with an info, as it keeps one to a `Scalar`, an
 `Enum`, a union admitting another kind or the top type: no branch the source wrote is dropped,
 against invariant 2. They are typed `TypeRef` rather than "reference to a `Model`" because a union
-of objects ([below](#a-union-a-composition-names)) and the alias a `$ref` entry's siblings hoist over
-one are referents too. What is *shaped* like `allOf` is the composition itself: one referent per
+of objects ([below](#a-union-a-composition-names)) and the node a position owns over one are
+referents too. What is *shaped* like `allOf` is the composition itself: one referent per
 conjunct, resolved by reference. An `allOf` whose kinds are not an object alone has nothing to
 compose, so short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of its
 conjuncts.
@@ -386,8 +385,8 @@ The designs this was weighed against:
   the use's.
 - **A schema synthesized from the conjuncts**: its `items` would hoist at pointers the source never
   wrote (invariant 3).
-- **An alias for a narrowing**, as `{$ref: Op, enum: [set]}` lowers beside a 3.1 `$ref`: the field
-  then keeps its value set only under `Unmodeled`, where the position has a typed `Enum` to hold it.
+- **An alias for a narrowing**, as `{$ref: Op, enum: [set]}` lowered beside a 3.1 `$ref`: the field
+  then kept its value set only under `Unmodeled`, where the position has a typed `Enum` to hold it.
 - **The value set's node at the entry writing it**: its ID then follows the entry's index and the
   spelling, a component or `items` stands as an alias over it, and the `$ref` it narrows is kept on
   another node than the value set (#2017).

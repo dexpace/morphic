@@ -561,14 +561,16 @@ func wholeCode(k keptEntry) string {
 	return diag.DegradedConstruct
 }
 
-// keepFailedRefs keeps the $ref entries of comp at the indices failed, each
-// reference of which names nothing, beside the composed model m: the reference
-// as written under openapi:$ref, or openapi:$ref/<i> where several are kept,
-// and each keyword written beside it as an inline entry's is kept (entryKeeps),
-// or the entry whole where one is. The failure itself is reported where the
-// reference is written (fillRefBranch), so nothing here reports it again.
-func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, failed []int) []ir.Diagnostic {
-	var diags []ir.Diagnostic
+// keepFailedRefs keeps beside the composed model m what the $ref entries of
+// comp at the indices failed, each reference of which names nothing, write
+// beside the reference: each keyword as an inline entry's is kept
+// (entryKeeps), or the entry whole where one is. It returns the entries kept
+// apart, whose references keepUncomposedRefs keeps. The failure itself is
+// reported where the reference is written (fillRefBranch), so nothing here
+// reports it again.
+func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, failed []int,
+) ([]keptBranch, []ir.Diagnostic) {
+	diags := make([]ir.Diagnostic, 0, len(failed))
 	var apart []keptBranch
 	for _, i := range failed {
 		k := comp.kept[i]
@@ -580,15 +582,7 @@ func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfCo
 				return c.DiagAt(ir.SeverityInfo, wholeCode(k), k.entry.pointer, "%s", failedRefWholeWhy(k))
 			})...)
 	}
-	keys := keptRefKeys(apart, comp.pointer)
-	for _, b := range apart {
-		keyword, _ := refSpelling(b.entry.schema)
-		ref := keys[b.entry.pointer]
-		_, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, ref.key, keyNode(b.entry.schema.Schema, keyword),
-			ir.ReasonDegradedLowering, c.Place().At(ref.at))
-		diags = append(diags, keptDiags...)
-	}
-	return diags
+	return apart, diags
 }
 
 // failedRefWholeWhy words why the $ref entry k, naming nothing, is kept whole.

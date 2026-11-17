@@ -81,8 +81,9 @@ func listing(st *statement.Statement) []string {
 // TestFlatten_ListsWhatWalkAllOfLists pins the flattened list to the
 // lowering's (docs/compilers/openapi.md#allof-classification): each wrapper
 // after its own entries, MaxFlattenDepth lists flattened and the entry one
-// list deeper capped, a $ref entry writing an allOf beside it, a boolean
-// entry and one writing an empty allOf listed as they stand.
+// list deeper capped, a $ref entry writing an allOf beside it listed as its
+// reference, the allOf's entries and then the rest as their wrapper, a
+// boolean entry and one writing an empty allOf listed as they stand.
 func TestFlatten_ListsWhatWalkAllOfLists(t *testing.T) {
 	t.Parallel()
 	table, c := tableOver(t, document("3.1.0",
@@ -111,15 +112,20 @@ func TestFlatten_ListsWhatWalkAllOfLists(t *testing.T) {
 	mixed := table.At(component(c, "Mixed"))
 	assert.Equal(t, []string{
 		"/allOf/0 wrapper=false capped=false",
+		"/allOf/0/allOf/0 wrapper=false capped=false",
+		"/allOf/0 wrapper=true capped=false",
 		"/allOf/1 wrapper=false capped=false",
 		"/allOf/2 wrapper=false capped=false",
 		"/allOf/3/allOf/0 wrapper=false capped=false",
 		"/allOf/3/allOf/1 wrapper=false capped=false",
 		"/allOf/3 wrapper=true capped=false",
 	}, listing(mixed))
-	require.Len(t, mixed.Entries, 6)
+	require.Len(t, mixed.Entries, 8)
 	assert.NotNil(t, mixed.Entries[0].Ref, "a $ref entry")
-	assert.Equal(t, statement.Anything, mixed.Entries[1].Truth, "a boolean entry")
+	assert.Equal(t, []string{"$ref"}, keyNames(mixed.Entries[0].Schema), "its reference alone")
+	assert.Nil(t, mixed.Entries[2].Ref, "the rest of it, which writes no reference")
+	assert.Equal(t, []string{"allOf"}, keyNames(mixed.Entries[2].Schema))
+	assert.Equal(t, statement.Anything, mixed.Entries[3].Truth, "a boolean entry")
 	assert.Empty(t, table.At(component(c, "T")).Entries, "a schema writing no allOf lists none")
 }
 
@@ -297,4 +303,95 @@ func TestTable_ReadAnswersForASchemaItDidNotRead(t *testing.T) {
 	unread := second.Read(&statement.Schema{Truth: statement.Stated})
 	assert.Equal(t, statement.Unwritten, unread.Truth, "a schema no table read holds no value")
 	assert.Same(t, second.Read(nil), unread)
+}
+
+// TestOf_AReferenceBesideOtherKeysIsItsFirstEntry pins how a statement holds a
+// schema writing a reference and keys beside it: its schema is the rest, which
+// writes no reference, and its first entry, at the schema's own pointer, the
+// reference alone, whose statement lists nothing. A null beside the reference
+// is no key it reads, and a reference alone is the schema, as written.
+func TestOf_AReferenceBesideOtherKeysIsItsFirstEntry(t *testing.T) {
+	t.Parallel()
+	table, c := tableOver(t, document("3.1.0",
+		"T: {type: string}",
+		"Beside: {$ref: '#/components/schemas/T', minLength: 3, allOf: [{maxLength: 5}]}",
+		"Null: {$ref: '#/components/schemas/T', description: null}",
+		"Alone: {$ref: '#/components/schemas/T'}",
+	), rulesAt(t, "3.1.0", ""))
+	beside := table.At(component(c, "Beside"))
+	assert.Nil(t, beside.Ref, "the rest writes no reference")
+	assert.Equal(t, []string{"minLength", "allOf"}, keyNames(beside.Schema))
+	assert.Equal(t, []string{" wrapper=false capped=false", "/allOf/0 wrapper=false capped=false"}, listing(beside))
+	ref := beside.Entries[0].Schema
+	assert.Same(t, ref, beside.BesideRef)
+	require.NotNil(t, ref.Ref)
+	assert.Equal(t, []string{"$ref"}, keyNames(ref))
+	assert.Nil(t, ref.Text, "the reference alone fills no slot")
+	assert.Empty(t, table.Read(ref).Entries)
+	assert.Same(t, beside, table.Read(beside.Schema), "the rest reads as the statement")
+	for _, name := range []string{"Null", "Alone"} {
+		st := table.At(component(c, name))
+		assert.NotNil(t, st.Ref, name)
+		assert.Empty(t, st.Entries, name)
+	}
+}
+
+// TestOf_AReferenceMergedPastTheBoundConjoins pins a schema whose $ref is
+// merged in past nodeview.MergeDepthLimit, a description written beside the
+// merge: its keys list no $ref, and the statement reads the two as any
+// reference and keys beside it, the reference its first entry.
+func TestOf_AReferenceMergedPastTheBoundConjoins(t *testing.T) {
+	t.Parallel()
+	var chain strings.Builder
+	chain.WriteString("x-c0: &c0 {$ref: '#/components/schemas/T'}\n")
+	for i := 1; i <= 64; i++ {
+		fmt.Fprintf(&chain, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	spec := strings.Replace(document("3.1.0", "T: {type: string}", "S: {<<: *c64, description: d}"),
+		"paths: {}\n", "paths: {}\n"+chain.String(), 1)
+	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	st := table.At(component(c, "S"))
+	require.True(t, st.Truncated)
+	assert.Nil(t, st.Ref, "the statement's schema is the rest")
+	require.NotNil(t, st.BesideRef)
+	assert.Equal(t, "#/components/schemas/T", st.BesideRef.Ref.Text)
+	require.Len(t, st.Entries, 1)
+	assert.Same(t, st.BesideRef, st.Entries[0].Schema)
+}
+
+// TestRead_ASplitEntryReadAsAPositionIsTheSameTwoConjuncts pins that an allOf
+// entry writing a $ref beside a description, read as a position of its own,
+// reads as the words and the reference its composition listed, each built
+// once, so what a walk remembers of either is the same whichever reads it.
+func TestRead_ASplitEntryReadAsAPositionIsTheSameTwoConjuncts(t *testing.T) {
+	t.Parallel()
+	spec := document("3.1.0", "T: {type: string}", "S: {allOf: [{$ref: '#/components/schemas/T', description: d}]}")
+	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	st := table.At(component(c, "S"))
+	require.Len(t, st.Entries, 2)
+	words := st.Entries[1].Schema
+	entry := table.Read(words)
+	assert.Same(t, words, entry.Schema, "one schema object, one rest")
+	require.Len(t, entry.Entries, 1)
+	assert.Same(t, st.Entries[0].Schema, entry.Entries[0].Schema, "and one reference")
+}
+
+// TestOf_AnEntryWhoseReferenceEndsNowhereIsReadWhole pins that an allOf entry
+// writing a $ref the bindings read as naming nothing beside other keys is
+// listed whole, its reference and its keys one entry, while the same spelling
+// written as a component is the conjunction of the two.
+func TestOf_AnEntryWhoseReferenceEndsNowhereIsReadWhole(t *testing.T) {
+	t.Parallel()
+	spec := document("3.1.0", "S: {allOf: [{$ref: '#/components/schemas/Ghost', description: d}]}",
+		"G: {$ref: '#/components/schemas/Ghost', description: d}")
+	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	st := table.At(component(c, "S"))
+	require.Len(t, st.Entries, 1)
+	entry := st.Entries[0].Schema
+	require.NotNil(t, entry.Ref, "the entry is read as written")
+	assert.Nil(t, entry.BesideRef)
+	assert.Equal(t, []string{"$ref", "description"}, keyNames(entry))
+	g := table.At(component(c, "G"))
+	assert.Nil(t, g.Ref)
+	assert.NotNil(t, g.BesideRef, "a component conjoins")
 }

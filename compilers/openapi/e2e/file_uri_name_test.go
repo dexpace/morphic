@@ -58,7 +58,7 @@ func TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt(t *testing.T) {
 		assertNoErrorDiags(t, diags)
 		want := ids.In("sib.yaml").ForPointer("/X")
 		for _, k := range order {
-			assert.Equal(t, want, aliasTarget(t, doc, k), "%s: %s", name, k)
+			assert.Equal(t, want, useTarget(t, doc, k), "%s: %s", name, k)
 		}
 		paths := sourcePaths(doc)
 		assert.Len(t, paths, 2, "%s: the source and sib.yaml once: %v", name, paths)
@@ -107,12 +107,12 @@ func TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined(t *testing.
 				doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), sibSchemas(entries...), false)
 
 				want := ids.In("sib.yaml").ForPointer("/X")
-				assert.Equal(t, want, aliasTarget(t, doc, "A"), "A resolves")
-				assert.Equal(t, want, aliasTarget(t, doc, "C"), "C resolves")
+				assert.Equal(t, want, useTarget(t, doc, "A"), "A resolves")
+				assert.Equal(t, want, useTarget(t, doc, "C"), "C resolves")
 				bad := unresolvedRefs(diags)
 				if tc.refused == "" {
 					assert.Empty(t, bad, "%+v", diags)
-					assert.Equal(t, componentID("A"), aliasTarget(t, doc, "B"), "B names the source's own A")
+					assert.Equal(t, componentID("A"), useTarget(t, doc, "B"), "B names the source's own A")
 					return
 				}
 				require.Len(t, bad, 1, "%+v", diags)

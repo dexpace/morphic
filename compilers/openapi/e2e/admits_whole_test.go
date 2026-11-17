@@ -6,6 +6,8 @@ package e2e_test
 import (
 	"encoding/json/v2"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,7 +20,7 @@ import (
 
 // fieldClosure is the JSON of the property wire of the model id and of every
 // node a consumer of it reaches: each type a "target" names, and each component
-// a $ref kept verbatim names. A keyword one of the field's declarations writes
+// a $ref kept verbatim names, within a kept value or as a kept $ref's text. A keyword one of the field's declarations writes
 // is held where it shows in it, as a type, a constraint or an Unmodeled entry.
 func fieldClosure(t *testing.T, doc *ir.Document, id, wire string) string {
 	t.Helper()
@@ -45,15 +47,29 @@ func fieldClosure(t *testing.T, doc *ir.Document, id, wire string) string {
 		require.NoError(t, err)
 		out = append(out, string(raw))
 		walkObjects(next, func(m map[string]any) {
-			reached, _ := m["target"].(string)
-			if ref, ok := m["$ref"].(string); ok {
-				if name, found := strings.CutPrefix(ref, "#/components/schemas/"); found {
-					reached = "t/openapi/components/schemas/" + name
+			reached := []string{}
+			if target, ok := m["target"].(string); ok {
+				reached = append(reached, target)
+			}
+			refs := []any{m["$ref"]}
+			for _, key := range slices.Sorted(maps.Keys(m)) {
+				// A kept $ref holds the reference's text under its key.
+				if e, ok := m[key].(map[string]any); ok && (key == "openapi:$ref" || strings.HasPrefix(key, "openapi:$ref/")) {
+					refs = append(refs, e["value"])
 				}
 			}
-			if reached != "" && !seen[reached] && types[reached] != nil {
-				seen[reached] = true
-				queue = append(queue, types[reached])
+			for _, r := range refs {
+				if ref, ok := r.(string); ok {
+					if name, found := strings.CutPrefix(ref, "#/components/schemas/"); found {
+						reached = append(reached, "t/openapi/components/schemas/"+name)
+					}
+				}
+			}
+			for _, id := range reached {
+				if !seen[id] && types[id] != nil {
+					seen[id] = true
+					queue = append(queue, types[id])
+				}
 			}
 		})
 	}

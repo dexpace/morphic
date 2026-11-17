@@ -80,8 +80,10 @@ func TestElection_ASchemaWrittenTwiceIsOneConjunct(t *testing.T) {
 }
 
 // TestElection_TwoRefsWrittenAlikeGoByTheirEntries holds that two $refs naming
-// one target, one entry writing more beside it, elect the entry whose text is
-// the least, whichever is written first, keeping the other.
+// one target, one entry writing more beside it, are one $ref written twice:
+// what the entry writes beside its $ref is a conjunct of its own, so the
+// position is the use of the target, the description its own, nothing kept,
+// whichever is written first.
 func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileInEveryOrder(t, "3.1.0", func(swapped bool) []string {
@@ -89,10 +91,10 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 			"{$ref: '#/components/schemas/Amy'}", "", "Amy: {type: string}")
 	})
 	requireErrorsAndWarnings(t, diags, nil)
-	use := requireScalarOver(t, doc, "Refs", "t/anon/components/schemas/Refs/allOf/0")
-	assert.Equal(t, degradedKept("openapi:$ref"), keptOn(use), "the entry whose text is the greater, the bare $ref")
-	assert.Equal(t, entryPointer("Refs", 1), use.Unmodeled["openapi:$ref"].Provenance.Pointer)
-	requireOneInfoAtEach(t, diags, "Refs", "the bare $ref", 1)
+	use := requireScalarOver(t, doc, "Refs", componentID("Amy"))
+	assert.Empty(t, keptOn(use), "the $ref written twice is one")
+	assert.Equal(t, "d", use.Docs.Description)
+	assert.Zero(t, degradedInfosAt(diags, "Refs"))
 }
 
 // TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads holds that of two

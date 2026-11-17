@@ -82,19 +82,13 @@ func foldValue(s *statement.Schema, entry string) foldRendering {
 	return r
 }
 
-// allOfBesideNoRef reports whether s writes an allOf with no $ref beside it,
-// which would make the position a $ref site, whose alias keeps the allOf
-// verbatim (docs/compilers/openapi.md#allof-beside-ref).
-func allOfBesideNoRef(s *statement.Schema) bool {
-	return len(allOfIn(s)) > 0 && !refWritten(s)
-}
-
-// allOfMayRefine reports whether s's allOf may refine: no $ref or $dynamicRef
-// stands beside it, the last keeping it the composition it would otherwise be
-// (docs/compilers/openapi.md#allof-refinement). A union beside it is one more
-// conjunct (admission.conjuncts).
+// allOfMayRefine reports whether s's conjuncts may refine: it writes them
+// (writesConjuncts), an allOf or a reference beside other keys
+// (docs/compilers/openapi.md#allof-refinement). A union beside them is one
+// more conjunct, and a $dynamicRef the position does not expand masks no kind
+// (admission.conjuncts).
 func allOfMayRefine(s *statement.Schema) bool {
-	return allOfBesideNoRef(s) && !declaresDynamicRef(s)
+	return writesConjuncts(s)
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
@@ -106,7 +100,7 @@ func allOfMayRefine(s *statement.Schema) bool {
 // the union distributes across, or into the Model keeping the union verbatim or
 // composing it as a mixin, and so does a $dynamicRef it keeps from expanding.
 func allOfDecides(c lowering.Ctx, s *statement.Schema) bool {
-	if !allOfBesideNoRef(s) {
+	if !writesConjuncts(s) {
 		return false
 	}
 	if dispatchOf(s).won == "allOf" {
@@ -338,7 +332,7 @@ func lendingBranches(c lowering.Ctx, s *statement.Schema) []allOfBranch {
 // declaresScoped reports whether a voice writes what only the position can hold,
 // as declaresPositionScoped asks of the schema written there.
 func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
-	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node, v.At) })
+	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node) })
 }
 
 // recordVoicedResidue is recordDeclarationResidue for what voices write, each

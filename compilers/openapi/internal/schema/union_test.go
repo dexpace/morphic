@@ -333,11 +333,10 @@ func TestUnion_VariantHints(t *testing.T) {
 // cannot write keywords beside a $ref, so a document annotates a union branch by
 // wrapping it, and the wrapped branch names its variant for the $ref as 3.1's
 // `{$ref: X, description: …}` does, as does one narrowing the $ref by a value
-// set. A branch saying anything else about a value is a type of its own and keeps
-// the positional hint.
-// Each row also holds the branch's own node to the hint an outside $ref to the
-// branch derives: positional, or its target's name where the branch is itself a
-// $ref.
+// set or a bound (GitHub #2000). A branch declaring a member, or using two
+// targets, is a type of its own and keeps the positional hint. Each row also
+// holds the branch's own node to the hint an outside $ref to the branch
+// derives, its position's.
 func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 	t.Parallel()
 	const pet = "'#/components/schemas/Pet'"
@@ -364,11 +363,10 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "pet",
 		},
 		{
-			name:     "3.1 writes the description beside the ref itself",
-			version:  "3.1.0",
-			branch:   "{$ref: " + pet + ", description: a pet}",
-			want:     "pet",
-			wantNode: "pet",
+			name:    "3.1 writes the description beside the ref itself",
+			version: "3.1.0",
+			branch:  "{$ref: " + pet + ", description: a pet}",
+			want:    "pet",
 		},
 		{
 			name:   "a type beside the wrapped ref",
@@ -401,7 +399,7 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 		},
 		{
 			name:   "an empty schema before the wrapped ref",
-			branch: "{allOf: [{}, {$ref: " + pet + "}]}",
+			branch: "{allOf: [{}, {$ref: " + pet + "}], description: d}",
 			want:   "pet",
 		},
 		{
@@ -423,10 +421,10 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "variant_1",
 		},
 		{
-			name:    "a ref with an allOf written beside it",
+			name:    "a ref with an allOf of another written beside it, a use of two",
 			version: "3.1.0",
 			branch:  "{$ref: '#/components/schemas/User', allOf: [{$ref: " + pet + "}]}",
-			want:    "user", wantNode: "user",
+			want:    "variant_1",
 		},
 		{
 			name:   "a property beside the wrapped ref",
@@ -434,9 +432,9 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "variant_1",
 		},
 		{
-			name:   "a constraint beside the wrapped ref",
+			name:   "a constraint beside the wrapped ref, which declares no member",
 			branch: "{allOf: [{$ref: " + pet + "}], minProperties: 1}",
-			want:   "variant_1",
+			want:   "pet",
 		},
 		{
 			name:   "a required name beside the wrapped ref",
@@ -449,9 +447,9 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "variant_1",
 		},
 		{
-			name:         "a wrapped ref that names nothing",
+			name:         "a wrapped ref that names nothing, named as the bare $ref is",
 			branch:       "{allOf: [{$ref: '#/components/schemas/Ghost'}], description: a ghost}",
-			want:         "variant_1",
+			want:         "ghost",
 			wantDangling: true,
 		},
 	} {

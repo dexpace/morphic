@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -66,6 +67,42 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 		common.Name = compile.NamingHint(lowering.NameAt(c, pointer))
 	}
 	return common
+}
+
+// internOwnNode interns the node the position js, written at pointer, owns
+// where it lowered to ref, a use of what ref names, and nothing else built one:
+// over an object alone the Model composing it, as the allOf of its $ref alone
+// composes it, so no Scalar stands over a model; over any other target, one
+// no node answers, or where the use admits null, which a Base does not carry,
+// the Scalar alias (docs/compilers/openapi.md#allof-classification).
+func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer, ref ir.TypeRef,
+) []ir.Diagnostic {
+	if kinds, _ := lowersTo(c, js); ref.Nullable || kinds != kindObject || !stated(js.Schema) {
+		_, diags := internAlias(c, ts, js.Schema, pointer, ref)
+		return diags
+	}
+	comp := allOfComposition{pointer: pointer, branches: []allOfBranch{{schema: js, pointer: pointer}}}
+	if js.Ref == nil {
+		comp = readAllOf(c, js.Schema, pointer)
+	}
+	if !slices.ContainsFunc(comp.branches, func(e allOfBranch) bool {
+		if e.schema.Ref == nil {
+			return false
+		}
+		_, resolved := resolveSchemaRef(c, ts, e.schema)
+		return resolved
+	}) {
+		// The reference lowered to the top type, already reported.
+		_, diags := internAlias(c, ts, js.Schema, pointer, ref)
+		return diags
+	}
+	var diags []ir.Diagnostic
+	internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+		td, modelDiags := composeModel(c, ts, TopLevelDepth, js.Schema, pointer, true, common, comp)
+		diags = modelDiags
+		return td
+	})
+	return diags
 }
 
 // internAlias interns a Scalar at pointer whose Base is target, so a component

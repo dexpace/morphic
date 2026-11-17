@@ -247,10 +247,8 @@ func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 			outsider, ok := typeByName(doc, "Outsider").(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, outsider.Properties, 1)
-			branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
-			require.True(t, ok, "the branch pointer hoists an alias of the branch's target")
-			require.NotNil(t, branchNode.Base)
-			assert.Equal(t, componentID([]string{"A", "B"}[tc.branch]), branchNode.Base.Target)
+			assert.Equal(t, componentID([]string{"A", "B"}[tc.branch]), useTargetOf(t, doc.Types[outsider.Properties[0].Type.Target]),
+				"the branch pointer hoists the node a use of the branch's target owns")
 		})
 	}
 }
@@ -608,7 +606,9 @@ func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
 
 // TestOneOf_CoDeclaredNotDistributedReasons pins the shapes distribution
 // declines, each kept verbatim under ReasonDegradedLowering with its own reason
-// in the diagnostic (docs/compilers/openapi.md#union-beside-structure), but two:
+// in the diagnostic (docs/compilers/openapi.md#union-beside-structure), and a
+// oneOf beside an anyOf, which it does not: the oneOf distributes and each
+// variant keeps the anyOf. Two more are pinned elsewhere:
 // TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed and
 // TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype pin those.
 // Half-distributing any of them would leave a Union whose variants disagree
@@ -637,9 +637,8 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	for name, reason := range map[string]string{
-		"NotAModel":       "the body is not a model, so it carries no composition to distribute into",
-		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
-		"Discriminated":   "the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo",
+		"NotAModel":     "the body is not a model, so it carries no composition to distribute into",
+		"Discriminated": "the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo",
 	} {
 		entry, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
 		require.True(t, ok, "%s keeps its union verbatim", name)
@@ -648,9 +647,12 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/"+name),
 			reason, name)
 	}
-	both := typeByName(doc, "BothCombinators").(*ir.Model)
-	_, ok := both.Unmodeled["openapi:anyOf"]
-	assert.True(t, ok, "the second combinator is kept too, which is why neither is distributed")
+	both, ok := typeByName(doc, "BothCombinators").(*ir.Union)
+	require.True(t, ok, "the oneOf distributes")
+	for _, v := range variantModels(t, doc, "BothCombinators") {
+		assert.Contains(t, v.Unmodeled, "openapi:anyOf", "each variant keeps the anyOf")
+	}
+	assert.NotContains(t, both.Unmodeled, "openapi:anyOf", "and the union does not")
 	// One more is settling's, once the registry is whole: Discriminated's
 	// discriminator routes to A, no subtype of its model, so it stays beside
 	// the union it was written for.

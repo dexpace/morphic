@@ -50,8 +50,8 @@ type bodyReading struct {
 func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmission(c), body: s}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
-	for _, b := range allOfIn(s) {
-		r.held = r.held.and(lowered(&r.w, c.Statements().Sub(b)))
+	for _, b := range conjunctsIn(c, s) {
+		r.held = r.held.and(lowered(&r.w, b))
 	}
 	return r
 }
@@ -101,7 +101,7 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
 // which they would restate under too, as more declarations admit less.
 func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]statement.Sub) bool {
 	branches := statementsOf(c, slices.Concat(sets...))
-	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return b.Ref != nil }) {
+	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return referenceOf(c, b) != nil }) {
 		return true
 	}
 	settled := ownRestatements(c, s, branches)

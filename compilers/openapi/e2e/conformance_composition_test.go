@@ -241,10 +241,9 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	outsider, ok := doc.Types[componentID("Outsider")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, outsider.Properties, 1)
-	branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
-	require.True(t, ok, "the branch pointer hoists an alias of what the branch references")
-	require.NotNil(t, branchNode.Base)
-	assert.Equal(t, componentID("A"), branchNode.Base.Target,
+	// The branch pointer owns the node a $ref to it needs: over the object A, the
+	// Model composing it.
+	assert.Equal(t, componentID("A"), useOf(t, doc.Types[outsider.Properties[0].Type.Target], "the branch"),
 		"the reference gets the branch schema, never the variant composed for that branch")
 
 	assertInlineBranchHint(t, doc)
@@ -302,14 +301,14 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	ownType, ok := doc.Types[componentID("OwnType")].(*ir.Model)
 	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
 	assert.Nil(t, ownType.Base, "a model composes no list")
-	assert.Contains(t, ownType.Unmodeled, "openapi:allOf/0", "the $ref to the list is kept")
+	assert.Contains(t, ownType.Unmodeled, "openapi:$ref", "the $ref to the list is kept")
 
 	twoRefs, ok := doc.Types[componentID("TwoRefs")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, twoRefs.Base, "the one $ref to an object is the Base")
 	assert.Equal(t, componentID("Obj"), twoRefs.Base.Target)
 	assert.Empty(t, twoRefs.Mixins)
-	assert.Contains(t, twoRefs.Unmodeled, "openapi:allOf/0", "the $ref to the string is kept")
+	assert.Contains(t, twoRefs.Unmodeled, "openapi:$ref", "the $ref to the string is kept")
 
 	inline, ok := doc.Types[componentID("Inline")].(*ir.Model)
 	require.True(t, ok)
@@ -1053,9 +1052,7 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
 	}
 
-	region, ok := doc.Types[componentID("Region")].(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Placement/oneOf/0"), region.Base.Target,
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Placement/oneOf/0"), useTarget(t, doc, "Region"),
 		"the reference gets the branch schema, never the variant composed for it")
 
 	maybe, ok := doc.Types[componentID("MaybePlacement")].(*ir.Union)

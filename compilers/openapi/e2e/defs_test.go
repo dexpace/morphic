@@ -300,20 +300,14 @@ func TestCompile_DefsPointerReachedThroughAnotherResolvesAgainstThatSchema(t *te
 			wantM := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "m"))
 			wantN := ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "A", "$defs", "n"))
 
-			// C is a bare $ref with nothing beside it, so lowering it hoists an
-			// alias Scalar over whatever it names (annotation.HomeOwnNode, since a
-			// top-level component is not a CarriedRef position).
-			c, ok := doc.Types[componentID("C")].(*ir.Scalar)
-			require.True(t, ok, "C's bare $ref hoists an alias over the target it names")
-			require.NotNil(t, c.Base)
-			assert.Equal(t, wantM, c.Base.Target, "C names A.$defs.m")
+			// C is a bare $ref with nothing beside it, so lowering it hoists the
+			// node a component owns over whatever it names (annotation.HomeOwnNode,
+			// since a top-level component is not a CarriedRef position).
+			assert.Equal(t, wantM, useTarget(t, doc, "C"), "C names A.$defs.m")
 
 			// m is likewise a bare $ref reached only because C's reference landed on
 			// it, so it too hoists an alias over its own target.
-			m, ok := doc.Types[wantM].(*ir.Scalar)
-			require.True(t, ok, "m's own bare $ref hoists an alias too")
-			require.NotNil(t, m.Base)
-			assert.Equal(t, wantN, m.Base.Target,
+			assert.Equal(t, wantN, useOf(t, doc.Types[wantM], "m"),
 				"m's own '#/$defs/n' is read from m's position, landing on A's own n — not on C's")
 
 			n, ok := doc.Types[wantN].(*ir.Model)

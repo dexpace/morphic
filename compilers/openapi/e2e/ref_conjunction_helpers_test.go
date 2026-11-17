@@ -197,3 +197,11 @@ func requireOneOfDistributed(t *testing.T, doc *ir.Document) {
 			"the anyOf is kept on each variant")
 	}
 }
+
+// holderPropType is the type the property named of the component Holder names.
+func holderPropType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
+	t.Helper()
+	p, ok := propByWire(requireModelOf(t, doc, "Holder"), name)
+	require.True(t, ok, "Holder holds no property %s", name)
+	return p.Type.Target
+}

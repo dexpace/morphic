@@ -46,7 +46,11 @@ for does:
 - **`Docs` and `Deprecation`**, each field from the first that sets it, a `Description` and its
   `Refs` counting as one since each span indexes its own description
   ([references in prose](../../ir/annotations.md#references-in-prose)): the carrier's own, then each
-  decorator's along the chain; a carrier is deprecated where any of them is. At a property,
+  decorator's along the chain; a carrier is deprecated where any of them is. A carrier that takes
+  a decorator's `Deprecation` lists that decorator's `Provenance.Inferred` names in its plan too,
+  joined as `ir.JoinInferred` joins them, so a consumer of the plan learns the deprecation was
+  inferred without walking to the decorator; the `Unmodeled` entry stays on the decorator, where
+  the plan reads it by reason. At a property,
   parameter or header the annotations of the type `Alias` names come last, merged as
   [annotations](../../ir/annotations.md#what-a-reference-carries-down) merges a `$ref` target's onto
   the carrier naming it; a union variant takes none of that type's, as the compiler gives a variant

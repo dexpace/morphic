@@ -536,7 +536,9 @@ func TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed(t *testing.T) {
 						model := requireModelOf(t, doc, name)
 						assert.Empty(t, parentsOf(model), "%s names no base: its target is no model", name)
 						require.Len(t, model.Properties, 1, name)
-						assert.Equal(t, degradedKept(entryKey(at)), keptOn(model), name)
+						assert.Equal(t, degradedKept("openapi:$ref"), keptOn(model), name)
+						assert.Equal(t, entryPointer(name, at), model.Unmodeled["openapi:$ref"].Provenance.Pointer,
+							"%s: placed at its entry", name)
 						assert.Equal(t, 1, degradedInfosAt(diags, name), name)
 					}
 					assert.False(t, markedKindInference(requireModelOf(t, doc, "Declared")), "its type is declared")
@@ -546,7 +548,8 @@ func TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed(t *testing.T) {
 					mixed := requireModelOf(t, doc, "Mixed")
 					assert.Contains(t, parentsOf(mixed), componentID("Obj"), "the object is the base or a mixin")
 					assert.NotContains(t, parentsOf(mixed), componentID("AnyT"))
-					assert.Equal(t, degradedKept(entryKey(mixTopAt)), keptOn(mixed))
+					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(mixed))
+					assert.Equal(t, entryPointer("Mixed", mixTopAt), mixed.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "Mixed"))
 				})
 			})

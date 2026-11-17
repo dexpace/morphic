@@ -354,9 +354,10 @@ paths:
 }
 
 // TestHeaders_RefSiteKeywordsAreKeptOnTheHeader covers the header position of
-// the $ref-sibling census (GitHub #283). A header carries its schema's
-// declaration the way a model property does, so the keywords an alias over the
-// $ref target cannot hold are kept on the header itself.
+// a $ref and the keywords beside it (GitHub #283): one conjunction, as the
+// allOf of the two is, so a value set narrowing the target is the header
+// schema's own Enum, which keeps the $ref it narrows, and the header keeps
+// nothing.
 func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
@@ -364,14 +365,16 @@ func TestHeaders_RefSiteKeywordsAreKeptOnTheHeader(t *testing.T) {
 		"        \"200\":\n          description: ok\n          headers:\n" +
 		"            X-H: {schema: {$ref: '#/components/schemas/Base', enum: [a, b]}}\n" +
 		"components:\n  schemas:\n    Base: {type: string}\n"
-	_, svc, diags := compileService(t, spec)
+	doc, svc, diags := compileService(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	h := headerAt(t, openapitest.FirstOp(t, svc))
-	entry, ok := h.Unmodeled["openapi:schema/enum"]
-	require.True(t, ok, "an alias over the target has no member set, so the enum is kept")
+	assert.Empty(t, h.Unmodeled, "the header keeps nothing")
+	en, ok := doc.Types[h.Type.Target].(*ir.Enum)
+	require.True(t, ok, "the header names the value set, got %T", doc.Types[h.Type.Target])
+	entry, ok := en.Unmodeled["openapi:$ref"]
+	require.True(t, ok, "the enum keeps the $ref it narrows")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `["a","b"]`, string(entry.Value))
 	openapitest.AssertInfoDiagAt(t, diags, "/paths/~1x/get/responses/200/headers/X-H/schema")
 }
 

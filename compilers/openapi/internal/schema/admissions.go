@@ -98,7 +98,7 @@ func (r *reading) took(child *reading) bool {
 // reader reads as cut short: it admits every kind and holds no value set or
 // format, so what it merges stops growing with the paths to it, as the formats
 // a read conjoins are one per schema taken in. The element schema is kept,
-// child's where r holds none, which missingArrayItemsBesideRef reads past a
+// child's where r holds none, which missingArrayItemsConjoined reads past a
 // cut.
 func (r *reading) past(child *reading) {
 	items := r.admitted.items
@@ -154,7 +154,8 @@ func admissionStore(c lowering.Ctx) *admissions {
 }
 
 // conjunctsOf returns the statements st conjoins with, each conjunct edge in
-// the order the read conjoins them, a statement as often as st names it: its
+// the order the read conjoins them, a statement as often as st names it: the
+// reference written beside its keywords (statement.Schema.BesideRef) and its
 // allOf entries, its oneOf and then anyOf branches, and the statement its
 // $ref's first hop lands on, or, for a $dynamicRef the bindings read as no
 // $ref, the one it expands to (dynamicExpansionOf). A `properties` or an
@@ -165,7 +166,10 @@ func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement
 	}
 	choice := choiceIn(st.Schema)
 	subs := slices.Concat(st.AllOf, choice.OneOf, choice.AnyOf)
-	out := make([]*statement.Statement, 0, len(subs)+1)
+	out := make([]*statement.Statement, 0, len(subs)+2)
+	if st.BesideRef != nil {
+		out = append(out, c.Statements().Read(st.BesideRef))
+	}
 	for _, b := range subs {
 		out = append(out, c.Statements().Sub(b))
 	}
@@ -302,10 +306,14 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 	}
 	r := w.readOwn(st)
 	choice := choiceIn(st.Schema)
-	for _, e := range edges[:len(st.AllOf)] {
+	conjuncts := len(st.AllOf)
+	if st.BesideRef != nil {
+		conjuncts++
+	}
+	for _, e := range edges[:conjuncts] {
 		r.conjoin(w.store.read[e])
 	}
-	edges = edges[len(st.AllOf):]
+	edges = edges[conjuncts:]
 	for i, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
 			r.conjoin(w.join(edges[:len(branches)], i == 0))

@@ -149,16 +149,22 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
 		out = append(out, unionAtoms(c, "anyOf", choice.AnyOf)...)
 	}
-	for _, e := range comp.branches {
+	for i, e := range comp.branches {
 		name := comp.branchPath(e.pointer)
 		r := admissionOf(c, e.schema)
 		ref, _ := declaredOf(c, e.schema)
 		switch {
 		case e.wrapper:
 			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
-		case e.schema.Ref != nil && r.words != anyInstance && !r.cut:
-			out = append(out, conjunctAtom{name: name + "/$ref", admits: admissionOf(c, ref).admits, st: ref, written: ref},
-				conjunctAtom{name: name, admits: r.words, words: e.schema.Schema})
+		case e.schema.BesideRef != nil:
+			// The rest of an entry writing a $ref beside it, whose reference is the
+			// branch before it (splitRef): what its own keywords admit, its unions
+			// among them.
+			w := newAdmission(c)
+			out = append(out, conjunctAtom{name: name, admits: inlineConjunct(&w, e.schema.Schema).kinds,
+				words: e.schema.Schema})
+		case splitRef(comp, i):
+			out = append(out, conjunctAtom{name: name + "/$ref", admits: r.admits, st: e.schema, cut: r.cut, written: ref})
 		default:
 			a := conjunctAtom{name: name, admits: r.admits, st: e.schema, cut: r.cut || e.capped, written: ref}
 			if e.schema.Truth.ReadsFalse() {
@@ -168,6 +174,14 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		}
 	}
 	return out
+}
+
+// splitRef reports whether the branch at i of comp is the reference an entry
+// writes beside other keys, the next branch, at its pointer, being the rest of
+// that entry (statement.Entry).
+func splitRef(comp allOfComposition, i int) bool {
+	return i+1 < len(comp.branches) && comp.branches[i+1].pointer == comp.branches[i].pointer &&
+		comp.branches[i].pointer != comp.pointer
 }
 
 // toldWhereWritten reports whether st, written apart from the allOf naming it
@@ -252,8 +266,8 @@ func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition, shape string) 
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, comp.pointer,
-		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which %s cannot state",
-		strings.Join(comp.disjoint, ", "), shape)}
+		"the conjuncts of %s share no value (%s), so no instance satisfies this schema, which %s cannot state",
+		comp.subject(), strings.Join(comp.disjoint, ", "), shape)}
 }
 
 // composedShape is the shape a composition lowers to, for diagDisjointConjuncts.

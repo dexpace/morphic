@@ -101,7 +101,7 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 		want       bool
 	}{
 		{"no bound anywhere", "allOf: [" + obj + ", {properties: {a: {}}}]\n", false},
-		{"a bound beside a branch's own $ref", "allOf: [{$ref: '#/components/schemas/Obj', minLength: 1}]\n", false},
+		{"a bound beside a branch's own $ref, the rest of that branch", "allOf: [{$ref: '#/components/schemas/Obj', minLength: 1}]\n", true},
 		{"a value bound on the schema", "allOf: [" + obj + "]\nminLength: 1\n", true},
 		{"a collection bound on the schema", "allOf: [" + obj + "]\nmaxItems: 2\n", true},
 		{"a value bound on the first branch", "allOf: [{minimum: 1}, " + obj + "]\n", true},

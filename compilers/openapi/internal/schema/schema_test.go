@@ -312,12 +312,12 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 		{
 			name: "allOf beside enum", body: "      allOf: [{$ref: '#/components/schemas/Base'}]\n      enum: [a, b]\n",
 			key: "openapi:$ref", at: "/components/schemas/S/allOf/0", reportAt: "/components/schemas/S/allOf/0",
-			report: "the $ref is kept verbatim under Unmodeled", raw: `{"$ref":"#/components/schemas/Base"}`, lowered: ir.KindEnum,
+			report: "the $ref is kept verbatim under Unmodeled", raw: `"#/components/schemas/Base"`, lowered: ir.KindEnum,
 		},
 		{
 			name: "allOf beside const", body: "      allOf: [{$ref: '#/components/schemas/Base'}]\n      const: a\n",
 			key: "openapi:$ref", at: "/components/schemas/S/allOf/0", reportAt: "/components/schemas/S/allOf/0",
-			report: "the $ref is kept verbatim under Unmodeled", raw: `{"$ref":"#/components/schemas/Base"}`, lowered: ir.KindLiteral,
+			report: "the $ref is kept verbatim under Unmodeled", raw: `"#/components/schemas/Base"`, lowered: ir.KindLiteral,
 		},
 		{
 			name: "enum beside const", body: "      const: a\n      enum: [a, b]\n",
@@ -889,7 +889,13 @@ func TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy(t *testing.T) {
 			assert.False(t, marked)
 			continue
 		}
-		assert.Equal(t, ir.KindModel, td.Kind(), "the policy reads its properties as an object")
-		assert.True(t, marked)
+		u, ok := td.(*ir.Union)
+		require.True(t, ok, "the policy reads its properties as an object the oneOf distributes across")
+		require.Len(t, u.Variants, 1)
+		variant := doc.Types[u.Variants[0].Type.Target]
+		assert.Equal(t, ir.KindModel, variant.Kind())
+		assert.Equal(t, lowering.KindInferenceHeuristic, variant.Common().Provenance.Inferred)
+		assert.Contains(t, variant.Common().Unmodeled, "openapi:anyOf", "the anyOf kept on the variant")
+		assert.False(t, marked)
 	}
 }

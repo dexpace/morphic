@@ -117,8 +117,8 @@ func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
 	assert.Nil(t, propertyOf(t, doc, "Holder", "narrowed").Default, "a string takes no null its $ref admits")
 	assert.Nil(t, propertyOf(t, doc, "Holder", "byValue").Default, "the conjuncts together leave only a")
 	assert.Nil(t, propertyOf(t, doc, "Holder", "byValueOrNull").Default, "a null is all that nullable adds")
-	assert.Nil(t, propertyOf(t, doc, "Holder", "nullBesideNarrowed").Default,
-		"a string takes no null the nullable beside its $ref admits")
+	assert.NotNil(t, propertyOf(t, doc, "Holder", "nullBesideNarrowed").Default,
+		"the nullable beside an entry's $ref is a conjunct of the position, which the policy widens to null")
 }
 
 // TestUse_ADefaultBesideItsValueSetStands pins that a narrowing judges only what
@@ -232,8 +232,8 @@ func TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert(t *testing.T) {
 // TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers pins the 3.0 spelling of
 // a use against the 3.1 one: a decorator over a target a keyword or a key
 // deprecates is deprecated through it, so a member key beside its allOf
-// annotates that deprecation on the decorator, as beside a $ref it annotates
-// the carrier's. A decorator over a live target, or one writing no member,
+// annotates that deprecation on the decorator, beside a $ref as beside an
+// allOf of it. A decorator over a live target, or one writing no member,
 // takes no Deprecation.
 func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
 	t.Parallel()
@@ -252,9 +252,12 @@ func TestUse_ADecoratorOverADeprecatedBaseReadsItsMembers(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	want := &ir.Deprecation{RemovalDate: "2099-01-01"}
-	assert.Equal(t, want, propertyOf(t, doc, "Holder", "beside").Deprecation)
-	assert.Equal(t, want, propertyOf(t, doc, "Holder", "besideStated").Deprecation)
-	for wire, dep := range map[string]*ir.Deprecation{"wrapped": want, "wrappedStated": want, "live": nil, "bare": nil} {
+	// Beside a $ref as beside an allOf of it, the decorator holds the deprecation
+	// and the carrier none (docs/ir/unmodeled.md#promotion).
+	for wire, dep := range map[string]*ir.Deprecation{
+		"beside": want, "besideStated": want, "wrapped": want, "wrappedStated": want, "live": nil, "bare": nil,
+	} {
+		assert.Nil(t, propertyOf(t, doc, "Holder", wire).Deprecation, wire)
 		decorator := doc.Types[propertyOf(t, doc, "Holder", wire).Type.Target].Common()
 		assert.Equal(t, dep, decorator.Deprecation, wire)
 		assert.Equal(t, dep != nil, decorator.Provenance.Inferred == promotion.ExtensionPromotionHeuristic, wire)

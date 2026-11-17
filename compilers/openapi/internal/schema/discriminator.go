@@ -88,18 +88,28 @@ type subtypeTag struct {
 	byName *statement.Discriminator
 }
 
-// subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
-// its hierarchy: the mapping key naming the subtype, else its schema name as
-// declared, not as its escaped pointer token spells it (GitHub #505), where a
-// discriminator routes to it by name (routesByName). An inline subtype has no
-// name, so only a mapping entry tags it (GitHub #517).
+// subtypeDiscriminatorValue returns the wire tag this allOf subtype carries:
+// the mapping key naming it, else its declared schema name where a
+// discriminator routes to it by name (GitHub #505, #517).
 //
-// Every discriminated ancestor is asked, as an intermediate may declare none
-// (GitHub #305). Of several mapping keys for the subtype the smallest in byte
-// order is elected, a mapping being unordered (GitHub #410); the base's
-// Discriminator keeps them all, and an info diagnostic reports it.
-func subtypeDiscriminatorValue(c lowering.Ctx, s *statement.Schema, id ir.TypeID, pointer jsontext.Pointer) (subtypeTag, []ir.Diagnostic) {
-	ancestors := discriminatedAncestors(c, s)
+// Every discriminated ancestor is asked, nearest first (GitHub #305); within a
+// level, first, the schema s's Base names, and its ancestors lead, so the
+// Base's hierarchy tags it whichever entry is written first. Of several keys
+// the smallest in byte order is elected (GitHub #410), with an info.
+func subtypeDiscriminatorValue(c lowering.Ctx, s *statement.Schema, id ir.TypeID, pointer jsontext.Pointer,
+	first *statement.Schema,
+) (subtypeTag, []ir.Diagnostic) {
+	var lead []*statement.Schema
+	if stated(first) {
+		lead = append([]*statement.Schema{first}, discriminatedAncestors(c, first)...)
+	}
+	var ancestors []*statement.Schema
+	for _, level := range ancestorLevels(c, s) {
+		slices.SortStableFunc(level, func(a, b *statement.Schema) int {
+			return compareTrueFirst(slices.Contains(lead, a), slices.Contains(lead, b))
+		})
+		ancestors = append(ancestors, level...)
+	}
 	for _, a := range ancestors {
 		tags := mappingTagsFor(c, discriminatorIn(a), id)
 		if len(tags) == 0 {
@@ -192,7 +202,12 @@ const maxDiscriminatorAncestorDepth = 256
 // diamonds). TestAllOf_DiscriminatorValueCyclicComposition (cyclic) and
 // TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic) pin it.
 func discriminatedAncestors(c lowering.Ctx, s *statement.Schema) []*statement.Schema {
-	var out []*statement.Schema
+	return slices.Concat(ancestorLevels(c, s)...)
+}
+
+// ancestorLevels is discriminatedAncestors level by level, nearest first.
+func ancestorLevels(c lowering.Ctx, s *statement.Schema) [][]*statement.Schema {
+	var out [][]*statement.Schema
 	visited := make(map[*statement.Schema]bool)
 	// s is visited before the walk starts, so a composition cycle cannot bring it
 	// back as one of its own ancestors. Without this a schema in a cycle that
@@ -205,10 +220,14 @@ func discriminatedAncestors(c lowering.Ctx, s *statement.Schema) []*statement.Sc
 		for _, cur := range level {
 			next = append(next, unvisitedRefTargets(c, cur, visited)...)
 		}
+		var found []*statement.Schema
 		for _, target := range next {
 			if discriminatorIn(target) != nil {
-				out = append(out, target)
+				found = append(found, target)
 			}
+		}
+		if len(found) > 0 {
+			out = append(out, found)
 		}
 		level = next
 	}
@@ -287,7 +306,7 @@ func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		if _, id, ok := componentNamed(scope, c.Statements().Sub(b)); ok {
+		if _, id, ok := componentNamed(scope, referenceOf(c, c.Statements().Sub(b))); ok {
 			named = append(named, id)
 		}
 	}
@@ -297,8 +316,11 @@ func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 // componentNamed returns the source component the union branch b names by
 // $ref, by name and by ID: the route OpenAPI's implicit mapping takes to it. It
 // is false for a branch naming none, one written inline or a $ref to any other
-// position.
+// position. b is the branch's reference (referenceOf), nil for none.
 func componentNamed(scope resolve.Scope, b *statement.Statement) (string, ir.TypeID, bool) {
+	if b == nil {
+		return "", "", false
+	}
 	at, ok := landsAt(b)
 	if !ok || at.Doc != bind.Source {
 		return "", "", false
@@ -403,7 +425,7 @@ func implicitRoutes(c lowering.Ctx, u unionAt) []implicitRoute {
 		if !u.variantBranch(c, i, st) {
 			continue
 		}
-		name, id, ok := componentNamed(scope, st)
+		name, id, ok := componentNamed(scope, referenceOf(c, st))
 		routes = append(routes, implicitRoute{name: name, component: id, named: ok})
 	}
 	return routes

@@ -238,31 +238,34 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc))
 
-	for _, name := range []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU", "RefSite"} {
+	for _, name := range []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU"} {
 		node := typeByName(doc, name)
 		require.NotNil(t, node, name)
 		assertKeptDiscriminator(t, node.Common().Unmodeled, name)
 		assert.True(t, namesDiscriminatorAt(diags, "/components/schemas/"+name), name)
 	}
-	for _, pointer := range []string{"/components/schemas/Holder/properties/n", "/components/schemas/Holder/properties/r"} {
-		assert.True(t, namesDiscriminatorAt(diags, pointer), pointer)
-	}
-
-	holder, ok := typeByName(doc, "Holder").(*ir.Model)
-	require.True(t, ok)
-	require.Len(t, holder.Properties, 2)
-	// The null-only property hoists a node of its own; the $ref one is on the carrier.
+	assert.True(t, namesDiscriminatorAt(diags, "/components/schemas/Holder/properties/n"))
+	// The null-only property hoists a node of its own.
 	assertKeptDiscriminator(t, doc.Types["t/anon/components/schemas/Holder/properties/n"].Common().Unmodeled, "n")
-	r := holder.Properties[slices.IndexFunc(holder.Properties, func(p ir.Property) bool { return p.Name.Source == "r" })]
-	assertKeptDiscriminator(t, r.Unmodeled, "r")
-	assert.Equal(t, 8, strings.Count(marshalForTest(t, doc), `"openapi:discriminator"`),
-		"one entry per position, none duplicated")
+	// Beside a $ref to an object a union distributes as beside an allOf of it,
+	// its variants routed by the discriminator (#2010).
+	for _, id := range []ir.TypeID{componentID("RefSite"), "t/anon/components/schemas/Holder/properties/r"} {
+		u, ok := doc.Types[id].(*ir.Union)
+		require.True(t, ok, "%s distributes", id)
+		require.NotNil(t, u.Discriminator, id)
+		assert.NotContains(t, u.Unmodeled, "openapi:discriminator", id)
+	}
+	assert.Equal(t, 6, strings.Count(marshalForTest(t, doc), `"openapi:discriminator"`),
+		"one entry per position kept, none duplicated")
 }
 
 // TestHomelessDiscriminator_IsKeptBesideEveryOtherNode pins that a
 // discriminator is a census keyword: wherever the position lowered to a node
 // that does not route by it, the census keeps it verbatim and says so, as it
 // keeps any keyword the node has no field for. Each was dropped in silence.
+// Beside a $ref to an object the discriminator is the composition's, so a
+// Model over the target holds it, at a component, a property and a parameter
+// alike, and on an entry it is kept with the entry, as on any inline entry.
 func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, homelessSpec)
@@ -270,19 +273,12 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	assert.Empty(t, validated(t, doc))
 
 	owners := map[string]ir.Unmodeled{}
-	for _, name := range []string{"Str", "En", "Mixed", "Arr", "Bare", "RefD"} {
+	for _, name := range []string{"Str", "En", "Mixed", "Arr", "Bare"} {
 		owners["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
 	}
-	for _, at := range []string{"Items/items", "Sub/allOf/0", "Holder/properties/q"} {
+	for _, at := range []string{"Items/items", "Holder/properties/q"} {
 		owners["/components/schemas/"+at] = doc.Types[ir.TypeID("t/anon/components/schemas/"+at)].Common().Unmodeled
 	}
-	holder, ok := typeByName(doc, "Holder").(*ir.Model)
-	require.True(t, ok)
-	owners["/components/schemas/Holder/properties/p"] = holder.Properties[0].Unmodeled
-	op := doc.Services[0].Groups[0].Operations[0]
-	require.Len(t, op.Params, 1)
-	owners["/paths/~1p/get/parameters/0/schema"] = schemaKept(op.Params[0].Unmodeled)
-
 	for pointer, unmodeled := range owners {
 		assertKeptDiscriminator(t, unmodeled, pointer)
 		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
@@ -290,8 +286,27 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 				string(d.Provenance.Pointer) == pointer && strings.Contains(d.Message, "which has no home for discriminator")
 		}), "%s reports what it kept", pointer)
 	}
+
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	op := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, op.Params, 1)
+	for _, id := range []ir.TypeID{componentID("RefD"), holder.Properties[0].Type.Target, op.Params[0].Type.Target} {
+		m, isModel := doc.Types[id].(*ir.Model)
+		require.True(t, isModel, "%s is the model over the object", id)
+		require.NotNil(t, m.Discriminator, id)
+		assert.Equal(t, "kind", m.Discriminator.PropertyName, id)
+		require.NotNil(t, m.Base, id)
+		assert.Equal(t, componentID("Cat"), m.Base.Target, id)
+	}
+	// A discriminator an entry writes beside its $ref is kept on the
+	// composition under its own key, as on an entry of its own.
+	sub, ok := typeByName(doc, "Sub").(*ir.Model)
+	require.True(t, ok)
+	assertKeptDiscriminator(t, sub.Unmodeled, "/components/schemas/Sub/allOf/0")
+
 	marshaled := marshalForTest(t, doc)
-	assert.Equal(t, len(owners), strings.Count(marshaled, `"openapi:discriminator"`)+
+	assert.Equal(t, len(owners)+1, strings.Count(marshaled, `"openapi:discriminator"`)+
 		strings.Count(marshaled, `"openapi:schema/discriminator"`), "one entry per position, none duplicated")
 }
 
@@ -350,10 +365,13 @@ func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
 		name, spec string
 		sites      []string
 	}{
-		{"beside no union", homelessSpec + more, []string{"/paths/~1p/get/parameters/0/schema", "Str", "En", "Mixed", "Arr",
-			"Bare", "RefD", "Items/items", "Sub/allOf/0", "Holder/properties/p", "Holder/properties/q", "Multi", "Obj", "Collapsed"}},
-		{"beside a union", unplacedSpec, []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU", "RefSite",
-			"Holder/properties/n", "Holder/properties/r"}},
+		// Beside a $ref to an object the discriminator is the model's, which holds
+		// it (TestHomelessDiscriminator_IsKeptBesideEveryOtherNode), so the
+		// specs' $ref sites are no site here.
+		{"beside no union", withoutRefSites(homelessSpec) + more, []string{"Str", "En", "Mixed", "Arr",
+			"Bare", "Items/items", "Holder/properties/q", "Multi", "Obj", "Collapsed"}},
+		{"beside a union", withoutRefSites(unplacedSpec), []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU",
+			"Holder/properties/n"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -479,6 +497,18 @@ components:
         p: {$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}
         q: {type: string, discriminator: {propertyName: kind}}
 `
+
+// refSites matches what homelessSpec and unplacedSpec write of a discriminator
+// beside a $ref: a parameter's, RefD, Sub, the property p, and the blocks of
+// RefSite and of the property r.
+var refSites = regexp.MustCompile(`(?m)^      parameters:\n(?:        .*\n)+|^    (?:RefD|Sub): .*\n|^        p: .*\n|` +
+	"^    RefSite:\n(?:      .*\n){3}|^        r:\n(?:          .*\n){3}")
+
+// withoutRefSites returns spec, homelessSpec or unplacedSpec, without the
+// schemas writing a discriminator beside a $ref (refSites).
+func withoutRefSites(spec string) string {
+	return refSites.ReplaceAllString(spec, "")
+}
 
 // assertKeptDiscriminator requires unmodeled to keep a discriminator verbatim
 // as a degraded lowering, whole.

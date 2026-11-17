@@ -193,19 +193,25 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // verbatim on the Union the position lowers to, and reports it. A schema
 // declaring only one combinator passes over nothing and is left alone.
 //
-// A schema writing both conjoins them, but one ir.Union carries one branch set.
-// The position still lowers to the elected set, a shape the IR can express, and
-// the other stays recoverable beside it, as recordSkippedFamilies does for
-// keyword families (docs/compilers/openapi.md#competing-keywords).
-//
-// Where a structural sibling is written as well, classifyUnionSiblings never
-// distributes the schema, so neither set is elected and both are kept beside
-// the body (lowerBesideUnmodeledUnion).
+// A schema writing both conjoins them, but one ir.Union carries one branch set,
+// so the other stays recoverable beside the elected one
+// (docs/compilers/openapi.md#competing-keywords), as validation logic where
+// its branches declare no shape against s. Beside a body the union distributes
+// across, each variant keeps it instead (buildComposedVariant).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
-	if choice := choiceIn(s); len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
+	choice := choiceIn(s)
+	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
-	unused := otherCombinator[won]
+	unused, set := otherCombinator[won], choice.OneOf
+	if unused == "anyOf" {
+		set = choice.AnyOf
+	}
+	if !setsDeclareShape(c, s, set) {
+		// Branches narrowing only what s declares are validation logic, as the
+		// same union on an entry of an allOf is (entryUnionReason).
+		return annotation.PreserveValidationOnlyKeyword(p, s, unused, pointer, c.Place())
+	}
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.Place())
 	if !kept {
 		return diags
@@ -234,7 +240,10 @@ type variantTypeFunc func(b *statement.Statement, vptr jsontext.Pointer) ir.Type
 func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeCommon, variantType variantTypeFunc,
 ) (*ir.Union, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(u.holder)
-	diags := preserveUnusedCombinator(c, &common.Unmodeled, u.holder, key, u.at)
+	var diags []ir.Diagnostic
+	if !u.distributed {
+		diags = preserveUnusedCombinator(c, &common.Unmodeled, u.holder, key, u.at)
+	}
 	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.holder, u.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
@@ -245,7 +254,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
 		t := variantType(st, vptr)
 		variants = append(variants, ir.Variant{
-			Name: compile.NamingHint(variantHint(c, ts, st, vptr, t)),
+			Name: compile.NamingHint(variantHint(c, st, vptr)),
 			Type: t,
 		})
 	}
@@ -306,6 +315,9 @@ type unionAt struct {
 	discAt jsontext.Pointer
 	// branch marks a holder that is an allOf branch, no schema at a position.
 	branch bool
+	// distributed marks a union a body is distributed across, each of whose
+	// variants keeps the combinator it does not elect (buildComposedVariant).
+	distributed bool
 	// dead marks, by branch index, each branch of a distributed union no
 	// instance of its body satisfies (deadBranches), which is no variant; nil
 	// for a union distributing nothing.
@@ -407,15 +419,16 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	return branchUnionIndex{index: index, ok: true}
 }
 
-// variantHint is the hint the union variant for the branch b written at vptr,
-// which lowered to t, takes: the branch's own (lowering.NameAt), unless b is
-// inline, no title names it (lowering.NameTitle), and it refines the $ref its
-// allOf names, or t is a decorator (ir.Decorated) over it, when it is the name
-// the $ref suggests (lowering.NameThrough). 3.0 annotates a branch only by
-// wrapping its $ref, so `{allOf: [{$ref: X}], description: …}` names its
-// variant as 3.1's `{$ref: X, description: …}` does (GitHub #1018), a title
-// beside either too. The node t keeps the branch's own.
-func variantHint(c lowering.Ctx, ts *compile.Types, b *statement.Statement, vptr jsontext.Pointer, t ir.TypeRef) string {
+// variantHint is the hint the union variant for the branch b written at vptr
+// takes: the branch's own (lowering.NameAt), unless b is inline, no title
+// names it (lowering.NameTitle), and it refines the $ref its conjuncts name,
+// or composes one $ref declaring no member of its own (variantNamesTarget),
+// when it is the name the $ref suggests (lowering.NameThrough). So a use of
+// one target, `{$ref: X, description: …}`, `{allOf: [{$ref: X}], minLength:
+// 1}` or an entry of either, names its variant as the bare $ref does, a title
+// beside it too (GitHub #1018, #2000). The node the branch owns keeps the
+// branch's own.
+func variantHint(c lowering.Ctx, b *statement.Statement, vptr jsontext.Pointer) string {
 	own := lowering.NameAt(c, vptr)
 	if !stated(b.Schema) || b.Ref != nil {
 		return own
@@ -429,20 +442,37 @@ func variantHint(c lowering.Ctx, ts *compile.Types, b *statement.Statement, vptr
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
 	branches := allOfBranches(c, b.Schema, vptr).branches
-	base, ok := selectAllOfBase(c, branches)
-	if !ok {
-		return own
-	}
-	if td, ok := ts.Node(t.Target); !ok || !decorates(td) {
+	base, ok := selectAllOfBase(c, branches, "")
+	if !ok || !variantNamesTarget(b.Schema, branches) {
 		return own
 	}
 	return cmp.Or(lowering.NameThrough(c, branches[base].pointer), own)
 }
 
-// decorates reports whether td is a decorator (ir.Decorated).
-func decorates(td ir.TypeDef) bool {
-	_, ok := ir.Decorated(td)
-	return ok
+// variantNamesTarget reports whether s, a branch composing the base of
+// branches, its flattened conjuncts, is a use of that one target: it and no
+// conjunct writes a member, a catch-all, a discriminator or a union, and no
+// $ref but the base's is written (docs/compilers/openapi.md#union).
+func variantNamesTarget(s *statement.Schema, branches []allOfBranch) bool {
+	refs := 0
+	declares := func(o *statement.Schema) bool {
+		object := objectIn(o)
+		return len(object.Properties) > 0 || len(object.PatternProperties) > 0 || len(object.Required) > 0 ||
+			written(object.AdditionalProperties) || discriminatorIn(o) != nil || declaresUnion(o)
+	}
+	if declares(s) {
+		return false
+	}
+	for _, e := range branches {
+		if e.schema.Ref != nil {
+			refs++
+			continue
+		}
+		if stated(e.schema.Schema) && declares(e.schema.Schema) {
+			return false
+		}
+	}
+	return refs == 1
 }
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
@@ -666,9 +696,9 @@ const (
 	// the position lowers to are not an object alone — so there are no
 	// composition fields to distribute into.
 	unionUncomposableBody
-	// unionBothCombinators marks a schema declaring oneOf and anyOf at once:
-	// only one of the two can become the value, so distributing either drops the
-	// other.
+	// unionBothCombinators marks an allOf branch declaring oneOf and anyOf at
+	// once: only one of the two can become the value, so distributing either
+	// would leave the other in no branch's keeping.
 	unionBothCombinators
 	// unionUnresolvedBranch marks a union with a $ref branch naming nothing this
 	// compilation can resolve — a target in a document it did not read, an
@@ -710,8 +740,11 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 	if !composesAsModel(c, s) {
 		return unionUncomposableBody
 	}
-	if outcome := classifyBranchSet(c, s); outcome != unionDistributed {
-		return outcome
+	// Of a oneOf and an anyOf written beside the body, the oneOf is elected
+	// (unionBranches), as on two entries of its allOf, and the other is kept on
+	// each variant (buildComposedVariant).
+	if !branchesNameReferents(c, s) {
+		return unionUnresolvedBranch
 	}
 	return classifyConjoined(c, s, besideUnion(s, pointer), pointer)
 }
@@ -741,7 +774,7 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 // component, the tag its lowering takes (subtypeDiscriminatorValue). That
 // lowering reports the tag's own diagnostics, so this reading drops them.
 func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
-	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer)
+	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer, nil)
 	return tag.routed
 }
 
@@ -788,21 +821,19 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 // qualifies exactly when it names a schema this compilation resolves, and an
 // inline one does as the node hoisted at its own pointer. The test is over the
 // whole union because a half-distributed one would leave variants disagreeing
-// about whether they carry the body, with nothing in the IR saying which.
+// about whether they carry the body, with nothing in the IR saying which. A
+// branch writing its $ref beside other keywords is read by that $ref.
 func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
-		st := c.Statements().Sub(b)
-		return st.Ref != nil && !namesReferent(c, st)
+		ref := referenceOf(c, c.Statements().Sub(b))
+		return ref != nil && !namesReferent(c, ref)
 	})
 }
 
 // coDeclaredUnionWhyPrefix opens every lowerCoDeclaredUnion why string: at
-// each of its reasons, a structural body genuinely sits beside the union
-// (that is what routed the schema here rather than to a $ref-site union
-// keeper), so the sentence that follows is always true of it. refSiteUnionWhy
-// does not share this prefix, because at a $ref site it would not be
-// (preserveUnionSiblingsAt's doc comment says why).
+// each of its reasons, a structural body genuinely sits beside the union, so
+// the sentence that follows is always true of it.
 const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywords intersects with them, and "
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
@@ -824,9 +855,6 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 			"none of its branches shares a kind with the allOf beside it, so no instance satisfies them together")
 	case unionUncomposableBody:
 		return beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
-	case unionBothCombinators:
-		return beside(ir.ReasonDegradedLowering,
-			"oneOf and anyOf are both declared, so distributing either would drop the other")
 	case unionUnresolvedBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
@@ -854,8 +882,8 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
-		st := c.Statements().Sub(b)
-		if st.Ref == nil || namesReferent(c, st) || onLoop(st) {
+		st := referenceOf(c, c.Statements().Sub(b))
+		if st == nil || namesReferent(c, st) || onLoop(st) {
 			continue
 		}
 		keyword, ref := refSpelling(st)
@@ -899,13 +927,7 @@ func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *s
 }
 
 // preserveUnionSiblingsAt is preserveUnionSiblings' body, addressed by the
-// Unmodeled map to write into. PreserveRefSiteKeywords calls it directly to
-// keep a $ref site's union on a carrier's Unmodeled, where there is no node to
-// look up by ID (GitHub #406).
-//
-// why is the caller's complete sentence, not a clause in a shared frame:
-// lowerCoDeclaredUnion's reasons presuppose a structural body at the position,
-// and a $ref site has none, so a shared template would contradict itself there.
+// Unmodeled map to write into. why is the caller's complete sentence.
 func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	kept, diags := preserveBranchSets(c, p, s, reason, pointer)
 	if reason == ir.ReasonValidationOnly || len(kept) == 0 {
@@ -915,11 +937,7 @@ func preserveUnionSiblingsAt(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 		"%s; union branches kept verbatim under Unmodeled", why))
 }
 
-// declaresUnion reports whether s writes oneOf or anyOf at all. It is the one
-// predicate every $ref-site union keeper — a component or inline sub-schema
-// (refSiteRef), a carrier (PreserveRefSiteKeywords), an allOf branch spelled
-// as a $ref (fillAllOf) — gates hoisting a home for the union on, so the
-// three cannot drift into checking it three different ways.
+// declaresUnion reports whether s writes oneOf or anyOf at all.
 func declaresUnion(s *statement.Schema) bool {
 	choice := choiceIn(s)
 	return len(choice.OneOf) > 0 || len(choice.AnyOf) > 0
@@ -943,13 +961,6 @@ func buildsVariants(c lowering.Ctx, s *statement.Schema) bool {
 	return !declaresUnion(s) || hasUnionSiblings(c, s)
 }
 
-// refSiteUnionWhy is preserveUnionSiblingsAt's why at every $ref site: a
-// complete sentence in its own right (see preserveUnionSiblingsAt's doc for
-// why it cannot share lowerCoDeclaredUnion's framing), because a $ref site's
-// own declaration is the reference alone — there is no structural body at
-// that position for the union to distribute its composition across.
-const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across"
-
 // lowerDistributedUnion emits the Union that is the schema's value, distributing
 // the sibling composition across the variants of u: `S ∧ (X | Y)` becomes
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
@@ -959,10 +970,11 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 // not residue each variant keeps (allOfComposition.conjoins).
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
+	u.distributed = true
 	u.dead = deadBranches(c, s, u.holder)
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
-			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s)}
+			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s), union: u}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		diags = append(diags, keepDeadBranches(c, &common.Unmodeled, s, u, pointer)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
@@ -1062,6 +1074,8 @@ type composedBody struct {
 	// variants compose (bodyKindInferred), so a variant over a branch that
 	// declares no object names the policy.
 	inferred bool
+	// union is the union distributed across the body.
+	union unionAt
 }
 
 // bodyKindInferred reports whether the kind-inference policy made s, a body a
@@ -1171,11 +1185,14 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 		// read after it, as a model's own declarations follow what it composes.
 		fields.compose(branch, m.Provenance.Pointer)
 	}
-	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
+	base, hasBase := selectAllOfBase(c, body.comp.branches, m.ID)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp, base, hasBase)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(objectIn(body.schema).Required, body.comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
+	_, key, _ := unionBranches(body.union.holder)
+	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union.holder, key, body.union.at)...)
 	if !composes {
 		// A variant composing nothing over a body that is a map alone is that map.
 		diags = append(diags, keepUncomposedBranch(c, m, b)...)

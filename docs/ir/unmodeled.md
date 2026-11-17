@@ -233,7 +233,10 @@ from `Unmodeled` and no two derive it differently:
    lends the property, parameter or header naming it is recorded twice: the target keeps the entry
    and its marker, and the use lists the marker too, since a use is read without resolving its
    target ([what a reference carries down](./annotations.md#what-a-reference-carries-down)) and its
-   type reaches the entry. `Inferred` holds one string and a node can be reached by more than one
+   type reaches the entry. A decorator holding a promoted field keeps the entry and the marker as
+   any node does; the property, parameter or header naming it holds neither in the IR, and the
+   emitter's collapse carries the marker with the field
+   ([decorators](../emitters/refine/decorators.md)). `Inferred` holds one string and a node can be reached by more than one
    heuristic, so the names are listed rather than overwritten, and a name already listed is not
    repeated. The list joins the names with commas in the order the heuristics first applied, none
    empty; names compare exactly, and the IR declares no set of them. `TypeRef.Inferred`

@@ -327,7 +327,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/Pet": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Pet",
       "name": {
         "source": "Pet",
@@ -343,7 +343,10 @@
       "base": {
         "target": "t/anon/x-lib/Pet",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",

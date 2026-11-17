@@ -51,3 +51,12 @@ func tableOver(t *testing.T, spec string, rules oas.SchemaRules) (*statement.Tab
 func component(c lowering.Ctx, name string) bind.Position {
 	return c.Position(jsontext.Pointer("/components/schemas/" + name))
 }
+
+// keyNames lists the names of the keys s writes, in order.
+func keyNames(s *statement.Schema) []string {
+	out := make([]string, 0, len(s.Keys))
+	for _, k := range s.Keys {
+		out = append(out, k.Name)
+	}
+	return out
+}

@@ -135,8 +135,9 @@ const (
 // checked against and the default's kind decide: a default of another kind
 // than a node marked kind-inference is excused, and every other finding
 // stands, among them one of a member, an element or a bound of a marked node,
-// and any of an unmarked one. The validate pass judges no member and no
-// element, so a row asking one has the finding drawn at the carrier.
+// and any of an unmarked one. The validate pass judges no member, no element
+// and no bound of the node a decorator names, so a row asking one has the
+// finding drawn at the carrier.
 func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 	const (
 		model  = `"M": {"properties": {"a": {"type": "string"}}, "required": ["a"], "maxProperties": 1}`
@@ -157,7 +158,7 @@ func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
 	}{
 		{"marked model against a string", model, "M", `"s"`, false, "", ""},
 		{"marked model against a missing member", model, "M", `{"b": 1}`, true, "", `"t"`},
-		{"marked model against a bound", model, "M", `{"a": "x", "b": 2}`, false, "", `"t"`},
+		{"marked model against a bound", model, "M", `{"a": "x", "b": 2}`, true, "", `"t"`},
 		{"unmarked model against a string", typed, "U", `"s"`, false, "", `"t"`},
 		{"marked list against an object", list, "L", `{"a": 1}`, false, "", ""},
 		{"marked list against a wrong-typed element", list, "L", `[1]`, true, "", `"t"`},
