@@ -318,10 +318,12 @@ Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's
 
 A `$ref` and the keywords written beside it are two conjuncts, as JSON Schema applies them
 together: a `$ref` entry that also writes keywords beside the `$ref` is the reference, composed
-straight to the target, and an inline entry of those keywords at the same pointer, as
-`allOf: [{$ref: T}, {K}]` writes them, and a `$ref` written beside the composition's own keywords is
-one more such reference. Those keywords bind the composition, never the shared node, and no node
-stands at the entry, so every `$ref` entry composes the schema it names. An `allOf` of one `$ref`
+straight to the target, and an inline entry of those keywords at the same pointer, writing no
+reference of its own, as `allOf: [{$ref: T}, {K}]` writes them, and a `$ref` written beside the
+composition's own keywords is one more such reference. Those keywords bind the composition, never
+the shared node, and no node stands at the entry for its reference, so every `$ref` entry composes
+the schema it names; where they decide an `allOf` no object satisfies, they stand at the entry's
+pointer as any inline branch does at its own ([below](#an-allof-no-object-satisfies)). An `allOf` of one `$ref`
 saying nothing else is that reference, and a position needing a node of its own over it, a
 component or one a `$ref` names, owns the `Model` over an object or the alias over anything else
 ([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use hoists is

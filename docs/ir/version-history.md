@@ -958,7 +958,8 @@ it sees. Changes made together in one bump are listed together under it.
   value set lowers to stands at the position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
   carrier holding the `$ref` it narrows; and a `$ref` conjunct a refinement does not lower is kept
   under `openapi:$ref`, or `openapi:$ref/<i>` by reference text where several are, where it was kept
-  under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set. A keyword an inline
+  under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set, an `allOf` of `$ref`
+  entries alone the election of competing keywords passes over among them. A keyword an inline
   `allOf` entry writes that no reader consumes is kept under its own key, `openapi:<keyword>`, with
   the reason and the report it has beside the `allOf`, its provenance the keyword on the entry, where
   the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; an inline entry is now
@@ -977,12 +978,15 @@ it sees. Changes made together in one bump are listed together under it.
   site was an alias keeping what it could not hold: a use of an object saying anything beside its
   `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
   value set, a union and a bound beside it lower as beside an `allOf` of it; an entry's keywords
-  beside its `$ref` are conjuncts of the position, which hoists no node at the entry, and a `$ref`
+  beside its `$ref` are conjuncts of the position, an inline entry of their own that writes no
+  reference, as `{allOf: [{$ref: T}, {K}]}` writes them, so the reference is read, kept and
+  reported once and no node is hoisted at the entry for it, and a `$ref`
   kept, a refinement's, a composition's for a target it does not compose, or a failed one's, holds
   the reference's text, where a refinement's held the object `{$ref: …}`. An `allOf`
   of one `$ref` saying nothing else is the reference, hoisting no node, where it hoisted an
-  anonymous `Model` over an object, and a component or a position a `$ref` names written as either
-  spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
+  anonymous `Model` over an object, and over `false` or a reference naming no schema an open empty
+  one, a `true` beside it saying nothing, as `{}` does, and a component or a position a `$ref`
+  names written as either spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
   ([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use
   hoists is hinted by its position, a variant naming one target that declares no member by that
   target, and a title on any inline conjunct names (the names golden moves)

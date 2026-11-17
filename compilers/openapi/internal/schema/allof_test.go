@@ -231,23 +231,25 @@ func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
 // of fillRefBranch's gate: a $ref off any loop that resolves to nothing, whether
 // it names an absent component or the whole document, is reported at the branch
 // and adds neither the Base nor a Mixin, including beside a $ref that resolves,
-// where it would be a Mixin. Load reports these $refs at that pointer too, so a
-// full compile drops the lowering's report (withoutRereported), and only the
-// lowering's own list can show it gone here.
+// where it would be a Mixin. Alone, saying nothing else, it is the reference,
+// the alias over the top type the bare $ref is. Load reports these $refs at
+// that pointer too, so a full compile drops the lowering's report
+// (withoutRereported), and only the lowering's own list can show it gone here.
 func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, branches string
 		mixins         []ir.TypeRef
+		reference      bool
 	}{
 		{"a component that is absent", `        - $ref: '#/components/schemas/Ghost'
-`, nil},
+`, nil, true},
 		{"the whole document beside an inline branch", `        - {$ref: '#'}
         - {type: object, properties: {a: {type: string}}}
-`, nil},
+`, nil, false},
 		{"a component that is absent beside one that resolves", `        - $ref: '#/components/schemas/Ghost'
         - $ref: '#/components/schemas/A'
-`, []ir.TypeRef{{Target: componentID("A")}}},
+`, []ir.TypeRef{{Target: componentID("A")}}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -258,6 +260,12 @@ func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/Y/allOf/0"), diags[0].Provenance.Pointer)
 
+			if tc.reference {
+				y, ok := typeByName(doc, "Y").(*ir.Scalar)
+				require.True(t, ok, "Y is the reference, got %T", typeByName(doc, "Y"))
+				assert.Equal(t, ir.TypeID("t/prim/any"), y.Base.Target)
+				return
+			}
 			y, ok := typeByName(doc, "Y").(*ir.Model)
 			require.True(t, ok, "Y is a Model, got %T", typeByName(doc, "Y"))
 			assert.Nil(t, y.Base, "the branch naming nothing is not the base")

@@ -19,9 +19,6 @@ func Record(o harness.Oracle) (harness.Recorded, error) {
 // its finding stands, which the tests holding each record judge it by.
 func Reasons() map[string]string {
 	return map[string]string{
-		"ref-entry-sibling": "an allOf entry writing keywords beside its $ref reads that $ref a second time: beside " +
-			"an enum or const it is reported twice, and an entry kept whole keeps the $ref with its keywords, " +
-			"where the entry spelling keeps the keywords alone",
 		"two-unions-on-entry": "#2011: a oneOf and an anyOf on one schema are both kept beside its body, where " +
 			"written on an allOf entry the oneOf is distributed",
 		"entry-missing-items": "#2048: a 3.0 type: array on an allOf entry writing no items is warned of, where " +
@@ -34,7 +31,7 @@ func Reasons() map[string]string {
 			"allOf entry is kept on each variant the union distributes into, where beside the allOf it is kept " +
 			"once on the Union",
 		"unfiled-disjoint-value-keywords": "no issue yet: a value keyword contradicting another, or the union " +
-			"beside it, lowers to another node in each spelling, keeping the reference under the keyword that " +
-			"spelling wrote it with",
+			"beside it, on an inline allOf entry composes a Model over the $ref, where beside the $ref or the " +
+			"allOf it lowers as the value keyword elected",
 	}
 }

@@ -161,13 +161,6 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		switch {
 		case e.wrapper:
 			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
-		case e.schema.BesideRef != nil:
-			// The rest of an entry writing a $ref beside it, whose reference is the
-			// branch before it (splitRef): what its own keywords admit, its unions
-			// among them.
-			w := newAdmission(c)
-			out = append(out, conjunctAtom{name: name, admits: inlineConjunct(&w, e.schema.Schema).kinds,
-				words: e.schema.Schema})
 		case splitRef(comp, i):
 			out = append(out, conjunctAtom{name: name + "/$ref", admits: r.admits, st: e.schema, cut: r.cut, written: ref})
 		default:

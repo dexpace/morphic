@@ -1783,7 +1783,9 @@ emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
 the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
-anything else, and in an `allOf` entry they are an inline conjunct of the composition
+anything else, and in an `allOf` entry they are an inline conjunct of the composition, an entry of
+their own at the entry's pointer that writes no reference, as `{allOf: [{$ref: T}, {K}]}` writes
+them, so the reference is read, kept and reported once
 ([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
 than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
@@ -1819,6 +1821,10 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
   `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
   `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`,
+  `statement.TestRead_ASplitEntrysRestListsNoReference`,
+  `e2e.TestRefConjunction_AnEntrysRefAndKeywordsLowerAsTwoEntries`,
+  `e2e.TestRefConjunction_AValueSetBesideAnEntrysRefIsReportedOnce`,
+  `e2e.TestRefConjunction_AnEntrysRefIsKeptOnOneNode`, `e2e.TestRefConjunction_AnEntrysRestIsReadInItsDialect`,
   `openapicases.TestCore_SpellingsHoldTheRecord`
 
 ### `reference-object-siblings`
@@ -2139,10 +2145,13 @@ placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
 An `allOf` whose kinds are an object alone lowers to the composing `Model`'s `Base` and `Mixins`
 ([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s.
 An `allOf` of one `$ref` saying nothing else is neither: where its other entries and the schema
-writing it state nothing of the instance (an empty schema, a comment, an anchor, `$defs`, a keyword
-left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, so it is the reference, hoisting no
-node, and a carrier reads the target's documentation as through a bare `$ref`
-([`ref-use-site`](#ref-use-site)). A component, or a position a `$ref` names, still owns a node: over
+writing it state nothing of the instance (an empty schema, `true`, a comment, an anchor, `$defs`, a
+keyword left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, whatever that is, so it is the
+reference, hoisting no node, and a carrier reads the target's documentation as through a bare `$ref`
+([`ref-use-site`](#ref-use-site)): over `false` it names `false`'s node, and a reference naming no
+schema lowers to the top type with its one `openapi/unresolved-ref`, read or not. Only a read cut
+short past the bounds of [`allof-refinement`](#allof-refinement), or by a cycle of such `allOf`s,
+still composes. A component, or a position a `$ref` names, still owns a node: over
 an object alone the `Model` whose `Base` is that object, in this spelling and the bare `$ref`'s;
 over any other target, one admitting null, which a `Base` does not carry, or a reference no node
 answers, the `Scalar` alias. A
@@ -2201,6 +2210,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `e2e.TestRefConjunction_AnAllOfOfOneRefHoistsNoNode`,
   `e2e.TestRefConjunction_AComponentOverAnObjectIsTheModelThatOwnsIt`,
   `e2e.TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs`,
+  `e2e.TestRefConjunction_AUseSayingNothingMoreIsTheBareRefOverAnyTarget`,
+  `e2e.TestRefConjunction_AnAllOfOfOneRefToFalseIsTheReference`,
   `e2e.TestRefConjunction_TwoBasesInADiscriminatorHierarchyElectTheLeastReference`,
   `e2e.TestAllOfCompose_ObjectsAloneStayAModel`, `e2e.TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed`,
   `e2e.TestAllOfCompose_ConjunctsNoInstanceSatisfiesNameNoPlainBase`,
@@ -2281,7 +2292,9 @@ beside the `allOf` first, so long as its own keywords leave it a value. So `{all
 `$ref` kept with an info saying they share no value, and where their instance types share none the
 warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names the value set it lowered
 as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
-set is elected: one leaving itself no value, as `enum: []`, or two neither lying within the other.
+set is elected, one leaving itself no value, as `enum: []`, or two neither lying within the other,
+and the `allOf` writes an inline entry: one of `$ref` entries alone keeps each as below then too, as
+the `$ref` written beside the value set is kept.
 
 The principal is chosen from the whole set:
 
@@ -4122,8 +4135,10 @@ an `allOf` that refines being no such sibling but a conjunction the unions are c
 ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
-each conjunct it beats kept as that rule keeps it, so the election passes over the `allOf` whole
-only where no value set is elected, one whose own keywords leave it no value among them. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+each conjunct it beats kept as that rule keeps it, so the election passes over the `allOf` only where
+no value set is elected, one whose own keywords leave it no value among them, keeping it whole where
+it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, as the `$ref` beside it
+is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
 an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
@@ -4136,7 +4151,8 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,
   `schema.TestUnionCombinators_UnpreservableIsNotAnnounced`,
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
-  `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`
+  `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
+  `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
 ### `discriminator`
 

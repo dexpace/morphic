@@ -193,9 +193,9 @@ func assertEmptyEnum(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	props := unmodeledEntry(t, doc.Types[componentID("BesideProperties")].Common().Unmodeled, "openapi:properties")
 	assert.Equal(t, ir.ReasonDegradedLowering, props.Reason)
 	assert.JSONEq(t, `{"x":{"type":"string"}}`, string(props.Value))
-	composed := unmodeledEntry(t, doc.Types[componentID("BesideAllOf")].Common().Unmodeled, "openapi:allOf")
+	composed := unmodeledEntry(t, doc.Types[componentID("BesideAllOf")].Common().Unmodeled, "openapi:$ref")
 	assert.Equal(t, ir.ReasonDegradedLowering, composed.Reason)
-	assert.JSONEq(t, `[{"$ref":"#/components/schemas/Base"}]`, string(composed.Value))
+	assert.JSONEq(t, `"#/components/schemas/Base"`, string(composed.Value))
 
 	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
 	require.True(t, ok)

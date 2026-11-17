@@ -76,8 +76,8 @@ func TestVariantHint_AUseDeclaringAMemberIsNamedByItsPosition(t *testing.T) {
 
 // TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference pins the value set
 // that leaves no value beside a $ref and an allOf, as beside an allOf alone:
-// no set to lower, so the election keeps the conjuncts it passed over, the
-// $ref under openapi:$ref as written and the allOf whole, and reports both.
+// no set to lower, so the election keeps the conjuncts it passed over, each
+// $ref by reference text, wherever written, and reports both keywords.
 func TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -86,8 +86,9 @@ func TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference(t *testing.T) {
 `))
 	en, ok := typeByName(doc, "S").(*ir.Enum)
 	require.True(t, ok, "got %T", typeByName(doc, "S"))
-	assert.ElementsMatch(t, []string{"openapi:$ref", "openapi:allOf"}, unmodeledKeys(en.Unmodeled))
-	assert.JSONEq(t, `"#/components/schemas/A"`, string(en.Unmodeled["openapi:$ref"].Value))
+	assert.ElementsMatch(t, []string{"openapi:$ref/0", "openapi:$ref/1"}, unmodeledKeys(en.Unmodeled))
+	assert.JSONEq(t, `"#/components/schemas/A"`, string(en.Unmodeled["openapi:$ref/0"].Value))
+	assert.JSONEq(t, `"#/components/schemas/B"`, string(en.Unmodeled["openapi:$ref/1"].Value))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 		"declares $ref and allOf beside its enum")
 }

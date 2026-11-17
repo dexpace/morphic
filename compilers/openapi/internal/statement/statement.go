@@ -39,7 +39,7 @@ type Statement struct {
 // whose own entries precede it, and whether it writes an allOf nested past
 // MaxFlattenDepth, which is not listed. An object writing a reference beside
 // other keys is two entries at one pointer: the reference alone, then the
-// rest.
+// rest, which writes none (Schema.WrittenBeside).
 type Entry struct {
 	*Schema
 	Rel     jsontext.Pointer
@@ -66,11 +66,18 @@ type Schema struct {
 	// Unknown is.
 	Extensions []Extension
 	Ref        *Reference
-	// BesideRef is, for the rest of an object writing a reference beside
-	// other keys, that reference as a schema object writing it alone, which
-	// the statement lists as its first entry; nil for a whole object.
+	// BesideRef is, for the rest of an object a position writes, a reference
+	// beside other keys, that reference as a schema object writing it alone,
+	// which the statement lists as its first entry; nil for a whole object
+	// and for the rest of an allOf entry.
 	BesideRef *Schema
-	AllOf     []Sub
+	// WrittenBeside is, for the rest of an allOf entry writing a reference
+	// beside other keys, that reference, which the composition lists as the
+	// entry before the rest. No reader of conjuncts reads it: one of how the
+	// keys are spelt does, as a draft ignoring the keys beside a $ref does
+	// (docs/compilers/openapi.md#dialect-keywords).
+	WrittenBeside *Schema
+	AllOf         []Sub
 
 	Kinds  *Kinds
 	Values *Values

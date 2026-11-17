@@ -383,7 +383,7 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
       enum: []`,
 			wantValueType: ir.PrimAny,
 			wantEmpty:     true,
-			wantKept:      "openapi:allOf",
+			wantKept:      "openapi:$ref",
 		},
 		{
 			name:          "beside a nullable type array",
