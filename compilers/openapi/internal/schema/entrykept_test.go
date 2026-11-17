@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,5 +69,82 @@ func TestEntryKept_AnEntryOfAnUndecidedAllOfIsReportedAgainstTheKeywordsBesideIt
 		msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
 		assert.Contains(t, msg, "as no entry of it is the one it lowers from", at)
 		assert.NotContains(t, msg, "a use of one of its allOf conjuncts", at)
+	}
+}
+
+// TestEntryKept_AFailedRefKeepsItsReferenceAndEachKeywordBesideIt pins a $ref
+// entry naming nothing: its reference is kept as written under openapi:$ref and
+// each keyword beside it under its own key, reported once at the entry beside
+// the error the failure draws, and its required list still reads on the model.
+func TestEntryKept_AFailedRefKeepsItsReferenceAndEachKeywordBesideIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Obj: {type: object, properties: {b: {type: string}}}\n"+
+		"    S: {allOf: [{$ref: '#/components/schemas/Ghost', minLength: 2, required: [b], x-a: 1}, {$ref: '#/components/schemas/Obj'}]}\n"))
+	td := typeByName(doc, "S")
+	kept := td.Common().Unmodeled
+	assert.Equal(t, []string{"openapi:$ref", "openapi:minLength", "openapi:x-a"}, unmodeledKeys(kept))
+	assert.JSONEq(t, `"#/components/schemas/Ghost"`, string(kept["openapi:$ref"].Value))
+	assert.Equal(t, ir.ReasonDegradedLowering, kept["openapi:$ref"].Reason)
+	assert.Equal(t, ir.ReasonVendorExtension, kept["openapi:x-a"].Reason)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), kept["openapi:$ref"].Provenance.Pointer)
+	assert.Equal(t, []string{"b"}, td.(*ir.Model).Requires)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/S/allOf/0"), "Ghost")
+	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0")
+	assert.Contains(t, msg, "minLength written beside this $ref, which names nothing")
+	assert.NotContains(t, msg, "x-a")
+}
+
+// TestEntryKept_FailedRefsAreKeptByTheirReferenceInEitherOrder pins the keys of
+// several $ref entries naming nothing, by reference text and then by the entry
+// as written, two written alike being one entry at the position, and one with
+// no keyword beside it drawing nothing but the error.
+func TestEntryKept_FailedRefsAreKeptByTheirReferenceInEitherOrder(t *testing.T) {
+	t.Parallel()
+	for _, entries := range []string{
+		"{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A', minLength: 2}, {$ref: '#/components/schemas/A', minLength: 2}",
+		"{$ref: '#/components/schemas/A', minLength: 2}, {$ref: '#/components/schemas/A', minLength: 2}, {$ref: '#/components/schemas/B'}",
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+entries+"]}\n"))
+		kept := typeByName(doc, "S").Common().Unmodeled
+		assert.Equal(t, []string{"openapi:$ref/0", "openapi:$ref/1", "openapi:minLength"}, unmodeledKeys(kept), entries)
+		assert.JSONEq(t, `"#/components/schemas/A"`, string(kept["openapi:$ref/0"].Value), entries)
+		assert.JSONEq(t, `"#/components/schemas/B"`, string(kept["openapi:$ref/1"].Value), entries)
+		assert.Equal(t, jsontext.Pointer("/components/schemas/S"), kept["openapi:$ref/0"].Provenance.Pointer, entries)
+		assert.Equal(t, jsontext.Pointer("/components/schemas/S"), kept["openapi:minLength"].Provenance.Pointer, entries)
+		var errs int
+		for _, d := range diags {
+			if d.Severity == ir.SeverityError {
+				errs++
+			}
+		}
+		assert.Equal(t, 3, errs, "each reference is reported where it is written: %s", entries)
+	}
+}
+
+// TestEntryKept_AFailedRefIsKeptWholeWhereItsKeywordsCannotBeKeptApart pins a
+// $ref entry naming nothing kept whole, its reference inside it, for a closure
+// it does not type and for a keyword another entry or the position writes
+// otherwise, and kept apart for a member another entry's merge reads.
+func TestEntryKept_AFailedRefIsKeptWholeWhereItsKeywordsCannotBeKeptApart(t *testing.T) {
+	t.Parallel()
+	const ghost = "$ref: '#/components/schemas/Ghost'"
+	for name, tc := range map[string]struct {
+		schema string
+		keys   []string
+		said   string
+	}{
+		"closure": {"{allOf: [{" + ghost + ", additionalProperties: false}, {type: object}]}",
+			[]string{"openapi:allOf/0"}, "names nothing, so nothing reads what it writes"},
+		"another entry": {"{allOf: [{" + ghost + ", minLength: 2}, {minLength: 3}]}",
+			[]string{"openapi:allOf/0", "openapi:allOf/1"}, "names nothing, so nothing reads what it writes"},
+		"the position": {"{minLength: 3, allOf: [{" + ghost + ", minLength: 2}, {type: object}]}",
+			[]string{"openapi:allOf/0", "openapi:minLength"}, "names nothing, so nothing reads what it writes"},
+		"a merged member": {"{allOf: [{" + ghost + ", properties: {a: {type: string}}}, {properties: {b: {type: string}}}]}",
+			[]string{"openapi:$ref", "openapi:properties"}, "properties written beside this $ref, which names nothing"},
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: "+tc.schema+"\n"))
+		assert.Equal(t, tc.keys, unmodeledKeys(typeByName(doc, "S").Common().Unmodeled), name)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+			tc.said, name)
 	}
 }
