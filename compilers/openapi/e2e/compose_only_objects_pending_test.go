@@ -123,3 +123,24 @@ func TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingI
 		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/ERef/allOf/0"))
 	})
 }
+
+// TestAllOfRefine_ARefLosingATieIsReportedAsATie holds that the info a $ref
+// kept beside an equal one draws says the tie went by reference text, not that
+// the other lies within more conjuncts, which it does not. It stays behind the
+// pending tag until keptWhy words the narrowed $ref so.
+func TestAllOfRefine_ARefLosingATieIsReportedAsATie(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"S1: {type: string}",
+		"S2: {type: string}",
+		"Tie: {allOf: [{$ref: '#/components/schemas/S2'}, {$ref: '#/components/schemas/S1'}]}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileAnnotationSpec(t, "tie", admissionSpec("3.1.0", "", schemas...))
+		requireErrorsAndWarnings(t, diags, nil)
+		requireScalarOver(t, doc, "Tie", componentID("S1"))
+		msg := diagMessageOf(t, diags, "/components/schemas/Tie/allOf/0")
+		assert.NotContains(t, msg, "lies within more")
+		assert.Contains(t, msg, "least reference text")
+	})
+}
