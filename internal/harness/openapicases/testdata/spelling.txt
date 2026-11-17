@@ -610,7 +610,6 @@
 3.0.3/union/type~/none/responseBody/entry	services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:type	kept-key
 3.0.3/union/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.0.3/union/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/allOf.json%2FallOf simple types/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/allOf.json%2FallOf with boolean schemas, all true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/allOf.json%2FallOf with one empty schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
@@ -841,7 +840,6 @@
 3.1.0/contains.json%2Fcontains keyword with const keyword/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/contains.json%2Fcontains with false if subschema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/contains.json%2Fcontains with null instance elements/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fitems + contains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/contains.json%2FmaxContains = 0 with minContains = 0/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/contains.json%2FmaxContains = minContains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/contains.json%2FmaxContains with contains, value with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
@@ -925,7 +923,6 @@
 3.1.0/format-uuid.json%2Fuuid format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/format-uuid.json%2Fuuid format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/format-uuid.json%2Fvalidation of non-string uuid values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/id.json%2Fbase URI change/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/id.json%2Forder of evaluation: $id and $anchor and $ref/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/id.json%2Forder of evaluation: $id and $ref/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/if-then-else.json%2Felse: false fails when condition does not match/property/beside	diagnostics:pass/default-outside-type	any-kind-model
@@ -1114,18 +1111,6 @@
 3.1.0/integer/title~/none/branch/nested	types.variants.name.hint	nested-title
 3.1.0/integer/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/integer/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/items.json%2Fa schema given for items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fa schema given for prefixItems/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fadditional items are allowed by default/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fitems does not look in applicators, valid case/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fitems with boolean schema (false)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fitems with boolean schema (true)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fitems with null instance elements/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2FprefixItems validation adjusts the starting index for items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2FprefixItems with boolean schemas/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2FprefixItems with heterogeneous array/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2FprefixItems with no additional items permitted/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2FprefixItems with null instance elements/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/maxLength.json%2FmaxLength validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
@@ -1564,14 +1549,8 @@
 3.1.0/oneOf.json%2FoneOf/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/pattern.json%2Fpattern is not anchored/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/pattern.json%2Fpattern validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/ref.json%2F$ref to boolean schema true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/ref.json%2Frelative pointer ref to array/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/required.json%2Frequired validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/string/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
 3.1.0/string/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/string/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
@@ -1820,26 +1799,14 @@
 3.1.0/unevaluatedItems.json%2Fnon-array instances are valid/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems and contains interact to control item dependency relationship/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems as schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems before $ref (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems can see annotations from if without then and else (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on adjacent contains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with $dynamicRef (2020-12)/property/beside	diagnostics:pass/default-outside-type	dynamic-ref-read
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with $ref (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with anyOf (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with boolean schemas/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with if%2Fthen%2Felse (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items and prefixItems/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with minContains = 0/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested prefixItems and items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested tuple (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with null instance elements/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with oneOf (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with tuple (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with uniform items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/unevaluatedProperties.json%2Fnon-object instances are valid/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/union/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
 3.1.0/union/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
@@ -2025,8 +1992,4 @@
 3.1.0/union/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/union/xml~/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/uniqueItems.json%2FuniqueItems validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with an array of items (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with prefixItems and items=false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems=false validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems and items=false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems/property/beside	diagnostics:pass/default-outside-type	any-kind-model

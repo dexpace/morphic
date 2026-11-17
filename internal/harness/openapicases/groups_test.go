@@ -63,7 +63,7 @@ func groupAt(t *testing.T, c harness.Cases, name, position string) []int {
 // TestGroups_WritesEachValidInstanceAsADefault writes a group serving a schema
 // at a URI: the root holds a carrier per valid instance, defaulting to it,
 // the group's schema is read in 2020-12, the schema it serves is held at its
-// URI, and the case compiles with the kind-inference policy off.
+// URI, and the case compiles under the default kind-inference policy.
 func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 	c := openapicases.Groups()
 	doc, ok := c.Write(groupAt(t, c, "ref.json%2Fremote ref", "header"))
@@ -79,7 +79,7 @@ func TestGroups_WritesEachValidInstanceAsADefault(t *testing.T) {
 		"$ref": "http://localhost:1234/integer.json"}`, string(doc.Sources[1].Data))
 	assert.Equal(t, "http://localhost:1234/integer.json", doc.Sources[2].Path)
 	assert.JSONEq(t, `{"type": "integer"}`, string(doc.Sources[2].Data))
-	assert.Equal(t, map[string]string{"allow-external-refs": "true", "kind-inference": "false"}, doc.Options)
+	assert.Equal(t, map[string]string{"allow-external-refs": "true"}, doc.Options)
 	assert.Equal(t, []harness.Instance{
 		{Node: "p/openapi/paths/~1c/get/responses/200/headers/H0", Valid: true, Name: "remote ref valid"},
 	}, doc.Instances)

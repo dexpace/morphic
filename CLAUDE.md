@@ -298,10 +298,12 @@ These all exist already — extend them rather than building a parallel mechanis
   oracles judge each case, the first two against a neighbour: spelling (a use spelt another way
   lowers alike, up to decorators), presence (a keyword changes what compiles, and again when its
   value changes, unless it says why nothing carries it) and instance (the suite's valid instances
-  are admitted). The gate checks the core cases, each axis value whose `Like` is empty, in
-  `go test ./internal/harness/openapicases`; `make cases` checks every case, as the nightly job
-  does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by index. A case is
-  written to compile: an oracle declining one for an error diagnostic, the spelling oracle where
+  are admitted, except that an instance of another kind than a node the compiler marked
+  `kind-inference` is excused: that policy, on by default, narrows a schema naming no kind to one,
+  and the suite's groups compile under it). The gate checks the core cases, each axis value whose
+  `Like` is empty, in `go test ./internal/harness/openapicases`; `make cases` checks every case, as
+  the nightly job does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by
+  index. A case is written to compile: an oracle declining one for an error diagnostic, the spelling oracle where
   neither side compiled, has made a finding its record must list. The same tests also compile each
   core case, and at each version outside the core the first case writing each other axis value,
   and name the error; a document refused only where two such values meet is the nightly run's to
