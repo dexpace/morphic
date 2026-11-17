@@ -15,9 +15,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
-// keptRefEntry is a $ref entry at pointer writing text beside x-a, whose value
-// is the scalar value.
-func keptRefEntry(pointer jsontext.Pointer, text, value string) keptBranch {
+// keptRefEntry is a $ref entry at pointer naming #/T beside x-a, whose value is
+// the scalar value.
+func keptRefEntry(pointer jsontext.Pointer, value string) keptBranch {
+	const text = "#/T"
 	node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
 		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref"}, {Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
 		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "x-a"}, {Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
@@ -34,16 +35,16 @@ func keptRefEntry(pointer jsontext.Pointer, text, value string) keptBranch {
 func TestKeptRefKeys_AnEntryThatCannotRenderIsAlikeToNoOther(t *testing.T) {
 	t.Parallel()
 	const bad = "\xff"
-	_, err := annotation.RawFromNode(keptRefEntry("", "#/T", bad).entry.schema.Node)
+	_, err := annotation.RawFromNode(keptRefEntry("", bad).entry.schema.Node)
 	require.Error(t, err, "the entry must be one that does not render")
 
-	keys := keptRefKeys([]keptBranch{keptRefEntry("/S/allOf/0", "#/T", bad), keptRefEntry("/S/allOf/1", "#/T", bad)}, "/S")
+	keys := keptRefKeys([]keptBranch{keptRefEntry("/S/allOf/0", bad), keptRefEntry("/S/allOf/1", bad)}, "/S")
 	assert.Equal(t, map[jsontext.Pointer]keptRef{
 		"/S/allOf/0": {key: "openapi:$ref/0", at: "/S/allOf/0"},
 		"/S/allOf/1": {key: "openapi:$ref/1", at: "/S/allOf/1"},
 	}, keys)
 
-	keys = keptRefKeys([]keptBranch{keptRefEntry("/S/allOf/0", "#/T", "ok"), keptRefEntry("/S/allOf/1", "#/T", "ok")}, "/S")
+	keys = keptRefKeys([]keptBranch{keptRefEntry("/S/allOf/0", "ok"), keptRefEntry("/S/allOf/1", "ok")}, "/S")
 	assert.Equal(t, map[jsontext.Pointer]keptRef{
 		"/S/allOf/0": {key: "openapi:$ref", at: "/S"},
 		"/S/allOf/1": {key: "openapi:$ref", at: "/S"},
