@@ -3613,7 +3613,8 @@ object alone, null aside, or its read is cut short, as an `allOf`'s `$ref` entry
 an object composes that list's object variant, unless the branch writes a keyword beside its `$ref`,
 which its own node holds over the whole list. Any other branch, admitting another kind or every
 kind, is kept verbatim on its variant under its path from the schema, `openapi:oneOf/<i>` or
-`openapi:anyOf/<i>` (`degraded_lowering`), with an info `openapi/degraded-construct` at the branch,
+`openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry
+(`degraded_lowering`), with an info `openapi/degraded-construct` at the branch,
 and still lowers at its own pointer ([models](../ir/models.md#composition-entries)). A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
 and one no variant takes is kept on the `Union` ([`constraints`](#constraints)): beside `type:
@@ -3834,6 +3835,7 @@ judged as one whose branches declare shape.
   `e2e.TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject`,
   `e2e.TestVariantBounds_ATypeListBranchWritingBesideItsRefIsKept`,
   `schema.TestOneOf_CoDeclaredTypeListBranchComposesItsObject`,
+  `schema.TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
