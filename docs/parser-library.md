@@ -583,6 +583,8 @@ components:
   - `oas.CheckFormat` reports a `<<` naming no mapping.
   - `nodeview.MergesNothing` finds a `<<` naming no mapping wherever a mapping's merges reach.
   - `auth.namesAnOption` reads a requirement merging nothing as no option, not the empty one.
+  - `statement.listedOnly` reads a schema whose merges run past `nodeview.MergeDepthLimit` from its
+    keys alone, where the decoder's model holds what the merges beyond it bring.
 
 ### `non-scalar-key`
 

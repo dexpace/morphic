@@ -100,9 +100,10 @@ func (s *Schema) Held() bool {
 // Property returns the schema s writes for the property name, as the parser's
 // model holds it, by one lookup in the model's map: the Sub
 // Object.Properties lists under that name. It is false for a name s does not
-// write and for a nil or unstated s.
+// write, for a nil or unstated s, and for a `properties` its keys do not list
+// (listedOnly).
 func (s *Schema) Property(name string) (Sub, bool) {
-	if s == nil {
+	if s == nil || s.Object == nil || len(s.Object.Properties) == 0 {
 		return Sub{}, false
 	}
 	p, ok := s.m.GetSchema().GetProperties().Get(name)
@@ -138,15 +139,17 @@ func truthOf(js *model) Truth {
 }
 
 // fill reads each slot's values. A typed value is m's, the parser's model,
-// wherever it holds one, as the walk reads the model, whether or not s's keys
-// list its keyword, which they do not past nodeview.MergeDepthLimit
-// (docs/parser-library.md#merge-keys); a value kept as the node it was written
-// as is its key's. Each keyword lands in its own slot (oas.SlotOf) whatever
-// the rows say: a policy reads a 3.0 `nullable` in a 3.1 schema
+// as the walk reads the model; for a Truncated s, only where s's keys list
+// its keyword (listedOnly). A value kept as the node it was written as is its
+// key's. Each keyword lands in its own slot (oas.SlotOf) whatever the rows
+// say: a policy reads a 3.0 `nullable` in a 3.1 schema
 // (docs/compilers/openapi.md#nullable), and the key's Slot carries the rows'
 // verdict. A listed key whose value is not read opens its slot and fills
 // nothing.
 func fill(s *Schema, m *oas3.Schema) {
+	if s.Truncated {
+		m = listedOnly(m, s)
+	}
 	s.AllOf = listed(m.AllOf)
 	s.Kinds = kindsOf(m)
 	s.Number = numberOf(m)
@@ -191,6 +194,78 @@ func fillNode(s *Schema, k Key) {
 	case "$comment":
 		s.Notes.Comment = k.Node
 	}
+}
+
+// modelKeywords are the keywords fill reads from the parser's model, each
+// with how to clear the model's field holding it.
+var modelKeywords = []struct {
+	name  string
+	clear func(*oas3.Schema)
+}{
+	{"allOf", func(m *oas3.Schema) { m.AllOf = nil }},
+	{"type", func(m *oas3.Schema) { m.Type = nil }},
+	{"nullable", func(m *oas3.Schema) { m.Nullable = nil }},
+	{"exclusiveMinimum", func(m *oas3.Schema) { m.ExclusiveMinimum = nil }},
+	{"exclusiveMaximum", func(m *oas3.Schema) { m.ExclusiveMaximum = nil }},
+	{"enum", func(m *oas3.Schema) { m.Enum = nil }},
+	{"const", func(m *oas3.Schema) { m.Const = nil }},
+	{"format", func(m *oas3.Schema) { m.Format = nil }},
+	{"minLength", func(m *oas3.Schema) { m.MinLength = nil }},
+	{"maxLength", func(m *oas3.Schema) { m.MaxLength = nil }},
+	{"pattern", func(m *oas3.Schema) { m.Pattern = nil }},
+	{"contentEncoding", func(m *oas3.Schema) { m.ContentEncoding = nil }},
+	{"contentMediaType", func(m *oas3.Schema) { m.ContentMediaType = nil }},
+	{"contentSchema", func(m *oas3.Schema) { m.ContentSchema = nil }},
+	{"items", func(m *oas3.Schema) { m.Items = nil }},
+	{"prefixItems", func(m *oas3.Schema) { m.PrefixItems = nil }},
+	{"contains", func(m *oas3.Schema) { m.Contains = nil }},
+	{"minContains", func(m *oas3.Schema) { m.MinContains = nil }},
+	{"maxContains", func(m *oas3.Schema) { m.MaxContains = nil }},
+	{"minItems", func(m *oas3.Schema) { m.MinItems = nil }},
+	{"maxItems", func(m *oas3.Schema) { m.MaxItems = nil }},
+	{"uniqueItems", func(m *oas3.Schema) { m.UniqueItems = nil }},
+	{"unevaluatedItems", func(m *oas3.Schema) { m.UnevaluatedItems = nil }},
+	{"properties", func(m *oas3.Schema) { m.Properties = nil }},
+	{"patternProperties", func(m *oas3.Schema) { m.PatternProperties = nil }},
+	{"additionalProperties", func(m *oas3.Schema) { m.AdditionalProperties = nil }},
+	{"propertyNames", func(m *oas3.Schema) { m.PropertyNames = nil }},
+	{"unevaluatedProperties", func(m *oas3.Schema) { m.UnevaluatedProperties = nil }},
+	{"required", func(m *oas3.Schema) { m.Required = nil }},
+	{"minProperties", func(m *oas3.Schema) { m.MinProperties = nil }},
+	{"maxProperties", func(m *oas3.Schema) { m.MaxProperties = nil }},
+	{"discriminator", func(m *oas3.Schema) { m.Discriminator = nil }},
+	{"oneOf", func(m *oas3.Schema) { m.OneOf = nil }},
+	{"anyOf", func(m *oas3.Schema) { m.AnyOf = nil }},
+	{"not", func(m *oas3.Schema) { m.Not = nil }},
+	{"if", func(m *oas3.Schema) { m.If = nil }},
+	{"then", func(m *oas3.Schema) { m.Then = nil }},
+	{"else", func(m *oas3.Schema) { m.Else = nil }},
+	{"dependentSchemas", func(m *oas3.Schema) { m.DependentSchemas = nil }},
+	{"title", func(m *oas3.Schema) { m.Title = nil }},
+	{"description", func(m *oas3.Schema) { m.Description = nil }},
+	{"default", func(m *oas3.Schema) { m.Default = nil }},
+	{"example", func(m *oas3.Schema) { m.Example = nil }},
+	{"examples", func(m *oas3.Schema) { m.Examples = nil }},
+	{"deprecated", func(m *oas3.Schema) { m.Deprecated = nil }},
+	{"readOnly", func(m *oas3.Schema) { m.ReadOnly = nil }},
+	{"writeOnly", func(m *oas3.Schema) { m.WriteOnly = nil }},
+	{"xml", func(m *oas3.Schema) { m.XML = nil }},
+	{"externalDocs", func(m *oas3.Schema) { m.ExternalDocs = nil }},
+}
+
+// listedOnly returns a copy of m holding no keyword s's keys do not list: s
+// is Truncated, so the model expands merges its keys stop short of, and a
+// schema is read from its keys or not at all, never half from each
+// (docs/parser-library.md#merge-keys). The model's extensions and the keys it
+// holds no field for stay, which the census of unknown keys reports.
+func listedOnly(m *oas3.Schema, s *Schema) *oas3.Schema {
+	kept := *m
+	for _, k := range modelKeywords {
+		if i, _ := s.find(k.name); i < 0 {
+			k.clear(&kept)
+		}
+	}
+	return &kept
 }
 
 // kindsOf returns what m's type and nullable say, nil where it holds neither.
@@ -369,8 +444,8 @@ func listed(list []*model) []Sub {
 }
 
 // listedExtensions returns the n extensions all yields, in its order, nil for
-// none. The model holds them past nodeview.MergeDepthLimit as it does a typed
-// value, so the list names a key merged in there, which Keys lack.
+// none. They are the model's past nodeview.MergeDepthLimit too, which
+// listedOnly leaves, so the list names a key merged in there, which Keys lack.
 func listedExtensions(n int, all iter.Seq2[string, *yaml.Node]) []Extension {
 	if n == 0 {
 		return nil

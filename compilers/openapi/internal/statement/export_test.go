@@ -3,6 +3,8 @@
 
 package statement
 
+import "github.com/speakeasy-api/openapi/jsonschema/oas3"
+
 // Reads returns how many schema objects t has read, for the tests holding the
 // table to one read of each.
 func Reads(t *Table) int { return t.reads }
@@ -16,4 +18,22 @@ func Lookups(t *Table) int { return t.lookups }
 func Compared(s *Schema, name string) int {
 	_, n := s.find(name)
 	return n
+}
+
+// ModelKeywords returns the keywords fill reads from the parser's model, in
+// modelKeywords' order.
+func ModelKeywords() []string {
+	out := make([]string, len(modelKeywords))
+	for i, k := range modelKeywords {
+		out[i] = k.name
+	}
+	return out
+}
+
+// FillTruncated returns what fill reads of m into a Truncated schema whose
+// keys list nothing.
+func FillTruncated(m *oas3.Schema) *Schema {
+	s := &Schema{Truncated: true}
+	fill(s, m)
+	return s
 }
