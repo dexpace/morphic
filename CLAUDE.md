@@ -316,7 +316,8 @@ These all exist already — extend them rather than building a parallel mechanis
   and name the error; a document refused only where two such values meet is the nightly run's to
   find. A finding that stands is a line of that package's
   `testdata/spelling.txt`, `presence.txt` or `instances.txt`: case name, what was found, and a
-  reason that `Reasons` maps to its issue. `-update` writes a new finding as `unclassified`, which
+  reason that `Reasons` maps to the open issue it stands under, which
+  `TestReasons_EachCitesAnIssue` holds. `-update` writes a new finding as `unclassified`, which
   fails until it is given a reason, and deletes the lines a fix leaves naming no finding, which
   fail as stale until it does. A case outside the core is explained by the line of the core case
   it projects to, with the same finding, or by a line of `testdata/full` at its own name; a

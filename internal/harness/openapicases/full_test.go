@@ -80,13 +80,87 @@ func TestFull_EveryCaseHoldsTheRecords(t *testing.T) {
 	}
 }
 
+// products are the products of schema cases in the order morphic-harness
+// counts their cases for -at: the schema cases, then the suite groups.
+func products() []harness.Cases { return []harness.Cases{openapicases.New(), openapicases.Groups()} }
+
 // report fails t once per line, each on a line of its own starting with the
-// case it names, as the nightly run's report reads them.
+// case it names, as the nightly run's report reads them, and ending with the
+// -at index that writes the case's documents and verdicts.
 func report(t *testing.T, path, why string, lines []string) {
 	t.Helper()
+	ps := products()
 	for _, line := range lines {
-		t.Errorf("%s\t%s: %s", line, path, why)
+		name, _, _ := strings.Cut(line, "\t")
+		name, _, _ = strings.Cut(name, ": listed ")
+		at, ok := caseIndex(ps, name)
+		require.True(t, ok, "%s names no case", name)
+		t.Errorf("%s\t%s: %s; morphic-harness -cases full -at %d", line, path, why, at)
 	}
+}
+
+// caseIndex returns the index -at takes for the case name names across
+// products, counted one product after another, and false for a name no case
+// has.
+func caseIndex(products []harness.Cases, name string) (int, bool) {
+	first := 0
+	values := strings.Split(name, "/")
+	for _, c := range products {
+		axes := c.Axes()
+		if i, ok := indexIn(axes, values); ok {
+			return first + i, true
+		}
+		count, err := harness.CaseCount(c)
+		if err != nil {
+			return 0, false
+		}
+		first += count
+	}
+	return 0, false
+}
+
+// indexIn returns the index among axes of the case whose value names are
+// values, the last axis counting fastest, and false where none is.
+func indexIn(axes []harness.Axis, values []string) (int, bool) {
+	if len(values) != len(axes) {
+		return 0, false
+	}
+	i := 0
+	for k, a := range axes {
+		v := slices.IndexFunc(a.Values, func(x harness.Value) bool { return x.Name == values[k] })
+		if v < 0 {
+			return 0, false
+		}
+		i = i*len(a.Values) + v
+	}
+	return i, true
+}
+
+// TestFull_ACaseIndexIsTheOneMorphicHarnessTakes holds caseIndex to the
+// coordinates harness gives each index it is asked of, in both products and
+// across the boundary between them, and to no index for a name no case has.
+func TestFull_ACaseIndexIsTheOneMorphicHarnessTakes(t *testing.T) {
+	t.Parallel()
+	ps := products()
+	schemas, err := harness.CaseCount(ps[0])
+	require.NoError(t, err)
+	for _, at := range []int{0, 7, schemas - 1, schemas, schemas + 11} {
+		c, i := ps[0], at
+		if at >= schemas {
+			c, i = ps[1], at-schemas
+		}
+		coordinates, err := harness.Coordinates(c, i)
+		require.NoError(t, err)
+		names := make([]string, len(coordinates))
+		for k, a := range c.Axes() {
+			names[k] = a.Values[coordinates[k]].Name
+		}
+		got, ok := caseIndex(ps, strings.Join(names, "/"))
+		require.True(t, ok, at)
+		assert.Equal(t, at, got)
+	}
+	_, ok := caseIndex(ps, "3.1.0/no-such-target/none/none/component/inline")
+	assert.False(t, ok)
 }
 
 // TestFull_EachLineNamesACaseOutsideTheCore holds each line of the records
@@ -95,7 +169,7 @@ func report(t *testing.T, path, why string, lines []string) {
 // reason Reasons names.
 func TestFull_EachLineNamesACaseOutsideTheCore(t *testing.T) {
 	t.Parallel()
-	products := []harness.Cases{openapicases.New(), openapicases.Groups()}
+	ps := products()
 	for _, o := range harness.CaseOracles() {
 		core, err := openapicases.Record(o)
 		require.NoError(t, err)
@@ -105,7 +179,7 @@ func TestFull_EachLineNamesACaseOutsideTheCore(t *testing.T) {
 			if _, ok := core[name]; ok {
 				continue
 			}
-			assert.True(t, slices.ContainsFunc(products, func(c harness.Cases) bool { return outsideCore(c, name) }),
+			assert.True(t, slices.ContainsFunc(ps, func(c harness.Cases) bool { return outsideCore(c, name) }),
 				"%s names no case outside a product's core", name)
 		}
 		unlisted, changed, _, unreasoned := every.Judge(nil, openapicases.Reasons())
