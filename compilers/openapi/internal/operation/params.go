@@ -151,7 +151,7 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 	// schema.UseOf reads the end of a $ref chain, since one hop would take the
 	// default and description off an intermediate reference instead of the
 	// schema that declares them.
-	use := schema.UseOf(c.Ctx, c.Statements().Of(js), param.Type, pointer)
+	use := schema.UseOf(c.Ctx, ts, c.Statements().Of(js), param.Type, pointer)
 	def, diags := use.Default(c.Ctx, c.Statements().Of(js).Schema, pointer)
 	param.Default = def
 
@@ -187,7 +187,7 @@ func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	var diags []ir.Diagnostic
-	for _, v := range slices.Backward(use.Written()) {
+	for _, v := range schema.ResidueWriters(use.Written()) {
 		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(c, written, s, pointer)...)

@@ -299,8 +299,9 @@ These all exist already — extend them rather than building a parallel mechanis
   separate from `ir.Diagnostic`, which reports problems in the source spec.
 - **Case oracles**: `internal/harness/openapicases` writes the OpenAPI compiler's schema cases, one
   document per case, as products of axes its `Axes` names: version, target schema, construct (each
-  keyword of the rule table at two values), a second construct, `none` in every case, position and
-  spelling, and the JSON Schema Test Suite's groups written as defaults. `internal/harness`'s case
+  keyword of the rule table at two values), a second construct (`none` at the core, outside it a
+  keyword written in one unit with the first), position and spelling, and the JSON Schema Test
+  Suite's groups written as defaults. `internal/harness`'s case
   oracles judge each case, the first two against a neighbour: spelling (a use spelt another way
   lowers alike, up to decorators), presence (a keyword changes what compiles, and again when its
   value changes, unless it says why nothing carries it) and instance (the suite's valid instances
@@ -318,7 +319,10 @@ These all exist already — extend them rather than building a parallel mechanis
   reason that `Reasons` maps to its issue. `-update` writes a new finding as `unclassified`, which
   fails until it is given a reason, and deletes the lines a fix leaves naming no finding, which
   fail as stale until it does. A case outside the core is explained by the line of the core case
-  it projects to, with the same finding.
+  it projects to, with the same finding, or by a line of `testdata/full` at its own name; a
+  spelling at a case writing two keywords is new only where it differs at a place neither case
+  writing one of them alone differs at. `make cases` holds every case to those files, and
+  `go test ./internal/harness/openapicases -full -update` rewrites `testdata/full`.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use

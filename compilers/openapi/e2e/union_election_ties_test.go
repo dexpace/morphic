@@ -102,30 +102,35 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 // its principal alone, whichever is written first: the one writing all the
 // other does and more is the principal, keeping nothing of its own, and two
 // writing them otherwise, or writing one keyword with values that differ,
-// elect neither, the position the top type keeping what each writes under its
-// own key, a type both write alike once, or both whole where they write one
-// keyword apart.
+// elect neither, the position the string both admit, or the top type where
+// they admit an array, keeping what each writes under its own key, a type both
+// write alike once, or both whole where they write one keyword apart.
 func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name, a, b string
 		elected    ir.TypeKind
 		kept       map[string]ir.UnmodeledReason
+		// prim is the primitive a position electing neither is, where elected
+		// is a primitive.
+		prim ir.PrimKind
 	}{
-		{"Content", "{type: string}", "{type: string, contentEncoding: base64}", ir.KindScalar, nil},
-		{"Tuple", "{type: array}", "{type: array, prefixItems: [{type: string}]}", ir.KindTuple, nil},
+		{"Content", "{type: string}", "{type: string, contentEncoding: base64}", ir.KindScalar, nil, ""},
+		{"Tuple", "{type: array}", "{type: array, prefixItems: [{type: string}]}", ir.KindTuple, nil, ""},
 		{"MoreContent", "{type: string, contentMediaType: application/json}",
 			"{type: string, contentMediaType: application/json, contentSchema: {type: object}}", ir.KindScalar,
-			map[string]ir.UnmodeledReason{"openapi:contentMediaType": ir.ReasonNoIRHome}},
+			map[string]ir.UnmodeledReason{"openapi:contentMediaType": ir.ReasonNoIRHome}, ""},
 		{"OtherContent", "{type: string, contentEncoding: base64}",
 			"{type: string, contentMediaType: application/json}", ir.KindPrimitive, map[string]ir.UnmodeledReason{
 				"openapi:contentEncoding": ir.ReasonNoIRHome, "openapi:contentMediaType": ir.ReasonNoIRHome,
 				"openapi:type": ir.ReasonDegradedLowering,
-			}},
+			}, ir.PrimString},
 		{"DisagreeingContent", "{type: string, contentMediaType: application/json}",
-			"{type: string, contentMediaType: text/plain}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1))},
+			"{type: string, contentMediaType: text/plain}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1)),
+			ir.PrimString},
 		{"DisagreeingTuple", "{type: array, prefixItems: [{type: string}]}",
-			"{type: array, prefixItems: [{type: integer}]}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1))},
+			"{type: array, prefixItems: [{type: integer}]}", ir.KindPrimitive, degradedKept(entryKey(0), entryKey(1)),
+			ir.PrimAny},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -139,7 +144,7 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 			require.NotNil(t, use.Base)
 			assert.Equal(t, tc.elected, kindNode(t, doc, use.Base.Target).Kind())
 			if tc.elected == ir.KindPrimitive {
-				assert.Equal(t, prim(ir.PrimAny), use.Base.Target, "neither is elected")
+				assert.Equal(t, prim(tc.prim), use.Base.Target, "neither is elected")
 			}
 			kept := tc.kept
 			if kept == nil {

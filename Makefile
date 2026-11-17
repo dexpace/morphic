@@ -163,11 +163,13 @@ race:
 	fi
 	$(GO) test ./... $(RACE_FLAGS)
 
-# Every case of each schema-case product, where the gate's coverage run checks
-# the core ones alone (go test ./internal/harness/openapicases). It exits 1 on a
-# finding no record explains at the core case it projects to.
+# Every case of each schema-case product, second keywords among them, where the
+# gate's coverage run checks the core ones alone (go test
+# ./internal/harness/openapicases). It fails on a finding no record explains, or
+# a line of testdata/full naming none, one test log line each; -full -update
+# rewrites testdata/full.
 cases:
-	$(GO) run ./cmd/morphic-harness -cases full
+	$(GO) test ./internal/harness/openapicases -run 'TestFull_' -full -count=1 -timeout 15m
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

@@ -413,7 +413,11 @@ A branch admitting no object, nor a null `S` admits, conjoins with `S`, which ad
 to nothing, so it is no variant: a variant would be a type no value inhabits, which a consumer would
 still have to declare and dispatch to. The OpenAPI compiler keeps such a branch on the `Union`,
 which leaves `oneOf` and `anyOf` admitting what they did, and where no branch is left the node is
-what `S` lowers to alone, the union kept beside it. Keeping the variant and reporting it was
+what `S` lowers to alone, the union kept beside it, whether `S` writes it beside its body or on an
+entry of its `allOf`, whose other entries are then the body. A route the discriminator standing
+with the union takes to such a branch keys nothing in the `Mapping`, which names variants, and the
+compiler keeps what the source writes of it beside the branch: a document routing a tag to a type
+no value inhabits is no less valid for it. Keeping the variant and reporting it was
 weighed: it leaves a `Union` member every emitter must render for no payload.
 
 What `S` says of the position rather than of its shape, its docs, deprecation, examples and what a

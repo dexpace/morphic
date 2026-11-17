@@ -6,6 +6,8 @@ package schema
 import (
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -135,15 +137,18 @@ func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfCompositio
 }
 
 // conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
-// beside it, each union s writes beside it that shares no kind with the rest
-// (unionAside), and each flattened branch, a wrapper by its own `type`, an
-// entry nested past statement.MaxFlattenDepth as cut, and a $ref entry writing
-// keywords that narrow what it admits as two, the reference and the keywords
-// beside it, which apply to an instance alike. A value set s writes beside the
-// allOf is the election's to weigh (competing-keywords), and is not read.
+// beside it, the value set it writes there (valueSetAtom), each union s writes
+// beside it that shares no kind with the rest (unionAside), and each flattened
+// branch, a wrapper by its own `type`, an entry nested past
+// statement.MaxFlattenDepth as cut, and a $ref entry writing keywords that
+// narrow what it admits as two, the reference and the keywords beside it,
+// which apply to an instance alike.
 func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
-	out := make([]conjunctAtom, 0, 3+len(comp.branches))
+	out := make([]conjunctAtom, 0, 4+len(comp.branches))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
+	if set, ok := valueSetAtom(c, s); ok {
+		out = append(out, set)
+	}
 	if unionAside(c, s) {
 		choice := choiceIn(s)
 		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
@@ -167,6 +172,25 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		}
 	}
 	return out
+}
+
+// valueSetAtom returns the enum or the const s writes beside its allOf as a
+// conjunct, as one an entry writes is (docs/compilers/openapi.md#allof-refinement):
+// the kinds its members leave, null aside (valueKinds), its read cut where no
+// reading converts them, and false where s writes neither. It is written at s,
+// whose report that the set holds no value its type admits leaves this report
+// none to make (toldWhereWritten).
+func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
+	name, members := "enum", enumIn(s)
+	switch {
+	case enumWritten(s):
+	case constIn(s) != nil:
+		name, members = "const", []*yaml.Node{constIn(s)}
+	default:
+		return conjunctAtom{}, false
+	}
+	unread := memberSetOf(c, valueSetOf{s, name}, members).unread
+	return conjunctAtom{name: name, admits: valueKinds(c, s), words: s, written: c.Statements().Read(s), cut: unread}, true
 }
 
 // splitRef reports whether the branch at i of comp is the reference an entry
@@ -196,7 +220,7 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 		case (enumWritten(st.Schema) || constIn(st.Schema) != nil) && declaredInstanceTypes(st.Schema)&valueKinds(c, st.Schema) == 0:
 			return true
 		case st.Ref == nil && len(st.AllOf) > 0:
-			return conjunctsShareNothing(c, st.Schema)
+			return conjunctsShareNothing(c, st.Schema, nil)
 		case st.Ref == nil && keepsDeadUnion(c, st.Schema):
 			return true
 		}
@@ -210,13 +234,16 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 }
 
 // conjunctsShareNothing reports whether the conjuncts of the allOf s writes,
-// read as a disjoint report reads them, share no kind. Its caller's read is
-// whole, so none of them is cut short.
-func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
+// read as a disjoint report reads them, share no kind, the entry whose schema
+// is aside left out where aside is not nil. A read cut short admits more than
+// the schema does, never less, so it never makes them share nothing.
+func conjunctsShareNothing(c lowering.Ctx, s, aside *statement.Schema) bool {
 	at, _ := siteOf(s)
 	joint := anyInstance
 	for _, a := range conjunctAtoms(c, s, allOfBranches(c, s, at.Pointer)) {
-		joint &= a.admits
+		if aside == nil || a.st == nil || a.st.Schema != aside {
+			joint &= a.admits
+		}
 	}
 	return joint == 0
 }

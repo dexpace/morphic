@@ -28,7 +28,7 @@ import (
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	voices := positionVoices(c, s, pointer, target)
+	voices := markKeptWhole(c, ts, s, pointer, target, positionVoices(c, s, pointer, target))
 	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
 	if stated(s) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
@@ -196,7 +196,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	if !ok {
 		return nil
 	}
-	use := nodeUse(c, s, pointer, target)
+	use := nodeUse(c, ts, s, pointer, target)
 	site := use.SiteAt(c, s, pointer)
 	site.Closure = closureTyped(c, ts, s, td)
 	a, diags := annotation.Read(site, pointer, c.Place())

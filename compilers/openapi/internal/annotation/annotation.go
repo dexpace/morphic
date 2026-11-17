@@ -207,6 +207,10 @@ type Dialect struct {
 type Voice struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
+	// KeptWhole says the position keeps the branch whole, an entry holding what
+	// it writes, so it writes no entry Read keeps beside it but one no other
+	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
+	KeptWhole bool
 }
 
 // Chain returns what speaks for the site, nearest first: its own schema, its
@@ -286,19 +290,20 @@ func DeclaresRedaction(s *statement.Schema) bool {
 // Read reads every site-local annotation at st: what its schema writes at
 // pointer, then what each voice writes at its own. A voice agrees with what
 // spoke before it wherever both write a keyword (schema.voicesAmong), so an
-// entry is kept once: the site's own, else, where several voices write it, at
-// pointer, no one writer's (underlayVoice). A voice's unevaluated keywords fold
-// nowhere (schema.foldEntry): its branch, kept whole, is their one record.
+// entry is kept once: the site's own, else, where several voices kept apart
+// write it, at pointer, no one writer's (underlay). A voice's unevaluated
+// keywords fold nowhere (schema.foldEntry): its branch, kept whole, is their
+// one record.
 //
 // This is the one place the site-versus-referent choice is made: three
 // attachment points used to make it separately and disagreed.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
-	var own map[string]bool
+	var u underlay
 	if len(st.Voices) > 0 {
-		own = make(map[string]bool, len(out.Unmodeled))
+		u.own = make(map[string]bool, len(out.Unmodeled))
 		for key := range out.Unmodeled {
-			own[key] = true
+			u.own[key] = true
 		}
 	}
 	for _, v := range st.Voices {
@@ -310,7 +315,7 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 		if len(out.Examples) == 0 {
 			out.Examples = voice.Examples
 		}
-		out.Unmodeled = underlayVoice(out.Unmodeled, voice.Unmodeled, own, doc.At(pointer))
+		out.Unmodeled = u.add(out.Unmodeled, voice.Unmodeled, v.KeptWhole, doc.At(pointer))
 	}
 	chain := st.Chain()
 	FillCarrierDocs(&out.Docs, chain)

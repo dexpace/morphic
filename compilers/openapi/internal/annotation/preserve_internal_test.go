@@ -206,25 +206,54 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 	}, MergeUnmodeled(dst, src))
 }
 
-// TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite pins what a voice may add: an
+// TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite pins what a voice may add: an
 // entry the site does not hold. One the site's own schema holds stays the
 // site's, its provenance with it; one another voice wrote takes the site's
 // provenance, so no order of the voices names a writer.
-func TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
+func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	t.Parallel()
 	site := ir.Provenance{Pointer: "/site"}
 	near := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/near"}}
 	far := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/far"}}
 	atSite := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: site}
 
-	got := underlayVoice(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far}, map[string]bool{"x-a": true}, site)
+	own := underlay{own: map[string]bool{"x-a": true}}
+	got := own.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far}, false, site)
 	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got, "the site's own entry stands")
 
-	got = underlayVoice(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far}, nil, site)
+	var u underlay
+	got = u.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far}, false, site)
 	assert.Equal(t, ir.Unmodeled{"x-a": atSite}, got, "an entry two voices write is the site's")
 
-	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayVoice(nil, ir.Unmodeled{"x-b": far}, nil, site))
-	assert.Nil(t, underlayVoice(nil, nil, nil, site), "nothing to add allocates nothing")
+	assert.Equal(t, ir.Unmodeled{"x-b": far}, u.add(nil, ir.Unmodeled{"x-b": far}, false, site))
+	assert.Nil(t, u.add(nil, nil, false, site), "nothing to add allocates nothing")
+}
+
+// TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne pins that a voice kept whole,
+// whose branch holds what it folds, counts as no writer: it fills a key alone,
+// gives it up to a voice kept apart in either order, and leaves one two voices
+// kept apart write at the site.
+func TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne(t *testing.T) {
+	t.Parallel()
+	site := ir.Provenance{Pointer: "/site"}
+	whole := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/allOf/1/x-a"}}
+	apart := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/allOf/2/x-a"}}
+	atSite := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: site}
+
+	var first underlay
+	got := first.add(nil, ir.Unmodeled{"x-a": whole}, true, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": whole}, got, "a voice kept whole fills a key alone")
+	got = first.add(got, ir.Unmodeled{"x-a": whole}, true, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": whole}, got, "a second voice kept whole writes nothing")
+	got = first.add(got, ir.Unmodeled{"x-a": apart}, false, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": apart}, got, "a voice kept apart takes the key")
+	got = first.add(got, ir.Unmodeled{"x-a": apart}, false, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": atSite}, got, "two voices kept apart leave it at the site")
+
+	var last underlay
+	got = last.add(nil, ir.Unmodeled{"x-a": apart}, false, site)
+	got = last.add(got, ir.Unmodeled{"x-a": whole}, true, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": apart}, got, "a voice kept whole after it writes nothing")
 }
 
 // TestCopyEntriesInto_KeepsWhatTheCarrierHolds pins that a copied entry never

@@ -2267,12 +2267,12 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
    otherwise at a branch writing a `type` that excludes an object
    ([`allof-inline-residue`](#allof-inline-residue)). Where neither holds, as for two `enum`s
    sharing no member, each branch is kept with an info and no report names the contradiction.
-5. a `$dynamicRef` the position does not expand stands beside it: `{allOf: [{$ref: T}], $dynamicRef:
-   '#m'}` is a `Model` keeping the `$dynamicRef`, even where `T` admits no object and its `$ref` is
-   kept too.
 
-A `$dynamicRef` a conjunct writes masks no kind: one the position expands is read as the schema it
-names, and one it does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
+A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in what a `$ref` lands on,
+is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
+one on an entry of it, which no position expands, do. So `{allOf: [{$ref: T}], $dynamicRef: '#m'}`
+and `{allOf: [{$ref: T}, {$dynamicRef: '#m'}]}` lower alike, whatever `#m` names: a `Model` over `T`
+where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. A union beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
@@ -2331,8 +2331,14 @@ writing both: `{allOf: [{anyOf: [{type: number}, {type: boolean}]}, {oneOf: [{ty
 integer}]}]}` is a use of the `oneOf`, keeping the `anyOf`. Two unions of one keyword elect neither,
 as no rule ranks their branches, and nor do words neither of which lies within the other: two
 formats neither of which narrows the other, two `items` saying different things, or value sets that
-only overlap. The position then lowers by the keywords beside the `allOf`, the top type where they
-name no kind, keeping each entry with an info. Words admitting alike part only where a node reads a
+only overlap. The position then lowers by the keywords beside the `allOf`, keeping each entry with
+an info. Where they name no kind, it is what its conjuncts admit together, null aside, as a `type`
+list naming those kinds lowers, where those are a string, a number or a boolean alone or together:
+`{allOf: [{type: string, format: email}, {type: string, format: uuid}]}` is a `string`, two type lists
+sharing a string and an integer the `Union` of the two, two `enum`s the kinds each holds a member
+of, as `{allOf: [{enum: [true, a]}, {enum: [true, b]}]}` is the `Union` of a string and a boolean. Where they admit an object or an array, every kind among them, it is the top type, as no entry
+was elected to give that shape and a node of the kind would assert members or items none states.
+Words admitting alike part only where a node reads a
 keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
 vocabulary: of those writing every such keyword another writes, and alike, one is elected, and
 where none does, neither is. Where nothing tells them apart, the keywords beside the `allOf` stand
@@ -2349,7 +2355,9 @@ principal and is the top type. Where the keywords beside the `allOf` win, the po
 as if no `allOf` were written. An inline principal writing a value set lowers it at the position's
 pointer, as the keywords beside the `allOf` would, so one node stands for the position whichever
 conjunct writes the set, its members and the reports on them where they are written. What the
-branch writes beside the set is kept on that node at its own pointer, as any conjunct's is. A `$ref`
+branch writes beside the set is kept on that node at its own pointer, as any conjunct's is, a
+`oneOf` or `anyOf` among it, which the set does not say since the node holds no union, kept under its
+keyword as the same union beside the `allOf` is. A `$ref`
 to the branch's own pointer names the branch alone, a node of its own typed by what it writes. Any
 other principal lowers at the pointer it is written at, so nothing is minted and each node stands at
 a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
@@ -2452,7 +2460,9 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_KeywordsLandAtEveryPosition`,
   `schema.TestRefinement_KeptKeywordsLandAtEveryPosition`,
   `schema.TestRefinement_SeveralRefsUseTheNarrowest`, `schema.TestRefinement_KindsBeyondAnObjectAreAUse`,
-  `schema.TestRefinement_ADynamicRefIsReadAsWhatItNames`,
+  `schema.TestRefinement_ADynamicRefMasksNoKind`, `schema.TestDynamicRefEntry_OnAnEntryLowersAsBesideTheAllOf`,
+  `e2e.TestElection_AUnionAndTheWordsItTiesWithAreAUseOfTheUnionHoldingTheBound`,
+  `schema.TestRefinementSetUnion_AUnionTheValueSetStandsBesideIsKept`,
   `e2e.TestAllOfCompose_ATargetAdmittingEveryKindIsUsedNotComposed`,
   `e2e.TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept`,
   `e2e.TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel`,
@@ -2477,6 +2487,10 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_ARefToAPrincipalNamesItsTypedNode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone`,
+  `schema.TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit`,
+  `schema.TestRefinementUndecided_SeveralSharedKindsAreTheirUnion`,
+  `schema.TestRefinementUndecided_ANullTheEntriesAllAdmitStays`,
+  `schema.TestRefinementUndecided_AnElectionOrNoSharedValueIsUnchanged`,
   `schema.TestElect_ComparesEachPairOnce`,
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
   `e2e.TestElection_TwoUnionsOfOneKeywordElectNeither`,
@@ -2512,8 +2526,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
-  consumes (#1067), and a `$dynamicRef` beside the `allOf` keeps a `Model` over a target admitting no
-  object (#2009).
+  consumes (#1067).
 
 ### `allof-beside-ref`
 
@@ -2564,8 +2577,8 @@ list holding one where a variant whose type takes it does, a value bound but a p
 `Model` or a `MapT`, and a collection bound on any node but a `List` or a `Tuple`, that `Union`
 holding one where such a variant does; a collection bound
 `Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
-`$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)),
-where a union beside it is one more conjunct, and neither changes anything else here: where the
+`$dynamicRef` beside the `allOf` is a conjunct masking no kind ([`allof-refinement`](#allof-refinement)),
+and a union beside it one more conjunct, and neither changes anything else here: where the
 `allOf` composes, its branches fold into the composition as they do with neither there, beside a
 `$dynamicRef` it keeps from expanding ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
 ([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of
@@ -2605,7 +2618,11 @@ reported at the keyword, the last by an `openapi/unknown-schema-keyword`, as is 
 ([`dynamic-ref`](#dynamic-ref)), kept `degraded_lowering`. A `oneOf` or `anyOf` is `validation_only` where its branches declare no shape
 against the position, reported by an `openapi/validation-only-keyword` at the branch, and
 `degraded_lowering` where they do or where it shares no kind with the rest
-([`union-beside-structure`](#union-beside-structure)). Every other keyword is `degraded_lowering`, and
+([`union-beside-structure`](#union-beside-structure)). A value bound where the position's own node
+carries a number as text is `no_ir_home`, reported at the keyword, as one beside it is
+([`string-formats`](#string-formats)). An `unevaluatedProperties` or `unevaluatedItems` keeps its
+branch whole (below), its slot `validation_only` as beside the `allOf`
+([`validation-only`](#validation-only)). Every other keyword is `degraded_lowering`, and
 those of one branch are reported by one `openapi/degraded-construct` at the branch naming them, an
 info, and a warning where the branch declares a `type` that excludes `object`, because the composing
 `Model` then asserts a shape the source contradicts. A `$comment`, `$anchor`, `$dynamicAnchor` or
@@ -2631,12 +2648,13 @@ from two places, under the reason its kept keywords share where they share one, 
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
 folds is typed as any branch's is, and what its fold would keep beside it, a vendor extension or a
 validation-only keyword, is kept once, inside it, but for a key the promotion policy reads
-([unmodeled](../ir/unmodeled.md#keys)) and for one another branch folds alike, which the position
-keeps too, at its own pointer, as below. A keyword two branches
-keep alike, and the keywords beside the `allOf` do not write, is kept once, its provenance the
-position's pointer, as no one writer's is the same in every order of the branches; one the keywords
-beside the `allOf` write alike is theirs, kept as they keep it. An entry two folding branches write
-alike is the position's the same way.
+([unmodeled](../ir/unmodeled.md#keys)). Such a branch writes no keyword for anyone else: one another
+branch keeps or folds alike is that branch's, kept at its keyword, so each is kept once. A keyword
+two branches not kept whole keep alike, and the keywords beside the `allOf` do not write, is kept
+once, its provenance the position's pointer, as no one writer's is the same in every order of the
+branches; one the keywords beside the `allOf` write alike is theirs, kept as they keep it. An entry
+two such folding branches write alike is the position's the same way, but `default`, `readOnly`
+and `writeOnly`, kept at the nearest branch writing them.
 
 A position composes beside a branch declaring a `type` that excludes `object` only where the
 conjuncts share no value but null, as `{allOf: [{type: [object, "null"], …}, {type: [string, "null"],
@@ -2698,7 +2716,14 @@ every entry reads that one twice.
   `e2e.TestKeptFailedRef_ARefOnALoopIsKeptLikeOneThatNamesNothing`,
   `e2e.TestKeptFailedRef_TheFailureIsReportedOnceWhereTheRefIsWritten`,
   `schema.TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason`,
-  `annotation.TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite`,
+  `schema.TestEntryKeptReason_ABoundOnANumberAsTextIsKeptAsBesideIt`,
+  `schema.TestEntryKeptReason_AnUnevaluatedKeywordKeepsItsEntryValidationOnly`,
+  `annotation.TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite`,
+  `annotation.TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne`,
+  `schema.TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone`,
+  `schema.TestEntryKeptOnce_AtACarrierTheEntryKeptWholeHoldsItsOwn`,
+  `schema.TestEntryKeptOnce_APromotedKeyStaysBesideTheEntryKeptWhole`,
+  `schema.TestEntryKeptOnce_EveryKeywordOfAGridIsKeptOnce`,
   `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
@@ -3472,7 +3497,8 @@ and `{properties: …}` alone admits a string. That is where it parts from the r
 claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
 admits a set of JSON instance types, an `integer` within a `number` and named as written, and a
 number with a fraction, which no `type` names, named a `number that is no integer`, read once
-a compile, whatever its size: the `type` beside the `allOf`; an inline entry's `type`, the members
+a compile, whatever its size: the `type` beside the `allOf`, and the members of an `enum` or a
+`const` written there, named by its keyword, as on an entry; an inline entry's `type`, the members
 of its `enum` or `const`, the join of what each branch of its `oneOf` or `anyOf` admits, and what
 its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admits, read the same
 way. The keywords beside a `$ref` entry apply to the instance as the reference does, at 3.0 as from
@@ -3509,12 +3535,15 @@ no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not fol
 may admit less than is read, and conjuncts disjoint as read are disjoint. An `allOf` beside a
 `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read. One passed over
 for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as any composition
-is, the value set beside it left to the election, and the warning names the value set the position
-lowered as.
+is, the value set beside it among its conjuncts, so `{allOf: [{$ref: Obj}], enum: [a, b]}` warns as
+`{allOf: [{$ref: Obj}, {enum: [a, b]}]}` does, and the warning names the value set the position
+lowered as. A value set beside the `allOf` holding no value its own type admits is reported where it
+is written ([`enum-const`](#enum-const)), so the `allOf` draws nothing more.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
+  `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`, `schema.TestAllOf_AValueSetBesideAUnionWarnsOnce`,
   `schema.TestAllOf_DisjointReportStaysSilent`,
   `schema.TestAllOf_AKeywordBesideARefIsReadAtEveryVersion`,
   `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,
@@ -3766,11 +3795,23 @@ conjuncts sharing no value, of which a dead branch and the body are two; no find
 branch, and it lowers nowhere. Leaving out a branch no instance satisfies changes what neither a
 `oneOf`'s "exactly one" nor an `anyOf`'s "at least one" admits, so `{type: object, anyOf: [{type:
 object}, {type: array}, {type: string}]}` is a `Union` of one variant, as a union written with one
-branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the warning of that
-rule already says no instance satisfies the schema, and no branch is read as dead. Where no branch
-lives, the union is shape 6 below. A `mapping` entry naming the component a dead branch names routes
-to that component, which is no variant of the union, as an entry naming any schema the union does
-not list does, and `pass/validate` reports it; no route is implied to it.
+branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the entry a union is
+written on aside, the warning of that rule already says no instance satisfies the schema, and no
+branch is read as dead. Where no branch
+lives, the union is shape 6 below. A route the discriminator standing with the union takes to a
+dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
+dead branch meets first, as a variant's branch meets one ([`discriminator`](#discriminator)), and a
+`defaultMapping` doing so, are left out of the `Discriminator` and kept verbatim on the `Union`
+(`degraded_lowering`), keyed by their path from the position as the discriminator's extensions are
+([`vendor-extensions`](#vendor-extensions)): `openapi:discriminator/mapping/<key>`, the key one
+escaped segment, and `openapi:discriminator/defaultMapping` for one written beside the union or the
+`allOf`, and `openapi:allOf/<n>/discriminator/mapping/<key>` for one on the entry writing the union.
+The name of the component a dead branch names, which OpenAPI routes by where no entry keys it and no
+other branch names it, keys nothing in the `Mapping` either. The warning naming the dead branches
+names each such tag, in byte order, so a document whose routes are all the union's own compiles with
+no error; an entry naming a schema the union does not list still routes to it, which
+`pass/validate` reports. Where no branch lives, the discriminator routes nothing and is kept whole
+(below).
 
 A `discriminator` standing with the union, where no branch composes the schema (shape 3), routes
 the distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
@@ -3828,9 +3869,15 @@ reach these shapes:
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
    own ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Such a union on an `allOf` entry
-   shares no kind with the other conjuncts, so it is kept as an entry's keyword is, under
-   `openapi:oneOf` or `openapi:anyOf` at the position
-   ([`allof-inline-residue`](#allof-inline-residue)), under that rule's warning.
+   is read against the rest of the `allOf`, its own entry aside, and kept as an entry's keyword is,
+   under `openapi:oneOf` or `openapi:anyOf` at the position
+   ([`allof-inline-residue`](#allof-inline-residue)). Its entry is a conjunct sharing no kind with
+   the rest, so the schema draws that rule's warning, unless the rest admits null, which that rule
+   reads a union as admitting too: the schema then draws the warning naming the dead branches,
+   which says that no instance satisfies it, as none of the branches admits null, or none but null
+   where a null branch takes it. A dead branch beside a live one on an entry is named as admitting
+   no value the rest of the `allOf` admits, which may hold kinds beside an object that no branch
+   holds.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -3881,7 +3928,8 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 3).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
-`allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of it
+`allOf` branch among them and shape 6 on an entry, stays on that `Model` only when every type it
+routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
 `oneOf`'s branches where `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch,
@@ -3991,9 +4039,19 @@ judged as one whose branches declare shape.
   `e2e.TestCompile_ABranchAVariantKeepsLowersNowhereElse`,
   `e2e.TestCompile_ABranchNoObjectSatisfiesIsNoVariant`,
   `e2e.TestCompile_AnUntypedBranchLivesWithKindInferenceOff`,
-  `e2e.TestCompile_AMappingToADeadBranchRoutesToNoVariant`,
+  `e2e.TestCompile_AMappingToADeadBranchIsNoRoute`,
+  `e2e.TestCompile_TheNameOfADeadBranchIsNoRoute`,
+  `e2e.TestCompile_ADefaultMappingToADeadBranchIsNoRoute`,
+  `e2e.TestCompile_ADiscriminatorBesideAUnionNoBranchOfWhichLivesIsKeptWhole`,
+  `schema.TestDiscriminator_ARouteToADeadBranchRoutesNowhere`,
   `e2e.TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept`,
   `e2e.TestCompile_TwoUnionsOnEntriesKeepTheirBranchesApart`,
+  `e2e.TestCompile_AnEntryUnionNoBranchOfWhichLivesIsKeptOnTheEntry`,
+  `e2e.TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns`,
+  `e2e.TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets`,
+  `e2e.TestCompile_ABodyBesideANullBranchAndNoLiveOneAdmitsNull`,
+  `schema.TestOneOf_TheWarningOfADeadBranchSaysWhereTheUnionIs`,
+  `e2e.TestCompile_ABranchBesideABodyThePolicyMadeAnObjectLives`,
   `schema.TestOneOf_AnUnpreservableDeadBranchIsNotAnnounced`,
   `schema.TestOneOf_ADeadBranchIsReadForTheNullTheBodyAdmits`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
@@ -4174,7 +4232,9 @@ in branch order where several do. Several branches each aliasing one type for a 
 first, reported as an info `openapi/degraded-construct` at the entry naming the branches; neither
 the mapping's key order nor any lowering order decides. A chain no branch meets routes to the type
 it ends on, as on a model, which `pass/discriminator-missing-variant` reports as no variant, the
-compiler reporting nothing. Where a position on a chain writes a `$ref` landing on no schema, or on
+compiler reporting nothing. A chain a branch no instance of the union's body satisfies meets first
+routes nowhere, its entry kept verbatim on the `Union`
+([`union-beside-structure`](#union-beside-structure)). Where a position on a chain writes a `$ref` landing on no schema, or on
 a loop, the value names no type: its entry is left out, unreported, since the failing `$ref` is
 reported where it is written, and the last position the chain reached is lowered all the same. A
 union's value naming the failing branch itself still routes to that branch's variant, as the branch
@@ -4858,9 +4918,8 @@ written beside it, but for a number carried as text, whose `Constraints` speak o
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
 `openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
-at it, one an inline `allOf` branch writes kept under its own key too but as `degraded_lowering`,
-reported at the branch ([`allof-inline-residue`](#allof-inline-residue)), and neither the `Scalar` nor a property or
-parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+at it, one an inline `allOf` branch writes the same way ([`allof-inline-residue`](#allof-inline-residue)),
+and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
 with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
 table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
 ([`type-arrays`](#type-arrays)).
@@ -5632,8 +5691,8 @@ rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema case
 of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
 compiles, for each keyword at each position the cases write a schema and in each spelling they write
 it in (merged into the schema it is said of, beside a `$ref` to that schema, beside an `allOf` of
-the `$ref`, on an entry of the `allOf` after the `$ref`, and on such an entry nested one `allOf`
-deeper), three documents: the keyword absent, written with one value, written with a second.
+the `$ref`, on an entry of the `allOf` after the `$ref`, on such an entry nested one `allOf`
+deeper, and beside the `$ref` on the `allOf`'s one entry), three documents: the keyword absent, written with one value, written with a second.
 It requires the absent form to differ from the first and the first from the second, and an exception
 to equal the absent form, its justification written beside the keyword; where the target writes the
 keyword itself, there is no absent form, and the two values are compared alone. So are the values of
@@ -5641,9 +5700,9 @@ keyword itself, there is no absent form, and the two values are compared alone. 
 differs from it by them, so one dropped is found as a value discarded. A keyword that stops
 being carried at any one position or in any one spelling fails there rather than waiting for a
 reader to notice, and a finding that stands is listed with its reason in the package's
-`testdata/presence.txt`. The test asks this of the core cases, which the gate runs;
-`morphic-harness -cases full` asks it of every case, an entry written before the `$ref` among them,
-and reports what the record does not explain. The guarantee is a floor rather than an inventory:
+`testdata/presence.txt`. The test asks this of the core cases, which the gate runs; `make cases`
+asks it of every case, an entry written before the `$ref` and a second keyword written with the
+first among them, and fails on what the records, `testdata/full` among them, do not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
 another would still pass. A dependency map with no entry is no value in that sense but the keyword
 left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions

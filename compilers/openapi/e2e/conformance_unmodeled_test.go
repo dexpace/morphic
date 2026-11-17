@@ -308,7 +308,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	_, ok = propByWire(narrowed, "name")
 	assert.True(t, ok, "the inline branch still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"unevaluatedProperties":false,
 		"description":"A narrowed base.","maxProperties":3}`,
 		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
@@ -316,7 +316,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	require.NotNil(t, narrowed.Constraints)
 	assert.Equal(t, new(int64(3)), narrowed.Constraints.MaxProps)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/allOf/1"),
+		diagsAt(diags, "openapi/validation-only-keyword", "/components/schemas/Narrowed/allOf/1"),
 		"a branch that only narrows the model is info")
 
 	contradicted, ok := doc.Types[componentID("Contradicted")].(*ir.Model)

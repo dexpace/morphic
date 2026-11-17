@@ -83,14 +83,15 @@ func carriesNumberAsText(td ir.TypeDef) bool {
 		sc.Encoding.WireType != nil
 }
 
-// keepTextBounds keeps each value bound s writes verbatim on p, under
-// openapi:<keyword> with no_ir_home, for a position carrying a number as text,
-// whose Constraints hold none (carriesNumberAsText), with an info at each. A
-// voice's is left to keep its branch whole, as a bound with no home does. The
-// node keeps them, and a carrier of it keeps none (CarrierConstraintsOf).
-func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+// keepTextBounds keeps each of bounds, value bounds s writes, verbatim on p,
+// under openapi:<keyword> with no_ir_home, for a position carrying a number as
+// text, whose Constraints hold none (carriesNumberAsText), with an info at
+// each: those written beside the position's own keywords, and those an inline
+// allOf entry keeps (recordOwnKeywords). The node keeps them, and a carrier of
+// it keeps none (CarrierConstraintsOf).
+func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, bounds []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, keyword := range declaredConstraints(s) {
+	for _, keyword := range bounds {
 		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if kept {

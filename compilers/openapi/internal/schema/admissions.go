@@ -4,7 +4,9 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
@@ -184,14 +186,22 @@ func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement
 // dynamicExpansionOf returns the position the $dynamicRef or $recursiveRef st
 // writes names, read at st's own position in its own document, where dynamic
 // scope is static (dynamicTarget), and false where it writes none the bindings
-// do not read as a $ref, names none, or is placed nowhere.
+// do not read as a $ref, names none, or is placed nowhere. One an allOf entry
+// writes names none: no position expands it (keepEntryDynamicRef), so it masks
+// no kind (docs/compilers/openapi.md#allof-refinement).
 func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (bind.Position, bool) {
 	at, placed := siteOf(st.Schema)
-	if st.Ref != nil || !placed || !declaresDynamicRef(st.Schema) {
+	if st.Ref != nil || !placed || !declaresDynamicRef(st.Schema) || writtenAsEntry(at.Pointer) {
 		return bind.Position{}, false
 	}
 	in, _ := lowering.InDocument(c, at.Doc)
 	return dynamicTarget(in, st.Schema, at.Pointer)
+}
+
+// writtenAsEntry reports whether pointer names an entry of an allOf.
+func writtenAsEntry(pointer jsontext.Pointer) bool {
+	_, err := strconv.ParseUint(pointer.LastToken(), 10, 64)
+	return err == nil && pointer.Parent().LastToken() == "allOf"
 }
 
 // admissionWalk is one walk settling the readings a first ask needs, by

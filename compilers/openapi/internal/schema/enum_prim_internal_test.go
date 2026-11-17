@@ -1,0 +1,61 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package schema
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/ir"
+)
+
+// scalar is a YAML scalar node of tag holding value.
+func scalar(tag, value string) *yaml.Node {
+	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: value}
+}
+
+// TestEnumMemberPrim_ReadsWhatEnumMembersGives pins enumMemberPrim, the reading
+// a position asking only its ValueType takes, to enumMembers' under a type's
+// ID: one PrimKind and one refusal for each list, members of one kind, of two,
+// of a kind no Enum holds, and none.
+func TestEnumMemberPrim_ReadsWhatEnumMembersGives(t *testing.T) {
+	t.Parallel()
+	for name, nodes := range map[string][]*yaml.Node{
+		"strings":  {scalar("!!str", "a"), scalar("!!str", "b"), scalar("!!str", "a")},
+		"numbers":  {scalar("!!int", "1"), scalar("!!float", "2.5")},
+		"booleans": {scalar("!!bool", "true")},
+		"mixed":    {scalar("!!str", "a"), scalar("!!int", "1")},
+		"a list":   {{Kind: yaml.SequenceNode, Tag: "!!seq"}},
+		"none":     nil,
+	} {
+		entries := readEnum(nodes)
+		members, wantPrim, wantOK := enumMembers(entries, "t/openapi/components/schemas/E")
+		prim, ok := enumMemberPrim(entries)
+		assert.Equal(t, wantOK, ok, name)
+		assert.Equal(t, wantPrim, prim, name)
+		for _, p := range []ir.PrimKind{ir.PrimString, ir.PrimInteger, ir.PrimNumber, ir.PrimBool} {
+			assert.Equal(t, enumMembersAre(members, p), !wantOK || entriesAre(entries, p), "%s %s", name, p)
+		}
+	}
+}
+
+// TestEnumMemberPrim_BuildsNoMember pins that a ValueType's reading of a set
+// allocates nothing however many members it holds: no member, ID or name is
+// minted for a position that only asks its type.
+func TestEnumMemberPrim_BuildsNoMember(t *testing.T) {
+	nodes := make([]*yaml.Node, 0, 200)
+	for i := range 200 {
+		nodes = append(nodes, scalar("!!str", fmt.Sprintf("v%d", i)))
+	}
+	entries := readEnum(nodes)
+	allocs := testing.AllocsPerRun(10, func() {
+		if _, ok := enumMemberPrim(entries); !ok || !entriesAre(entries, ir.PrimString) {
+			t.Fatal("200 strings are an Enum of strings")
+		}
+	})
+	assert.Zero(t, allocs)
+}

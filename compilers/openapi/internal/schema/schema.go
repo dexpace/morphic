@@ -289,7 +289,10 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		return ref, append(unionDiags, nullDiags...)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
-	if how == unionHierarchyBase {
+	if how == unionNoLiveBranch {
+		bodyDiags = append(bodyDiags, diagDeadEntryUnion(c, schema, u, pointer)...)
+	}
+	if how == unionHierarchyBase || how == unionNoLiveBranch {
 		// The union stays with its branch, and the discriminator standing with it
 		// on the model, held to its routes as one beside the union is.
 		deferDiscriminatorBesideUnion(c, ts, id, schema, u.holder, pointer)
@@ -457,7 +460,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	var diags []ir.Diagnostic
 	switch kinds {
 	case 0:
-		return preserveUnhomedKeywords(c, ts, s, pointer, pointer, ts.PrimID(ir.PrimAny), d)
+		return lowerUndecided(c, ts, depth, s, pointer, d)
 	case kindObject:
 		// The node asserts an object, as the bounds beside it read it
 		// (boundKinds): one an object does not take is kept.
@@ -465,7 +468,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	case kindArray:
 		id, diags = lowerArray(c, ts, depth, s, pointer)
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, inferred)
+		return lowerUntypedUnion(c, ts, depth, s, pointer, inferredKinds, inferred)
 	}
 	if inferred {
 		diags = append(diags, markKindInferred(c, ts, id, pointer)...)
@@ -498,17 +501,18 @@ func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 // whichever order the keywords are written in.
 var inferredKinds = []statement.Kind{statement.KindObject, statement.KindArray}
 
-// lowerUntypedUnion lowers s, whose shape keywords speak of an object and an
-// array, as `type: [object, array]` beside them lowers (lowerUnion). Where the
-// policy read the kinds, the union and each variant are marked, as each
-// variant's kind was read off the keywords too.
+// lowerUntypedUnion lowers s, which writes no type, by types, as a type list
+// naming them beside its keywords lowers (lowerUnion): an object and an array
+// its shape keywords speak of, or the kinds an allOf electing no entry admits
+// (lowerUndecided). Where the policy read the kinds, the union and each
+// variant are marked, as each variant's kind was read off the keywords too.
 func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	inferred bool,
+	types []statement.Kind, inferred bool,
 ) (ir.TypeID, []ir.Diagnostic) {
-	id, diags := lowerUnion(c, ts, depth, s, pointer, inferredKinds)
+	id, diags := lowerUnion(c, ts, depth, s, pointer, types)
 	if inferred {
 		diags = append(diags, markKindInferred(c, ts, id, pointer)...)
-		for i := range inferredKinds {
+		for i := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
 			diags = append(diags, markKindInferred(c, ts, c.IDs().ForPointer(vptr), vptr)...)
 		}

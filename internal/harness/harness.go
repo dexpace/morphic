@@ -69,6 +69,10 @@ type Result struct {
 	// under which a record lists a finding at it (Recorded.Explains); empty
 	// for a spec.
 	Like string
+	// Parts names, for a case writing two keywords in one unit, the cases
+	// writing each alone, whose spelling findings in the same run explain one
+	// here (Equal.Parts, Unexplained); empty for a spec.
+	Parts []string
 	// Verdicts holds one Verdict per oracle, in the order Oracles lists them,
 	// or for a case CaseOracles: what each found, or why it asked nothing.
 	Verdicts []Verdict

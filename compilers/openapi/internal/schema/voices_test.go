@@ -574,8 +574,12 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 				common := typeByName(doc, "S").Common()
 				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the branch is kept whole")
 				assert.NotContains(t, common.Unmodeled, "openapi:unevaluated", "the position keeps none of it")
-				assert.False(t, openapitest.HasDiagCodeAt(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/"+tc.at),
-					"nothing folds to be reported; got %v", diags)
+				at := make([]ir.Diagnostic, 0, 1)
+				for _, code := range []string{diag.ValidationOnlyKeyword, diag.DegradedConstruct} {
+					at = append(at, diagsAtPointer(diags, code, "/components/schemas/S/"+tc.at)...)
+				}
+				require.Len(t, at, 1, "the branch's one report: nothing folds to be reported; got %v", diags)
+				assert.Contains(t, at[0].Message, "the branch (", "the report is the branch's")
 				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
 					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
 				}

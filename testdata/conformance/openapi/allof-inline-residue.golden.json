@@ -516,7 +516,7 @@
       "sensitive": false,
       "unmodeled": {
         "openapi:allOf/1": {
-          "reason": "degraded_lowering",
+          "reason": "validation_only",
           "value": {
             "description": "A narrowed base.",
             "maxProperties": 3,
@@ -701,7 +701,7 @@
   "diagnostics": [
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
+      "code": "openapi/validation-only-keyword",
       "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (unevaluatedProperties) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
