@@ -84,6 +84,9 @@ func restatedBounds(doc *ir.Document) (restated map[string][]string, owning int)
 // anonymous node it names states too, so a consumer joining a carrier's bounds
 // with its type's meets each once (docs/ir/annotations.md). A field the
 // redeclared-property fold composes passes, as the model it names holds none.
+// The claim stops at a field folded from a declaration owning its node and one
+// owning none that write one bound alike: it keeps the second's on the
+// property beside the first's node, and no committed spec writes one.
 func TestCorpus_NoCarrierRestatesABoundItsOwnNodeHolds(t *testing.T) {
 	t.Parallel()
 	var owning int

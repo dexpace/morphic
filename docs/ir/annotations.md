@@ -193,10 +193,13 @@ carrier, naming the shared primitive, keeps as well
 A carrier restating the node's value bounds was weighed and withdrawn (#1988). It gave a reader of
 the carrier every bound in one place, but wrote each twice, so a consumer validating the carrier
 and its type checked the bound twice, and one spelling of a use built a node holding a count that
-another left on its carrier. A field the redeclared-property fold composes is the one carrier
-holding bounds a node it names also holds: the model the fold mints stands at no position, so the
-field holds what its declarations' own nodes bound
-([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)).
+another left on its carrier. A field the redeclared-property fold builds is the one carrier that
+can hold a bound a node it reaches holds too. Where the fold composes the field's model, the model
+it mints stands at no position and holds none, so the field holds what its declarations' own nodes
+bound, which those nodes, the model's mixins, still hold. Where the field's type is one
+declaration's node, the field holds the bounds of the declarations owning no node, which that node
+may state as well. A reader joining the field's bounds with its type's meets the tightest of them
+either way ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)).
 
 ## What a reference carries down
 
