@@ -177,20 +177,24 @@ Where a carrier holds annotations of its own alongside a schema's — a header a
 write a `description` beside their schema — the carrier's own win: they describe that input,
 while the schema's describe its type.
 
-Constraints follow the same rule with one exception on the carrier side. `Property.Constraints`
-and `Parameter.Constraints` hold the value bounds their schema writes where it hoisted no node, and
-restate them where it did and the node holds them, a `Scalar`, a `Model`, a `MapT` or a `Union`, or
-the variants of a union composed beside structure do, so a reader of the carrier finds them either
-way. Beside a node keeping them verbatim instead, an `Enum` or a `Literal`, which has no field for
-them ([unions](./unions.md#bounds-beside-a-union)), or a `Scalar` carrying a number as text, whose
-field speaks of the number ([constraints](./constraints.md#constraints)), the carrier holds none,
-so the bound is in the document once, and beside a type list's variants, each holding the bounds
-of its own type ([`type-arrays`](../compilers/openapi.md#type-arrays)), it holds none either.
-
-Collection bounds take the rule without that exception. A schema that lowers to a `List` or a
-`Tuple` holds them on that node, so its carrier restates none, and a carrier holds one only where
-its position resolved to a reference and so owns no node
+Constraints follow the same rule, value bounds and collection bounds alike. `Property.Constraints`
+and `Parameter.Constraints` hold the bounds their schema writes where it hoisted no node, over a
+reference or a primitive every use shares, and none where it did: the node holds them, a `Scalar`,
+a `Model`, a `MapT`, a `List`, a `Tuple` or a `Union`, or the variants of a union the position builds
+do, or the node keeps them verbatim where its kind has no field for them, an `Enum` or a `Literal`
+([unions](./unions.md#bounds-beside-a-union)), a `Scalar` carrying a number as text, whose field
+speaks of the number ([constraints](./constraints.md#constraints)), or a `Model` beside a string
+bound. So a bound is in the document once, and a reader of a carrier finds it on the node the
+carrier names, as a reference naming the position does
 ([`constraints`](../compilers/openapi.md#constraints)).
+
+A carrier restating the node's value bounds was weighed and withdrawn (#1988). It gave a reader of
+the carrier every bound in one place, but wrote each twice, so a consumer validating the carrier
+and its type checked the bound twice, and one spelling of a use built a node holding a count that
+another left on its carrier. A field the redeclared-property fold composes is the one carrier
+holding bounds a node it names also holds: the model the fold mints stands at no position, so the
+field holds what its declarations' own nodes bound
+([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)).
 
 ## What a reference carries down
 

@@ -1093,11 +1093,11 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, br
 // them first.
 //
 // The enclosing schema's value constraints, its folding branches' among them,
-// are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
-// read by what the whole position admits, so a variant holds a bound its own
-// branch cannot take (GitHub #1936).
+// are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy
+// of those a model takes, read by what the whole position admits, so a variant
+// holds a count its own branch cannot take (GitHub #1936).
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, boundKinds(c, body.schema))
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, body.comp.bounds)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	// The branch is distributed into the body, whose own declarations are read

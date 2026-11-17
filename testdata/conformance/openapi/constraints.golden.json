@@ -453,10 +453,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "pattern": "^a",
-            "uniqueItems": false
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,

@@ -422,15 +422,57 @@ func (f *folding) unwritten(d declaration) bool {
 	return at == settledAt(m, wire, false) || at == settledAt(m, wire, true)
 }
 
-// foldConstraints meets the constraints the cone writes on the property.
+// foldConstraints meets the constraints the cone writes on the property. Where
+// the fold composes the field's model, which holds no bound, the bounds of each
+// declaration's own node meet there too (ownBounds): its property leaves them to
+// that node, which the composed model does not stand for.
 func (f *folding) foldConstraints() {
 	sets := make([]*ir.Constraints, len(f.decls))
 	for i, d := range f.decls {
-		if f.cone[i] {
+		switch {
+		case !f.cone[i]:
+		case len(f.conjuncts) > 0:
+			sets[i] = metOrNil(d.prop.Constraints, f.ownBounds(i))
+		default:
 			sets[i] = d.prop.Constraints
 		}
 	}
 	f.merged.Constraints = meetConstraints(sets, f.disagree)
+}
+
+// ownBounds returns the value bounds held by the node decls[i]'s type names
+// where that node is hoisted at the declaration, its position's own, and nil
+// otherwise: a property owning its node leaves those bounds to it
+// (docs/compilers/openapi.md#constraints). A List's or a Tuple's are read by
+// no property, which never held them.
+func (f *folding) ownBounds(i int) *ir.Constraints {
+	d := f.decls[i]
+	td, ok := f.g.resolve(d.prop.Type.Target)
+	if !ok || !hoistedAt(td, d.sites()) {
+		return nil
+	}
+	switch n := td.(type) {
+	case *ir.Model:
+		return n.Constraints
+	case *ir.MapT:
+		return n.Constraints
+	case *ir.Scalar:
+		return n.Constraints
+	case *ir.Union:
+		return n.Constraints
+	default:
+		return nil
+	}
+}
+
+// metOrNil returns a copy of a and b met (Constraints), writing to neither, or
+// nil where both are.
+func metOrNil(a, b *ir.Constraints) *ir.Constraints {
+	if a == nil && b == nil {
+		return nil
+	}
+	var met ir.Constraints
+	return Constraints(Constraints(&met, a), b)
 }
 
 // foldValues settles the default and the examples from the cone. A value the

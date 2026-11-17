@@ -344,13 +344,13 @@ func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 	}
 }
 
-// TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes pins the carrier of a
-// position owning its node: a property and a parameter restate the value bounds
-// the node's type takes, a Scalar hoisted for its format, a Model and a union
-// alike, and hold none where the type list lowers to its variants, which hold
-// each (docs/compilers/openapi.md#type-arrays), nor beside the literals of an
-// enum, which keep them.
-func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
+// TestConstraints_ACarrierOwningItsNodeHoldsNoBound pins the carrier of a
+// position owning its node: a property and a parameter hold no bound, and the
+// node holds those its kind takes, a Scalar hoisted for its format, a Model and
+// a union alike, so each bound is written once. The Union a type list lowers to
+// holds none, its variants holding each (docs/compilers/openapi.md#type-arrays),
+// and neither does one beside which no branch takes the bound.
+func TestConstraints_ACarrierOwningItsNodeHoldsNoBound(t *testing.T) {
 	t.Parallel()
 	for schema, want := range map[string]*ir.Constraints{
 		"{type: string, format: x-mine, maxLength: 3, minimum: 1}":     {MaxLength: new(int64(3))},
@@ -363,21 +363,23 @@ func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", schema))
 		openapitest.RequireNoErrorDiags(t, diags)
-		p := propertyOf(t, doc, "Holder", "p")
-		assert.Equal(t, want, p.Constraints, "property %s", schema)
-		q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
-		require.True(t, ok)
-		assert.Equal(t, want, q.Constraints, "parameter %s", schema)
+		for _, site := range sitesOf(t, doc) {
+			if !site.carrier {
+				continue
+			}
+			require.NotNil(t, site.node, "%s: %s owns its node", schema, site.pointer)
+			assert.Nil(t, site.held, "the carrier at %s: %s", site.pointer, schema)
+			assert.Equal(t, want, heldBounds(site.node), "the node at %s: %s", site.pointer, schema)
+		}
 	}
 }
 
 // TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome pins a value bound
 // written beside a union, a value set or a branch folding into either, at every
 // site atEverySite writes: a oneOf or anyOf holds it in its Union's
-// Constraints, which its carrier restates, whether or not its branches list
-// values, and an Enum, a Literal or the Union of literals a mixed enum lowers to
-// keeps it verbatim, once, with one report, its carrier holding none (GitHub
-// #1924).
+// Constraints, whether or not its branches list values, and an Enum, a Literal
+// or the Union of literals a mixed enum lowers to keeps it verbatim, once, with
+// one report. A carrier holds none either way (GitHub #1924, #1988).
 func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -407,9 +409,7 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 			if tc.held != nil {
 				assert.Equal(t, tc.held, heldBounds(site.node), "%s: %s", tc.schema, site.pointer)
 				assert.Empty(t, site.node.Common().Unmodeled, "%s: %s", tc.schema, site.pointer)
-				if site.carrier {
-					assert.Equal(t, tc.held, site.held, "%s: the carrier at %s", tc.schema, site.pointer)
-				}
+				assert.Nil(t, site.held, "%s: the carrier at %s", tc.schema, site.pointer)
 				assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, site.pointer), "%s: %s", tc.schema, site.pointer)
 				continue
 			}

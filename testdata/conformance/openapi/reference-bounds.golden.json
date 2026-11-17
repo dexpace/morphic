@@ -618,10 +618,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "uniqueItems": false,
-            "minProps": 2
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,

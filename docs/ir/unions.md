@@ -115,13 +115,15 @@ applies to, whichever variant holds the value, and admits every value of another
 beside any type ([constraints](./constraints.md#constraints)): there `minLength` bounds the strings
 the union admits and lets every integer through. A variant cannot hold it, since its node is its
 branch's, which every other use of that branch shares, or a primitive every string shares. A
-`Property` or `Parameter` whose schema lowered to the union restates it, as it restates a scalar's,
-but a reference naming the union reads the node alone, so the node is the bound's home. Where the
-union's position builds its variants itself, a type list's or a distributed composition's, the
-variants hold the bounds and the union holds none.
+`Property` or `Parameter` whose schema lowered to the union holds none of it, as it holds none of a
+scalar's, and a reference naming the union reads the node, so the node is the bound's one home
+([annotations](./annotations.md#one-structural-home-per-declaration)). Where the union's position
+builds its variants itself, a type list's or a distributed composition's, the variants hold the
+bounds and the union holds none.
 
-Two other homes were weighed. The carrier alone loses the bound for every reference naming the
-position, and `Unmodeled` alone leaves a bound a check reads untyped. An `Enum` and a `Literal` have
+Three other homes were weighed. The carrier alone loses the bound for every reference naming the
+position, the carrier restating the node's writes it twice (#1988), and `Unmodeled` alone leaves a
+bound a check reads untyped. An `Enum` and a `Literal` have
 no such field: every value a closed one admits is one the source lists, so a bound beside one only
 says which of those values it admits, which its members would say themselves. A compiler keeps such
 a bound verbatim ([degraded constructs](./boundaries.md#degraded-constructs)), an open enum's too,
