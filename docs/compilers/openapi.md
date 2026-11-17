@@ -4324,10 +4324,16 @@ catch-all from one schema object of the `allOf`: the position's own where it wri
 `additionalProperties` or `patternProperties` and no entry declares a property or a pattern, else
 the one inline entry writing either where no other object declares one, which the merge then
 consumes ([`allof-inline-residue`](#allof-inline-residue)). A `$ref` entry's target declares
-nothing here, and what is written beside the `$ref` does. So `{allOf: [{$ref: User},
-{additionalProperties: false}]}` closes the `Model` over `User` as `{allOf: [{$ref: User}],
-additionalProperties: false}` does, and an entry closing its own `properties` closes the model
-holding them. A closure no object takes is kept: beside the `allOf` under
+nothing here, and what is written beside the `$ref` does. That is the reading the spelling is
+written for, not JSON Schema's, as the closure applies to the target's members too: `{allOf:
+[{$ref: User}], additionalProperties: false}` admits no object setting `id`, yet is a `Model` over
+`User` closed over it, and nothing is reported. `{allOf: [{$ref: User}, {additionalProperties:
+false}]}` is that `Model` too, and an entry closing its own `properties` closes the model holding
+them. A closure beside the `allOf` reads the inline branches of a `oneOf` or `anyOf` written
+beside it or on an entry, which distribute into variants
+([`union-beside-structure`](#union-beside-structure)), as it reads a target: each variant takes the
+closure, though by JSON Schema it applies to a member a branch declares and the position does not.
+A closure no object takes is kept: beside the `allOf` under
 `openapi:additionalProperties` (`degraded_lowering`) with an info `openapi/degraded-construct` at the
 position, and on an entry as that entry whole. It applies to the members another object declares
 too, so the schema refuses every instance setting one of them that the closure does not admit, as
