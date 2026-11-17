@@ -5,6 +5,12 @@
 
 package e2e_test
 
+// Pending: the warning that the conjuncts share no value reads each conjunct
+// as an atom (conjunctAtoms), and a value set written beside the allOf is no
+// atom there, so that spelling draws only the info where the entry spelling
+// warns. Reading it as one changes what other compositions report, which is
+// more than one contained change.
+
 import (
 	"testing"
 
