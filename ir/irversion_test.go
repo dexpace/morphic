@@ -182,7 +182,7 @@ var generations = []generation{
 		names: "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890"},
 	{version: "0.70.0", format: 1, shape: "93e79768252503c8e9dc84b03f60756f151dac58894c0a0ef81dad6352492409",
 		names:   "825b85ca996798c9051c78f69d22b7c1ad6d30e36341b320540fab82f21b6890",
-		meaning: "a bound a node's kind does not take is kept under its keyword on its home, a value set's among them; a Model or a MapT holds property counts alone, and a Property or a Parameter whose use owns its node holds none of its bounds; a type node's Provenance.Inferred may name kind-inference, a kind read off every shape keyword applying to one kind alone"},
+		meaning: "a bound a node's kind does not take is kept under its keyword on its home, a value set's among them; a Model or a MapT holds property counts alone, and a Property or a Parameter whose use owns its node holds none of its bounds; a type node's Provenance.Inferred may name kind-inference, a kind read off every shape keyword applying to one kind alone where no conjunct declares one, a model an allOf composes among them; a declared kind decides before an inferred one"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

@@ -898,8 +898,13 @@ it sees. Changes made together in one bump are listed together under it.
   keyword applying to one kind alone, an `items`, an `additionalProperties`, a `required` or a
   `discriminator` among them, where only a `properties` listing a member was read, and keywords of
   both kinds as a union of the two. Beside a union kept whole whose branches each declare a kind the
-  keywords speak of, such a schema lowers to that kind unmarked, where it was the top type. A
-  consumer pinned to 0.69.0 refuses the document; one reading such a bound off `Constraints` finds
+  keywords speak of, such a schema lowers to that kind unmarked, where it was the top type. A kind
+  the conjuncts of a schema declare decides before one the policy reads off shape keywords: a
+  conjunct writing such keywords narrows nothing a declared conjunct says, and an `allOf` naming a
+  `$ref` the policy reads as a kind its other conjuncts exclude is a use of the declared kind,
+  keeping the `$ref`, where it composed a model over a target writing `properties` alone. A model an `allOf` composes is
+  marked where no conjunct declares its kind. A consumer pinned to 0.69.0 refuses the document; one reading such a bound off `Constraints` finds
   it under `Unmodeled`, one reading a carrier's bound finds it on the node the carrier names, one
   reading a node's kind as declared finds the marker where it was not, and one reading an untyped
-  shape keyword under `Unmodeled` finds it typed on the node its kind lowers to.
+  shape keyword under `Unmodeled` finds it typed on the node its kind lowers to, and one reading
+  such an `allOf` as a model finds the declared kind.

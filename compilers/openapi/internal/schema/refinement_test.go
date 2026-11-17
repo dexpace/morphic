@@ -720,10 +720,6 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 		"a target with properties alone": {
 			schemas: "    Bare: {properties: {a: {type: string}}}\n    S: {allOf: [{$ref: '#/components/schemas/Bare'}]}\n",
 		},
-		"a type beside a target with properties alone": {
-			schemas: "    Bare: {properties: {a: {type: string}}}\n" +
-				"    S: {allOf: [{$ref: '#/components/schemas/Bare'}, {type: string}]}\n",
-		},
 		"a target that may be an object": {
 			schemas: "    Mixed: {type: [string, object]}\n    S: {allOf: [{$ref: '#/components/schemas/Mixed'}]}\n",
 		},
@@ -1351,10 +1347,11 @@ func TestRefinement_DecidedByTheSetInEveryOrder(t *testing.T) {
 }
 
 // TestRefinement_ANoKindConjunctIsNeverThePrincipal pins that a conjunct naming
-// no kind cannot decide what the position is: its `format` or `maxItems`
-// qualifies a kind, so it stays beside the conjunct that names one, in either
-// order, and the position is no top type. An `items` is no such conjunct: the
-// kind-inference policy reads it as an array.
+// no kind cannot decide what the position is: its `format`, `maxItems` or
+// `items` qualifies a kind, so it stays beside the conjunct that names one, in
+// either order, and the position is no top type. The kind-inference policy
+// reads an `items` as an array where nothing declares a kind, never against a
+// conjunct that does.
 func TestRefinement_ANoKindConjunctIsNeverThePrincipal(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -1363,6 +1360,7 @@ func TestRefinement_ANoKindConjunctIsNeverThePrincipal(t *testing.T) {
 	}{
 		"format":   {"{type: integer}", "{format: int32}", "t/prim/integer"},
 		"maxItems": {"{type: string}", "{maxItems: 2}", "t/prim/string"},
+		"items":    {"{type: string}", "{items: {type: string}}", "t/prim/string"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

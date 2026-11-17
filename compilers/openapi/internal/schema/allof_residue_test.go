@@ -66,23 +66,24 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 }
 
 // TestAllOf_InlineBranchNonObjectTypeWarns is the worse half of #123: a scalar
-// branch beside an object contradicts the ir.Model the object composes, which
-// asserts the value is an object the branch says is a string. Preserving the
-// branch keeps the source recoverable, and the severity says the IR states
-// something wrong rather than merely incomplete.
+// branch beside an object entry contradicts the ir.Model the entry composes,
+// which asserts the value is an object the branch says is a string. Preserving
+// the branch keeps the source recoverable, and the severity says the IR states
+// something wrong rather than merely incomplete. A $ref to the same untyped
+// object is no composition: the declared string decides.
 func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    O: {properties: {a: {type: string}}}
-    T:
+	spec := openapitest.ComponentSpec(`    T:
       allOf:
-        - {$ref: '#/components/schemas/O'}
+        - {properties: {a: {type: string}}}
         - {type: string, maxLength: 3}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "T").(*ir.Model)
 	require.True(t, ok, "the composed node is still a model")
-	assert.Empty(t, m.Properties, "a scalar branch declares no properties to merge")
+	require.Len(t, m.Properties, 1, "a scalar branch declares no properties to merge")
+	assert.Equal(t, "a", m.Properties[0].WireName)
 
 	entry, ok := m.Unmodeled["openapi:allOf/1"]
 	require.True(t, ok, "the whole branch is kept verbatim; got %+v", m.Unmodeled)

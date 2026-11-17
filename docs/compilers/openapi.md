@@ -2170,9 +2170,12 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 ### `allof-refinement`
 
 An `allOf` is a composition where a conjunct writes `properties`, `patternProperties`,
-`additionalProperties`, `required` or `discriminator`, which only a `Model` holds, or where the
-conjuncts together admit an object and one of them is a `$ref` or names a kind, the keywords beside
-the `allOf` being a conjunct as much as a branch is. A `Model` anywhere else asserts an object the
+`additionalProperties`, `required` or `discriminator`, which only a `Model` holds, or where the kinds
+the position lowers to include an object and a conjunct is a `$ref` or names a kind, the keywords
+beside the `allOf` being a conjunct as much as a branch is. Those kinds are what the conjuncts
+declare together, or, where nothing declares one, what their shape keywords claim
+([`shape-applicator`](#shape-applicator)), so `{allOf: [{$ref: E}], description: d}` over
+`E: {items: …}` is a use of the list the policy reads `E` as. A `Model` anywhere else asserts an object the
 source rules out, so that `{allOf: [{type: integer}, {type: integer, format: int32}]}` reaches a
 consumer as an object with no fields, where it means `int32`. Any other `allOf` is a *refinement*:
 one use of the conjunct that decides it, its *principal*, with what the other conjuncts say read as
@@ -2181,8 +2184,8 @@ object, as the two together admit no object.
 
 What the conjuncts admit is read from the source and the bindings, never the registry, so no
 lowering order decides it. Each conjunct's JSON kinds and value set are read across `$ref`, `allOf`,
-`oneOf`, `anyOf`, `type`, `enum` and `const`, a `properties` with no `type` beside it claiming an
-object, values comparing as an `enum`'s entries do, so that `1` and `1.0` are one, and the read takes
+`oneOf`, `anyOf`, `type`, `enum` and `const`, a shape keyword written with no `type` claiming no
+kind there ([`shape-applicator`](#shape-applicator)), values comparing as an `enum`'s entries do, so that `1` and `1.0` are one, and the read takes
 in at most 256 schemas and 4096 `enum` members. An `allOf` stays the composition it would otherwise
 be, with nothing lost, where:
 
@@ -2215,7 +2218,11 @@ The principal is chosen from the whole set:
 
 1. an inline value set, `enum` or `const`, within every other conjunct and more than a restatement of
    what a `$ref` fixes: it says which values the position holds, and what it narrows cannot;
-2. else the `$ref`, since a narrower inline `type` replacing it would drop what its target says;
+2. else the `$ref`, since a narrower inline `type` replacing it would drop what its target says,
+   unless the kind-inference policy reads its target as a kind the position's declarations exclude:
+   a declared kind decides before an inference ([`policies`](#policies)), so
+   `{allOf: [{$ref: E}, {type: string}]}` over `E: {items: …}` is the string, the `$ref` kept with an
+   info naming the policy;
 3. else, of the conjuncts naming a kind by `type`, `enum` or `const`, the one within the most others,
    the keywords beside the `allOf` among them, those first and then source order on a tie. A conjunct
    is within another where its kinds, its values, its `format` and its `items` are. Two formats of the
@@ -2329,6 +2336,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
+  `e2e.TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim`,
+  `e2e.TestKindInference_AUseOfAnInferredKindIsAnAliasOfIt`,
   `schema.TestRefinement_NoConjunctNamingAKindLeavesTheTopType`,
   `schema.TestRefinement_DecidedByTheSetInEveryOrder`, `schema.TestRefinement_TwinsTheRefSpelling`,
   `schema.TestRefinement_StructuralKeywordsPartFromTheRefSpelling`,
@@ -4270,10 +4279,25 @@ kind is the policy's reading of what the document means, so the node it builds, 
 property, an element, a body or a union's branch alike, and each variant of such a union, names
 `kind-inference` in its `Provenance.Inferred`, and nothing is reported, as the document leaves the
 kind unsaid. That node excludes the instances of another kind the schema admits, a string under
-`{properties: …}` among them, which is why the reading is a policy and can be turned off. The run's
-reading of what a schema admits reads the same claim
-([`constraints`](#constraints)), so a bound beside such a schema is placed by its kind, and it
-decides whether the schema names no kind. Where a conjunct beside it names kinds, as a union kept
+`{properties: …}` among them, which is why the reading is a policy and can be turned off. A
+keyword's kind is a claim of the position, never a narrowing of the schema object writing it: the
+conjuncts of an `allOf`, a `$ref` and a union apply together, and each passes an instance of a kind
+its keywords do not speak of, so `{allOf: [{type: string}, {items: {type: string}}]}` admits every
+string. The run's reading of what a schema admits ([`constraints`](#constraints)) conjoins first
+what the position declares, its `type` and value sets and those of each conjunct, a `$ref`'s target
+and a union's branches among them, and lowers to that wherever it names a kind; only where nothing
+declares one do the claims decide, the keywords' own united with those of each conjunct whose kind
+is a claim, and only then is the node marked. So that schema is a use of the string keeping its
+entry with an info, as with the policy off, and a `$ref` whose target the policy reads as a kind
+the declarations exclude is no principal ([`allof-refinement`](#allof-refinement)). An `allOf`
+composed as a model where no conjunct declares a kind, as one over two `$ref`s to schemas writing
+`properties` alone, is marked. Split over entries, keywords of both kinds part from their flat
+spelling: `{allOf: [{properties: …}, {items: …}]}` is a marked composition keeping the `items`
+entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
+already says what a keyword does, as a union lowered alone restating the body's `type` or a body
+whose union branches restate it, reads the kind the policy lowers what it compares to. A bound
+beside such a schema is placed by the kind it lowers to, and the reading decides whether the schema
+names no kind. Where a conjunct beside it names kinds, as a union kept
 beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords name a kind only
 where every kind the conjuncts admit is one they speak of, and the schema lowers to those: unmarked
 where the document declared them, as `{oneOf: [{type: object, …}], additionalProperties: false}`
@@ -4348,6 +4372,13 @@ union of models.
   `e2e.TestKindInference_AKindReadThroughAnInferredBranchIsMarked`,
   `e2e.TestKindInference_AVariantComposedOverAnInferredBodyIsMarked`,
   `e2e.TestKindInference_AModelBesideAKeptUnionIsReportedAsOne`,
+  `e2e.TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim`,
+  `e2e.TestKindInference_TheEntryOrderAndThePolicyLeaveTheDeclaredKindAlone`,
+  `e2e.TestKindInference_ACompositionIsMarkedWhereNoConjunctDeclaresItsKind`,
+  `e2e.TestKindInference_AnEntryReadAloneIsItsOwnPosition`,
+  `e2e.TestKindInference_AFormBodyKeysNoPartItsModelLacks`,
+  `e2e.TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo`,
+  `schema.TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
   `schema.TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead`,
@@ -6784,7 +6815,8 @@ how operations are arranged rather than filling a fact a node holds.
    title-names policy marks no hint it gives, since a `Hint` with no `Source` is a suggestion
    already ([`naming`](#naming)), so its text option, `title-names`, spells the policy's name.
 3. **Precedence.** Where several state a fact, a keyword decides first, then a promotion, then an
-   inference; what a keyword's value states beside a promotion's key is the promotion's rule, as
+   inference, as a kind a conjunct declares decides before the one kind inference reads off
+   another's shape keywords ([`shape-applicator`](#shape-applicator)); what a keyword's value states beside a promotion's key is the promotion's rule, as
    [`extension-promotion`](#extension-promotion) says of a `deprecated: false`. To an inference,
    the document has spoken wherever it writes a keyword, or a key a promotion maps to the fact's
    target, whatever its value: a value filled, one that failed to resolve, and an explicit `false`

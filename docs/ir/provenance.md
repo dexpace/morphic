@@ -42,7 +42,8 @@ read a body or a part as a file, and `ContentStream` the one that read a content
 also takes as the summary's, could not say which of its contents or parts the guess made a file or
 a stream. A type node's own `Inferred` names the heuristic that chose its kind where no keyword
 declared one, as the OpenAPI compiler's kind-inference policy does for a schema whose shape keywords
-alone speak of its kind ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). The IR
+alone speak of its kind, and for a model composing conjuncts none of which declares it
+([`shape-applicator`](../compilers/openapi.md#shape-applicator)). The IR
 declares no set of markers ([promotion](./unmodeled.md#promotion)), so a compiler names its own; the
 OpenAPI compiler's tell a promoted fact from an inferred one by name
 ([`policies`](../compilers/openapi.md#policies)).

@@ -49,9 +49,9 @@ type bodyReading struct {
 // against.
 func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmission(c), body: s}
-	r.held = r.w.written(s, r.w.nullable)
+	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	for _, b := range allOfIn(s) {
-		r.held = r.held.and(r.w.of(c.Statements().Sub(b)))
+		r.held = r.held.and(lowered(&r.w, c.Statements().Sub(b)))
 	}
 	return r
 }
@@ -62,7 +62,7 @@ func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 // the whole reading does not pay for.
 func readOwnBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmission(c), body: s, own: true}
-	r.held = r.w.written(s, r.w.nullable)
+	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	return r
 }
 

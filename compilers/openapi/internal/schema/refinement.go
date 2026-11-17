@@ -34,8 +34,10 @@ type refinement struct {
 	// principal is the branch the position is a use of, nil where the keywords
 	// written beside the allOf decide it or nothing does.
 	principal *allOfBranch
-	// ref is the one $ref branch, principal or not, nil where none is written.
-	ref *allOfBranch
+	// ref is the one $ref branch, principal or not, nil where none is written;
+	// outvoted marks one the position's declared kinds exclude (outvotes).
+	ref      *allOfBranch
+	outvoted bool
 	// joint is what the conjuncts admit together.
 	joint admitted
 	// held is what the position lowers to admits, which decides what a keyword
@@ -99,15 +101,52 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	}
 	ref := refBranchOf(conjuncts)
 	says := slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
-	if disjoint(joint, conjuncts) || (joint.kinds&kindObject != 0 && (ref != nil || says)) {
+	kinds := positionKinds(c, s, joint)
+	if disjoint(joint, conjuncts) || (kinds&kindObject != 0 && (ref != nil || says)) {
 		return decision{}
 	}
-	principal := w.elect(conjuncts, ref)
-	r := refinement{comp: comp, principal: principal.branch, joint: joint, held: principal.read}
+	electable, outvoted := ref, ref != nil && outvotes(c, kinds, ref)
+	if outvoted {
+		electable = nil
+	}
+	principal := w.elect(conjuncts, electable)
+	r := refinement{comp: comp, principal: principal.branch, joint: joint, held: heldBy(c, principal)}
 	if ref != nil {
-		r.ref = ref.branch
+		r.ref, r.outvoted = ref.branch, outvoted
 	}
 	return decision{r: r, refines: !w.incomplete()}
+}
+
+// positionKinds returns the kinds s, written as an allOf, lowers to as the
+// run reads its statement: what its conjuncts declare, or, where none
+// declares a kind, what their shape keywords claim. A read cut short leaves
+// joint, what the conjuncts admit together, to say.
+func positionKinds(c lowering.Ctx, s *statement.Schema, joint admitted) kindSet {
+	r := admissionOf(c, c.Statements().Read(s))
+	if r.cut {
+		return joint.kinds
+	}
+	return r.kinds
+}
+
+// outvotes reports whether kinds, the position's, exclude every kind the
+// conjunct ref's $ref target lowers to by the kind-inference policy's reading
+// of its shape keywords: what the document declares decides before an
+// inference (docs/compilers/openapi.md#policies), so ref is no principal. A
+// read cut short decides nothing.
+func outvotes(c lowering.Ctx, kinds kindSet, ref *conjunct) bool {
+	r := admissionOf(c, ref.branch.schema)
+	return r.inferred && !r.cut && r.kinds&kinds == 0
+}
+
+// heldBy returns what the position lowering to the conjunct principal admits:
+// what the node a branch lowers to admits (loweredAs), and what the keywords
+// beside the allOf admit where none is the principal.
+func heldBy(c lowering.Ctx, principal *conjunct) admitted {
+	if principal.branch == nil {
+		return principal.read
+	}
+	return loweredAs(c, principal.branch.schema, principal.read)
 }
 
 // refinableBranches reports whether every branch of comp can be read as a
@@ -306,11 +345,13 @@ type outcomeKeeps struct {
 }
 
 // keptBranch is one allOf branch a refinement keeps whole, the keywords nothing
-// consumed, none for a $ref the position lost, and why what it writes did not
-// fold where that is the reason (unfoldedWhy).
+// consumed, none for a $ref the position lost, whether the position's declared
+// kinds outvoted that $ref (outvotes), and why what it writes did not fold
+// where that is the reason (unfoldedWhy).
 type keptBranch struct {
 	entry    allOfBranch
 	residue  []string
+	outvoted bool
 	unfolded string
 }
 
@@ -349,7 +390,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		}
 		switch {
 		case e.schema.Ref != nil:
-			k.branches = append(k.branches, keptBranch{entry: e})
+			k.branches = append(k.branches, keptBranch{entry: e, outvoted: r.outvoted})
 		case stated(e.schema.Schema):
 			residue := unmergedBranchKeys(e.schema.Schema, func(key string) bool {
 				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) || said(&w, r, typed, e.schema.Schema, key)
@@ -483,7 +524,7 @@ func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool
 		switch {
 		case w.restates(r.held, principal, branch):
 			within++
-		case r.held.kinds&w.of(branch).kinds != 0:
+		case r.held.kinds&lowered(w, branch).kinds != 0:
 			overlaps++
 		}
 	}
@@ -524,6 +565,9 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // keptWhy words why a refinement keeps a branch.
 func keptWhy(b keptBranch) string {
 	switch {
+	case b.outvoted:
+		return "the kind-inference policy reads this $ref's target as a kind the other conjuncts of this allOf " +
+			"declare none of, and a declared kind decides first, so the $ref is kept verbatim under Unmodeled"
 	case len(b.residue) == 0:
 		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"

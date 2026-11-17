@@ -20,11 +20,13 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -335,4 +337,71 @@ func TestUnionHolding_FindsTheUnionABranchIsAVariantOf(t *testing.T) {
 	other := l.Ctx.Statements().At(at("/components/schemas/O/oneOf/0"))
 	_, ok := unionHolding(l.Ctx, at("/components/schemas/U/anyOf/0"), other)
 	assert.False(t, ok, "a statement read elsewhere is no branch of the union")
+}
+
+// loweredKinds returns the kinds of instance the node id names admits, past
+// each alias, null aside: a primitive's, a list's, a model's.
+func loweredKinds(t *testing.T, doc *ir.Document, id ir.TypeID) kindSet {
+	t.Helper()
+	for range 8 {
+		switch td := doc.Types[id].(type) {
+		case *ir.Scalar:
+			require.NotNil(t, td.Base, "%s is an alias", id)
+			id = td.Base.Target
+		case *ir.Primitive:
+			return map[ir.PrimKind]kindSet{ir.PrimString: kindString, ir.PrimAny: anyInstance}[td.Prim]
+		case *ir.List:
+			return kindArray
+		case *ir.Model:
+			return kindObject
+		default:
+			t.Fatalf("%s lowers to %T", id, td)
+		}
+	}
+	t.Fatalf("%s is an alias of an alias past the walk", id)
+	return 0
+}
+
+// TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo holds the kinds the
+// run's admission reads a conjunction as to the node it lowers to, where a
+// shape keyword's claim meets a declaration: a declared kind beside an entry
+// or a $ref target the keywords claim another kind of, a use of an inferred
+// kind, and compositions over claims. Each is one kind, in both entry orders.
+func TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo(t *testing.T) {
+	t.Parallel()
+	const items, ref = "{items: {type: string}}", "{$ref: '#/components/schemas/E'}"
+	rows := map[string]struct {
+		a, b  string
+		kinds kindSet
+	}{
+		"BesideAnEntry":  {"{type: string}", items, kindString},
+		"BesideARef":     {"{type: string}", ref, kindString},
+		"BesideAModelOf": {"{type: string}", "{$ref: '#/components/schemas/P'}", kindString},
+		"AUse":           {ref, "{minItems: 1}", kindArray},
+		"ATypedUse":      {ref, "{type: array, minItems: 1}", kindArray},
+		"Declared":       {"{$ref: '#/components/schemas/P'}", "{type: object}", kindObject},
+		"TwoRefs":        {"{$ref: '#/components/schemas/P'}", "{$ref: '#/components/schemas/Q'}", kindObject},
+		"Required":       {"{properties: {a: {type: string}}}", "{required: [a]}", kindObject},
+	}
+	for _, swap := range []bool{false, true} {
+		schemas := "    E: " + items + "\n    P: {properties: {a: {type: string}}}\n    Q: {properties: {b: {type: string}}}\n" +
+			"    Out: {$ref: '#/components/schemas/BesideAnEntry/allOf/1'}\n"
+		for name, row := range rows {
+			a, b := row.a, row.b
+			if swap {
+				a, b = b, a
+			}
+			schemas += "    " + name + ": {allOf: [" + a + ", " + b + "]}\n"
+		}
+		l, _ := LoweredWith(t, openapitest.ComponentSpecVer("3.1.0", schemas), lowering.Policy{})
+		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
+		doc := l.Document(t)
+		for name, st := range l.Schemas() {
+			r := admissionOf(l.Ctx, st)
+			assert.Equal(t, r.kinds, loweredKinds(t, doc, ir.TypeID("t/openapi/components/schemas/"+name)), "%s swapped=%t", name, swap)
+			if row, ok := rows[name]; ok {
+				assert.Equal(t, row.kinds, r.kinds, "%s swapped=%t", name, swap)
+			}
+		}
+	}
 }
