@@ -22,8 +22,10 @@ import (
 
 // lowerArray hoists an array schema as a Tuple when its `items` is a list its
 // dialect reads as one (listedTuple), or when prefixItems is present, else a
-// List over its item schema, each with the collection bounds it declares.
-func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// List over its item schema, each with the collection bounds it declares, fin
+// finishing it once built.
+func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		if n, tuple := listedTuple(c, s, pointer); tuple {
@@ -43,7 +45,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			Elem:        elem,
 			Constraints: collectionConstraints(c, s, pointer),
 		}
-	})
+	}, fin)
 	return id, diags
 }
 

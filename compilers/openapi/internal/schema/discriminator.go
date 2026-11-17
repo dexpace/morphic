@@ -284,15 +284,17 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 	return out
 }
 
-// deferDiscriminatorBesideUnion queues a settlement for the discriminator s
-// writes, which the model at owner holds beside the union holder writes, kept
-// verbatim: beside the model by lowerBesideUnmodeledUnion, or with its allOf
-// branch. A body that lowered to anything else holds none: the census kept its
-// discriminator where it kept the rest, a multi-typed body's on its union
-// (lowerTypeVariant).
-func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s, holder *statement.Schema, pointer jsontext.Pointer) {
-	if td, _ := ts.Node(owner); isKind(td, ir.KindModel) {
-		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: owner, named: namedBranches(c, holder)})
+// discriminatorBesideUnion returns the finisher queueing a settlement for the
+// discriminator s writes, which the model in hand holds beside the union holder
+// writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion, or with
+// its allOf branch. A body that lowered to anything else holds none: the census
+// kept its discriminator where it kept the rest, a multi-typed body's on its
+// union (lowerTypeVariant).
+func discriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, s, holder *statement.Schema, pointer jsontext.Pointer) finisher {
+	return func(td ir.TypeDef) {
+		if isKind(td, ir.KindModel) {
+			ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: td.Common().ID, named: namedBranches(c, holder)})
+		}
 	}
 }
 

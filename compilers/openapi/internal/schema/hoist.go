@@ -9,46 +9,72 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
-// registeredNode returns the node interning registered under id, and ok=false
-// when there is none yet.
-//
-// A node the registry reports as Building is reached again only by a walk
-// running below the frame building it, and that frame finishes the node, this
-// declaration included, once its build returns (GitHub #749). Any other miss
-// is a compiler bug no source can provoke, so it is reported as one: the caller
-// was about to attach docs, examples or preserved constructs, which would
-// otherwise vanish.
-func registeredNode(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) (ir.TypeDef, bool, []ir.Diagnostic) {
-	td, ok := ts.Node(id)
-	if ok {
-		return td, true, nil
+// finisher writes on a node, in hand, what the frames lowering its position
+// keep there beyond its build: the home of its declaration's facts, the
+// keywords it has no field for, the families an election passed over, the
+// branches kept beside it, the kind-inference mark, a discriminator settled
+// beside a union. internNode runs it once, on the node it builds, before the
+// registry stores it, so no write looks its node up, and a visit finding the
+// node built writes nothing, its build having written it.
+type finisher func(td ir.TypeDef)
+
+// then returns the finisher running f, then g, either of which may be nil.
+func (f finisher) then(g finisher) finisher {
+	switch {
+	case f == nil:
+		return g
+	case g == nil:
+		return f
+	default:
+		return func(td ir.TypeDef) {
+			f(td)
+			g(td)
+		}
 	}
-	if ts.Building(id) {
-		return nil, false, nil
+}
+
+// finished is what one frame's finisher wrote: whether it ran, and what it
+// reported, which the frame joins to its own findings where they always stood,
+// so finishing a node in its build moves no finding.
+type finished struct {
+	ran   bool
+	diags []ir.Diagnostic
+}
+
+// on returns the finisher writing with write, recording into f that it ran and
+// what it reported.
+func (f *finished) on(write func(td ir.TypeDef) []ir.Diagnostic) finisher {
+	return func(td ir.TypeDef) {
+		f.ran = true
+		f.diags = append(f.diags, write(td)...)
 	}
-	return nil, false, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-		"internal: type %q is named at this pointer but absent from the registry; its source constructs are dropped", id)}
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
 // TypeID (ids.Document.ForPointer) and shared TypeCommon (commonFor) once, then
-// interns build's result under that ID. build receives the built TypeCommon, so
-// it never re-derives pointer, name or id.
+// interns build's result under that ID, finished by fin. build receives the
+// built TypeCommon, so it never re-derives pointer, name or id.
 //
 // A $ref promises the node rather than building it (resolvePointer), so every
 // lowering reaching pointer does so in the context its position gives it, and
-// the first build stands for all.
+// the first build, finished, stands for all.
 func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, build func(common ir.TypeCommon) ir.TypeDef,
+	fin finisher,
 ) ir.TypeID {
 	id := c.IDs().ForPointer(pointer)
-	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef { return build(commonFor(c, id, pointer)) })
+	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef {
+		td := build(commonFor(c, id, pointer))
+		if fin != nil && !ir.IsNilTypeDef(td) {
+			fin(td)
+		}
+		return td
+	})
 }
 
 // commonFor builds the TypeCommon shared by every hoisted node at pointer. A
@@ -74,11 +100,13 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 // over an object alone the Model composing it, as the allOf of its $ref alone
 // composes it, so no Scalar stands over a model; over any other target, one
 // no node answers, or where the use admits null, which a Base does not carry,
-// the Scalar alias (docs/compilers/openapi.md#allof-classification).
+// the Scalar alias (docs/compilers/openapi.md#allof-classification). fin
+// finishes whichever it builds.
 func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, pointer jsontext.Pointer, ref ir.TypeRef,
+	fin finisher,
 ) []ir.Diagnostic {
 	if kinds, _ := lowersTo(c, js); ref.Nullable || kinds != kindObject || !stated(js.Schema) {
-		_, diags := internAlias(c, ts, js.Schema, pointer, ref)
+		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin)
 		return diags
 	}
 	comp := allOfComposition{pointer: pointer, branches: []allOfBranch{{schema: js, pointer: pointer}}}
@@ -93,7 +121,7 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 		return resolved
 	}) {
 		// The reference lowered to the top type, already reported.
-		_, diags := internAlias(c, ts, js.Schema, pointer, ref)
+		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin)
 		return diags
 	}
 	var diags []ir.Diagnostic
@@ -101,7 +129,7 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 		td, modelDiags := composeModel(c, ts, TopLevelDepth, js.Schema, pointer, true, common, comp)
 		diags = modelDiags
 		return td
-	})
+	}, fin)
 	return diags
 }
 
@@ -110,12 +138,13 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 // target still owns a resolvable node at its own TypeID. It carries the value
 // constraints s writes that the types the position admits take (boundKinds),
 // and the exclusive modifier no Constraints field holds, for the reason
-// hoistScalar records.
+// hoistScalar records. fin finishes the alias where this builds it.
 func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := ConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), pointer, boundKinds(c, s))
-	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
+	return internAliasHolding(c, ts, cons, kept, pointer, target, fin), diags
 }
 
 // internReferenceAlias is internAlias for the home of a declaration whose census
@@ -123,17 +152,20 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer
 // that reached a shared node with one written had its alias hoisted by the
 // census first, so this reads none it also keeps.
 func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := referenceConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), target, pointer)
-	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
+	return internAliasHolding(c, ts, cons, kept, pointer, target, fin), diags
 }
 
 // internAliasHolding interns the alias over target, holding the bounds its caller
-// read and the keyword kept beside them.
-func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, pointer jsontext.Pointer, target ir.TypeRef) ir.TypeID {
+// read and the keyword kept beside them, finished by fin.
+func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, pointer jsontext.Pointer,
+	target ir.TypeRef, fin finisher,
+) ir.TypeID {
 	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
 		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}
-	})
+	}, fin)
 }

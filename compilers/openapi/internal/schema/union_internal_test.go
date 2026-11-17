@@ -52,27 +52,7 @@ func TestBranchesSay_NoBranchesSayNothing(t *testing.T) {
 	assert.Empty(t, branchesSay(l.Ctx, StandaloneSchema(js.GetSchema())), "no branch says a keyword the schema writes")
 }
 
-func TestPreserveUnionSiblings_MissingNode(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	// No node registered under the id: the union branches have nowhere to go, so
-	// the guard reports the broken invariant instead of dropping them quietly.
-	diags := preserveUnionSiblings(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}), "/p", ir.ReasonDegradedLowering, "why")
-	assertInternalInvariant(t, diags)
-}
-
-// TestPreserveNullOnlyUnion_MissingNode is preserveNullOnlyUnion's half of
-// TestPreserveUnionSiblings_MissingNode: no node registered under id means the
-// null-only oneOf/anyOf has nowhere to attach, so the guard reports the broken
-// invariant instead of dropping it quietly.
-func TestPreserveNullOnlyUnion_MissingNode(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := preserveNullOnlyUnion(l.Ctx, l.Types, "t/anon/missing", StandaloneSchema(&oas3.Schema{}), "/p")
-	assertInternalInvariant(t, diags)
-}
-
-// TestPreserveNullOnlyUnion_NothingToKeep covers a registered node whose
+// TestPreserveNullOnlyUnion_NothingToKeep covers a node whose
 // schema declares neither oneOf nor anyOf: preserveBranchSets keeps nothing,
 // so nothing announces a keeping that never happened. lowerNullOnlyUnion never
 // reaches this — its caller always has one of the two — so only a direct call
@@ -81,10 +61,7 @@ func TestPreserveNullOnlyUnion_MissingNode(t *testing.T) {
 func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	id := internNode(l.Ctx, l.Types, "/components/schemas/S", func(cm ir.TypeCommon) ir.TypeDef {
-		return &ir.Scalar{TypeCommon: cm}
-	})
-	diags := preserveNullOnlyUnion(l.Ctx, l.Types, id, StandaloneSchema(&oas3.Schema{}), "/components/schemas/S")
+	diags := preserveNullOnlyUnion(l.Ctx, &ir.Scalar{}, StandaloneSchema(&oas3.Schema{}), "/components/schemas/S")
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
 
@@ -107,6 +84,6 @@ func TestLowerSubtypeUnion_NeedsItsAllOf(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	s := &statement.Schema{}
-	_, diags := lowerSubtypeUnion(l.Ctx, l.Types, TopLevelDepth, s, unionAt{holder: s, at: "/components/schemas/S"}, "/components/schemas/S")
+	_, diags := lowerSubtypeUnion(l.Ctx, l.Types, TopLevelDepth, s, unionAt{holder: s, at: "/components/schemas/S"}, "/components/schemas/S", nil)
 	assertInternalInvariant(t, diags)
 }

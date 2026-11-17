@@ -8,7 +8,6 @@ import (
 	"encoding/json/jsontext"
 	"iter"
 	"slices"
-	"strconv"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -64,14 +63,17 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.State
 	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
-	nodeDiags := internOwnNode(c, ts, js, pointer, ref)
-	diags = append(diags, nodeDiags...)
 	// This node is the first the pointer owns, so the annotations schemaBody
-	// had nowhere to put now have a home.
+	// had nowhere to put now have a home, which its build gives them.
+	var annotated finished
+	var fin finisher
 	if stated(s.Node) {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
+		fin = annotated.on(func(td ir.TypeDef) []ir.Diagnostic {
+			return attachDeclaredAnnotations(c, ts, s.Node, pointer, ref, td)
+		})
 	}
-	return diags
+	diags = append(diags, internOwnNode(c, ts, js, pointer, ref, fin)...)
+	return append(diags, annotated.diags...)
 }
 
 // TopLevelDepth is the nesting a schema position outside the walk starts at.
@@ -98,7 +100,7 @@ const maxSchemaDepth = 256
 // inherits the lossless behaviour, and only a caller that can prove it already
 // carries the annotations opts out through CarriedRef.
 func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeOwnNode)
+	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeOwnNode, nil)
 }
 
 // CarriedRef lowers a schema whose annotations the calling position
@@ -106,12 +108,16 @@ func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, 
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
 func CarriedRef(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeCarrier)
+	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeCarrier, nil)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
-// reaches the two places that can hoist an annotation-holding alias.
-func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+// reaches the two places that can hoist an annotation-holding alias. fin, an
+// outer frame's finisher, runs after the position's own on the node standing
+// at pointer, where this lowering builds one.
+func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer, home annotation.Home,
+	fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
@@ -151,10 +157,10 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 	}
 	diags := mergedPastBound(c, js)
 	if js.Ref != nil {
-		ref, refDiags := refSiteRef(c, ts, js, js.Schema, pointer, home)
+		ref, refDiags := refSiteRef(c, ts, js, js.Schema, pointer, home, fin)
 		return ref, append(diags, refDiags...)
 	}
-	ref, bodyDiags := schemaBody(c, ts, depth, js.Schema, pointer, home)
+	ref, bodyDiags := schemaBody(c, ts, depth, js.Schema, pointer, home, fin)
 	return ref, append(diags, bodyDiags...)
 }
 
@@ -229,37 +235,92 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 			"boolean false schema matches nothing; lowered as a closed empty model "+
 				"with the schema kept verbatim under Unmodeled"))
 		return &ir.Model{TypeCommon: common, Additional: ir.AdditionalClosed}
-	})
+	}, nil)
 	return id, diags
 }
 
-// schemaBody lowers a concrete (non-reference) schema body to a TypeRef and
-// records the schema's own annotations on whatever node the lowering hoisted at
-// pointer. Its one caller is schemaRefHomed, the body of Ref and CarriedRef,
-// for a position that is no $ref site (refSiteRef takes those); sub-schema
-// hoisting (hoistSubSchema) arrives through Ref. A rule about the
+// schemaBody lowers a concrete (non-reference) schema body to a TypeRef, the
+// schema's declaration finishing whatever node the lowering builds at pointer
+// (declared), or the home hoisted here where it lowered to a node it does not
+// own. Its one caller is schemaRefHomed, the body of Ref and CarriedRef, for a
+// position that is no $ref site (refSiteRef takes those). A rule about the
 // declaration itself is checked here, above the dispatch that picks what it
-// lowers to (missingArrayItems).
-func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
+// lowers to (missingArrayItems). The findings keep their order: the body's, the
+// home's, a principal's residue, what the position keeps beside it.
+func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, home annotation.Home,
+	fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
 	diags := missingArrayItemsConjoined(c, schema, pointer)
-	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
+	decl := &declaring{c: c, ts: ts, s: schema, target: ir.TypeRef{Target: c.IDs().ForPointer(pointer)}, pointer: pointer, home: home, fin: fin}
+	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer, decl.finish,
+		principalResidue(c, schema, pointer, home, &decl.principal))
 	diags = append(diags, bodyDiags...)
+	ref := target
 	// A body's census ran where its node was built, the only thing that can
 	// answer it. One lowering to a reference built none, so it takes the census
 	// of a position lowered to one, and its verdict homes an alias.
-	keeps := keepsAtOutcome(c, schema, target, pointer)
-	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
-	diags = append(diags, homeDiags...)
-	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)
-	if !keeps.holdsAny() || (home != annotation.HomeOwnNode && !LoweredToOwnNode(c, pointer, ref)) {
-		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
+	if !decl.ran && homesDeclaration(c, schema, target, pointer, home,
+		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationVoices(c, schema, target, pointer))) {
+		var homeDiags []ir.Diagnostic
+		decl.target = target
+		ref, homeDiags = hoistDeclarationHome(c, ts, schema, target, pointer, decl.finish)
+		diags = append(diags, homeDiags...)
 	}
-	return ref, append(diags, keeps.recordOn(c, ts, ref.Target, schema, pointer)...)
+	return ref, slices.Concat(diags, decl.diags, decl.principal, decl.kept)
+}
+
+// declaring is a body's declaration s, written at pointer under home, on its
+// way to the node the position lowered to target stands at: what finishes it
+// there (finish), fin after, and what it reported, its principal's residue
+// among it.
+type declaring struct {
+	c       lowering.Ctx
+	ts      *compile.Types
+	s       *statement.Schema
+	fin     finisher
+	pointer jsontext.Pointer
+	target  ir.TypeRef
+	diags   []ir.Diagnostic
+	// principal is what a refinement's principal reported keeping on its own
+	// node (principalResidue).
+	principal []ir.Diagnostic
+	kept      []ir.Diagnostic
+	home      annotation.Home
+	ran       bool
+}
+
+// finish writes the declaration and what the position keeps beside it on td,
+// in hand (declarationOn, keptOn), then d.fin.
+func (d *declaring) finish(td ir.TypeDef) {
+	d.ran = true
+	d.diags = declarationOn(d.c, d.ts, d.s, d.target, d.pointer, d.home, td)
+	d.kept = keptOn(d.c, d.ts, d.s, d.target, d.pointer, td)
+	if d.fin != nil {
+		d.fin(td)
+	}
+}
+
+// keptOn keeps on td, in hand, the node the position s, written at pointer,
+// lowered to target, stands at, what it keeps there: its census of a lowering
+// to a reference and the branches its refinement left (keepsAtOutcome). A
+// carrier keeps them where the position owns no node (PreserveRefSiteKeywords).
+func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, td ir.TypeDef,
+) []ir.Diagnostic {
+	keeps := keepsAtOutcome(c, s, target, pointer)
+	if !keeps.holdsAny() {
+		return nil
+	}
+	return keeps.record(c, ts, &td.Common().Unmodeled, s, pointer)
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
-func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
+//
+// fin finishes the node the body builds at pointer, and principal the node a
+// refinement's principal builds at its own (lower).
+func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer,
+	fin, principal finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
 	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
 		// The expansion settled that the target resolves, by what resolveAt
 		// reads in its own document (resolvesAt), so nothing falls through: that
@@ -272,11 +333,11 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 	}
 	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
 		if hasUnionSiblings(c, schema) {
-			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
+			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer, fin)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 			return ref, append(unionDiags, nullDiags...)
 		}
-		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
+		return lowerOneOfAnyOf(c, ts, depth, schema, pointer, fin)
 	}
 	u, how, ok := branchUnion(c, schema, pointer)
 	if ok {
@@ -284,18 +345,18 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		if how == unionRoutedSubtype {
 			lowerUnion = lowerSubtypeUnion
 		}
-		id, unionDiags := lowerUnion(c, ts, depth, schema, u, pointer)
+		id, unionDiags := lowerUnion(c, ts, depth, schema, u, pointer, fin)
 		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 		return ref, append(unionDiags, nullDiags...)
-	}
-	id, bodyDiags := lower(c, ts, depth, schema, pointer)
-	if how == unionNoLiveBranch {
-		bodyDiags = append(bodyDiags, diagDeadEntryUnion(c, schema, u, pointer)...)
 	}
 	if how == unionHierarchyBase || how == unionNoLiveBranch {
 		// The union stays with its branch, and the discriminator standing with it
 		// on the model, held to its routes as one beside the union is.
-		deferDiscriminatorBesideUnion(c, ts, id, schema, u.holder, pointer)
+		fin = discriminatorBesideUnion(c, ts, schema, u.holder, pointer).then(fin)
+	}
+	id, bodyDiags := lower(c, ts, depth, schema, pointer, fin, principal)
+	if how == unionNoLiveBranch {
+		bodyDiags = append(bodyDiags, diagDeadEntryUnion(c, schema, u, pointer)...)
 	}
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, append(bodyDiags, nullDiags...)
@@ -326,24 +387,26 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 // its rival. A value set an inline principal writes stands at the position, as
 // one written beside the allOf does, and either is typed by every conjunct
 // (valueSetSite.valueType). Any other schema lowers by its election (lowerElected).
-func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// fin finishes the node built at pointer, principal an inline principal's.
+func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin, principal finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	d, elected := electionOf(c, s, pointer)
 	r, refines := refinementOf(c, s, pointer)
 	if !refines {
-		return lowerElected(c, ts, depth, s, pointer, d)
+		return lowerElected(c, ts, depth, s, pointer, d, fin)
 	}
 	reported := refinedDisjoint(c, s, r)
 	if e, ok := valueSetPrincipal(r); ok {
 		resolveBeaten(c, ts, r)
-		id, diags := lowerPrincipalValueSet(c, ts, s, e, pointer)
+		id, diags := lowerPrincipalValueSet(c, ts, s, e, pointer, fin)
 		return id, append(diags, reported...)
 	}
 	if elected {
 		resolveBeaten(c, ts, r)
-		id, diags := lowerElected(c, ts, depth, s, pointer, d)
+		id, diags := lowerElected(c, ts, depth, s, pointer, d, fin)
 		return id, append(diags, reported...)
 	}
-	id, diags := lowerPrincipal(c, ts, depth, r)
+	id, diags := lowerPrincipal(c, ts, depth, r, principal)
 	return id, append(diags, reported...)
 }
 
@@ -400,20 +463,27 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // electing a winner is a degradation
 // (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
 // verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
-// never reads, such as `type: string` beside an allOf, goes through
-// preserveUnhomedKeywords, which asks the built node whether it has a field for it.
-func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch) (ir.TypeID, []ir.Diagnostic) {
-	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
-		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, d)
-		return owner, append(diags, ownDiags...)
+// never reads, such as `type: string` beside an allOf, goes through the census
+// (censused), which asks the built node whether it has a field for it. fin
+// finishes the node built at pointer after the census.
+func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
+	census := func(build func(fin finisher) (ir.TypeID, []ir.Diagnostic)) (ir.TypeID, []ir.Diagnostic) {
+		return censused(c, ts, s, pointer, pointer, d, fin, build)
 	}
 	switch d.won {
 	case "const":
-		return unhomed(lowerConst(c, ts, ownValueSet(s, pointer)))
+		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerConst(c, ts, ownValueSet(s, pointer).finishedBy(fin))
+		})
 	case "enum":
-		return unhomed(lowerEnum(c, ts, ownValueSet(s, pointer)))
+		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerEnum(c, ts, ownValueSet(s, pointer).finishedBy(fin))
+		})
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator"), d.mixin))
+		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator"), d.mixin, fin)
+		})
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
 	// with no branch deciding what the position is, so the type set decides.
@@ -423,28 +493,37 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// A multi-typed schema lowers one variant per declared type, each from
 		// this same schema, so the homes are the variants', not the Union's, and
 		// the type set itself is what built them.
-		id, diags := lowerUnion(c, ts, depth, s, pointer, types)
-		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
+		var census finished
+		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
+			census.on(variantsCensus(c, ts, s, nodeShape(ir.KindUnion), []string{"type"}, pointer)).then(fin))
+		return id, append(diags, census.diags...)
 	case len(types) == 1:
-		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
+		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
+		})
 	case writesType(s):
 		// Every type s names is null, so its value space is null and nothing
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
-		return unhomed(lowerNullAlone(c, ts, ownValueSet(s, pointer)), nil)
+		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), nil
+		})
 	default:
-		return lowerUntyped(c, ts, depth, s, pointer, d)
+		return lowerUntyped(c, ts, depth, s, pointer, d, fin)
 	}
 }
 
-// lowerTyped dispatches a single-typed schema to its structural or scalar form.
-func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind) (ir.TypeID, []ir.Diagnostic) {
+// lowerTyped dispatches a single-typed schema to its structural or scalar form,
+// fin finishing the node it builds at pointer.
+func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case statement.KindObject:
-		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject, fin)
 	case statement.KindArray:
-		return lowerArray(c, ts, depth, s, pointer)
+		return lowerArray(c, ts, depth, s, pointer, fin)
 	default:
-		return scalarTypeID(c, ts, depth, s, st, pointer)
+		return scalarTypeID(c, ts, depth, s, st, pointer, fin)
 	}
 }
 
@@ -452,29 +531,31 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // first, by the election d, as one writing the type its shape keywords speak
 // of (untypedKinds), its nodes marked where the kind-inference policy read the
 // kind, else to the top type. The keywords the node cannot hold are kept beside
-// it (preserveUnhomedKeywords), as for a schema writing that type.
+// it (censused), as for a schema writing that type.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
+	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	kinds, inferred := untypedKinds(c, s)
-	var id ir.TypeID
-	var diags []ir.Diagnostic
+	var mark finisher
+	if inferred {
+		mark = markKindInferred
+	}
 	switch kinds {
 	case 0:
-		return lowerUndecided(c, ts, depth, s, pointer, d)
+		return lowerUndecided(c, ts, depth, s, pointer, d, fin)
 	case kindObject:
 		// The node asserts an object, as the bounds beside it read it
 		// (boundKinds): one an object does not take is kept.
-		id, diags = lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s))
+		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s), mark.then(fin))
+		})
 	case kindArray:
-		id, diags = lowerArray(c, ts, depth, s, pointer)
+		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+			return lowerArray(c, ts, depth, s, pointer, mark.then(fin))
+		})
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, inferredKinds, inferred)
+		return lowerUntypedUnion(c, ts, depth, s, pointer, inferredKinds, inferred, fin)
 	}
-	if inferred {
-		diags = append(diags, markKindInferred(c, ts, id, pointer)...)
-	}
-	owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, d)
-	return owner, append(diags, ownDiags...)
 }
 
 // untypedKinds returns the kinds s, which writes no kind of its own, lowers to
@@ -507,17 +588,16 @@ var inferredKinds = []statement.Kind{statement.KindObject, statement.KindArray}
 // (lowerUndecided). Where the policy read the kinds, the union and each
 // variant are marked, as each variant's kind was read off the keywords too.
 func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	types []statement.Kind, inferred bool,
+	types []statement.Kind, inferred bool, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
-	id, diags := lowerUnion(c, ts, depth, s, pointer, types)
+	var mark finisher
 	if inferred {
-		diags = append(diags, markKindInferred(c, ts, id, pointer)...)
-		for i := range types {
-			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
-			diags = append(diags, markKindInferred(c, ts, c.IDs().ForPointer(vptr), vptr)...)
-		}
+		mark = markKindInferred
 	}
-	return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), nil, pointer)...)
+	var census finished
+	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
+		mark.then(census.on(variantsCensus(c, ts, s, nodeShape(ir.KindUnion), nil, pointer))).then(fin))
+	return id, append(diags, census.diags...)
 }
 
 // claimedKinds returns the kinds c's kind-inference policy reads off the
@@ -562,18 +642,12 @@ func shapeKinds(s *statement.Schema) kindSet {
 	return out
 }
 
-// markKindInferred names the kind-inference policy in the provenance of id,
-// the node pointer owns, whose kind lowerUntyped read off its shape keywords
-// (docs/compilers/openapi.md#policies). A node still building is marked by the
-// frame building it.
-func markKindInferred(c lowering.Ctx, ts *compile.Types, id ir.TypeID, pointer jsontext.Pointer) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
-	if !ok {
-		return diags
-	}
+// markKindInferred names the kind-inference policy in the provenance of td,
+// in hand, the node a position owns whose kind lowerUntyped read off its shape
+// keywords (docs/compilers/openapi.md#policies).
+func markKindInferred(td ir.TypeDef) {
 	common := td.Common()
 	common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
-	return nil
 }
 
 // familyOrder is the order lower() tries the keyword families that outrank the
@@ -679,14 +753,11 @@ func dispatchOf(s *statement.Schema) dispatch {
 // It reports the keywords it stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert. An allOf whose conjuncts
 // share no value draws its warning, stored or not.
-func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *statement.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
+func recordSkippedFamilies(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(d.skipped) == 0 {
 		return nil
 	}
-	td, ok, diags := registeredNode(c, ts, owner, pointer)
-	if !ok {
-		return diags
-	}
+	var diags []ir.Diagnostic
 	common := td.Common()
 	kept := make([]string, 0, len(d.skipped))
 	for _, keyword := range d.skipped {

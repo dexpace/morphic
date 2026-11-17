@@ -27,12 +27,13 @@ import (
 // with provenance into their source branch.
 //
 // Value constraints written beside the allOf (minProperties, ...), or on a branch
-// that folds, are read as lowerModel reads a plain object's, so they land on the
-// same field, not Unmodeled (GitHub #407). A composition that leaves only a
+// that folds, are read as lowerModel reads a plain object's, on the same field,
+// not Unmodeled (GitHub #407). A composition that leaves only a
 // catch-all is a map, as a plain object's is (objectNode). Where discriminated is
 // false, a union the model composes, mixin where not nil, took s's discriminator
-// (lowerSubtypeUnion).
+// (lowerSubtypeUnion). fin finishes the node.
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool, mixin *unionAt,
+	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
@@ -41,7 +42,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = modelDiags
 		diags = append(diags, composeMixin(c, ts, depth, td, mixin, pointer)...)
 		return td
-	})
+	}, fin)
 	return id, diags
 }
 
@@ -375,9 +376,11 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 		id = variant
 	}
 	unhomed := referenceUnhomed(c, b.Schema, compositionCensusHandled)
-	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0)
+	var kept finished
+	keep := kept.on(keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer))
+	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)
 	diags = append(diags, homeDiags...)
-	diags = append(diags, recordUnhomedKeywords(c, ts, ref.Target, b.Schema, unhomed, refSiteShape, e.pointer)...)
+	diags = append(diags, kept.diags...)
 	if isBase {
 		fields.m.Base = &ref
 	} else {

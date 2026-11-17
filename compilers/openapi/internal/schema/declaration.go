@@ -23,47 +23,78 @@ import (
 // need a node of their own, target itself where the position declares none.
 //
 // It is the one statement of that step, so every schema position keeps its
-// declaration the same way: a $ref site, a lowered body, and an allOf branch's
-// $ref, which reached none of it until it was routed here. A position that
-// skips it drops what was written at it without a word — which is what both
-// GitHub #116 and #143 were.
-func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	voices := markKeptWhole(c, s, pointer, target, positionVoices(c, s, pointer, target))
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
-	if stated(s) {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
+// declaration the same way: a $ref site and an allOf branch's $ref, which
+// reached none of it until routed here. A position that skips it drops what was
+// written at it without a word, as GitHub #116 and #143 did. The alias's build
+// writes the declaration (declarationOn), then fin.
+func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
+	unhomed bool, fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
+	if !homesDeclaration(c, s, target, pointer, home, unhomed || declaresScoped(c, declarationVoices(c, s, target, pointer))) {
+		return target, nil
 	}
-	diags = append(diags, recordVoicedResidue(c, ts, voices, pointer, home)...)
-	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
+	var decl finished
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, decl.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return declarationOn(c, ts, s, target, pointer, home, td)
+	}).then(fin))
+	return ref, append(diags, decl.diags...)
 }
 
-// hoistDeclarationHome gives a declaration a node of its own when its lowering
+// declarationVoices returns the voices of the position s, written at pointer
+// and lowered to target, each marked where its entry is kept whole.
+func declarationVoices(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) []annotation.Voice {
+	return markKeptWhole(c, s, pointer, target, positionVoices(c, s, pointer, target))
+}
+
+// declarationOn writes the declaration s, written at pointer and lowered to
+// target, on td, in hand, the node standing there: its annotations
+// (attachDeclaredAnnotations), and where that node is its home, what binds a
+// use, its voices' first (recordVoicedResidue, recordResidue). A carrier keeps
+// the latter itself.
+func declarationOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
+	td ir.TypeDef,
+) []ir.Diagnostic {
+	if !stated(s) {
+		// No schema object, so nothing written for a node to keep.
+		return nil
+	}
+	diags := attachDeclaredAnnotations(c, ts, s, pointer, target, td)
+	if home != annotation.HomeOwnNode {
+		return diags
+	}
+	diags = append(diags, recordVoicedResidue(c, td, declarationVoices(c, s, target, pointer))...)
+	return append(diags, recordResidue(c, td.Common(), s, pointer)...)
+}
+
+// homesDeclaration reports whether the declaration s, written at pointer and
+// lowered to ref, takes a node of its own (hoistDeclarationHome): its lowering
 // left it none and it wrote something only a node can hold
 // (declaresPositionScoped; GitHub #116), since a shared node must never carry
-// one declaration's annotations.
-//
-// One owning its node keeps it, checked after that gate so a position declaring
-// nothing resolves to its target. Any other interns its alias, which the first
-// lowering of the position builds, so no home turns on declaration order
-// (docs/ir/models.md#composition-beside-a-union).
-//
-// unhomed is the census verdict of a position lowered to a reference
+// one declaration's annotations. One owning its node keeps it, checked after
+// that gate so a position declaring nothing resolves to its target. unhomed is
+// the census verdict of a position lowered to a reference
 // (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
 // cannot judge.
-func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
+func homesDeclaration(c lowering.Ctx, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) bool {
 	if home != annotation.HomeOwnNode || !stated(s) {
-		return ref, nil
+		return false
 	}
 	if !unhomed && !declaresPositionScoped(c, s) {
-		return ref, nil
+		return false
 	}
-	if LoweredToOwnNode(c, pointer, ref) {
-		return ref, nil
-	}
+	return !LoweredToOwnNode(c, pointer, ref)
+}
+
+// hoistDeclarationHome interns the alias over ref a declaration homesDeclaration
+// gives a node of its own, finished by fin, which the position's first lowering
+// builds, so no home turns on declaration order
+// (docs/ir/models.md#composition-beside-a-union).
+func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer, fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
 	// The home stands where its target stood, so it keeps what the reference
 	// said of null, the marker naming a heuristic that read it in included.
 	out := ref
-	id, diags := internReferenceAlias(c, ts, s, pointer, ref)
+	id, diags := internReferenceAlias(c, ts, s, pointer, ref, fin)
 	out.Target = id
 	return out, diags
 }
@@ -71,7 +102,7 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
 // attachDeclaredAnnotations records, a bound internReferenceAlias carries, a
-// keyword recordDeclarationResidue keeps, or one PreserveUnknownKeywords keeps.
+// keyword declarationOn keeps as residue, or one PreserveUnknownKeywords keeps.
 // It is the gate on hoisting an alias, so it must stay in step with what those
 // actually keep: a keyword listed here but stored nowhere would hoist an empty
 // node, and one stored but missing here would still be dropped. A $dynamicRef
@@ -176,26 +207,22 @@ func closedAfterComposition(td ir.TypeDef) bool {
 	return ok && m.Additional == ir.AdditionalClosedAfterComposition
 }
 
-// attachDeclaredAnnotations records every annotation s declares on the type
-// node pointer owns, the one structural home they have (ir.TypeCommon).
+// attachDeclaredAnnotations records every annotation s declares on td, in
+// hand, the type node pointer owns, the one structural home they have
+// (ir.TypeCommon).
 //
 // It reads every declaration's annotations, above lower()'s dispatch: each
-// reaches it through homeDeclaration or an alias fallback, so a new lowering
-// destination cannot forget to read them (GitHub #114).
+// reaches it through the finishing of the node its position builds
+// (declarationOn) or an alias fallback, so a new lowering destination cannot
+// forget to read them (GitHub #114).
 //
 // A schema whose body reduced to a shared primitive owns no node; its
-// annotations stay with the declaring property (FillPropertyDetail). Ownership
-// is checked before conversion because callers cover a pointer in either order,
-// and only the one that finds a node may emit conversion diagnostics. target
-// says what speaks there (nodeUse).
-func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []ir.Diagnostic {
-	// No node here means a position that reduced to a shared primitive, or one
-	// still being built further up this walk, whose builder attaches the same
-	// declaration once its build returns (GitHub #749).
-	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
-	if !ok {
-		return nil
-	}
+// annotations stay with the declaring property (FillPropertyDetail). Only the
+// build of the node converts them, so its conversion diagnostics are drawn
+// once. target says what speaks there (nodeUse).
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+	td ir.TypeDef,
+) []ir.Diagnostic {
 	use := nodeUse(c, s, pointer, target)
 	site := use.SiteAt(c, s, pointer)
 	site.Closure = closureTyped(c, ts, s, td)
@@ -245,32 +272,6 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(c, &common.Unmodeled, s, pointer)...)
 	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer, td)...)
-}
-
-// recordDeclarationResidue keeps, on the node pointer owns, every keyword the
-// declaration wrote that only a use site can hold. The rule
-// docs/compilers/openapi.md#use-bound-annotations applies them to referencing
-// properties, which the property path already does; this covers a declaration
-// nothing references (GitHub #138).
-//
-// It runs only at an annotation.HomeOwnNode position, which has no carrier.
-// Every annotation.HomeCarrier position already keeps them in its own field:
-// `default` in a default field, readOnly/writeOnly in ir.Property.Visibility
-// or, at a parameter, verbatim on the ir.Parameter (preserveParamVisibility).
-// A pointer with no node wrote none (declaresPositionScoped hoists one for any
-// it wrote) or is mid-build, and its builder records them.
-func recordDeclarationResidue(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
-	// A $ref never lowers a carrier's own schema, which its declaration lowers as
-	// HomeCarrier, so a position reaches here as HomeOwnNode only where nothing
-	// carries it, and the record here is its only one (GitHub #750).
-	if home != annotation.HomeOwnNode || !stated(s) {
-		return nil
-	}
-	td, ok := ts.NodeAt(c.IDs().Coordinate(pointer))
-	if !ok {
-		return nil
-	}
-	return recordResidue(c, td.Common(), s, pointer)
 }
 
 // residueKeywords are the keywords a schema can write that bind a *use* of the

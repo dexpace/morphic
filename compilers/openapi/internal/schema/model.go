@@ -25,12 +25,14 @@ import (
 // apply to a value of the kinds takes, the property-set cardinality among them,
 // its own properties and which are required, its catch-all (fillAdditional)
 // and, where discriminated, the discriminator it declares. It reads no
-// annotations: attachDeclaredAnnotations does that for every destination.
+// annotations: fin, finishing the node, writes them for every destination.
 //
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool, takes kindSet) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool,
+	takes kindSet, fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer, modelTakes(takes))
@@ -45,7 +47,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			m.Discriminator = d
 		}
 		return objectNode(m)
-	})
+	}, fin)
 	return id, diags
 }
 
