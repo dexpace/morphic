@@ -1169,16 +1169,28 @@ Binding is held to one work budget, which every pass spends, reported as an
 `openapi/budget-exceeded` error once it runs out. The pass it runs out in is the last: the `$ref`s
 past it are left unresolved, and one it answered keeps that answer, though a later pass might have
 changed it. A `<<` merge chain deeper than the levels a mapping's merges are expanded to
-(`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
-and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
-names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
-definition the rule reads before the one that would answer. So is a plain name no schema declares
-where a schema merging past the bound may; a URI is read as a location all the same, and a
-`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A `$dynamicRef`
-naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every respect here, its
-`openapi/unresolved-ref` worded with the keyword it is written under. A chain of references that
-closes on itself is [`reference-cycles`](#reference-cycles)', whose message names each link a
-`$ref`, whichever keyword wrote it.
+(`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning, and a `$ref`
+past it is left unresolved, as is one that reads a key past it: a key its pointer names, an `$id`
+that may give the base it is read against, or, for a `#/$defs/...` pointer, a definition the rule
+reads before the one that would answer. So is a plain name no schema declares where a schema merging
+past the bound may; a URI is read as a location all the same, and a `$dynamicRef` in that document
+is not expanded ([`dynamic-ref`](#dynamic-ref)). A schema whose own merges run past the bound is
+read from its keys within the bound alone, never half from them and half from what the parser
+expands: a keyword merged in past the bound is neither lowered nor kept, whichever reader asks, a
+request body's reading as a file among them, though not yet the walk of a form body's parts, which
+reads what the parser expands. Nor is one its keys list from a source that a source past the bound,
+writing the keyword too and coming first, outranks: a key is read only where the parser read the
+keyword's value from it, and a keyword the parser holds no field for, whose value it read from no
+node to compare, only where the schema writes it itself, which no merge outranks; one left out is
+not kept as an unknown key either. Two sources writing equal values are told apart all the same. The
+schema draws an `openapi/degraded-construct` warning of its own, at its pointer, once however many
+positions lower it; one kept verbatim, as a `not` is, is refused there instead
+([`verbatim-preservation`](#verbatim-preservation)). Its extensions, and a key no keyword names, are
+read as the parser expands them, and [`unknown-keys`](#unknown-keys) reports the latter. A
+`$dynamicRef` naming no `$dynamicAnchor` is the `$ref` it spells, and is read as one in every
+respect here, its `openapi/unresolved-ref` worded with the keyword it is written under. A chain of
+references that closes on itself is [`reference-cycles`](#reference-cycles)', whose message names
+each link a `$ref`, whichever keyword wrote it.
 
 - Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
@@ -1337,7 +1349,18 @@ the item as what else it writes.
   `e2e.TestGolden_EncodingNestedReferences`, `bind.TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw`,
   `e2e.TestCompile_AFieldNoModelHoldsReadsAsAnExtension`,
   `e2e.TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML`,
-  `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`
+  `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`,
+  `statement.TestRead_PastTheMergeBoundNoKeywordIsHalfRead`,
+  `statement.TestRead_PastTheMergeBoundTheSchemasOwnKeysStay`,
+  `statement.TestRead_PastTheMergeBoundEachReaderReadsNeither`,
+  `statement.TestRead_PastTheMergeBoundEachSchemaIsReportedOnce`,
+  `statement.TestRead_AKeywordMergedPastTheBoundHasNoKeyAndNoValue`,
+  `statement.TestFill_ATruncatedSchemaHoldsNoKeywordItsKeysDoNotList`,
+  `statement.TestRead_PastTheMergeBoundAnOutrankedKeyIsLeftOut`,
+  `statement.TestRead_PastTheMergeBoundAKeyNoParserNodeTellsStaysOnlyWhereWritten`,
+  `statement.TestFillKeywords_EachComparesTheNodeTheParserReadItFrom`,
+  `statement.TestRead_PastTheMergeBoundABodyIsReadAsItsTypeIs`,
+  `schema.TestRef_ASchemaMergingPastTheBoundIsReportedOnce`
 - Status: partly built: a redirected document is based at the URL requested (#1943). Through a proxy, the address the proxy gives a name is judged by nobody (#1947). No deadline bounds a compile's reads together (#1036). A name resolving to several address spaces is answered by the order of asking (#1969).
 
 ### `reference-cycles`
@@ -2063,13 +2086,7 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `oas.TestCheck_NullableAppliesBesideAType`,
   `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
   `schema.TestNullableInference_OnlyABooleanStatesNull`,
-  `schema.TestNullableTrue_PastTheMergeBoundTheModelsReadingStands`
-- Status: partly built: a `nullable` a `<<` merge chain brings in from deeper than the levels a
-  mapping's merges are expanded to (`nodeview.MergeDepthLimit`) has no key to read, so what the
-  parser decodes stands, a truth word's `true` included, at 3.0 too, where no row then reports it.
-  A `nullable` a later source of the same merge writes within those levels is then the key read,
-  though the deeper one outranks it, so where it is no boolean the deeper `true` states no null
-  (#2020).
+  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`
 
 ### `schema-examples`
 

@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -72,7 +71,7 @@ func readSchema(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch b
 	}
 	// The union holds beside what s says itself, so a string s keeps its
 	// branches to strings.
-	read := lowering.Remembered(c.Ctx, unionFileOf{s: statement.Parsed(s), part: branch.part}, func() fileReading {
+	read := lowering.Remembered(c.Ctx, unionFileOf{s: s, part: branch.part}, func() fileReading {
 		return readUnion(c, union, branch.read)
 	})
 	if own != readsString || read != readsUntyped {
@@ -98,7 +97,7 @@ type branchReading struct {
 // of bytes through its elements where a body's does not. The reading turns on
 // nothing else: the documents, and the bindings of their $refs.
 type unionFileOf struct {
-	s    *oas3.Schema
+	s    *statement.Schema
 	part bool
 }
 
@@ -211,11 +210,12 @@ func writesOnlyOpenKeywords(c service.Ctx, s *statement.Schema, unions bool) boo
 }
 
 // writesOnly reports whether every keyword s writes is one allowed takes, a
-// null standing for a keyword left out passing whatever its key.
+// null standing for a keyword left out passing whatever its key. The keys are
+// the statement's, so a key it leaves out (statement.Schema.Truncated) is not
+// read here either.
 func writesOnly(s *statement.Schema, allowed func(string) bool) bool {
-	m := statement.Parsed(s)
-	for _, p := range nodeview.Pairs(m.GetRootNode()) {
-		if !allowed(p.Key) && !annotation.WritesKeywordLeftOut(s, p.Key) {
+	for _, k := range s.Keys {
+		if !allowed(k.Name) && !annotation.WritesKeywordLeftOut(s, k.Name) {
 			return false
 		}
 	}

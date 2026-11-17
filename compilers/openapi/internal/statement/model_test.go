@@ -309,51 +309,68 @@ func TestRead_ANullKeywordIsWrittenAndLeftOut(t *testing.T) {
 	require.NotNil(t, constant.Values)
 }
 
-// TestRead_AKeywordMergedPastTheBoundHasItsValueAndNoKey reads a schema whose
-// `<<` chain runs past nodeview.MergeDepthLimit: its keys list only what it
-// writes itself, as the raw mapping reads it, while each typed value merged
-// past the bound, one keyword of each slot, is the parser's model's, which
-// expands the whole chain, as is its list of keys it holds no field for. A
-// bound, kept as the node it was written as, comes from its key, so it is not
-// there.
-func TestRead_AKeywordMergedPastTheBoundHasItsValueAndNoKey(t *testing.T) {
+// TestRead_AKeywordMergedPastTheBoundHasNoKeyAndNoValue reads schemas whose
+// `<<` chains run past nodeview.MergeDepthLimit, as a list of sources and as
+// a source within the bound beneath one past it: each is Truncated, its keys
+// list only what reaches it within the bound, and no keyword merged past it,
+// one of each slot, has a typed value, though the parser's model holds one.
+// The model's list of keys it holds no field for stays. An anchor merged in
+// both past the bound and within it is read whole, its schema Truncated all
+// the same, and a mapping whose merges stay within the bound is not.
+func TestRead_AKeywordMergedPastTheBoundHasNoKeyAndNoValue(t *testing.T) {
 	t.Parallel()
 	var spec strings.Builder
 	spec.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
 		"x-c0: &c0 {allOf: [{}], type: object, enum: [{}], format: f, minLength: 1, minItems: 2, maximum: 9, " +
-		"discriminator: {propertyName: k, x: 1}, oneOf: [{}], not: {}, description: d, foo: 1}\n")
+		"exclusiveMinimum: 1, properties: {x: {}}, discriminator: {propertyName: k, x: 1}, oneOf: [{}], not: {}, " +
+		"description: d, foo: 1}\nx-s: &s {title: S}\n")
 	for i := 1; i <= nodeview.MergeDepthLimit; i++ {
 		fmt.Fprintf(&spec, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
 	}
-	fmt.Fprintf(&spec, "components:\n  schemas:\n    P: {<<: *c%d, title: P}\n", nodeview.MergeDepthLimit)
+	last := nodeview.MergeDepthLimit
+	fmt.Fprintf(&spec, "components:\n  schemas:\n    P: {<<: *c%d, title: P}\n    L: {<<: [*c%d, *s]}\n"+
+		"    N: {<<: {<<: [*c%d, *s]}}\n    W: {<<: *c%d}\n    R: {<<: [*c%d, *c1]}\n", last, last, last-1, last-1, last)
 	table, c := tableOver(t, spec.String(), rulesAt(t, "3.1.0", ""))
 	p := table.At(component(c, "P"))
 	require.Equal(t, statement.Stated, p.Truth)
+	assert.True(t, p.Truncated)
 
 	names := make([]string, len(p.Keys))
 	for i, k := range p.Keys {
 		names[i] = k.Name
 	}
 	assert.Equal(t, []string{"title"}, names, "the raw mapping lists nothing past the bound")
-	_, read := p.Key("discriminator")
-	assert.False(t, read)
-
-	require.NotNil(t, p.Object)
-	require.NotNil(t, p.Object.Discriminator, "the model's discriminator")
-	assert.Equal(t, "k", p.Object.Discriminator.PropertyName)
-	assert.Equal(t, []string{"x"}, p.Object.Discriminator.Unknown)
+	assert.NotNil(t, c.Bindings().At(component(c, "P")).GetSchema().Discriminator, "though the model holds it")
 	assert.Equal(t, []string{"foo"}, p.Unknown, "the model's list names a key it holds no field for")
-	assert.Len(t, p.AllOf, 1)
-	assert.Len(t, p.Entries, 1)
-	assert.Equal(t, []statement.Kind{statement.KindObject}, p.Kinds.Types)
-	assert.Len(t, p.Values.Enum, 1)
-	assert.Equal(t, "f", p.Format.Name)
-	assert.Equal(t, []int64{1, 2}, int64s(p.Text.MinLength, p.Array.MinItems))
-	assert.Len(t, p.Choice.OneOf, 1)
-	assert.Equal(t, statement.Stated, table.Sub(p.Logic.Not).Truth)
-	assert.Equal(t, []string{"P", "d"}, []string{p.Notes.Title, p.Notes.Description})
-	assert.Nil(t, p.Number, "a bound comes from its key")
-	assert.NotNil(t, c.Bindings().At(component(c, "P")).GetSchema().Maximum, "though the model holds it")
+	assert.Nil(t, p.AllOf)
+	assert.Nil(t, p.Entries)
+	for name, slot := range map[string]bool{"Kinds": p.Kinds == nil, "Values": p.Values == nil, "Format": p.Format == nil,
+		"Number": p.Number == nil, "Text": p.Text == nil, "Array": p.Array == nil, "Object": p.Object == nil,
+		"Choice": p.Choice == nil, "Logic": p.Logic == nil} {
+		assert.True(t, slot, "%s holds nothing merged past the bound", name)
+	}
+	require.NotNil(t, p.Notes)
+	assert.Equal(t, []string{"P", ""}, []string{p.Notes.Title, p.Notes.Description})
+	_, found := p.Property("x")
+	assert.False(t, found, "a property merged past the bound is no property")
+
+	for _, name := range []string{"L", "N"} {
+		s := table.At(component(c, name))
+		assert.True(t, s.Truncated, name)
+		require.NotNil(t, s.Notes, name)
+		assert.Equal(t, "S", s.Notes.Title, "%s: a source within the bound is read", name)
+		assert.Nil(t, s.Kinds, name)
+	}
+	twice := table.At(component(c, "R"))
+	assert.True(t, twice.Truncated, "one path to the anchor runs past the bound")
+	assert.Equal(t, []statement.Kind{statement.KindObject}, twice.Kinds.Types, "the other reads it within")
+	assert.Equal(t, []int64{1, 2}, int64s(twice.Text.MinLength, twice.Array.MinItems))
+	within := table.At(component(c, "W"))
+	assert.False(t, within.Truncated)
+	assert.Equal(t, []statement.Kind{statement.KindObject}, within.Kinds.Types)
+	assert.Equal(t, []int64{1, 2}, int64s(within.Text.MinLength, within.Array.MinItems))
+	_, found = within.Property("x")
+	assert.True(t, found)
 }
 
 // TestRead_ReadsWhatAValueStates pins each truth a value reads as, a value

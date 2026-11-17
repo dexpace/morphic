@@ -3,6 +3,11 @@
 
 package statement
 
+import (
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	yaml "go.yaml.in/yaml/v3"
+)
+
 // Reads returns how many schema objects t has read, for the tests holding the
 // table to one read of each.
 func Reads(t *Table) int { return t.reads }
@@ -16,4 +21,22 @@ func Lookups(t *Table) int { return t.lookups }
 func Compared(s *Schema, name string) int {
 	_, n := s.find(name)
 	return n
+}
+
+// ParserNodes returns, for each keyword fill reads, how its row finds the node
+// the parser read its value from, nil where the parser holds no field for it.
+func ParserNodes() map[string]func(*oas3.Schema) *yaml.Node {
+	out := make(map[string]func(*oas3.Schema) *yaml.Node, len(fillKeywords))
+	for _, k := range fillKeywords {
+		out[k.name] = k.node
+	}
+	return out
+}
+
+// FillTruncated returns what fill reads of m into a Truncated schema whose
+// keys list nothing.
+func FillTruncated(m *oas3.Schema) *Schema {
+	s := &Schema{Truncated: true}
+	fill(s, m)
+	return s
 }

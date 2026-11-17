@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -148,10 +149,54 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 	default:
 		// Stated: a schema object, which a reference site writes too.
 	}
+	diags := mergedPastBound(c, js)
 	if js.Ref != nil {
-		return refSiteRef(c, ts, js, js.Schema, pointer, home)
+		ref, refDiags := refSiteRef(c, ts, js, js.Schema, pointer, home)
+		return ref, append(diags, refDiags...)
 	}
-	return schemaBody(c, ts, depth, js.Schema, pointer, home)
+	ref, bodyDiags := schemaBody(c, ts, depth, js.Schema, pointer, home)
+	return ref, append(diags, bodyDiags...)
+}
+
+// mergedPastOf keys whether mergedPastBound has reported one schema.
+type mergedPastOf struct {
+	schema *statement.Schema
+}
+
+// mergedPastBound reports each schema object of st, its own and its inline
+// allOf entries', whose `<<` merges run past nodeview.MergeDepthLimit
+// (pastBoundOnce).
+func mergedPastBound(c lowering.Ctx, st *statement.Statement) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	if d, first := pastBoundOnce(c, st.Schema); first {
+		diags = append(diags, d)
+	}
+	for _, e := range st.Entries {
+		if d, first := pastBoundOnce(c, e.Schema); first {
+			diags = append(diags, d)
+		}
+	}
+	return diags
+}
+
+// pastBoundOnce returns the report of s, and true the first time a run asks
+// for a Truncated s: a warning at its own pointer that it is read from the
+// keys within its merges alone, so a keyword merged in past them, or one a
+// source past them outranks, is not read (docs/compilers/openapi.md#references).
+func pastBoundOnce(c lowering.Ctx, s *statement.Schema) (ir.Diagnostic, bool) {
+	if !s.Truncated {
+		return ir.Diagnostic{}, false
+	}
+	reported := lowering.Remembered(c, mergedPastOf{s}, func() *bool { return new(bool) })
+	if *reported {
+		return ir.Diagnostic{}, false
+	}
+	*reported = true
+	there, _ := lowering.InDocument(c, s.At.Doc)
+	return there.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, s.At.Pointer,
+		"the schema merges through `<<` deeper than %d levels and is read from the keys within them; "+
+			"a keyword merged in past them, or one a source past them outranks, is not read",
+		nodeview.MergeDepthLimit), true
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -690,18 +735,13 @@ func constIn(s *statement.Schema) *yaml.Node {
 // defines, as a policy reads a 3.0 keyword in a 3.1 schema: the model's true
 // states it only where the key s lists is a boolean, never a string the model
 // decodes as true, such as "yes" (docs/compilers/openapi.md#nullable, GitHub
-// #2007). The model's true stands where s lists no key, and where it lists a
-// boolean that is not the model's: a keyword merged in past
-// nodeview.MergeDepthLimit outranks one a later source writes within it
-// (GitHub #2020).
+// #2007). The key is the node the model read, as the statement lists no
+// other (statement.Schema.Truncated).
 func nullableTrue(s *statement.Schema) bool {
 	if s == nil || s.Kinds == nil || s.Kinds.Nullable == nil || !*s.Kinds.Nullable {
 		return false
 	}
 	k, _ := s.Key("nullable")
-	if k.Name == "" {
-		return true
-	}
 	written, err := value.Classify(k.Node)
 	return err == nil && written.Kind == value.ScalarBool
 }

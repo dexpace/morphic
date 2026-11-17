@@ -45,16 +45,15 @@ type Entry struct {
 // do not know), its node, aliases followed, whether it states anything, and,
 // for one that does, its keys, reference, allOf entries and slots' values.
 // Keys are the node's, within nodeview.MergeDepthLimit; a typed value is the
-// parser's model's wherever it holds one, so a keyword merged past that bound
-// has a value and no key, and a value kept as a node is its key's. A slot is
-// nil where neither holds a keyword of it. Whether the rows read a key is its
-// Slot.
+// parser's model's where its keyword is one of them, and a value kept as a
+// node is its key's. A slot is nil where neither holds a keyword of it.
+// Whether the rows read a key is its Slot.
 type Schema struct {
 	At   bind.Position
 	Node *yaml.Node
 	Keys []Key
-	// Unknown lists the keys the parser's model holds no field for, read as a
-	// typed value is: from the model, so it names a key merged in past
+	// Unknown lists the keys the parser's model holds no field for, read
+	// from the model, so it names a key merged in past
 	// nodeview.MergeDepthLimit, which Keys lack.
 	Unknown []string
 	// Extensions lists the x- keys the schema writes, read from the model as
@@ -82,6 +81,10 @@ type Schema struct {
 	of    *Statement
 
 	Truth Truth
+	// Truncated marks a schema whose `<<` merges run past
+	// nodeview.MergeDepthLimit: Keys lack what the merges past it bring, and
+	// so does every typed value (docs/parser-library.md#merge-keys).
+	Truncated bool
 }
 
 // Key returns the key name of s and whether it is written and read: a null

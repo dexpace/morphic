@@ -291,19 +291,19 @@ func TestMappingWhy_SaysBothReadingsOfAValueWithNoHash(t *testing.T) {
 
 // TestMappingWhy_GivesAnUnreadReferenceTheTablesReason pins that a mapping
 // value spelling a reference, which the table reads, takes the table's reason
-// where it went unread: P's discriminator sits past a merge chain deeper than
-// the compiler expands, so the binder never read its mapping. A value holding
-// no '#' says the name it may spell names no component, too.
+// where it went unread: P's discriminator merges its mapping in through a
+// chain deeper than the compiler expands, so the binder never read it. A
+// value holding no '#' says the name it may spell names no component, too.
 func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 	t.Parallel()
 	var deep strings.Builder
 	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
-		"x-c0: &c0 {oneOf: [{$ref: '#/components/schemas/T'}], " +
-		"discriminator: {propertyName: k, mapping: {t: '#/components/schemas/T', n: Nowhere}}}\n")
+		"x-c0: &c0 {propertyName: k, mapping: {t: '#/components/schemas/T', n: Nowhere}}\n")
 	for i := 1; i <= 70; i++ {
 		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
 	}
-	deep.WriteString("components:\n  schemas:\n    T: {properties: {k: {type: string}}}\n    P: {<<: *c70}\n")
+	deep.WriteString("components:\n  schemas:\n    T: {properties: {k: {type: string}}}\n" +
+		"    P: {oneOf: [{$ref: '#/components/schemas/T'}], discriminator: {<<: *c70}}\n")
 	l, _ := LoweredFor(t, deep.String())
 	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)

@@ -399,8 +399,9 @@ components:
 // three aliases whose middle one, and a property beside it, write a $ref
 // merged in past nodeview.MergeDepthLimit, which the parser's model holds and
 // the table never read: each lands nowhere and lends nothing past it, so a
-// property naming the chain takes its first hop's words and the other its own,
-// and each such $ref is reported unresolved.
+// property naming the chain takes its first hop's words and the other none,
+// its own lying past the bound too, and each such $ref is reported
+// unresolved.
 func TestUseOf_AReferenceTheTableDidNotReadLendsNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n"+
@@ -417,7 +418,7 @@ func TestUseOf_AReferenceTheTableDidNotReadLendsNothing(t *testing.T) {
 	assert.Nil(t, p.Deprecation, "nothing past the unread $ref is lent")
 	q := propertyOf(t, doc, "Holder", "q")
 	assert.Equal(t, ir.TypeID("t/prim/any"), q.Type.Target)
-	assert.Equal(t, "deep", q.Docs.Description, "its own words")
+	assert.Empty(t, q.Docs.Description, "its words lie past the merge bound, which are not read")
 	assert.Nil(t, q.Deprecation)
 	assert.Len(t, withCode(diags, diag.UnresolvedRef), 2, "B's and q's")
 }

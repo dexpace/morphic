@@ -72,12 +72,15 @@ func (t *Table) Read(s *Schema) *Statement {
 }
 
 // readKeys places each key s's node writes, in the order the parser holds
-// them (nodeview.Pairs), in the slot rules give it, and marks those s.Unknown
-// lists, the keys the parser's model holds no field for. Past indexAbove keys
-// it indexes them first, so that marking, and every later Key, finds a key
-// without scanning.
+// them (nodeview.View.MappingPairs), in the slot rules give it, marks those
+// s.Unknown lists, the keys the parser's model holds no field for, and marks s
+// Truncated where its merges run past nodeview.MergeDepthLimit. Past
+// indexAbove keys it indexes them first, so that marking, and every later Key,
+// finds a key without scanning.
 func readKeys(s *Schema, rules oas.SchemaRules) {
-	pairs := nodeview.Pairs(s.Node)
+	view := nodeview.New()
+	pairs := view.MappingPairs(s.Node)
+	s.Truncated = !view.Expanded(s.Node)
 	if len(pairs) == 0 {
 		return
 	}
@@ -86,16 +89,24 @@ func readKeys(s *Schema, rules oas.SchemaRules) {
 		slot, later := rules.Slot(p.Key)
 		s.Keys[i] = Key{Name: p.Key, Node: p.Val, Slot: slot, Later: later, Null: isNull(p.Val), Modeled: true}
 	}
-	if len(s.Keys) > indexAbove {
-		s.index = make(map[string]int, len(s.Keys))
-		for i, k := range s.Keys {
-			s.index[k.Name] = i
-		}
-	}
+	index(s)
 	for _, name := range s.Unknown {
 		if i, _ := s.find(name); i >= 0 {
 			s.Keys[i].Modeled = false
 		}
+	}
+}
+
+// index maps each key of s to its place, past indexAbove keys, and leaves s
+// none at or below it.
+func index(s *Schema) {
+	s.index = nil
+	if len(s.Keys) <= indexAbove {
+		return
+	}
+	s.index = make(map[string]int, len(s.Keys))
+	for i, k := range s.Keys {
+		s.index[k.Name] = i
 	}
 }
 
