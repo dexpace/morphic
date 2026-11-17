@@ -115,18 +115,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:allOf/0": {
-          "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Pet"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Cat/allOf/0"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Cat"
@@ -160,6 +148,10 @@
           }
         }
       ],
+      "base": {
+        "target": "t/anon/components/schemas/Pet/type/0",
+        "nullable": false
+      },
       "abstract": false,
       "positional": false,
       "discriminatorValue": "cat",
@@ -175,18 +167,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:allOf/0": {
-          "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Pet"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/Dog/allOf/0"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Dog"
@@ -220,6 +200,10 @@
           }
         }
       ],
+      "base": {
+        "target": "t/anon/components/schemas/Pet/type/0",
+        "nullable": false
+      },
       "abstract": false,
       "positional": false,
       "discriminatorValue": "Dog",
@@ -328,31 +312,13 @@
         "source": 0,
         "pointer": "/components/schemas/Pet"
       }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Cat/allOf/0"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Dog/allOf/0"
-      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "type-array-discriminator.yaml",
-      "hash": "c9d266b96106303b78d6fb718d3ed5198c24fc38a0840f4b77c11104893884ff"
+      "hash": "9acbe39c91941ac551010338937bf9245ea1d1809d2bc136baa02695b58858d0"
     }
   ]
 }

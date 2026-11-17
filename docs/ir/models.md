@@ -330,7 +330,8 @@ documents and the position alone, so an outside `$ref` naming the branch pointer
 whichever lowering interns the node.
 
 `Base` and `Mixins` name the referents a composition of objects composes: a `$ref` entry is one
-only where the schema it lands on lowers to an object alone, null aside, so no `Model` names a base
+only where the schema it lands on lowers to an object alone, null aside, or, where that schema's
+`type` list holds an object, through the object variant its union holds, so no `Model` names a base
 or a mixin that is no object. In JSON Schema any schema may be a conjunct: `allOf: [{$ref: Pet},
 {$ref: Tags}]` is legal and, `Tags` being a list, admits no instance, so it composes `Pet` and keeps
 the `$ref` to `Tags` verbatim under `openapi:allOf/1` with an info, as it keeps one to a `Scalar`, an
@@ -458,8 +459,8 @@ pointer, which keeps naming the branch's own node. The designs this was weighed 
 
 A union of objects a composition names by reference, rather than writing it beside the `allOf` or on
 one of its inline branches, composes as any other referent does
-([composition entries](#composition-entries)), and one admitting another kind is kept as any
-conjunct that is no object is:
+([composition entries](#composition-entries)), and one a `oneOf` or `anyOf` writes admitting another
+kind is kept as any conjunct that is no object is:
 the `Model` names it as its `Base` or a `Mixin`, declares what the schema writes itself, and
 distributes nothing. So does a union written beside or on the `allOf` of a subtype a discriminator
 routes to, through the `Union` minted for it ([above](#composition-beside-a-union)).
