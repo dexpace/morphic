@@ -5,6 +5,8 @@ package e2e_test
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,4 +119,32 @@ func TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs(t *testing.
 		params = append(params, op.Params[0])
 	}
 	assert.Equal(t, params[0].Docs, params[1].Docs, "the parameter reads the docs alike in either spelling")
+}
+
+// TestRefConjunction_AKeywordBesideAValueSetIsKeptOnceOnItsNode holds that a
+// keyword no Enum holds, written beside a value set narrowing a $ref, is kept
+// once on the Enum the position lowers to, whether the value set is written
+// beside the $ref, beside an allOf of it or on an entry of that allOf, at a
+// component and at a property.
+func TestRefConjunction_AKeywordBesideAValueSetIsKeptOnceOnItsNode(t *testing.T) {
+	t.Parallel()
+	for name, schema := range map[string]string{
+		"beside the $ref":   "{" + refTo("Str") + ", enum: [a, b], pattern: '^a'}",
+		"beside an allOf":   "{allOf: [{" + refTo("Str") + "}], enum: [a, b], pattern: '^a'}",
+		"on an allOf entry": "{allOf: [{" + refTo("Str") + "}, {enum: [a, b]}], pattern: '^a'}",
+	} {
+		for _, site := range conjSites[:2] {
+			doc, diags := compileUnrefused(t, site.write("3.1.0", schema, conjTargets["Str"]))
+			at := name + " at " + site.name
+			id := ir.TypeID("t/anon" + site.pointer)
+			if site.name == "component" {
+				id = componentID("Use")
+			}
+			enum, ok := kindNode(t, doc, id).(*ir.Enum)
+			require.True(t, ok, at)
+			assert.ElementsMatch(t, []string{"openapi:$ref", "openapi:pattern"}, slices.Collect(maps.Keys(enum.Unmodeled)), at)
+			assert.JSONEq(t, `"^a"`, string(enum.Unmodeled["openapi:pattern"].Value), at)
+			assert.Equal(t, 2, degradedInfosUnder(diags, site.pointer), "%s: one report for each keyword kept", at)
+		}
+	}
 }
