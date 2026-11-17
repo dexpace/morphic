@@ -2342,7 +2342,9 @@ principal and is the top type. Where the keywords beside the `allOf` win, the po
 as if no `allOf` were written. An inline principal writing a value set lowers it at the position's
 pointer, as the keywords beside the `allOf` would, so one node stands for the position whichever
 conjunct writes the set, its members and the reports on them where they are written. What the
-branch writes beside the set is kept on that node at its own pointer, as any conjunct's is. A `$ref`
+branch writes beside the set is kept on that node at its own pointer, as any conjunct's is, a
+`oneOf` or `anyOf` among it, which the set does not say since the node holds no union, kept under its
+keyword as the same union beside the `allOf` is. A `$ref`
 to the branch's own pointer names the branch alone, a node of its own typed by what it writes. Any
 other principal lowers at the pointer it is written at, so nothing is minted and each node stands at
 a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
@@ -2447,6 +2449,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_SeveralRefsUseTheNarrowest`, `schema.TestRefinement_KindsBeyondAnObjectAreAUse`,
   `schema.TestRefinement_ADynamicRefMasksNoKind`, `schema.TestDynamicRefEntry_OnAnEntryLowersAsBesideTheAllOf`,
   `e2e.TestElection_AUnionAndTheWordsItTiesWithAreAUseOfTheUnionHoldingTheBound`,
+  `schema.TestRefinementSetUnion_AUnionTheValueSetStandsBesideIsKept`,
   `e2e.TestAllOfCompose_ATargetAdmittingEveryKindIsUsedNotComposed`,
   `e2e.TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept`,
   `e2e.TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel`,

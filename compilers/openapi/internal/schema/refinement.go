@@ -801,10 +801,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
-			residues[i] = unmergedBranchKeys(e.schema.Schema, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) ||
-					said(&w, r, typed, e.schema.Schema, key) || censused && censusReads(key)
-			})
+			residues[i] = unmergedBranchKeys(e.schema.Schema, residueRead(c, &w, r, typed, e, voices.speaks[i], censused, homes))
 		}
 	}
 	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties)
@@ -813,6 +810,31 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 	}
 	return k
 }
+
+// residueRead reports whether a key the entry e of r writes is read where the
+// position lowered, leaving no residue: a wrapper's allOf, what folds where e
+// speaks, what the principal says (said), and what the census of the value set
+// standing at the position, written by e where censused says so, reads. A union
+// that set writes is none it says, as the node it lowers to holds no union, so
+// it is kept as the union beside a value set is.
+func residueRead(c lowering.Ctx, w *admission, r refinement, typed setType, e allOfBranch, speaks, censused bool,
+	homes boundHomes,
+) func(string) bool {
+	bs := e.schema.Schema
+	return func(key string) bool {
+		switch {
+		case key == "allOf" && e.wrapper, speaks && folds(c, bs, key, homes):
+			return true
+		case censused:
+			return censusReads(key) || !unionKeyword(key) && said(w, r, typed, bs, key)
+		default:
+			return said(w, r, typed, bs, key)
+		}
+	}
+}
+
+// unionKeyword reports whether keyword is oneOf or anyOf.
+func unionKeyword(keyword string) bool { return keyword == "oneOf" || keyword == "anyOf" }
 
 // isAdditionalProperties reports whether keyword is additionalProperties: the
 // closure no use of a conjunct types, which reads the keywords beside it.
