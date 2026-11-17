@@ -581,3 +581,41 @@ func TestKeptEntryKeyword_TwoEntriesKeepingOneKeywordAlikeKeepOneEntryAtThePosit
 		})
 	}
 }
+
+func TestKeptEntryKeyword_AValueSetPrincipalsEntryKeepsWhatTheBesideSpellingKeeps(t *testing.T) {
+	t.Parallel()
+	for _, version := range keptKeywordVersions {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			schemas := []string{
+				"Str: {type: string}",
+				"Entry: {allOf: [" + keptStr + ", {enum: [a, b], x-note: 1, fancy: 1}], pattern: '^a'}",
+				"Beside: {allOf: [" + keptStr + "], enum: [a, b], x-note: 1, fancy: 1, pattern: '^a'}",
+			}
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, diags := compileAnnotationSpec(t, "valueset", admissionSpec(version, "", schemas...))
+				want := map[string]ir.UnmodeledReason{
+					"openapi:$ref": ir.ReasonDegradedLowering, "openapi:pattern": ir.ReasonDegradedLowering,
+					"openapi:x-note": ir.ReasonVendorExtension, "openapi:fancy": ir.ReasonOutOfScope,
+				}
+				for _, name := range []string{"Entry", "Beside"} {
+					_, ok := kindNode(t, doc, componentID(name)).(*ir.Enum)
+					require.True(t, ok, "%s is the value set", name)
+					got := keptKeywordsOf(doc, name)
+					assert.Equal(t, want, keptKeywordReasons(got), name)
+					for key, entries := range got {
+						assert.Len(t, entries, 1, "%s: %s is kept once", name, key)
+					}
+				}
+				keptFindingsUnder(t, diags, "Entry", []keptFinding{
+					keptDegraded("", "pattern"), keptDegraded("/allOf/0", "$ref"),
+					keptInfo(diag.UnknownSchemaKeyword, "/allOf/1/fancy", "fancy"),
+				})
+				keptFindingsUnder(t, diags, "Beside", []keptFinding{
+					keptDegraded("", "pattern"), keptDegraded("/allOf/0", "$ref"),
+					keptInfo(diag.UnknownSchemaKeyword, "/fancy", "fancy"),
+				})
+			})
+		})
+	}
+}
