@@ -2446,6 +2446,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_KeptKeywordsLandAtEveryPosition`,
   `schema.TestRefinement_SeveralRefsUseTheNarrowest`, `schema.TestRefinement_KindsBeyondAnObjectAreAUse`,
   `schema.TestRefinement_ADynamicRefMasksNoKind`, `schema.TestDynamicRefEntry_OnAnEntryLowersAsBesideTheAllOf`,
+  `e2e.TestElection_AUnionAndTheWordsItTiesWithAreAUseOfTheUnionHoldingTheBound`,
   `e2e.TestAllOfCompose_ATargetAdmittingEveryKindIsUsedNotComposed`,
   `e2e.TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept`,
   `e2e.TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel`,
