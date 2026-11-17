@@ -18,18 +18,20 @@ import (
 const anyInstance = kindAny &^ kindNull
 
 // kindWords spells the members of a kindSet in the order a diagnostic lists
-// them. A number holds an integer, so it is spelled before one: an integer is
-// named only where no number is left beside it.
+// them. A number holds an integer and a number with a fraction, so it is
+// spelled before either: each is named only where the other is not left
+// beside it, the second as no type names it.
 var kindWords = []struct {
 	kinds kindSet
-	word  statement.Kind
+	word  string
 }{
-	{kindObject, statement.KindObject},
-	{kindArray, statement.KindArray},
-	{kindString, statement.KindString},
-	{kindNumber, statement.KindNumber},
-	{kindInteger, statement.KindInteger},
-	{kindBoolean, statement.KindBoolean},
+	{kindObject, string(statement.KindObject)},
+	{kindArray, string(statement.KindArray)},
+	{kindString, string(statement.KindString)},
+	{kindNumber, string(statement.KindNumber)},
+	{kindInteger, string(statement.KindInteger)},
+	{kindFraction, "number that is no integer"},
+	{kindBoolean, string(statement.KindBoolean)},
 }
 
 // instanceWords spells t, a set of instance types, for a diagnostic.
@@ -40,7 +42,7 @@ func instanceWords(t kindSet) string {
 	out := make([]string, 0, len(kindWords))
 	for _, w := range kindWords {
 		if t&w.kinds == w.kinds {
-			out = append(out, string(w.word))
+			out = append(out, w.word)
 			t &^= w.kinds
 		}
 	}

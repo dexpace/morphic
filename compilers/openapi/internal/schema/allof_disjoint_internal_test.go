@@ -60,3 +60,32 @@ func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
 		assert.Equal(t, want, toldWhereWritten(l.Ctx, st), name)
 	}
 }
+
+// TestInstanceWords_NamesEverySetOfKinds holds that every set of instance
+// kinds a conjunct can admit is named, each kind by a word of its own and a
+// number with a fraction apart from an integer, with no empty word.
+func TestInstanceWords_NamesEverySetOfKinds(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		kinds kindSet
+		words string
+	}{
+		{0, "null"},
+		{kindFraction, "number that is no integer"},
+		{kindNumber, "number"},
+		{kindInteger, "integer"},
+		{kindFraction | kindString, "string or number that is no integer"},
+		{kindInteger | kindBoolean, "integer or boolean"},
+		{anyInstance, "object or array or string or number or boolean"},
+	} {
+		assert.Equal(t, tc.words, instanceWords(tc.kinds), "%07b", tc.kinds)
+	}
+	for kinds := kindSet(1); kinds <= anyInstance; kinds++ {
+		if kinds&^anyInstance != 0 {
+			continue
+		}
+		for word := range strings.SplitSeq(instanceWords(kinds), " or ") {
+			assert.NotEmpty(t, word, "%07b is named %q", kinds, instanceWords(kinds))
+		}
+	}
+}

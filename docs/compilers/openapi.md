@@ -3230,7 +3230,8 @@ The reading is of the source, since a `Model` cannot say whether its source wrot
 and `{properties: …}` alone admits a string. That is where it parts from the reading
 [`allof-refinement`](#allof-refinement) elects a principal by, which takes such a `properties` to
 claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
-admits a set of JSON instance types, an `integer` within a `number` and named as written, read once
+admits a set of JSON instance types, an `integer` within a `number` and named as written, and a
+number with a fraction, which no `type` names, named a `number that is no integer`, read once
 a compile, whatever its size: the `type` beside the `allOf`; an inline entry's `type`, the members
 of its `enum` or `const`, the join of what each branch of its `oneOf` or `anyOf` admits, and what
 its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admits, read the same
@@ -3285,7 +3286,9 @@ lowered as.
   `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
   `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`,
   `e2e.TestCompile_AnEmptyConjunctIsReportedWhereNothingElseSaysSo`,
-  `schema.TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing`
+  `schema.TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing`,
+  `e2e.TestCompile_ADisjointReportNamesAFraction`,
+  `schema.TestInstanceWords_NamesEverySetOfKinds`
 
 ### `union`
 
