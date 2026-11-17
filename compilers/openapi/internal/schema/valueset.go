@@ -147,7 +147,7 @@ func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer
 	case "const":
 		return constSetType(c, site)
 	default:
-		return setType{prim: site.enumType(c, nil, ir.PrimAny), ok: nullAlone(site.set)}
+		return setType{prim: site.enumType(c, admitsEvery, ir.PrimAny), ok: nullAlone(site.set)}
 	}
 }
 
@@ -159,8 +159,11 @@ func enumSetType(c lowering.Ctx, site valueSetSite) setType {
 		return setType{}
 	}
 	kept := slices.DeleteFunc(readEnum(written), enumEntry.isNull)
-	members, prim, ok := enumMembers(kept, c.IDs().ForPointer(site.pointer))
-	return setType{prim: site.enumType(c, members, prim), ok: ok}
+	prim, ok := enumMemberPrim(kept)
+	if !ok {
+		return setType{prim: site.enumType(c, admitsEvery, prim)}
+	}
+	return setType{prim: site.enumType(c, func(p ir.PrimKind) bool { return entriesAre(kept, p) }, prim), ok: true}
 }
 
 // constSetType is refinedValueType for a const: the Literal's ValueType, or
@@ -169,17 +172,21 @@ func enumSetType(c lowering.Ctx, site valueSetSite) setType {
 func constSetType(c lowering.Ctx, site valueSetSite) setType {
 	val, err := value.FromNode(constIn(site.set))
 	if err == nil && val.Kind == ir.ValueNull {
-		return setType{prim: site.enumType(c, nil, ir.PrimAny), ok: true}
+		return setType{prim: site.enumType(c, admitsEvery, ir.PrimAny), ok: true}
 	}
 	return setType{prim: site.literalType(c, val), ok: err == nil}
 }
 
-// enumType is the ValueType an Enum of members, classified as memberPrim,
-// takes at vs (enumValueType), narrowed where its position refines.
-func (vs valueSetSite) enumType(c lowering.Ctx, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
-	own := enumValueType(vs.set, members, memberPrim)
-	return vs.valueType(c, own, func(p ir.PrimKind) bool { return enumMembersAre(members, p) })
+// enumType is the ValueType an Enum of members classified as memberPrim takes
+// at vs (enumValueType), admits saying whether every member is a value of a
+// primitive, narrowed where its position refines.
+func (vs valueSetSite) enumType(c lowering.Ctx, admits func(ir.PrimKind) bool, memberPrim ir.PrimKind) ir.PrimKind {
+	return vs.valueType(c, enumValueType(vs.set, admits, memberPrim), admits)
 }
+
+// admitsEvery is what enumType asks of an Enum with no member: every value of
+// any primitive is one of its members, as there is none.
+func admitsEvery(ir.PrimKind) bool { return true }
 
 // literalType is the ValueType a Literal of val takes at vs
 // (literalValueType), narrowed where its position refines.
