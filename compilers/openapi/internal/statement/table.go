@@ -34,9 +34,10 @@ type Table struct {
 	src        Source
 	schemas    map[*model]*Schema
 	statements map[*model]*Statement
-	// words and references hold the two conjuncts of each schema object
-	// writing a reference beside keys it reads (conjoins), each built once.
-	words, references map[*Schema]*Schema
+	// rests and references hold the two conjuncts of each schema object
+	// writing a reference beside keys it reads (conjoins), each built once:
+	// the keys as an allOf entry reads them, and the reference.
+	rests, references map[*Schema]*Schema
 	// reads counts the schema objects read, which the tests hold to one each,
 	// and lookups the statements Of looks up, which they hold Read to none of
 	// for a schema Of has built the statement of.
@@ -48,7 +49,7 @@ type Table struct {
 func NewTable(src Source) *Table {
 	return &Table{
 		src: src, schemas: map[*model]*Schema{}, statements: map[*model]*Statement{},
-		words: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
+		rests: map[*Schema]*Schema{}, references: map[*Schema]*Schema{},
 	}
 }
 
@@ -65,16 +66,22 @@ func (t *Table) Sub(s Sub) *Statement {
 
 // Read returns the statement of the schema object s, for a caller lowering
 // an entry as a position of its own: the one Of built over s, which s keeps,
-// so that a schema read once more costs no lookup. A nil s reads as
-// Unwritten, and so does one no table read, which holds no value. s is one
-// t read: a schema another table built a statement over keeps that
+// so that a schema read once more costs no lookup, or, for the rest of an
+// allOf entry (restOf), one listing its own allOf and no reference. A nil s
+// reads as Unwritten, and so does one no table read, which holds no value. s
+// is one t read: a schema another table built a statement over keeps that
 // statement, whichever table is asked.
 func (t *Table) Read(s *Schema) *Statement {
-	if s == nil {
+	switch {
+	case s == nil:
 		return t.Of(nil)
-	}
-	if s.of != nil {
+	case s.of != nil:
 		return s.of
+	case s.WrittenBeside != nil:
+		st := &Statement{Schema: s}
+		s.of = st
+		t.flatten(st)
+		return st
 	}
 	return t.Of(s.m)
 }
@@ -121,7 +128,7 @@ func index(s *Schema) {
 // flatten lists the inline allOf entries of st's schema as the lowering
 // flattens them: in source order, depth first, an entry writing a reference
 // beside what else it says (conjoins) listed as that reference and then the
-// rest, an entry that writes an allOf and names no reference beside nothing
+// rest (restOf), an entry that writes an allOf and names no reference beside nothing
 // else replaced by its entries and then listed itself as a Wrapper, while at
 // most MaxFlattenDepth lists hold it, and listed Capped past that. It walks an
 // explicit stack of at most MaxFlattenDepth+1 lists, reading each entry's
@@ -149,7 +156,7 @@ func (t *Table) flatten(st *Statement) {
 		f.next++
 		if conjoins(entry) {
 			st.Entries = append(st.Entries, Entry{Schema: t.reference(entry), Rel: rel})
-			entry = t.wordsOf(entry)
+			entry = t.restOf(entry)
 		}
 		wraps := entry.Ref == nil && len(entry.AllOf) > 0
 		if wraps && len(stack) <= MaxFlattenDepth {
@@ -213,18 +220,43 @@ func (t *Table) own(js *model) *Schema {
 	return s
 }
 
-// wordsOf returns s, which conjoins, less its reference: every key but the
-// one writing it, every slot it fills, and the reference as its BesideRef. It
-// shares s's values.
+// wordsOf returns s, which conjoins and a position writes, less its
+// reference (lessReference), and the reference as its BesideRef: the
+// position's statement lists the two. Of builds it once.
 func (t *Table) wordsOf(s *Schema) *Schema {
-	if w, ok := t.words[s]; ok {
-		return w
+	w := lessReference(s)
+	w.BesideRef = t.reference(s)
+	return w
+}
+
+// restOf returns s, an allOf entry that conjoins, less its reference
+// (lessReference): the conjunct its composition lists after that reference,
+// as `{allOf: [{$ref: …}, {…}]}` lists it. It writes no reference, its node
+// holding its keys alone, so no reader of the composition's conjuncts reads
+// the reference twice; it names it WrittenBeside, for a reader of how its
+// keys are spelt (docs/compilers/openapi.md#ref-use-site).
+func (t *Table) restOf(s *Schema) *Schema {
+	if r, ok := t.rests[s]; ok {
+		return r
 	}
+	r := lessReference(s)
+	r.WrittenBeside = t.reference(s)
+	content := make([]*yaml.Node, 0, 2*len(r.Keys))
+	for _, k := range r.Keys {
+		content = append(content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k.Name}, k.Node)
+	}
+	r.Node = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: content}
+	t.rests[s] = r
+	return r
+}
+
+// lessReference returns a copy of s, which conjoins, holding every key but the
+// one writing its reference, and every slot it fills. It shares s's values.
+func lessReference(s *Schema) *Schema {
 	w := *s
-	w.Ref, w.of, w.BesideRef = nil, nil, t.reference(s)
+	w.Ref, w.of = nil, nil
 	w.Keys = slices.DeleteFunc(slices.Clone(s.Keys), func(k Key) bool { return k.Name == s.Ref.Keyword })
 	index(&w)
-	t.words[s] = &w
 	return &w
 }
 

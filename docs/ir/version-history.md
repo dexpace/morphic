@@ -968,7 +968,9 @@ it sees. Changes made together in one bump are listed together under it.
   site was an alias keeping what it could not hold: a use of an object saying anything beside its
   `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
   value set, a union and a bound beside it lower as beside an `allOf` of it; an entry's keywords
-  beside its `$ref` are conjuncts of the position, which hoists no node at the entry, and a `$ref`
+  beside its `$ref` are conjuncts of the position, an inline entry of their own that writes no
+  reference, as `{allOf: [{$ref: T}, {K}]}` writes them, so the reference is read, kept and
+  reported once and no node is hoisted at the entry for it, and a `$ref`
   kept, a refinement's, a composition's for a target it does not compose, or a failed one's, holds
   the reference's text, where a refinement's held the object `{$ref: …}`. An `allOf`
   of one `$ref` saying nothing else is the reference, hoisting no node, where it hoisted an

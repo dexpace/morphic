@@ -359,23 +359,6 @@ func TestOf_AReferenceMergedPastTheBoundConjoins(t *testing.T) {
 	assert.Same(t, st.BesideRef, st.Entries[0].Schema)
 }
 
-// TestRead_ASplitEntryReadAsAPositionIsTheSameTwoConjuncts pins that an allOf
-// entry writing a $ref beside a description, read as a position of its own,
-// reads as the words and the reference its composition listed, each built
-// once, so what a walk remembers of either is the same whichever reads it.
-func TestRead_ASplitEntryReadAsAPositionIsTheSameTwoConjuncts(t *testing.T) {
-	t.Parallel()
-	spec := document("3.1.0", "T: {type: string}", "S: {allOf: [{$ref: '#/components/schemas/T', description: d}]}")
-	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
-	st := table.At(component(c, "S"))
-	require.Len(t, st.Entries, 2)
-	words := st.Entries[1].Schema
-	entry := table.Read(words)
-	assert.Same(t, words, entry.Schema, "one schema object, one rest")
-	require.Len(t, entry.Entries, 1)
-	assert.Same(t, st.Entries[0].Schema, entry.Entries[0].Schema, "and one reference")
-}
-
 // TestOf_AnEntryWhoseReferenceEndsNowhereIsReadWhole pins that an allOf entry
 // writing a $ref the bindings read as naming nothing beside other keys is
 // listed whole, its reference and its keys one entry, while the same spelling

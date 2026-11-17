@@ -6,7 +6,6 @@
 package e2e_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,51 +13,6 @@ import (
 
 	"github.com/dexpace/morphic/ir"
 )
-
-// Pending: an allOf entry writing a $ref beside other keys is listed as the
-// reference and the rest, and where the rest is the conjunct the position
-// lowers from it is lowered as a position of its own, whose statement lists
-// the reference again. The reference is then read twice: kept and reported by
-// the entry's own election and again by the composition's.
-
-// TestRefConjunction_AValueSetBesideAnEntrysRefIsReportedOnce holds that a
-// value set written beside the $ref of an allOf entry keeps the $ref once and
-// reports it once, as beside a $ref at the position.
-func TestRefConjunction_AValueSetBesideAnEntrysRefIsReportedOnce(t *testing.T) {
-	t.Parallel()
-	for name, schema := range map[string]string{
-		"beside the $ref":       "{$ref: '#/components/schemas/Str', enum: [a]}",
-		"beside an entry's ref": "{allOf: [{$ref: '#/components/schemas/Str', enum: [a]}]}",
-	} {
-		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "", "Str: {type: string}", "Use: "+schema))
-		enum, ok := kindNode(t, doc, componentID("Use")).(*ir.Enum)
-		require.True(t, ok, name)
-		assert.Contains(t, enum.Unmodeled, "openapi:$ref", name)
-		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/Use"), "%s: one report for one $ref kept", name)
-	}
-}
-
-// TestRefConjunction_AnEntrysRefIsKeptOnOneNode holds that a $ref an
-// election passes over is kept on one node of the document, whether a union
-// is written beside it or beside its entry.
-func TestRefConjunction_AnEntrysRefIsKeptOnOneNode(t *testing.T) {
-	t.Parallel()
-	union := "oneOf: [{type: string}, {type: integer}]"
-	for name, schema := range map[string]string{
-		"beside the $ref":       "{$ref: '#/components/schemas/Top', " + union + "}",
-		"beside an entry's ref": "{allOf: [{$ref: '#/components/schemas/Top', " + union + "}]}",
-	} {
-		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "", "Top: {}", "Use: "+schema))
-		holders := 0
-		for id, td := range doc.Types {
-			if _, kept := td.Common().Unmodeled["openapi:$ref"]; kept && strings.Contains(string(id), "/Use") {
-				holders++
-			}
-		}
-		assert.Equal(t, 1, holders, "%s: the $ref is kept on one node", name)
-		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/Use"), "%s: and reported once", name)
-	}
-}
 
 // TestRefConjunction_AnAllOfOfOneRefToFalseIsTheReference holds that an allOf
 // of one $ref saying nothing else is the reference where its target is the

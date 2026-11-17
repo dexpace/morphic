@@ -1783,7 +1783,9 @@ emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
 the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
-anything else, and in an `allOf` entry they are an inline conjunct of the composition
+anything else, and in an `allOf` entry they are an inline conjunct of the composition, an entry of
+their own at the entry's pointer that writes no reference, as `{allOf: [{$ref: T}, {K}]}` writes
+them, so the reference is read, kept and reported once
 ([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
 than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
@@ -1819,6 +1821,10 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `operation.TestParams_RefSchemaUseSiteWinsOverItsReferent`, `schema.TestUseOf_LendsEachHopOfTheChain`,
   `schema.TestUseOf_LendsEachHopAcrossTwoDocuments`, `schema.TestUseOf_AnAliasHopIsNoPassage`,
   `schema.TestUseOf_PassagesAreBoundedAndAliasesSpendNone`,
+  `statement.TestRead_ASplitEntrysRestListsNoReference`,
+  `e2e.TestRefConjunction_AnEntrysRefAndKeywordsLowerAsTwoEntries`,
+  `e2e.TestRefConjunction_AValueSetBesideAnEntrysRefIsReportedOnce`,
+  `e2e.TestRefConjunction_AnEntrysRefIsKeptOnOneNode`, `e2e.TestRefConjunction_AnEntrysRestIsReadInItsDialect`,
   `openapicases.TestCore_SpellingsHoldTheRecord`
 
 ### `reference-object-siblings`

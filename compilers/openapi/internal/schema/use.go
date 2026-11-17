@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"slices"
 
@@ -79,11 +80,12 @@ func dialectIn(rules oas.SchemaRules, s *statement.Schema) annotation.Dialect {
 }
 
 // writesRef reports whether s writes a $ref the binder reads as one: a string,
-// empty or not, beside its other keywords too (statement.Schema.BesideRef). A
+// empty or not, beside its other keywords too (statement.Schema.BesideRef), or
+// beside those of an allOf entry's rest (statement.Schema.WrittenBeside). A
 // null, a mapping or a list writes none.
 func writesRef(s *statement.Schema) bool {
-	if s != nil && s.BesideRef != nil {
-		s = s.BesideRef
+	if s != nil {
+		s = cmp.Or(s.BesideRef, s.WrittenBeside, s)
 	}
 	n := nodeview.Deref(keyNode(s, "$ref"))
 	return n != nil && n.Kind == yaml.ScalarNode
