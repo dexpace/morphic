@@ -81,8 +81,9 @@ func caseAt(t *testing.T, c cases, names ...string) []int {
 
 // TestWrite_EachSpellingNamesItsPartner pins the spellings a case writes and
 // the partner each names: what stays beside the use, what no spelling but
-// inline writes, an entry saying nothing, and the reports a 3.0 use states,
-// a nullable: true's beside the allOf only where no type is written with it.
+// inline writes, an entry saying nothing, a 3.0 nullable: true the policy reads
+// apart in two spellings, and the reports a 3.0 use states, a nullable:
+// true's beside the allOf only where no type is written with it.
 func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 	c := New().(cases)
 	for _, tc := range []struct {
@@ -109,6 +110,14 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 		{[]string{"3.1.0", "string", "none", "none", "items", "besideEntry"}, false, ""},
 		{[]string{"3.1.0", "string", "none", "secondRef", "items", "besideEntry"}, false, ""},
 		{[]string{"3.1.0", "string", "$comment", "none", "items", "besideEntry"}, false, ""},
+		{[]string{"3.0.3", "object", "nullable", "properties", "items", "entry"}, true, ""},
+		{[]string{"3.0.3", "object", "nullable", "properties", "items", "besideEntry"}, true, ""},
+		{[]string{"3.0.3", "object", "nullable", "properties", "items", "nested"}, true, entry},
+		{[]string{"3.0.3", "object", "nullable~", "properties", "items", "entry"}, true, ""},
+		{[]string{"3.0.3", "object", "nullable~", "properties", "items", "besideEntry"}, true, entry},
+		{[]string{"3.0.3", "string", "nullable", "targetType", "items", "besideEntry"}, true, ""},
+		{[]string{"3.0.3", "string", "nullable", "targetType", "items", "entry"}, true, wrap},
+		{[]string{"3.0.3", "string", "nullable~", "targetType", "items", "besideEntry"}, true, entry},
 	} {
 		doc, ok := c.Write(caseAt(t, c, tc.at...))
 		require.Equal(t, tc.written, ok, "%v", tc.at)

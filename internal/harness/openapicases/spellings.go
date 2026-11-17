@@ -169,6 +169,9 @@ func (c cases) equal(at []int, u written) *harness.Equal {
 	if partner == entry && len(u.members) == 0 {
 		partner = wrap // an entry saying nothing is wrap's document, which wrap writes
 	}
+	if readApart(s, u.members) {
+		return nil
+	}
 	if _, writes := c.spelt(u, partner, c.targets[at[1]]); !writes {
 		return nil
 	}
@@ -203,6 +206,29 @@ func besideRef(at string, members object, theirs string, unit object) (stated, r
 		}
 	}
 	return stated, replaced
+}
+
+// readApart reports whether the nullable-inference policy reads a 3.0
+// nullable in members apart in spelling s and its partner, so the two are not
+// one: on an allOf entry it folds into the position only from an entry writing
+// no properties (docs/compilers/openapi.md#allof-inline-residue), and a
+// nullable: true beside a $ref admits null for the whole reference, inferred,
+// where beside a type on an entry it is declared
+// (docs/compilers/openapi.md#nullable).
+func readApart(s string, members object) bool {
+	i := slices.IndexFunc(members, named("nullable"))
+	if i < 0 {
+		return false
+	}
+	properties := slices.ContainsFunc(members, named("properties"))
+	switch s {
+	case entry:
+		return properties
+	case besideEntry:
+		return members[i].value == raw("true") && (properties || typed(members))
+	default:
+		return false
+	}
 }
 
 // typed reports whether members write a type, a type written null being none:

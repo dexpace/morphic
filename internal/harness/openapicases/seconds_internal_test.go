@@ -133,3 +133,26 @@ func TestWrite_NamesTheTwoPartsOfAUnit(t *testing.T) {
 	assert.Nil(t, parts("3.1.0", "string", "none", "typeNull", "items", "beside"))
 	assert.Nil(t, parts("3.1.0", "string", "minLength", "typeNull", "items", "inline"))
 }
+
+// TestWrite_ATypeAdmittingNullCompilesWithoutTheNullablePolicy pins the
+// options a case compiles under: a type admitting null turns the
+// nullable-inference policy off, in every spelling, and nothing else does.
+func TestWrite_ATypeAdmittingNullCompilesWithoutTheNullablePolicy(t *testing.T) {
+	c, ok := New().(cases)
+	require.True(t, ok)
+	for _, s := range []string{"inline", "beside", "wrap", "entry", "besideEntry"} {
+		doc, ok := c.Write(caseAt(t, c, "3.1.0", "string", "minLength", "typeNull", "property", s))
+		require.True(t, ok, s)
+		assert.Equal(t, map[string]string{"nullable-inference": "false"}, doc.Options, s)
+	}
+	for _, names := range [][]string{
+		{"3.1.0", "string", "minLength", "targetType", "property", "beside"},
+		{"3.0.3", "string", "nullable", "none", "property", "beside"},
+		{"3.0.3", "object", "nullable", "properties", "property", "entry"},
+		{"3.1.0", "union", "type", "none", "property", "beside"},
+	} {
+		doc, ok := c.Write(caseAt(t, c, names...))
+		require.True(t, ok, "%v", names)
+		assert.Nil(t, doc.Options, "%v", names)
+	}
+}

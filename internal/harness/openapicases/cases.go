@@ -160,6 +160,7 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	}
 	doc := harness.Document{
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
+		Options: optionsFor(u),
 		Equal:   c.equal(at, u),
 	}
 	if doc.Equal != nil && at[2] > 0 && at[3] > 0 {
@@ -167,6 +168,22 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 	}
 	c.neighbours(&doc, v, t, at)
 	return doc, true
+}
+
+// optionsFor returns the compiler options a case writing u compiles under:
+// for a type admitting null, the nullable-inference policy off. The policy
+// reads such a type beside a $ref as admitting null for the whole reference,
+// and beside an allOf conjoins it with the rest, as the standard does
+// (docs/compilers/openapi.md#nullable), so only with it off are the spellings
+// one; off, each reads the keyword as its version defines it.
+func optionsFor(u written) map[string]string {
+	if slices.ContainsFunc(u.members, func(m member) bool {
+		values, ok := m.value.([]any)
+		return m.name == "type" && ok && slices.Contains(values, any("null"))
+	}) {
+		return map[string]string{"nullable-inference": "false"}
+	}
+	return nil
 }
 
 // parts returns the cases writing alone each keyword the case at writes in one
