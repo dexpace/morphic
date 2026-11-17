@@ -598,9 +598,13 @@ func selectAllOfBase(c lowering.Ctx, branches []allOfBranch, id ir.TypeID) (int,
 	}
 	// Ranked by whether the hierarchy routes id, by reference text, then by
 	// pointer, for a $ref written twice.
+	// Only a target in a hierarchy can be elected, so only its routes are read:
+	// a walk of the ancestors per $ref costs a wide composition naming no
+	// hierarchy a walk of the whole graph each.
 	routes := make(map[int]bool, len(refIdxs))
 	for _, i := range refIdxs {
-		routes[i] = routesTo(c, refBranchTarget(c, branches[i].schema), id)
+		target := refBranchTarget(c, branches[i].schema)
+		routes[i] = len(refIdxs) > 1 && stated(target) && inHierarchy(c, target) && routesTo(c, target, id)
 	}
 	slices.SortStableFunc(refIdxs, func(i, j int) int {
 		_, a := refSpelling(branches[i].schema)
@@ -614,13 +618,10 @@ func selectAllOfBase(c lowering.Ctx, branches []allOfBranch, id ir.TypeID) (int,
 	})
 }
 
-// routesTo reports whether the mapping of a discriminator s or one of its
-// discriminated ancestors declares names id, the node a composition of s
-// lowers to; nil and an empty id route nothing.
+// routesTo reports whether the mapping of a discriminator s, a stated schema,
+// or one of its discriminated ancestors declares names id, the node a
+// composition of s lowers to; an empty id is no node, which none names.
 func routesTo(c lowering.Ctx, s *statement.Schema, id ir.TypeID) bool {
-	if !stated(s) || id == "" {
-		return false
-	}
 	return slices.ContainsFunc(append([]*statement.Schema{s}, discriminatedAncestors(c, s)...), func(a *statement.Schema) bool {
 		d := discriminatorIn(a)
 		return d != nil && len(mappingTagsFor(c, d, id)) > 0
