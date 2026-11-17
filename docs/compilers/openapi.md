@@ -4648,7 +4648,8 @@ declares no type, unlike `type: "null"`, and nothing is kept verbatim for want o
 `default` and `example` hold an instance, of which `null` is one, so a `null` there is that value
 ([`enum-const`](#enum-const), [`nullable`](#nullable)), as an `enum` member is. A keyword of no
 vocabulary has no type to break and is kept with the `null` it wrote, as
-[`unknown-keys`](#unknown-keys) keeps any value. The load phase reports each such `null` at the node
+[`unknown-keys`](#unknown-keys) keeps any value. An empty dependency map is read the same way
+([`validation-only`](#validation-only)). The load phase reports each such `null` at the node
 as the warning a field left out draws ([`validation`](#validation)); the lowering reports nothing
 of its own, since reading it so loses nothing.
 
@@ -4916,6 +4917,16 @@ leave the keyword live, and an entry holding only unevaluated keywords holds liv
 `allOf` branch writes stays with the branch kept whole, whatever its form
 ([`allof-inline-residue`](#allof-inline-residue)), since at the position it would exempt what the
 other conjuncts evaluate.
+A keyword whose value is the empty collection JSON Schema equates with its absence states nothing,
+and is read as the keyword left out, as [`null-keywords`](#null-keywords) reads a `null`: nothing
+is typed, kept or reported for it, and the schema lowers as it does with the key removed.
+`dependentSchemas`, `dependentRequired` and a draft's `dependencies` are read so when written as a
+mapping with no entry, at every position, an inline `allOf` branch writing only one included, which
+says nothing for the position and is no conjunct another branch's keyword disagrees with. Where
+the dialect defines no `dependencies`, an empty one is an unknown keyword like any other
+([`unknown-keys`](#unknown-keys)), as `definitions` is, and kept whatever it holds. A keyword
+holding a schema, `not`, `if`, `then`, `else`, `propertyNames`, `contains` and the unevaluated
+keywords, states something when it holds `{}`, the schema every instance satisfies, and is kept.
 Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
 4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
@@ -4939,7 +4950,11 @@ document lands on, hop by hop, as it would one a lowered keyword names.
   `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
   `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
   `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
-  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`
+  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`,
+  `annotation.TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry`,
+  `statement.TestKey_DefinedTellsAKeywordTheRowsDefine`,
+  `e2e.TestEmptyDependencyMap_IsTheKeywordLeftOut`,
+  `e2e.TestEmptyDependencyMap_AnEntryWritingOnlyOneSaysNothing`
 
 ### `dynamic-ref`
 
@@ -5223,7 +5238,8 @@ reader to notice, and a finding that stands is listed with its reason in the pac
 `morphic-harness -cases full` asks it of every case, an entry written before the `$ref` among them,
 and reports what the record does not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
-another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the positions
+another would still pass. A dependency map with no entry is no value in that sense but the keyword
+left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions
 they land on are lowered ([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
