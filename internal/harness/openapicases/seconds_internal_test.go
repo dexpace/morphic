@@ -29,7 +29,9 @@ func TestSeconds_EachNamesARowOrWritesItsOwn(t *testing.T) {
 
 // TestWrite_PlacesASecondBesideItsConstruct pins where a second construct is
 // written, and the use of the component position each case writes: after its
-// construct in one unit, and nowhere it would not say a keyword of its own.
+// construct in one unit, a second $ref as the allOf entry right after the
+// target's in every spelling, and nowhere it would not say a keyword of its
+// own.
 func TestWrite_PlacesASecondBesideItsConstruct(t *testing.T) {
 	c, ok := New().(cases)
 	require.True(t, ok)
@@ -45,6 +47,20 @@ func TestWrite_PlacesASecondBesideItsConstruct(t *testing.T) {
 		{"3.1.0/string/title/typeNull/component/inline", `{"type":["string","null"],"title":"T"}`},
 		{"3.0.3/string/title/secondRef/component/beside",
 			`{"$ref":"#/components/schemas/T","title":"T","allOf":[{"$ref":"#/components/schemas/S"}]}`},
+		{"3.0.3/string/title/secondRef/component/wrap",
+			`{"allOf":[{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"}],"title":"T"}`},
+		{"3.0.3/string/title/secondRef/component/entry",
+			`{"allOf":[{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"},{"title":"T"}]}`},
+		{"3.0.3/string/title/secondRef/component/entryFirst",
+			`{"allOf":[{"title":"T"},{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"}]}`},
+		{"3.0.3/string/title/secondRef/component/nested",
+			`{"allOf":[{"allOf":[{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"},{"title":"T"}]}]}`},
+		{"3.0.3/string/title/secondRef/component/inline",
+			`{"type":"string","title":"T","allOf":[{"$ref":"#/components/schemas/S"}]}`},
+		{"3.0.3/string/none/secondRef/component/wrap",
+			`{"allOf":[{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"}]}`},
+		{"3.0.3/string/none/secondRef/component/entry", ""},  // wrap's document
+		{"3.0.3/object/allOf/secondRef/component/entry", ""}, // a keyword the construct writes
 		{"3.0.3/string/minLength/description/component/inline", `{"type":"string","minLength":1,"description":"D"}`},
 		{"3.2.0/string/minLength/description/component/beside", ""},    // a version like another
 		{"3.0.3/enum/minLength/description/component/beside", ""},      // a target like another

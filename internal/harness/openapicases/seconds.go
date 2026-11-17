@@ -18,9 +18,9 @@ const secondSchema = "S"
 // One named as no row writes what own writes.
 type second struct {
 	name string
-	// own returns the members a second of no row writes on t at v and the
-	// components they name, and false where it says nothing of t.
-	own func(t target, v version) (members, components object, ok bool)
+	// own returns what a second of no row writes on t at v, and false where it
+	// says nothing of t.
+	own func(t target, v version) (written, bool)
 	// restates is true of a second saying what t's body says already, so
 	// inline, writing that body, writes nothing more.
 	restates bool
@@ -64,35 +64,56 @@ func typeOf(t target) (any, bool) {
 }
 
 // targetType restates t's type beside the construct.
-func targetType(t target, _ version) (object, object, bool) {
+func targetType(t target, _ version) (written, bool) {
 	typ, ok := typeOf(t)
-	return object{{"type", typ}}, nil, ok
+	return written{members: object{{"type", typ}}}, ok
 }
 
 // typeNull is from 3.1 the spelling of a nullable t, its type and "null";
 // before it a type is one name, and the nullable second says it.
-func typeNull(t target, v version) (object, object, bool) {
+func typeNull(t target, v version) (written, bool) {
 	typ, ok := typeOf(t)
 	if !ok || !v.dialect {
-		return nil, nil, false
+		return written{}, false
 	}
-	return object{{"type", []any{typ, "null"}}}, nil, true
+	return written{members: object{{"type", []any{typ, "null"}}}}, true
 }
 
 // secondRef is an allOf entry naming, by a second $ref, a schema saying what
-// t says, so the unit holds every instance t does.
-func secondRef(t target, _ version) (object, object, bool) {
+// t says, so the use holds every instance t does. It follows the target's
+// reference in every spelling (written.entries).
+func secondRef(t target, _ version) (written, bool) {
 	ref := object{{"$ref", "#/components/schemas/" + secondSchema}}
-	return object{{"allOf", []any{ref}}}, object{{secondSchema, t.body}}, true
+	return written{entries: []any{ref}, components: object{{secondSchema, t.body}}}, true
 }
 
-// written is what a second writes beside a construct: its members, the
-// components they name, the index of the construct row whose first value it
-// is, -1 for a second of no row, and where that row is written.
+// written is what a second writes beside a construct, or a case in one unit:
+// its members, the components they name, the index of the construct row whose
+// first value it is, -1 for a second of no row, and where that row is written.
+// entries are allOf entries naming schemas by $ref, which every spelling
+// writes right after the target's reference, in whichever allOf holds it:
+// moved with the members, an entry spelling written first would also move
+// them before that reference, changing the order of the composition's mixins,
+// which the order written decides
+// (docs/compilers/openapi.md#allof-classification), and so compare something
+// besides the spelling.
 type written struct {
 	members, components object
+	entries             []any
 	row                 int
 	stays               stays
+}
+
+// names returns the members' names, and allOf where w writes entries.
+func (w written) names() []string {
+	out := make([]string, 0, len(w.members)+1)
+	for _, m := range w.members {
+		out = append(out, m.name)
+	}
+	if len(w.entries) > 0 {
+		out = append(out, "allOf")
+	}
+	return out
 }
 
 // secondAt returns what the second at index j of the second axis writes on t
@@ -115,9 +136,10 @@ func (c cases) secondAt(j int, v version, t target) (written, bool) {
 		out.members, out.components, out.stays = k.values(t, v)[0], k.components, k.stays
 	case sec.own != nil:
 		var ok bool
-		if out.members, out.components, ok = sec.own(t, v); !ok {
+		if out, ok = sec.own(t, v); !ok {
 			return written{}, false
 		}
+		out.row = -1
 	default:
 	}
 	return out, true
@@ -134,7 +156,7 @@ func (c cases) fits(at []int, sec written, first object, t target) bool {
 			return false
 		}
 	}
-	if slices.ContainsFunc(sec.members, func(m member) bool { return slices.ContainsFunc(first, sameName(m)) }) {
+	if slices.ContainsFunc(sec.names(), func(name string) bool { return slices.ContainsFunc(first, named(name)) }) {
 		return false
 	}
 	if c.spellings[at[5]] != inline {
@@ -161,4 +183,7 @@ func (c cases) rowOf(j int) int {
 }
 
 // sameName returns the predicate of a member named as m is.
-func sameName(m member) func(member) bool { return func(n member) bool { return n.name == m.name } }
+func sameName(m member) func(member) bool { return named(m.name) }
+
+// named returns the predicate of a member named name.
+func named(name string) func(member) bool { return func(n member) bool { return n.name == name } }

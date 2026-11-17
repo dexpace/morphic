@@ -134,11 +134,11 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 		return harness.Document{}, false
 	}
 	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
-	members, components, st, ok := c.unit(at, v, t)
+	u, ok := c.unit(at, v, t)
 	if !ok {
 		return harness.Document{}, false
 	}
-	use, ok := c.spelt(st, s, t, members)
+	use, ok := c.spelt(u, s, t)
 	if !ok {
 		return harness.Document{}, false
 	}
@@ -151,45 +151,51 @@ func (c cases) Write(at []int) (harness.Document, bool) {
 		{"openapi", v.name},
 		{"info", object{{"title", "cases"}, {"version", "1"}}},
 		{"paths", paths},
-		{"components", object{{"schemas", append(schemas, components...)}}},
+		{"components", object{{"schemas", append(schemas, u.components...)}}},
 	})
 	if err != nil {
 		panic(fmt.Sprintf("openapicases: case %v: %v", at, err))
 	}
 	doc := harness.Document{
 		Sources: []compilers.Source{{Path: specPath, Data: data}},
-		Equal:   c.equal(at, members, st),
+		Equal:   c.equal(at, u),
 	}
-	c.neighbours(&doc, t, at)
+	c.neighbours(&doc, v, t, at)
 	return doc, true
 }
 
 // unit returns what the case at writes in one unit on t at v: its construct's
-// members then its second's, the components they name and where the unit is
-// written, the stricter of the two, and false where either writes nothing. A
-// row's second beside no construct is that row's case, which writes it.
-func (c cases) unit(at []int, v version, t target) (object, object, stays, bool) {
+// members then its second's, the components they name, the second's entries
+// and where the unit is written, the stricter of the two, and false where
+// either writes nothing. A row's second beside no construct is that row's
+// case, which writes it.
+func (c cases) unit(at []int, v version, t target) (written, bool) {
 	members, components, ok := c.construct(at[2], v, t)
 	if !ok {
-		return nil, nil, moved, false
+		return written{}, false
 	}
 	sec, ok := c.secondAt(at[3], v, t)
 	if !ok || (sec.row >= 0 && at[2] == 0) || !c.fits(at, sec, members, t) {
-		return nil, nil, moved, false
+		return written{}, false
 	}
-	st := max(c.staysAt(at[2]), sec.stays)
-	return slices.Concat(members, sec.members), slices.Concat(components, sec.components), st, true
+	return written{
+		members:    slices.Concat(members, sec.members),
+		components: slices.Concat(components, sec.components),
+		entries:    sec.entries,
+		row:        -1,
+		stays:      max(c.staysAt(at[2]), sec.stays),
+	}, true
 }
 
 // neighbours names, in doc, the cases the presence oracle compares the case at
 // with: the case leaving the construct out, and, for a keyword something
 // carries, the case writing its other value. The none construct and a
 // keyword's other value name none: the latter is asked through its keyword.
-// Left out of a unit writing no second, the construct leaves an entry spelling
-// wrap's document; left beside a row's second, it leaves that row's case.
-// A keyword the target's body writes already is replaced by the construct, so
-// no case leaves it out (Document.Replaces).
-func (c cases) neighbours(doc *harness.Document, t target, at []int) {
+// Left out of a unit whose second writes no member, the construct leaves an
+// entry spelling wrap's document; left beside a row's second, it leaves that
+// row's case. A keyword the target's body writes already is replaced by the
+// construct, so no case leaves it out (Document.Replaces).
+func (c cases) neighbours(doc *harness.Document, v version, t target, at []int) {
 	if at[2] == 0 || (at[2]-1)%2 != 0 {
 		return
 	}
@@ -197,8 +203,10 @@ func (c cases) neighbours(doc *harness.Document, t target, at []int) {
 	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
 	if row := c.rowOf(at[3]); row >= 0 {
 		doc.Absent[2], doc.Absent[3] = 1+2*row, 0 // the row's second alone is the row's case
-	} else if s := c.spellings[at[5]]; at[3] == 0 && (s == entry || s == entryFirst) {
-		doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
+	} else if s := c.spellings[at[5]]; s == entry || s == entryFirst {
+		if sec, _ := c.secondAt(at[3], v, t); len(sec.members) == 0 {
+			doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
+		}
 	}
 	doc.Carried, doc.Reason = k.reason == "", k.reason
 	if doc.Carried {

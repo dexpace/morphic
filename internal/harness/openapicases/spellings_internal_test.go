@@ -4,11 +4,14 @@
 package openapicases
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"slices"
+	"strings"
 	"testing"
 
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -78,7 +81,8 @@ func caseAt(t *testing.T, c cases, names ...string) []int {
 
 // TestWrite_EachSpellingNamesItsPartner pins the spellings a case writes and
 // the partner each names: what stays beside the use, what no spelling but
-// inline writes, an entry saying nothing, and the reports a 3.0 use states.
+// inline writes, an entry saying nothing, and the reports a 3.0 use states,
+// a nullable: true's beside the allOf only where no type is written with it.
 func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 	c := New().(cases)
 	for _, tc := range []struct {
@@ -128,17 +132,25 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 	nullable := eq("3.0.3", "string", "nullable", "none", "items", "beside")
 	assert.Equal(t, []harness.Stated{warning("openapi/validation/validation-no-effect", item+"/nullable")}, nullable.Replaced)
 	assert.Empty(t, eq("3.0.3", "string", "nullable~", "none", "items", "beside").Replaced, "nullable: false draws none")
+	typed := eq("3.0.3", "string", "nullable", "targetType", "items", "beside")
+	assert.Equal(t, []harness.Stated{warning("openapi/later-version-construct", item+"/nullable"),
+		warning("openapi/later-version-construct", item+"/type")}, typed.Stated)
+	assert.Empty(t, typed.Replaced, "a type beside nullable: true gives it its effect")
+	assert.Empty(t, eq("3.0.3", "union", "type", "nullable", "items", "beside").Replaced, "nor is the type the second")
+	assert.Equal(t, []harness.Stated{warning("openapi/later-version-construct", item+"/title"),
+		warning("openapi/later-version-construct", item+"/allOf")},
+		eq("3.0.3", "string", "title", "secondRef", "items", "beside").Stated, "a second $ref is an allOf beside it")
 	assert.Empty(t, eq("3.1.0", "string", "minLength", "none", "items", "beside").Stated)
 	assert.Equal(t, "docs/compilers/openapi.md#ref-use-site", nullable.Rule)
 }
 
 func TestSpell_RefusesAUseWritingAKeyTwice(t *testing.T) {
 	ref := object{{"$ref", "#/components/schemas/T"}}
-	_, ok := spell(beside, ref, object{{"$ref", "#/components/schemas/RefString"}})
+	_, ok := spell(beside, ref, object{{"$ref", "#/components/schemas/RefString"}}, nil)
 	assert.False(t, ok)
-	_, ok = spell(inline, ref, nil)
+	_, ok = spell(inline, ref, nil, nil)
 	assert.False(t, ok, "inline writes the body, no use")
-	use, ok := spell(nested, ref, object{{"title", "T"}})
+	use, ok := spell(nested, ref, object{{"title", "T"}}, nil)
 	require.True(t, ok)
 	got, err := encode(use)
 	require.NoError(t, err)
@@ -173,4 +185,112 @@ func TestGroups_EachSpellingNamesItsPartner(t *testing.T) {
 	c.spellings = append(c.spellings, inline)
 	_, ok = c.Write([]int{0, 0, 0, len(c.spellings) - 1})
 	assert.False(t, ok, "a spelling writing no use of a group's target writes nothing")
+}
+
+// TestWrite_TwoSpellingsDifferInTheUseAlone holds each case naming a partner,
+// at the component position, to that partner: the two documents differ in the
+// case's own schema alone, and each says there the same conjuncts, the
+// references in one order and every other keyword alike. So a pair compares
+// how the use is spelt and nothing a spelling carries along with it, such as
+// which of two references comes first, an order a composition's mixins keep
+// (docs/compilers/openapi.md#allof-classification).
+func TestWrite_TwoSpellingsDifferInTheUseAlone(t *testing.T) {
+	t.Parallel()
+	c, ok := New().(cases)
+	require.True(t, ok)
+	each, err := harness.Each(c)
+	require.NoError(t, err)
+	axes := c.Axes()
+	var pairs int
+	var differ []string
+	for _, at := range each {
+		if c.positions[at[4]].name != "component" {
+			continue
+		}
+		doc, ok := c.Write(at)
+		if !ok || doc.Equal == nil {
+			continue
+		}
+		partner, ok := c.Write(doc.Equal.To)
+		require.True(t, ok, "%v", at)
+		pairs++
+		if diff := gocmp.Diff(useOf(t, partner), useOf(t, doc)); diff != "" {
+			differ = append(differ, nameOf(axes, at)+"\n"+diff)
+		}
+	}
+	assert.Positive(t, pairs)
+	assert.Empty(t, differ, "%d of %d pairs differ beyond the use's spelling", len(differ), pairs)
+}
+
+// nameOf returns the name of the case at: its value names joined by "/".
+func nameOf(axes []harness.Axis, at []int) string {
+	names := make([]string, len(axes))
+	for k, a := range axes {
+		names[k] = a.Values[at[k]].Name
+	}
+	return strings.Join(names, "/")
+}
+
+// said is what a document says, read for TestWrite_TwoSpellingsDifferInTheUseAlone:
+// everything but the case's schema as it stands, and that schema as the
+// conjuncts it says.
+type said struct {
+	Rest       any
+	Refs, Unit []string
+}
+
+// useOf reads doc, a case at the component position, as said.
+func useOf(t *testing.T, doc harness.Document) said {
+	t.Helper()
+	data := doc.Sources[0].Data
+	var out said
+	require.NoError(t, json.Unmarshal(data, &out.Rest))
+	var spec struct {
+		Components struct {
+			Schemas map[string]jsontext.Value `json:"schemas"`
+		} `json:"components"`
+	}
+	require.NoError(t, json.Unmarshal(data, &spec))
+	rest, ok := out.Rest.(map[string]any)["components"].(map[string]any)["schemas"].(map[string]any)
+	require.True(t, ok)
+	delete(rest, caseSchema)
+	conjuncts(t, jsontext.NewDecoder(bytes.NewReader(spec.Components.Schemas[caseSchema])), &out, 0)
+	slices.Sort(out.Unit)
+	return out
+}
+
+// conjuncts reads the schema dec holds next into out, depth allOf entries
+// deep: each $ref in the order written, each allOf entry in the allOf's
+// place, and every other member as its name and value.
+func conjuncts(t *testing.T, dec *jsontext.Decoder, out *said, depth int) {
+	t.Helper()
+	require.Less(t, depth, maxDepth)
+	tok, err := dec.ReadToken()
+	require.NoError(t, err)
+	require.Equal(t, jsontext.Kind('{'), tok.Kind())
+	for dec.PeekKind() != '}' {
+		tok, err := dec.ReadToken()
+		require.NoError(t, err)
+		switch name := tok.String(); name {
+		case "$ref":
+			ref, err := dec.ReadToken()
+			require.NoError(t, err)
+			out.Refs = append(out.Refs, ref.String())
+		case "allOf":
+			_, err := dec.ReadToken()
+			require.NoError(t, err)
+			for dec.PeekKind() != ']' {
+				conjuncts(t, dec, out, depth+1)
+			}
+			_, err = dec.ReadToken()
+			require.NoError(t, err)
+		default:
+			value, err := dec.ReadValue()
+			require.NoError(t, err)
+			require.NoError(t, value.Compact())
+			out.Unit = append(out.Unit, name+"="+string(value))
+		}
+	}
+	_, err = dec.ReadToken()
+	require.NoError(t, err)
 }
