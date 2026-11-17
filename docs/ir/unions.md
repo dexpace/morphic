@@ -120,7 +120,10 @@ branch's, which every other use of that branch shares, or a primitive every stri
 scalar's, and a reference naming the union reads the node, so the node is the bound's one home
 ([annotations](./annotations.md#one-structural-home-per-declaration)). Where the union's position
 builds its variants itself, a type list's or a distributed composition's, the variants hold the
-bounds and the union holds none.
+bounds and the union holds none: each variant those of the kinds it admits, so a reader of a variant
+finds every bound on its instances there. A bound no variant admits a value of bounds nothing the
+position admits, and a compiler keeps it verbatim on the union rather than on a variant it cannot
+bound.
 
 Three other homes were weighed. The carrier alone loses the bound for every reference naming the
 position, the carrier restating the node's writes it twice (#1988), and `Unmodeled` alone leaves a

@@ -27,7 +27,8 @@ components:
         - {$ref: '#/components/schemas/B'}
       minProperties: 2
     # An inline branch is hoisted at its own pointer and conjoined as a $ref
-    # branch is, carried as written though it admits no object
+    # branch is, but only where it is an object: a string branch is no base, and
+    # its variant keeps it verbatim
     # (docs/compilers/openapi.md#union-beside-structure).
     MixedKinds:
       type: object

@@ -920,11 +920,14 @@ it sees. Changes made together in one bump are listed together under it.
   declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` a conjunct
   writes masks no kind in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
-  base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A union beside an
-  `allOf` naming no kind is the `Union`, holding the bound in `Union.Constraints`, and one sharing no
-  kind with the rest is kept under its keyword, not distributed.
-  A composed `Model` takes `Additional` and `AdditionalProps` from the one schema object of its
-  `allOf` whose `additionalProperties` reads every member the conjuncts declare
+  base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
+  union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
+  such a list aside, keeping any other under `openapi:oneOf/<i>` or `openapi:anyOf/<i>`, and holds
+  only the bounds the kinds it admits take, its branch's within the body's, where it held each the
+  position took. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
+  `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
+  distributed. A composed `Model` takes `Additional` and `AdditionalProps` from the one schema
+  object of its `allOf` whose `additionalProperties` reads every member the conjuncts declare
   ([`additional-properties`](../compilers/openapi.md#additional-properties)): an entry closing such
   a model types its closure, where the entry was kept whole, and a closure beside an `allOf` whose
   entries declare members is kept under `openapi:additionalProperties`, where it closed or typed the
@@ -938,7 +941,9 @@ it sees. Changes made together in one bump are listed together under it.
   found a union of models over each branch, and one reading a union with a null branch beside a body
   finds it distributed, behind a reference admitting null as the body does, one reading an `allOf`
   over a target that is no object alone as a model finds a use of the target, and one reading a
-  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` kept instead, and
-  over a `type` list holding an object the list's object variant where it found the union, and
-  one reading an `additionalProperties` finds it typed where the schema object writing it declares
-  every member of the composition, on an entry as beside the `allOf`, and kept elsewhere.
+  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` or a variant's
+  branch kept instead, and over a `type` list holding an object the list's object variant where it
+  found the union, and one reading a variant's `Constraints` finds a property count only where the
+  variant admits an object, and one reading an `additionalProperties` finds it typed where the
+  schema object writing it declares every member of the composition, on an entry as beside the
+  `allOf`, and kept elsewhere.

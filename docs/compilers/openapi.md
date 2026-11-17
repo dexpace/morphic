@@ -3545,8 +3545,17 @@ model [`allof-false-branch`](#allof-false-branch) gives it, with the branch kept
 variant conjoins its branch by reference: a `$ref` branch's target, through the alias what is
 written beside the `$ref` hoists, and an inline branch's own node, hoisted at its pointer as any
 inline schema is ([`inline-hoisting`](#inline-hoisting)), which an outside `$ref` to that pointer
-finds too. The referent is carried as written, a branch admitting no object among them
-([models](../ir/models.md#composition-entries)). Object keywords written with no `type`, a
+finds too. The referent is the variant's `Base` or a `Mixin` only where the branch lowers to an
+object alone, null aside, or its read is cut short, as an `allOf`'s `$ref` entry composes
+([`allof-classification`](#allof-classification)), and a `$ref` to a schema whose `type` list holds
+an object composes that list's object variant, unless the branch writes a keyword beside its `$ref`,
+which its own node holds over the whole list. Any other branch, admitting another kind or every
+kind, is kept verbatim on its variant under its path from the schema, `openapi:oneOf/<i>` or
+`openapi:anyOf/<i>` (`degraded_lowering`), with an info `openapi/degraded-construct` at the branch,
+and still lowers at its own pointer ([models](../ir/models.md#composition-entries)). A variant holds
+the bounds written beside the union that the kinds it admits take, its branch's within the body's,
+and one no variant takes is kept on the `Union` ([`constraints`](#constraints)): beside `type:
+object`, a variant over a string holds no property count. Object keywords written with no `type`, a
 `properties`, a `patternProperties`, a `required`, a closure or a catch-all, are a body too where
 the kinds the position lowers to are an object alone ([`shape-applicator`](#shape-applicator)):
 what the branches declare, each an object, or, where nothing declares a kind, what the
@@ -3752,6 +3761,14 @@ judged as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
   `schema.TestOneOf_CoDeclaredTypeReadsNullableByItsDialect`,
   `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
+  `schema.TestOneOf_CoDeclaredNonModelBranchIsKeptOnItsVariant`,
+  `schema.TestOneOf_CoDeclaredUnpreservableBranchIsNotAnnounced`,
+  `schema.TestOneOf_CoDeclaredBranchReadCutShortIsComposed`,
+  `e2e.TestVariantBounds_AVariantNamesOnlyAnObjectBranchAsItsBase`,
+  `e2e.TestVariantBounds_AVariantOverATypeListComposesItsObject`,
+  `e2e.TestVariantBounds_AVariantKeepsATypeListOrAUnionHoldingNoLoneObject`,
+  `e2e.TestVariantBounds_ATypeListBranchWritingBesideItsRefIsKept`,
+  `schema.TestOneOf_CoDeclaredTypeListBranchComposesItsObject`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
@@ -4899,7 +4916,8 @@ primitive's, reads a `Scalar` hoisted there holding them, while the carrier keep
 node's kind decides what it holds, whatever the position admits: a `Model` or a `MapT` the property
 counts alone, as its instances are objects, a `List` or a `Tuple` the collection bounds, and a
 `Union` those its variants take, or its variants where the position builds them, a type list's
-([`type-arrays`](#type-arrays)) or a distributed union's. A bound its kind does not take, and one
+([`type-arrays`](#type-arrays)) or a distributed union's, each those of the kinds it admits, its
+branch's within the body's ([`union-beside-structure`](#union-beside-structure)). A bound its kind does not take, and one
 beside a node with no `Constraints` field (an `Enum`, a `Literal`, the `Union` of literals a mixed
 `enum` lowers to), is kept verbatim on the node under `openapi:<keyword>` (`degraded_lowering`),
 once, with an info `openapi/degraded-construct` naming the node it lowered to, as
@@ -4942,6 +4960,9 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestAllOf_ACompositionReadsBoundsByTheTypesItComposes`,
   `schema.TestAllOf_AnEmptyConjunctionKeepsEveryBound`,
   `schema.TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes`,
+  `e2e.TestVariantBounds_AVariantHoldsOnlyTheBoundsItsBranchTakes`,
+  `e2e.TestVariantBounds_ABoundOfAKindNoBranchTakesIsNotLostToTheVariants`,
+  `e2e.TestVariantBounds_ABoundNoVariantTakesIsKeptOnceOnTheUnion`,
   `schema.TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder`,
   `schema.TestConstraints_AnExpandedReferenceIsNamedByItsKeyword`,
   `schema.TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder`,
@@ -5004,12 +5025,11 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
-- Status: partly built: a distributed union's variant holds each bound the whole position takes,
-  one its own branch cannot take included (#1936). Two declarations of one field that each keep a
-  bound meet the fold of [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound
-  left unread is reported at its position, with the census's other keywords, not at the keyword. A
-  bound beside an enum a promotion opens, which bounds the values it does not list, is kept verbatim
-  as a closed one's is (#2004).
+- Status: partly built: two declarations of one field that each keep a bound meet the fold of
+  [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
+  at its position, with the census's other keywords, not at the keyword. A bound beside an enum a
+  promotion opens, which bounds the values it does not list, is kept verbatim as a closed one's is
+  (#2004).
 
 ### `validation-only`
 

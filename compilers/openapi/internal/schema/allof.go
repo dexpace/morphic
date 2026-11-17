@@ -262,18 +262,18 @@ func composesRef(c lowering.Ctx, e allOfBranch) bool {
 	if kinds, _ := lowersTo(c, target); kinds == kindObject {
 		return true
 	}
-	_, unpacked := objectVariant(c, e)
+	_, unpacked := objectVariant(c, e.schema)
 	return unpacked
 }
 
 // objectVariant returns the ID of the object variant of the union the $ref
-// entry e lands on, where that schema lowers by a type list holding an object
-// (lowerUnion), and false for any other: the variant stands at the list's
-// position, one per type, so it is named before the union is built. A union a
-// oneOf or anyOf writes may hold several objects, or none a model is, and is
-// not unpacked.
-func objectVariant(c lowering.Ctx, e allOfBranch) (ir.TypeID, bool) {
-	target, at := declaredOf(c, e.schema)
+// conjunct ref lands on, an allOf entry or a distributed union's branch, where
+// that schema lowers by a type list holding an object (lowerUnion), and false
+// for any other: the variant stands at the list's position, one per type, so
+// it is named before the union is built. A union a oneOf or anyOf writes may
+// hold several objects, or none a model is, and is not unpacked.
+func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
+	target, at := declaredOf(c, ref)
 	if target == nil || target.Ref != nil || declaresUnion(target.Schema) {
 		return "", false
 	}
@@ -317,7 +317,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 		}
 		return diags
 	}
-	if variant, unpacked := objectVariant(c, e); unpacked {
+	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
 	}
 	unhomed := refSiteUnhomedKeywords(c, b.Schema, compositionCensusHandled)
