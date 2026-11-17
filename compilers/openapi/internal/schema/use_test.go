@@ -59,7 +59,8 @@ func TestUse_ADefaultReadsOnlyWhereThePositionTakesIt(t *testing.T) {
 }
 
 // TestUse_ALostRefSpeaksWithWhatIsBesideIt pins a $ref its lowering lost: what is
-// written beside it speaks before its target, on a carrier and on a node alike.
+// written beside it speaks before its target, on the value set's node at a
+// property as at a component.
 func TestUse_ALostRefSpeaksWithWhatIsBesideIt(t *testing.T) {
 	t.Parallel()
 	const lost = "{$ref: '#/components/schemas/Mode', description: beside, deprecated: true}"
@@ -72,8 +73,8 @@ func TestUse_ALostRefSpeaksWithWhatIsBesideIt(t *testing.T) {
         f: {allOf: [`+lost+`, {enum: [a]}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	f := propertyOf(t, doc, "Holder", "f")
-	assert.Equal(t, "beside", f.Docs.Description)
+	f := doc.Types[propertyOf(t, doc, "Holder", "f").Type.Target].Common()
+	assert.Equal(t, "beside", f.Docs.Description, "the node standing at the property")
 	assert.NotNil(t, f.Deprecation)
 	for _, name := range []string{"Narrow", "Passed"} {
 		common := typeByName(doc, name).Common()

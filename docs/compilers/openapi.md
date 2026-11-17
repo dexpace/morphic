@@ -2198,7 +2198,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 ### `allof-refinement`
 
 An `allOf` is a composition where the kinds the position lowers to, null aside, are an object
-alone, the keywords beside the `allOf` being a conjunct as much as a branch is, and where its marker
+alone and no conjunct states a value set, which is elected first (below), the keywords beside the
+`allOf` being a conjunct as much as a branch is, and where its marker
 is the kind-inference policy's where that reading is inferred
 ([`shape-applicator`](#shape-applicator)). Those kinds are what the conjuncts declare together, or,
 where nothing declares one, what their shape keywords claim, so `{allOf: [{$ref: E}], description:
@@ -2227,11 +2228,11 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
 3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
    depth ([`allof-classification`](#allof-classification));
 4. the conjuncts share no value, a null they all admit being no shared value unless a conjunct
-   admits nothing else. A warning says so at the schema where their instance types share none
-   ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), and otherwise at a branch writing a
-   `type` that excludes an object ([`allof-inline-residue`](#allof-inline-residue)). Where neither
-   holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
-   names the contradiction.
+   admits nothing else, and no value set is elected (below). A warning says so at the schema where
+   their instance types share none ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), and
+   otherwise at a branch writing a `type` that excludes an object
+   ([`allof-inline-residue`](#allof-inline-residue)). Where neither holds, as for two `enum`s
+   sharing no member, each branch is kept with an info and no report names the contradiction.
 5. a `$dynamicRef` the position does not expand stands beside it: `{allOf: [{$ref: T}], $dynamicRef:
    '#m'}` is a `Model` keeping the `$dynamicRef`, even where `T` admits no object and its `$ref` is
    kept too.
@@ -2244,12 +2245,20 @@ the position lowers as the rest does, the union is kept under `openapi:oneOf` or
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names it at the schema, so no union is
 distributed into models no instance satisfies ([`union-beside-structure`](#union-beside-structure)).
 
-An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts, the keywords beside
-the `allOf` writing a value set, rather than its rival in the election of
+An `enum` or a `const` beside an `allOf` is one of its conjuncts, the keywords beside the `allOf`
+writing a value set, rather than its rival in the election of
 [`competing-keywords`](#competing-keywords): `{enum: [a], allOf: [{$ref: Level}]}` elects its
 principal from the same set as `{allOf: [{$ref: Level}, {enum: [a]}]}`, its branches fold and its
-`$ref` still lowers. Beside an `allOf` that composes, the value set wins that election and the
-`allOf` stays verbatim.
+`$ref` still lowers. Where the conjuncts would compose, their kinds an object alone or sharing no
+value, a value set is elected before the composition, as that election elects one beside it, in
+every spelling and whatever its members: the one lying within every other value set stated, the one
+beside the `allOf` first, so long as its own keywords leave it a value. So `{allOf: [{$ref: Obj},
+{enum: [{a: x}]}]}` is the `Union` of `Literal`s that enum is, as written beside the `allOf`, and
+`{allOf: [{$ref: Level}, {enum: [other]}]}` with `other` outside `Level` an `Enum` of `other`, the
+`$ref` kept with an info saying they share no value, and where their instance types share none the
+warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names the value set it lowered
+as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
+set is elected: one leaving itself no value, as `enum: []`, or two neither lying within the other.
 
 The principal is chosen from the whole set:
 
@@ -2299,10 +2308,15 @@ A `format` or `items` written with no `type` qualifies a kind and names none, so
 either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
 naming neither. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
 principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
-as if no `allOf` were written. A principal lowers at the pointer it is written at, so nothing is
-minted and each node stands at a pointer naming its schema: a `$ref` as any `$ref` branch does, what
-is written beside it on the alias [models](../ir/models.md#composition-entries) describes, and an
-inline branch as a schema carried by the position. A branch that reduces to a shared node reads as
+as if no `allOf` were written. An inline principal writing a value set lowers it at the position's
+pointer, as the keywords beside the `allOf` would, so one node stands for the position whichever
+conjunct writes the set, its members and the reports on them where they are written. What the
+branch writes beside the set is kept on that node at its own pointer, as any conjunct's is. A `$ref`
+to the branch's own pointer names the branch alone, a node of its own typed by what it writes. Any
+other principal lowers at the pointer it is written at, so nothing is minted and each node stands at
+a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
+alias [models](../ir/models.md#composition-entries) describes, and an inline branch as a schema
+carried by the position. A branch that reduces to a shared node reads as
 written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
 `readOnly` and `writeOnly` as it keeps its schema's.
 
@@ -2329,7 +2343,10 @@ another URI, the same spelling may name another schema, while an absolute one na
 wherever it is read. A copy in another document is read apart. One saying
 more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the
 `allOf` under `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the
-branch or at the position. A `$ref` a value set beats is kept the same way, and its target still
+branch or at the position. A `$ref` conjunct the position is no use of is kept as written under
+`openapi:$ref`, or `openapi:$ref/<i>` where it keeps several, `i` its rank by reference text, then by
+the entry as written, so no order of the entries decides, two written alike being one entry at the
+position. One a value set beats still
 speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set
 takes it, and still lowers, though nothing else names it, as a position no component holds lowers
 for a `$ref`. A `oneOf` or `anyOf` written on a branch is a conjunct admitting what any of its
@@ -2378,6 +2395,19 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 - Cases: `allof-refinement`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
 - Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+  `e2e.TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling`,
+  `e2e.TestEntryValueSet_TheEntryOrderLeavesTheDocumentAlone`,
+  `e2e.TestEntryValueSet_TheWrapAndTheEntrySpellingsCompileAlike`,
+  `e2e.TestEntryValueSet_AReferenceToThePositionReadsItsNode`,
+  `e2e.TestEntryValueSet_AReferenceToAnEntryNamesTheEntryAlone`,
+  `e2e.TestEntryValueSet_SeveralRefsAreKeptByTheirReferenceText`,
+  `e2e.TestEntryValueSet_AnObjectValueSetIsElectedBeforeTheComposition`,
+  `e2e.TestEntryValueSet_AValueSetTheTargetAlreadySaysStandsNowhere`,
+  `e2e.TestEntryValueSet_AUseRepeatedLeavesTheNodesOfTheValueSetAlone`,
+  `schema.TestValueSet_AConstNullOnAnEntryStandsAtThePosition`,
+  `schema.TestValueSet_AnEnumPastTheBudgetOnAnEntryIsRefusedWhereWritten`,
+  `schema.TestValueSet_TwoRefsWrittenAlikeAreKeptOnce`,
+  `schema.TestValueSet_AnEmptyEnumBesideACompositionIsNotElected`,
   `schema.TestRefinement_PrimitiveBranchesLowerToTheirMeet`,
   `schema.TestRefinement_DisjointConjunctsStayAComposition`,
   `schema.TestRefinement_NamesItsTargetAtEveryPosition`,
@@ -3879,9 +3909,10 @@ with its entry. Where a *structural* sibling is written as well,
 [`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept,
 an `allOf` that refines being no such sibling but a conjunction the unions are conjuncts of
 ([`allof-refinement`](#allof-refinement)).
-An `allOf` that refines ([`allof-refinement`](#allof-refinement)) is no rival of an `enum` or a
-`const` beside it, which is one of its conjuncts, so the election passes over it only where it
-composes. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
+([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
+each conjunct it beats kept as that rule keeps it, so the election passes over the `allOf` whole
+only where no value set is elected, one whose own keywords leave it no value among them. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
 an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already

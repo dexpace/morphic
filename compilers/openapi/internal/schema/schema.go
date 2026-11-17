@@ -320,8 +320,9 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 // that refines decides the position (docs/compilers/openapi.md#allof-refinement):
 // its principal, or where no branch is one, the keywords beside it as if no allOf
 // were written, an enum or a const there being one of its conjuncts rather than
-// its rival. The value set either lowers to is typed by every conjunct
-// (typeValueSet). Any other schema lowers by its election (lowerElected).
+// its rival. A value set an inline principal writes stands at the position, as
+// one written beside the allOf does, and either is typed by every conjunct
+// (valueSetSite.valueType). Any other schema lowers by its election (lowerElected).
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	d, elected := electionOf(c, s, pointer)
 	r, refines := refinementOf(c, s, pointer)
@@ -329,27 +330,36 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 		return lowerElected(c, ts, depth, s, pointer, d)
 	}
 	reported := refinedDisjoint(c, s, r)
+	if e, ok := valueSetPrincipal(r); ok {
+		resolveBeaten(c, ts, r)
+		id, diags := lowerPrincipalValueSet(c, ts, s, e, pointer)
+		return id, append(diags, reported...)
+	}
 	if elected {
 		resolveBeaten(c, ts, r)
 		id, diags := lowerElected(c, ts, depth, s, pointer, d)
-		typeValueSet(c, ts, s, r, pointer)
 		return id, append(diags, reported...)
 	}
 	id, diags := lowerPrincipal(c, ts, depth, r)
-	typeValueSet(c, ts, s, r, pointer)
 	return id, append(diags, reported...)
 }
 
 // refinedDisjoint reports the refinement r of s whose union beside the allOf
-// shares no kind with the rest (unionAside), at s, as a composition reports
-// conjuncts sharing no value.
+// shares no kind with the rest (unionAside), or whose conjuncts share no value
+// and lowered to the value set elected before them, at s, as a composition
+// reports conjuncts sharing no value.
 func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Diagnostic {
-	if !unionAside(c, s) {
+	shape := refinedShape
+	switch {
+	case unionAside(c, s):
+	case r.contradicts:
+		shape = "the " + electedSet(r, s) + " it lowered as"
+	default:
 		return nil
 	}
 	comp := r.comp
 	comp.disjoint = disjointConjuncts(c, s, comp)
-	return diagDisjointConjuncts(c, comp, refinedShape)
+	return diagDisjointConjuncts(c, comp, shape)
 }
 
 // electionOf returns the election lower lowers s by, written at pointer, and
@@ -391,14 +401,14 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // preserveUnhomedKeywords, which asks the built node whether it has a field for it.
 func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
-		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
+		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, d)
 		return owner, append(diags, ownDiags...)
 	}
 	switch d.won {
 	case "const":
-		return unhomed(lowerConst(c, ts, s, pointer))
+		return unhomed(lowerConst(c, ts, ownValueSet(s, pointer)))
 	case "enum":
-		return unhomed(lowerEnum(c, ts, s, pointer))
+		return unhomed(lowerEnum(c, ts, ownValueSet(s, pointer)))
 	case "allOf":
 		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator")))
 	}
@@ -417,7 +427,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	case writesType(s):
 		// Every type s names is null, so its value space is null and nothing
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
-		return unhomed(lowerNullAlone(c, ts, s, pointer), nil)
+		return unhomed(lowerNullAlone(c, ts, ownValueSet(s, pointer)), nil)
 	default:
 		return lowerUntyped(c, ts, depth, s, pointer, d)
 	}
@@ -447,7 +457,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	var diags []ir.Diagnostic
 	switch kinds {
 	case 0:
-		return preserveUnhomedKeywords(c, ts, s, pointer, ts.PrimID(ir.PrimAny), d)
+		return preserveUnhomedKeywords(c, ts, s, pointer, pointer, ts.PrimID(ir.PrimAny), d)
 	case kindObject:
 		// The node asserts an object, as the bounds beside it read it
 		// (boundKinds): one an object does not take is kept.
@@ -460,7 +470,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	if inferred {
 		diags = append(diags, markKindInferred(c, ts, id, pointer)...)
 	}
-	owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
+	owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, id, d)
 	return owner, append(diags, ownDiags...)
 }
 

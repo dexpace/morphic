@@ -937,8 +937,14 @@ it sees. Changes made together in one bump are listed together under it.
   before words admitting as much, two unions of one keyword or two conjuncts neither within the
   other elect none, the position then lowering by the keywords beside the `allOf`, and a schema
   written twice is one conjunct, where each tie went to the entry written first
-  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A consumer pinned to 0.69.0
-  refuses the document; one reading such a bound
+  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An `allOf` one of whose
+  conjuncts states a value set lowers to that value set, where it composed a `Model` over an object
+  or conjuncts sharing no value; the `Enum` or `Literal` an inline entry writes stands at the
+  position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
+  carrier holding the `$ref` it narrows; and a `$ref` conjunct a refinement does not lower is kept
+  under `openapi:$ref`, or `openapi:$ref/<i>` by reference text where several are, where it was kept
+  under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set. A consumer pinned to
+  0.69.0 refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
@@ -954,4 +960,5 @@ it sees. Changes made together in one bump are listed together under it.
   variant admits an object, and one reading an `additionalProperties` finds it typed where the
   schema object writing it declares every member of the composition, on an entry as beside the
   `allOf`, and kept elsewhere, and one reading the first entry of a tie as the position's finds the
-  conjunct those rules elect, or none.
+  conjunct those rules elect, or none, and one naming a value set's node by its entry's ID finds it
+  at the position's.

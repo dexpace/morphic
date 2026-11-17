@@ -136,9 +136,9 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 // spelling.Lookup knows selects a primitive, which carries the pairing in the
 // primitive kind itself, as a Scalar over that primitive does (pairedBase), an
 // Enum's ValueType does where enumValueType took it, or one narrower where
-// another conjunct narrowed it (typeValueSet). With no type declared there was
-// no pairing to make and nothing read it, and a node of any other kind has no
-// Encoding field at all.
+// another conjunct narrowed it (valueSetSite.valueType). With no type declared
+// there was no pairing to make and nothing read it, and a node of any other
+// kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *statement.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
@@ -152,11 +152,9 @@ func formatHome(td ir.TypeDef, s *statement.Schema) bool {
 	case *ir.Primitive:
 		return len(effectiveTypes(s)) > 0
 	case *ir.Enum:
-		prim, paired := formatPrimitive(s)
-		return paired && narrowsOrIs(n.ValueType, prim)
+		return valueTypeHoldsFormat(n.ValueType, s)
 	case *ir.Literal:
-		prim, paired := formatPrimitive(s)
-		return paired && narrowsOrIs(n.ValueType, prim)
+		return valueTypeHoldsFormat(n.ValueType, s)
 	default:
 		return false
 	}
@@ -417,7 +415,8 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 // constraints a position declared that its node or types do not take, and the
 // families lower()'s election skipped, returning the position's resulting ID.
 // docs/compilers/openapi.md#shape-applicator covers a contradictory schema's
-// dropped half and an untyped applicator such as `items`.
+// dropped half and an untyped applicator such as `items`. s is written at
+// written.
 //
 // A lowering that reduced to a shared node gets an alias first, with the
 // position's constraints, so a shared node never carries one declaration's
@@ -425,8 +424,9 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 //
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
-func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, id ir.TypeID, d dispatch) (ir.TypeID, []ir.Diagnostic) {
-	td, ok, diags := registeredNode(c, ts, id, pointer)
+func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, written jsontext.Pointer, id ir.TypeID, d dispatch,
+) (ir.TypeID, []ir.Diagnostic) {
+	td, ok, diags := registeredNode(c, ts, id, written)
 	if !ok {
 		return id, diags
 	}
@@ -452,8 +452,15 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Sch
 		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: id})
 		diags = append(diags, aliasDiags...)
 	}
-	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), pointer)...)
-	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), written)...)
+	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, written)...)
+}
+
+// censusReads reports whether the census of a node a position owns reads
+// keyword, homing or keeping it (preserveUnhomedKeywords): a census keyword or
+// a value bound.
+func censusReads(keyword string) bool {
+	return slices.Contains(censusKeywords, keyword) || slices.Contains(valueConstraintKeywords, keyword)
 }
 
 // unreadBounds returns the value constraints s writes (declaredConstraints) that

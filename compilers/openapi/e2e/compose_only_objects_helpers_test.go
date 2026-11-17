@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
 	"strings"
@@ -30,8 +31,14 @@ func composeEntries(swapped bool, a, b string) (list string, ia, ib int) {
 	return "[" + a + ", " + b + "]", 0, 1
 }
 
-// entryKey is the key an inline or $ref allOf entry is kept under at index i.
+// entryKey is the key an inline allOf entry is kept under at index i.
 func entryKey(i int) string { return "openapi:allOf/" + string(rune('0'+i)) }
+
+// entryPointer is the pointer of the allOf entry at index i of the component
+// named, where a $ref entry kept under openapi:$ref is written.
+func entryPointer(name string, i int) jsontext.Pointer {
+	return jsontext.Pointer("/components/schemas/" + name + "/allOf/" + string(rune('0'+i)))
+}
 
 // requireModelsNameModels holds every Model of doc to the rule that a base or
 // a mixin is a Model: the check runs over the whole document, so a model the

@@ -5,8 +5,11 @@ package schema
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
@@ -40,6 +43,9 @@ type refinement struct {
 	// held is what the position lowers to admits, which decides what a keyword
 	// left unread loses.
 	held admitted
+	// contradicts marks conjuncts sharing no value, of which a value set was
+	// elected before the composition they would otherwise lower to.
+	contradicts bool
 }
 
 // principalIs reports whether e is the branch the position lowers from.
@@ -62,6 +68,9 @@ const (
 	// refAdmitsEvery marks one whose target admits every kind beside a
 	// position declaring its kinds.
 	refAdmitsEvery
+	// refOutsideSet marks one whose target admits none of the value set
+	// elected before the composition the conjuncts would lower to.
+	refOutsideSet
 )
 
 // conjunct is one conjunct's reading, for the election.
@@ -151,10 +160,11 @@ func unionAside(c lowering.Ctx, s *statement.Schema) bool {
 	return decisionOf(c, s, "").aside
 }
 
-// decide reads the decision refinementOf remembers. The position composes
-// where the conjuncts share no value, where the kinds it lowers to, null
-// aside, are an object alone, and where the read is cut short; anything else
-// is one use of its principal.
+// decide reads the decision refinementOf remembers. Where the conjuncts share
+// no value, or the kinds the position lowers to, null aside, are an object
+// alone, it composes, unless a conjunct states a value set, which is elected
+// first (docs/compilers/openapi.md#competing-keywords); it composes too where
+// the read is cut short. Anything else is one use of its principal.
 func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
 	comp := allOfBranches(c, s, pointer)
 	if !refinableBranches(comp) {
@@ -170,19 +180,60 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	if aside {
 		kinds, inferred = restKinds(c, s, comp)
 	}
-	if disjoint(joint, conjuncts) || kinds == kindObject {
-		return decision{aside: aside}
+	var principal *conjunct
+	contradicts := disjoint(joint, conjuncts)
+	if contradicts || kinds == kindObject {
+		if principal = setElected(&w, s, conjuncts); principal == nil {
+			return decision{aside: aside}
+		}
 	}
 	votes, electable := voteRefs(c, conjuncts, kinds, inferred, len(comp.branches))
-	principal := w.elect(conjuncts, electable)
-	r := refinement{comp: comp, principal: principal.branch, votes: votes, joint: joint, held: heldBy(c, principal)}
+	if principal == nil {
+		principal = w.elect(conjuncts, electable)
+	}
+	r := refinement{comp: comp, principal: principal.branch, votes: votes, joint: joint, held: heldBy(c, principal),
+		contradicts: contradicts}
 	r.ref = readThrough(conjuncts, principal)
 	for _, cj := range electable {
-		if cj != principal && principal.branch != nil && principal.branch.schema.Ref != nil {
+		switch {
+		case cj != principal && principal.branch != nil && principal.branch.schema.Ref != nil:
 			r.votes[cj.at] = refNarrowed
+		case contradicts && !w.within(principal.read, cj.read):
+			r.votes[cj.at] = refOutsideSet
 		}
 	}
 	return decision{r: r, refines: !w.incomplete(), aside: aside}
+}
+
+// setElected returns the conjunct stating a value set that is elected before
+// a composition: of the sets lying within every other stated, the one untie
+// picks among sets alike, and nil where none states one, none lies within the
+// rest, or untie elects none. A $ref's target is no statement of the
+// position's, and a set its own keywords leave no value is none to lower: the
+// composition reports it.
+func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjunct {
+	var sets []*conjunct
+	for i := range conjuncts {
+		cj := &conjuncts[i]
+		bs := s
+		if cj.branch != nil {
+			bs = cj.branch.schema.Schema
+		}
+		inline := cj.branch == nil || cj.branch.schema.Ref == nil
+		if inline && cj.read.fixed && cj.read.reachable() && (enumWritten(bs) || constIn(bs) != nil) {
+			sets = append(sets, cj)
+		}
+	}
+	within := slices.DeleteFunc(slices.Clone(sets), func(cj *conjunct) bool {
+		return slices.ContainsFunc(sets, func(o *conjunct) bool { return o != cj && !w.setWithin(cj.read, o.read) })
+	})
+	if len(within) == 0 {
+		return nil
+	}
+	if elected := untie(w, conjuncts, strongest(within)); slices.Contains(within, elected) {
+		return elected
+	}
+	return nil
 }
 
 // restKinds returns the kinds s lowers to with the union it writes beside
@@ -675,7 +726,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		return k
 	}
 	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
-	typed := valueSetNode(c, ts, r, pointer)
+	typed := refinedValueType(c, r, s, pointer)
 	if r.principal != nil {
 		degraded, validation := keptUnion(c, r, s)
 		k.keywords, k.validation = append(refinedUnhomed(c, r, s, typed), degraded...), validation
@@ -683,19 +734,24 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 	homes := homesAt(c, ts, s, target, pointer)
 	voices := voicingOf(c, s)
 	w := newAdmission(c)
+	set, setAtPosition := valueSetPrincipal(r)
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
 		// inline branch on the node it owns, a type array's census included. A
-		// branch written as the principal is says nothing it does not.
+		// branch written as the principal is says nothing it does not. A value
+		// set's census ran on the position's node, which keeps the rest as any
+		// conjunct's.
 		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, e.pointer, target)) || principalTwin(&w, r, e) {
 			continue
 		}
+		censused := setAtPosition && set.pointer == e.pointer
 		switch {
 		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
 			residue := unmergedBranchKeys(e.schema.Schema, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) || said(&w, r, typed, e.schema.Schema, key)
+				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) ||
+					said(&w, r, typed, e.schema.Schema, key) || censused && censusReads(key)
 			})
 			if len(residue) > 0 {
 				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
@@ -764,9 +820,9 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that
 // lowered to its principal, but for those the principal already says, where a
-// $ref site reads no target and keeps them all (GitHub #1067). typed is the value
-// set the principal lowered to, if any (valueSetNode).
-func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed ir.TypeDef) []string {
+// $ref site reads no target and keeps them all (GitHub #1067). typed is the type
+// of the value set the principal lowered to, if any (refinedValueType).
+func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed setType) []string {
 	w := newAdmission(c)
 	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
 	return referenceUnhomed(c, s, held)
@@ -798,13 +854,13 @@ func keptUnion(c lowering.Ctx, r refinement, s *statement.Schema) (degraded, val
 // said reports whether the principal of r already says what s's keyword key
 // does: what it admits holds it, a union one of whose branches it restates
 // (unionHeld), or it is a format the value set it lowered to, typed, holds in
-// its ValueType (typeValueSet), that format's primitive or a narrower one. A
+// its ValueType, that format's primitive or a narrower one, or a redaction. A
 // type that ValueType holds, its values hold too.
-func said(w *admission, r refinement, typed ir.TypeDef, s *statement.Schema, key string) bool {
+func said(w *admission, r refinement, typed setType, s *statement.Schema, key string) bool {
 	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) {
 		return true
 	}
-	return typed != nil && key == "format" && formatHome(typed, s)
+	return typed.ok && key == "format" && (annotation.DeclaresRedaction(s) || valueTypeHoldsFormat(typed.prim, s))
 }
 
 // unionHeld reports whether every value r holds satisfies s's oneOf or anyOf,
@@ -860,15 +916,60 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
 	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
+	refs := keptRefKeys(k.branches, pointer)
 	for _, b := range k.branches {
-		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
-			b.entry.schema.Node, ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))
+		key, at := k.comp.branchKey(b.entry.pointer), b.entry.pointer
+		if ref, ok := refs[b.entry.pointer]; ok {
+			key, at = ref.key, ref.at
+		}
+		kept, keptDiags := annotation.PreserveNodeInto(p, key, b.entry.schema.Node, ir.ReasonDegradedLowering, c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))
 		}
 	}
 	return diags
+}
+
+// keptRef is the key a kept $ref conjunct is kept under, and where the entry
+// is said to be written.
+type keptRef struct {
+	key string
+	at  jsontext.Pointer
+}
+
+// keptRefKeys returns, by its pointer, the key each $ref of branches is kept
+// under: openapi:$ref where one is kept, else openapi:$ref/<i>, i its rank by
+// reference text, then by the entry as written, so no order of the entries
+// decides (docs/compilers/openapi.md#allof-refinement). Entries written alike
+// are one entry, at pointer, the position writing them.
+func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.Pointer]keptRef {
+	alike := map[[2]string][]jsontext.Pointer{}
+	for _, b := range branches {
+		if b.entry.schema.Ref == nil {
+			continue
+		}
+		raw, _ := annotation.RawFromNode(b.entry.schema.Node)
+		_, text := refSpelling(b.entry.schema)
+		alike[[2]string{text, string(raw)}] = append(alike[[2]string{text, string(raw)}], b.entry.pointer)
+	}
+	written := slices.SortedFunc(maps.Keys(alike), func(a, b [2]string) int {
+		return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1]))
+	})
+	out := make(map[jsontext.Pointer]keptRef, len(branches))
+	for i, w := range written {
+		key := "openapi:$ref"
+		if len(written) > 1 {
+			key += "/" + strconv.Itoa(i)
+		}
+		for _, at := range alike[w] {
+			out[at] = keptRef{key: key, at: at}
+			if len(alike[w]) > 1 {
+				out[at] = keptRef{key: key, at: pointer}
+			}
+		}
+	}
+	return out
 }
 
 // keptWhy words why a refinement keeps a branch.
@@ -884,6 +985,9 @@ func keptWhy(b keptBranch) string {
 		return "another $ref of this allOf lies within as many of its conjuncts or more, a tie going to the " +
 			"least reference text, then to the least text of its entry, and a use names one target, so this " +
 			"$ref is kept verbatim under Unmodeled"
+	case b.vote == refOutsideSet:
+		return "the conjuncts of this allOf share no value, and its value set is elected before the rest, " +
+			"holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled"
 	case len(b.residue) == 0:
 		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"

@@ -12,38 +12,184 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
-// typeValueSet types the value set r's principal lowered to by the conjunction,
-// s being the schema the allOf is written in and pointer where s lowered: the
-// primitive the conjuncts select narrowing every other, where each value is one
-// of it (conjunctPrim). It runs after the census read the node's own keywords
-// against the ValueType its own schema gave it, which this only narrows.
-func typeValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, r refinement, pointer jsontext.Pointer) {
-	switch n := valueSetNode(c, ts, r, pointer).(type) {
-	case *ir.Literal:
-		n.ValueType = conjunctPrim(c, r, s, n.ValueType, func(p ir.PrimKind) bool { return merge.Admits(p, n.Value) })
-	case *ir.Enum:
-		n.ValueType = conjunctPrim(c, r, s, n.ValueType, func(p ir.PrimKind) bool { return enumMembersAre(n.Members, p) })
+// valueSetSite is where a value set lowers: set, the schema writing it at
+// written, and the node it lowers to, standing at pointer, where position is
+// written. The pointers part only for a refinement's inline principal, whose
+// node is the position's while its members and reports stay where they are
+// written (docs/compilers/openapi.md#allof-refinement). position is nil for a
+// member of an enum lowered as a union of literals, which no conjunct types.
+type valueSetSite struct {
+	set      *statement.Schema
+	written  jsontext.Pointer
+	position *statement.Schema
+	pointer  jsontext.Pointer
+}
+
+// ownValueSet is the site of the value set s, written at pointer, lowers to.
+func ownValueSet(s *statement.Schema, pointer jsontext.Pointer) valueSetSite {
+	return valueSetSite{set: s, written: pointer, position: s, pointer: pointer}
+}
+
+// memberSite is the site of a member of vs's set lowered as a Literal of its
+// own at at, typed by its value and its set's schema alone.
+func (vs valueSetSite) memberSite(at jsontext.Pointer) valueSetSite {
+	return valueSetSite{set: vs.set, written: at, pointer: at}
+}
+
+// valueType types the node vs lowers to: own, what its set's schema selects,
+// narrowed by every conjunct where its position refines (conjunctPrim), fits
+// saying which primitives the values are of.
+func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
+	if vs.position == nil {
+		return own
+	}
+	r, refines := refinementOf(c, vs.position, vs.pointer)
+	if !refines {
+		return own
+	}
+	return conjunctPrim(c, r, vs.position, own, fits)
+}
+
+// valueSetPrincipal returns the inline principal of r that lowers to a value
+// set, an enum, a const or a type of null alone, whose node stands at the
+// position, and false where r's principal is none, a $ref, or another schema.
+func valueSetPrincipal(r refinement) (allOfBranch, bool) {
+	e := r.principal
+	if e == nil || e.schema.Ref != nil {
+		return allOfBranch{}, false
+	}
+	if won := principalDispatch(*e).won; won == "const" || won == "enum" || won == "" && nullAlone(e.schema.Schema) {
+		return *e, true
+	}
+	return allOfBranch{}, false
+}
+
+// nullAlone reports whether s writes a type naming null alone, which lowers
+// to the value set of null (lowerNullAlone).
+func nullAlone(s *statement.Schema) bool {
+	return writesType(s) && len(effectiveTypes(s)) == 0
+}
+
+// electedSet names the keyword of the value set r, a refinement of s whose
+// conjuncts share no value, is elected for: its inline principal's, else the
+// one written beside the allOf, an enum or a const either way (setElected).
+func electedSet(r refinement, s *statement.Schema) string {
+	if e, ok := valueSetPrincipal(r); ok {
+		return principalDispatch(e).won
+	}
+	return dispatchOf(s).besideAllOf().won
+}
+
+// principalDispatch is the election of the inline principal e's own keywords:
+// a flattened wrapper's allOf is no rival of its value set, its entries being
+// conjuncts of the position (allOfBranches).
+func principalDispatch(e allOfBranch) dispatch {
+	d := dispatchOf(e.schema.Schema)
+	if e.wrapper {
+		return d.besideAllOf()
+	}
+	return d
+}
+
+// lowerPrincipalValueSet lowers the value set e, r's inline principal, writes
+// at pointer, the position s is written at, so one node stands for the
+// position whichever conjunct decides it (docs/compilers/openapi.md#allof-refinement).
+// What e writes beside its set that the node has no field for is kept on it,
+// each keyword at its own pointer, as on any node a schema lowers to.
+func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, e allOfBranch, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	bs := e.schema.Schema
+	site := valueSetSite{set: bs, written: e.pointer, position: s, pointer: pointer}
+	d := principalDispatch(e)
+	var id ir.TypeID
+	var diags []ir.Diagnostic
+	switch d.won {
+	case "const":
+		id, diags = lowerConst(c, ts, site)
+	case "enum":
+		id, diags = lowerEnum(c, ts, site)
 	default:
-		// No value set: the principal is a $ref, or a schema of another kind.
+		id = lowerNullAlone(c, ts, site)
+	}
+	diags = append(diags, missingArrayItems(c, bs, e.pointer)...)
+	_, kept := preserveUnhomedKeywords(c, ts, bs, pointer, e.pointer, id, d)
+	return id, append(diags, kept...)
+}
+
+// setType is the ValueType of the Enum or Literal a refinement's value set
+// lowers to, ok false where it lowers to no such node (refinedValueType).
+type setType struct {
+	prim ir.PrimKind
+	ok   bool
+}
+
+// refinedValueType returns the ValueType of the Enum or Literal the refinement
+// r of s, written at pointer, lowers to, as its build types it, and none where
+// it lowers to no such node: its principal is a $ref or no value set, or its
+// set lowers to a union of literals or the top type. It reads the source
+// alone, so a reader of the position asks no registry.
+func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer jsontext.Pointer) setType {
+	site := ownValueSet(s, pointer)
+	d := dispatchOf(s).besideAllOf()
+	if e, ok := valueSetPrincipal(r); ok {
+		site.set, site.written, d = e.schema.Schema, e.pointer, principalDispatch(e)
+	} else if r.principal != nil {
+		return setType{}
+	}
+	switch d.won {
+	case "enum":
+		return enumSetType(c, site)
+	case "const":
+		return constSetType(c, site)
+	default:
+		return setType{prim: site.enumType(c, nil, ir.PrimAny), ok: nullAlone(site.set)}
 	}
 }
 
-// valueSetNode returns the Literal or Enum r's principal owns, at its own
-// pointer or, for the keywords beside the allOf, at pointer, and nil where it
-// owns none there: a $ref branch's node is what it names, never its own.
-func valueSetNode(c lowering.Ctx, ts *compile.Types, r refinement, pointer jsontext.Pointer) ir.TypeDef {
-	at := pointer
-	if r.principal != nil {
-		at = r.principal.pointer
+// enumSetType is refinedValueType for an enum: the Enum's ValueType, as
+// lowerEnum gives it, and none where the enum lowers to anything else.
+func enumSetType(c lowering.Ctx, site valueSetSite) setType {
+	written := enumIn(site.set)
+	if !c.Limits.MaxEnumMembers.Admits(len(written)) {
+		return setType{}
 	}
-	td, ok := ts.NodeAt(c.IDs().Coordinate(at))
-	if !ok || !isKind(td, ir.KindLiteral) && !isKind(td, ir.KindEnum) {
-		return nil
+	kept := slices.DeleteFunc(readEnum(written), enumEntry.isNull)
+	members, prim, ok := enumMembers(kept, c.IDs().ForPointer(site.pointer))
+	return setType{prim: site.enumType(c, members, prim), ok: ok}
+}
+
+// constSetType is refinedValueType for a const: the Literal's ValueType, or
+// the ValueType of the Enum with no member a null lowers to, and none where
+// the value converts to none.
+func constSetType(c lowering.Ctx, site valueSetSite) setType {
+	val, err := value.FromNode(constIn(site.set))
+	if err == nil && val.Kind == ir.ValueNull {
+		return setType{prim: site.enumType(c, nil, ir.PrimAny), ok: true}
 	}
-	return td
+	return setType{prim: site.literalType(c, val), ok: err == nil}
+}
+
+// enumType is the ValueType an Enum of members, classified as memberPrim,
+// takes at vs (enumValueType), narrowed where its position refines.
+func (vs valueSetSite) enumType(c lowering.Ctx, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
+	own := enumValueType(vs.set, members, memberPrim)
+	return vs.valueType(c, own, func(p ir.PrimKind) bool { return enumMembersAre(members, p) })
+}
+
+// literalType is the ValueType a Literal of val takes at vs
+// (literalValueType), narrowed where its position refines.
+func (vs valueSetSite) literalType(c lowering.Ctx, val ir.Value) ir.PrimKind {
+	return vs.valueType(c, literalValueType(vs.set, val), func(p ir.PrimKind) bool { return merge.Admits(p, val) })
+}
+
+// valueTypeHoldsFormat reports whether a value set typed prim holds the format
+// s pairs with its type: prim is that format's primitive or a narrower one.
+func valueTypeHoldsFormat(prim ir.PrimKind, s *statement.Schema) bool {
+	paired, ok := formatPrimitive(s)
+	return ok && narrowsOrIs(prim, paired)
 }
 
 // conjunctPrim returns, of own and the primitive each conjunct of r selects

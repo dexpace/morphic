@@ -1349,14 +1349,14 @@ func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir
 // keyword still lowers, the ones passed over are kept verbatim under
 // ReasonDegradedLowering, and the position says so.
 func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	base := `[{"$ref":"#/components/schemas/Base"}]`
+	base := `{"$ref":"#/components/schemas/Base"}`
 	e, ok := doc.Types[componentID("NarrowedEnum")].(*ir.Enum)
 	require.True(t, ok, "the enum is the value")
-	assertKeptRaw(t, e.Unmodeled, "openapi:allOf", base)
+	assertKeptRaw(t, e.Unmodeled, "openapi:$ref", base)
 
 	lit, ok := doc.Types[componentID("NarrowedConst")].(*ir.Literal)
 	require.True(t, ok, "const outranks the composition beside it")
-	assertKeptRaw(t, lit.Unmodeled, "openapi:allOf", base)
+	assertKeptRaw(t, lit.Unmodeled, "openapi:$ref", base)
 
 	within, ok := doc.Types[componentID("ConstWithinEnum")].(*ir.Literal)
 	require.True(t, ok, "const is the narrower of the two")
@@ -1376,13 +1376,13 @@ func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Len(t, nullable.Variants, 1, "the null branch still lifts off the variant list")
 	assertKeptRaw(t, nullable.Unmodeled, "openapi:anyOf", anyOf)
 
-	for _, name := range []string{
-		"NarrowedEnum", "NarrowedConst", "ConstWithinEnum",
+	for _, at := range []string{
+		"NarrowedEnum/allOf/0", "NarrowedConst/allOf/0", "ConstWithinEnum",
 		"BothCombinators", "NullableWithCombinators",
 	} {
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name),
-			"%s announces the keyword it passed over", name)
+			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+at),
+			"%s announces the keyword it passed over", at)
 	}
 }
 

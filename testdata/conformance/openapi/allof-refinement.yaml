@@ -112,7 +112,7 @@ components:
       type: string
       enum: [low, high]
       allOf: [{description: A level, deprecated: true}]
-    # A $ref to a principal's own pointer names the node the refinement types.
+    # A $ref to a principal's own pointer names that entry alone, typed by what it writes.
     Raw80: {$ref: '#/components/schemas/Port80/allOf/1'}
     # A const takes the type and format another conjunct declares, as one
     # schema writing them all gives it.

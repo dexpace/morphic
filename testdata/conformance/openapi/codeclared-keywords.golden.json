@@ -208,16 +208,14 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/Base"
-            }
-          ],
+          "value": {
+            "$ref": "#/components/schemas/Base"
+          },
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/NarrowedConst/allOf"
+            "pointer": "/components/schemas/NarrowedConst/allOf/0"
           }
         }
       },
@@ -242,16 +240,14 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/Base"
-            }
-          ],
+          "value": {
+            "$ref": "#/components/schemas/Base"
+          },
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/NarrowedEnum/allOf"
+            "pointer": "/components/schemas/NarrowedEnum/allOf/0"
           }
         }
       },
@@ -379,19 +375,19 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "message": "the conjuncts of this allOf share no value, and its value set is elected before the rest, holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/NarrowedEnum"
+        "pointer": "/components/schemas/NarrowedEnum/allOf/0"
       }
     },
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position declares allOf beside its const, and JSON Schema conjoins them where only one can be the value; it lowered as the const, with allOf kept verbatim under Unmodeled",
+      "message": "the conjuncts of this allOf share no value, and its value set is elected before the rest, holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/NarrowedConst"
+        "pointer": "/components/schemas/NarrowedConst/allOf/0"
       }
     },
     {
@@ -426,7 +422,7 @@
     {
       "format": "openapi@3.1",
       "path": "codeclared-keywords.yaml",
-      "hash": "5752ccbe8947889e820f62b64590ba5d4c13ef894086c1d23e2675642dcd864d"
+      "hash": "7ff3289ab0154093e94cb572805c693c7e506ead999548bed93e11c59d4450e6"
     }
   ]
 }

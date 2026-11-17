@@ -143,7 +143,8 @@ func TestAllOfRefine_AKeywordOfAnotherKindIsKeptOnWhatTheTargetDeclares(t *testi
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrItems"))
 
 					declared := requireScalarOver(t, doc, "DeclaredString", prim(ir.PrimString))
-					assert.Equal(t, degradedKept(entryKey(propsAt)), keptOn(declared))
+					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(declared))
+					assert.Equal(t, entryPointer("DeclaredString", propsAt), declared.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "DeclaredString"))
 				})
 			})
@@ -575,11 +576,13 @@ func TestAllOfCompose_SeveralRefsThatAreNoObjectUseTheNarrower(t *testing.T) {
 					requireModelsNameModels(t, doc)
 
 					narrower := requireScalarOver(t, doc, "StrFmt", componentID("Fmt"))
-					assert.Equal(t, degradedKept(entryKey(strAt)), keptOn(narrower))
+					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(narrower))
+					assert.Equal(t, entryPointer("StrFmt", strAt), narrower.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrFmt"))
 
 					declared := requireScalarOver(t, doc, "StrList", componentID("Str"))
-					assert.Equal(t, degradedKept(entryKey(listEAt)), keptOn(declared))
+					assert.Equal(t, degradedKept("openapi:$ref"), keptOn(declared))
+					assert.Equal(t, entryPointer("StrList", listEAt), declared.Unmodeled["openapi:$ref"].Provenance.Pointer)
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrList"))
 				})
 			})
@@ -1023,7 +1026,8 @@ func TestAllOfRefine_ATargetInferredNarrowerThanTheDeclaredKindsIsNoPrincipal(t 
 			assert.True(t, slices.ContainsFunc(union.Variants, func(v ir.Variant) bool {
 				return v.Type.Target == ir.TypeID("t/prim/string")
 			}), "%s admits the string it declares", name)
-			assert.Equal(t, degradedKept("openapi:allOf/0"), keptOn(union), name)
+			assert.Equal(t, degradedKept("openapi:$ref"), keptOn(union), name)
+			assert.Equal(t, entryPointer(name, 0), union.Unmodeled["openapi:$ref"].Provenance.Pointer, name)
 			assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/"+name+"/allOf/0"), name)
 		}
 	})
@@ -1054,7 +1058,8 @@ func TestAllOfUnion_ARefAdmittingEveryKindBesideAUnionIsKeptAsTheInlineSpellingI
 		}
 		u, ok := kindNode(t, doc, componentID("ERef")).(*ir.Union)
 		require.True(t, ok)
-		assert.Equal(t, degradedKept("openapi:allOf/0"), keptOn(u))
+		assert.Equal(t, degradedKept("openapi:$ref"), keptOn(u))
+		assert.Equal(t, entryPointer("ERef", 0), u.Unmodeled["openapi:$ref"].Provenance.Pointer)
 		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/ERef/allOf/0"))
 	})
 }

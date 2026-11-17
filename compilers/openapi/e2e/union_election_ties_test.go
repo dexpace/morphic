@@ -90,7 +90,8 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 	})
 	requireErrorsAndWarnings(t, diags, nil)
 	use := requireScalarOver(t, doc, "Refs", "t/anon/components/schemas/Refs/allOf/0")
-	requireKeptEntries(t, use, "the entry whose text is the greater, the bare $ref", 1)
+	assert.Equal(t, degradedKept("openapi:$ref"), keptOn(use), "the entry whose text is the greater, the bare $ref")
+	assert.Equal(t, entryPointer("Refs", 1), use.Unmodeled["openapi:$ref"].Provenance.Pointer)
 	requireOneInfoAtEach(t, diags, "Refs", "the bare $ref", 1)
 }
 
@@ -145,11 +146,8 @@ func TestElection_ValueSetsAlikeGoByTheirText(t *testing.T) {
 				return pairSchemas(swapped, "Sets", "{enum: [a, b]}", "{enum: [b, a], description: d}", "")
 			})
 			requireErrorsAndWarnings(t, diags, nil)
-			use, ok := kindNode(t, doc, componentID("Sets")).(*ir.Scalar)
-			require.True(t, ok)
-			require.NotNil(t, use.Base)
-			enum, ok := kindNode(t, doc, use.Base.Target).(*ir.Enum)
-			require.True(t, ok)
+			enum, ok := kindNode(t, doc, componentID("Sets")).(*ir.Enum)
+			require.True(t, ok, "the value set stands at the position")
 			require.Len(t, enum.Members, 2)
 			assert.Equal(t, "b", enum.Members[0].Value.Str, "the entry writing the description is the least text")
 			assert.Zero(t, degradedInfosAt(diags, "Sets"))
