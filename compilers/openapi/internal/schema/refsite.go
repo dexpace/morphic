@@ -20,45 +20,33 @@ import (
 // refSiteRef resolves a $ref position, a schema writing its reference beside
 // nothing it reads but what a reference leaves silent: any key read beside a
 // $ref makes a conjunction (statement.Table), lowered as its allOf spelling
-// is. What such a site keeps, an alias over the target holds, or, at an
-// annotation.HomeCarrier position, the carrier through PreserveRefSiteKeywords
-// (GitHub #114).
+// is, and an allOf entry whose reference names nothing, read whole, is no
+// position a reference reaches, as one to it reads on through its own. So
+// such a site writes nothing beside its target for a node to keep.
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
-	unhomed := referenceUnhomed(c, s, nil)
-	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0)
-	diags = append(diags, homeDiags...)
-	if home != annotation.HomeOwnNode {
-		return ref, diags
-	}
-	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, s, unhomed, refSiteShape, pointer)...)
+	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, false)
+	return ref, append(diags, homeDiags...)
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
-// $ref position declared that the alias it resolves to cannot hold, and those
-// of what resolves to a reference the same way (referenceOutcomeKeywords). It
-// is refSiteRef's and schemaBody's other half: the same census, recorded where an
-// annotation.HomeCarrier position keeps everything else its schema declared —
-// oneOf/anyOf/allOf included, through the same keepers refSiteRef calls
-// (GitHub #406).
-//
-// A schema that lowered to a node of its own already had the census recorded
-// there, so the carrier adds nothing — one home per declaration, exactly as
+// position lowered to a reference as a $ref site is declared that the reference
+// cannot hold (referenceOutcomeKeywords): a collapsed union, an expanded
+// $dynamicRef and a refinement. It is schemaBody's other half, the same census
+// recorded where an annotation.HomeCarrier position keeps everything else its
+// schema declared (GitHub #406). A $ref site writes nothing to keep
+// (refSiteRef), and a schema that lowered to a node of its own had the census
+// recorded there, so the carrier adds nothing: one home per declaration, as
 // fillPropertyAnnotations draws the line.
 func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
-	// The one check covers an absent position, a boolean one, and a caller
-	// passing nil.
-	if js == nil || !stated(js.Schema) || LoweredToOwnNode(c, pointer, t) {
+	// The one check covers an absent position, a boolean one, a $ref site and a
+	// caller passing nil.
+	if js == nil || !stated(js.Schema) || js.Ref != nil || LoweredToOwnNode(c, pointer, t) {
 		return nil
 	}
-	if js.Ref == nil {
-		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
-		// reference just as a $ref site does.
-		return keepsAtOutcome(c, ts, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer)
-	}
-	return recordUnhomedAt(c, ts, p, js.Schema, referenceUnhomed(c, js.Schema, nil), refSiteShape, pointer)
+	return keepsAtOutcome(c, ts, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the

@@ -173,11 +173,9 @@ func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // the same level (GitHub #406). Under JSON Schema 2020-12 — and so OpenAPI
 // 3.1 — $ref conjoins with its siblings, so the union narrows the referenced
 // schema; a $ref-peeling declaration otherwise reaches no field of the
-// document, no Unmodeled entry and no diagnostic. A $ref site's oneOf/anyOf
-// routes through preserveUnionSiblings, the same keeper the structural-body
-// path already uses, rather than a second one; allOf goes through the same
-// unhomed-keyword census refSiteRef already runs for format/const/enum/
-// required/additionalProperties (GitHub #283, #348), with allOf added to it.
+// document, no Unmodeled entry and no diagnostic. The $ref and the keywords
+// beside it are one conjunction, the union and the allOf among them, lowered
+// as the allOf of the two is (docs/compilers/openapi.md#ref-use-site).
 func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	// A union or an allOf beside a $ref joins the conjunction the $ref is one
 	// conjunct of: beside a $ref to an object a string or an integer shares no
