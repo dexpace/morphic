@@ -4314,7 +4314,10 @@ composed as a model where no conjunct declares a kind, as one over two `$ref`s t
 spelling: `{allOf: [{properties: …}, {items: …}]}` is a marked composition keeping the `items`
 entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
 already says what a keyword does, as a union lowered alone restating the body's `type` or a body
-whose union branches restate it, reads the kind the policy lowers what it compares to. A bound
+whose union branches restate it, reads the kind what it compares to lowers to, whether its
+conjuncts declare it or the policy reads it: keywords written with no `type` beside branches each
+declaring an object are that object, so branches restating it only narrow the body under either
+policy, as beside `type: object`. A bound
 beside such a schema is placed by the kind it lowers to, and the reading decides whether the schema
 names no kind. Where a conjunct beside it names kinds, as a union kept
 beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords name a kind only

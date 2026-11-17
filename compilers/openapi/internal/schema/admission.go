@@ -332,13 +332,18 @@ func loweredAs(c lowering.Ctx, js *statement.Statement, read admitted) admitted 
 }
 
 // writtenLowered is what s's own keywords admit as w reads them
-// (admission.written), narrowed to the kinds its shape keywords claim where it
-// writes no type (claimedKinds): what a body lowering by those keywords alone
-// admits.
+// (admission.written), narrowed, where it writes no type, to the kinds it
+// lowers to (untypedKinds): those its conjuncts declare where its keywords
+// speak of them, else those the kind-inference policy reads off them. So a
+// body beside branches each declaring an object admits what it would writing
+// `type: object`.
 func writtenLowered(w *admission, s *statement.Schema, nullable bool) admitted {
 	read := w.written(s, nullable)
-	if claims := claimedKinds(w.c, s); claims != 0 && !writesType(s) {
-		read.kinds &= claims
+	if writesType(s) {
+		return read
+	}
+	if kinds, _ := untypedKinds(w.c, s); kinds != 0 {
+		read.kinds &= kinds
 	}
 	return read
 }

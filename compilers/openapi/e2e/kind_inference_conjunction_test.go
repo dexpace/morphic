@@ -432,14 +432,18 @@ func TestKindInference_AFormBodyKeysNoPartItsModelLacks(t *testing.T) {
 	}
 }
 
+// restatingObjects is a union whose branches each declare an object and only
+// narrow it, closing a schema written beside it.
+const restatingObjects = "oneOf: [{type: object, required: [a]}, {type: object, required: [b]}]}"
+
 // TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo holds the readers
-// asking whether a position already says what a keyword does to the node the
-// policy lowers what it compares to: a property set the policy reads as an
-// object, as a property or as an allOf entry of a body, restates `type:
-// object`, a union branch writing `items` admits no string beside a string the
-// allOf lowers to, and branches the policy reads as objects take a bare
-// `required` beside them. With the policy off each is read as the top type it
-// lowers to.
+// asking whether a position already says what a keyword does to the node what
+// it compares to lowers to: a property set the policy reads as an object, as a
+// property or an allOf entry of a body, restates `type: object`, a branch
+// writing `items` admits no string beside a string the allOf lowers to, and
+// branches the policy reads as objects take a bare `required`; with the policy
+// off, each is the top type. Keywords beside branches each declaring an object
+// are that object under either policy, as beside `type: object`.
 func TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
@@ -450,6 +454,9 @@ func TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo(t *testing.T) {
 		"P: {properties: {a: {type: string}}}",
 		"Entry: {allOf: [{properties: {a: {type: string}}}], oneOf: [{type: object, required: [a]}]}",
 		"RefEntry: {allOf: [{$ref: '#/components/schemas/P'}], oneOf: [{type: object, required: [a]}]}",
+		"Closed: {additionalProperties: false, " + restatingObjects,
+		"Required: {required: [c], " + restatingObjects,
+		"Typed: {properties: {a: {type: string}}, " + restatingObjects,
 	}
 	type outcome struct {
 		kind ir.TypeKind
@@ -471,6 +478,11 @@ func TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo(t *testing.T) {
 			"Entry":    {ir.KindUnion, map[string]ir.UnmodeledReason{}},
 			"RefEntry": {ir.KindUnion, map[string]ir.UnmodeledReason{}},
 		},
+	}
+	for _, off := range []bool{false, true} {
+		for _, name := range []string{"Closed", "Required", "Typed"} {
+			want[off][name] = outcome{ir.KindModel, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonValidationOnly}}
+		}
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
