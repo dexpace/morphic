@@ -98,8 +98,8 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 // entries admitting alike, the pick turns on the keywords a node reads from
 // its principal alone, whichever is written first: the one writing all the
 // other does and more is the principal, keeping nothing of its own, and two
-// writing them otherwise elect neither, the position the top type keeping
-// both.
+// writing them otherwise, or writing one keyword with values that differ,
+// elect neither, the position the top type keeping both.
 func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -113,6 +113,10 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 			"{type: string, contentMediaType: application/json, contentSchema: {type: object}}", ir.KindScalar, []int{0}},
 		{"OtherContent", "{type: string, contentEncoding: base64}",
 			"{type: string, contentMediaType: application/json}", ir.KindPrimitive, []int{0, 1}},
+		{"DisagreeingContent", "{type: string, contentMediaType: application/json}",
+			"{type: string, contentMediaType: text/plain}", ir.KindPrimitive, []int{0, 1}},
+		{"DisagreeingTuple", "{type: array, prefixItems: [{type: string}]}",
+			"{type: array, prefixItems: [{type: integer}]}", ir.KindPrimitive, []int{0, 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
