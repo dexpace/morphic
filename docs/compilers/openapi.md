@@ -5725,8 +5725,8 @@ keyword itself, there is no absent form, and the two values are compared alone. 
 `$ref` and `$dynamicRef` in effect: each names components the absent form does not write, and
 differs from it by them, so one dropped is found as a value discarded. A keyword that stops
 being carried at any one position or in any one spelling fails there rather than waiting for a
-reader to notice, and a finding that stands is listed with its reason in the package's
-`testdata/presence.txt`. The test asks this of the core cases, which the gate runs; `make cases`
+reader to notice, and a finding that stands is listed in the package's `testdata/presence.txt`
+with its reason, which names the open issue it stands under. The test asks this of the core cases, which the gate runs; `make cases`
 asks it of every case, an entry written before the `$ref` and a second keyword written with the
 first among them, and fails on what the records, `testdata/full` among them, do not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped

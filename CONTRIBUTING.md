@@ -113,9 +113,10 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The race detector is outside it: a nightly job runs `make race` on `main`. The `Makefile`
-holds the step list, and each target (`make coverage`, `make race`, `make fuzz`, `make bench` and
-the rest) runs on its own while iterating. Coverage is gated at exactly 100% of statements, counted
+by side. The race detector and every schema case are outside it: a nightly job runs `make race`,
+then `make cases`, on `main`. The `Makefile` holds the step list, and each target
+(`make coverage`, `make race`, `make cases`, `make fuzz`, `make bench` and the rest) runs on its
+own while iterating. Coverage is gated at exactly 100% of statements, counted
 from the profile rather than from `go test`'s rounded percentage, so one uncovered statement fails
 the build.
 
@@ -153,6 +154,27 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
   which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
   it reads the IR's declarations through the go command.
+- **Schema cases.** `go test ./internal/harness/openapicases`, in the gate, holds the core schema
+  cases to the records under its `testdata/`; `make cases`, which the nightly job runs on `main`,
+  holds every case, those in `testdata/full/` too. Every line of a record names an open issue: its
+  reason is a key of `Reasons` whose text opens `#<issue>: `, which `TestReasons_EachCitesAnIssue`
+  holds. When `make cases` fails, or the nightly job opens `ci: the nightly cases run finds a
+  difference on main`, each failure is a line naming the case, what was found and the command
+  writing it, `go run ./cmd/morphic-harness -cases full -at N`, which prints both spellings'
+  sources and each oracle's verdict. Then:
+  1. A line whose finding is gone is a fix landed: regenerate, and commit the deletion.
+  2. A new finding the cases wrote themselves, a difference besides the spelling under test, is
+     the cases' to fix, with a test of the writer in `internal/harness/openapicases`.
+  3. Any other is the compiler's. Search the tracker for its shape; a new site of an open issue's
+     cause is a comment there, anything else a new issue (`CLAUDE.md`, "Filing issues"). Then
+     regenerate, which writes the line as `unclassified`, and give it the key of that issue, adding
+     one to `Reasons` where none fits.
+
+  ```bash
+  go test ./internal/harness/openapicases -update                   # the core records
+  go test ./internal/harness/openapicases -run TestFull_ -full -update  # testdata/full
+  ```
+
 - **Fuzzing.** `make fuzz` runs every fuzz target for 5s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
   `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
@@ -266,7 +288,8 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 
    A line the diff adds is a finding the change made, written as `unclassified`, which fails until
    the compiler is fixed or the line is given the reason, a key of `Reasons`, of the issue it stands
-   under. A line whose finding changed keeps its reason, so check the reason still holds.
+   under, which every key of `Reasons` cites. A line whose finding changed keeps its reason, so
+   check the reason still holds.
 
    The lines of `testdata/full` are the findings outside the core, which the gate does not run:
    `make cases` checks them, as the nightly job does, and this rewrites them the same way, in a few
