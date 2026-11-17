@@ -3149,11 +3149,17 @@ is reported.
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
 variant reads before the body. A declaration an entry brings stays declared on its own model, so it
-is not kept verbatim, and a report about it sits at the entry bringing it, naming the member in its
-`Provenance.Node`, and names a declaration another document holds with that document's name, a
-member a part settled by the one place its type is written, or by its first declaration where its
-type is written at several places or none, and one that would so be named where nothing is written,
-as a member only a part's entries declare, by the entry bringing it. A member the model declares
+is not kept verbatim. A report names a declaration another document holds with that document's
+name, a member a part settled by the one place its type is written, or by its first declaration
+where its type is written at several places or none, and one that would so be named where nothing is
+written, as a member only a part's entries declare, by the entry bringing it. A report about a
+declaration an entry brings sits at that entry, naming the member in its `Provenance.Node`, but for
+an `openapi/conflicting-redeclaration`, which sits where it names the declaration that lost, in that
+declaration's document: every model composing the two draws it alike, so the run reports it once,
+saying how many models compose both and naming no member, or naming the member where one model
+does. A consumer counting the warnings counts one per pair of declarations, member and outcome, two
+models keeping opposite declarations of one pair reporting one each, where it counted one per model
+composing them, each at the entry bringing the declaration that lost. A member the model declares
 itself keeps the identity of the first of its own declarations, unless another model holds that
 declaration too, as a node interned at the `allOf` branch writing it does, or as the variants of a
 distributed union share their body's; that one, and one only entries declare, the model declares in
@@ -3181,6 +3187,9 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
 - Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
+  `merge.TestReportOnce_SaysEachConflictOnce`,
+  `e2e.TestConflictOnce_IsReportedOncePerPairOfDeclarations`,
+  `e2e.TestConflictOnce_InlineCompositionsAtOperationsAreOneReport`,
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestFold_ALosingDetailIsKeptAndReported`,
   `merge.TestFold_TitleAndExternalDocsFoldLikeDescription`,

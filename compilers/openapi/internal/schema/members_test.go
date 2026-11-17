@@ -44,27 +44,31 @@ func diagsUnder(diags []ir.Diagnostic, prefix string) []ir.Diagnostic {
 // member two allOf entries declare apart: the composing model declares it, in
 // the composed namespace under one identity in either entry order, and a pair
 // no value satisfies keeps the entry written later, the specialization, with a
-// report at the entry that lost naming the property it decided (GitHub #1920).
+// report where the declaration that lost is written, naming the property it
+// decided (GitHub #1920).
 func TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition(t *testing.T) {
 	t.Parallel()
 	const parts = "    A: {type: object, properties: {p: {type: string}}}\n" +
 		"    B: {type: object, properties: {p: {type: integer}}}\n"
 	const id = "p/composed/components/schemas/AB/allOf/properties/p"
-	for entries, later := range map[string]ir.TypeID{
-		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": "t/prim/integer",
-		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": "t/prim/string",
+	for entries, tc := range map[string]struct {
+		later ir.TypeID
+		lost  string
+	}{
+		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": {"t/prim/integer", "/components/schemas/A/properties/p"},
+		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": {"t/prim/string", "/components/schemas/B/properties/p"},
 	} {
 		doc, diags := composedDoc(t, parts+"    AB: {allOf: "+entries+"}\n")
 
 		p := propertyOf(t, doc, "AB", "p")
 		assert.Equal(t, ir.PropID(id), p.ID, entries)
-		assert.Equal(t, later, p.Type.Target, "the entry written later: %s", entries)
+		assert.Equal(t, tc.later, p.Type.Target, "the entry written later: %s", entries)
 		assert.Empty(t, p.Unmodeled, "the declaration that lost stays on its model: %s", entries)
 		flat := ir.FlattenedProperties(doc.Types, componentID("AB"))
 		require.Len(t, flat.Properties, 1)
 		assert.Equal(t, p.ID, flat.Properties[0].Property.ID, "the flattening takes the composition's own")
 		require.Len(t, diags, 1, "%+v", diags)
-		found := diagsAtPointer(diags, diag.ConflictingRedecl, "/components/schemas/AB/allOf/0")
+		found := diagsAtPointer(diags, diag.ConflictingRedecl, tc.lost)
 		require.Len(t, found, 1, entries)
 		assert.Equal(t, id, found[0].Provenance.Node, entries)
 	}
@@ -75,8 +79,8 @@ func TestMembers_TwoEntriesDeclaringAMemberApartDeclareItOnTheComposition(t *tes
 // either entry order, the field takes the type, docs and bounds it takes where
 // the named schema's declaration is written inline in the entry's place, the
 // narrower type wherever it is written and, of a pair no value satisfies, the
-// later. The report sits at the entry, and the property keeps the identity of
-// the declaration the model writes, so a report about it sits there too.
+// later. A report about the entry's declaration names the member, and the
+// property keeps the identity of the declaration the model writes.
 func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 	t.Parallel()
 	const base = "{type: integer, description: from base}"
@@ -104,8 +108,13 @@ func TestMembers_ARefAndTheSchemaItNamesWrittenInlineFoldAlike(t *testing.T) {
 			assert.Equal(t, written.Type, byRef.Type, name)
 			assert.Equal(t, written.Docs, byRef.Docs, name)
 			assert.Equal(t, written.Constraints, byRef.Constraints, name)
-			atRef, atInline := len(diagsUnder(diags, "/components/schemas/Ref/")), len(diagsUnder(diags, "/components/schemas/Inline/"))
-			assert.Equal(t, atInline, atRef, "%s: as many reports: %+v", name, diags)
+			atRef := 0
+			for _, d := range diags {
+				if d.Provenance.Node == string(byRef.ID) {
+					atRef++
+				}
+			}
+			assert.Equal(t, len(diagsUnder(diags, "/components/schemas/Inline/")), atRef, "%s: as many reports: %+v", name, diags)
 		}
 	}
 }
@@ -289,7 +298,8 @@ func TestMembers_ABroughtMembersDefaultIsItsOwnTypesWhereThatIsWritten(t *testin
 // its type, the report names that declaration, not the first the member is
 // named for, which says another type. Where its model's composition built the
 // type of what only its entries declare, no schema is written where the model
-// declares it, so the report names the entry bringing it.
+// declares it, so the report names the entry bringing it. Either way the
+// report sits where it names.
 func TestMembers_AReportNamesABroughtMemberWhereItSaysWhatItDoes(t *testing.T) {
 	t.Parallel()
 	holding := func(schema string) string { return "{type: object, properties: {p: " + schema + "}}" }
@@ -308,9 +318,8 @@ func TestMembers_AReportNamesABroughtMemberWhereItSaysWhatItDoes(t *testing.T) {
 			"    A: "+holding("{type: string, enum: [x, y]}")+"\n    B: "+holding("{type: string, enum: [y, z]}")+"\n"+
 				"    M: "+tc.part+"\n    C: "+holding("{type: boolean}")+"\n    N: "+composing+"\n"))
 
-		at := diagsUnder(diags, "/components/schemas/N/")
+		at := diagsAtPointer(diags, diag.ConflictingRedecl, tc.over)
 		require.Len(t, at, 1, name)
-		assert.Equal(t, diag.ConflictingRedecl, at[0].Code, name)
 		assert.Contains(t, at[0].Message, "kept what the declaration at /components/schemas/C/properties/p says over the one at "+
 			tc.over+", which stays declared on its model", name)
 	}
@@ -394,7 +403,8 @@ func TestMembers_RequiresAndTheDiscriminatorFollowTheDeclaredMember(t *testing.T
 // TestMembers_AModelIsSettledAfterWhatItComposes pins a model composing one
 // whose member a fold settles: it reads that member settled, through an
 // alias entry too, whichever is declared first, so Mid's integer, not its own
-// number, is what Top's string meets.
+// number, is what Top's string meets, each conflict sitting where that integer
+// is written.
 func TestMembers_AModelIsSettledAfterWhatItComposes(t *testing.T) {
 	t.Parallel()
 	const base = "    Base: {type: object, properties: {id: {type: integer}}}\n"
@@ -403,10 +413,11 @@ func TestMembers_AModelIsSettledAfterWhatItComposes(t *testing.T) {
 		"    Aliased:\n      allOf: [{$ref: '#/components/schemas/Mid', description: d}, {type: object, properties: {id: {type: string}}}]\n"
 	for _, order := range []string{base + mid + tops, tops + mid + base} {
 		_, diags := composedDoc(t, order)
-		for _, at := range []string{"/components/schemas/Top/allOf/0", "/components/schemas/Aliased/allOf/0"} {
-			found := diagsAtPointer(diags, diag.ConflictingRedecl, at)
-			require.Len(t, found, 1, "%s: %+v", at, diags)
-			assert.Contains(t, found[0].Message, "t/prim/integer", at)
+		found := diagsAtPointer(diags, diag.ConflictingRedecl, "/components/schemas/Base/properties/id")
+		require.Len(t, found, 2, "%+v", diags)
+		for i, model := range []string{"Aliased", "Top"} {
+			assert.Contains(t, found[i].Message, "t/prim/integer", model)
+			assert.Contains(t, found[i].Message, "kept what the declaration at /components/schemas/"+model+"/allOf/1/properties/id", model)
 		}
 	}
 }
@@ -427,8 +438,8 @@ func TestMembers_ACycleSettlesTheSameInEitherOrder(t *testing.T) {
 // TestMembers_AModelAFoldComposesIsSettledInTheNextRound pins a fold
 // whose member two unrelated models declare: the fold composes them, as the
 // entries are written, into a model of its own, whose member they declare apart
-// is settled in turn, the later entry's again, with the report at the entry
-// bringing the one that lost.
+// is settled in turn, the later entry's again, with the report where the one
+// that lost is written.
 func TestMembers_AModelAFoldComposesIsSettledInTheNextRound(t *testing.T) {
 	t.Parallel()
 	const parts = `    A1: {type: object, properties: {r: {type: string}}}
@@ -436,9 +447,12 @@ func TestMembers_AModelAFoldComposesIsSettledInTheNextRound(t *testing.T) {
     A: {type: object, properties: {q: {$ref: '#/components/schemas/A1'}}}
     B: {type: object, properties: {q: {$ref: '#/components/schemas/B1'}}}
 `
-	for entries, later := range map[string]ir.TypeID{
-		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": "t/prim/integer",
-		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": "t/prim/string",
+	for entries, tc := range map[string]struct {
+		later ir.TypeID
+		lost  string
+	}{
+		"[{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]": {"t/prim/integer", "/components/schemas/A1/properties/r"},
+		"[{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]": {"t/prim/string", "/components/schemas/B1/properties/r"},
 	} {
 		doc, diags := composedDoc(t, parts+"    M: {allOf: "+entries+"}\n")
 
@@ -446,8 +460,8 @@ func TestMembers_AModelAFoldComposesIsSettledInTheNextRound(t *testing.T) {
 		composed, ok := doc.Types[q.Type.Target].(*ir.Model)
 		require.True(t, ok, "got %T", doc.Types[q.Type.Target])
 		require.Len(t, composed.Properties, 1, "its own r")
-		assert.Equal(t, later, composed.Properties[0].Type.Target, entries)
-		assert.Len(t, diagsAtPointer(diags, diag.ConflictingRedecl, "/components/schemas/M/allOf/0"), 1, "%s: %+v", entries, diags)
+		assert.Equal(t, tc.later, composed.Properties[0].Type.Target, entries)
+		assert.Len(t, diagsAtPointer(diags, diag.ConflictingRedecl, tc.lost), 1, "%s: %+v", entries, diags)
 	}
 }
 

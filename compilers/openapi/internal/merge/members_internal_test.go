@@ -95,18 +95,19 @@ func own(wire string, target ir.TypeID, n string) func(idx *PropIndex) {
 
 // TestPropIndex_SettlesAMemberItsEntriesDeclareApart pins a member two entries
 // declare apart, in either entry order: the model declares the later's at
-// <model>/allOf/properties/<name> in the composed namespace, reports at the
-// entry bringing the one that lost, naming the property, and keeps nothing,
-// the loser staying declared on its model.
+// <model>/allOf/properties/<name> in the composed namespace, reports where the
+// one that lost is written, naming the property, and keeps nothing, the loser
+// staying declared on its model.
 func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	t.Parallel()
 	id := ids.Document{}.ComposedProp("/M/allOf/properties/p")
 	for _, tc := range []struct {
 		first, second ir.TypeID
 		want          ir.TypeID
+		lost          jsontext.Pointer
 	}{
-		{"t/A", "t/B", "t/prim/integer"},
-		{"t/B", "t/A", "t/prim/string"},
+		{"t/A", "t/B", "t/prim/integer", "/A/p"},
+		{"t/B", "t/A", "t/prim/string", "/B/p"},
 	} {
 		m, diags := settled(t, membersRegistry(), composes(tc.first, "0"), composes(tc.second, "1"))
 
@@ -117,7 +118,7 @@ func TestPropIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 		assert.Empty(t, p.Unmodeled)
 		require.Len(t, diags, 1, "%v", tc)
 		assert.Equal(t, diag.ConflictingRedecl, diags[0].Code)
-		assert.Equal(t, jsontext.Pointer("/M/allOf/0"), diags[0].Provenance.Pointer)
+		assert.Equal(t, tc.lost, diags[0].Provenance.Pointer)
 		assert.Equal(t, string(id), diags[0].Provenance.Node)
 	}
 }
@@ -167,8 +168,9 @@ func TestPropIndex_ReadsAnOwnDeclarationWhereTheWalkMetIt(t *testing.T) {
 }
 
 // TestPropIndex_PlacesADeclarationAtTheEntryBringingIt pins where a brought
-// declaration is read and reported: at the entry naming its owner or a type
-// composing it, and at the model, read first, where no entry does; an owner
+// declaration is read: at the entry naming its owner or a type composing it,
+// and at the model, read first, where no entry does, a conflict over it sitting
+// where it is written either way; an owner
 // another entry's composes brings nothing, Sub's p standing within A's, but
 // one of two models composing each other does, and a declaration two entries
 // bring is read once.
@@ -179,13 +181,13 @@ func TestPropIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	m, diags := settled(t, reg, composes("t/viaSub", "0"), composes("t/A", "1"))
 	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target)
 	require.Len(t, diags, 1)
-	assert.Equal(t, jsontext.Pointer("/M/allOf/0"), diags[0].Provenance.Pointer, "B's, through the entry composing it")
+	assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer, "B's, through the entry composing it")
 
 	reg = membersRegistry()
 	m, diags = settled(t, reg, func(idx *PropIndex) { idx.m.Base = &ir.TypeRef{Target: "t/B"} }, composes("t/A", "0"))
 	assert.Equal(t, ir.TypeID("t/prim/string"), m.Properties[0].Type.Target, "B's, read first at the model")
 	require.Len(t, diags, 1)
-	assert.Equal(t, jsontext.Pointer("/M"), diags[0].Provenance.Pointer)
+	assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer)
 
 	m, diags = settled(t, membersRegistry(), composes("t/Sub", "0"), composes("t/A", "1"))
 	assert.Empty(t, m.Properties, "Sub's p stands within A's, so one declaration decides")
@@ -319,8 +321,8 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 // declaration's, where that is written, unless another model holds that
 // declaration too, as a node interned at the allOf branch writing it does, or
 // it is written outside the model's schema, as the body a distributed variant
-// shares is; then one in the composed namespace. The report about the entry's
-// declaration sits at the entry either way, naming the member.
+// shares is; then one in the composed namespace. The conflict over the entry's
+// declaration sits where that is written either way, naming the member.
 func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 	t.Parallel()
 	const composedAt jsontext.Pointer = "/M/allOf/properties/p"
@@ -351,7 +353,7 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 		assert.Equal(t, tc.wantAt, p.Provenance.Pointer, "%s: where the identity says", name)
 		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "%s: the own declaration, written later", name)
 		require.Len(t, diags, 1, name)
-		assert.Equal(t, jsontext.Pointer("/M/allOf/0"), diags[0].Provenance.Pointer, name)
+		assert.Equal(t, jsontext.Pointer("/B/p"), diags[0].Provenance.Pointer, name)
 		assert.Equal(t, string(p.ID), diags[0].Provenance.Node, name)
 	}
 }
@@ -360,12 +362,14 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 // declaration an entry brings from another document: its pointer and that
 // document's name, since the pointer alone reads as one in the document the
 // report is in; a declaration in that document is named by its pointer alone.
+// A conflict over the first sits where it is written, in its document, by the
+// input that wrote it.
 func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(membersRegistry())
 	g.Sources = []ir.SourceInfo{{Path: "root.yaml"}, {Path: "other.yaml"}}
 	theirs := declared("p", "t/prim/integer", "/B/p")
-	theirs.Provenance.Source = 1
+	theirs.Provenance.Source, theirs.Provenance.WrittenBy = 1, 2
 	entry := &composedEntry{target: "t/B", at: "/M/allOf/0", order: 1}
 	decls := []declaration{
 		{prop: theirs, order: 1, via: entry},
@@ -377,6 +381,7 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
 		"kept what the declaration at /M/allOf/1/properties/p says over the one at /B/p in other.yaml,")
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/B/p", WrittenBy: 2}, diags[0].Provenance)
 }
 
 // TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten pins where a settled
