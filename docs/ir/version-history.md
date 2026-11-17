@@ -919,7 +919,8 @@ it sees. Changes made together in one bump are listed together under it.
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
   declared kind, or a conjunct naming one, a union beside the `allOf` among them, decides before a
   `$ref` whose target admits every kind. A `$dynamicRef` a conjunct writes masks no kind in that
-  reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
+  reading, and one on an entry, which no position expands, admits every kind, where it was read as
+  what it names: over an object it is the `Model` beside the `allOf` makes, not a use. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
   union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to

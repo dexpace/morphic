@@ -2253,12 +2253,12 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
    otherwise at a branch writing a `type` that excludes an object
    ([`allof-inline-residue`](#allof-inline-residue)). Where neither holds, as for two `enum`s
    sharing no member, each branch is kept with an info and no report names the contradiction.
-5. a `$dynamicRef` the position does not expand stands beside it: `{allOf: [{$ref: T}], $dynamicRef:
-   '#m'}` is a `Model` keeping the `$dynamicRef`, even where `T` admits no object and its `$ref` is
-   kept too.
 
-A `$dynamicRef` a conjunct writes masks no kind: one the position expands is read as the schema it
-names, and one it does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
+A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in what a `$ref` lands on,
+is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
+one on an entry of it, which no position expands, do. So `{allOf: [{$ref: T}], $dynamicRef: '#m'}`
+and `{allOf: [{$ref: T}, {$dynamicRef: '#m'}]}` lower alike, whatever `#m` names: a `Model` over `T`
+where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. A union beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
@@ -2436,7 +2436,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_KeywordsLandAtEveryPosition`,
   `schema.TestRefinement_KeptKeywordsLandAtEveryPosition`,
   `schema.TestRefinement_SeveralRefsUseTheNarrowest`, `schema.TestRefinement_KindsBeyondAnObjectAreAUse`,
-  `schema.TestRefinement_ADynamicRefIsReadAsWhatItNames`,
+  `schema.TestRefinement_ADynamicRefMasksNoKind`, `schema.TestDynamicRefEntry_OnAnEntryLowersAsBesideTheAllOf`,
   `e2e.TestAllOfCompose_ATargetAdmittingEveryKindIsUsedNotComposed`,
   `e2e.TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept`,
   `e2e.TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel`,
@@ -2496,8 +2496,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
-  consumes (#1067), and a `$dynamicRef` beside the `allOf` keeps a `Model` over a target admitting no
-  object (#2009).
+  consumes (#1067).
 
 ### `allof-beside-ref`
 
@@ -2548,8 +2547,8 @@ list holding one where a variant whose type takes it does, a value bound but a p
 `Model` or a `MapT`, and a collection bound on any node but a `List` or a `Tuple`, that `Union`
 holding one where such a variant does; a collection bound
 `Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
-`$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)),
-where a union beside it is one more conjunct, and neither changes anything else here: where the
+`$dynamicRef` beside the `allOf` is a conjunct masking no kind ([`allof-refinement`](#allof-refinement)),
+and a union beside it one more conjunct, and neither changes anything else here: where the
 `allOf` composes, its branches fold into the composition as they do with neither there, beside a
 `$dynamicRef` it keeps from expanding ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
 ([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of

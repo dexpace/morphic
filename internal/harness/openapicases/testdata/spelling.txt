@@ -1,10 +1,2 @@
 # What the spelling oracle finds at the core cases, and the reason each finding
 # stands: case name, what was found, reason (Reasons).
-3.1.0/object/$dynamicRef/none/component/entry	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/header/entry	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/parameter/entry	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/object/$dynamicRef/none/property/entry	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/object/$dynamicRef~/none/component/entry	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/object/$dynamicRef~/none/header/entry	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/object/$dynamicRef~/none/parameter/entry	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/object/$dynamicRef~/none/property/entry	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside

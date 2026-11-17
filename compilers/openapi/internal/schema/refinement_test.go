@@ -1917,19 +1917,21 @@ func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
 	}
 }
 
-// TestRefinement_ADynamicRefIsReadAsWhatItNames pins that a $dynamicRef, on a
-// branch or in what a $ref lands on, masks no kind: one the position expands
-// is read as the string it names, so beside a string the allOf is no model.
-func TestRefinement_ADynamicRefIsReadAsWhatItNames(t *testing.T) {
+// TestRefinement_ADynamicRefMasksNoKind pins that a $dynamicRef masks no kind:
+// one in what a $ref lands on, which that position expands, is read as the
+// string it names, so beside a string the allOf is no model, and one on a
+// branch, which no position expands, admits every kind, so the object its
+// anchor names makes no model of a description beside it.
+func TestRefinement_ADynamicRefMasksNoKind(t *testing.T) {
 	t.Parallel()
 	for name, s := range map[string]string{
-		"on a branch": "    S: {allOf: [{$dynamicRef: '#node'}, {type: string}]}\n",
+		"on a branch": "    S: {allOf: [{$dynamicRef: '#obj'}, {description: d}]}\n",
 		"in a target": "    S: {allOf: [{$ref: '#/components/schemas/D'}, {type: string}]}\n    D: {$dynamicRef: '#node'}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-				"    Node: {$dynamicAnchor: node, type: string}\n"+s))
+				"    Node: {$dynamicAnchor: node, type: string}\n    Obj: {$dynamicAnchor: obj, type: object}\n"+s))
 			openapitest.RequireNoErrorDiags(t, diags)
 			_, ok := typeByName(doc, "S").(*ir.Scalar)
 			assert.True(t, ok, "got %T", typeByName(doc, "S"))
