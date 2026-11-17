@@ -11,15 +11,17 @@ components:
     UntypedItems: {items: {type: string}}
     # Same shape, positional: an untyped prefixItems is a tuple.
     UntypedPrefixItems: {prefixItems: [{type: string}]}
-    # required narrows an object alone, so it speaks of one: a model requiring
-    # the name.
+    # required narrows an object alone, so it speaks of one, but types no
+    # member: it infers no kind, so the position lowers to the top type keeping
+    # it.
     UntypedRequired: {required: [name]}
     # format pairs with a declared type to select a primitive or hoist a scalar.
     # It speaks of no kind, so with no type beside it nothing reads it, and the
     # position lowers to the top type keeping it.
     UntypedFormat: {format: uuid}
-    # A discriminator is held by a Model or a Union that routes by it, and
-    # speaks of an object, so it is the model's.
+    # A discriminator is held by a Model or a Union that routes by it. It speaks
+    # of an object and types nothing, so it infers no kind; the top type routes
+    # nothing, so the discriminator is kept rather than dropped.
     UntypedDiscriminator: {discriminator: {propertyName: kind}}
     # A contradictory schema: an instance cannot be both a two-member string
     # enum and an object. The enum is taken and the property set kept beside it,

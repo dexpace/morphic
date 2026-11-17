@@ -26,8 +26,6 @@ var shapeTwins = []struct {
 }{
 	{"Elements: {items: {type: string}}", "ElTyped: {type: array, items: {type: string}}", "Elements", "ElTyped", ir.KindList, false},
 	{"AddlOnly: {additionalProperties: {type: string}}", "AddlTyped: {type: object, additionalProperties: {type: string}}", "AddlOnly", "AddlTyped", ir.KindMap, false},
-	{"ReqOnly: {required: [a]}", "ReqTyped: {type: object, required: [a]}", "ReqOnly", "ReqTyped", ir.KindModel, false},
-	{"DiscOnly: {discriminator: {propertyName: k}}", "DiscTyped: {type: object, discriminator: {propertyName: k}}", "DiscOnly", "DiscTyped", ir.KindModel, false},
 	{"PatOnly: {patternProperties: {'^x': {type: string}}}", "PatTyped: {type: object, patternProperties: {'^x': {type: string}}}", "PatOnly", "PatTyped", ir.KindModel, true},
 	{"PrefixOnly: {prefixItems: [{type: string}]}", "PrefixTyped: {type: array, prefixItems: [{type: string}]}", "PrefixOnly", "PrefixTyped", ir.KindTuple, true},
 }
@@ -47,12 +45,13 @@ func nodeWithoutNames(t *testing.T, doc *ir.Document, id ir.TypeID) map[string]a
 	return tree
 }
 
-// TestKindInference_EveryShapeKeywordInfersTheKindItSpeaksOf holds that a
-// schema writing one shape keyword and no type lowers as the schema writing the
-// type that keyword speaks of does, and carries the marker the twin lacks.
-// The keywords are items, additionalProperties, required, discriminator,
-// patternProperties and prefixItems; the last two are 3.1 keywords.
-func TestKindInference_EveryShapeKeywordInfersTheKindItSpeaksOf(t *testing.T) {
+// TestKindInference_EveryTypingKeywordInfersTheKindItSpeaksOf holds that a
+// schema writing one keyword that types a member, an element or a value, and
+// no type, lowers as the schema writing the type that keyword speaks of does,
+// and carries the marker the twin lacks. The keywords are items,
+// additionalProperties, patternProperties and prefixItems; the last two are
+// 3.1 keywords.
+func TestKindInference_EveryTypingKeywordInfersTheKindItSpeaksOf(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		var schemas []string
@@ -86,14 +85,13 @@ func TestKindInference_EveryShapeKeywordInfersTheKindItSpeaksOf(t *testing.T) {
 }
 
 // TestKindInference_AnInferredCollectionKeepsItsMemberTypes holds that the
-// kind read off a keyword carries what the keyword says: the element, value
-// and required names the three schemas write are in the nodes the policy makes.
+// kind read off a keyword carries what the keyword says: the element and the
+// value the two schemas write are in the nodes the policy makes.
 func TestKindInference_AnInferredCollectionKeepsItsMemberTypes(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
 		"Elements: {items: {type: string}}",
 		"AddlOnly: {additionalProperties: {type: string}}",
-		"ReqOnly: {required: [a]}",
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
@@ -106,25 +104,21 @@ func TestKindInference_AnInferredCollectionKeepsItsMemberTypes(t *testing.T) {
 				mapped, ok := kindNode(t, doc, componentID("AddlOnly")).(*ir.MapT)
 				require.True(t, ok)
 				assert.Equal(t, prim(ir.PrimString), mapped.Value.Target)
-				model, ok := kindNode(t, doc, componentID("ReqOnly")).(*ir.Model)
-				require.True(t, ok)
-				assert.Equal(t, []string{"a"}, model.Requires)
 			})
 		})
 	}
 }
 
 // TestKindInference_AnInlineCollectionIsMarkedAtItsPosition holds that the
-// marker stands on the list, map or model an inline schema owns at a property,
-// for the keywords other than `properties`.
+// marker stands on the list or map an inline schema owns at a property, for
+// the keywords other than `properties`.
 func TestKindInference_AnInlineCollectionIsMarkedAtItsPosition(t *testing.T) {
 	t.Parallel()
 	holder := "Holder: {type: object, properties: {it: {items: {type: string}}, " +
-		"ad: {additionalProperties: {type: string}}, rq: {required: [a]}}}"
+		"ad: {additionalProperties: {type: string}}}}"
 	want := map[ir.TypeID]ir.TypeKind{
 		"t/anon/components/schemas/Holder/properties/it": ir.KindList,
 		"t/anon/components/schemas/Holder/properties/ad": ir.KindMap,
-		"t/anon/components/schemas/Holder/properties/rq": ir.KindModel,
 	}
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
@@ -171,7 +165,7 @@ func TestKindInference_ASchemaSpeakingOfTwoKindsIsAMarkedUnionOfBoth(t *testing.
 	t.Parallel()
 	rows := []struct{ name, untyped, typed string }{
 		{"Both", "properties: {a: {type: string}}, items: {type: string}", "BothT"},
-		{"ReqItems", "required: [a], items: {type: string}", "ReqItemsT"},
+		{"PatItems", "patternProperties: {'^x': {type: string}}, items: {type: string}", "PatItemsT"},
 		{"AddlItems", "additionalProperties: {type: string}, items: {type: string}", "AddlItemsT"},
 	}
 	schemas := make([]string, 0, 2*len(rows))

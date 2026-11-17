@@ -4264,16 +4264,24 @@ applicator does (`{items: {type: string}}` constrains every array instance).
 
 A schema naming no kind, one writing no `type` or a null one and no family
 [`competing-keywords`](#competing-keywords) elects first, lowers as the same schema writing the
-`type` its shape keywords speak of, under the kind-inference policy ([`policies`](#policies)): the
-Go option `Options.KindInference`, whose zero value is on, and the text option `kind-inference`,
-which `false` turns off. A keyword JSON Schema applies to instances of one kind alone, passing an
-instance of any other (JSON Schema Core 2020-12 §7.6.1), speaks of that kind: `properties`,
-`patternProperties`, `additionalProperties`, `required` and `discriminator` of an object, `items`
-and `prefixItems` of an array. A `properties`, a `patternProperties`, a `required` and a
-`prefixItems` speak where they list a member, and an `additionalProperties` and an `items` where
-they are written and not null, `true` and `{}` among them, so a `properties` written null or with no
-member, an empty `required` and a null `items` claim nothing. Keywords of
-both kinds lower as `type: [object, array]` beside them does ([`type-arrays`](#type-arrays)): a
+`type` the keywords giving its instances a type speak of, under the kind-inference policy
+([`policies`](#policies)): the Go option `Options.KindInference`, whose zero value is on, and the
+text option `kind-inference`, which `false` turns off. A keyword JSON Schema applies to instances of
+one kind alone, passing an instance of any other (JSON Schema Core 2020-12 §7.6.1), speaks of that
+kind: `properties`, `patternProperties`, `additionalProperties`, `required` and `discriminator` of
+an object, `items` and `prefixItems` of an array. A `properties`, a `patternProperties`, a
+`required` and a `prefixItems` speak where they list a member, and an `additionalProperties` and an
+`items` where they are written and not null, `true` and `{}` among them, so a `properties` written
+null or with no member, an empty `required` and a null `items` speak of none. Only a keyword giving
+the type of a member, an element or a value infers its kind: a `properties` or a
+`patternProperties` listing a member, a `prefixItems` listing a position, a list of `items`, and an
+`additionalProperties` or an `items` holding a schema that writes a keyword. A `required` and a
+`discriminator` type nothing, nor does a closure, `false`, or a `true` or `{}`, of which Core says
+omitting the keyword "has the same assertion behavior as an empty schema" (§10.3.1.2, §10.3.2.3): a
+schema writing only such keywords lowers as with the policy off, to the top type keeping them, and
+beside a keyword that infers they bind the node it builds, as a `required` names a member of the
+model a `properties` makes. Keywords inferring both kinds lower as `type: [object, array]` beside
+them does ([`type-arrays`](#type-arrays)): a
 `Union` of the object's node and the array's, in that order whichever keyword is written first. The
 kind is the policy's reading of what the document means, so the node it builds, at a component, a
 property, an element, a body or a union's branch alike, and each variant of such a union, names
@@ -4302,7 +4310,7 @@ beside it does ([`union-beside-structure`](#union-beside-structure)), the keywor
 where every kind the conjuncts admit is one they speak of, and the schema lowers to those: unmarked
 where the document declared them, as `{oneOf: [{type: object, …}], additionalProperties: false}`
 declares an object, and marked where a conjunct names its own by the policy's reading, as a branch
-writing `required` alone does. Where the conjuncts admit a kind the keywords do not speak of
+writing `properties` alone does. Where the conjuncts admit a kind the keywords do not speak of
 (`{oneOf: [{type: object, …}, {type: string}], required: [a]}`), the keywords would narrow what the
 document declares, so under either policy the schema is the top type keeping them. A union that
 distributes across a body the policy read as an object
@@ -4359,7 +4367,7 @@ union of models.
   `e2e.TestKindInference_TheTextOptionSwitchesThePolicy`,
   `e2e.TestKindInference_AnUntypedShapeLosesNothingUnderEitherPolicy`,
   `e2e.TestKindInference_APropertySetBesideAUnionComposesByThePolicy`,
-  `e2e.TestKindInference_EveryShapeKeywordInfersTheKindItSpeaksOf`,
+  `e2e.TestKindInference_EveryTypingKeywordInfersTheKindItSpeaksOf`,
   `e2e.TestKindInference_AnInferredCollectionKeepsItsMemberTypes`,
   `e2e.TestKindInference_AnInlineCollectionIsMarkedAtItsPosition`,
   `e2e.TestKindInference_ASchemaSpeakingOfTwoKindsIsAMarkedUnionOfBoth`,
@@ -4378,6 +4386,9 @@ union of models.
   `e2e.TestKindInference_AnEntryReadAloneIsItsOwnPosition`,
   `e2e.TestKindInference_AFormBodyKeysNoPartItsModelLacks`,
   `e2e.TestKindInference_WhatAPositionSaysIsReadOffWhatItLowersTo`,
+  `e2e.TestKindInference_OnlyAKeywordGivingATypeInfersItsKind`,
+  `e2e.TestKindInference_AKeywordTypingNothingStillSpeaksOfItsKind`,
+  `e2e.TestKindInference_ANarrowingBesideATypingKeywordStaysOnItsModel`,
   `schema.TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,

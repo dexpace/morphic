@@ -190,20 +190,25 @@ func TestKindInference_TheEntryOrderAndThePolicyLeaveTheDeclaredKindAlone(t *tes
 	}
 }
 
-// claimedTargets are components whose kind the policy reads off their shape
-// keywords: a list, and two models.
+// claimedTargets are components writing shape keywords and no type: E and P,
+// a list and a model by the policy's reading, and R, whose `required` speaks of
+// an object and infers no kind, so the policy reads none.
 var claimedTargets = []string{
 	"E: {items: {type: string}}",
 	"R: {required: [a]}",
 	"P: {properties: {a: {type: string}}}",
 }
 
+// inferredTargets are the claimedTargets whose kind the policy reads.
+var inferredTargets = map[string]bool{"E": true, "P": true}
+
 // TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim holds an allOf
 // conjoining a string with a $ref to a schema the policy reads as another
 // kind: the document declares the string, so the position is a use of it, the
 // $ref entry is kept with one info naming the policy, nothing warns and the
-// target is still the node the policy reads it as. With the policy off the
-// target is the top type and the position a use of it, keeping the string.
+// target is still the node the policy reads it as. With the policy off, or a
+// target whose keywords infer no kind, the target is the top type and the
+// position a use of it, keeping the string.
 func TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
@@ -231,12 +236,13 @@ func TestKindInference_ADeclaredKindOutvotesARefTheKeywordsClaim(t *testing.T) {
 func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 	t.Helper()
 	for _, off := range []bool{false, true} {
+		inferred := !off && inferredTargets[target]
 		doc, diags := compileKindInference(t, "outvoted", spec, off)
 		requireErrorsAndWarnings(t, diags, nil)
-		assert.Equal(t, !off, markedKindInference(kindNode(t, doc, componentID(target))), "off=%t", off)
+		assert.Equal(t, inferred, markedKindInference(kindNode(t, doc, componentID(target))), "off=%t", off)
 		for _, at := range conjunctionPositions {
 			want, kept := prim(ir.PrimString), refAt
-			if off {
+			if !inferred {
 				want, kept = componentID(target), 1-refAt
 			}
 			entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", kept))
@@ -244,7 +250,7 @@ func assertOutvotedRef(t *testing.T, spec, target string, refAt int) {
 			assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry: ir.ReasonDegradedLowering},
 				keptUnder(doc, at), "off=%t at %s", off, at)
 			assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "off=%t at %s", off, at)
-			if !off {
+			if inferred {
 				assert.Contains(t, diagMessageOf(t, diags, string(entry)), "kind-inference", "the info names the policy at %s", at)
 			}
 		}

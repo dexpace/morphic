@@ -456,10 +456,10 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 // as its shape keywords speak of them (shapeKinds), and whether the
 // kind-inference policy read them, by the run's admission of its statement.
 // Where its conjuncts, as a union kept beside it, admit a kind the keywords do
-// not speak of, there are none, as with the policy off where nothing names a
-// kind. Else s lowers to the kinds they admit: the policy's where it read any,
-// off s or a conjunct, the document's otherwise. A read cut short leaves the
-// keywords to the policy.
+// not speak of, there are none, as where nothing names a kind. Else s lowers
+// to the kinds they admit: the policy's where it read any, off s or a
+// conjunct, the document's otherwise. A read cut short leaves s the kinds its
+// keywords infer (claimedKinds).
 func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 	claims := shapeKinds(s)
 	if claims == 0 || !stated(s) {
@@ -468,10 +468,8 @@ func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 	r := admissionOf(c, c.Statements().Read(s))
 	switch {
 	case r.cut:
-		if !c.KindInference.Honours() {
-			return 0, false
-		}
-		return claims, true
+		inferred := claimedKinds(c, s)
+		return inferred, inferred != 0
 	case r.kinds&^claims != 0:
 		return 0, false
 	default:
@@ -502,24 +500,33 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), nil, pointer)...)
 }
 
-// claimedKinds returns the kinds the shape keywords s writes speak of
-// (shapeKinds) where c's kind-inference policy reads them as a kind, none
-// where it is off. The run's admission reads it as the kinds a statement
-// naming no kind lowers to (readOne), which lowerUntyped lowers by
-// (untypedKinds), and an election as what a schema writing no type admits
-// (writtenKinds).
+// claimedKinds returns the kinds c's kind-inference policy reads off the
+// keywords s writes that give a type to the instances they apply to, a
+// member's, an element's or a value's (siblingKeyword.infers), and none where
+// the policy is off. The run's admission reads it as the kinds a statement
+// declaring none lowers to (readOne), which lowerUntyped lowers by
+// (untypedKinds).
 func claimedKinds(c lowering.Ctx, s *statement.Schema) kindSet {
 	if !c.KindInference.Honours() {
 		return 0
 	}
-	return shapeKinds(s)
+	var out kindSet
+	for _, set := range [...][]siblingKeyword{shapeKeywords, narrowingKeywords} {
+		for _, k := range set {
+			if k.infers != nil && k.claims&^out != 0 && k.infers(c.Statements(), s) {
+				out |= k.claims
+			}
+		}
+	}
+	return out
 }
 
 // shapeKinds returns the kinds of instance the shape keywords s writes apply
-// to alone: an object for a `discriminator` and for each keyword whose row in
-// shapeKeywords or narrowingKeywords claims one, as its predicate reads it
-// written, an array likewise (docs/compilers/openapi.md#shape-applicator). It
-// is the one reading of them.
+// to alone, whether or not they infer one: an object for a `discriminator` and
+// for each keyword whose row in shapeKeywords or narrowingKeywords claims one,
+// as its predicate reads it written, an array likewise
+// (docs/compilers/openapi.md#shape-applicator). It is the one reading of what
+// they speak of.
 func shapeKinds(s *statement.Schema) kindSet {
 	var out kindSet
 	if discriminatorIn(s) != nil {
@@ -747,28 +754,35 @@ func nullableTrue(s *statement.Schema) bool {
 }
 
 // siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
-// leaves something for the position to carry, with how a schema writes it, and
-// the kind of instance it speaks of where it applies to one kind alone, which
-// a schema naming no kind is read as (claimedKinds).
+// leaves something for the position to carry, with how a schema writes it, the
+// kind of instance it speaks of where it applies to one kind alone, and, for a
+// keyword giving the type of a member, an element or a value, where it does,
+// which a schema naming no kind is read as (claimedKinds). infers is nil for a
+// keyword that never does.
 type siblingKeyword struct {
 	key    string
 	writes func(*statement.Schema) bool
 	claims kindSet
+	infers func(*statement.Table, *statement.Schema) bool
 }
 
 // shapeKeywords are the keywords that declare data shape — a type, a property
 // set, a value set, composition, or a catch-all — rather than only narrowing
 // what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
 var shapeKeywords = []siblingKeyword{
-	{"properties", func(s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }, kindObject},
-	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }, 0},
-	{"enum", enumWritten, 0},
-	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }, 0},
+	{"properties", func(s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }, kindObject,
+		func(_ *statement.Table, s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }},
+	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }, 0, nil},
+	{"enum", enumWritten, 0, nil},
+	{"allOf", func(s *statement.Schema) bool { return len(allOfIn(s)) > 0 }, 0, nil},
 	{"additionalProperties", func(s *statement.Schema) bool {
 		return written(objectIn(s).AdditionalProperties)
-	}, kindObject},
-	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }, kindObject},
-	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }, 0},
+	}, kindObject, func(t *statement.Table, s *statement.Schema) bool {
+		return typesInstances(t, objectIn(s).AdditionalProperties)
+	}},
+	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }, kindObject,
+		func(_ *statement.Table, s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }},
+	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }, 0, nil},
 }
 
 // narrowingKeywords are the keywords that constrain an instance without
@@ -780,12 +794,25 @@ var shapeKeywords = []siblingKeyword{
 // co-declared property set. An `items` list narrows too, read off the raw node,
 // since nothing documents what the parser's model holds there.
 var narrowingKeywords = []siblingKeyword{
-	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }, kindObject},
+	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }, kindObject, nil},
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
 		return listed || written(arrayIn(s).Items)
-	}, kindArray},
-	{"prefixItems", func(s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }, kindArray},
+	}, kindArray, func(t *statement.Table, s *statement.Schema) bool {
+		_, listed := listedItems(s)
+		return listed || typesInstances(t, arrayIn(s).Items)
+	}},
+	{"prefixItems", func(s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }, kindArray,
+		func(_ *statement.Table, s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }},
+}
+
+// typesInstances reports whether sub, the schema an `items` or an
+// `additionalProperties` writes, gives a type to the instances it applies to: a
+// schema object writing a keyword. `true` and `{}` state nothing, as leaving
+// the keyword out does (JSON Schema Core 2020-12 §10.3.1.2, §10.3.2.3), and
+// `false`, which admits no instance, types none either.
+func typesInstances(t *statement.Table, sub statement.Sub) bool {
+	return sub.Truth() == statement.Stated && len(t.Sub(sub).Keys) > 0
 }
 
 // siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords
