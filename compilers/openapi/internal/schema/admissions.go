@@ -283,7 +283,7 @@ func (w *admissionWalk) settle(f *admissionFrame) {
 	} else {
 		r := w.readOne(f.st, f.edges)
 		w.store.read[f.st] = r
-		w.store.merged += len(r.admitted.forms) + len(r.admitted.values)
+		w.store.merged += len(r.admitted.forms) + r.admitted.size()
 	}
 	w.open = w.open[:from]
 }

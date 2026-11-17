@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -471,4 +472,85 @@ func TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart(t *testing.T) {
 		r := admissionOf(l.Ctx, st)
 		assert.Equal(t, row.partial, r.partial&r.admits, "%s: %s", name, row.schema)
 	}
+}
+
+// fanout writes n statements, each a oneOf of the one value set of n members
+// and a set of a member of its own, as an allOf entry.
+func fanout(n int) string {
+	var b strings.Builder
+	b.WriteString("    Base: {enum: [")
+	for i := range n {
+		fmt.Fprintf(&b, "b%d, ", i)
+	}
+	b.WriteString("b]}\n")
+	for i := range n {
+		fmt.Fprintf(&b, "    S%d: {allOf: [{oneOf: [{$ref: '#/components/schemas/Base'}, {enum: [x%d]}]}]}\n", i, i)
+	}
+	return b.String()
+}
+
+// heldMembers is how many value-set members the run's readings hold, each set
+// counted once however many readings share it.
+func heldMembers(store *admissions) int {
+	seen := map[uintptr]bool{}
+	held := 0
+	count := func(set map[string]kindSet) {
+		if at := reflect.ValueOf(set).Pointer(); set != nil && !seen[at] {
+			seen[at] = true
+			held += len(set)
+		}
+	}
+	for _, r := range store.read {
+		count(r.admitted.values)
+		for _, set := range r.admitted.joined {
+			count(set)
+		}
+	}
+	return held
+}
+
+// TestAdmissionOf_AUnionSharesTheSetsItJoins holds the value-set members a
+// run's readings hold to growth linear in the document where n statements each
+// join one set of n members with one of their own: a union holds its
+// branches' sets, which copying them into one would make quadratic.
+func TestAdmissionOf_AUnionSharesTheSetsItJoins(t *testing.T) {
+	t.Parallel()
+	held := func(n int) int {
+		l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", fanout(n)))
+		require.Empty(t, diags)
+		for name, st := range l.Schemas() {
+			require.True(t, admissionOf(l.Ctx, st).admitted.fixed, name)
+		}
+		return heldMembers(admissionStore(l.Ctx))
+	}
+	at8, at16, at32 := held(8), held(16), held(32)
+	assert.LessOrEqual(t, at32-at16, 5*(at16-at8)/2, "held %d, %d, %d at 8, 16, 32", at8, at16, at32)
+}
+
+// TestAdmitted_AUnionHoldsEveryMemberOfTheSetsItJoins holds a union's value
+// set to the members of each set it joins, read in place: a member of any of
+// them is one, what it shares with another set is what any of them shares, and
+// a member two of them hold is one value, so a union holding it twice is
+// within a set holding it once.
+func TestAdmitted_AUnionHoldsEveryMemberOfTheSetsItJoins(t *testing.T) {
+	t.Parallel()
+	set := func(keys ...string) admitted {
+		values := map[string]kindSet{}
+		for _, k := range keys {
+			values[k] = kindString
+		}
+		return admitted{kinds: kindString, fixed: true, values: values}
+	}
+	union := set("a").or(set("b")).or(set("c"))
+	for key, want := range map[string]bool{"a": true, "b": true, "c": true, "d": false} {
+		assert.Equal(t, want, union.hasMember(key), key)
+	}
+	assert.Equal(t, 3, union.size())
+	assert.True(t, union.reachable())
+	assert.Equal(t, map[string]kindSet{"b": kindString, "c": kindString}, union.and(set("b", "c", "d")).values)
+	assert.Equal(t, map[string]kindSet{"c": kindString}, set("c", "x", "y", "z").and(union).values)
+	assert.True(t, set("c").valuesWithin(union))
+	assert.False(t, union.valuesWithin(set("a", "b")))
+	assert.True(t, union.valuesWithin(set("a", "b", "c")))
+	assert.True(t, set("a").or(set("a")).valuesWithin(set("a")), "a member two joined sets hold is one value")
 }

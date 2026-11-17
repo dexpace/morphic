@@ -5,7 +5,6 @@ package schema
 
 import (
 	"bytes"
-	"maps"
 	"slices"
 	"strings"
 
@@ -132,11 +131,54 @@ func (f scalarForm) narrows(g scalarForm) bool {
 type admitted struct {
 	kinds kindSet
 	// fixed marks a value set, values then holding each member's key (memberOf)
-	// with its kind, none where the set is empty.
+	// with its kind, none where the set is empty, and joined the sets a union
+	// adds to it, each still the branch's own: a union shares its branches'
+	// sets rather than copying them, and none is written to.
 	fixed  bool
 	values map[string]kindSet
+	joined []map[string]kindSet
 	forms  []scalarForm
 	items  *statement.Statement
+}
+
+// hasMember reports whether a's value set holds the member keyed key.
+func (a admitted) hasMember(key string) bool {
+	if _, ok := a.values[key]; ok {
+		return true
+	}
+	for _, set := range a.joined {
+		if _, ok := set[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// members yields each member of a's value set with its kind, one two joined
+// sets hold once for each.
+func (a admitted) members(yield func(string, kindSet) bool) {
+	for v, kind := range a.values {
+		if !yield(v, kind) {
+			return
+		}
+	}
+	for _, set := range a.joined {
+		for v, kind := range set {
+			if !yield(v, kind) {
+				return
+			}
+		}
+	}
+}
+
+// size is how many members a's sets hold together, one two of them hold
+// counted for each.
+func (a admitted) size() int {
+	n := len(a.values)
+	for _, set := range a.joined {
+		n += len(set)
+	}
+	return n
 }
 
 // and is what a and b admit together. The values of a set a kind beside it
@@ -150,22 +192,23 @@ func (a admitted) and(b admitted) admitted {
 	}
 	switch {
 	case a.fixed && b.fixed:
-		out.values = sharedValues(a.values, b.values)
+		out.values, out.joined = sharedValues(a, b), nil
 	case b.fixed:
-		out.fixed, out.values = true, b.values
+		out.fixed, out.values, out.joined = true, b.values, b.joined
 	}
 	return out
 }
 
-// sharedValues returns the members a and b hold, walking the smaller: a value set
-// is shared by every reader of it, so neither may be written to.
-func sharedValues(a, b map[string]kindSet) map[string]kindSet {
-	if len(b) < len(a) {
+// sharedValues returns the members a's and b's value sets hold, walking the
+// smaller: a value set is shared by every reader of it, so neither may be
+// written to.
+func sharedValues(a, b admitted) map[string]kindSet {
+	if b.size() < a.size() {
 		a, b = b, a
 	}
-	out := make(map[string]kindSet, len(a))
-	for v, kind := range a {
-		if _, shared := b[v]; shared {
+	out := make(map[string]kindSet, a.size())
+	for v, kind := range a.members {
+		if b.hasMember(v) {
 			out[v] = kind
 		}
 	}
@@ -173,12 +216,12 @@ func sharedValues(a, b map[string]kindSet) map[string]kindSet {
 }
 
 // or is what either of a and b admits: a union, whose branches hold no one
-// format or element schema an instance is held to.
+// format or element schema an instance is held to, and whose value set joins
+// theirs.
 func (a admitted) or(b admitted) admitted {
 	out := admitted{kinds: a.kinds | b.kinds, fixed: a.fixed && b.fixed}
 	if out.fixed {
-		out.values = maps.Clone(a.values)
-		maps.Copy(out.values, b.values)
+		out.values, out.joined = a.values, slices.Concat(a.joined, []map[string]kindSet{b.values}, b.joined)
 	}
 	return out
 }
@@ -189,7 +232,7 @@ func (a admitted) reachable() bool {
 	if !a.fixed {
 		return a.kinds != 0
 	}
-	for _, kind := range a.values {
+	for _, kind := range a.members {
 		if kind&a.kinds != 0 {
 			return true
 		}
@@ -207,18 +250,19 @@ func (a admitted) valuesWithin(b admitted) bool {
 	return within
 }
 
-// walkWithin is valuesWithin with how many of a's members it looked up. Those
-// are distinct, so a set larger than b's holds one b lacks, answered unwalked.
+// walkWithin is valuesWithin with how many of a's members it looked up. The
+// members of one set are distinct, so where neither joins another set, one
+// larger than b's holds one b lacks, answered unwalked.
 func (a admitted) walkWithin(b admitted) (within bool, walked int) {
 	if !b.fixed {
 		return true, 0
 	}
-	if !a.fixed || len(a.values) > len(b.values) {
+	if !a.fixed || len(a.joined) == 0 && len(b.joined) == 0 && len(a.values) > len(b.values) {
 		return false, 0
 	}
-	for v := range a.values {
+	for v := range a.members {
 		walked++
-		if _, ok := b.values[v]; !ok {
+		if !b.hasMember(v) {
 			return false, walked
 		}
 	}
@@ -249,8 +293,7 @@ func (a admitted) takes(v *yaml.Node) bool {
 		return false
 	}
 	if a.fixed {
-		_, member := a.values[key]
-		return member
+		return a.hasMember(key)
 	}
 	return kind&a.kinds != 0
 }
