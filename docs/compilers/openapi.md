@@ -2132,8 +2132,9 @@ placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
 
 An `allOf` whose kinds are an object alone lowers to the composing `Model`'s `Base` and `Mixins`
 ([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s. A
-`$ref` entry composes only where the schema it lands on lowers to an object alone, null aside: the
-sole such entry becomes `Base`, and of several the first, in source order, to a schema taking part
+`$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, or to
+the union of a `type` list holding an object, whose object variant it composes (below): the sole
+such entry becomes `Base`, and of several the first, in source order, to a schema taking part
 in a discriminator hierarchy: one declaring a `discriminator`, or composing through `allOf`, at any
 depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag
 off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
@@ -2152,8 +2153,14 @@ composing model's own `Properties`, each property keeping its own provenance
 and a declaration a fold drops stays kept, while what a declaration folded into a field adds lands
 on the field without its source. A `$ref` entry naming a union of objects is no exception: the union
 is the `Base` or a `Mixin`, never distributed over its variants as one written beside the `allOf` is
-([models](../ir/models.md#a-union-a-composition-names)). One naming a union admitting another kind,
-as a type list of an object and a string, is kept as above.
+([models](../ir/models.md#a-union-a-composition-names)). One naming a schema whose `type` list holds
+an object and another kind composes that list's object variant, the one node of that kind its union
+holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, …]}` over `Pet: {type: [object, string],
+properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
+keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or `anyOf` writes is not unpacked: it
+may hold several objects, or none a model is, so one admitting another kind is kept as above. The
+list is read only where the entry's `$ref` lands: one landing on another `$ref` to `Pet`, as
+`{$ref: Chain}` over `Chain: {$ref: Pet}` does, is kept as above too.
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
@@ -2174,6 +2181,9 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
   `e2e.TestAllOfCompose_ObjectsAloneStayAModel`, `e2e.TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed`,
   `e2e.TestAllOfCompose_ConjunctsNoInstanceSatisfiesNameNoPlainBase`,
+  `e2e.TestAllOfCompose_ASubtypeOfATypeListComposesItsObjectVariant`,
+  `e2e.TestAllOfCompose_AMemberTheVariantAndTheSubtypeDeclareFolds`,
+  `e2e.TestAllOfCompose_OnlyATypeListsObjectVariantIsComposed`,
   `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`,
   `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
   `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`,
@@ -2222,9 +2232,12 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
    `type` that excludes an object ([`allof-inline-residue`](#allof-inline-residue)). Where neither
    holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
    names the contradiction.
+5. a `$dynamicRef` the position does not expand stands beside it: `{allOf: [{$ref: T}], $dynamicRef:
+   '#m'}` is a `Model` keeping the `$dynamicRef`, even where `T` admits no object and its `$ref` is
+   kept too.
 
-A `$dynamicRef` masks no kind: one the position expands is read as the schema it names, and one it
-does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
+A `$dynamicRef` a conjunct writes masks no kind: one the position expands is read as the schema it
+names, and one it does not admits every kind. A union beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
@@ -2425,7 +2438,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
-  consumes (#1067).
+  consumes (#1067), and a `$dynamicRef` beside the `allOf` keeps a `Model` over a target admitting no
+  object (#2009).
 
 ### `allof-beside-ref`
 
