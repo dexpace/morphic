@@ -420,7 +420,7 @@ func variantHint(c lowering.Ctx, b *statement.Statement, vptr jsontext.Pointer) 
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
 	branches := allOfBranches(c, b.Schema, vptr).branches
-	base, ok := selectAllOfBase(c, branches)
+	base, ok := selectAllOfBase(c, branches, "")
 	if !ok || !variantNamesTarget(b.Schema, branches) {
 		return own
 	}
@@ -745,7 +745,7 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 // component, the tag its lowering takes (subtypeDiscriminatorValue). That
 // lowering reports the tag's own diagnostics, so this reading drops them.
 func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
-	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer)
+	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer, nil)
 	return tag.routed
 }
 

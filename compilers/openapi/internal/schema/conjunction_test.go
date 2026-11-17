@@ -151,3 +151,87 @@ func TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt(t *testing.T)
 	assert.Equal(t, componentID("Str"), useTargetOf(t, v))
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/W/allOf/0"))
 }
+
+// TestAllOf_TwoDiscriminatedBasesElectAndTagAlikeInEitherOrder pins the Base
+// and the tag of a schema composing two $refs whose discriminators each map
+// it: the base is one whose mapping routes the schema, of those the least
+// reference text, and its hierarchy gives the tag, whichever entry and
+// whichever declaration is written first. A base whose mapping does not route
+// the schema yields to one whose does, whatever their texts.
+func TestAllOf_TwoDiscriminatedBasesElectAndTagAlikeInEitherOrder(t *testing.T) {
+	t.Parallel()
+	a := "    A: {type: object, properties: {k: {type: string}}, discriminator: {propertyName: k, mapping: {sa: '#/components/schemas/S'}}}\n"
+	b := "    B: {type: object, properties: {k: {type: string}}, discriminator: {propertyName: k, mapping: {sb: '#/components/schemas/S'}}}\n"
+	quietA := "    A: {type: object, properties: {k: {type: string}}, discriminator: {propertyName: k}}\n"
+	ab := "    S: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}\n"
+	ba := "    S: {allOf: [{$ref: '#/components/schemas/B'}, {$ref: '#/components/schemas/A'}]}\n"
+	for name, tc := range map[string]struct{ src, base, mixin, tag string }{
+		"both route, A first":          {a + b + ab, "A", "B", "sa"},
+		"both route, B first":          {a + b + ba, "A", "B", "sa"},
+		"both route, S declared first": {ab + b + a, "A", "B", "sa"},
+		"only B routes, A first":       {quietA + b + ab, "B", "A", "sb"},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", tc.src))
+		openapitest.RequireNoErrorDiags(t, diags)
+		s, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok, name)
+		require.NotNil(t, s.Base, name)
+		assert.Equal(t, componentID(tc.base), s.Base.Target, name)
+		require.Len(t, s.Mixins, 1, name)
+		assert.Equal(t, componentID(tc.mixin), s.Mixins[0].Target, name)
+		assert.Equal(t, tc.tag, s.DiscriminatorValue, name)
+	}
+}
+
+// TestAllOf_AClosureBesideARefClosesAsInEverySpelling pins that a closure
+// written beside a $ref, beside an allOf of it, beside the $ref in an entry
+// or on an entry of its own closes the model over the target alike, keeping
+// nothing.
+func TestAllOf_AClosureBesideARefClosesAsInEverySpelling(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    T: {type: object, properties: {a: {type: string}}}
+    Beside: {$ref: '#/components/schemas/T', additionalProperties: false}
+    Wrap: {allOf: [{$ref: '#/components/schemas/T'}], additionalProperties: false}
+    EntryBeside: {allOf: [{$ref: '#/components/schemas/T', additionalProperties: false}]}
+    EntryApart: {allOf: [{$ref: '#/components/schemas/T'}, {additionalProperties: false}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"Beside", "Wrap", "EntryBeside", "EntryApart"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, name)
+		require.NotNil(t, m.Base, name)
+		assert.Equal(t, componentID("T"), m.Base.Target, name)
+		assert.Equal(t, ir.AdditionalClosed, m.Additional, name)
+		assert.Empty(t, m.Unmodeled, name)
+	}
+}
+
+// TestUnion_ANoteBesideAVariantsRefRidesOnItsBranchNode pins a oneOf variant
+// writing a description beside its $ref, distributed across a body beside the
+// union: the variant composes the branch's own node, the model over the target
+// holding the note, and the body's members, and is named for the target.
+func TestUnion_ANoteBesideAVariantsRefRidesOnItsBranchNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Mixed: {type: object, properties: {m: {type: string}}}
+    U:
+      oneOf:
+        - {$ref: '#/components/schemas/Mixed', description: the mixed variant}
+      type: object
+      properties: {p: {type: string}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 1)
+	assert.Equal(t, "mixed", u.Variants[0].Name.Hint)
+	variant, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, variant.Properties, 1)
+	assert.Equal(t, "p", variant.Properties[0].WireName)
+	require.NotNil(t, variant.Base)
+	branch, ok := doc.Types[variant.Base.Target].(*ir.Model)
+	require.True(t, ok, "the branch's own node")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/U/oneOf/0"), branch.ID)
+	assert.Equal(t, componentID("Mixed"), useTargetOf(t, branch))
+	assert.Equal(t, "the mixed variant", branch.Docs.Description)
+}

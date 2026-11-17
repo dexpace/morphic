@@ -66,7 +66,11 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		diags = append(diags, discDiags...)
 		m.Discriminator = d
 	}
-	tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
+	var first *statement.Schema // the base's hierarchy tags the model first
+	if b, ok := selectAllOfBase(c, comp.branches, common.ID); ok {
+		first = refBranchTarget(c, comp.branches[b].schema)
+	}
+	tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer, first)
 	m.DiscriminatorValue = tag.value
 	diags = append(diags, tagDiags...)
 	deferSubtypeTag(c, ts, tag, common.ID, pointer)
@@ -284,7 +288,7 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	base, hasBase := selectAllOfBase(c, comp.branches)
+	base, hasBase := selectAllOfBase(c, comp.branches, m.ID)
 	for i, e := range comp.branches {
 		switch {
 		case e.schema.Ref == nil:
@@ -577,29 +581,62 @@ func branchExcludesObject(bs *statement.Schema) bool {
 	return writesType(bs) && !slices.Contains(kindsIn(bs), statement.KindObject)
 }
 
-// selectAllOfBase returns the index into branches of the one that becomes
-// Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
-// Mixins): of the $refs the composition takes (composesRef), the one, or of
-// several, of those whose $ref lands on a schema taking part in a
-// discriminator hierarchy (inHierarchy), the one whose reference text is the
-// least, so no order written decides.
-func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
+// selectAllOfBase returns the index into branches, the conjuncts of the
+// composition whose node is id, of the one that becomes Model.Base, and false
+// when none qualifies (multiple non-hierarchy refs stay Mixins): of the $refs
+// the composition takes (composesRef), the one, or of several, of those whose
+// $ref lands on a schema taking part in a discriminator hierarchy
+// (inHierarchy), one whose hierarchy's mapping routes id before one whose does
+// not, then the one whose reference text is the least, so no order written
+// decides.
+func selectAllOfBase(c lowering.Ctx, branches []allOfBranch, id ir.TypeID) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
 		if e.schema.Ref != nil && composesRef(c, e) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
-	// Ranked by reference text, then by pointer, for a $ref written twice.
+	// Ranked by whether the hierarchy routes id, by reference text, then by
+	// pointer, for a $ref written twice.
+	routes := make(map[int]bool, len(refIdxs))
+	for _, i := range refIdxs {
+		routes[i] = routesTo(c, refBranchTarget(c, branches[i].schema), id)
+	}
 	slices.SortStableFunc(refIdxs, func(i, j int) int {
 		_, a := refSpelling(branches[i].schema)
 		_, b := refSpelling(branches[j].schema)
-		return cmp.Or(strings.Compare(a, b), strings.Compare(string(branches[i].pointer), string(branches[j].pointer)))
+		return cmp.Or(compareTrueFirst(routes[i], routes[j]), strings.Compare(a, b),
+			strings.Compare(string(branches[i].pointer), string(branches[j].pointer)))
 	})
 	return merge.SelectBase(refIdxs, func(i int) bool {
 		target := refBranchTarget(c, branches[i].schema)
 		return stated(target) && inHierarchy(c, target)
 	})
+}
+
+// routesTo reports whether the mapping of a discriminator s or one of its
+// discriminated ancestors declares names id, the node a composition of s
+// lowers to; nil and an empty id route nothing.
+func routesTo(c lowering.Ctx, s *statement.Schema, id ir.TypeID) bool {
+	if !stated(s) || id == "" {
+		return false
+	}
+	return slices.ContainsFunc(append([]*statement.Schema{s}, discriminatedAncestors(c, s)...), func(a *statement.Schema) bool {
+		d := discriminatorIn(a)
+		return d != nil && len(mappingTagsFor(c, d, id)) > 0
+	})
+}
+
+// compareTrueFirst orders true before false.
+func compareTrueFirst(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return -1
+	default:
+		return 1
+	}
 }
 
 // inHierarchyOf keys what inHierarchy read of one schema.

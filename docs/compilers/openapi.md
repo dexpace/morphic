@@ -1778,7 +1778,9 @@ decorator spelling alike, whose [fold](../emitters/refine/decorators.md) reads t
 where any of its annotations is. An extension the promotion
 policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
-component — the keywords beside the `$ref` bind an alias hoisted at that position instead
+component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
+the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
+anything else, and in an `allOf` entry they are an inline conjunct of the composition
 ([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
 than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
@@ -2142,8 +2144,9 @@ over any other target, one admitting null, which a `Base` does not carry, or a r
 answers, the `Scalar` alias. A
 `$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, or to
 the union of a `type` list holding an object, whose object variant it composes (below): the sole
-such entry becomes `Base`, and of several the one whose reference text is the least of those to a
-schema taking part in a discriminator hierarchy, whichever is written first: one declaring a `discriminator`, or composing through `allOf`, at any
+such entry becomes `Base`, and of several, of those to a schema taking part in a discriminator
+hierarchy, one whose hierarchy's mapping names the composing schema before one whose does not, then
+the one whose reference text is the least, whichever is written first: one declaring a `discriminator`, or composing through `allOf`, at any
 depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag
 off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
 discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
@@ -4073,7 +4076,9 @@ is a reference wherever its discriminator ends up.
 A subtype's wire tag lowers to `Model.DiscriminatorValue`, left empty on the base itself. It is read
 off the discriminators of the subtype's `allOf` ancestors — the `$ref` branches' targets, then
 theirs, level by level to the walk's depth bound, nearest first, a schema that declares none passed
-through and no schema its own ancestor — as the key an ancestor's `mapping` spells for the subtype,
+through and no schema its own ancestor, the hierarchy of the subtype's `Base` before any other, so
+two discriminated parents mapping it tag it as its `Base`'s does whichever is written first
+([`allof-classification`](#allof-classification)) — as the key an ancestor's `mapping` spells for the subtype,
 the mapping naming it by reference or by schema name, read through each `$ref`, a component's among
 them, as [`discriminator`](#discriminator) reads it, an inline subtype by its position's
 reference, and where several keys name it [`discriminator`](#discriminator) elects one. A key of
@@ -4103,7 +4108,8 @@ a tag. A discriminator standing with a union on a branch of its schema's `allOf`
 branch or beside the `allOf`, routes by name the schemas that union lists, as one beside it does.
 
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`, `oneof-discriminated`
-- Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
+- Tests: `schema.TestAllOf_TwoDiscriminatedBasesElectAndTagAlikeInEitherOrder`,
+  `schema.TestAllOf_DiscriminatorSubtypeValue`,
   `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
   `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`,
   `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`,
