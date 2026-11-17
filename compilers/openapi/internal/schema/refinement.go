@@ -1061,7 +1061,13 @@ func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
 // inline entry's keywords are. It reports which it kept, by pointer.
 func keepRefConjuncts(c lowering.Ctx, p *ir.Unmodeled, branches []keptBranch, pointer jsontext.Pointer,
 ) (map[jsontext.Pointer]bool, []ir.Diagnostic) {
-	keys := keptRefKeys(branches, pointer)
+	var keys map[jsontext.Pointer]keptRef
+	if len(branches) == 1 {
+		// One kept $ref is openapi:$ref at its entry, as keptRefKeys ranks it.
+		keys = map[jsontext.Pointer]keptRef{branches[0].entry.pointer: {key: "openapi:$ref", at: branches[0].entry.pointer}}
+	} else {
+		keys = keptRefKeys(branches, pointer)
+	}
 	kept := make(map[jsontext.Pointer]bool, len(branches))
 	var diags []ir.Diagnostic
 	for _, b := range branches {

@@ -243,14 +243,13 @@ func (n *nulls) lands(js *statement.Statement) nullReading {
 	// Each read below is in its own document's dialect, and the walk returns to
 	// its own on every way out.
 	defer func(outer bool) { n.nullable = outer }(n.nullable)
-	end, endDoc := n.c.Statements().At(e.Chain.End), e.Chain.End.Doc
-	if hop != nil && hop.Ref == nil {
-		// A schema writing keys beside its $ref ends the run, the two one
-		// conjunction (statement.Schema.BesideRef), wherever the chain goes on.
-		end, endDoc = hop, at.Doc
-	}
-	last := sites[len(sites)-1]
-	if !last.kept {
+	if last := sites[len(sites)-1]; !last.kept {
+		end, endDoc := hop, at.Doc
+		if hop == nil || hop.Ref != nil {
+			// The chain's end, unless a schema writing keys beside its $ref ended
+			// the run, the two one conjunction (statement.Schema.BesideRef).
+			end, endDoc = n.c.Statements().At(e.Chain.End), e.Chain.End.Doc
+		}
 		n.nullable = definesNullableIn(n.c, endDoc)
 		n.keep(last, n.conjunct(end, nullSite{}))
 	}

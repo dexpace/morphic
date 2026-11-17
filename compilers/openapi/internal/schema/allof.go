@@ -56,7 +56,8 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
 	fields := newModelFields(c, ts, m)
-	diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
+	base, hasBase := selectAllOfBase(c, comp.branches, common.ID)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp, base, hasBase)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
 	requireMembers(m, compositionRequired(objectIn(s).Required, comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
@@ -67,8 +68,8 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		m.Discriminator = d
 	}
 	var first *statement.Schema // the base's hierarchy tags the model first
-	if b, ok := selectAllOfBase(c, comp.branches, common.ID); ok {
-		first = refBranchTarget(c, comp.branches[b].schema)
+	if hasBase {
+		first = refBranchTarget(c, comp.branches[base].schema)
 	}
 	tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer, first)
 	m.DiscriminatorValue = tag.value
@@ -264,11 +265,11 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
+	base int, hasBase bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var failed []int
 	var uncomposed []keptBranch
-	base, hasBase := selectAllOfBase(c, comp.branches, m.ID)
 	for i, e := range comp.branches {
 		switch {
 		case e.schema.Ref == nil:

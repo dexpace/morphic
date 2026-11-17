@@ -1185,7 +1185,8 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 		// read after it, as a model's own declarations follow what it composes.
 		fields.compose(branch, m.Provenance.Pointer)
 	}
-	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
+	base, hasBase := selectAllOfBase(c, body.comp.branches, m.ID)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp, base, hasBase)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(objectIn(body.schema).Required, body.comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)

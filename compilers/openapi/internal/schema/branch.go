@@ -31,6 +31,9 @@ func refBranchTarget(c lowering.Ctx, b *statement.Statement) *statement.Schema {
 // where a hop before it lands on no schema, and for a loop of $refs, which
 // maxChainHops ends.
 func runEnd(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bool) {
+	if e := st.Ref.Entry; st.Ref.Bound && e.Chain.Status == bind.Resolved && e.Chain.Hops == 1 {
+		return c.Statements().At(e.Chain.End), true // the one hop is the run
+	}
 	for range maxChainHops {
 		next, _ := declaredOf(c, st)
 		switch {
