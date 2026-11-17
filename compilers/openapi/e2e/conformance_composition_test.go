@@ -559,8 +559,10 @@ func assertTypeArrayDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Dia
 	for name, value := range map[string]string{"Cat": "cat", "Dog": "Dog"} {
 		sub, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s composes as a Model", name)
-		assert.Nil(t, sub.Base, "%s composes no union admitting a string", name)
-		assert.Contains(t, sub.Unmodeled, "openapi:allOf/0", "%s keeps its $ref to the union", name)
+		require.NotNil(t, sub.Base, name)
+		assert.Equal(t, variant.ID, sub.Base.Target, "%s composes the union's object variant", name)
+		assert.Empty(t, sub.Unmodeled, "%s keeps nothing", name)
+		assert.Contains(t, ir.ExposedProps(doc, sub.ID), variant.Properties[0].ID, "%s inherits the variant's member", name)
 		assert.Equal(t, value, sub.DiscriminatorValue)
 	}
 }

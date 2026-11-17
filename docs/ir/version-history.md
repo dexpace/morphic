@@ -919,8 +919,8 @@ it sees. Changes made together in one bump are listed together under it.
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
   declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` masks no kind
   in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
-  so no `Model` names a base or a mixin that is no object; any other is kept under
-  `openapi:allOf/<n>`. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
+  or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
+  base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
   distributed. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
@@ -932,4 +932,5 @@ it sees. Changes made together in one bump are listed together under it.
   found a union of models over each branch, and one reading a union with a null branch beside a body
   finds it distributed, behind a reference admitting null as the body does, one reading an `allOf`
   over a target that is no object alone as a model finds a use of the target, and one reading a
-  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` kept instead.
+  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` kept instead, and
+  over a `type` list holding an object the list's object variant where it found the union.
