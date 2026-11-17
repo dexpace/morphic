@@ -781,7 +781,7 @@ func (k outcomeKeeps) holdsAny() bool {
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
 // to target: a refinement's census and the branches it left, or the census of
 // any other outcome lowering to a reference (referenceOutcomeKeywords).
-func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
+func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
 	r, refined := refinementOf(c, s, pointer)
 	if !refined {
 		keywords, shape := referenceOutcomeKeywords(c, s, pointer)
@@ -797,7 +797,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		degraded, validation := keptUnion(c, r, s)
 		k.keywords, k.validation = append(refinedUnhomed(c, r, s, typed), degraded...), validation
 	}
-	homes := homesAt(c, ts, s, target, pointer)
+	homes := homesAt(c, s, target, pointer)
 	voices := voicingOf(c, s)
 	w := newAdmission(c)
 	set, setAtPosition := valueSetPrincipal(r)
@@ -867,38 +867,79 @@ func principalTwin(w *admission, r refinement, e allOfBranch) bool {
 // carrier or an alias holds the value bounds the types the position admits take
 // (boundKinds), and collection bounds where it is a use of the principal, a
 // reference (keywordHome), where those types admit an array. A node the position
-// owns holds what its kind does, of the value bounds those take, and the Union a
-// type list lowers to the bounds its variants do, each the bounds of its own type
-// (lowerTypeVariant).
-func homesAt(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
+// owns holds what the lowering that builds it folds of them (ownHomes).
+func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
 		takes := boundKinds(c, s)
 		return boundHomes{value: takes, collection: refined && r.principal != nil && takes&kindArray != 0}
 	}
-	// A node still building holds nothing yet.
+	return ownHomes(c, s, pointer)
+}
+
+// ownHomes returns which bounds the node the refinement s, written at pointer,
+// owns holds for the voices of its allOf, read off what lowers the position
+// rather than off the node: none of a value set's (a principal's, or the
+// election's const or enum), the value bounds of the types a Scalar built for
+// each type its lowering names takes, the collection bounds of an array's List
+// or Tuple, a union's of oneOf or anyOf the bounds the position admits, and
+// none of an object's, which lowerModel builds with no voice.
+func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) boundHomes {
+	if r, refined := refinementOf(c, s, pointer); refined && r.principal != nil {
+		return boundHomes{}
+	}
+	d, _ := electionOf(c, s, pointer)
+	if d.won == "const" || d.won == "enum" {
+		return boundHomes{}
+	}
+	takes := boundKinds(c, s)
+	if declaresUnion(s) {
+		branches, _, _ := unionBranches(s)
+		return boundHomes{value: takes, collection: slices.ContainsFunc(branches, func(b statement.Sub) bool {
+			kinds, _ := lowersTo(c, c.Statements().Sub(b))
+			return kinds == kindArray
+		})}
+	}
+	types, top := nodeTypes(c, s, pointer)
+	if top {
+		return boundHomes{value: takes}
+	}
 	var homes boundHomes
-	if td, ok := ts.Node(target.Target); ok {
-		homes.numberText = carriesNumberAsText(td)
-		nodes := withVariants(ts, td)
-		if slices.ContainsFunc(nodes, constraintsHome) {
-			homes.value = heldAmong(nodes, boundKinds(c, s))
+	for _, st := range types {
+		switch st {
+		case statement.KindObject:
+		case statement.KindArray:
+			homes.collection = true
+		default:
+			if carriesText(s, st) {
+				homes.numberText = true
+				continue
+			}
+			homes.value |= takes & typeKinds(st)
 		}
-		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}
 	return homes
 }
 
-// withVariants returns td, a node a position owns, and, where it is a Union,
-// the registered nodes of its variants: what may hold the bounds the position
-// writes, as a oneOf's or an anyOf's Union does itself and the variants of a
-// type list's or a distributed union's do (lowerTypeVariant, composedVariant).
-func withVariants(ts *compile.Types, td ir.TypeDef) []ir.TypeDef {
-	u, isUnion := td.(*ir.Union)
-	if !isUnion {
-		return []ir.TypeDef{td}
+// nodeTypes returns the types the nodes of the position s, written at pointer,
+// are built for where it elects no family and declares no union: the types it
+// writes, none where it writes only null, and else the ones its shape keywords
+// speak of (untypedKinds) or its allOf admits (lowerUndecided), top where it
+// admits none, which lowers to an alias of the top type.
+func nodeTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (types []statement.Kind, top bool) {
+	if types := effectiveTypes(s); len(types) > 0 {
+		return types, false
 	}
-	return append(variantNodes(ts, u), u)
+	if writesType(s) {
+		return nil, false
+	}
+	kinds, _ := untypedKinds(c, s)
+	if kinds == 0 {
+		types := undecidedTypes(c, s, pointer)
+		return types, len(types) == 0
+	}
+	// An object, an array, or both, as lowerUntyped builds them.
+	return slices.DeleteFunc(slices.Clone(inferredKinds), func(st statement.Kind) bool { return typeKinds(st)&kinds == 0 }), false
 }
 
 // variantNodes returns the registered nodes of u's variants.

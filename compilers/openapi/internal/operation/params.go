@@ -151,11 +151,11 @@ func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, writ
 	// schema.UseOf reads the end of a $ref chain, since one hop would take the
 	// default and description off an intermediate reference instead of the
 	// schema that declares them.
-	use := schema.UseOf(c.Ctx, ts, c.Statements().Of(js), param.Type, pointer)
+	use := schema.UseOf(c.Ctx, c.Statements().Of(js), param.Type, pointer)
 	def, diags := use.Default(c.Ctx, c.Statements().Of(js).Schema, pointer)
 	param.Default = def
 
-	cons, consDiags := schema.CarrierConstraintsOf(c.Ctx, ts, written, c.Statements().Of(js).Schema, use.Voices, param.Type, pointer)
+	cons, consDiags := schema.CarrierConstraintsOf(c.Ctx, written, c.Statements().Of(js).Schema, use.Voices, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
 	diags = append(diags, fillParamSchemaAnnotations(c, param, written, c.Statements().Of(js).Schema, use, pointer)...)

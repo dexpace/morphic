@@ -27,11 +27,11 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *s
 	if js.Truth != statement.Stated {
 		return nil
 	}
-	use := UseOf(c, ts, js, p.Type, pointer)
+	use := UseOf(c, js, p.Type, pointer)
 	def, diags := use.Default(c, js.Schema, pointer)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(js.Schema).Chain(), pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, ts, p, js.Schema, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, p, js.Schema, use.Voices, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(c, p, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
@@ -66,8 +66,8 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*statement.S
 // here under use-site precedence would publish the wider of the two as the whole
 // truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := CarrierConstraintsOf(c, ts, &p.Unmodeled, ref, voices, p.Type, pointer)
+func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := CarrierConstraintsOf(c, &p.Unmodeled, ref, voices, p.Type, pointer)
 	p.Constraints = cons
 	return diags
 }

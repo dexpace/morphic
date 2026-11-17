@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -87,14 +88,25 @@ func TestPreserveNullOnlyUnion_NothingToKeep(t *testing.T) {
 	assert.Empty(t, diags, "nothing was kept, so nothing is announced")
 }
 
-// TestComposeMixin_NeedsAModel drives the two states its one caller cannot
-// produce, having just lowered the routed subtype to a model: no node at id, and
-// a node of another kind, which has no Mixins to compose the union into.
+// TestComposeMixin_NeedsAModel drives the state its callers cannot produce, a
+// routed subtype whose build made a node of another kind, which has no Mixins
+// to compose the union into, and the position composing none.
 func TestComposeMixin_NeedsAModel(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, "t/anon/missing", "t/composed/u", "/p"))
+	scalar := &ir.Scalar{ID: "t/anon/scalar"}
 
-	l.Types.Register("t/anon/scalar", &ir.Scalar{ID: "t/anon/scalar"})
-	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, "t/anon/scalar", "t/composed/u", "/p"))
+	assert.Empty(t, composeMixin(l.Ctx, l.Types, 0, scalar, nil, "/p"), "no union to compose")
+	assertInternalInvariant(t, composeMixin(l.Ctx, l.Types, 0, scalar, &unionAt{holder: &statement.Schema{}, at: "/p"}, "/p"))
+}
+
+// TestLowerSubtypeUnion_NeedsItsAllOf drives the state a routed subtype never
+// reaches, as a discriminator routes to a schema through the allOf naming its
+// ancestor: one electing no allOf lowers, and composes no union.
+func TestLowerSubtypeUnion_NeedsItsAllOf(t *testing.T) {
+	t.Parallel()
+	l := NewRawLowerer(&soa.OpenAPI{})
+	s := &statement.Schema{}
+	_, diags := lowerSubtypeUnion(l.Ctx, l.Types, TopLevelDepth, s, unionAt{holder: s, at: "/components/schemas/S"}, "/components/schemas/S")
+	assertInternalInvariant(t, diags)
 }

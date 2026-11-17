@@ -247,7 +247,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	// A body's census ran where its node was built, the only thing that can
 	// answer it. One lowering to a reference built none, so it takes the census
 	// of a position lowered to one, and its verdict homes an alias.
-	keeps := keepsAtOutcome(c, ts, schema, target, pointer)
+	keeps := keepsAtOutcome(c, schema, target, pointer)
 	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
 	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)
@@ -413,7 +413,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	case "enum":
 		return unhomed(lowerEnum(c, ts, ownValueSet(s, pointer)))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator")))
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator"), d.mixin))
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
 	// with no branch deciding what the position is, so the type set decides.
@@ -625,6 +625,9 @@ type dispatch struct {
 	won     string
 	skipped []string
 	said    []string
+	// mixin is the union a routed subtype composes (lowerSubtypeUnion), which
+	// the build of its model mints, nil where the position composes none.
+	mixin *unionAt
 }
 
 // besideAllOf returns the election lower() makes of the keywords beside s's

@@ -10,7 +10,6 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -294,11 +293,11 @@ func (p passage) ownsNode(c lowering.Ctx, t ir.TypeRef) bool {
 }
 
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
-// t (readUse), its voices marked where ts's outcome keeps their branch whole
+// t (readUse), its voices marked where the outcome keeps their branch whole
 // (markKeptWhole).
-func UseOf(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
+func UseOf(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
 	u := readUse(c, js, t, pointer)
-	u.Voices = markKeptWhole(c, ts, js.Schema, pointer, t, u.Voices)
+	u.Voices = markKeptWhole(c, js.Schema, pointer, t, u.Voices)
 	return u
 }
 
@@ -338,8 +337,8 @@ func readUse(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer json
 // only to a $ref its lowering lost; of one its Base holds, it reads only
 // whether a keyword or a key along it deprecates the node, which the node's own
 // member keys then annotate (promotion.Referent.Homes).
-func nodeUse(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
-	u := Use{Voices: markKeptWhole(c, ts, s, pointer, target, positionVoices(c, s, pointer, target))}
+func nodeUse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
+	u := Use{Voices: markKeptWhole(c, s, pointer, target, positionVoices(c, s, pointer, target))}
 	p, ok := passageOf(c, s, pointer)
 	switch {
 	case !ok:
