@@ -2644,7 +2644,20 @@ admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
 `enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
 `$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
-the union admits too. Where that read meets what it does not follow but which could refuse a value of
+the union admits too, and each schema holding that one in turn as an `allOf` entry or a union
+branch, up to the first that is neither: a union written in an `allOf` entry of `{type: object}`
+admits no array, however deep the entry. A schema read as an `allOf` entry and no union's branch is
+read alone. It admits a kind whole only where no keyword it takes in refuses some instance
+of that kind while admitting others: a value set, a numeric or a string bound, a `format`, and a
+keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
+kinds in part, but for one whose schemas, applied to the instance's parts, each state nothing, as
+`items: {}` and `additionalProperties: true` do; and a union admits a kind whole where a branch does
+and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
+`{enum: [1, 2]}` and `{anyOf: [{type: object}, {type: integer, minimum: 5}]}` each admit some
+integers and not every one, and a structure composing one of them is judged against `integer` as a
+structure stating its type is: the conflict is reported and the declaration the field does not keep
+is kept verbatim, since a field of either type alone would lose what the other says. Where that read
+meets what it does not follow but which could refuse a value of
 some kind, a `not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a
 `$recursiveRef` the bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no
 schema, the structure reads as stating its type; a `not` or an `if` written `null` is the keyword
@@ -2822,7 +2835,7 @@ whose say the field kept. A dropped declaration is reported against the winner a
 warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
 against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
 admits, two `const`s of different values, two enums sharing no value, a scalar against a
-structure stating its instance type, two structures of different instance types each stating
+structure stating its instance type or admitting the scalar's kind only in part, two structures of different instance types each stating
 theirs, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
@@ -2949,6 +2962,10 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_ANullNotOrIfIsTheKeywordLeftOut`,
   `schema.TestAllOf_ADistributedVariantIsReadWithItsUnion`,
   `e2e.TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict`,
+  `e2e.TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt`,
+  `e2e.TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion`,
+  `schema.TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch`,
+  `schema.TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart`,
   `e2e.TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestTypeJudge_ModelsAlikeAreCopies`,
@@ -3222,7 +3239,8 @@ The reading is of the source, since a `Model` cannot say whether its source wrot
 and `{properties: …}` alone admits a string. That is where it parts from the reading
 [`allof-refinement`](#allof-refinement) elects a principal by, which takes such a `properties` to
 claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
-admits a set of JSON instance types, an `integer` within a `number` and named as written, read once
+admits a set of JSON instance types, an `integer` within a `number` and named as written, and a
+number with a fraction, which no `type` names, named a `number that is no integer`, read once
 a compile, whatever its size: the `type` beside the `allOf`; an inline entry's `type`, the members
 of its `enum` or `const`, the join of what each branch of its `oneOf` or `anyOf` admits, and what
 its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admits, read the same
@@ -3236,14 +3254,21 @@ conjunct admits some value by itself and none is cut short, and the schema admit
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
 null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
-the instance types nothing is reported, since one conjunct contradicts nothing.
+the instance types nothing is reported, since one conjunct contradicts nothing, unless it admits no
+value by itself and nothing else says so (below).
 
 What writes no `type` and no value set admits every kind, so a report is made only of what the
 source declares: a `true` entry, a `format` and a `properties` state nothing. A conjunct admitting no
-value by itself, the null included, is its own to report and the `allOf` composing it draws
-nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch) reports, a `$ref`
-landing on `false`, and a schema whose own conjuncts share no value, which is reported where it is
-written, so a schema composing a reported one draws no second report. A read cut short decides
+value by itself, the null included, that says so where it is written is its own to report, and the
+`allOf` composing it draws nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch)
+reports, and a `$ref` landing on `false`, on a schema whose value set holds no value its own type
+admits, an empty `enum` among them ([`enum-const`](#enum-const)), or on a schema whose own
+conjuncts share no value, which is reported where it is written, each read through a chain of
+`$ref`s each admitting no value, up to 256 of them. So a schema composing a reported one draws no
+second report. Any other conjunct admitting no value is named `no value` in the report, alone or
+beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
+a schema that admits none and says nothing of it, such as a `type` beside a union none of whose
+branches it admits, or beside a `$ref` to another kind. A read cut short decides
 nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
 converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
 no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
@@ -3268,7 +3293,11 @@ lowered as.
   `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,
   `e2e.TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema`,
   `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
-  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`
+  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`,
+  `e2e.TestCompile_AnEmptyConjunctIsReportedWhereNothingElseSaysSo`,
+  `schema.TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing`,
+  `e2e.TestCompile_ADisjointReportNamesAFraction`,
+  `schema.TestInstanceWords_NamesEverySetOfKinds`
 
 ### `union`
 

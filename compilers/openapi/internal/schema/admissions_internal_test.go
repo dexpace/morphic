@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -308,35 +309,49 @@ func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
 	assert.Greater(t, compared, 1000, "the corpus reaches what it compares")
 }
 
-// TestUnionHolding_FindsTheUnionABranchIsAVariantOf pins which statement a node
-// written at a union's branch is read with (modelFields.Admits): the one
-// writing that oneOf or anyOf, and none for a position that is no such branch,
-// whether its pointer ends elsewhere or names a branch its holder lacks.
-func TestUnionHolding_FindsTheUnionABranchIsAVariantOf(t *testing.T) {
+// TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch pins which
+// statements a node written at a position is read with (modelFields.Admits):
+// a union's branch with the schema writing the union and each schema holding
+// that one as an allOf entry or a union branch, and any other position alone:
+// an allOf entry, an entry of another keyword, a pointer naming an entry its
+// holder lacks, and a statement read elsewhere.
+func TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    U: {type: object, anyOf: [{type: object}, {type: array}]}
     O: {oneOf: [{type: string}]}
+    N: {type: object, allOf: [{allOf: [{oneOf: [{anyOf: [{type: string}]}]}]}]}
+    T: {prefixItems: [{type: string}]}
 `))
 	at := func(p string) bind.Position { return bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer(p)} }
 	for _, tc := range []struct {
-		branch, holder string
+		from    string
+		holders []string
 	}{
-		{"/components/schemas/U/anyOf/1", "/components/schemas/U"},
-		{"/components/schemas/O/oneOf/0", "/components/schemas/O"},
-		{"/components/schemas/U/anyOf/2", ""},
-		{"/components/schemas/U/oneOf/0", ""},
-		{"/components/schemas/U", ""},
+		{"/components/schemas/U/anyOf/1", []string{"/components/schemas/U"}},
+		{"/components/schemas/O/oneOf/0", []string{"/components/schemas/O"}},
+		{"/components/schemas/N/allOf/0/allOf/0/oneOf/0/anyOf/0", []string{
+			"/components/schemas/N/allOf/0/allOf/0/oneOf/0", "/components/schemas/N/allOf/0/allOf/0",
+			"/components/schemas/N/allOf/0", "/components/schemas/N",
+		}},
+		{"/components/schemas/N/allOf/0", nil},
+		{"/components/schemas/T/prefixItems/0", nil},
+		{"/components/schemas/U/anyOf/2", nil},
+		{"/components/schemas/U/oneOf/0", nil},
+		{"/components/schemas/U", nil},
 	} {
-		st := l.Ctx.Statements().At(at(tc.branch))
-		holder, ok := unionHolding(l.Ctx, at(tc.branch), st)
-		assert.Equal(t, tc.holder != "", ok, tc.branch)
-		if ok {
-			assert.Same(t, l.Ctx.Statements().At(at(tc.holder)), holder, tc.branch)
+		want := []*statement.Statement{l.Ctx.Statements().At(at(tc.from))}
+		for _, h := range tc.holders {
+			want = append(want, l.Ctx.Statements().At(at(h)))
+		}
+		got := variantHolders(l.Ctx, at(tc.from), want[0])
+		require.Len(t, got, len(want), tc.from)
+		for i := range want {
+			assert.Same(t, want[i], got[i], "%s: holder %d", tc.from, i)
 		}
 	}
 	other := l.Ctx.Statements().At(at("/components/schemas/O/oneOf/0"))
-	_, ok := unionHolding(l.Ctx, at("/components/schemas/U/anyOf/0"), other)
-	assert.False(t, ok, "a statement read elsewhere is no branch of the union")
+	assert.Len(t, variantHolders(l.Ctx, at("/components/schemas/U/anyOf/0"), other), 1,
+		"a statement read elsewhere is no branch of the union")
 }
 
 // loweredKinds returns the kinds of instance the node id names admits, past
@@ -402,6 +417,174 @@ func TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo(t *testing.T) {
 			if row, ok := rows[name]; ok {
 				assert.Equal(t, row.kinds, r.kinds, "%s swapped=%t", name, swap)
 			}
+		}
+	}
+}
+
+// TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart holds the kinds a
+// statement admits only in part to the keywords that refuse some instance of
+// them, read through its conjuncts and unions: a bound, a value set, a format,
+// a keyword of arrays or objects alone, and a oneOf whose branches share a
+// kind, while a type, a redaction, a keyword written null, a schema applied to
+// parts that states nothing and a `then` without an `if` leave every kind they
+// admit whole.
+func TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart(t *testing.T) {
+	t.Parallel()
+	rows := map[string]struct {
+		schema  string
+		partial kindSet
+	}{
+		"Int":        {"{type: integer}", 0},
+		"Min":        {"{type: integer, minimum: 5}", kindInteger},
+		"UntypedMin": {"{minimum: 5}", kindNumber},
+		"Enum":       {"{enum: [1, a]}", kindInteger | kindString},
+		"Pattern":    {"{type: string, pattern: '^a'}", kindString},
+		"Format":     {"{format: int32}", kindString | kindNumber},
+		"Redaction":  {"{type: string, format: password}", 0},
+		"Items":      {"{items: {type: string}}", kindArray},
+		"AnyItems":   {"{type: array, items: {}}", 0},
+		"TrueItems":  {"{type: array, items: true, unevaluatedItems: true}", 0},
+		"AnyPrefix":  {"{prefixItems: [{}, true]}", 0},
+		"Prefix":     {"{prefixItems: [{}, {type: string}]}", kindArray},
+		"Contains":   {"{contains: {}}", kindArray},
+		"NullItems":  {"{items: null}", 0},
+		"Props":      {"{properties: {a: {type: string}}}", kindObject},
+		"AnyProps":   {"{properties: {a: {}}, patternProperties: {b: true}, propertyNames: {}}", 0},
+		"OpenProps":  {"{additionalProperties: true, unevaluatedProperties: {}}", 0},
+		"Closed":     {"{additionalProperties: false}", kindObject},
+		"Required":   {"{required: [a]}", kindObject},
+		"Dependent":  {"{dependentSchemas: {a: {}}}", kindObject},
+		"Then":       {"{then: {type: string}}", 0},
+		"AnyOfWhole": {"{anyOf: [{type: integer}, {type: integer, minimum: 5}]}", 0},
+		"AnyOfPart":  {"{anyOf: [{type: object}, {type: integer, minimum: 5}]}", kindInteger},
+		"OneOfApart": {"{oneOf: [{type: object}, {type: integer}]}", 0},
+		"OneOfBoth":  {"{oneOf: [{type: integer}, {type: integer, minimum: 5}]}", kindInteger},
+		"AllOf":      {"{allOf: [{type: integer}, {$ref: '#/components/schemas/UntypedMin'}]}", kindInteger},
+		"Ref":        {"{$ref: '#/components/schemas/Min'}", kindInteger},
+	}
+	var schemas strings.Builder
+	for name, row := range rows {
+		schemas.WriteString("    " + name + ": " + row.schema + "\n")
+	}
+	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas.String()))
+	for name, row := range rows {
+		st := l.Ctx.Statements().At(bind.Position{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		r := admissionOf(l.Ctx, st)
+		assert.Equal(t, row.partial, r.partial&r.admits, "%s: %s", name, row.schema)
+	}
+}
+
+// fanout writes n statements, each a oneOf of the one value set of n members
+// and a set of a member of its own, as an allOf entry.
+func fanout(n int) string {
+	var b strings.Builder
+	b.WriteString("    Base: {enum: [")
+	for i := range n {
+		fmt.Fprintf(&b, "b%d, ", i)
+	}
+	b.WriteString("b]}\n")
+	for i := range n {
+		fmt.Fprintf(&b, "    S%d: {allOf: [{oneOf: [{$ref: '#/components/schemas/Base'}, {enum: [x%d]}]}]}\n", i, i)
+	}
+	return b.String()
+}
+
+// heldMembers is how many value-set members the run's readings hold, each set
+// counted once however many readings share it.
+func heldMembers(store *admissions) int {
+	seen := map[uintptr]bool{}
+	held := 0
+	count := func(set map[string]kindSet) {
+		if at := reflect.ValueOf(set).Pointer(); set != nil && !seen[at] {
+			seen[at] = true
+			held += len(set)
+		}
+	}
+	for _, r := range store.read {
+		count(r.admitted.values)
+		for _, set := range r.admitted.joined {
+			count(set)
+		}
+	}
+	return held
+}
+
+// TestAdmissionOf_AUnionSharesTheSetsItJoins holds the value-set members a
+// run's readings hold to growth linear in the document where n statements each
+// join one set of n members with one of their own: a union holds its
+// branches' sets, which copying them into one would make quadratic.
+func TestAdmissionOf_AUnionSharesTheSetsItJoins(t *testing.T) {
+	t.Parallel()
+	held := func(n int) int {
+		l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", fanout(n)))
+		require.Empty(t, diags)
+		for name, st := range l.Schemas() {
+			require.True(t, admissionOf(l.Ctx, st).admitted.fixed, name)
+		}
+		return heldMembers(admissionStore(l.Ctx))
+	}
+	at8, at16, at32 := held(8), held(16), held(32)
+	assert.LessOrEqual(t, at32-at16, 5*(at16-at8)/2, "held %d, %d, %d at 8, 16, 32", at8, at16, at32)
+}
+
+// TestAdmitted_AUnionHoldsEveryMemberOfTheSetsItJoins holds a union's value
+// set to the members of each set it joins, read in place: a member of any of
+// them is one, what it shares with another set is what any of them shares, and
+// a member two of them hold is one value, so a union holding it twice is
+// within a set holding it once.
+func TestAdmitted_AUnionHoldsEveryMemberOfTheSetsItJoins(t *testing.T) {
+	t.Parallel()
+	set := func(keys ...string) admitted {
+		values := map[string]kindSet{}
+		for _, k := range keys {
+			values[k] = kindString
+		}
+		return admitted{kinds: kindString, fixed: true, values: values}
+	}
+	union := set("a").or(set("b")).or(set("c"))
+	for key, want := range map[string]bool{"a": true, "b": true, "c": true, "d": false} {
+		assert.Equal(t, want, union.hasMember(key), key)
+	}
+	assert.Equal(t, 3, union.size())
+	assert.True(t, union.reachable())
+	assert.Equal(t, map[string]kindSet{"b": kindString, "c": kindString}, union.and(set("b", "c", "d")).values)
+	assert.Equal(t, map[string]kindSet{"c": kindString}, set("c", "x", "y", "z").and(union).values)
+	assert.True(t, set("c").valuesWithin(union))
+	assert.False(t, union.valuesWithin(set("a", "b")))
+	assert.True(t, union.valuesWithin(set("a", "b", "c")))
+	assert.True(t, set("a").or(set("a")).valuesWithin(set("a")), "a member two branches hold is one value")
+	overlap := set("a", "b").or(set("b", "c")).or(set("c", "d", "e"))
+	assert.Equal(t, 5, overlap.size(), "a member two branches hold is held once")
+	assert.False(t, overlap.valuesWithin(set("a", "b", "c", "d")), "a larger set is no narrowing of a smaller")
+	assert.True(t, overlap.valuesWithin(set("a", "b", "c", "d", "e")))
+	assert.Equal(t, 5, set("y", "p", "q", "r").or(set("x").or(set("y"))).size(),
+		"a member a joined set of the smaller holds is held once")
+}
+
+// TestAdmissionOf_AUnionHoldsFewSetsApart holds the sets a union of k
+// branches, each naming a set of its own, holds apart to maxJoinedSets beside
+// its first at k, 4k and 16k, so asking whether it holds a member reads a
+// bounded number of maps whatever its width, and its members to every
+// branch's.
+func TestAdmissionOf_AUnionHoldsFewSetsApart(t *testing.T) {
+	t.Parallel()
+	for _, k := range []int{4, 16, 64} {
+		var b strings.Builder
+		b.WriteString("    U: {oneOf: [")
+		for j := range k {
+			fmt.Fprintf(&b, "{$ref: '#/components/schemas/E%d'}, ", j)
+		}
+		b.WriteString("]}\n")
+		for j := range k {
+			fmt.Fprintf(&b, "    E%d: {enum: [a%d, b%d, c]}\n", j, j, j)
+		}
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
+		at := bind.Position{Doc: bind.Source, Pointer: "/components/schemas/U"}
+		union := admissionOf(l.Ctx, l.Ctx.Statements().At(at)).admitted
+		assert.LessOrEqual(t, len(union.joined), maxJoinedSets, "a union of %d", k)
+		assert.Equal(t, 2*k+1, union.size(), "a union of %d holds each member once", k)
+		for _, r := range admissionStore(l.Ctx).read {
+			assert.LessOrEqual(t, len(r.admitted.joined), maxJoinedSets, "a union of %d", k)
 		}
 	}
 }
