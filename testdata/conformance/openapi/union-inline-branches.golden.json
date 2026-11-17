@@ -259,6 +259,52 @@
       "closed": true,
       "flags": false
     },
+    "t/anon/components/schemas/MaybePlacement/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/MaybePlacement/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybePlacement/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MaybePlacement/oneOf/0/properties/region",
+          "name": {
+            "source": "region",
+            "canonical": "region"
+          },
+          "wireName": "region",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MaybePlacement/oneOf/0/properties/region"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Placement/oneOf/0": {
       "kind": "model",
       "id": "t/anon/components/schemas/Placement/oneOf/0",
@@ -451,6 +497,56 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/MaybePlacement/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MaybePlacement/oneOf/0",
+      "name": {
+        "hint": "maybe_placement_variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybePlacement/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MaybePlacement/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MaybePlacement/properties/status"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/MaybePlacement/oneOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/Placement/oneOf/0": {
       "kind": "model",
       "id": "t/composed/components/schemas/Placement/oneOf/0",
@@ -593,7 +689,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/MaybePlacement": {
-      "kind": "model",
+      "kind": "union",
       "id": "t/openapi/components/schemas/MaybePlacement",
       "name": {
         "source": "MaybePlacement",
@@ -602,63 +698,25 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:oneOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "properties": {
-                "region": {
-                  "type": "string"
-                }
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/MaybePlacement/oneOf"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MaybePlacement"
       },
-      "properties": [
+      "variants": [
         {
-          "id": "p/openapi/components/schemas/MaybePlacement/properties/status",
           "name": {
-            "source": "status",
-            "canonical": "status"
+            "hint": "variant_0"
           },
-          "wireName": "status",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/composed/components/schemas/MaybePlacement/oneOf/0",
             "nullable": false
           },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
-          },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/MaybePlacement/properties/status"
-          }
+          "docs": {}
         }
       ],
-      "abstract": false,
-      "positional": false,
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
       "inputOnly": false
     },
     "t/openapi/components/schemas/Placement": {
@@ -780,8 +838,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it; union branches kept verbatim under Unmodeled",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MaybePlacement"
@@ -792,7 +850,7 @@
     {
       "format": "openapi@3.1",
       "path": "union-inline-branches.yaml",
-      "hash": "fa60446d65f01fb8f4a3f516d34ea82587a0e9f8b7c190daa9287de3cb631deb"
+      "hash": "44846f5a0971f02c0e8ebdc3314fa98e07cb07d87a47b5dff0a021b9ac31435f"
     }
   ]
 }

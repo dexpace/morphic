@@ -102,7 +102,8 @@ func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T)
 // own pointer, which an outside $ref to it finds too, and each variant composes
 // the body with that node, carried as written, a branch admitting no object and
 // one redeclaring a property of the body among them, whose variant takes the
-// narrower declaration. A bare null branch still declines.
+// narrower declaration. A bare null branch is no variant, and a body writing
+// `type: object` leaves the reference to the position non-nullable.
 func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Shape:
@@ -153,10 +154,11 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, branches[0], outside.Base.Target, "an outside $ref finds the branch node, not the variant")
 
-	assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, "WithNull"))
-	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/WithNull"),
-		"a branch admits null alone")
+	withNull, ok := typeByName(doc, "WithNull").(*ir.Union)
+	require.True(t, ok, "the union distributes past its null branch")
+	require.Len(t, withNull.Variants, 1)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/WithNull/oneOf/0"),
+		doc.Types[withNull.Variants[0].Type.Target].(*ir.Model).Base.Target)
 }
 
 // TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches pins a body writing
@@ -258,11 +260,11 @@ func TestOneOf_CoDeclaredBesideAComposingAllOfDistributes(t *testing.T) {
 // written as an inline allOf branch, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
-// nodes, the branch keeps nothing, another branch folds onto the union, and an
-// unexpanded $dynamicRef stays beside it. One declaring no shape, one of two
-// that do, one beside the schema's own union, one distribution declines, one
-// past the flattening depth and one beside a branch's $ref, which it conjoins
-// with, stay with their branch; an enum beside the allOf decides.
+// nodes, the branch keeps nothing, another branch folds onto the union, a null
+// branch is no variant, and an unexpanded $dynamicRef stays beside it. One
+// declaring no shape, one of two that do, one beside the schema's own union,
+// one past the flattening depth and one beside a branch's $ref, which it
+// conjoins with, stay with their branch; an enum beside the allOf decides.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -350,6 +352,11 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Branch"),
 		"written on an allOf branch")
 
+	nullBranch := variantModels(t, doc, "NullBranch")
+	require.Len(t, nullBranch, 1, "the null branch is no variant")
+	require.NotNil(t, nullBranch[0].Base)
+	assert.Equal(t, componentID("A"), nullBranch[0].Base.Target)
+
 	inline := variantModels(t, doc, "Inline")
 	require.Len(t, inline, 2)
 	for i, v := range inline {
@@ -367,11 +374,10 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
-		"Shapeless":  {"openapi:allOf/0"},
-		"Two":        {"openapi:allOf/0", "openapi:allOf/1"},
-		"NullBranch": {"openapi:allOf/0"},
-		"RefBranch":  nil,
-		"Capped":     {capped},
+		"Shapeless": {"openapi:allOf/0"},
+		"Two":       {"openapi:allOf/0", "openapi:allOf/1"},
+		"RefBranch": nil,
+		"Capped":    {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))

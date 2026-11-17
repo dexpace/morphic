@@ -651,10 +651,6 @@ const (
 	// compilation can resolve — a target in a document it did not read, an
 	// undeclared component, a pointer addressing no schema.
 	unionUnresolvedBranch
-	// unionNullBranch marks a union with a null branch (nullBranch), which
-	// buildUnion lifts onto the position's Nullable rather than conjoining it, so
-	// no variant could say whether the body admits the null (GitHub #1856).
-	unionNullBranch
 	// unionHierarchyBase marks a union beside a discriminator routing to
 	// branches that compose the body through allOf, its subtypes, which a union
 	// of composed variants would no longer have for a base
@@ -723,10 +719,6 @@ func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 	if choice := choiceIn(holder); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return unionBothCombinators
-	}
-	branches, _, _ := unionBranches(holder)
-	if slices.ContainsFunc(branches, func(b statement.Sub) bool { return nullBranch(c, c.Statements().Sub(b)) }) {
-		return unionNullBranch
 	}
 	if !branchesNameReferents(c, holder) {
 		return unionUnresolvedBranch
@@ -803,9 +795,6 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"a branch's $ref names no referent this compilation resolves")
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
-	case unionNullBranch:
-		return beside(ir.ReasonDegradedLowering,
-			"a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it")
 	case unionRoutedSubtype:
 		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
 	default: // unionHierarchyBase

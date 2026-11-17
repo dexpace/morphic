@@ -3361,22 +3361,23 @@ and teaching the relation the step would change what it means for every document
 
 A null branch of a `oneOf` or `anyOf` is one written inline whose own keywords admit `null` alone
 ([`null-alone`](#null-alone)), whatever spells it: `type: "null"`, an `enum` of `null` alone,
-`const: null`, or 3.0's `{type: object, enum: [null], nullable: true}`. It is no variant, since it
-would lower on its own to the `Enum` with no member whose one value the reference's `Nullable` bit
-states, so the union's reference admits `null` instead ([`nullable`](#nullable)). A `oneOf` or
-`anyOf` with exactly one branch that is not a null branch, beside one or more that are, lowers to a
-nullable reference to that branch's lowering rather than to a `Union`
-([type-graph](../ir/type-graph.md#type-references)); one with several lowers to a `Union` of them
-behind a nullable reference. A `oneOf` of two null branches admits no `null` by JSON Schema, which
-`null` would match twice, yet one null branch or several are read alike, as the union's `null`: the
-document contradicts itself, and this rule does not read it otherwise. A `$ref` branch naming a
-schema of `null` alone stays a variant, a nullable reference to that schema's `Enum`, which an
-emitter reads as the union's `null` ([unions](../emitters/refine/unions.md#a-null-a-variant-admits)):
-it names a node the source declares, which lifting it would drop, and reading it would take a
-distant declaration. A branch whose `null` only the nullable-inference policy admits is a null branch
-while the policy is on, and the reference's `null` then names it in `Inferred`, with its
-`openapi/inferred-nullable` info at the branch ([`nullable`](#nullable)); with the policy off, the
-branch admits nothing and is a variant.
+`const: null`, or 3.0's `{type: object, enum: [null], nullable: true}`. It is no variant, of a union
+lowered alone or of one distributed across a body beside it
+([`union-beside-structure`](#union-beside-structure)), since it would lower on its own to the `Enum`
+with no member whose one value the reference's `Nullable` bit states, so the union's reference
+admits `null` instead ([`nullable`](#nullable)). A `oneOf` or `anyOf` with exactly one branch that
+is not a null branch, beside one or more that are, lowers to a nullable reference to that branch's
+lowering rather than to a `Union` ([type-graph](../ir/type-graph.md#type-references)); one with
+several lowers to a `Union` of them behind a nullable reference. A `oneOf` of two null branches
+admits no `null` by JSON Schema, which `null` would match twice, yet one null branch or several are
+read alike, as the union's `null`: the document contradicts itself, and this rule does not read it
+otherwise. A `$ref` branch naming a schema of `null` alone stays a variant, a nullable reference to
+that schema's `Enum`, which an emitter reads as the union's `null`
+([unions](../emitters/refine/unions.md#a-null-a-variant-admits)): it names a node the source
+declares, which lifting it would drop, and reading it would take a distant declaration. A branch
+whose `null` only the nullable-inference policy admits is a null branch while the policy is on, and
+the reference's `null` then names it in `Inferred`, with its `openapi/inferred-nullable` info at the
+branch ([`nullable`](#nullable)); with the policy off, the branch admits nothing and is a variant.
 
 A null branch writing a key beside `type`, `enum`, `const`, and a `nullable` its dialect or the
 nullable-inference policy reads, such as a `description`, is kept whole under
@@ -3456,9 +3457,14 @@ what the branches declare, each an object, or, where nothing declares a kind, wh
 kind-inference policy reads off them. Each variant, a model over its branch, then holds those
 keywords, as beside `type: object`: `{oneOf: [{$ref: A}, {$ref: B}], additionalProperties:
 false}` is a `Union` of closed models over `A` and `B`, and a bare `required` names the members each
-variant requires.
+variant requires. A null branch is no variant of a distributed union, as it is none of a plain one
+([`union-null-variant`](#union-null-variant)): the reference to the position admits `null` where
+the body admits it too, so beside a body writing `type: object` it admits none, and beside one
+writing no `type`, or listing `null` in its `type`, it admits the union's
+([`nullable`](#nullable)), and a union written on an `allOf` branch distributes past its null branch
+alike.
 
-A `discriminator` standing with the union, where no branch composes the schema (shape 4), routes
+A `discriminator` standing with the union, where no branch composes the schema (shape 3), routes
 the distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
 `defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
 that branch. OpenAPI routes a variant no entry names by the name of the component its branch
@@ -3493,22 +3499,19 @@ reach these shapes:
    no `type` where the kinds the position lowers to are not an object alone, beside a branch that
    may be no object, or where a cycle cuts the read short and the keywords infer no object, so there
    are no composition fields for the variants to carry;
-2. a branch is a null branch, whatever spells its `null`, which a union lifts onto the position's
-   `Nullable` rather than conjoining it ([`union-null-variant`](#union-null-variant)), so no
-   variant could say whether the body admits the null;
-3. a branch is a `$ref` that names no referent the compilation resolves — a cross-document target
+2. a branch is a `$ref` that names no referent the compilation resolves — a cross-document target
    it does not intern, an undeclared component, a pointer addressing no schema — so it declines
    rather than composing a variant whose branch quietly went missing;
-4. the schema declares a `discriminator`, the one standing with the union, and a branch composes
+3. the schema declares a `discriminator`, the one standing with the union, and a branch composes
    the schema through `allOf`, at any depth (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the
    base of a hierarchy the discriminator routes, which a union of composed variants would no longer
    be the base of;
-5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
+4. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` (`degraded_lowering`), reported as an info
-`openapi/degraded-construct` at the schema naming which applied; in case 3 the broken
+`openapi/degraded-construct` at the schema naming which applied; in case 2 the broken
 reference is reported as well, as an `openapi/unresolved-ref` error, or, on a loop the compiler
 reads, by the loop's one `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)). Case 1's
 body-less sibling leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
@@ -3551,7 +3554,7 @@ such a union reads as it reads beside any union ([`nullable`](#nullable)), and a
 branches do not all say, a bound or a `format` among them, is kept as the census keeps it beside a
 union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape only narrow the body,
 which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
-keeps the body where a branch composes it (shape 4).
+keeps the body where a branch composes it (shape 3).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 4 written on an
 `allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of it
@@ -3675,10 +3678,11 @@ judged as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`,
   `schema.TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument`,
   `schema.TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf`,
-  `schema.TestNullBranch_BesideABodyIsNotLifted`
+  `schema.TestNullBranch_BesideABodyIsLiftedPastTheDistribution`,
+  `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
+  `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806), and a union holding a null branch stays whole where the reference could hold the
-  null its body admits (#1856).
+  legal (#1806).
 
 ### `union-beside-ref`
 

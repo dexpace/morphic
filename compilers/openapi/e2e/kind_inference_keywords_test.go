@@ -278,7 +278,7 @@ func TestKindInference_AKindAConjunctNamesIsDeclared(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
 		"Obj: {type: object, properties: {a: {type: string}}}",
-		"Closed: {oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Obj'}], additionalProperties: false}",
+		"Closed: {oneOf: [{$ref: '#/components/schemas/Obj'}], anyOf: [{$ref: '#/components/schemas/Obj'}], additionalProperties: false}",
 		"Scalars: {oneOf: [{type: 'null'}, {type: string}, {type: integer}], items: {type: string}}",
 	}
 	for _, off := range []bool{false, true} {
@@ -289,7 +289,9 @@ func TestKindInference_AKindAConjunctNamesIsDeclared(t *testing.T) {
 				closed := kindNode(t, doc, componentID("Closed"))
 				assert.Equal(t, ir.KindModel, closed.Kind(), "the branches declare an object")
 				assert.False(t, markedKindInference(closed), "the document declared the kind")
-				assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonDegradedLowering}, keptOn(closed))
+				assert.Equal(t, map[string]ir.UnmodeledReason{
+					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
+				}, keptOn(closed))
 				assertUntypedOutcome(t, doc, "Scalars", topKeeping("items", "oneOf"))
 			})
 		})

@@ -909,11 +909,14 @@ it sees. Changes made together in one bump are listed together under it.
   Object keywords written with no `type` beside a union are a body it distributes across where the
   kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
   objects among them, and nowhere else: a `properties` beside a union naming another kind is the top
-  type keeping both. A consumer pinned to 0.69.0 refuses the document; one reading such a bound off
-  `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node the
-  carrier names, one reading a node's kind as declared finds the marker where it was not, one
+  type keeping both. Such a union distributes past a null branch too, as no variant, the reference
+  to the position admitting null where the body admits it, where the null branch kept the union
+  whole beside the body. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
+  off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
+  the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
   one reading such an `allOf` as a model finds the declared kind, one reading a closure or a
   catch-all beside a union of objects finds a union of models holding it where it found the top
-  type, and one reading a property set beside a union naming another kind finds the top type where
-  it found a union of models over each branch.
+  type, one reading a property set beside a union naming another kind finds the top type where it
+  found a union of models over each branch, and one reading a union with a null branch beside a body
+  finds it distributed, behind a reference admitting null as the body does.
