@@ -3526,7 +3526,7 @@ is written ([`enum-const`](#enum-const)), so the `allOf` draws nothing more.
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
-  `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`,
+  `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`, `schema.TestAllOf_AValueSetBesideAUnionWarnsOnce`,
   `schema.TestAllOf_DisjointReportStaysSilent`,
   `schema.TestAllOf_AKeywordBesideARefIsReadAtEveryVersion`,
   `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,
