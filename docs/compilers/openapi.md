@@ -3461,7 +3461,10 @@ reach these shapes:
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
    `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
    that may be no object, with neither `properties` nor a `type`), so there are no composition
-   fields for the variants to carry;
+   fields for the variants to carry; or it is one only by an object keyword other than a bare
+   `required`, written with no `properties` beside branches that each name an object
+   ([`shape-applicator`](#shape-applicator)), as a bare `additionalProperties: false` is, where the
+   report says that the body declares no property;
 2. a branch is a null branch, whatever spells its `null`, which a union lifts onto the position's
    `Nullable` rather than conjoining it ([`union-null-variant`](#union-null-variant)), so no
    variant could say whether the body admits the null;
@@ -4240,20 +4243,31 @@ Go option `Options.KindInference`, whose zero value is on, and the text option `
 which `false` turns off. A keyword JSON Schema applies to instances of one kind alone, passing an
 instance of any other (JSON Schema Core 2020-12 §7.6.1), speaks of that kind: `properties`,
 `patternProperties`, `additionalProperties`, `required` and `discriminator` of an object, `items`
-and `prefixItems` of an array, each where it is written with something in it, so a `properties`
-written null or with no member, an empty `required` and a null `items` claim nothing. Keywords of
+and `prefixItems` of an array. A `properties`, a `patternProperties`, a `required` and a
+`prefixItems` speak where they list a member, and an `additionalProperties` and an `items` where
+they are written and not null, `true` and `{}` among them, so a `properties` written null or with no
+member, an empty `required` and a null `items` claim nothing. Keywords of
 both kinds lower as `type: [object, array]` beside them does ([`type-arrays`](#type-arrays)): a
 `Union` of the object's node and the array's, in that order whichever keyword is written first. The
 kind is the policy's reading of what the document means, so the node it builds, at a component, a
 property, an element, a body or a union's branch alike, and each variant of such a union, names
 `kind-inference` in its `Provenance.Inferred`, and nothing is reported, as the document leaves the
-kind unsaid. The run's reading of what a schema admits reads the same claim
+kind unsaid. That node excludes the instances of another kind the schema admits, a string under
+`{properties: …}` among them, which is why the reading is a policy and can be turned off. The run's
+reading of what a schema admits reads the same claim
 ([`constraints`](#constraints)), so a bound beside such a schema is placed by its kind, and it
-decides whether the schema names no kind: where a conjunct beside it names kinds, as a union kept
-beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords pick those of
-them they speak of, unmarked, as the document declared them, and the top type where they speak of
-none. With the policy off, a schema naming no kind is the top type, its shape keywords kept as any
-unhomed keyword is.
+decides whether the schema names no kind. Where a conjunct beside it names kinds, as a union kept
+beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords name a kind only
+where every kind the conjuncts admit is one they speak of, and the schema lowers to those: unmarked
+where the document declared them, as `{oneOf: [{type: object, …}], additionalProperties: false}`
+declares an object, and marked where a conjunct names its own by the policy's reading, as a branch
+writing `required` alone does. Where the conjuncts admit a kind the keywords do not speak of
+(`{oneOf: [{type: object, …}, {type: string}], required: [a]}`), the keywords would narrow what the
+document declares, so under either policy the schema is the top type keeping them. A union that
+distributes across a body the policy read as an object
+([`union-beside-structure`](#union-beside-structure)) marks each variant it composes over a branch
+that declares no object, as that variant is a model only by the policy's reading. With the policy
+off, a schema naming no kind is the top type, its shape keywords kept as any unhomed keyword is.
 
 Each unhomed keyword is kept verbatim in `Unmodeled["openapi:<keyword>"]` under `degraded_lowering`,
 reported as one info `openapi/degraded-construct` at the position naming the kind it lowered to and
@@ -4311,6 +4325,12 @@ union of models.
   `e2e.TestKindInference_AThreeZeroSchemaSpeakingOfTwoKindsIsAMarkedUnion`,
   `e2e.TestKindInference_EachVariantOfATwoKindUnionIsMarked`,
   `e2e.TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder`,
+  `e2e.TestKindInference_AKindAConjunctNamesIsDeclared`,
+  `e2e.TestKindInference_KeywordsNarrowingAKeptUnionNameNoKind`,
+  `e2e.TestKindInference_APropertySetBesideAUnionOfOtherKindsIsTheTopTypeWhenOff`,
+  `e2e.TestKindInference_AKindReadThroughAnInferredBranchIsMarked`,
+  `e2e.TestKindInference_AVariantComposedOverAnInferredBodyIsMarked`,
+  `e2e.TestKindInference_AModelBesideAKeptUnionIsReportedAsOne`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
   `schema.TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead`,

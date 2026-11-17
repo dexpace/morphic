@@ -301,3 +301,139 @@ func TestKindInference_AKindAConjunctNamesIsDeclared(t *testing.T) {
 		})
 	}
 }
+
+// TestKindInference_KeywordsNarrowingAKeptUnionNameNoKind holds a schema
+// writing no type beside a union kept whole whose branches admit a kind its
+// shape keywords do not speak of: the keywords would narrow what the document
+// declares, so under either policy the node is the top type keeping them, and
+// no instance the union admits is outside it.
+func TestKindInference_KeywordsNarrowingAKeptUnionNameNoKind(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Obj: {type: object, properties: {a: {type: string}}}",
+		"Required: {oneOf: [{$ref: '#/components/schemas/Obj'}, {type: string}], required: [a]}",
+		"Closed: {anyOf: [{$ref: '#/components/schemas/Obj'}, {type: string}], additionalProperties: false}",
+		"Elements: {oneOf: [{type: array, items: {type: integer}}, {type: string}], items: {type: string}}",
+		"ThroughABranch: {oneOf: [{properties: {u: {type: string}}}, {type: string}], required: [a]}",
+	}
+	want := map[string]untypedOutcome{
+		"Required":       topKeeping("oneOf", "required"),
+		"Closed":         topKeeping("anyOf", "additionalProperties"),
+		"Elements":       topKeeping("oneOf", "items"),
+		"ThroughABranch": topKeeping("oneOf", "required"),
+	}
+	for _, off := range []bool{false, true} {
+		t.Run(fmt.Sprintf("off=%t", off), func(t *testing.T) {
+			t.Parallel()
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, _ := compileKindInference(t, "narrowing", admissionSpec("3.1.0", "", schemas...), off)
+				for name, outcome := range want {
+					assertUntypedOutcome(t, doc, name, outcome)
+				}
+			})
+		})
+	}
+}
+
+// TestKindInference_APropertySetBesideAUnionOfOtherKindsIsTheTopTypeWhenOff
+// holds that the policy off reads no object off a `properties` beside a union
+// naming another kind too: the top type keeps both, where the policy on
+// distributes the union across the object it reads.
+func TestKindInference_APropertySetBesideAUnionOfOtherKindsIsTheTopTypeWhenOff(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Obj: {type: object, properties: {a: {type: string}}}",
+		"Item: {oneOf: [{$ref: '#/components/schemas/Obj'}, {type: string}], properties: {q: {type: integer}}}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		off, _ := compileKindInference(t, "off", admissionSpec("3.1.0", "", schemas...), true)
+		assertUntypedOutcome(t, off, "Item", topKeeping("oneOf", "properties"))
+		on, _ := compileKindInference(t, "on", admissionSpec("3.1.0", "", schemas...), false)
+		assert.Equal(t, ir.KindUnion, kindNode(t, on, componentID("Item")).Kind())
+	})
+}
+
+// TestKindInference_AKindReadThroughAnInferredBranchIsMarked holds a schema
+// whose shape keywords speak of the one kind its union's branches admit, where
+// the branches name that kind only by the policy's reading of shape keywords:
+// their own, a $ref target's or the target a $dynamicRef expands to. The
+// node's kind rests on the policy, so it is marked, and with the policy off it
+// is the top type.
+func TestKindInference_AKindReadThroughAnInferredBranchIsMarked(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Props: {$dynamicAnchor: node, properties: {a: {type: string}}}",
+		"Inline: {properties: {a: {type: string}, b: {type: string}}, anyOf: [{required: [a]}, {required: [b]}]}",
+		"ByRef: {oneOf: [{$ref: '#/components/schemas/Props'}], additionalProperties: false}",
+		"ByDynamicRef: {oneOf: [{$dynamicRef: '#node'}], additionalProperties: false}",
+	}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		on, _ := compileKindInference(t, "on", admissionSpec("3.1.0", "", schemas...), false)
+		off, _ := compileKindInference(t, "off", admissionSpec("3.1.0", "", schemas...), true)
+		for _, name := range []string{"Inline", "ByRef", "ByDynamicRef"} {
+			inferred := kindNode(t, on, componentID(name))
+			assert.Equal(t, ir.KindModel, inferred.Kind(), name)
+			assert.True(t, markedKindInference(inferred), "%s: its branches are objects only as the policy reads them", name)
+			scalar, ok := kindNode(t, off, componentID(name)).(*ir.Scalar)
+			require.True(t, ok, name)
+			require.NotNil(t, scalar.Base, name)
+			assert.Equal(t, prim(ir.PrimAny), scalar.Base.Target, name)
+		}
+	})
+}
+
+// TestKindInference_AVariantComposedOverAnInferredBodyIsMarked holds the
+// variants a union distributes an untyped property set into: one composed over
+// a branch declaring an object is a model by that branch and unmarked, and one
+// over a branch that is no object, or an object only as the policy reads it, is
+// a model by the policy's reading of the property set and names it, as does one
+// over a branch whose read a cycle cuts short, which the policy off composes
+// nothing over. A body writing `type: object` marks none.
+func TestKindInference_AVariantComposedOverAnInferredBodyIsMarked(t *testing.T) {
+	t.Parallel()
+	const branches = "oneOf: [{type: object, properties: {o: {type: string}}}, {type: string}, {properties: {u: {type: string}}}]"
+	schemas := []string{
+		"Untyped: {properties: {x: {type: string}}, " + branches + "}",
+		"Typed: {type: object, properties: {x: {type: string}}, " + branches + "}",
+		"Cycle: {allOf: [{$ref: '#/components/schemas/Cycle'}]}",
+		"CutShort: {properties: {x: {type: string}}, oneOf: [{type: object, allOf: [{$ref: '#/components/schemas/Cycle'}]}]}",
+	}
+	want := map[string][]bool{"Untyped": {false, true, true}, "Typed": {false, false, false}, "CutShort": {true}}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, _ := compileKindInference(t, "variants", admissionSpec("3.1.0", "", schemas...), false)
+		for name, marked := range want {
+			union, ok := kindNode(t, doc, componentID(name)).(*ir.Union)
+			require.True(t, ok, name)
+			require.Len(t, union.Variants, len(marked), name)
+			for i, v := range union.Variants {
+				variant := kindNode(t, doc, v.Type.Target)
+				assert.Equal(t, ir.KindModel, variant.Kind(), "%s variant %d", name, i)
+				assert.Equal(t, marked[i], markedKindInference(variant), "%s variant %d", name, i)
+			}
+		}
+	})
+}
+
+// TestKindInference_AModelBesideAKeptUnionIsReportedAsOne holds the report of
+// a union kept beside a body that is a model by the kind its branches declare:
+// it says the body declares no property, never that the body is no model.
+func TestKindInference_AModelBesideAKeptUnionIsReportedAsOne(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"Apple: {type: object, properties: {cultivar: {type: string}}, required: [cultivar]}",
+		"Banana: {type: object, properties: {lengthCm: {type: number}}, required: [lengthCm]}",
+		"Fruit: {oneOf: [{$ref: '#/components/schemas/Apple'}, {$ref: '#/components/schemas/Banana'}], additionalProperties: false}",
+	}
+	for _, off := range []bool{false, true} {
+		t.Run(fmt.Sprintf("off=%t", off), func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileKindInference(t, "fruit", admissionSpec("3.0.3", "", schemas...), off)
+			fruit, ok := kindNode(t, doc, componentID("Fruit")).(*ir.Model)
+			require.True(t, ok)
+			assert.False(t, markedKindInference(fruit), "both branches declare an object")
+			message := diagMessageOf(t, diags, "/components/schemas/Fruit")
+			assert.Contains(t, message, "the body declares no property")
+			assert.NotContains(t, message, "is not a model")
+		})
+	}
+}

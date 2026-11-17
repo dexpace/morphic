@@ -807,8 +807,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 	case unionValidationOnly:
 		return beside(ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
-		return beside(ir.ReasonDegradedLowering,
-			"the body is not a model, so it carries no composition to distribute into")
+		return beside(ir.ReasonDegradedLowering, uncomposableWhy(c, s))
 	case unionBothCombinators:
 		return beside(ir.ReasonDegradedLowering,
 			"oneOf and anyOf are both declared, so distributing either would drop the other")
@@ -825,6 +824,17 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
 	}
+}
+
+// uncomposableWhy says why the body of s, which composesAsModel refuses,
+// takes none of the union beside it: it is no model, or it declares no
+// property and is an object only by a keyword written beside branches naming
+// objects (untypedKinds), as a bare `additionalProperties: false` is.
+func uncomposableWhy(c lowering.Ctx, s *statement.Schema) string {
+	if kinds, _ := untypedKinds(c, s); kinds == kindObject && len(objectIn(s).Properties) == 0 {
+		return "the body declares no property, so it carries no composition to distribute into"
+	}
+	return "the body is not a model, so it carries no composition to distribute into"
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref
@@ -945,7 +955,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
-			voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
+			voices: positionVoices(c, ts, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s)}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
 			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
@@ -1040,6 +1050,30 @@ type composedBody struct {
 	schema *statement.Schema
 	comp   allOfComposition   // schema's flattened allOf, built once for every variant
 	voices []annotation.Voice // what comp's folding branches say of the position, read once too
+	// inferred marks a schema the kind-inference policy made the model its
+	// variants compose (bodyKindInferred), so a variant over a branch that
+	// declares no object names the policy.
+	inferred bool
+}
+
+// bodyKindInferred reports whether the kind-inference policy made s, a body a
+// union distributes across, the model its variants compose
+// (docs/compilers/openapi.md#shape-applicator): s names no type and composes
+// no allOf, and the union's branches admit a kind that is no object, or name
+// theirs by the policy's reading, as untypedKinds tells the two apart.
+func bodyKindInferred(c lowering.Ctx, s *statement.Schema) bool {
+	if !c.KindInference.Honours() || len(effectiveTypes(s)) > 0 || allOfComposes(c, s) {
+		return false
+	}
+	return !admitsObjectsAlone(c, c.Statements().Read(s))
+}
+
+// admitsObjectsAlone reports whether the document itself declares that st
+// admits an object and no other kind, null aside: its read is whole and rests
+// on no kind the kind-inference policy read.
+func admitsObjectsAlone(c lowering.Ctx, st *statement.Statement) bool {
+	r := admissionOf(c, st)
+	return !r.inferred && !r.cut && r.kinds&^kindObject == 0
 }
 
 // composedVariant synthesizes the Model for one distributed variant: the
@@ -1066,6 +1100,9 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composed
 	// The Model conjoins the union's body with the branch, so it is named for
 	// both.
 	common.Name = compile.NamingHint(compile.SubHint(lowering.NameAt(c, body.comp.pointer), lowering.NameAt(c, vptr)))
+	if body.inferred && !admitsObjectsAlone(c, b) {
+		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
+	}
 	def, variantDiags := buildComposedVariant(c, ts, depth, body, branch.Target, common)
 	ts.Register(id, def)
 	return composedVariantRef(c, id, body.schema, branch), append(diags, variantDiags...)

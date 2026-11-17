@@ -26,8 +26,9 @@ type reading struct {
 	// meeting a $dynamicRef the bindings read as no $ref, which an election
 	// cannot read; loose one meeting a keyword the read does not follow that
 	// could refuse a kind (looseIn), so admits may claim more than the schema
-	// admits; inferred one naming no kind, whose kinds its shape keywords
-	// claim (claimedKinds).
+	// admits; inferred one whose kinds rest on the kind-inference policy's
+	// reading of shape keywords (claimedKinds): its own, where it names no
+	// kind, or those of a statement it conjoins or joins.
 	cut, dynamic, loose, inferred bool
 	// reads and members are the schemas and value-set members the read takes
 	// in, each counted per path and held to one past a reader's cap.
@@ -49,6 +50,7 @@ func (r *reading) took(child *reading) bool {
 	r.cut = r.cut || child.cut
 	r.dynamic = r.dynamic || child.dynamic
 	r.loose = r.loose || child.loose
+	r.inferred = r.inferred || child.inferred
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
 	r.members = min(r.members+child.members, maxAdmissionMembers+1)
 	if r.reads <= maxAdmissionReads && r.members <= maxAdmissionMembers {
@@ -288,6 +290,7 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 		r.kinds &= target.kinds
 		r.cut = r.cut || target.cut
 		r.loose = r.loose || target.loose
+		r.inferred = r.inferred || target.inferred
 	}
 	if r.kinds != anyInstance {
 		return r

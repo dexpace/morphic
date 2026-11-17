@@ -409,12 +409,12 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 
 // untypedKinds returns the kinds s, which writes no kind of its own, lowers to
 // as its shape keywords speak of them (shapeKinds), and whether the
-// kind-inference policy read them. The run's admission of its statement
-// decides: where it infers them, nothing beside s naming a kind, they are the
-// policy's; where a conjunct names kinds, a union kept beside s among them,
-// s's keywords pick those of them they speak of; where nothing names one and
-// the policy is off, there are none. A read cut short leaves s's keywords to
-// the policy, as boundKinds leaves its own type.
+// kind-inference policy read them, by the run's admission of its statement.
+// Where its conjuncts, as a union kept beside it, admit a kind the keywords do
+// not speak of, there are none, as with the policy off where nothing names a
+// kind. Else s lowers to the kinds they admit: the policy's where it read any,
+// off s or a conjunct, the document's otherwise. A read cut short leaves the
+// keywords to the policy.
 func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 	claims := shapeKinds(s)
 	if claims == 0 || !stated(s) {
@@ -422,15 +422,15 @@ func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 	}
 	r := admissionOf(c, c.Statements().Read(s))
 	switch {
-	case r.inferred:
-		return r.kinds, true
-	case r.cut || r.kinds == anyInstance:
+	case r.cut:
 		if !c.KindInference.Honours() {
 			return 0, false
 		}
 		return claims, true
+	case r.kinds&^claims != 0:
+		return 0, false
 	default:
-		return claims & r.kinds, false
+		return r.kinds, r.inferred
 	}
 }
 
