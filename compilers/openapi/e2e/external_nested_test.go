@@ -61,9 +61,7 @@ func TestExternalContent_AReferenceItWritesIsResolvedWhereItIsDeclared(t *testin
 		require.Len(t, op.Bindings.HTTP[0].Callbacks, 1, "%s: a.yaml's callback is read", mount)
 	}
 
-	through, ok := doc.Types["t/openapi/components/schemas/Through"].(*ir.Scalar)
-	require.True(t, ok, "%T", doc.Types["t/openapi/components/schemas/Through"])
-	assert.Equal(t, ir.TypeID("t/anon@a.yaml/components/parameters/Own/schema"), through.Base.Target,
+	assert.Equal(t, ir.TypeID("t/anon@a.yaml/components/parameters/Own/schema"), useTarget(t, doc, "Through"),
 		"the pointer reads on through a.yaml's parameter reference")
 }
 

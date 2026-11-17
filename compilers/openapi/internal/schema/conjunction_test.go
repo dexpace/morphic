@@ -91,3 +91,63 @@ func TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference(t *testing.T) {
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 		"declares $ref and allOf beside its enum")
 }
+
+// useTargetOf is the type td, the node a position owns over what its $ref
+// names, is a use of: the Base of the Model over an object, declaring no member,
+// or of the Scalar alias over anything else.
+func useTargetOf(t *testing.T, td ir.TypeDef) ir.TypeID {
+	t.Helper()
+	switch n := td.(type) {
+	case *ir.Model:
+		require.NotNil(t, n.Base)
+		require.Empty(t, n.Properties, "a use declares no member of its own")
+		return n.Base.Target
+	case *ir.Scalar:
+		require.NotNil(t, n.Base)
+		return n.Base.Target
+	default:
+		require.Failf(t, "no use", "%T is no use of what it names", n)
+		return ""
+	}
+}
+
+// TestUnion_ABranchSayingNothingButARefIsItsTarget pins that a union branch
+// writing an empty entry beside one $ref says nothing of it: the variant is the
+// target, named for it, and the branch hoists no node.
+func TestUnion_ABranchSayingNothingButARefIsItsTarget(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Pet: {type: object, properties: {name: {type: string}}}
+    U: {oneOf: [{allOf: [{}, {$ref: '#/components/schemas/Pet'}]}, {type: string}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, componentID("Pet"), u.Variants[0].Type.Target)
+	assert.Equal(t, "pet", u.Variants[0].Name.Hint)
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/U/oneOf/0"))
+}
+
+// TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt pins that a
+// component writing an allOf of one $ref to an object, an empty entry beside it
+// or none, saying nothing else, is the Model over that object, as the bare $ref
+// is, and one over a string the alias over it.
+func TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Obj: {type: object, properties: {a: {type: string}}}
+    Str: {type: string}
+    W: {allOf: [{$ref: '#/components/schemas/Obj'}]}
+    E: {allOf: [{}, {$ref: '#/components/schemas/Obj'}]}
+    V: {allOf: [{$ref: '#/components/schemas/Str'}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"W", "E"} {
+		w, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s: got %T", name, typeByName(doc, name))
+		assert.Equal(t, componentID("Obj"), useTargetOf(t, w), name)
+	}
+	v, ok := typeByName(doc, "V").(*ir.Scalar)
+	require.True(t, ok, "got %T", typeByName(doc, "V"))
+	assert.Equal(t, componentID("Str"), useTargetOf(t, v))
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/W/allOf/0"))
+}

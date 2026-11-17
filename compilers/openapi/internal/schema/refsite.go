@@ -240,10 +240,10 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *statement.Statement
 	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
-	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
-	diags = append(diags, aliasDiags...)
-	// As in lowerComponentSchema: this alias is the first node the pointer owns,
-	// so the annotations Ref had nowhere to put now have a home.
+	nodeDiags := internOwnNode(c, ts, decl, pointer, ref)
+	diags = append(diags, nodeDiags...)
+	// As in lowerComponentSchema: this node is the first the pointer owns, so
+	// the annotations Ref had nowhere to put now have a home.
 	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 

@@ -34,34 +34,43 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		if admissionOf(c, c.Statements().Read(s)).inferred {
-			// No conjunct declares the kind: the model is one by the
-			// kind-inference policy's reading of their shape keywords.
-			common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
-		}
-		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
-		diags = append(diags, consDiags...)
-		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
-		fields := newModelFields(c, ts, m)
-		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
-		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
-		requireMembers(m, compositionRequired(objectIn(s).Required, comp))
-		diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
-		diags = append(diags, applyFalseBranches(c, m, comp)...)
-		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
-			diags = append(diags, discDiags...)
-			m.Discriminator = d
-		}
-		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
-		m.DiscriminatorValue = tag.value
-		diags = append(diags, tagDiags...)
-		deferSubtypeTag(c, ts, tag, common.ID, pointer)
-		return objectNode(m)
+		// The one flattened list; the readers composeModel calls take it, not s.
+		td, modelDiags := composeModel(c, ts, depth, s, pointer, discriminated, common, readAllOf(c, s, pointer))
+		diags = modelDiags
+		return td
 	})
 	return id, diags
+}
+
+// composeModel builds the Model of s, written at pointer, composing comp, its
+// flattened conjuncts.
+func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
+	discriminated bool, common ir.TypeCommon, comp allOfComposition,
+) (ir.TypeDef, []ir.Diagnostic) {
+	if admissionOf(c, c.Statements().Read(s)).inferred {
+		// No conjunct declares the kind: the model is one by the
+		// kind-inference policy's reading of their shape keywords.
+		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
+	}
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
+	m := &ir.Model{TypeCommon: common, Constraints: cons}
+	diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
+	fields := newModelFields(c, ts, m)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
+	diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
+	requireMembers(m, compositionRequired(objectIn(s).Required, comp))
+	diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
+	diags = append(diags, applyFalseBranches(c, m, comp)...)
+	if discriminated {
+		d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
+		diags = append(diags, discDiags...)
+		m.Discriminator = d
+	}
+	tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
+	m.DiscriminatorValue = tag.value
+	diags = append(diags, tagDiags...)
+	deferSubtypeTag(c, ts, tag, common.ID, pointer)
+	return objectNode(m), diags
 }
 
 // compositionCensusHandled names the census keywords an allOf composition

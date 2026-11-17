@@ -162,6 +162,33 @@ func unionAside(c lowering.Ctx, s *statement.Schema) bool {
 	return decisionOf(c, s, "").aside
 }
 
+// usesOneRef reports whether s, whose flattened conjuncts are comp, is a use of
+// one target saying nothing of it: one conjunct is a $ref, and s and every
+// other conjunct state nothing (statesNothing). It is the reference, as the
+// $ref alone is (docs/compilers/openapi.md#allof-classification).
+func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
+	refs := 0
+	for _, e := range comp.branches {
+		switch {
+		case e.schema.Ref != nil:
+			refs++
+		case !statesNothing(e.schema.Schema):
+			return false
+		}
+	}
+	return refs == 1 && statesNothing(s)
+}
+
+// statesNothing reports whether s, a schema object, writes nothing but the
+// allOf its statement flattens, a list holding an entry, and keys that say
+// nothing of the instance (statement.ReadBeside): a comment, an anchor,
+// schemas a reference reaches, a keyword left out.
+func statesNothing(s *statement.Schema) bool {
+	return s.Truth == statement.Stated && !slices.ContainsFunc(s.Keys, func(k statement.Key) bool {
+		return (k.Name != "allOf" || len(s.AllOf) == 0) && statement.ReadBeside(k.Name, k.Node, "")
+	})
+}
+
 // decide reads the decision refinementOf remembers. Where the conjuncts share
 // no value, or the kinds the position lowers to, null aside, are an object
 // alone, it composes, unless a conjunct states a value set, which is elected
@@ -184,7 +211,7 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	}
 	var principal *conjunct
 	contradicts := disjoint(joint, conjuncts)
-	if contradicts || kinds == kindObject {
+	if contradicts || kinds == kindObject && !usesOneRef(s, comp) {
 		if principal = setElected(&w, s, conjuncts); principal == nil {
 			return decision{aside: aside}
 		}

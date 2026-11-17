@@ -247,10 +247,8 @@ func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 			outsider, ok := typeByName(doc, "Outsider").(*ir.Model)
 			require.True(t, ok)
 			require.Len(t, outsider.Properties, 1)
-			branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
-			require.True(t, ok, "the branch pointer hoists an alias of the branch's target")
-			require.NotNil(t, branchNode.Base)
-			assert.Equal(t, componentID([]string{"A", "B"}[tc.branch]), branchNode.Base.Target)
+			assert.Equal(t, componentID([]string{"A", "B"}[tc.branch]), useTargetOf(t, doc.Types[outsider.Properties[0].Type.Target]),
+				"the branch pointer hoists the node a use of the branch's target owns")
 		})
 	}
 }

@@ -64,10 +64,10 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *statement.State
 	if LoweredToOwnNode(c, pointer, ref) {
 		return diags
 	}
-	_, aliasDiags := internAlias(c, ts, s.Node, pointer, ref)
-	diags = append(diags, aliasDiags...)
-	// This alias is the first node the pointer owns, so the annotations
-	// schemaBody had nowhere to put now have a home.
+	nodeDiags := internOwnNode(c, ts, js, pointer, ref)
+	diags = append(diags, nodeDiags...)
+	// This node is the first the pointer owns, so the annotations schemaBody
+	// had nowhere to put now have a home.
 	if stated(s.Node) {
 		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}

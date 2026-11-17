@@ -44,8 +44,8 @@ func TestCompile_AMappedURLIsTheDocumentItsLocationHolds(t *testing.T) {
 
 			assertNoErrorDiags(t, diags)
 			want := ids.In("b.yaml").ForPointer("/B")
-			assert.Equal(t, want, aliasTarget(t, doc, "p"), "the type b.yaml declares at /B, labelled as the file is")
-			assert.Equal(t, want, aliasTarget(t, doc, "q"))
+			assert.Equal(t, want, useTarget(t, doc, "p"), "the type b.yaml declares at /B, labelled as the file is")
+			assert.Equal(t, want, useTarget(t, doc, "q"))
 			require.Len(t, doc.Sources, 2, "%v", sourcePaths(doc))
 			assert.Equal(t, "b.yaml", filepath.Base(doc.Sources[1].Path))
 			assert.NotContains(t, strings.Join(sourcePaths(doc), " "), "example.com")
@@ -142,7 +142,7 @@ func TestCompile_ALocationWithNoFinalSeparatorIsTheDirectoryItNames(t *testing.T
 				assert.Equal(t, filepath.Join(root, "x", "b.yaml"), filepath.Clean(loc), "never the parent's b.yaml")
 			}
 			assert.NotEmpty(t, rec.locations())
-			assert.Equal(t, ir.TypeID("t/prim/string"), typeTarget(t, doc, aliasTarget(t, doc, "p")))
+			assert.Equal(t, ir.TypeID("t/prim/string"), typeTarget(t, doc, useTarget(t, doc, "p")))
 		})
 	}
 }
@@ -194,7 +194,7 @@ func TestCompile_ALocateOptionMapsTheURLsASelfPutsReadsAt(t *testing.T) {
 		openapi.Options{Locations: []openapi.Location{{Prefix: mapped, Location: "."}}}, rec)
 
 	assertNoErrorDiags(t, diags)
-	assert.Equal(t, ids.In("b.yaml").ForPointer("/B"), aliasTarget(t, doc, "p"))
+	assert.Equal(t, ids.In("b.yaml").ForPointer("/B"), useTarget(t, doc, "p"))
 	assert.Equal(t, []string{filepath.Join(dir, "b.yaml")}, rec.locations())
 
 	_, diags = compileWithReader(t, filepath.Join(dir, "spec.yaml"), src, openapi.Options{}, &recordingReader{inner: loopbackDisk{}})

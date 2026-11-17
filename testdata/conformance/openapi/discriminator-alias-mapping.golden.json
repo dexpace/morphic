@@ -169,7 +169,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/CatAlias": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/CatAlias",
       "name": {
         "source": "CatAlias",
@@ -185,7 +185,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Cat",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/CatNote": {
       "kind": "model",

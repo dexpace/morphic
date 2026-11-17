@@ -633,11 +633,14 @@ components:
   schemas:
     X: {$ref: '#/paths/~1a/get/requestBody/content/application~1json/schema'}
 `, "near", func(doc *ir.Document) string {
-			x, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Scalar)
-			if !ok || x.Base == nil {
+			var base *ir.TypeRef // the use X owns: the Model over an object
+			if x, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Model); ok {
+				base = x.Base
+			}
+			if base == nil {
 				return ""
 			}
-			body, ok := doc.Types[x.Base.Target].(*ir.Model)
+			body, ok := doc.Types[base.Target].(*ir.Model)
 			if !ok {
 				return ""
 			}

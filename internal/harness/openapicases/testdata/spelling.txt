@@ -99,7 +99,6 @@
 3.0.3/integer/oneOf~/none/property/entry	types.properties.unmodeled.openapi:,types.properties.unmodeled.openapi:oneOf	kept-key
 3.0.3/integer/oneOf~/none/requestBody/entry	services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:oneOf	kept-key
 3.0.3/integer/oneOf~/none/responseBody/entry	services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:oneOf	kept-key
-3.0.3/object/none/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	decorated-object
 3.0.3/string/anyOf/none/additionalProperties/entry	types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:anyOf	kept-key
 3.0.3/string/anyOf/none/branch/entry	types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:anyOf	kept-key
 3.0.3/string/anyOf/none/component/entry	types.unmodeled.openapi:,types.unmodeled.openapi:anyOf	kept-key
@@ -433,7 +432,6 @@
 3.1.0/object/$vocabulary~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/object/$vocabulary~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/object/$vocabulary~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$vocabulary	kept-key
-3.1.0/object/none/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	decorated-object
 3.1.0/string/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/string/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/string/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key

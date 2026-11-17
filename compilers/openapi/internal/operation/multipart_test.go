@@ -466,11 +466,9 @@ components:
 	// descend still produces an entry — partPropID derives an ID from the composed
 	// node's own pointer — and that ID names a property declared nowhere. The
 	// encoding reads as present either way; only the key tells the two apart.
-	composed, isModel := doc.Types[content.Type.Target].(*ir.Model)
-	require.True(t, isModel, "the multipart body lowers to a model")
-	require.NotNil(t, composed.Base, "a sole $ref branch becomes the composed model's base")
-	inherited, isModel := doc.Types[composed.Base.Target].(*ir.Model)
-	require.True(t, isModel, "and the base is the referenced model")
+	// An allOf of the one $ref, saying nothing else, is the referenced model.
+	inherited, isModel := doc.Types[content.Type.Target].(*ir.Model)
+	require.True(t, isModel, "the multipart body is the referenced model")
 	want := openapitest.PropsByWire(inherited.Properties)["file"].ID
 	require.NotEmpty(t, want, "the base declares the part this encoding names")
 

@@ -351,7 +351,14 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
 	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
-	for _, name := range []string{"WrapModel", "WrapPlain"} {
+	// An allOf of one $ref saying nothing is the reference, and a component
+	// owns the node over it: over a model admitting null, which no Base
+	// carries, the alias whose Base is that use, null and all.
+	alias, ok := typeByName(doc, "WrapModel").(*ir.Scalar)
+	require.True(t, ok, "WrapModel is a use of NullableModel")
+	require.NotNil(t, alias.Base)
+	assert.Equal(t, ir.TypeRef{Target: componentID("NullableModel"), Nullable: true}, *alias.Base)
+	for _, name := range []string{"WrapPlain"} {
 		m, isModel := typeByName(doc, name).(*ir.Model)
 		require.True(t, isModel, "%s is a model", name)
 		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)

@@ -83,9 +83,10 @@ var loweringRecursions = [][]string{
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
 	"buildListedTuple", "buildTuple", "buildUnion",
-	"composedVariant", "contentSchemaRef", "discriminatorDefault",
+	"composeModel", "composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
-	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "keepUncomposedRef", "lower",
+	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "internOwnNode",
+	"keepUncomposedRef", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",

@@ -572,7 +572,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/Into": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Into",
       "name": {
         "source": "Into",
@@ -588,10 +588,13 @@
       "base": {
         "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/doc/encoding/inner/headers/X-Inner/schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Only": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Only",
       "name": {
         "source": "Only",
@@ -607,7 +610,10 @@
       "base": {
         "target": "t/anon/paths/~1parts/post/requestBody/content/multipart~1form-data/encoding/parts/prefixEncoding/0/headers/X-Only/schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Part": {
       "kind": "scalar",

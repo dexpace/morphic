@@ -478,10 +478,9 @@ components:
         inner: {$ref: '#/components/schemas/Base'}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
-	require.True(t, ok, "a bare $ref sub-schema aliases rather than copying its target")
-	require.NotNil(t, inner.Base)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), inner.Base.Target)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"),
+		useTargetOf(t, doc.Types["t/anon/components/schemas/Holder/properties/inner"]),
+		"a bare $ref sub-schema is a use of its target rather than a copy of it")
 
 	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
 	assert.True(t, isModel, "the structure lives at the component it was declared at")

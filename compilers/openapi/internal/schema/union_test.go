@@ -399,7 +399,7 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 		},
 		{
 			name:   "an empty schema before the wrapped ref",
-			branch: "{allOf: [{}, {$ref: " + pet + "}]}",
+			branch: "{allOf: [{}, {$ref: " + pet + "}], description: d}",
 			want:   "pet",
 		},
 		{

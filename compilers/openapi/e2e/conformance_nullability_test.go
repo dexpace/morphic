@@ -301,7 +301,14 @@ func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 	_, isModel := doc.Types[componentID("WrapNullableScalar")].(*ir.Model)
 	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
-	for _, name := range []string{"WrapNullableModel", "WrapBoth"} {
+	// An allOf of one $ref saying nothing is the reference: over a target
+	// admitting null, which no Base carries, the component owns the alias whose
+	// Base is that use, null and all.
+	alias, ok := doc.Types[componentID("WrapNullableModel")].(*ir.Scalar)
+	require.True(t, ok, "WrapNullableModel is a use of NullableModel")
+	require.NotNil(t, alias.Base)
+	assert.Equal(t, ir.TypeRef{Target: componentID("NullableModel"), Nullable: true}, *alias.Base)
+	for _, name := range []string{"WrapBoth"} {
 		wrap, isModel := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, isModel, "%s composes as a model", name)
 		if wrap.Base != nil {

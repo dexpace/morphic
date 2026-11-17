@@ -98,9 +98,7 @@ func TestGolden_EncodingNestedReferences(t *testing.T) {
 		{"Into", header + "/items", "X-Inner"},
 		{"Only", encoding + "/parts/prefixEncoding/0/headers/X-Only/schema/items", "X-Only"},
 	} {
-		into, ok := typeByName(doc, ref.name).(*ir.Scalar)
-		require.True(t, ok, "%s is a scalar over what it references", ref.name)
-		assert.Equal(t, ir.TypeID(ref.items), into.Base.Target, ref.name)
+		assert.Equal(t, ir.TypeID(ref.items), useTarget(t, doc, ref.name), ref.name)
 		items, ok := doc.Types[ir.TypeID(ref.items)]
 		require.True(t, ok, ref.name)
 		assert.Equal(t, compile.SubHint(ref.key, "item"), items.Common().Name.Hint, ref.name)

@@ -2131,11 +2131,19 @@ placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
 ### `allof-classification`
 
 An `allOf` whose kinds are an object alone lowers to the composing `Model`'s `Base` and `Mixins`
-([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s. A
+([models](../ir/models.md#composition)); any other is [`allof-refinement`](#allof-refinement)'s.
+An `allOf` of one `$ref` saying nothing else is neither: where its other entries and the schema
+writing it state nothing of the instance (an empty schema, a comment, an anchor, `$defs`, a keyword
+left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, so it is the reference, hoisting no
+node, and a carrier reads the target's documentation as through a bare `$ref`
+([`ref-use-site`](#ref-use-site)). A component, or a position a `$ref` names, still owns a node: over
+an object alone the `Model` whose `Base` is that object, in this spelling and the bare `$ref`'s;
+over any other target, one admitting null, which a `Base` does not carry, or a reference no node
+answers, the `Scalar` alias. A
 `$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, or to
 the union of a `type` list holding an object, whose object variant it composes (below): the sole
-such entry becomes `Base`, and of several the first, in source order, to a schema taking part
-in a discriminator hierarchy: one declaring a `discriminator`, or composing through `allOf`, at any
+such entry becomes `Base`, and of several the one whose reference text is the least of those to a
+schema taking part in a discriminator hierarchy, whichever is written first: one declaring a `discriminator`, or composing through `allOf`, at any
 depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag
 off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
 discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
@@ -2179,6 +2187,11 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 - Cases: `allof-inheritance`, `allof-mixins`, `allof-inline-merge`, `allof-nested-inline`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DiscriminatorHierarchy`, `schema.TestAllOf_SoleRefBecomesBase`,
+  `schema.TestComponent_AnAllOfOfOneRefOverAnObjectIsTheModelThatOwnsIt`,
+  `e2e.TestRefConjunction_AnAllOfOfOneRefHoistsNoNode`,
+  `e2e.TestRefConjunction_AComponentOverAnObjectIsTheModelThatOwnsIt`,
+  `e2e.TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs`,
+  `e2e.TestRefConjunction_TwoBasesInADiscriminatorHierarchyElectTheLeastReference`,
   `e2e.TestAllOfCompose_ObjectsAloneStayAModel`, `e2e.TestAllOfCompose_ABaseThatIsNoModelIsKeptNotComposed`,
   `e2e.TestAllOfCompose_ConjunctsNoInstanceSatisfiesNameNoPlainBase`,
   `e2e.TestAllOfCompose_ASubtypeOfATypeListComposesItsObjectVariant`,

@@ -92,3 +92,29 @@ actions:
 	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, p.Unmodeled, "openapi:oneOf").Reason)
 	assert.Len(t, p.Unmodeled, 1)
 }
+
+// TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs holds that a
+// property or a parameter whose schema is an allOf of one $ref saying nothing
+// is the use of the target a bare $ref is: no node stands between them, and the
+// carrier reads the target's description as it does through the bare $ref.
+func TestRefConjunction_ACarrierOfAnAllOfOfOneRefReadsItsTargetsDocs(t *testing.T) {
+	t.Parallel()
+	params := make([]ir.Parameter, 0, 2)
+	for _, schema := range []string{"{" + refTo("Doc") + "}", "{allOf: [{" + refTo("Doc") + "}]}"} {
+		paths := "paths:\n  /a:\n    get:\n      parameters:\n        - {name: q, in: query, schema: " + schema +
+			"}\n      responses: {'200': {description: ok}}\n"
+		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", paths,
+			"Doc: {type: object, description: the target's own, properties: {a: {type: string}}}",
+			"Holder: {type: object, properties: {p: "+schema+"}}"))
+		requireErrorsAndWarnings(t, diags, nil)
+		p, ok := propByWire(requireModelNode(t, doc, componentID("Holder")), "p")
+		require.True(t, ok)
+		assert.Equal(t, componentID("Doc"), p.Type.Target, schema)
+		assert.Equal(t, "the target's own", p.Docs.Description, schema)
+		op := operationAt(t, doc, "GET", "/a")
+		require.Len(t, op.Params, 1)
+		assert.Equal(t, componentID("Doc"), op.Params[0].Type.Target, schema)
+		params = append(params, op.Params[0])
+	}
+	assert.Equal(t, params[0].Docs, params[1].Docs, "the parameter reads the docs alike in either spelling")
+}

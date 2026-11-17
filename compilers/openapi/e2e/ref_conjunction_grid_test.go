@@ -1,8 +1,6 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-//go:build pending
-
 package e2e_test
 
 import (
@@ -420,7 +418,9 @@ func TestRefConjunction_AStructuralKeywordBesideARefIsComposedOverItsTarget(t *t
 			require.Len(t, extended.Properties, 1)
 			assert.Equal(t, "age", extended.Properties[0].Name.Source)
 
-			held := kindNode(t, beside, propertyTypeOf(t, beside, "Holder", "u"))
+			u, ok := propByWire(requireModelOf(t, beside, "Holder"), "u")
+			require.True(t, ok)
+			held := kindNode(t, beside, u.Type.Target)
 			model, ok := held.(*ir.Model)
 			require.True(t, ok, "the property names a model over the object, as the allOf spelling does")
 			assert.Equal(t, []string{"id"}, model.Requires)
@@ -458,10 +458,10 @@ func TestRefConjunction_AValueSetBesideARefNarrowsItsTargetInEverySpelling(t *te
 			requireSpellingsEqual(t, beside, wrapped, "a value set beside a $ref")
 
 			for _, u := range uses {
-				node := kindNode(t, beside, propertyTypeOf(t, beside, "Holder", u.name))
+				node := kindNode(t, beside, holderPropType(t, beside, u.name))
 				pointer := "/components/schemas/Holder/properties/" + u.name
 				if u.kind == "" {
-					assert.Equal(t, componentID(u.target), propertyTypeOf(t, beside, "Holder", u.name), u.name)
+					assert.Equal(t, componentID(u.target), holderPropType(t, beside, u.name), u.name)
 					assert.Empty(t, keptOn(node), u.name)
 					assert.Zero(t, degradedInfosUnder(diags, pointer), u.name)
 					continue
@@ -497,7 +497,7 @@ func TestRefConjunction_ARedactionBesideARefInItemsIsAModelOverItsTarget(t *test
 			})
 			requireSpellingsEqual(t, beside, wrapped, "a redaction beside a $ref")
 			for _, property := range []string{"p", "d"} {
-				list, ok := kindNode(t, beside, propertyTypeOf(t, beside, "Holder", property)).(*ir.List)
+				list, ok := kindNode(t, beside, holderPropType(t, beside, property)).(*ir.List)
 				require.True(t, ok, property)
 				elem, ok := kindNode(t, beside, list.Elem.Target).(*ir.Model)
 				require.True(t, ok, "the element of %s is a model over the object", property)

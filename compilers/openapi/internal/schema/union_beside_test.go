@@ -157,9 +157,7 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 	require.True(t, ok, "the branch redeclaring kind is a model of its own")
 	assert.Equal(t, "kind", redeclaring.Properties[0].WireName)
 
-	outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, branches[0], outside.Base.Target, "an outside $ref finds the branch node, not the variant")
+	assert.Equal(t, branches[0], useTargetOf(t, typeByName(doc, "Outside")), "an outside $ref finds the branch node, not the variant")
 
 	withNull, ok := typeByName(doc, "WithNull").(*ir.Union)
 	require.True(t, ok, "the union distributes past its null branch")
@@ -375,9 +373,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		require.NotNil(t, v.Base)
 		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Inline/allOf/0/oneOf/%d", i)), v.Base.Target)
 	}
-	outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, inline[1].Base.Target, outside.Base.Target, "an outside $ref finds the branch node")
+	assert.Equal(t, inline[1].Base.Target, useTargetOf(t, typeByName(doc, "Outside")), "an outside $ref finds the branch node")
 
 	for _, v := range variantModels(t, doc, "WithShapeless") {
 		assert.Contains(t, v.Unmodeled, "openapi:allOf/1", "the union declaring no shape stays with its branch")
@@ -693,9 +689,8 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
 		require.NotNil(t, wolfUnion.Discriminator)
 		assert.Empty(t, wolfUnion.Unmodeled, "and only there")
 		assert.True(t, ir.IsSubtype(doc, componentID("Kennel"), componentID("Pet")), "through Dog")
-		outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
-		require.True(t, ok, "an outside $ref names the branch itself; got %T", typeByName(doc, "Outside"))
-		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Bird/allOf/1"), outside.Base.Target)
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Bird/allOf/1"), useTargetOf(t, typeByName(doc, "Outside")),
+			"an outside $ref names the branch itself")
 	}
 }
 
