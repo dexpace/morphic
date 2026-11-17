@@ -280,14 +280,12 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:type": {
           "reason": "degraded_lowering",
-          "value": {
-            "type": "string"
-          },
+          "value": "string",
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/I/allOf/0"
+            "pointer": "/components/schemas/I/allOf/0/type"
           }
         }
       },
@@ -378,7 +376,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"model\", which has no home for type written on this inline branch; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/I/allOf/0"

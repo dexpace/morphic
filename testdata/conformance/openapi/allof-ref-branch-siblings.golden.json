@@ -346,22 +346,19 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:oneOf": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Base",
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "integer"
-              }
-            ]
-          },
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/UnionBranch/allOf/0"
+            "pointer": "/components/schemas/UnionBranch/allOf/0/oneOf"
           }
         }
       },
@@ -445,7 +442,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (oneOf) is kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"model\", which has no home for oneOf written on this inline branch; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/UnionBranch/allOf/0"
@@ -463,7 +460,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NestedAllOfBranch/allOf/0/allOf/0"

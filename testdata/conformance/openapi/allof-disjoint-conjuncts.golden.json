@@ -234,7 +234,7 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": {
             "$ref": "#/components/schemas/List"
@@ -264,7 +264,7 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": {
             "$ref": "#/components/schemas/NullableStr"
@@ -317,7 +317,7 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
           "value": {
             "$ref": "#/components/schemas/Str"
