@@ -941,8 +941,8 @@ it sees. Changes made together in one bump are listed together under it.
   written twice is one conjunct, where each tie went to the entry written first
   ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An `allOf` one of whose
   conjuncts states a value set lowers to that value set, where it composed a `Model` over an object
-  or conjuncts sharing no value; the `Enum` or `Literal` an inline entry writes stands at the
-  position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
+  or conjuncts sharing no value; the `Enum`, `Literal` or `Union` of `Literal`s an inline entry's
+  value set lowers to stands at the position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
   carrier holding the `$ref` it narrows; and a `$ref` conjunct a refinement does not lower is kept
   under `openapi:$ref`, or `openapi:$ref/<i>` by reference text where several are, where it was kept
   under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set. A keyword an inline

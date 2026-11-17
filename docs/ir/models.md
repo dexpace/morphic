@@ -351,8 +351,8 @@ kind, which admits strings a `Model` excludes. An `allOf` whose kinds are not an
 one of whose conjuncts states a value set, which is elected before a composition as beside the
 `allOf`, lowers to one use of the conjunct that decides it, short of the cases the OpenAPI
 compiler's rule [`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing: a
-reference to its `$ref`, of several the one lying within more conjuncts, the `Enum` or `Literal` an
-inline branch's value set lowers to standing at the position's own pointer, any other inline
+reference to its `$ref`, of several the one lying within more conjuncts, the `Enum`, `Literal` or
+`Union` of `Literal`s an inline branch's value set lowers to standing at the position's own pointer, any other inline
 branch's node at its own pointer, and an alias only where the position writes what no carrier
 holds. A union written beside the
 `allOf` is one more conjunct, as one on a branch is, unless it shares no kind with the rest, when it

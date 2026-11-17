@@ -825,8 +825,13 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 // refinedUnhomed returns the census keywords s writes beside an allOf that
 // lowered to its principal, but for those the principal already says, where a
 // $ref site reads no target and keeps them all (GitHub #1067). typed is the type
-// of the value set the principal lowered to, if any (refinedValueType).
+// of the value set the principal lowered to, if any (refinedValueType). A value
+// set standing at the position keeps them on its own node, in its build
+// (lowerPrincipalValueSet), so the outcome keeps none.
 func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed setType) []string {
+	if _, atPosition := valueSetPrincipal(r); atPosition {
+		return nil
+	}
 	w := newAdmission(c)
 	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
 	return referenceUnhomed(c, s, held)
