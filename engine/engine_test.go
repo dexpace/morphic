@@ -114,11 +114,11 @@ components:
 `
 
 // TestEngine_AnnotatedSubtypeValidatesClean drives the compiler and the validate
-// pass together, which is the only place their disagreement shows. Keeping the
-// `$ref` branch's siblings gives the branch a node of its own, so the subtype's
-// Base names an alias over the discriminated base rather than the base itself —
-// and a subtype check comparing one hop reported the mapping as naming a
-// non-variant, an error on a document with nothing wrong with it.
+// pass together, which is the only place their disagreement shows. A `$ref`
+// entry and the keywords beside it are one conjunction, so the subtype's Base
+// names the discriminated base itself and the description is the subtype's.
+// When the entry owned a node, the Base named an alias over the base, and a
+// subtype check comparing one hop reported the mapping as naming a non-variant.
 //
 // Neither side's own suite can see this: the compiler corpus never runs the
 // pass, and the pass's tests build documents by hand.
@@ -133,8 +133,12 @@ func TestEngine_AnnotatedSubtypeValidatesClean(t *testing.T) {
 	cat, ok := res.Document.Types["t/openapi/components/schemas/Cat"].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, cat.Base)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Cat/allOf/0"), cat.Base.Target,
-		"the annotated branch owns the node the subtype composes")
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Pet"), cat.Base.Target,
+		"the subtype composes the base its annotated entry names")
+	assert.Equal(t, "the base as this subtype narrows it", cat.Docs.Description,
+		"the description beside the $ref is the subtype's")
+	assert.NotContains(t, res.Document.Types, ir.TypeID("t/anon/components/schemas/Cat/allOf/0"),
+		"the entry owns no node")
 	for _, d := range res.Diagnostics {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "diag: %+v", d)
 	}
