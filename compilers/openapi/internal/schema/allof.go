@@ -141,7 +141,7 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 	comp := allOfBranches(c, s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
 	comp.bounds = modelTakes(boundKinds(c, s))
-	comp.closer = closerOf(s, comp)
+	comp.closer = closerOf(c, s, comp)
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased

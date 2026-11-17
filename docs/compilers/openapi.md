@@ -4333,6 +4333,9 @@ them. A closure beside the `allOf` reads the inline branches of a `oneOf` or `an
 beside it or on an entry, which distribute into variants
 ([`union-beside-structure`](#union-beside-structure)), as it reads a target: each variant takes the
 closure, though by JSON Schema it applies to a member a branch declares and the position does not.
+An entry's closure closes no such variant: where an inline branch of a union written beside the
+`allOf` or on an entry declares a member, no entry closes the model, as beside another entry
+declaring one, and the entry is kept whole.
 A closure no object takes is kept: beside the `allOf` under
 `openapi:additionalProperties` (`degraded_lowering`) with an info `openapi/degraded-construct` at the
 position, and on an entry as that entry whole. It applies to the members another object declares
@@ -4365,6 +4368,7 @@ logic; beside one writing patterns alone it closes the model after composition.
   `e2e.TestEntryClosure_APatternBesideTheAllOfIsTypedWhateverItsEntriesDeclare`,
   `e2e.TestEntryClosure_TheClosureBesideTheAllOfIsTheModelsBeforeAnEntrys`,
   `e2e.TestEntryClosure_TwoEntriesWritingAClosureTypeNeither`,
+  `e2e.TestEntryClosure_AClosureBesideAUnionsOwnMembersIsKept`,
   `e2e.TestEntryClosure_UnevaluatedPropertiesBesideTheClosingEntry`,
   `e2e.TestEntryClosure_ARefEntrysOwnMembersAreDeclaredBesideTheClosure`,
   `e2e.TestEntryClosure_AClosureBesideAUnionReadsTheAllOfAlike`,
