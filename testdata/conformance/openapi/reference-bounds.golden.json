@@ -511,14 +511,12 @@
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:allOf/1": {
+            "openapi:minLength": {
               "reason": "degraded_lowering",
-              "value": {
-                "minLength": 1
-              },
+              "value": 1,
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"
+                "pointer": "/components/schemas/Failure/properties/voiced/allOf/1/minLength"
               }
             }
           },
@@ -882,7 +880,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch adds; the branch (minLength) is kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for minLength written on this inline branch; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"

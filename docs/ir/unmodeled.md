@@ -95,6 +95,15 @@ kept whole is `openapi:schema/readOnly` on one parameter and only inside `openap
 another. A key the promotion policy reads is the exception, kept beside what holds it, since a
 promotion reads the kept entries ([promotion](#promotion)).
 
+A keyword an inline `allOf` entry writes is the same construct as that keyword beside the `allOf`,
+so it takes the same key, reason and report there, its provenance naming the keyword on the entry:
+`openapi:format`, never `openapi:allOf/1`. A path key such as `openapi:allOf/1` names only an entry
+kept whole, where a keyword of it is read against the rest of it or another conjunct writes it
+otherwise, so one key cannot hold it apart
+([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
+write alike is one entry, its provenance the position's pointer, as no one writer's is the same in
+every order of the entries.
+
 An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
 document's, keyed by the declaration's coordinate rather than a scope:
 `openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier

@@ -560,17 +560,28 @@ func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	return append(diags, recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
 }
 
-// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once,
-// a collection count no field states (keptCount) apart from the rest, as
-// keepCounts reports a value count.
-//
-// It names the keywords it actually stored, never the ones it was handed, so the
-// message cannot claim one that failed to convert and was reported unpreservable
-// instead (GitHub #144). A discriminator it is handed is no node's, so its
-// mapping values are resolved here, as references (resolveDiscriminatorRoutes):
-// every census keep of a discriminator comes through here, so each is resolved
-// once.
+// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once
+// (keepUnhomed), saying what the position lowered to, its shape.
 func recordUnhomedAt(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer) []ir.Diagnostic {
+	kept, diags := keepUnhomed(c, ts, p, s, unhomed, pointer)
+	if len(kept) == 0 {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"this position lowered to %s, which has no home for %s declared beside it; kept verbatim under Unmodeled",
+		shape, strings.Join(kept, ", ")))
+}
+
+// keepUnhomed keeps each unhomed keyword s, the schema at pointer, writes
+// verbatim in p as degraded_lowering, reports a collection count no field states
+// (keptCount) apart, as keepCounts reports a value count, and returns the rest
+// it kept, for its caller to report once.
+//
+// It returns the keywords it stored, never the ones it was handed, so no report
+// claims one that failed to convert (GitHub #144). A discriminator it is handed
+// is no node's, so its mapping values are resolved here, as references
+// (resolveDiscriminatorRoutes): every census keep of one comes through here.
+func keepUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, unhomed []string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	if slices.Contains(unhomed, "discriminator") {
 		diags = resolveDiscriminatorRoutes(c, ts, s, pointer)
@@ -591,10 +602,5 @@ func recordUnhomedAt(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *stat
 	if len(counts) > 0 {
 		diags = append(diags, countsKept(c, counts, pointer))
 	}
-	if len(kept) == 0 {
-		return diags
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"this position lowered to %s, which has no home for %s declared beside it; kept verbatim under Unmodeled",
-		shape, strings.Join(kept, ", ")))
+	return kept, diags
 }

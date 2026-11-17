@@ -181,7 +181,7 @@ var twoUnionShapes = func() map[string]string {
 
 // requireOneOfDistributed holds the component Use to the union of the oneOf
 // of twoUnionShapes: exclusive, a model for each branch carrying the body, and
-// the anyOf kept on each of them whole.
+// the anyOf kept on each of them under its keyword.
 func requireOneOfDistributed(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	union, ok := kindNode(t, doc, componentID("Use")).(*ir.Union)
@@ -191,11 +191,10 @@ func requireOneOfDistributed(t *testing.T, doc *ir.Document) {
 	for _, v := range union.Variants {
 		variant := requireModelNode(t, doc, v.Type.Target)
 		assert.Equal(t, []string{"x", "y"}, propertyNames(variant), "each variant carries the body")
-		kept := keptOn(variant)
-		require.Len(t, kept, 1, "the anyOf is kept on each variant")
-		for _, reason := range kept {
-			assert.Equal(t, ir.ReasonDegradedLowering, reason)
-		}
+		// Its branches declare no shape against the body, so it is validation
+		// logic, as the anyOf beside a body alone is.
+		assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:anyOf": ir.ReasonValidationOnly}, keptOn(variant),
+			"the anyOf is kept on each variant")
 	}
 }
 

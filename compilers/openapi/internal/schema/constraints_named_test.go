@@ -106,17 +106,30 @@ type keptAt struct {
 	key   string
 	value string // the entry's JSON, "" where the row does not say
 	msg   string // a substring of its report, "" for "no home for .*key"
+	// entry is the path of the inline allOf entry writing key, "" for a
+	// keyword written beside the allOf.
+	entry string
 }
 
-// pointer returns where the entry and its report sit, beneath the site at.
-func (k keptAt) pointer(at string) string { return at + "/" + k.key }
-
-// reportAt returns where the report of the entry sits.
-func (k keptAt) reportAt(at string) string {
-	if strings.HasPrefix(k.key, "allOf/") {
-		return k.pointer(at)
+// pointer returns where the entry sits, beneath the site at.
+func (k keptAt) pointer(at string) string {
+	if k.entry != "" {
+		return at + "/" + k.entry + "/" + k.key
 	}
-	return at
+	return at + "/" + k.key
+}
+
+// reportAt returns where the report of the entry sits: at the schema object
+// writing it.
+func (k keptAt) reportAt(at string) string {
+	switch {
+	case k.entry != "":
+		return at + "/" + k.entry
+	case strings.HasPrefix(k.key, "allOf/"):
+		return k.pointer(at)
+	default:
+		return at
+	}
 }
 
 // namedRow is one schema written at S and at p, with what each position holds
@@ -143,7 +156,7 @@ type namedRow struct {
 func keywordsOf(kept []keptAt) []string {
 	var out []string
 	for _, k := range kept {
-		if !strings.HasPrefix(k.key, "allOf/") {
+		if k.entry == "" && !strings.HasPrefix(k.key, "allOf/") {
 			out = append(out, k.key)
 		}
 	}
@@ -413,7 +426,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 		},
 		{
 			name: "row 24: a branch of a string", schema: "{allOf: [" + refTo("Str") + ", {maxItems: 2}]}",
-			kept: []keptAt{{key: "allOf/1", value: `{"maxItems":2}`, msg: "(maxItems)"}},
+			kept: []keptAt{{key: "maxItems", entry: "allOf/1", value: "2"}},
 		},
 		{
 			name: "row 25: a $ref to an array", schema: "{$ref: '#/components/schemas/Arr', minItems: 1}",
@@ -423,10 +436,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 			name:   "row 26: a branch of an array",
 			schema: "{allOf: [" + refTo("Arr") + ", {items: {type: string}, minLength: 1, maxItems: 4}]}",
 			held:   &ir.Constraints{MaxItems: new(int64(4))},
-			kept: []keptAt{{
-				key: "allOf/1", msg: "(minLength)",
-				value: `{"items":{"type":"string"},"maxItems":4,"minLength":1}`,
-			}},
+			kept:   []keptAt{{key: "minLength", entry: "allOf/1", value: "1"}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -437,8 +447,8 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 }
 
 // TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames pins a bound
-// written on an inline allOf branch beside a branch naming a type: the branch
-// is kept whole where the type cannot take its bound, in either branch order.
+// written on an inline allOf branch beside a branch naming a type: the bound is
+// kept under its own key where the type cannot take it, in either branch order.
 func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][]string{{refTo("Arr"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Arr")}} {
@@ -447,7 +457,7 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", base: componentID("Arr"),
-				kept: []keptAt{{key: fmt.Sprintf("allOf/%d", at), value: `{"minLength":1}`, msg: "(minLength)"}},
+				kept: []keptAt{{key: "minLength", entry: fmt.Sprintf("allOf/%d", at), value: "1"}},
 			})
 		})
 	}
@@ -464,7 +474,7 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", held: &ir.Constraints{MinLength: new(int64(2))},
-				kept: []keptAt{{key: fmt.Sprintf("allOf/%d", at), value: `{"minimum":3}`, msg: "(minimum)"}},
+				kept: []keptAt{{key: "minimum", entry: fmt.Sprintf("allOf/%d", at), value: "3"}},
 			})
 		})
 	}
@@ -480,14 +490,12 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			require.NotNil(t, s.Base)
 			assert.Equal(t, componentID("Obj"), s.Base.Target)
 			assert.Nil(t, s.Constraints)
-			key := fmt.Sprintf("openapi:allOf/%d", at)
-			entry, ok := s.Unmodeled[key]
+			entry, ok := s.Unmodeled["openapi:minLength"]
 			require.True(t, ok, "got %v", unmodeledKeys(s.Unmodeled))
-			assert.JSONEq(t, `{"minLength":1}`, string(entry.Value))
+			assert.JSONEq(t, `1`, string(entry.Value))
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				fmt.Sprintf("/components/schemas/S/allOf/%d", at))
-			assert.Contains(t, msg, "inline allOf branch is merged in place")
-			assert.Contains(t, msg, "(minLength)")
+			assert.Contains(t, msg, "no home for minLength written on this inline branch")
 		})
 	}
 }
@@ -855,7 +863,7 @@ func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
 func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, schema, key, value, reportAt string }{
-		{name: "a bound on a branch", key: "allOf/1", value: `{"minimum":1}`, reportAt: "/allOf/1",
+		{name: "a bound on a branch", key: "minimum", value: "1", reportAt: "/allOf/1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}, {minimum: 1}], minLength: 2}"},
 		{name: "a bound beside the allOf", key: "minimum", value: "1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}], minimum: 1, minLength: 2}"},

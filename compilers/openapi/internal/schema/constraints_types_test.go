@@ -400,7 +400,7 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 		{schema: "{type: [string, 'null'], enum: [a, null], minLength: 1}", kept: "minLength", bound: "minLength"},
 		{schema: "{const: abc, minLength: 1}", kept: "minLength", bound: "minLength"},
 		{schema: "{enum: [a, 1], minLength: 1}", kept: "minLength", bound: "minLength"},
-		{schema: "{type: string, enum: [a, bb], allOf: [{maxLength: 9}]}", kept: "allOf/0", under: "/allOf/0", bound: "maxLength"},
+		{schema: "{type: string, enum: [a, bb], allOf: [{maxLength: 9}]}", kept: "maxLength", under: "/allOf/0", bound: "maxLength"},
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", tc.schema))
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -440,7 +440,7 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{type: [string, integer], format: x-mine, allOf: [{type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{allOf: [{$ref: '#/components/schemas/O'}, {type: object, properties: {a: {type: string}}, maxLength: 3}]}",
-			"maxLength", "openapi:allOf/1"},
+			"maxLength", "openapi:maxLength"},
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", tc.schema)+"    O: {properties: {o: {type: string}}}\n")
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -456,17 +456,17 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 
 // TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
 // bits on a folding allOf branch declaring a type that takes no count of its
-// kind: the branch keeps it, once, with the report of a branch kept whole, and
-// it is not kept again as a count no field states.
+// kind: kept under its own key, once, with the report of a keyword with no
+// home, and not kept again as a count no field states.
 func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    Num: {type: number}\n"+
 		"    C: {allOf: [{$ref: '#/components/schemas/Num'}, {type: number, maxLength: 99999999999999999999}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, []string{"openapi:allOf/1"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
+	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
 	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), "99999999999999999999"))
 	require.Len(t, diags, 1, "%+v", diags)
-	assert.Contains(t, diags[0].Message, "the branch (maxLength)")
+	assert.Contains(t, diags[0].Message, "no home for maxLength written on this inline branch")
 }
 
 // schemaKept returns what a parameter or a header keeps of what its schema

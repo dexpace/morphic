@@ -574,27 +574,25 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/1": {
-          "reason": "degraded_lowering",
-          "value": {
-            "anyOf": [
-              {
-                "required": [
-                  "breakout"
-                ],
-                "type": "object"
-              },
-              {
-                "required": [
-                  "priority"
-                ],
-                "type": "object"
-              }
-            ]
-          },
+        "openapi:anyOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "required": [
+                "breakout"
+              ],
+              "type": "object"
+            },
+            {
+              "required": [
+                "priority"
+              ],
+              "type": "object"
+            }
+          ],
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/AppRequest/allOf/1"
+            "pointer": "/components/schemas/AppRequest/allOf/1/anyOf"
           }
         }
       },
@@ -676,27 +674,25 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/1": {
-          "reason": "degraded_lowering",
-          "value": {
-            "anyOf": [
-              {
-                "required": [
-                  "breakout"
-                ],
-                "type": "object"
-              },
-              {
-                "required": [
-                  "priority"
-                ],
-                "type": "object"
-              }
-            ]
-          },
+        "openapi:anyOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "required": [
+                "breakout"
+              ],
+              "type": "object"
+            },
+            {
+              "required": [
+                "priority"
+              ],
+              "type": "object"
+            }
+          ],
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/AppRequest/allOf/1"
+            "pointer": "/components/schemas/AppRequest/allOf/1/anyOf"
           }
         }
       },
@@ -1634,7 +1630,7 @@
       "sensitive": false,
       "unmodeled": {
         "openapi:allOf/0": {
-          "reason": "degraded_lowering",
+          "reason": "validation_only",
           "value": {
             "anyOf": [
               {
@@ -1657,7 +1653,7 @@
           }
         },
         "openapi:allOf/1": {
-          "reason": "degraded_lowering",
+          "reason": "validation_only",
           "value": {
             "anyOf": [
               {
@@ -2144,8 +2140,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (anyOf) is kept verbatim under Unmodeled",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"anyOf\" kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/AppRequest/allOf/1"
@@ -2162,8 +2158,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (anyOf) is kept verbatim under Unmodeled",
+      "code": "openapi/validation-only-keyword",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (anyOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Message/allOf/0"
@@ -2171,8 +2167,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (anyOf) is kept verbatim under Unmodeled",
+      "code": "openapi/validation-only-keyword",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (anyOf) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Message/allOf/1"

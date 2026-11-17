@@ -370,9 +370,9 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144
-// exists for, at this site: the enum is elected over the allOf, the allOf fails
-// to convert, the failure is reported at the keyword, and nothing claims the
-// composition survived.
+// exists for, at this site: the enum is elected over the allOf, whose entry
+// keeps its type under its own key and fails to convert its extension, the
+// failure is reported at the entry, and nothing claims the extension survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
@@ -382,10 +382,12 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 
 	td := typeByName(doc, "S")
 	require.NotNil(t, td)
-	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf", "the conversion failed")
-	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, openapitest.PreservationClaims(diags),
-		"nothing was written under Unmodeled, so nothing may announce that it was")
+	assert.Equal(t, []string{"openapi:type"}, unmodeledKeys(td.Common().Unmodeled), "the conversion of x-t failed")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/components/schemas/S/allOf/0"), `extension "x-t" could not be serialized`, "the failure itself is reported")
+	for _, claim := range openapitest.PreservationClaims(diags) {
+		assert.NotContains(t, claim, "x-t", "nothing claims what was not written under Unmodeled")
+	}
 }
 
 // unmodeledKeys returns p's keys in sorted order, which is what makes an

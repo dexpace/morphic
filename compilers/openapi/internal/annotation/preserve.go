@@ -194,16 +194,25 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	return dst
 }
 
-// underlayUnmodeled adds to dst each entry of src it lacks, so a nearer writer
-// keeps its entry, walking src alone: a site folds its voices into one map, and
-// overlaying that map on each would cost every voice all those before it.
-func underlayUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
+// underlayVoice adds to dst each entry of src, one voice's, it lacks, walking
+// src alone: a site folds its voices into one map, and overlaying that map on
+// each would cost every voice all those before it. An entry own, the site's
+// own schema, keeps stays its. One another voice wrote too, alike, as voices
+// agree, is no one writer's, so it takes site, the site's provenance, and no
+// order of the voices decides where it points
+// (docs/compilers/openapi.md#allof-inline-residue).
+func underlayVoice(dst, src ir.Unmodeled, own map[string]bool, site ir.Provenance) ir.Unmodeled {
 	if dst == nil && len(src) > 0 {
 		dst = make(ir.Unmodeled, len(src))
 	}
 	for keyword, entry := range src {
-		if _, held := dst[keyword]; !held {
+		held, written := dst[keyword]
+		switch {
+		case !written:
 			dst[keyword] = entry
+		case !own[keyword]:
+			held.Provenance = site
+			dst[keyword] = held
 		}
 	}
 	return dst

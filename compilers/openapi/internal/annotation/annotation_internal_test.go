@@ -60,7 +60,7 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 // itself, and over its referents.
 func TestAnnotations_AVoiceReadsAsTheSiteDoes(t *testing.T) {
 	t.Parallel()
-	node := schemaFromYAML(t, "description: site\n")
+	node := schemaFromYAML(t, "description: site\nx-site: 1\n")
 	voice := Voice{At: "/p/allOf/1", Node: standaloneSchema(schemaFromYAML(t, `description: voice
 title: voice
 deprecated: true
@@ -68,6 +68,7 @@ format: password
 xml: {name: voiced}
 example: 1
 x-kept: 1
+x-site: 1
 not: {type: string}
 `))}
 	second := Voice{At: "/p/allOf/2", Node: standaloneSchema(schemaFromYAML(t, `example: 2
@@ -89,8 +90,12 @@ discriminator: {propertyName: kind, x-d: 1}
 	require.NotNil(t, got.XML)
 	assert.Equal(t, "voiced", got.XML.Name, "the first to write it")
 	require.Len(t, got.Examples, 1, "the first to write them")
-	assert.Equal(t, jsontext.Pointer("/p/allOf/1/x-kept"), got.Unmodeled["openapi:x-kept"].Provenance.Pointer,
-		"at the pointer it is written at, the first to write it")
+	assert.Equal(t, jsontext.Pointer("/p"), got.Unmodeled["openapi:x-kept"].Provenance.Pointer,
+		"two voices write it, so it is the site's, at the site's pointer")
+	assert.Equal(t, jsontext.Pointer("/p/allOf/1/not"), got.Unmodeled["openapi:not"].Provenance.Pointer,
+		"one voice writes it, at the pointer it is written at")
+	assert.Equal(t, jsontext.Pointer("/p/x-site"), got.Unmodeled["openapi:x-site"].Provenance.Pointer,
+		"the site writes it too, so it stays the site's own")
 	assert.Contains(t, got.Unmodeled, "openapi:not")
 	assert.NotContains(t, got.Unmodeled, "openapi:$id", "a voice's residue keeps what no fold reads")
 	assert.NotContains(t, got.Unmodeled, "openapi:discriminator/x-d")

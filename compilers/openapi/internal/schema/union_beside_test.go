@@ -376,22 +376,23 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	assert.Equal(t, inline[1].Base.Target, useTargetOf(t, typeByName(doc, "Outside")), "an outside $ref finds the branch node")
 
 	for _, v := range variantModels(t, doc, "WithShapeless") {
-		assert.Contains(t, v.Unmodeled, "openapi:allOf/1", "the union declaring no shape stays with its branch")
+		assert.Equal(t, ir.ReasonValidationOnly, v.Unmodeled["openapi:anyOf"].Reason, "the union declaring no shape is kept as validation logic")
 		assert.NotContains(t, v.Unmodeled, "openapi:allOf/0")
 	}
 
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
-		"Shapeless": {"openapi:allOf/0"},
+		"Shapeless": {"openapi:anyOf"},
+		"RefBranch": nil,
 		"Capped":    {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
 		for _, key := range kept {
-			assert.Contains(t, m.Unmodeled, key, "%s keeps its union with its branch", name)
+			assert.Contains(t, m.Unmodeled, key, "%s keeps its union", name)
 		}
 	}
-	for name, anyOf := range map[string]string{"Two": "openapi:allOf/1", "TwoRev": "openapi:allOf/0"} {
+	for name, anyOf := range map[string]string{"Two": "openapi:anyOf", "TwoRev": "openapi:anyOf"} {
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, "%s distributes its oneOf; got %T", name, typeByName(doc, name))
 		assert.True(t, u.Exclusive, name)
@@ -410,7 +411,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 
 	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)
 	require.True(t, ok, "the enum beside the allOf decides it; got %T", typeByName(doc, "EnumBeside"))
-	assert.Contains(t, enum.Unmodeled, "openapi:allOf/0", "each conjunct the value set beat is kept as written")
+	assert.Contains(t, enum.Unmodeled, "openapi:oneOf", "each conjunct the value set beat is kept under its keyword")
 	annotated, ok := typeByName(doc, "Annotated").(*ir.Union)
 	require.True(t, ok)
 	assert.Equal(t, "mine", annotated.Docs.Description, "another branch folds onto the union, as beside the allOf")
@@ -423,7 +424,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	require.True(t, ok, "beside a $dynamicRef it keeps unexpanded, the branch union distributes as beside the allOf")
 	assert.Contains(t, dynamic.Unmodeled, "openapi:$dynamicRef")
 	for _, v := range variantModels(t, doc, "BesideToo") {
-		assert.Contains(t, v.Unmodeled, "openapi:allOf/0", "beside its own union, a branch's stays with the branch")
+		assert.Contains(t, v.Unmodeled, "openapi:oneOf", "beside its own union, a branch's is kept under its keyword")
 	}
 }
 
@@ -482,9 +483,9 @@ func TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside(t *testing.T) {
 			routedBases(t, doc, "Mapped"), "a mapping entry routes beside the route a name implies")
 		for _, name := range []string{"Both", "Root"} {
 			m, ok := typeByName(doc, name).(*ir.Model)
-			require.True(t, ok, "%s keeps its union whole; got %T", name, typeByName(doc, name))
+			require.True(t, ok, "%s keeps its union; got %T", name, typeByName(doc, name))
 			require.NotNil(t, m.Discriminator, name)
-			assert.Contains(t, m.Unmodeled, "openapi:allOf/1", name)
+			assert.Contains(t, m.Unmodeled, "openapi:oneOf", name)
 		}
 		assert.Equal(t, "Sub1", typeByName(doc, "Sub1").(*ir.Model).DiscriminatorValue, "a subtype the union lists")
 		sub, ok := typeByName(doc, "Sub").(*ir.Model)
@@ -496,7 +497,7 @@ func TestAllOf_ADiscriminatedBranchUnionDistributesAsBeside(t *testing.T) {
 // TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes pins a
 // union on an allOf branch whose schema's discriminator routes to a branch
 // composing the schema (docs/compilers/openapi.md#union-beside-structure): the
-// union stays with its branch, and the discriminator on the model only where
+// union is kept under its keyword, and the discriminator on the model only where
 // every type it routes to is a subtype, as beside the union, else kept verbatim
 // and reported, so the document validates in either declaration order.
 func TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes(t *testing.T) {
@@ -522,7 +523,7 @@ func TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes(t *test
 			require.True(t, ok, "%s is a hierarchy's base; got %T", name, typeByName(doc, name))
 			assert.Nil(t, m.Discriminator, "%s routes to Cat, no subtype of it, by a mapping or by name", name)
 			assert.Contains(t, m.Unmodeled, "openapi:discriminator", name)
-			assert.Contains(t, m.Unmodeled, "openapi:allOf/1", "%s: the union stays with its branch", name)
+			assert.Contains(t, m.Unmodeled, "openapi:oneOf", "%s: the union is kept under its keyword", name)
 			assert.True(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.DegradedConstruct, "/components/schemas/"+name+"/discriminator"))
 		}
 	}

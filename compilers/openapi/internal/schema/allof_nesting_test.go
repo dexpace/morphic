@@ -310,19 +310,22 @@ func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
 
 // TestAllOf_NestedWrapperWithResidueKeptVerbatim pins that a wrapper writing
 // a keyword the merge does not consume is still flattened: its entries and
-// properties compose as the flat spelling's do, the whole wrapper is kept under
-// its key, and the diagnostic names the extra keyword and not allOf.
+// properties compose as the flat spelling's do, and what it writes is kept as
+// any entry's is, each keyword under its own key at the wrapper, or the whole
+// wrapper under its key for an unevaluated keyword, reported once at the
+// wrapper naming the extra keyword and not allOf.
 func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
 		sibling string
 		residue string
+		whole   bool
 	}{
-		{"discriminator", "discriminator: {propertyName: kind}", "discriminator"},
-		{"oneOf", "oneOf: [{type: string}]", "oneOf"},
-		{"unevaluatedProperties false", "unevaluatedProperties: false", "unevaluatedProperties"},
-		{"type set with null", `type: [object, "null"]`, "type"},
+		{"discriminator", "discriminator: {propertyName: kind}", "discriminator", false},
+		{"oneOf", "oneOf: [{type: string}]", "oneOf", false},
+		{"unevaluatedProperties false", "unevaluatedProperties: false", "unevaluatedProperties", true},
+		{"type set with null", `type: [object, "null"]`, "type", false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -342,22 +345,28 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 				assert.Empty(t, model.Mixins)
 				_, hasW := openapitest.PropsByWire(model.Properties)["w"]
 				assert.True(t, hasW, "the wrapper's properties still merge")
+				var infos []ir.Diagnostic
+				for _, d := range doc.Diagnostics {
+					if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
+						infos = append(infos, d)
+					}
+				}
+				require.Len(t, infos, 1, "exactly one degraded-construct at the wrapper")
+				assert.NotContains(t, infos[0].Message, "(allOf")
+				if !tc.whole {
+					entry, ok := model.Unmodeled["openapi:"+tc.residue]
+					require.True(t, ok, "the keyword is kept under its own key; got %+v", model.Unmodeled)
+					assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/"+tc.residue), entry.Provenance.Pointer)
+					assert.NotContains(t, model.Unmodeled, "openapi:allOf/0")
+					assert.Contains(t, infos[0].Message, "no home for "+tc.residue+" written on this inline branch")
+					continue
+				}
 				entry, ok := model.Unmodeled["openapi:allOf/0"]
 				require.True(t, ok, "the wrapper is kept verbatim; got %+v", model.Unmodeled)
 				assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0"), entry.Provenance.Pointer)
 				assert.Contains(t, string(entry.Value), `"allOf"`, "the whole wrapper is kept")
-				var infos int
-				for _, d := range doc.Diagnostics {
-					if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
-						infos++
-					}
-				}
-				assert.Equal(t, 1, infos, "exactly one degraded-construct at the wrapper")
-				msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
-					ir.SeverityInfo, "/components/schemas/M/allOf/0")
-				assert.Contains(t, msg, "("+tc.residue+")")
-				assert.Contains(t, msg, "nested allOf compose")
-				assert.NotContains(t, msg, "(allOf")
+				assert.Contains(t, infos[0].Message, "("+tc.residue+")")
+				assert.Contains(t, infos[0].Message, "nested allOf compose")
 			}
 		})
 	}

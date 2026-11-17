@@ -514,7 +514,7 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	require.True(t, ok)
 	for wire, key := range map[string]string{
 		"refined": "openapi:minLength", "site": "openapi:minLength", "nullable": "openapi:minLength",
-		"voiced": "openapi:allOf/1", "chained": "openapi:minLength", "inline": "openapi:minLength",
+		"voiced": "openapi:minLength", "chained": "openapi:minLength", "inline": "openapi:minLength",
 		"counted": "openapi:minItems",
 	} {
 		p, found := propByWire(holder, wire)

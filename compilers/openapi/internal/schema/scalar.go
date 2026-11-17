@@ -286,16 +286,22 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema,
 	}
 	var diags []ir.Diagnostic
 	for _, keyword := range contentKeywords {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
-		diags = append(diags, keptDiags...)
-		if !kept {
-			continue
-		}
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
-			"%s is content-vocabulary data the IR holds in ir.Encoding, and this position "+
-				"lowered to a shape with no Encoding field; kept verbatim under Unmodeled", keyword))
+		diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer)...)
 	}
 	return diags
+}
+
+// keepContentKeyword keeps the content keyword s, the schema at pointer,
+// writes under keyword verbatim on p, as no_ir_home, and reports it at the
+// keyword, where no ir.Encoding holds it.
+func keepContentKeyword(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keyword string, pointer jsontext.Pointer) []ir.Diagnostic {
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
+		"%s is content-vocabulary data the IR holds in ir.Encoding, and this position "+
+			"lowered to a shape with no Encoding field; kept verbatim under Unmodeled", keyword))
 }
 
 // holdsContent reports whether td, the node s lowered to at pointer, holds the
