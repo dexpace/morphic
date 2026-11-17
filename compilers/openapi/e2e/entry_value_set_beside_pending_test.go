@@ -41,3 +41,27 @@ func TestEntryValueSet_AKeywordBesideTheAllOfLandsAsTheWrapLandsIt(t *testing.T)
 		}
 	}
 }
+
+// TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling holds
+// that a value set elected over a $ref whose instance types it shares none of
+// draws the warning naming what the position lowered as wherever the set is
+// written, beside the allOf as on an entry
+// (docs/compilers/openapi.md#allof-refinement).
+func TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			obj := "T: {type: object, properties: {a: {type: string}}}"
+			spellings := entrySpellings("enum: [a, b]")
+			entryDoc, _ := compileAnnotationSpec(t, "disjoint", conjunctionSpec(version, spellings[0].schema, obj))
+			wrapDoc, wrapDiags := compileAnnotationSpec(t, "disjoint", conjunctionSpec(version, spellings[3].schema, obj))
+			for _, at := range conjunctionPositions {
+				msgs := entryMessagesAt(wrapDiags, at)
+				require.Len(t, msgs, 1, "one report at %s", at)
+				assert.Contains(t, msgs[0], "which the enum it lowered as cannot state", at)
+			}
+			assert.Equal(t, entryTree(t, wrapDoc), entryTree(t, entryDoc), "the spelling decided the document")
+		})
+	}
+}
