@@ -35,10 +35,10 @@ components:
 		"is read for nothing, as this schema's dialect ignores the keywords beside a $ref")
 }
 
-// TestSkippedFamilies_AReferenceAValueSetPassesOverIsKeptAsWritten pins that
-// a const object beside a $ref to an object, which the const lowers past, keeps
-// the reference under openapi:$ref, as written, and reports it by its keyword.
-func TestSkippedFamilies_AReferenceAValueSetPassesOverIsKeptAsWritten(t *testing.T) {
+// TestRefinement_AReferenceAValueSetNarrowsIsKeptAsWritten pins that a const
+// object beside a $ref to an object, a value set narrowing it, keeps the
+// reference under openapi:$ref, as written, and says so of this schema.
+func TestRefinement_AReferenceAValueSetNarrowsIsKeptAsWritten(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Obj: {type: object, properties: {a: {type: string}}}
     A: {$ref: '#/components/schemas/Obj', const: {a: x}}
@@ -50,7 +50,7 @@ func TestSkippedFamilies_AReferenceAValueSetPassesOverIsKeptAsWritten(t *testing
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"$ref":"#/components/schemas/Obj"}`, string(entry.Value))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/A"),
-		"this position declares $ref beside its const")
+		"the value set of this schema narrows this $ref")
 }
 
 // TestVariantHint_AUseDeclaringAMemberIsNamedByItsPosition pins that a union
@@ -72,4 +72,22 @@ func TestVariantHint_AUseDeclaringAMemberIsNamedByItsPosition(t *testing.T) {
 	assert.Equal(t, "variant_0", u.Variants[0].Name.Hint, "the member makes it no use of Obj alone")
 	assert.Equal(t, "obj", u.Variants[1].Name.Hint)
 	assert.Equal(t, "variant_2", u.Variants[2].Name.Hint, "nor does a member an entry declares")
+}
+
+// TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference pins the value set
+// that leaves no value beside a $ref and an allOf, as beside an allOf alone:
+// no set to lower, so the election keeps the conjuncts it passed over, the
+// $ref under openapi:$ref as written and the allOf whole, and reports both.
+func TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    S: {enum: [], $ref: '#/components/schemas/A', allOf: [{$ref: '#/components/schemas/B'}]}
+`))
+	en, ok := typeByName(doc, "S").(*ir.Enum)
+	require.True(t, ok, "got %T", typeByName(doc, "S"))
+	assert.ElementsMatch(t, []string{"openapi:$ref", "openapi:allOf"}, unmodeledKeys(en.Unmodeled))
+	assert.JSONEq(t, `{"$ref":"#/components/schemas/A"}`, string(en.Unmodeled["openapi:$ref"].Value))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+		"declares $ref and allOf beside its enum")
 }

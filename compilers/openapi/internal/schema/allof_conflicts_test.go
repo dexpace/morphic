@@ -1540,7 +1540,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		ref("NotStr"), ref("ObjOneOf"), ref("IfObj"), ref("AliasOneOf"),
 		"{$ref: '#/components/schemas/Empty', type: object}",
 		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
-		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
+		"{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
 		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#dyn'}",
 		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
 	} {
@@ -1572,6 +1572,14 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
 	assert.Contains(t, p.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
 	assert.Len(t, p.Unmodeled, 2, "and so is the union the merge did not compare")
+
+	// An enum of objects is elected before the composition, as written without
+	// the allOf: a union of literals, which the merge does not compare either.
+	p, diags = compile("{enum: [{a: x}]}")
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union of literals is not compared")
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
+	assert.Len(t, p.Unmodeled, 1, "the structure is kept")
 }
 
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure

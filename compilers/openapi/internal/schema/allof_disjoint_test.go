@@ -65,6 +65,11 @@ func disjointReports(diags []ir.Diagnostic) []ir.Diagnostic {
 // the code in the document: an inline branch's own report is an info there.
 func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 	t.Parallel()
+	// own counts the warnings an entry draws of itself, apart from the report.
+	own := map[string]int{
+		"an entry the enum beats that cannot be kept":   1,
+		"an entry the const beats beside a family kept": 1,
+	}
 	for _, tc := range []struct {
 		name, s, want string
 	}{
@@ -140,10 +145,10 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"an allOf an enum passes over beside a union",
 			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
 			"allOf/0: string, allOf/1: object"},
-		{"an allOf passed over that cannot be kept",
+		{"an entry the enum beats that cannot be kept",
 			`{enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
 			"allOf/0: string, allOf/1: integer"},
-		{"an allOf passed over beside a family kept",
+		{"an entry the const beats beside a family kept",
 			`{const: a, enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
 			"allOf/0: string, allOf/1: integer"},
 	} {
@@ -155,7 +160,7 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			require.Len(t, reports, 1, "one report, wherever the conjuncts are written: %+v", doc.Diagnostics)
 			assert.Equal(t, "/components/schemas/S", string(reports[0].Provenance.Pointer))
 			assert.Contains(t, reports[0].Message, "share no value ("+tc.want+")")
-			assert.Equal(t, 1, openapitest.CountDiagsAt(doc.Diagnostics, diag.DegradedConstruct, ir.SeverityWarning),
+			assert.Equal(t, 1+own[tc.name], openapitest.CountDiagsAt(doc.Diagnostics, diag.DegradedConstruct, ir.SeverityWarning),
 				"no other degraded-construct warning in the document: %+v", doc.Diagnostics)
 		})
 	}

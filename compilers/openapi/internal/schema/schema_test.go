@@ -305,29 +305,25 @@ const unpreservableValue = ".nan"
 func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, body, skipped, raw string
-		lowered                  ir.TypeKind
+		name, body, raw           string
+		key, at, reportAt, report string
+		lowered                   ir.TypeKind
 	}{
 		{
-			name:    "allOf beside enum",
-			body:    "      allOf: [{$ref: '#/components/schemas/Base'}]\n      enum: [a, b]\n",
-			skipped: "allOf",
-			raw:     `[{"$ref":"#/components/schemas/Base"}]`,
-			lowered: ir.KindEnum,
+			name: "allOf beside enum", body: "      allOf: [{$ref: '#/components/schemas/Base'}]\n      enum: [a, b]\n",
+			key: "openapi:$ref", at: "/components/schemas/S/allOf/0", reportAt: "/components/schemas/S/allOf/0",
+			report: "the $ref is kept verbatim under Unmodeled", raw: `{"$ref":"#/components/schemas/Base"}`, lowered: ir.KindEnum,
 		},
 		{
-			name:    "allOf beside const",
-			body:    "      allOf: [{$ref: '#/components/schemas/Base'}]\n      const: a\n",
-			skipped: "allOf",
-			raw:     `[{"$ref":"#/components/schemas/Base"}]`,
-			lowered: ir.KindLiteral,
+			name: "allOf beside const", body: "      allOf: [{$ref: '#/components/schemas/Base'}]\n      const: a\n",
+			key: "openapi:$ref", at: "/components/schemas/S/allOf/0", reportAt: "/components/schemas/S/allOf/0",
+			report: "the $ref is kept verbatim under Unmodeled", raw: `{"$ref":"#/components/schemas/Base"}`, lowered: ir.KindLiteral,
 		},
 		{
-			name:    "enum beside const",
-			body:    "      const: a\n      enum: [a, b]\n",
-			skipped: "enum",
-			raw:     `["a","b"]`,
-			lowered: ir.KindLiteral,
+			name: "enum beside const", body: "      const: a\n      enum: [a, b]\n",
+			key: "openapi:enum", at: "/components/schemas/S/enum", reportAt: "/components/schemas/S",
+			report: "enum kept verbatim under Unmodeled",
+			raw:    `["a","b"]`, lowered: ir.KindLiteral,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -339,22 +335,20 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 			td := typeByName(doc, "S")
 			require.NotNil(t, td)
 			assert.Equal(t, tc.lowered, td.Kind(), "the elected family still lowers")
-			entry, ok := td.Common().Unmodeled["openapi:"+tc.skipped]
-			require.True(t, ok, "%s is kept verbatim; got %v", tc.skipped, td.Common().Unmodeled)
+			entry, ok := td.Common().Unmodeled[tc.key]
+			require.True(t, ok, "%s is kept verbatim; got %v", tc.key, td.Common().Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, tc.raw, string(entry.Value))
-			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.skipped), entry.Provenance.Pointer,
-				"routable to where it was written")
+			assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer, "routable to where it was written")
 			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-				tc.skipped+" kept verbatim under Unmodeled")
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.reportAt), tc.report)
 		})
 	}
 }
 
-// TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins the plural arm: a
-// schema writing all three keeps both of the two it did not elect, named
-// together in one report rather than one of them standing in for the rest.
+// TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins a schema writing all
+// three: it keeps the value set it did not elect, named in one report, and the
+// allOf's $ref, a conjunct of the one it did, kept as a conjunct is.
 func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
@@ -366,12 +360,13 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := typeByName(doc, "S").Common().Unmodeled
-	assert.Contains(t, p, "openapi:enum")
-	assert.Contains(t, p, "openapi:allOf")
+	assert.Equal(t, []string{"openapi:$ref", "openapi:enum"}, unmodeledKeys(p))
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-		"declares enum and allOf beside its const",
-		"both are named in the one report")
+		"declares enum beside its const")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		"the $ref is kept verbatim under Unmodeled")
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144

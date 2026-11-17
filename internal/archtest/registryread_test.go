@@ -25,7 +25,7 @@ import (
 // lowered to match, so the map only shrinks as decisions move onto what the
 // source states (GitHub #1991).
 var registryReadBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/schema": {"Building": 1, "Lookup": 2, "Node": 4, "NodeAt": 4},
+	"compilers/openapi/internal/schema": {"Building": 1, "Lookup": 2, "Node": 4, "NodeAt": 3},
 }
 
 // registryReadRatchet is how a difference from registryReadBaseline reads.

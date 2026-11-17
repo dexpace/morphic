@@ -1,8 +1,6 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-//go:build pending
-
 package e2e_test
 
 import (
@@ -98,6 +96,10 @@ func requireEntryObjectUnion(t *testing.T, doc *ir.Document, node ir.TypeDef) {
 // entryIndexAnywhere matches the entry of an allOf a pointer passes through.
 var entryIndexAnywhere = regexp.MustCompile(`/allOf/[0-9]+`)
 
+// entryIndexBeneath matches the entry of an allOf a pointer passes through
+// to something written beneath it.
+var entryIndexBeneath = regexp.MustCompile(`/allOf/[0-9]+/`)
+
 // entryPositionID is the ID of the node a schema written at at owns: the
 // component's own for a component, the anonymous one at the pointer for any
 // other position.
@@ -110,10 +112,11 @@ func entryPositionID(at jsontext.Pointer) ir.TypeID {
 
 // entryTree is doc as its JSON encodes it, without the hash of its source and
 // with each finding rendered as a line, sorted, and every pointer in a value
-// written as if all entries of an allOf stood at one index: two documents
-// compiled from entries written in another order then compare equal where
-// they hold the same facts, and a node whose ID or pointer follows the index
-// still differs, since keys are left as they are.
+// written as if no allOf entry stood on it: two documents compiled from one
+// conjunction spelt another way then compare equal where they hold the same
+// facts. A node keeps the pointer it is written at beneath an entry, so a key
+// loses the entries it passes through, but one ending at an entry is left as
+// it is, and a node standing at an entry still differs.
 func entryTree(t *testing.T, doc *ir.Document) string {
 	t.Helper()
 	tree, ok := documentTree(t, doc).(map[string]any)
@@ -130,12 +133,12 @@ func entryTree(t *testing.T, doc *ir.Document) string {
 	return fmt.Sprint(entryIndexless(tree)) + "\n" + strings.Join(findings, "\n")
 }
 
-// entryIndexless is v with the index of every allOf entry its strings name
-// replaced by a placeholder, maps and slices copied.
+// entryIndexless is v with every allOf entry its strings name left out, and
+// every one its keys pass through, maps and slices copied.
 func entryIndexless(v any) any {
 	switch v := v.(type) {
 	case string:
-		return entryIndexAnywhere.ReplaceAllString(v, "/allOf/_")
+		return entryIndexAnywhere.ReplaceAllString(v, "")
 	case []any:
 		out := make([]any, len(v))
 		for i, e := range v {
@@ -145,7 +148,7 @@ func entryIndexless(v any) any {
 	case map[string]any:
 		out := make(map[string]any, len(v))
 		for k, e := range v {
-			out[k] = entryIndexless(e)
+			out[entryIndexBeneath.ReplaceAllString(k, "/")] = entryIndexless(e)
 		}
 		return out
 	default:
@@ -257,28 +260,6 @@ func TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling(t *testing.T) {
 				})
 			}
 		}
-	}
-}
-
-// TestEntryValueSet_ARefWithTheValueSetBesideItIsTheSameNode holds that at
-// 3.1, where a keyword beside a $ref applies, the value set written on the
-// $ref's own object stands at the position and keeps the $ref as the
-// spellings with an allOf do.
-func TestEntryValueSet_ARefWithTheValueSetBesideItIsTheSameNode(t *testing.T) {
-	t.Parallel()
-	for _, vs := range entryValueSets() {
-		t.Run(vs.name, func(t *testing.T) {
-			t.Parallel()
-			schema := "{$ref: '#/components/schemas/T', " + vs.keyword + "}"
-			inBothMappingOrders(t, conjunctionSpec("3.1.0", schema, vs.target), func(t *testing.T, spec string) {
-				doc, diags := compileAnnotationSpec(t, "beside", spec)
-				requireErrorsAndWarnings(t, diags, nil)
-				requireNoEntryIndexedType(t, doc)
-				for _, at := range conjunctionPositions {
-					requireEntryNodeAt(t, doc, diags, at, vs, -1)
-				}
-			})
-		})
 	}
 }
 
@@ -469,6 +450,36 @@ func TestEntryValueSet_AnObjectValueSetIsElectedBeforeTheComposition(t *testing.
 					assert.Equal(t, ir.KindModel, kindNode(t, doc, componentID("T")).Kind(), "the target is still a model")
 				})
 			}
+		}
+	}
+}
+
+// TestEntryValueSet_AValueSetWrittenTwiceIsOneNodeInEveryOrder holds that a
+// value set two entries write alike beside a $ref is one conjunct whose node
+// stands at the position: written ahead of the $ref, after it or around it,
+// the documents are one but for the index each entry is written at, where the
+// node stood at whichever copy came first.
+func TestEntryValueSet_AValueSetWrittenTwiceIsOneNodeInEveryOrder(t *testing.T) {
+	t.Parallel()
+	for _, vs := range entryValueSets() {
+		for _, version := range entryVersions(vs) {
+			t.Run(fmt.Sprintf("%s/%s", version, vs.name), func(t *testing.T) {
+				t.Parallel()
+				set := "{" + vs.keyword + "}"
+				var trees []string
+				for _, entries := range []string{entryRef + ", " + set + ", " + set, set + ", " + entryRef + ", " + set,
+					set + ", " + set + ", " + entryRef} {
+					doc, diags := compileAnnotationSpec(t, "twice", conjunctionSpec(version, "{allOf: ["+entries+"]}", vs.target))
+					requireErrorsAndWarnings(t, diags, nil)
+					requireNoEntryIndexedType(t, doc)
+					node := kindNode(t, doc, componentID("Pos"))
+					vs.check(t, doc, node)
+					assert.Equal(t, entryKept("openapi:$ref"), keptOn(node), entries)
+					trees = append(trees, entryTree(t, doc))
+				}
+				assert.Equal(t, trees[0], trees[1], "the order decided the document")
+				assert.Equal(t, trees[0], trees[2], "the order decided the document")
+			})
 		}
 	}
 }

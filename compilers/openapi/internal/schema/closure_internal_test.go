@@ -39,6 +39,10 @@ func TestCloserOf_NamesTheObjectWhoseClosureTypesTheModel(t *testing.T) {
 		{"an entry, the position declaring", "{properties: {a: {}}, allOf: [{additionalProperties: false}]}", ""},
 		{"an entry, a $ref entry's own members", "{allOf: [{$ref: '#/components/schemas/U', properties: {b: {}}}, {additionalProperties: false}]}", ""},
 		{"an entry, a $ref entry's own closure, a second", "{allOf: [{$ref: '#/components/schemas/U', additionalProperties: false}, {additionalProperties: false}]}", ""},
+		{"an entry, a closure beside its $ref", "{allOf: [{$ref: '#/components/schemas/U', additionalProperties: false}]}", "allOf/0"},
+		{"an entry, its union's branch declaring", "{allOf: [{additionalProperties: false, oneOf: [{properties: {t: {}}}, {properties: {u: {}}}]}, " + ref + "]}", ""},
+		{"an entry, the position's union declaring", "{anyOf: [{properties: {t: {}}}], allOf: [{additionalProperties: false}]}", ""},
+		{"an entry, a union of references beside", "{allOf: [{additionalProperties: false, oneOf: [" + ref + ", " + ref + "]}]}", "allOf/0"},
 		{"two entries", "{allOf: [{additionalProperties: true}, {additionalProperties: false}]}", ""},
 		{"none written", "{allOf: [" + ref + ", {properties: {b: {}}}]}", ""},
 	} {
@@ -49,7 +53,7 @@ func TestCloserOf_NamesTheObjectWhoseClosureTypesTheModel(t *testing.T) {
 			require.True(t, ok)
 			s := l.Ctx.Statements().Of(decl).Schema
 			const at = jsontext.Pointer("/components/schemas/M")
-			got := closerOf(s, allOfBranches(l.Ctx, s, at))
+			got := closerOf(l.Ctx, s, allOfBranches(l.Ctx, s, at))
 			switch tc.want {
 			case "own":
 				assert.True(t, got.own)

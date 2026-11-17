@@ -22,10 +22,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerEnum hoists a schema with `enum` as a closed Enum
-// (docs/compilers/openapi.md#enum-const). A heterogeneous or non-scalar member
-// set becomes a Union of Literals over the members, with an info diagnostic;
-// an empty list takes emptyEnum.
+// lowerEnum hoists the `enum` site's schema writes as a closed Enum at the
+// site's position (docs/compilers/openapi.md#enum-const). A heterogeneous or
+// non-scalar member set becomes a Union of Literals over the members, with an
+// info diagnostic; an empty list takes emptyEnum.
 //
 // A member count past the budget lowers as the top type with an error
 // diagnostic, checked first because both paths cost per member, amplifying a
@@ -34,38 +34,39 @@ import (
 // A `null` entry is neither member nor variant but the reference's Nullable
 // bit, which schemaAdmitsNull decides at every site (enumEntries), so a list
 // of null alone is an Enum with no member.
-func lowerEnum(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
+	s, written := site.set, site.written
 	members := enumIn(s)
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
 		// member count of zero exceeds no positive budget — so the order decides
 		// nothing, but reading the empty case beside the members it lacks is
 		// clearer than reading it after a bound on how many there may be.
 		if len(members) == 0 {
-			def, emptyDiags := emptyEnum(c, s, common, pointer)
+			def, emptyDiags := emptyEnum(c, site, common)
 			diags = append(diags, emptyDiags...)
 			return def
 		}
 		if n := len(members); !c.Limits.MaxEnumMembers.Admits(n) {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, written,
 				"enum declares %d members, past the %d-member budget; lowered as any",
 				n, c.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
 		entries := readEnum(members)
-		diags = append(diags, enumRepeats(c, entries, pointer)...)
-		kept, keptDiags := enumEntries(c, s, entries, pointer)
+		diags = append(diags, enumRepeats(c, entries, written)...)
+		kept, keptDiags := enumEntries(c, s, entries, written)
 		diags = append(diags, keptDiags...)
 		members, memberPrim, ok := enumMembers(kept, common.ID)
 		if !ok {
-			def, enumDiags := enumAsUnion(c, ts, s, common, kept, pointer)
+			def, enumDiags := enumAsUnion(c, ts, site, common, kept)
 			diags = append(diags, enumDiags...)
 			return def
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  enumValueType(s, members, memberPrim),
+			ValueType:  site.enumType(c, members, memberPrim),
 			Members:    members,
 			Closed:     true,
 		}
@@ -187,12 +188,12 @@ func describeValue(v ir.Value) string {
 // ValueType is what the declaration selects, else the top type. Whether a
 // reference admits null is not settled here: schemaAdmitsNull reads the type
 // keyword at each use site (GitHub #288).
-func emptyEnum(c lowering.Ctx, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
-	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, pointer,
+func emptyEnum(c lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.EmptyEnum, site.written,
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
 		TypeCommon: common,
-		ValueType:  enumValueType(s, nil, ir.PrimAny),
+		ValueType:  site.enumType(c, nil, ir.PrimAny),
 		Closed:     true,
 	}, diags
 }
@@ -232,16 +233,16 @@ func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimK
 }
 
 // enumAsUnion lowers the entries of a heterogeneous or non-scalar enum that
-// enumEntries kept to a Union of Literals, each hoisted at its entry's
-// position, emitting one info diagnostic. The Union is exclusive where those
+// enumEntries kept to a Union of Literals, each hoisted at the pointer its
+// entry is written at, emitting one info diagnostic. The Union is exclusive where those
 // entries are distinct: otherwise an instance can match two variants.
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, common ir.TypeCommon, entries []enumEntry, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
-	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+func enumAsUnion(c lowering.Ctx, ts *compile.Types, site valueSetSite, common ir.TypeCommon, entries []enumEntry) (ir.TypeDef, []ir.Diagnostic) {
+	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, site.written,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	variants := make([]ir.Variant, 0, len(entries))
 	for _, e := range entries {
-		lptr := pointer + ids.Ptr("enum", strconv.Itoa(e.index))
-		litID, litDiags := hoistLiteral(c, ts, s, e.node, lptr)
+		lptr := site.written + ids.Ptr("enum", strconv.Itoa(e.index))
+		litID, litDiags := hoistLiteral(c, ts, site.memberSite(lptr), e.node)
 		diags = append(diags, litDiags...)
 		variants = append(variants, ir.Variant{
 			Name: compile.NamingHint(lowering.NameAt(c, lptr)),
@@ -256,23 +257,23 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, common 
 	}, diags
 }
 
-// lowerConst hoists s's const as a Literal of its value (hoistLiteral), but a
-// null, which is no Literal's (nullConst), and reports, at the const, a value
-// no type s declares admits, as enumEntries reports an enum member. The Literal
+// lowerConst hoists the const site's schema writes as a Literal of its value
+// (hoistLiteral), but a null, which is no Literal's (nullConst), and reports,
+// at the const, a value no type that schema declares admits, as enumEntries reports an enum member. The Literal
 // holds the value as written, and the census keeps a type it does not fit
 // verbatim.
-func lowerConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	constant := constIn(s)
+func lowerConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
+	constant := constIn(site.set)
 	val, err := value.FromNode(constant)
 	if err == nil && val.Kind == ir.ValueNull {
-		return nullConst(c, ts, s, pointer)
+		return nullConst(c, ts, site)
 	}
-	id, diags := hoistLiteral(c, ts, s, constant, pointer)
+	id, diags := hoistLiteral(c, ts, site, constant)
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
-	if types := kindsIn(s); !typesAdmit(types, val) {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
+	if types := kindsIn(site.set); !typesAdmit(types, val) {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))
 	}
@@ -284,54 +285,53 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer 
 // (docs/ir/containers.md#literals). Where a keyword beside the const excludes
 // null, the position admits nothing, which is reported at the const as
 // enumEntries reports such a member.
-func nullConst(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	id := lowerNullAlone(c, ts, s, pointer)
-	if schemaAdmitsNull(c, s) {
+func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
+	id := lowerNullAlone(c, ts, site)
+	if schemaAdmitsNull(c, site.set) {
 		return id, nil
 	}
-	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
+	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
 		"const null admits no instance: a keyword beside the const excludes null, and JSON Schema "+
 			"conjoins the two; lowered as an enum with no member, and the reference admits no null")}
 }
 
-// lowerNullAlone hoists at pointer the node s, a schema whose own keywords
-// leave it no value but null, lowers to: a closed Enum with no member, the empty
-// value space, which the nullable reference its position takes widens by null
-// alone (docs/compilers/openapi.md#null-alone). Its ValueType is what s's type
-// and format select, as an enum's is (enumValueType), the top type where they
-// select none.
-func lowerNullAlone(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) ir.TypeID {
-	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		return &ir.Enum{TypeCommon: common, ValueType: enumValueType(s, nil, ir.PrimAny), Closed: true}
+// lowerNullAlone hoists at the site's position the node its schema, whose own
+// keywords leave it no value but null, lowers to: a closed Enum with no member,
+// the empty value space, which the nullable reference its position takes widens
+// by null alone (docs/compilers/openapi.md#null-alone). Its ValueType is what
+// that schema's type and format select, as an enum's is (enumValueType), the
+// top type where they select none, narrowed as the site types it.
+func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
+	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
+		return &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, nil, ir.PrimAny), Closed: true}
 	})
 }
 
-// hoistLiteral hoists a single node as a Literal type at its own pointer, or
-// falls back to the schemaless top type when the node is structurally
+// hoistLiteral hoists a single node as a Literal type at the site's position,
+// or falls back to the schemaless top type when the node is structurally
 // unconvertible — never a Literal whose Value lies about being null. It is
-// the single entry point for lowering both a bare `const` schema (pointer may
-// be a top-level component, so internNode's ids.ForPointer keeps that
+// the single entry point for lowering both a bare `const` schema (the position
+// may be a top-level component, so internNode's ids.ForPointer keeps that
 // component's stable named ID) and each individual member of a heterogeneous
 // enum (enumAsUnion, always an anonymous sub-pointer).
 //
 // It returns the interned ID, plus the diagnostic an unconvertible node
 // produces — none when the node converts.
-func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *statement.Schema, node *yaml.Node, pointer jsontext.Pointer,
-) (ir.TypeID, []ir.Diagnostic) {
+func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *yaml.Node) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
 	// would be indistinguishable today — a second visit produces the identical
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
 		val, err := value.FromNode(node)
 		if err != nil {
-			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
+			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written,
 				"unconvertible value lowered as the top type: %s", err.Error()))
 			return &ir.Any{TypeCommon: common}
 		}
-		return &ir.Literal{TypeCommon: common, Value: val, ValueType: literalValueType(s, val)}
+		return &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
 	})
 	return id, diags
 }
@@ -340,8 +340,8 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *statement.Schema, node *
 // Enum's, for its one value: the primitive the declared type and format
 // select, else the declared type's, where the value is one of it (declaredPrim);
 // else the primitive the value's own kind declares, and none for a list or an
-// object, which no primitive types. A refinement's principal is typed by
-// every conjunct after (typeValueSet).
+// object, which no primitive types. A refinement's value set is then typed
+// by every conjunct (valueSetSite.valueType).
 func literalValueType(s *statement.Schema, val ir.Value) ir.PrimKind {
 	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return merge.Admits(p, val) }); ok {
 		return prim

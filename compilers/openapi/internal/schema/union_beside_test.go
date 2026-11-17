@@ -414,7 +414,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 
 	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)
 	require.True(t, ok, "the enum beside the allOf decides it; got %T", typeByName(doc, "EnumBeside"))
-	assert.Contains(t, enum.Unmodeled, "openapi:allOf")
+	assert.Contains(t, enum.Unmodeled, "openapi:allOf/0", "each conjunct the value set beat is kept as written")
 	annotated, ok := typeByName(doc, "Annotated").(*ir.Union)
 	require.True(t, ok)
 	assert.Equal(t, "mine", annotated.Docs.Description, "another branch folds onto the union, as beside the allOf")

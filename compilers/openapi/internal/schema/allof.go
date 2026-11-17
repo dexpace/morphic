@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -144,7 +142,7 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 	comp := allOfBranches(c, s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
 	comp.bounds = modelTakes(boundKinds(c, s))
-	comp.closer = closerOf(s, comp)
+	comp.closer = closerOf(c, s, comp)
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
@@ -221,20 +219,12 @@ func (a allOfComposition) subject() string {
 }
 
 // keepRef keeps on p the $ref conjunct e of comp whole, under keptRefKey: the
-// reference as written, its keyword and its value, and not what else the
-// object writing it writes beside it, a conjunct of its own. It reports
-// whether it kept it (annotation.PreserveNodeInto).
+// reference as written, and not what else the object writing it writes beside
+// it, a conjunct of its own whose node writes the reference alone
+// (statement.Entry). It reports whether it kept it
+// (annotation.PreserveNodeInto).
 func keepRef(c lowering.Ctx, p *ir.Unmodeled, comp allOfComposition, e allOfBranch) (bool, []ir.Diagnostic) {
-	ref := e.schema.Ref
-	value := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: ref.Text}
-	if k, _ := e.schema.Key(ref.Keyword); k.Node != nil {
-		// The text as written; a $ref merged in past the merge bound has no key.
-		value = k.Node
-	}
-	written := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
-		{Kind: yaml.ScalarNode, Tag: "!!str", Value: ref.Keyword}, value,
-	}}
-	return annotation.PreserveNodeInto(p, keptRefKey(comp, e), written, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
+	return annotation.PreserveNodeInto(p, keptRefKey(comp, e), e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 }
 
 // keptRefKey is the Unmodeled key the $ref conjunct e of comp is kept under:

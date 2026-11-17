@@ -55,7 +55,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 		diags = append(diags, consDiags...)
 		return def
 	})
-	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, tid, dispatch{said: branchesSay(c, s)})
+	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, tid, dispatch{said: branchesSay(c, s)})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
 	return ref, slices.Concat(diags, unhomedDiags, nullDiags, liftedNullFindings(c, s, pointer))
 }
@@ -114,7 +114,7 @@ func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
 // verbatim under Unmodeled instead of dropped
 // (docs/compilers/openapi.md#union-null-only).
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	owner, diags := preserveUnhomedKeywords(c, ts, s, pointer, lowerNullAlone(c, ts, s, pointer), dispatch{})
+	owner, diags := preserveUnhomedKeywords(c, ts, s, pointer, pointer, lowerNullAlone(c, ts, ownValueSet(s, pointer)), dispatch{})
 	diags = append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
 	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
