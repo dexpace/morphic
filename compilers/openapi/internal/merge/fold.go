@@ -194,18 +194,7 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	f.foldAnnotations()
 	f.foldUnmodeled()
 	merged, diags := f.finish()
-	diags = append(diags, g.keepUnjudged(&merged, past)...)
-	for i := range diags {
-		diags[i].Provenance = g.Doc.At(diags[i].Provenance.Pointer)
-	}
-	return merged, diags
-}
-
-// pointerOnly is a Provenance holding pointer and naming no document until fold
-// places it. Every site of a fold reports at one, and fold places them all
-// through Merger.Doc, so none is placed apart from the model's document.
-func pointerOnly(pointer jsontext.Pointer) ir.Provenance {
-	return ir.Provenance{Pointer: pointer}
+	return merged, append(diags, g.keepUnjudged(&merged, past)...)
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -223,7 +212,7 @@ func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) []ir.Diag
 	if len(past) == 0 {
 		return nil
 	}
-	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, pointerOnly(past[0].reportAt()),
+	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, g.Doc.At(past[0].reportAt()),
 		"field %q is declared %d times, past the %d declarations one fold judges; the %d after them are "+
 			"unjudged, and each the model declares is kept verbatim under Unmodeled",
 		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))}
@@ -280,6 +269,9 @@ type note struct {
 	msg  string
 	// detail is what a disagreement is over, and empty on any other note.
 	detail string
+	// at is where the note sits: where the declaration is reported
+	// (declaration.reportAt), or, for a disagreement, where it is written.
+	at ir.Provenance
 }
 
 // newFolding judges every pair of decls once, picks the winner (widestCone) or
@@ -376,37 +368,47 @@ func (f *folding) drop(i int) {
 // them, which may loosen what the spec intended. It says "declarations", not
 // "allOf branches", because a declaration can sit beside allOf rather than
 // inside a branch. A keyword a position writes on its node and its property is
-// met twice, and said once.
+// met twice, and said once. It sits where decls[i] is written, not at the
+// entry bringing it, so every model composing the two says it alike
+// (ReportOnce).
 func (f *folding) disagree(i, kept int, detail string) {
 	f.lost[i] = true
 	if slices.ContainsFunc(f.notes[i], func(n note) bool { return n.detail == detail }) {
 		return
 	}
-	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, msg: fmt.Sprintf(
-		"declarations of field %q disagree: %s; kept what the declaration at %s says over the one at %s, "+
-			"which %s", f.merged.WireName, detail, f.at(kept), f.at(i), f.decls[i].keptAs())})
+	at, named := f.place(i)
+	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, at: at,
+		msg: fmt.Sprintf("declarations of field %q disagree: %s; kept what the declaration at %s says over the one "+
+			"at %s, which %s", f.merged.WireName, detail, f.at(kept), named, f.decls[i].keptAs())})
 }
 
-// at is where decls[i] was written, as a report the fold makes names it: its
-// pointer, followed by its document's name where that is not the document the
-// report is in, as a declaration an entry brings may be written in another. A
-// member an entry brings settled names its first declaration, which need not
-// say what the member does, so the report names the one place its type is
-// written, or, where that is the member's own and no schema is written there
-// (unwritten), the entry bringing it.
+// at is how a report the fold makes names where decls[i] was written (place).
 func (f *folding) at(i int) string {
+	_, named := f.place(i)
+	return named
+}
+
+// place is where decls[i] was written, in its own document, and how a report
+// the fold makes names it: its pointer, followed by its document's name where
+// that is not the document the report is in, as a declaration an entry brings
+// may be written in another. A member an entry brings settled names its first
+// declaration, which need not say what the member does, so the report names
+// the one place its type is written, or, where that is the member's own and no
+// schema is written there (unwritten), the entry bringing it.
+func (f *folding) place(i int) (ir.Provenance, string) {
 	d := f.decls[i]
 	p := d.prop.Provenance
 	if d.via != nil && len(d.typeAt) == 1 {
 		p = d.typeAt[0]
 	}
 	if p.Pointer == d.prop.Provenance.Pointer && f.unwritten(d) {
-		return string(d.via.at)
+		return f.g.Doc.At(d.via.at), string(d.via.at)
 	}
 	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {
-		return string(p.Pointer)
+		return f.g.Doc.At(p.Pointer), string(p.Pointer)
 	}
-	return string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+	return ir.Provenance{Source: p.Source, Pointer: p.Pointer, WrittenBy: p.WrittenBy},
+		string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
 }
 
 // unwritten reports whether d is a member an entry brings that its model's
@@ -675,7 +677,8 @@ func lastWritten[T any](f *folding, detail string, of func(i int, p *ir.Property
 
 // note records a diagnostic for decls[i], reported when the fold finishes.
 func (f *folding) note(i int, sev ir.Severity, code, format string, args ...any) {
-	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)})
+	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...),
+		at: f.g.Doc.At(f.decls[i].reportAt())})
 }
 
 // foldUnmodeled unions every declaration's Unmodeled into the field's. The keys
@@ -732,13 +735,13 @@ func sameEntry(walk Walk, a, b ir.UnmodeledEntry) bool {
 }
 
 // finish returns the field and, declaration by declaration, what the fold
-// noted there (declaration.reportAt), keeping each declaration the model
-// declares that it lost something of verbatim (keepLosingDeclaration).
+// noted there (note.at), keeping each declaration the model declares that it
+// lost something of verbatim (keepLosingDeclaration).
 func (f *folding) finish() (ir.Property, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	for i, d := range f.decls {
 		for _, n := range f.notes[i] {
-			diags = append(diags, diag.Newf(n.sev, n.code, pointerOnly(d.reportAt()), "%s", n.msg))
+			diags = append(diags, diag.Newf(n.sev, n.code, n.at, "%s", n.msg))
 		}
 		if f.lost[i] && d.via == nil {
 			diags = append(diags, f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)...)

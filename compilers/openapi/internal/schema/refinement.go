@@ -255,8 +255,10 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 // a composition: of the sets lying within every other stated, the one untie
 // picks among sets alike, and nil where none states one, none lies within the
 // rest, or untie elects none. A $ref's target is no statement of the
-// position's, and a set its own keywords leave no value is none to lower: the
-// composition reports it.
+// position's. A set its own keywords leave no value is read as the keyword
+// competing keywords elect (competingSet), so it lowers alike beside the allOf
+// and on an entry; one that keyword leaves none either, as `enum: []`, is none
+// to lower: the composition reports it.
 func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjunct {
 	var sets []*conjunct
 	for i := range conjuncts {
@@ -266,7 +268,13 @@ func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjun
 			bs = cj.branch.schema.Schema
 		}
 		inline := cj.branch == nil || cj.branch.schema.Ref == nil
-		if inline && cj.read.fixed && cj.read.reachable() && (enumWritten(bs) || constIn(bs) != nil) {
+		if !inline || !enumWritten(bs) && constIn(bs) == nil {
+			continue
+		}
+		if !cj.read.reachable() {
+			cj.read = competingSet(w, bs)
+		}
+		if cj.read.fixed && cj.read.reachable() {
 			sets = append(sets, cj)
 		}
 	}
@@ -280,6 +288,16 @@ func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjun
 		return elected
 	}
 	return nil
+}
+
+// competingSet is what the value set s writes admits read as the election of
+// competing keywords lowers it, its `const` before its `enum`, each alone
+// (docs/compilers/openapi.md#competing-keywords).
+func competingSet(w *admission, s *statement.Schema) admitted {
+	if constant := constIn(s); constant != nil {
+		return w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant})
+	}
+	return w.valueSet(valueSetOf{s, "enum"}, enumIn(s))
 }
 
 // restKinds returns the kinds s lowers to with the union it writes beside

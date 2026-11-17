@@ -27,7 +27,8 @@ var cites = regexp.MustCompile(`^#[0-9]+: \S`)
 // the key leaves with the fix that is under way.
 var uncited = map[string]string{
 	"unfiled-disjoint-value-keywords": "a fix on this branch lowers a value keyword contradicting another " +
-		"alike in every spelling, and its lines leave with it",
+		"alike in every spelling, and those lines left with it; the ones left, a type contradicting a union " +
+		"beside it on one entry, await the issue that will track them",
 }
 
 // TestReasons_EachCitesAnIssue holds each reason a record may give to the

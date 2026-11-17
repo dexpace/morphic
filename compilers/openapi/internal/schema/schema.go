@@ -361,7 +361,7 @@ func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Dia
 		return nil
 	}
 	comp := r.comp
-	comp.disjoint = disjointConjuncts(c, s, comp)
+	comp.disjoint = disjointAtoms(c, s, refinedAtoms(c, s, r))
 	return diagDisjointConjuncts(c, comp, shape)
 }
 

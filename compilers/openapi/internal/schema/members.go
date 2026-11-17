@@ -83,12 +83,18 @@ const maxMemberAliasHops = 64
 // settles its own declarations alone.
 const maxMemberReads = 1 << 24
 
-// Settle settles each noted model in rounds, each round in settleOrder, so
+// Settle settles each noted model, saying once a conflict every model composing
+// its two declarations draws alike (merge.ReportOnce).
+func (k settleMembers) Settle(ctx context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
+	return merge.ReportOnce(k.inRounds(ctx, reg))
+}
+
+// inRounds settles each noted model in rounds, each round in settleOrder, so
 // every model settles after each noted model it composes, however deep a
 // hierarchy nests, and the order models are declared in decides nothing. It
 // asks ctx before each model, as one fold may judge 64 declarations pair by
 // pair, and returns once it is done: the run then assembles no document.
-func (k settleMembers) Settle(ctx context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
+func (k settleMembers) inRounds(ctx context.Context, reg ir.TypeRegistry) []ir.Diagnostic {
 	rec := membersOf(k.c)
 	rec.shared = sharedNames(reg)
 	sources := k.c.Sources()
