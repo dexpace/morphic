@@ -48,7 +48,7 @@ func TestRefinement_AReferenceAValueSetNarrowsIsKeptAsWritten(t *testing.T) {
 	require.Len(t, lit.Unmodeled, 1)
 	entry := lit.Unmodeled["openapi:$ref"]
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `{"$ref":"#/components/schemas/Obj"}`, string(entry.Value))
+	assert.JSONEq(t, `"#/components/schemas/Obj"`, string(entry.Value))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/A"),
 		"the value set of this schema narrows this $ref")
 }
@@ -87,7 +87,7 @@ func TestValueSet_AnEmptyEnumBesideAReferenceKeepsTheReference(t *testing.T) {
 	en, ok := typeByName(doc, "S").(*ir.Enum)
 	require.True(t, ok, "got %T", typeByName(doc, "S"))
 	assert.ElementsMatch(t, []string{"openapi:$ref", "openapi:allOf"}, unmodeledKeys(en.Unmodeled))
-	assert.JSONEq(t, `{"$ref":"#/components/schemas/A"}`, string(en.Unmodeled["openapi:$ref"].Value))
+	assert.JSONEq(t, `"#/components/schemas/A"`, string(en.Unmodeled["openapi:$ref"].Value))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 		"declares $ref and allOf beside its enum")
 }

@@ -219,7 +219,7 @@ func requireEntryNodeAt(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, a
 	assert.Equal(t, entryKept("openapi:$ref"), keptOn(node), "what the node keeps at %s", at)
 	entry, held := node.Common().Unmodeled["openapi:$ref"]
 	require.True(t, held, at)
-	assert.JSONEq(t, `{"$ref": "#/components/schemas/T"}`, string(entry.Value))
+	assert.JSONEq(t, `"#/components/schemas/T"`, string(entry.Value), "the reference's text")
 	assert.Len(t, entryKeptUnder(doc, at), 1, "no other node holds what the position keeps at %s", at)
 	if ref < 0 {
 		return
@@ -417,8 +417,8 @@ func TestEntryValueSet_SeveralRefsAreKeptByTheirReferenceText(t *testing.T) {
 					assert.Equal(t, entryKept("openapi:$ref/0", "openapi:$ref/1"), keptOn(node))
 					first := unmodeledEntry(t, node.Common().Unmodeled, "openapi:$ref/0")
 					second := unmodeledEntry(t, node.Common().Unmodeled, "openapi:$ref/1")
-					assert.JSONEq(t, `{"$ref": "#/components/schemas/A"}`, string(first.Value))
-					assert.JSONEq(t, `{"$ref": "#/components/schemas/B"}`, string(second.Value))
+					assert.JSONEq(t, `"#/components/schemas/A"`, string(first.Value))
+					assert.JSONEq(t, `"#/components/schemas/B"`, string(second.Value))
 				})
 			})
 		}

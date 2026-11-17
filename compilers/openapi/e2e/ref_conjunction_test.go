@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -179,7 +180,42 @@ func TestRefConjunction_AKeptRefsSiblingsAreKeptEachUnderItsOwnKey(t *testing.T)
 			got[key] = entry.Reason
 		}
 		assert.Equal(t, want, got, name)
-		assert.JSONEq(t, `{"$ref":"#/components/schemas/Str"}`, string(kept["openapi:$ref"].Value), "%s: the reference alone", name)
+		assert.JSONEq(t, `"#/components/schemas/Str"`, string(kept["openapi:$ref"].Value), "%s: the reference's text alone", name)
 		assert.Equal(t, "d", node.Common().Docs.Description, "%s: the note is the node's", name)
+	}
+}
+
+// TestRefConjunction_AFailedRefBesideKeywordsIsKeptAsBesideAnAllOfOfIt holds
+// that a $ref naming nothing written beside keywords is the conjunction
+// `{allOf: [{$ref: …}], …}` writes: the reference's text kept under
+// openapi:$ref at the position, each keyword the position's own, the note on
+// the node and the rest kept under its own key, in both spellings alike.
+func TestRefConjunction_AFailedRefBesideKeywordsIsKeptAsBesideAnAllOfOfIt(t *testing.T) {
+	t.Parallel()
+	const keywords = "description: why, minLength: 2, x-a: 1"
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		for name, schema := range map[string]string{
+			"beside the $ref": "{$ref: '#/components/schemas/Ghost', " + keywords + "}",
+			"beside an allOf": "{allOf: [{$ref: '#/components/schemas/Ghost'}], " + keywords + "}",
+		} {
+			at := version + ", " + name
+			doc, diags := compileAnnotationSpec(t, "failed", admissionSpec(version, "", "Use: "+schema))
+			use := requireModelNode(t, doc, componentID("Use"))
+			assert.Equal(t, "why", use.Docs.Description, at)
+			got := map[string]ir.UnmodeledReason{}
+			for key, entry := range use.Unmodeled {
+				got[key] = entry.Reason
+			}
+			assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:$ref": ir.ReasonDegradedLowering,
+				"openapi:minLength": ir.ReasonDegradedLowering, "openapi:x-a": ir.ReasonVendorExtension}, got, at)
+			assert.JSONEq(t, `"#/components/schemas/Ghost"`, string(use.Unmodeled["openapi:$ref"].Value), at)
+			errs := 0
+			for _, d := range diags {
+				if d.Code == diag.UnresolvedRef {
+					errs++
+				}
+			}
+			assert.Equal(t, 1, errs, "%s: the failure is reported once", at)
+		}
 	}
 }

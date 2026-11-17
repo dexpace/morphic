@@ -129,7 +129,7 @@ func assertRefSiteKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.Equal(t, kind, td.Kind(), "%s: the value set beside the $ref is the node", name)
 		entry := unmodeledEntry(t, td.Common().Unmodeled, "openapi:$ref")
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
-		assert.JSONEq(t, `{"$ref":"#/components/schemas/RefTargetStr"}`, string(entry.Value), name)
+		assert.JSONEq(t, `"#/components/schemas/RefTargetStr"`, string(entry.Value), name)
 		assert.Len(t, td.Common().Unmodeled, 1, name)
 	}
 	for _, name := range []string{"RefFormat", "RefEnum", "RefConst"} {
@@ -1341,7 +1341,7 @@ func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir
 // keyword still lowers, the ones passed over are kept verbatim under
 // ReasonDegradedLowering, and the position says so.
 func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	base := `{"$ref":"#/components/schemas/Base"}`
+	base := `"#/components/schemas/Base"`
 	e, ok := doc.Types[componentID("NarrowedEnum")].(*ir.Enum)
 	require.True(t, ok, "the enum is the value")
 	assertKeptRaw(t, e.Unmodeled, "openapi:$ref", base)
