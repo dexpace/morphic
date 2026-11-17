@@ -912,17 +912,17 @@ it sees. Changes made together in one bump are listed together under it.
   type keeping both. Such a union distributes past a null branch too, as no variant, the reference
   to the position admitting null where the body admits it, where the null branch kept the union
   whole beside the body. An `allOf` is a `Model` only where the kinds its position lowers to are an
-  object alone, null aside, where any conjunct writing a keyword only a `Model` holds, or a `$ref`
-  beside an object it may be, made it one: over a target admitting every kind, or an object among
+  object alone, null aside, no longer wherever a conjunct writes a keyword only a `Model` holds or a
+  `$ref` stands where an object may be: over a target admitting every kind, or an object among
   other kinds, it is a use of the target holding the bound beside it, and a `properties` beside a
   declared string is kept on the use with an info. Of several `$ref`s none of which is an object, the
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
   declared kind decides before a `$ref` whose target admits every kind. A `$dynamicRef` masks no kind
   in that reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
-  base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
-  `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
-  distributed. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
+  base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A union beside an
+  `allOf` naming no kind is the `Union`, holding the bound in `Union.Constraints`, and one sharing no
+  kind with the rest is kept under its keyword, not distributed. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
