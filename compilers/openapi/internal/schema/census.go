@@ -430,10 +430,10 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Sch
 	if !ok {
 		return id, diags
 	}
-	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
+	owns := LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id})
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	switch {
-	case owns != id:
+	case !owns:
 		// The alias hoisted over a shared node reads the bounds the types the
 		// position admits take, and only those.
 		unhomed = append(unhomed, untakenBounds(s, boundKinds(c, s))...)
@@ -447,7 +447,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *statement.Sch
 		return id, diags
 	}
 	owner := id
-	if owns != id {
+	if !owns {
 		var aliasDiags []ir.Diagnostic
 		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: id})
 		diags = append(diags, aliasDiags...)

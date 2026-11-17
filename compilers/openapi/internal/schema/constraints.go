@@ -326,7 +326,7 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 // (referenceConstraintsOf), since the census hoists an alias to keep any other.
 // PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
-	if !LoweredToOwnNode(c, ts, pointer, t) {
+	if !LoweredToOwnNode(c, pointer, t) {
 		return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
 	}
 	return nil, nil

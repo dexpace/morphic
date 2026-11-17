@@ -285,7 +285,7 @@ func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
 		s := componentSchema(t, l, "T")
-		site := Use{Voices: positionVoices(l.Ctx, l.Types, StatedIn(l, s), at, ir.TypeRef{})}.Site(StatedIn(l, s))
+		site := Use{Voices: positionVoices(l.Ctx, StatedIn(l, s), at, ir.TypeRef{})}.Site(StatedIn(l, s))
 		require.Len(t, site.Voices, voices)
 		var stats runtime.MemStats
 		least := uint64(math.MaxUint64)

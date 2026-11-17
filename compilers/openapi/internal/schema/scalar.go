@@ -31,7 +31,7 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	if shape.shared {
 		return ts.PrimID(shape.base), nil
 	}
-	return hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
+	return hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer)
 }
 
 // writtenFormat returns the format s writes, but for a redaction, which names no

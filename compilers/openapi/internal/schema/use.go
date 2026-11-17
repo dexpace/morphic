@@ -9,7 +9,6 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -264,8 +263,8 @@ func (p passage) speakers(c lowering.Ctx) Use {
 
 // ownsNode reports whether p's principal lowered to a node of its own, which
 // keeps what it writes, t being what the position lowered to.
-func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool {
-	return p.principal != nil && LoweredToOwnNode(c, ts, p.principal.pointer, t)
+func (p passage) ownsNode(c lowering.Ctx, t ir.TypeRef) bool {
+	return p.principal != nil && LoweredToOwnNode(c, p.principal.pointer, t)
 }
 
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
@@ -273,18 +272,18 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 // node keeps its annotations there, so it speaks here as a referent does. A
 // composition throughRef reads no $ref through lends nothing: its Model holds what
 // it composes as Base and Mixins.
-func UseOf(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
+func UseOf(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
 	if js.Ref != nil {
 		u := lentBy(c, declared(c, js))
 		u.nullable = t.Nullable
 		return u
 	}
-	u := Use{Voices: positionVoices(c, ts, js.Schema, pointer, t), nullable: t.Nullable}
+	u := Use{Voices: positionVoices(c, js.Schema, pointer, t), nullable: t.Nullable}
 	p, ok := passageOf(c, js.Schema, pointer)
 	if !ok {
 		return u
 	}
-	if p.ownsNode(c, ts, t) {
+	if p.ownsNode(c, t) {
 		u.Principal = &annotation.Voice{Node: p.principal.schema.Schema, At: p.principal.pointer}
 		u.lend(u.Principal.Node, placeIn(c, p.principal.pointer))
 	}
@@ -304,8 +303,8 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *statement.Statement, t ir.Type
 // only to a $ref its lowering lost; of one its Base holds, it reads only
 // whether a keyword or a key along it deprecates the node, which the node's own
 // member keys then annotate (promotion.Referent.Homes).
-func nodeUse(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
-	u := Use{Voices: positionVoices(c, ts, s, pointer, target)}
+func nodeUse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
+	u := Use{Voices: positionVoices(c, s, pointer, target)}
 	p, ok := passageOf(c, s, pointer)
 	switch {
 	case !ok:
