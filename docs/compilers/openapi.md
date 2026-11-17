@@ -3556,7 +3556,7 @@ union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape onl
 which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
 keeps the body where a branch composes it (shape 3).
 
-A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 4 written on an
+A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
 `allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
