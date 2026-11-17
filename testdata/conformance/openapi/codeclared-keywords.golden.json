@@ -210,9 +210,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Base"
-          },
+          "value": "#/components/schemas/Base",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/NarrowedConst/allOf/0"
@@ -242,9 +240,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Base"
-          },
+          "value": "#/components/schemas/Base",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/NarrowedEnum/allOf/0"

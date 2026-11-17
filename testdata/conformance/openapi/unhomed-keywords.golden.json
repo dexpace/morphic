@@ -483,9 +483,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/RefTargetStr"
-          },
+          "value": "#/components/schemas/RefTargetStr",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/RefConst"
@@ -566,9 +564,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/RefTargetStr"
-          },
+          "value": "#/components/schemas/RefTargetStr",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/RefEnum"

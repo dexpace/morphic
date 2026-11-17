@@ -282,9 +282,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Mode"
-          },
+          "value": "#/components/schemas/Mode",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/level/allOf/0"
@@ -327,9 +325,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Mode"
-          },
+          "value": "#/components/schemas/Mode",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/mode/allOf/0"

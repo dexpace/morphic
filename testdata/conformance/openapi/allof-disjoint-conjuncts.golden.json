@@ -236,9 +236,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/List"
-          },
+          "value": "#/components/schemas/List",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/OwnType/allOf/0"
@@ -266,9 +264,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/NullableStr"
-          },
+          "value": "#/components/schemas/NullableStr",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/SharedNull/allOf/0"
@@ -319,9 +315,7 @@
       "unmodeled": {
         "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Str"
-          },
+          "value": "#/components/schemas/Str",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/TwoRefs/allOf/0"
