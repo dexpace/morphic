@@ -2270,6 +2270,7 @@ The principal is chosen from the whole set:
    `{allOf: [{$ref: Str}, {$ref: Uuid}]}` is a use of `Uuid` keeping the other `$ref` with an info.
    A `$ref` is no principal where the kind-inference policy reads its target as kinds leaving out
    one the position's declarations name, null aside, as the target then admits that kind whole, or
+   as kinds sharing none with them, as beside a `type` of null alone, or
    where its target admits every kind beside a position declaring one or a conjunct naming one: a
    declared kind decides before an inference ([`policies`](#policies)) and before a target saying
    nothing of the kind, so `{allOf: [{$ref: E}, {type: string}]}` over `E: {items: …}` is the

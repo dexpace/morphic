@@ -1,8 +1,6 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-//go:build pending
-
 package e2e_test
 
 import (
@@ -34,7 +32,7 @@ func TestAllOfRefine_ARefBesideANullOnlyTypeIsKeptAsTheInlineSpellingIs(t *testi
 		if scalar, ok := ref.(*ir.Scalar); ok {
 			assert.NotEqual(t, componentID("L"), scalar.Base.Target, "NullRef admits no list")
 		}
-		assert.Equal(t, degradedKept("openapi:allOf/0"), keptOn(ref))
+		assert.Equal(t, degradedKept("openapi:$ref"), keptOn(ref))
 		assert.Equal(t, 1, degradedInfosUnder(diags, "/components/schemas/NullRef/allOf/0"))
 	})
 }
