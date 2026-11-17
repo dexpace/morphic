@@ -369,12 +369,30 @@
   },
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (enum: string, allOf/0: object), so no instance satisfies this schema, which the enum it lowered as cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedEnum"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "the conjuncts of this allOf share no value, and its value set is elected before the rest, holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/NarrowedEnum/allOf/0"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (const: string, allOf/0: object), so no instance satisfies this schema, which the const it lowered as cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedConst"
       }
     },
     {
@@ -418,7 +436,7 @@
     {
       "format": "openapi@3.1",
       "path": "codeclared-keywords.yaml",
-      "hash": "7ff3289ab0154093e94cb572805c693c7e506ead999548bed93e11c59d4450e6"
+      "hash": "a3376c125f7b838ae2123f9d839498d7d1c7189386d423190991c93e6be6c0ed"
     }
   ]
 }

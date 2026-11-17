@@ -3480,7 +3480,8 @@ and `{properties: …}` alone admits a string. That is where it parts from the r
 claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
 admits a set of JSON instance types, an `integer` within a `number` and named as written, and a
 number with a fraction, which no `type` names, named a `number that is no integer`, read once
-a compile, whatever its size: the `type` beside the `allOf`; an inline entry's `type`, the members
+a compile, whatever its size: the `type` beside the `allOf`, and the members of an `enum` or a
+`const` written there, named by its keyword, as on an entry; an inline entry's `type`, the members
 of its `enum` or `const`, the join of what each branch of its `oneOf` or `anyOf` admits, and what
 its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admits, read the same
 way. The keywords beside a `$ref` entry apply to the instance as the reference does, at 3.0 as from
@@ -3517,12 +3518,15 @@ no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not fol
 may admit less than is read, and conjuncts disjoint as read are disjoint. An `allOf` beside a
 `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read. One passed over
 for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as any composition
-is, the value set beside it left to the election, and the warning names the value set the position
-lowered as.
+is, the value set beside it among its conjuncts, so `{allOf: [{$ref: Obj}], enum: [a, b]}` warns as
+`{allOf: [{$ref: Obj}, {enum: [a, b]}]}` does, and the warning names the value set the position
+lowered as. A value set beside the `allOf` holding no value its own type admits is reported where it
+is written ([`enum-const`](#enum-const)), so the `allOf` draws nothing more.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
+  `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`,
   `schema.TestAllOf_DisjointReportStaysSilent`,
   `schema.TestAllOf_AKeywordBesideARefIsReadAtEveryVersion`,
   `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,

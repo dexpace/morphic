@@ -139,18 +139,18 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"a union beside sharing no kind with a refinement", `{allOf: [` + refStr + `], anyOf: [{type: integer}, {type: boolean}]}`,
 			"anyOf: integer or boolean, allOf/0: string"},
 		{"an allOf an enum passes over", `{enum: [a], allOf: [` + refStr + `, ` + refObj + `]}`,
-			"allOf/0: string, allOf/1: object"},
+			"enum: string, allOf/0: string, allOf/1: object"},
 		{"an allOf a const passes over", `{type: string, const: a, allOf: [{type: integer}]}`,
-			"type: string, allOf/0: integer"},
+			"type: string, const: string, allOf/0: integer"},
 		{"an allOf an enum passes over beside a union",
 			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
-			"allOf/0: string, allOf/1: object"},
+			"enum: string, allOf/0: string, allOf/1: object"},
 		{"an entry the enum beats that cannot be kept",
 			`{enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
-			"allOf/0: string, allOf/1: integer"},
+			"enum: string, allOf/0: string, allOf/1: integer"},
 		{"an entry the const beats beside a family kept",
 			`{const: a, enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
-			"allOf/0: string, allOf/1: integer"},
+			"enum: string, allOf/0: string, allOf/1: integer"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

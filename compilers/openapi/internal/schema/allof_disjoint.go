@@ -6,6 +6,8 @@ package schema
 import (
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -135,15 +137,18 @@ func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfCompositio
 }
 
 // conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
-// beside it, each union s writes beside it that shares no kind with the rest
-// (unionAside), and each flattened branch, a wrapper by its own `type`, an
-// entry nested past statement.MaxFlattenDepth as cut, and a $ref entry writing
-// keywords that narrow what it admits as two, the reference and the keywords
-// beside it, which apply to an instance alike. A value set s writes beside the
-// allOf is the election's to weigh (competing-keywords), and is not read.
+// beside it, the value set it writes there (valueSetAtom), each union s writes
+// beside it that shares no kind with the rest (unionAside), and each flattened
+// branch, a wrapper by its own `type`, an entry nested past
+// statement.MaxFlattenDepth as cut, and a $ref entry writing keywords that
+// narrow what it admits as two, the reference and the keywords beside it,
+// which apply to an instance alike.
 func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
-	out := make([]conjunctAtom, 0, 3+len(comp.branches))
+	out := make([]conjunctAtom, 0, 4+len(comp.branches))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
+	if set, ok := valueSetAtom(c, s); ok {
+		out = append(out, set)
+	}
 	if unionAside(c, s) {
 		choice := choiceIn(s)
 		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
@@ -174,6 +179,25 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		}
 	}
 	return out
+}
+
+// valueSetAtom returns the enum or the const s writes beside its allOf as a
+// conjunct, as one an entry writes is (docs/compilers/openapi.md#allof-refinement):
+// the kinds its members leave, null aside (valueKinds), its read cut where no
+// reading converts them, and false where s writes neither. It is written at s,
+// whose report that the set holds no value its type admits leaves this report
+// none to make (toldWhereWritten).
+func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
+	name, members := "enum", enumIn(s)
+	switch {
+	case enumWritten(s):
+	case constIn(s) != nil:
+		name, members = "const", []*yaml.Node{constIn(s)}
+	default:
+		return conjunctAtom{}, false
+	}
+	unread := memberSetOf(c, valueSetOf{s, name}, members).unread
+	return conjunctAtom{name: name, admits: valueKinds(c, s), words: s, written: c.Statements().Read(s), cut: unread}, true
 }
 
 // splitRef reports whether the branch at i of comp is the reference an entry
