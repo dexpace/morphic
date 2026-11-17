@@ -58,15 +58,23 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 
 // undefinedKeywords returns the keywords s writes that the schema model names
 // but nothing reads, because the dialect s is read in does not define them:
-// `nullable` while the nullable-inference policy is off, in a schema whose
-// dialect defines no such keyword, as 3.1's and 3.2's do not. Where it is
-// defined, as in a 3.0 schema, one beside its $ref included, it is read by its
-// declared effect (docs/compilers/openapi.md#nullable), and the policy reads it
-// everywhere.
+// `nullable`, in a schema whose dialect defines no such keyword, as 3.1's and
+// 3.2's do not, unless the nullable-inference policy reads this one
+// (nullableRead). Where the dialect defines it, as in a 3.0 schema, one beside
+// its $ref included, it is read by its declared effect
+// (docs/compilers/openapi.md#nullable).
 func undefinedKeywords(c lowering.Ctx, s *statement.Schema) []string {
-	if c.NullableInference.Honours() || c.SchemaRules().Defines("nullable") ||
-		!hasKey(s, "nullable") {
+	if !hasKey(s, "nullable") || nullableRead(c, s) {
 		return nil
 	}
 	return []string{"nullable"}
+}
+
+// nullableRead reports whether the `nullable` s writes is read: by the dialect
+// that defines the keyword, or, where none does, by the nullable-inference
+// policy, which reads a boolean true and no other value. A keyword neither
+// reads is one the dialect does not define, kept as such
+// (docs/compilers/openapi.md#nullable).
+func nullableRead(c lowering.Ctx, s *statement.Schema) bool {
+	return c.SchemaRules().Defines("nullable") || c.NullableInference.Honours() && nullableTrue(s)
 }

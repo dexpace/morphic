@@ -133,7 +133,7 @@ func declaresValidationOnly(s *statement.Schema) bool {
 			return true
 		}
 	}
-	return hasKey(s, "dependentRequired")
+	return hasKey(s, "dependentRequired") && !annotation.WritesEmptyDependencyMap(s, "dependentRequired")
 }
 
 // written reports whether sub is a schema written at its position, which a

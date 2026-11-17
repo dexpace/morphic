@@ -281,10 +281,10 @@ func disagreed(c lowering.Ctx, bs *statement.Schema, residue []string) bool {
 // folds reports whether a branch that folds consumes keyword: homes says which
 // bounds the position has a field for, of which a value bound is read where the
 // branch's own types take it too (writerTakes), and a `nullable` folds where
-// foldsNullable says so.
+// the policy reads it (nullableRead) and foldsNullable says so.
 func folds(c lowering.Ctx, bs *statement.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
-		return c.NullableInference.Honours() && foldsNullable(bs)
+		return c.NullableInference.Honours() && nullableRead(c, bs) && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
 		return taken(writerTakes(homes.value, bs), keyword)

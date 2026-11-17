@@ -282,6 +282,8 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 	if ite != nil || iteErr != nil {
 		keep("openapi:if-then-else", ite, iteErr, validationOnlyMessage("if/then/else"), iteKeys...)
 	}
+	// An empty dependency map is the keyword left out, and keeps nothing
+	// (docs/compilers/openapi.md#validation-only).
 	if s != nil && s.Logic != nil && len(s.Logic.DependentSchemas) > 0 {
 		keepKeyword("dependentSchemas")
 	}
@@ -289,8 +291,10 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 	// (docs/parser-library.md#unmodeled-keywords), which is why it was once
 	// silently dropped where its sibling dependentSchemas was kept. Its raw node
 	// is the only reading, and an absent one keeps nothing.
-	keepKeyword("dependentRequired")
-	if dialect.Dependencies {
+	if !WritesEmptyDependencyMap(s, "dependentRequired") {
+		keepKeyword("dependentRequired")
+	}
+	if dialect.Dependencies && !WritesEmptyDependencyMap(s, "dependencies") {
 		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
 		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")

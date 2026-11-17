@@ -57,17 +57,17 @@ func liftedNulls(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 	return out
 }
 
-// saysTheNull reports whether key, written on the null branch at, says only
+// saysTheNull reports whether key, written on the null branch b, says only
 // the null the reference to its union holds: a type, an enum or a const, and a
 // nullable where it is read, by the dialect defining it or by the
 // nullable-inference policy (docs/compilers/openapi.md#nullable). A nullable
 // neither reads is a keyword its dialect does not define, kept as one is.
-func saysTheNull(c lowering.Ctx, at jsontext.Pointer, key string) bool {
+func saysTheNull(c lowering.Ctx, b liftedNull, key string) bool {
 	switch key {
 	case "type", "enum", "const":
 		return true
 	case "nullable":
-		return c.NullableInference.Honours() || c.Rules().At(c.Position(at)).Defines(key)
+		return c.Rules().At(c.Position(b.at)).Defines(key) || c.NullableInference.Honours() && nullableTrue(b.schema)
 	default:
 		return false
 	}
@@ -90,7 +90,7 @@ func nullBranchKeeps(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 	for _, b := range liftedNulls(c, s, pointer) {
 		var written []string
 		for _, k := range b.schema.Keys {
-			if !saysTheNull(c, b.at, k.Name) && !annotation.WritesKeywordLeftOut(b.schema, k.Name) {
+			if !saysTheNull(c, b, k.Name) && !annotation.WritesKeywordLeftOut(b.schema, k.Name) {
 				written = append(written, k.Name)
 			}
 		}
