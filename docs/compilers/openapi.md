@@ -3244,14 +3244,21 @@ conjunct admits some value by itself and none is cut short, and the schema admit
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
 null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
-the instance types nothing is reported, since one conjunct contradicts nothing.
+the instance types nothing is reported, since one conjunct contradicts nothing, unless it admits no
+value by itself and nothing else says so (below).
 
 What writes no `type` and no value set admits every kind, so a report is made only of what the
 source declares: a `true` entry, a `format` and a `properties` state nothing. A conjunct admitting no
-value by itself, the null included, is its own to report and the `allOf` composing it draws
-nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch) reports, a `$ref`
-landing on `false`, and a schema whose own conjuncts share no value, which is reported where it is
-written, so a schema composing a reported one draws no second report. A read cut short decides
+value by itself, the null included, that says so where it is written is its own to report, and the
+`allOf` composing it draws nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch)
+reports, and a `$ref` landing on `false`, on a schema whose value set holds no value its own type
+admits, an empty `enum` among them ([`enum-const`](#enum-const)), or on a schema whose own
+conjuncts share no value, which is reported where it is written, each read through a chain of
+`$ref`s each admitting no value, up to 256 of them. So a schema composing a reported one draws no
+second report. Any other conjunct admitting no value is named `no value` in the report, alone or
+beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
+a schema that admits none and says nothing of it, such as a `type` beside a union none of whose
+branches it admits, or beside a `$ref` to another kind. A read cut short decides
 nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
 converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
 no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
@@ -3276,7 +3283,9 @@ lowered as.
   `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,
   `e2e.TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema`,
   `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
-  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`
+  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`,
+  `e2e.TestCompile_AnEmptyConjunctIsReportedWhereNothingElseSaysSo`,
+  `schema.TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing`
 
 ### `union`
 
