@@ -3556,7 +3556,7 @@ union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape onl
 which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
 keeps the body where a branch composes it (shape 3).
 
-A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 4 written on an
+A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
 `allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
@@ -4314,7 +4314,10 @@ composed as a model where no conjunct declares a kind, as one over two `$ref`s t
 spelling: `{allOf: [{properties: …}, {items: …}]}` is a marked composition keeping the `items`
 entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
 already says what a keyword does, as a union lowered alone restating the body's `type` or a body
-whose union branches restate it, reads the kind the policy lowers what it compares to. A bound
+whose union branches restate it, reads the kind what it compares to lowers to, whether its
+conjuncts declare it or the policy reads it: keywords written with no `type` beside branches each
+declaring an object are that object, so branches restating it only narrow the body under either
+policy, as beside `type: object`. A bound
 beside such a schema is placed by the kind it lowers to, and the reading decides whether the schema
 names no kind. Where a conjunct beside it names kinds, as a union kept
 beside it does ([`union-beside-structure`](#union-beside-structure)), the keywords name a kind only
