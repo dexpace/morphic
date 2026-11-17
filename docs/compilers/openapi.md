@@ -2286,13 +2286,19 @@ principal from the same set as `{allOf: [{$ref: Level}, {enum: [a]}]}`, its bran
 `$ref` still lowers. Where the conjuncts would compose, their kinds an object alone or sharing no
 value, a value set is elected before the composition, as that election elects one beside it, in
 every spelling and whatever its members: the one lying within every other value set stated, the one
-beside the `allOf` first, so long as its own keywords leave it a value. So `{allOf: [{$ref: Obj},
+beside the `allOf` first. A set its own keywords leave no value, a `const` and an `enum` sharing
+none, a `const` outside its own `type`, or a value set beside a union of another kind, stands for
+the keyword the election of [`competing-keywords`](#competing-keywords) lowers it as, its `const`
+before its `enum`, so `{allOf: [{$ref: Str}, {const: z, enum: [a]}]}` is the `Literal` `z` keeping
+the `$ref` and the `enum`, as `{$ref: Str, const: z, enum: [a]}` is, where it composed a `Model`
+over a string; a set that keyword leaves no value either, as `enum: []`, is elected by none. So
+`{allOf: [{$ref: Obj},
 {enum: [{a: x}]}]}` is the `Union` of `Literal`s that enum is, as written beside the `allOf`, and
 `{allOf: [{$ref: Level}, {enum: [other]}]}` with `other` outside `Level` an `Enum` of `other`, the
 `$ref` kept with an info saying they share no value, and where their instance types share none the
 warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names the value set it lowered
 as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
-set is elected, one leaving itself no value, as `enum: []`, or two neither lying within the other,
+set is elected, as `enum: []` or two neither lying within the other,
 and the `allOf` writes an inline entry: one of `$ref` entries alone keeps each as below then too, as
 the `$ref` written beside the value set is kept.
 
@@ -2441,6 +2447,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 - Cases: `allof-refinement`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
 - Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+  `e2e.TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef`,
+  `e2e.TestRefConjunction_AnEntrysValueSetLowersAlikeInEitherOrder`,
   `e2e.TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling`,
   `e2e.TestEntryValueSet_TheEntryOrderLeavesTheDocumentAlone`,
   `e2e.TestEntryValueSet_TheWrapAndTheEntrySpellingsCompileAlike`,
@@ -3534,7 +3542,13 @@ admits, an empty `enum` among them ([`enum-const`](#enum-const)), on a schema wh
 conjuncts share no value, or on one writing a union beside its object body no branch of which an
 instance of the body satisfies ([`union-beside-structure`](#union-beside-structure)), which is
 reported where it is written, each read through a chain of `$ref`s each admitting no value, up to
-256 of them. So a schema composing a reported one draws no second report. Any other conjunct admitting no value is named `no value` in the report, alone or
+256 of them. So a schema composing a reported one draws no second report. An inline entry whose
+value set the position lowers as ([`allof-refinement`](#allof-refinement)) and whose keywords leave
+it no kind is read as the same keywords beside the `allOf` are: its `type`, its value set and each
+union it writes, each a conjunct named below the entry, so `{allOf: [{$ref: T}, {const: 1, enum:
+[a]}]}` over a `T` of strings and integers draws no report, its set saying so where it is written,
+as beside the `allOf`. Any other
+conjunct admitting no value is named `no value` in the report, alone or
 beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
 a schema that admits none and says nothing of it, such as a `type` other than `object` beside a
 union none of whose branches it admits, or beside a `$ref` to another kind. A read cut short decides
@@ -3551,7 +3565,8 @@ is written ([`enum-const`](#enum-const)), so the `allOf` draws nothing more.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
+- Tests: `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
+  `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
   `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`, `schema.TestAllOf_AValueSetBesideAUnionWarnsOnce`,
   `schema.TestAllOf_DisjointReportStaysSilent`,
   `schema.TestAllOf_AKeywordBesideARefIsReadAtEveryVersion`,
@@ -4144,8 +4159,10 @@ an `allOf` that refines being no such sibling but a conjunction the unions are c
 ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
-each conjunct it beats kept as that rule keeps it, so the election passes over the `allOf` only where
-no value set is elected, one whose own keywords leave it no value among them, keeping it whole where
+each conjunct it beats kept as that rule keeps it, a set its own keywords leave no value standing for
+the keyword this election elects of it, each reported apart: the keyword passed over with an info, as
+below, and each conjunct the set beats as that rule reports it, where one info named both. So the
+election passes over the `allOf` only where no value set is elected, keeping it whole where
 it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, as the `$ref` beside it
 is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
 an object,

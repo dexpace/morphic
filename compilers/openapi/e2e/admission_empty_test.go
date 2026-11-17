@@ -29,13 +29,19 @@ type emptyConjunct struct {
 var emptyConjuncts = []emptyConjunct{
 	{"an inline type beside a value set of another", bothVersions, nil,
 		[]string{"{type: string, enum: [1]}", "{type: object}"},
-		[]wantFinding{{code: diag.DegradedConstruct, pointer: "/components/schemas/C", contains: []string{disjoint, ": no value", "object"}}}},
+		[]wantFinding{
+			{code: diag.DegradedConstruct, pointer: "/components/schemas/C", contains: []string{disjoint, "/type: string", "/enum: integer", "object"}},
+			{code: diag.DegradedConstruct, pointer: "/components/schemas/C/allOf/{0}/enum/0", contains: []string{"no instance matches"}},
+		}},
 	{"an inline empty enum", bothVersions, nil,
 		[]string{"{enum: []}", "{type: string}", "{type: integer}"},
 		[]wantFinding{{code: diag.DegradedConstruct, pointer: "/components/schemas/C", contains: []string{disjoint, ": no value", "string", "integer"}}}},
 	{"a lone inline conjunct", bothVersions, nil,
 		[]string{"{type: string, enum: [1]}"},
-		[]wantFinding{{code: diag.DegradedConstruct, pointer: "/components/schemas/C", contains: []string{disjoint, "allOf/0: no value"}}}},
+		[]wantFinding{
+			{code: diag.DegradedConstruct, pointer: "/components/schemas/C", contains: []string{disjoint, "allOf/0/type: string", "allOf/0/enum: integer"}},
+			{code: diag.DegradedConstruct, pointer: "/components/schemas/C/allOf/0/enum/0", contains: []string{"no instance matches"}},
+		}},
 	{"a target nothing reports", bothVersions, []string{"X: {type: string, anyOf: [{type: integer}, {type: boolean}]}"},
 		[]string{"{$ref: '#/components/schemas/X'}", "{type: string}"},
 		[]wantFinding{{code: diag.DegradedConstruct, pointer: "/components/schemas/C", contains: []string{disjoint, ": no value", "string"}}}},
@@ -69,12 +75,12 @@ var bothVersions = []string{"3.0.3", "3.1.0"}
 
 // TestCompile_AnEmptyConjunctIsReportedWhereNothingElseSaysSo holds that an
 // allOf one of whose conjuncts admits no value is reported at the schema,
-// naming that conjunct "no value", wherever nothing else says so: an inline
-// conjunct, alone or beside others, and a $ref to a schema whose type and
-// union share nothing. Where the conjunct says so itself, a `false` entry or a
-// $ref to a schema whose value set or empty enum is reported, the allOf draws
-// nothing more. Each holds at both versions, in both orders of the components
-// and of the entries.
+// naming it "no value", where nothing else says so: an inline empty enum, and
+// a $ref to a schema whose type and union share nothing. An inline value set
+// outside its own type lowers the position, so the report names its type and
+// its set, as beside the allOf. A `false` entry, or a $ref to a schema whose
+// value set or empty enum is reported, says so itself, and the allOf draws
+// nothing more. Each holds at both versions, in every order.
 func TestCompile_AnEmptyConjunctIsReportedWhereNothingElseSaysSo(t *testing.T) {
 	t.Parallel()
 	for _, tc := range emptyConjuncts {

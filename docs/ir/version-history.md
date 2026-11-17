@@ -995,8 +995,14 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi/conflicting-redeclaration` warning sits where the declaration that lost is written, and
   one every model composing the same two declarations draws alike is reported once, saying how many
   models compose both, where each of them reported it at the entry bringing that declaration
-  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
-  pinned to 0.69.0 refuses the document; one reading such a bound
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A value set
+  an `allOf` entry writes whose own keywords leave it no value, a `const` and an `enum` sharing none,
+  a `const` outside its `type` or one beside a union of another kind, lowers as the keyword the
+  election of competing keywords elects, keeping the `$ref` and the rest, as beside the `$ref` or the
+  `allOf`, where the `allOf` composed a `Model` over a target of another kind; there the `$ref` it
+  beats is reported apart from the keyword passed over
+  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A consumer pinned to 0.69.0
+  refuses the document; one reading such a bound
   off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
   the carrier names, one reading a node's kind as declared finds the marker where it was not, one
   reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
@@ -1020,4 +1026,4 @@ it sees. Changes made together in one bump are listed together under it.
   reading the keywords of a document with an unresolved `$ref` entry finds the reference and each
   keyword beside it under `Unmodeled` where it found nothing, and one counting conflicting
   redeclarations finds one per pair of declarations, member and outcome, where it found one per model
-  composing them.
+  composing them, and one reading such an entry's `allOf` as a `Model` finds the value set.

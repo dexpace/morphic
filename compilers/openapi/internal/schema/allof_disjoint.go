@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -99,7 +100,12 @@ const noValue = "no value"
 // `type: "null"` beside what takes its null away draws nil too, but one
 // admitting nothing by itself is named, as nothing else reports it.
 func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
-	atoms := conjunctAtoms(c, s, comp)
+	return disjointAtoms(c, s, conjunctAtoms(c, s, comp))
+}
+
+// disjointAtoms names what each of atoms, the conjuncts of the allOf s
+// writes, admits where they share no value, as disjointConjuncts does.
+func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []string {
 	joint := anyInstance
 	for _, a := range atoms {
 		if a.cut {
@@ -172,6 +178,34 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		}
 	}
 	return out
+}
+
+// refinedAtoms returns the conjuncts of r's composition as conjunctAtoms reads
+// them, but for an inline principal lowering to a value set whose keywords
+// leave it no kind, which is read as the same keywords beside the allOf are:
+// its `type`, its set and each union it writes, a set holding no value its own
+// type admits saying so where it is written (valueSetAtom), as the election of
+// competing keywords lowers it there (setElected).
+func refinedAtoms(c lowering.Ctx, s *statement.Schema, r refinement) []conjunctAtom {
+	atoms := conjunctAtoms(c, s, r.comp)
+	e, ok := valueSetPrincipal(r)
+	if !ok {
+		return atoms
+	}
+	at := slices.IndexFunc(atoms, func(a conjunctAtom) bool { return a.st == e.schema })
+	if at < 0 || atoms[at].admits != 0 {
+		return atoms
+	}
+	name, bs := atoms[at].name, e.schema.Schema
+	own := []conjunctAtom{{name: name + "/type", admits: declaredInstanceTypes(bs), words: bs}}
+	if set, written := valueSetAtom(c, bs); written {
+		set.name = name + "/" + set.name
+		own = append(own, set)
+	}
+	choice := choiceIn(bs)
+	own = append(own, unionAtoms(c, name+"/oneOf", choice.OneOf)...)
+	own = append(own, unionAtoms(c, name+"/anyOf", choice.AnyOf)...)
+	return slices.Concat(atoms[:at], own, atoms[at+1:])
 }
 
 // valueSetAtom returns the enum or the const s writes beside its allOf as a
