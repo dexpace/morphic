@@ -154,13 +154,21 @@ func hierarchyRoute(c lowering.Ctx, ts *compile.Types, chain valueChain) (ir.Typ
 // branch. is keys each branch's own position and its variant's type by the
 // first branch they are; passes keys each other position a branch's chain of
 // $refs passes by the first branch passing it, and several by every branch
-// passing it.
+// passing it. dead holds the routes of the mapping that name a dead branch
+// (deadRoutesOf), which route nowhere.
 type branchIndex struct {
 	variants []ir.Variant
 	pointers []jsontext.Pointer
 	is       map[ir.TypeID]int
 	passes   map[ir.TypeID]int
 	several  map[ir.TypeID][]int
+	dead     []deadRoute
+}
+
+// newBranchIndex is an index of no branch yet, over variants.
+func newBranchIndex(variants []ir.Variant) *branchIndex {
+	return &branchIndex{variants: variants, is: map[ir.TypeID]int{}, passes: map[ir.TypeID]int{},
+		several: map[ir.TypeID][]int{}}
 }
 
 // indexBranches indexes the branches of the union u, whose variants are
@@ -169,8 +177,8 @@ type branchIndex struct {
 // reaches an answer. A branch's chain is read as a value's is (follow).
 func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchIndex {
 	branches, key, _ := unionBranches(u.holder)
-	x := &branchIndex{variants: variants, is: map[ir.TypeID]int{}, passes: map[ir.TypeID]int{},
-		several: map[ir.TypeID][]int{}}
+	x := newBranchIndex(variants)
+	x.dead = u.deadRoutes
 	for n, b := range branches {
 		// A non-null branch lacking its variant is a compiler bug
 		// spellImplicitRoutes reports; it routes nothing here.
@@ -182,16 +190,30 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(n))
 		x.pointers = append(x.pointers, vptr)
 		keepFirst(x.is, variants[i].Type.Target, i)
-		own := c.Position(vptr)
-		if id, ok := declaredAt(c, own, st); ok {
-			keepFirst(x.is, id, i)
-		}
-		for _, l := range follow(c, link{at: own, decl: st}).links[1:] {
-			keepFirst(x.passes, l.id, i)
-			x.several[l.id] = append(x.several[l.id], i)
-		}
+		x.key(c, st, vptr, i)
 	}
 	return x
+}
+
+// key keys st, the branch written at vptr, as i: its own position's declared
+// type, and each position its chain of $refs passes.
+func (x *branchIndex) key(c lowering.Ctx, st *statement.Statement, vptr jsontext.Pointer, i int) {
+	own := c.Position(vptr)
+	if id, ok := declaredAt(c, own, st); ok {
+		keepFirst(x.is, id, i)
+	}
+	for _, l := range follow(c, link{at: own, decl: st}).links[1:] {
+		keepFirst(x.passes, l.id, i)
+		x.several[l.id] = append(x.several[l.id], i)
+	}
+}
+
+// routesDead reports whether the route keyword names, the mapping entry keyed
+// tag or the defaultMapping, names a dead branch of the union x indexes.
+func (x *branchIndex) routesDead(keyword, tag string) bool {
+	return x != nil && slices.ContainsFunc(x.dead, func(r deadRoute) bool {
+		return r.keyword == keyword && r.tag == tag
+	})
 }
 
 // keepFirst keys id by i, unless an earlier branch has it.
@@ -228,6 +250,9 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *statement.Discri
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, len(d.Mapping))
 	for _, e := range d.Mapping {
+		if x.routesDead("mapping", e.Value) {
+			continue
+		}
 		id, ok, entryDiags := routeEntry(c, ts, d, x, e.Target, "discriminator mapping "+strconv.Quote(e.Value),
 			pointer+ids.Ptr("discriminator", "mapping", e.Value))
 		diags = append(diags, entryDiags...)
@@ -245,7 +270,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *statement.Discri
 // routes to, as discriminatorMapping resolves an entry.
 func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *statement.Discriminator, x *branchIndex, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.DefaultMapping
-	if dm == "" {
+	if dm == "" || x.routesDead("defaultMapping", "") {
 		return "", nil
 	}
 	id, ok, diags := routeEntry(c, ts, d, x, dm, "discriminator defaultMapping", pointer+ids.Ptr("discriminator", "defaultMapping"))

@@ -6,8 +6,12 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -24,16 +28,20 @@ type deadBranchesOf struct {
 
 // deadBranches marks, by index, each branch of the union holder writes that no
 // instance of body satisfies (deadBranch), read once a run, as every reader of
-// the position asks. Where body's own conjuncts share no kind, it admits no
-// object for a branch to share, which the warning
-// docs/compilers/openapi.md#allof-disjoint-conjuncts gives says of the schema
-// whole, so none is marked. That reading leaves null out: the nulls walk would
-// classify body's union again.
+// the position asks. Where body's own conjuncts share no kind, the entry
+// holder is aside, it admits no object for a branch to share, which the
+// warning docs/compilers/openapi.md#allof-disjoint-conjuncts gives says of the
+// schema whole, so none is marked. That reading leaves null out: the nulls
+// walk would classify body's union again.
 func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 	return lowering.Remembered(c, deadBranchesOf{body, holder}, func() []bool {
 		branches, _, _ := unionBranches(holder)
 		out := make([]bool, len(branches))
-		if conjunctsShareNothing(c, body) {
+		var aside *statement.Schema
+		if holder != body {
+			aside = holder
+		}
+		if conjunctsShareNothing(c, body, aside) {
 			return out
 		}
 		for i, b := range branches {
@@ -140,30 +148,226 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 		}
 		names = append(names, pathFrom(pointer, d.at)+": "+word)
 	}
-	_, key, _ := unionBranches(u.holder)
-	// The body admits objects alone, and null where it does not keep it out, in
-	// which case a dead branch admits no null either (deadBranch).
-	opening := fmt.Sprintf("the body beside this %s admits objects alone, null aside, and", key)
-	either, neither := "an object or null", "no object and no null"
-	if bodyForbidsNull(c, body) {
-		opening = fmt.Sprintf("the body beside this %s admits objects alone, and", key)
-		either, neither = "an object", "no object"
+	r := deadReport{listed: strings.Join(names, ", "), dead: len(found)}
+	r.branches, r.key, _ = unionBranches(u.holder)
+	if u.branch {
+		r.on = pathFrom(pointer, u.at)
 	}
-	if !hasLiveBranch(c, u, dead) {
-		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
-			"%s none of its %d branches admits %s (%s), so no instance satisfies this schema, which lowers as its "+
-				"body alone", opening, len(found), either, strings.Join(names, ", "))}
+	if hasLiveBranch(c, u, dead) {
+		r.routes = routesClause(u, "it")
+		if r.dead > 1 {
+			r.routes = routesClause(u, "them")
+		}
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "%s",
+			r.some(bodyForbidsNull(c, body), kept))}
 	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "%s",
+		r.none(c, body))}
+}
+
+// deadReport is what diagDeadBranches says of a union: its keyword and
+// branches, the dead ones listed, and on, the path from the body of the allOf
+// entry it is written on, empty for a union beside the body.
+type deadReport struct {
+	branches []statement.Sub
+	key, on  string
+	listed   string
+	routes   string
+	dead     int
+}
+
+// subject opens a report of a union beside its body, which admits objects
+// alone, and null where it does not keep it out, in which case a dead branch
+// admits no null either (deadBranch): it returns the opening and how to say
+// that a branch admits some of what the body admits, and none of it.
+func (r deadReport) subject(forbids bool) (opening, either, neither string) {
+	if forbids {
+		return "the body beside this " + r.key + " admits objects alone, and", "an object", "no object"
+	}
+	return "the body beside this " + r.key + " admits objects alone, null aside, and", "an object or null",
+		"no object and no null"
+}
+
+// some is the report of dead branches beside live ones: they are no variants,
+// kept verbatim where kept says so. A union on an entry is judged against the
+// rest of the allOf, which may admit more kinds than an object, none a
+// distributed branch admits.
+func (r deadReport) some(forbids, kept bool) string {
 	verb, pronoun, rest := "admit", "them", "they are no variants of the union"
-	if len(found) == 1 {
+	if r.dead == 1 {
 		verb, pronoun, rest = "admits", "it", "it is no variant of the union"
 	}
 	if kept {
 		rest += ", kept verbatim under Unmodeled"
 	}
-	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
-		"%s %d of its branches %s %s (%s), so no instance satisfies %s: %s",
-		opening, len(found), verb, neither, strings.Join(names, ", "), pronoun, rest)}
+	rest += r.routes
+	if r.on != "" {
+		return fmt.Sprintf("%d of the %d branches of the %s on %s %s no value the rest of the allOf admits (%s), "+
+			"so no instance satisfies %s: %s", r.dead, len(r.branches), r.key, r.on, verb, r.listed, pronoun, rest)
+	}
+	opening, _, neither := r.subject(forbids)
+	return fmt.Sprintf("%s %d of its branches %s %s (%s), so no instance satisfies %s: %s",
+		opening, r.dead, verb, neither, r.listed, pronoun, rest)
+}
+
+// none is the report of a union no branch of which lives, each but its null
+// ones dead: the schema lowers as its body alone, and admits null alone where
+// the body admits null and the union takes it, by its one null branch or by
+// any of them where it is an anyOf.
+func (r deadReport) none(c lowering.Ctx, body *statement.Schema) string {
+	nulls := len(r.branches) - r.dead
+	forbids := bodyForbidsNull(c, body)
+	if r.on != "" {
+		// A body writing its union on an entry writes an allOf, which
+		// bodyForbidsNull leaves unread; the nulls walk reads it whole.
+		n := newNulls(c)
+		forbids = !n.schema(body, nullSite{}).admits(c)
+	}
+	but, none := "", "no instance"
+	if nulls > 0 && !forbids {
+		but = " but its null ones"
+		if nulls == 1 {
+			but = " but a null one"
+		}
+		if nulls == 1 || r.key == "anyOf" {
+			none = "no instance but null"
+		}
+	}
+	if r.on != "" {
+		return fmt.Sprintf("none of the %d branches of the %s on %s%s admits a value the rest of the allOf admits "+
+			"(%s), so %s satisfies this schema, which lowers as the rest of the allOf",
+			len(r.branches), r.key, r.on, but, r.listed, none)
+	}
+	opening, either, _ := r.subject(forbids)
+	return fmt.Sprintf("%s none of its %d branches%s admits %s (%s), so %s satisfies this schema, which lowers as "+
+		"its body alone", opening, len(r.branches), but, either, r.listed, none)
+}
+
+// diagDeadEntryUnion is the one warning s, written at pointer, draws where u,
+// the union on an entry of its allOf, keeps no branch beside the rest of it
+// (unionNoLiveBranch) and the report of conjuncts sharing no value
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts) is silent: that report
+// reads a union as the nulls walk does, admitting a null the rest admits,
+// where a union no branch of which admits null refuses it.
+func diagDeadEntryUnion(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
+	if len(disjointConjuncts(c, s, allOfBranches(c, s, pointer))) > 0 {
+		return nil
+	}
+	return diagDeadBranches(c, s, u, deadBranches(c, s, u.holder), pointer, false)
+}
+
+// deadRoute is a route the discriminator standing with a union takes to a
+// dead branch of it, which routes to no variant: the mapping entry keyed tag,
+// written to target, the defaultMapping, tag empty, or, keyword empty, the
+// implicit route by tag, the name of the component the branch names.
+type deadRoute struct {
+	keyword, tag, target string
+}
+
+// deadRoutesOf returns the routes the discriminator standing with u takes to
+// a dead branch: each value of its mapping and its defaultMapping whose chain
+// a dead branch meets first, every branch but a null one indexed as
+// indexBranches indexes a variant's, and the name of each dead branch's
+// component that no entry keys and no other branch names, which OpenAPI
+// routes by. A union with no dead branch has none.
+func deadRoutesOf(c lowering.Ctx, u unionAt) []deadRoute {
+	if u.disc == nil || !slices.Contains(u.dead, true) {
+		return nil
+	}
+	branches, key, _ := unionBranches(u.holder)
+	x := newBranchIndex(nil)
+	named := map[string][]int{}
+	for n, b := range branches {
+		st := c.Statements().Sub(b)
+		if nullBranch(c, st) {
+			continue
+		}
+		x.key(c, st, u.at+ids.Ptr(key, strconv.Itoa(n)), n)
+		if name, _, ok := componentNamed(c.RefScope(), referenceOf(c, st)); ok {
+			named[name] = append(named[name], n)
+		}
+	}
+	meets := func(value string) bool {
+		chain, ok := chainOf(c, u.disc, value)
+		if !ok {
+			return false
+		}
+		n, _, met := x.route(chain)
+		return met && u.dead[n]
+	}
+	var out []deadRoute
+	for _, e := range u.disc.Mapping {
+		if meets(e.Target) {
+			out = append(out, deadRoute{keyword: "mapping", tag: e.Value, target: e.Target})
+		}
+		delete(named, e.Value) // an entry keying the name overrides its route
+	}
+	if dm := u.disc.DefaultMapping; dm != "" && meets(dm) {
+		out = append(out, deadRoute{keyword: "defaultMapping", target: dm})
+	}
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		if ns := named[name]; len(ns) == 1 && u.dead[ns[0]] {
+			out = append(out, deadRoute{tag: name})
+		}
+	}
+	return out
+}
+
+// keepDeadRoutes keeps on n, the Union of u, each route its discriminator
+// writes to a dead branch of u, which n's Discriminator leaves out: verbatim,
+// keyed by its path from n's position as the discriminator's extensions are
+// (discriminatorScope), `openapi:discriminator/mapping/<tag>` beside the
+// union. Where n holds no discriminator the census keeps it whole.
+func keepDeadRoutes(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
+	if n.Discriminator == nil {
+		return nil
+	}
+	owner, scope := discriminatorScope(u, n.Provenance.Pointer)
+	var diags []ir.Diagnostic
+	for _, r := range u.deadRoutes {
+		if r.keyword == "" {
+			continue // an implicit route writes nothing to keep
+		}
+		tokens := []string{r.keyword}
+		if r.keyword == "mapping" {
+			tokens = append(tokens, r.tag)
+		}
+		at := ids.Ptr(tokens...)
+		node := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: r.target}
+		_, keptDiags := annotation.PreserveNodeInto(&n.Unmodeled, "openapi:"+scope+string(at), node,
+			ir.ReasonDegradedLowering, c.Place().At(owner+at))
+		diags = append(diags, keptDiags...)
+	}
+	return diags
+}
+
+// routesClause is what the warning of u's dead branches says of the routes
+// its discriminator takes to them (deadRoutesOf), pronoun naming the branches:
+// none routes, and those it writes are kept. Tags are listed in byte order, as
+// no order of the mapping is the document's.
+func routesClause(u unionAt, pronoun string) string {
+	if len(u.deadRoutes) == 0 {
+		return ""
+	}
+	tags := make([]string, 0, len(u.deadRoutes))
+	written := false
+	for _, r := range u.deadRoutes {
+		switch r.keyword {
+		case "mapping":
+			tags = append(tags, "mapping "+strconv.Quote(r.tag))
+		case "defaultMapping":
+			tags = append(tags, "defaultMapping")
+		default:
+			tags = append(tags, "the name "+strconv.Quote(r.tag))
+		}
+		written = written || r.keyword != ""
+	}
+	slices.Sort(tags)
+	clause := "; no tag of the discriminator routes to " + pronoun + " (" + strings.Join(tags, ", ") + ")"
+	if written {
+		clause += ", the routes it writes kept verbatim under Unmodeled"
+	}
+	return clause
 }
 
 // hasLiveBranch reports whether some branch of u is neither dead nor null.
