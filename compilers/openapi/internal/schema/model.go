@@ -52,9 +52,9 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // objectNode is the node an object lowering yields: the MapT m is when it is a
 // map and nothing else, else m (docs/ir/containers.md). It reads the built
 // Model rather than the schema, so a keyword that comes to fill a Model field
-// keeps the position a Model without a second predicate to update. A composed
-// union variant and a false schema skip it: one always holds its branch as a
-// Base or Mixin, and the other is closed.
+// keeps the position a Model without a second predicate to update. A union
+// variant composing its branch holds it as a Base or Mixin, and a false schema
+// is closed, so neither is ever a map.
 func objectNode(m *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(m); ok {
 		return mt

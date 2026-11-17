@@ -1137,7 +1137,9 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
 	if !composes {
-		return m, append(diags, keepUncomposedBranch(c, m, body.comp, b)...)
+		// A variant composing nothing over a body that is a map alone is that map.
+		diags = append(diags, keepUncomposedBranch(c, m, body.comp, b)...)
+		return objectNode(m), diags
 	}
 	conjoinBranch(m, branch)
 	// No variant carries a DiscriminatorValue, which tags a hierarchy's

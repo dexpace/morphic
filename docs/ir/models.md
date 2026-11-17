@@ -401,8 +401,10 @@ must never return early on the combinator and drop the composition. It distribut
 is a `Model` carrying `S`'s own `Base`/`Mixins`/`Properties`/`required`/`Additional`, with that
 branch's referent conjoined by the same rule as an `allOf` entry (`Base` when the composition
 named none, else a `Mixin`), and so only where the branch is an object
-([above](#composition-entries)): a variant over a string names no `Base`, and the OpenAPI compiler
-keeps that branch verbatim on it. The composition rides on every variant rather than being merged
+([above](#composition-entries)): a variant over a branch admitting another kind names no `Base`,
+and the OpenAPI compiler keeps that branch verbatim on it, so where `S` is a map and nothing else
+that variant is the map's `MapT` ([containers](containers.md)), as such a `Model` always is. The
+composition rides on every variant rather than being merged
 into one or dropped, so no `allOf` branch is flattened. A property `S` declares appears on each
 variant under its single source-derived `PropID`, since the source declares it once.
 

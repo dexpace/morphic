@@ -924,9 +924,9 @@ it sees. Changes made together in one bump are listed together under it.
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
   union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
   such a list aside, keeping any other under its path from the schema, `openapi:oneOf/<i>` or
-  `openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry, and holds
-  only the bounds the kinds it admits take, its branch's within the body's, where it held each the
-  position took. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
+  `openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry, a variant
+  keeping its branch beside a map being that map's `MapT`, and holds only the bounds the kinds it
+  admits take, its branch's within the body's, where it held each the position took. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
   `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
   distributed. A composed `Model` takes `Additional` and `AdditionalProps` from the one schema
   object of its `allOf` whose `additionalProperties` reads every member the conjuncts declare

@@ -3600,7 +3600,7 @@ referent per conjunct, the shape `allOf` writes, and cannot state "conjoined wit
 languages are not the constraint here; TypeScript writes `{a: string} & (X | Y)` directly. Where the
 conjunction *distributes*, [models](../ir/models.md#composition-beside-a-union) gives the
 rule: the body is composed into each variant, and the result is an ordinary `Union` of composed
-`Model`s, reported as an info `openapi/composition-lowering` at the schema, since nothing is lost
+`Model`s (or a map's `MapT`, below), reported as an info `openapi/composition-lowering` at the schema, since nothing is lost
 but the IR's shape no longer mirrors the source's, bar one thing: a `false` in the `allOf` states
 that the composition admits nothing, which every composed variant then holds only as the closed
 model [`allof-false-branch`](#allof-false-branch) gives it, with the branch kept on each. A
@@ -3615,7 +3615,9 @@ which its own node holds over the whole list. Any other branch, admitting anothe
 kind, is kept verbatim on its variant under its path from the schema, `openapi:oneOf/<i>` or
 `openapi:anyOf/<i>` beside the body and `openapi:allOf/<n>/oneOf/<i>` on an entry
 (`degraded_lowering`), with an info `openapi/degraded-construct` at the branch,
-and still lowers at its own pointer ([models](../ir/models.md#composition-entries)). A variant holds
+and still lowers at its own pointer ([models](../ir/models.md#composition-entries)). Such a
+variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
+([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
 and one no variant takes is kept on the `Union` ([`constraints`](#constraints)): beside `type:
 object`, a variant over a string holds no property count. Object keywords written with no `type`, a
@@ -3836,6 +3838,8 @@ judged as one whose branches declare shape.
   `e2e.TestVariantBounds_ATypeListBranchWritingBesideItsRefIsKept`,
   `schema.TestOneOf_CoDeclaredTypeListBranchComposesItsObject`,
   `schema.TestOneOf_AKeptBranchIsKeyedByItsPathFromTheSchema`,
+  `schema.TestOneOf_AVariantKeepingItsBranchBesideAMapIsAMap`,
+  `e2e.TestCompile_AVariantKeepingItsBranchBesideAMapIsThatMap`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
