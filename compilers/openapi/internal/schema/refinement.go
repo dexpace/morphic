@@ -1073,7 +1073,12 @@ type keptRef struct {
 func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.Pointer]keptRef {
 	alike := map[[2]string][]jsontext.Pointer{}
 	for _, b := range branches {
-		raw, _ := annotation.RawFromNode(b.entry.schema.Node)
+		raw, err := annotation.RawFromNode(b.entry.schema.Node)
+		if err != nil {
+			// An entry that cannot render is alike to no other: its pointer,
+			// which no JSON text spells, ranks it.
+			raw = ir.RawValue(b.entry.pointer)
+		}
 		_, text := refSpelling(b.entry.schema)
 		alike[[2]string{text, string(raw)}] = append(alike[[2]string{text, string(raw)}], b.entry.pointer)
 	}
