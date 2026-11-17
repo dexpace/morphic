@@ -2152,8 +2152,10 @@ depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-
 off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
 discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
 admits every kind, or another kind than an object, composes nothing, so no `Model` names a base or a
-mixin that is no object: it is kept verbatim under `openapi:allOf/<n>` (`degraded_lowering`) with an
-info `openapi/degraded-construct` at the entry, and its target still lowers. A composition meets one
+mixin that is no object: its reference is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
+reference text where several are kept, a failed one's among them (`degraded_lowering`), with an
+info `openapi/degraded-construct` at the entry, and its target still lowers. What such an entry
+writes beside its `$ref` is a conjunct of its own, kept by keyword as an inline entry's is. A composition meets one
 only where its read is cut short or its conjuncts share no value, as `{allOf: [{$ref: List}], type:
 object}` over an array does. A `$ref` entry naming no schema composes nothing either, and is kept
 under `openapi:$ref` ([`allof-inline-residue`](#allof-inline-residue)). The election reads the source, so no declaration order decides it, and a field
@@ -2363,7 +2365,7 @@ another URI, the same spelling may name another schema, while an absolute one na
 wherever it is read. A copy in another document is read apart. One saying
 more is kept under its own keyword, `openapi:<keyword>`, on a branch as beside the `allOf`, each
 reported as an info `openapi/degraded-construct` at the branch or at the position, a branch kept
-whole only where [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept as written under
+whole only where [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept, its text alone, under
 `openapi:$ref`, or `openapi:$ref/<i>` where it keeps several, `i` its rank by reference text, then by
 the entry as written, so no order of the entries decides, two written alike being one entry at the
 position. One a value set beats still
