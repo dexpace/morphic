@@ -329,25 +329,30 @@ hint its position gives it, an operation's or a response's included. A hint is a
 documents and the position alone, so an outside `$ref` naming the branch pointer gives the same one,
 whichever lowering interns the node.
 
-`Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
-`allOf: [{$ref: Pet}, {$ref: Tags}]` is legal and, `Tags` being a list, lowers to a `Mixin` pointing
-at a `List`, and the same holds for a `Scalar`, an `Enum`, a `Union`, a `MapT`, or the top type. They
-are typed `TypeRef` rather than "reference to a `Model`" for exactly that reason — narrowing them
-would mean dropping a branch the source wrote, against invariant 2. What is *shaped* like `allOf` is
-the composition itself: one referent per conjunct, resolved by reference. Emitters that can only
-render model inheritance are the ones that must lower a non-`Model` conjunct to something their
-target can express. An `allOf` none of whose conjuncts can make an object has nothing to compose, so
-short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of them.
+`Base` and `Mixins` name the referents a composition of objects composes: a `$ref` entry is one
+only where the schema it lands on lowers to an object alone, null aside, so no `Model` names a base
+or a mixin that is no object. In JSON Schema any schema may be a conjunct: `allOf: [{$ref: Pet},
+{$ref: Tags}]` is legal and, `Tags` being a list, admits no instance, so it composes `Pet` and keeps
+the `$ref` to `Tags` verbatim under `openapi:allOf/1` with an info, as it keeps one to a `Scalar`, an
+`Enum`, a union admitting another kind or the top type: no branch the source wrote is dropped,
+against invariant 2. They are typed `TypeRef` rather than "reference to a `Model`" because a union
+of objects ([below](#a-union-a-composition-names)) and the alias a `$ref` entry's siblings hoist over
+one are referents too. What is *shaped* like `allOf` is the composition itself: one referent per
+conjunct, resolved by reference. An `allOf` whose kinds are not an object alone has nothing to
+compose, so short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of its
+conjuncts.
 
 ## An allOf no object satisfies
 
 A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
-admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
-the conjunct that decides it, short of the cases the OpenAPI compiler's rule
-[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s among
-them: a reference to its `$ref`, a node at an inline branch's own pointer, and an alias only where
-the position writes what no carrier holds. A union written beside the `allOf` is one more conjunct,
-as one on a branch is.
+admits none, so it is no composition, nor is `allOf: [{$ref: AnyT}]` over a schema admitting every
+kind, which admits strings a `Model` excludes. An `allOf` whose kinds are not an object alone lowers
+to one use of the conjunct that decides it, short of the cases the OpenAPI compiler's rule
+[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing: a reference to its
+`$ref`, of several the one lying within more conjuncts, a node at an inline branch's own pointer,
+and an alias only where the position writes what no carrier holds. A union written beside the
+`allOf` is one more conjunct, as one on a branch is, unless it shares no kind with the rest, when it
+is kept beside what the rest lowers to.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
 
@@ -355,7 +360,7 @@ Nothing here is the flattening the [design rules](./README.md#design-rules) leav
 member of one node is copied into another, and no conjunct is lost: it is the reference the position
 names, an annotation read where the same keyword beside the `allOf` is read, what the position
 already says, or kept whole under its path, as a `$ref` a value set narrows is. An `allOf` whose
-conjuncts can be objects composes as it always did, one sole `$ref` with nothing beside it a
+kinds are an object alone composes as it always did, one sole `$ref` with nothing beside it a
 decorator ([annotations](./annotations.md#decorators)) for emitters to collapse.
 
 The designs this was weighed against:
@@ -448,8 +453,10 @@ pointer, which keeps naming the branch's own node. The designs this was weighed 
 
 ## A union a composition names
 
-A union a composition names by reference, rather than writing it beside the `allOf` or on one of its
-inline branches, composes as any other referent does ([composition entries](#composition-entries)):
+A union of objects a composition names by reference, rather than writing it beside the `allOf` or on
+one of its inline branches, composes as any other referent does
+([composition entries](#composition-entries)), and one admitting another kind is kept as any
+conjunct that is no object is:
 the `Model` names it as its `Base` or a `Mixin`, declares what the schema writes itself, and
 distributes nothing. So does a union written beside or on the `allOf` of a subtype a discriminator
 routes to, through the `Union` minted for it ([above](#composition-beside-a-union)).

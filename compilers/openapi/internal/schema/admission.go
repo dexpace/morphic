@@ -371,8 +371,8 @@ func newAdmission(c lowering.Ctx) admission {
 }
 
 // incomplete reports whether the read met what it cannot answer for: a cycle
-// or more than its budget, a $ref landing on no schema, a $dynamicRef, or a
-// value it cannot convert.
+// or more than its budget, a $ref landing on no schema, or a value it cannot
+// convert.
 func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
 
 // of is what js, a schema of any form written anywhere, admits, as the run
@@ -380,11 +380,13 @@ func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.
 // document holding it, conjoined with its allOf, its unions and what its $ref
 // lands on. It spends what that read takes in, so a read past either cap, or
 // one admissionOf could not settle, is cut short here as reading it would be.
+// A $dynamicRef the read meets masks no kind: one the position expands is read
+// as what it names, and any other admits every kind.
 func (w *admission) of(js *statement.Statement) admitted {
 	r := admissionOf(w.c, js)
 	w.reads.Spend(r.reads)
 	w.members.Spend(r.members)
-	if r.cut || r.dynamic {
+	if r.cut {
 		w.reads.Exhaust()
 	}
 	return r.admitted
@@ -400,13 +402,30 @@ func lowered(w *admission, js *statement.Statement) admitted {
 }
 
 // loweredAs is read, what js admits, narrowed to the kinds js lowers to where
-// the kind-inference policy read them (readOne), as the node it lowers to
-// excludes every other kind. A read cut short narrows nothing.
+// the kind-inference policy read them (lowersTo), as the node it lowers to
+// excludes every other kind.
 func loweredAs(c lowering.Ctx, js *statement.Statement, read admitted) admitted {
-	if r := admissionOf(c, js); r.inferred && !r.cut {
-		read.kinds &= r.kinds
+	if kinds, inferred := lowersTo(c, js); inferred {
+		read.kinds &= kinds
 	}
 	return read
+}
+
+// lowersTo returns the kinds js lowers to, null aside, and whether the
+// kind-inference policy read them: what the run's admission of it settles
+// (settleKinds), and where that read is cut short, what the policy reads off
+// the keywords js writes itself (claimedKinds), else every kind. The election,
+// the readers of what a position already says and the lowering of a schema
+// naming no kind each read a statement's kinds here.
+func lowersTo(c lowering.Ctx, js *statement.Statement) (kindSet, bool) {
+	r := admissionOf(c, js)
+	if !r.cut {
+		return r.kinds, r.inferred
+	}
+	if claims := claimedKinds(c, js.Schema); claims != 0 {
+		return claims, true
+	}
+	return anyInstance, false
 }
 
 // writtenLowered is what s's own keywords admit as w reads them

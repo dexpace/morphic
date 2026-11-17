@@ -135,14 +135,20 @@ func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfCompositio
 }
 
 // conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
-// beside it, and each flattened branch, a wrapper by its own `type`, an entry
-// nested past statement.MaxFlattenDepth as cut, and a $ref entry writing
+// beside it, each union s writes beside it that shares no kind with the rest
+// (unionAside), and each flattened branch, a wrapper by its own `type`, an
+// entry nested past statement.MaxFlattenDepth as cut, and a $ref entry writing
 // keywords that narrow what it admits as two, the reference and the keywords
 // beside it, which apply to an instance alike. A value set s writes beside the
 // allOf is the election's to weigh (competing-keywords), and is not read.
 func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
-	out := make([]conjunctAtom, 0, 1+len(comp.branches))
+	out := make([]conjunctAtom, 0, 3+len(comp.branches))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
+	if unionAside(c, s) {
+		choice := choiceIn(s)
+		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
+		out = append(out, unionAtoms(c, "anyOf", choice.AnyOf)...)
+	}
 	for _, e := range comp.branches {
 		name := comp.branchPath(e.pointer)
 		r := admissionOf(c, e.schema)
@@ -204,6 +210,22 @@ func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
 		joint &= a.admits
 	}
 	return joint == 0
+}
+
+// unionAtoms returns the union keyword names, written beside an allOf with
+// branches, as one conjunct admitting what any branch does, and none where it
+// writes none.
+func unionAtoms(c lowering.Ctx, keyword string, branches []statement.Sub) []conjunctAtom {
+	if len(branches) == 0 {
+		return nil
+	}
+	atom := conjunctAtom{name: keyword}
+	for _, b := range branches {
+		r := admissionOf(c, c.Statements().Sub(b))
+		atom.admits |= r.admits
+		atom.cut = atom.cut || r.cut
+	}
+	return []conjunctAtom{atom}
 }
 
 // empty reports whether a admits no value by itself, the null included as

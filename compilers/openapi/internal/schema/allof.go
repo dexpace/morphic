@@ -229,14 +229,46 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c, comp.branches)
 	for i, e := range comp.branches {
-		if e.schema.Ref == nil {
+		switch {
+		case e.schema.Ref == nil:
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.Schema, e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
-			continue
+		case composesRef(c, e):
+			diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
+		default:
+			diags = append(diags, keepUncomposedRef(c, ts, m, comp, e)...)
 		}
-		diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
 	}
 	return diags
+}
+
+// composesRef reports whether the $ref entry e is a Base or a Mixin of the
+// composition: the schema it lands on lowers to an object alone, null aside
+// (lowersTo), or its read is cut short, which leaves the composition as it is
+// with no read. A model composes only models
+// (docs/compilers/openapi.md#allof-classification).
+func composesRef(c lowering.Ctx, e allOfBranch) bool {
+	target, _ := declaredOf(c, e.schema)
+	if target == nil || admissionOf(c, target).cut {
+		return true
+	}
+	kinds, _ := lowersTo(c, target)
+	return kinds == kindObject
+}
+
+// keepUncomposedRef keeps the $ref entry e, whose target is no object alone,
+// verbatim under m's Unmodeled and reports it, resolving the target so the
+// document holds what it names.
+func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, e allOfBranch) []ir.Diagnostic {
+	resolveSchemaRef(c, ts, e.schema)
+	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
+		e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
+		"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
+			"is kept verbatim under Unmodeled"))
 }
 
 // fillRefBranch lowers one $ref allOf branch and adds it to the model fields
@@ -466,12 +498,13 @@ func branchExcludesObject(bs *statement.Schema) bool {
 
 // selectAllOfBase returns the index into branches of the one that becomes
 // Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
-// Mixins): of several, the first whose $ref lands on a schema taking part in a
+// Mixins): of the $refs the composition takes (composesRef), the one, or of
+// several the first whose $ref lands on a schema taking part in a
 // discriminator hierarchy (inHierarchy).
 func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
-		if e.schema.Ref != nil {
+		if e.schema.Ref != nil && composesRef(c, e) {
 			refIdxs = append(refIdxs, i)
 		}
 	}

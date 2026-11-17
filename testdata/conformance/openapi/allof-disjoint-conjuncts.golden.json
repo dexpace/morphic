@@ -235,13 +235,21 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/List"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnType/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/OwnType"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/List",
-        "nullable": false
       },
       "abstract": false,
       "positional": false,
@@ -257,20 +265,26 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/NullableStr"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/SharedNull/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/SharedNull"
       },
-      "mixins": [
-        {
-          "target": "t/openapi/components/schemas/NullableStr",
-          "nullable": false
-        },
-        {
-          "target": "t/openapi/components/schemas/NullableObj",
-          "nullable": false
-        }
-      ],
+      "base": {
+        "target": "t/openapi/components/schemas/NullableObj",
+        "nullable": false
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -304,20 +318,26 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/Str"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoRefs/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/TwoRefs"
       },
-      "mixins": [
-        {
-          "target": "t/openapi/components/schemas/Str",
-          "nullable": false
-        },
-        {
-          "target": "t/openapi/components/schemas/Obj",
-          "nullable": false
-        }
-      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Obj",
+        "nullable": false
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -359,12 +379,30 @@
       }
     },
     {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnType/allOf/0"
+      }
+    },
+    {
       "severity": "warning",
       "code": "openapi/degraded-construct",
       "message": "the conjuncts of this allOf share no value (allOf/0: string, allOf/1: object), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/TwoRefs"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoRefs/allOf/0"
       }
     },
     {
@@ -383,6 +421,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Inline/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/SharedNull/allOf/0"
       }
     }
   ],

@@ -610,50 +610,42 @@
 3.0.3/union/type~/none/responseBody/entry	services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:type	kept-key
 3.0.3/union/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.0.3/union/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/allOf.json%2FallOf simple types/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/allOf.json%2FallOf with boolean schemas, all true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/allOf.json%2FallOf with one empty schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/allOf.json%2FallOf with two empty schemas/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/anyOf.json%2FanyOf with boolean schemas, all true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/anyOf.json%2FanyOf with boolean schemas, some true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/anyOf.json%2FanyOf with one empty schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/anyOf.json%2FanyOf/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/array/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/array/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/array/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/array/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/array/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/array/$dynamicRef/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/array/$dynamicRef/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/array/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/array/$dynamicRef/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/array/$dynamicRef/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/array/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/array/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
+3.1.0/array/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/array/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/array/$dynamicRef~/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/array/$dynamicRef~/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/array/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/array/$dynamicRef~/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/array/$dynamicRef~/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/array/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/array/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/array/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
 3.1.0/array/$vocabulary/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/array/$vocabulary/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/array/$vocabulary/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$vocabulary	kept-key
@@ -833,145 +825,42 @@
 3.1.0/array/uniqueItems~/none/responseBody/entry	services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:uniqueItems	kept-key
 3.1.0/array/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/array/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/boolean_schema.json%2Fboolean schema 'true'/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fcontains keyword validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fcontains keyword with boolean schema false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fcontains keyword with boolean schema true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fcontains keyword with const keyword/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fcontains with false if subschema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2Fcontains with null instance elements/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FmaxContains = 0 with minContains = 0/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FmaxContains = minContains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FmaxContains with contains, value with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FmaxContains with contains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FmaxContains without contains is ignored/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains < maxContains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains = 0 with maxContains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains = 0/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains without contains is ignored/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains=1 with contains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains=2 with contains with a decimal value/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/contains.json%2FminContains=2 with contains/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/content.json%2Fvalidation of binary string-encoding/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/content.json%2Fvalidation of binary-encoded media type documents with schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/content.json%2Fvalidation of binary-encoded media type documents/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/content.json%2Fvalidation of string-encoded content based on media type/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/dependentRequired.json%2Fempty dependents/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/dependentRequired.json%2Fsingle dependency/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/dependentSchemas.json%2Fsingle dependency/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/dynamicRef.json%2F$dynamicRef avoids the root of each schema, but scopes are still registered (2020)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/dynamicRef.json%2F$ref to $dynamicRef finds detached $dynamicAnchor (2020)/property/beside	diagnostics:pass/default-outside-type	dynamic-ref-read
-3.1.0/dynamicRef.json%2Fafter leaving a dynamic scope, it is not used by a $dynamicRef (2020)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/enum.json%2Fheterogeneous enum validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-date-time.json%2Fdate-time annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-date-time.json%2Fvalidation of date-time strings/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-date-time.json%2Fvalidation of non-string date-time values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-date.json%2Fdate format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-date.json%2Fvalidation of date strings/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-date.json%2Fvalidation of non-string date values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-duration.json%2Fduration format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-duration.json%2Fvalidation of duration strings/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-duration.json%2Fvalidation of non-string duration values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-email.json%2Femail format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-email.json%2Fvalidation of e-mail addresses/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-email.json%2Fvalidation of non-string email values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-hostname.json%2Fhostname format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-hostname.json%2Fvalidation of A-label (punycode) host names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-hostname.json%2Fvalidation of host names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-hostname.json%2Fvalidation of non-string hostname values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-email.json%2Fidn-email format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-email.json%2Fvalidation of an internationalized e-mail addresses/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-email.json%2Fvalidation of non-string idn-email values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-hostname.json%2Fidn-hostname format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-hostname.json%2Fvalidation of internationalized host names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-hostname.json%2Fvalidation of non-string idn-hostname values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-idn-hostname.json%2Fvalidation of separators in internationalized host names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-ipv4.json%2Fipv4 format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-ipv4.json%2Fvalidation of IP addresses/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-ipv4.json%2Fvalidation of non-string IP addresses/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-ipv6.json%2Fipv6 format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-ipv6.json%2Fvalidation of IPv6 addresses/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-ipv6.json%2Fvalidation of non-string ipv6 values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-iri-reference.json%2Firi-reference format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-iri-reference.json%2Fvalidation of IRI References/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-iri-reference.json%2Fvalidation of non-string iri-reference values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-iri.json%2Firi format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-iri.json%2Fvalidation of IRIs/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-iri.json%2Fvalidation of non-string iri values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-json-pointer.json%2Fjson-pointer format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-json-pointer.json%2Fvalidation of JSON-pointers (JSON String Representation)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-json-pointer.json%2Fvalidation of non-string json-pointer values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-regex.json%2Fregex format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-regex.json%2Fvalidation of non-string regex values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-regex.json%2Fvalidation of regular expressions/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-relative-json-pointer.json%2Frelative-json-pointer format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-relative-json-pointer.json%2Fvalidation of Relative JSON Pointers (RJP)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-relative-json-pointer.json%2Fvalidation of non-string relative-json-pointer values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-time.json%2Ftime format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-time.json%2Fvalidation of non-string time values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-time.json%2Fvalidation of time strings/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-unknown.json%2Funknown format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri-reference.json%2Furi-reference format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri-reference.json%2Fvalidation of URI References/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri-reference.json%2Fvalidation of non-string uri-reference values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri-template.json%2Furi-template format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri-template.json%2Fvalidation of URI-Templates/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri-template.json%2Fvalidation of non-string uri-template values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri.json%2Furi format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri.json%2Fvalidation of URIs/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uri.json%2Fvalidation of non-string uri values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uuid.json%2Fuuid format annotation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uuid.json%2Fuuid format/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/format-uuid.json%2Fvalidation of non-string uuid values/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/id.json%2Forder of evaluation: $id and $anchor and $ref/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/id.json%2Forder of evaluation: $id and $ref/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Felse: false fails when condition does not match/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fif and else without then/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fif and then without else/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fif appears at the end when serialized (keyword processing sequence)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fif with boolean schema false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fif with boolean schema true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fignore else without if/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fignore if without then or else/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fignore then without if/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fthen: false fails when condition matches/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/integer/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/integer/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/integer/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/integer/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/integer/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/integer/$dynamicRef/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/integer/$dynamicRef/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/integer/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/integer/$dynamicRef/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/integer/$dynamicRef/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/integer/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/integer/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
+3.1.0/integer/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/integer/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/integer/$dynamicRef~/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/integer/$dynamicRef~/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/integer/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/integer/$dynamicRef~/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/integer/$dynamicRef~/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/integer/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/integer/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/integer/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
 3.1.0/integer/$vocabulary/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/integer/$vocabulary/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/integer/$vocabulary/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$vocabulary	kept-key
@@ -1111,47 +1000,20 @@
 3.1.0/integer/title~/none/branch/nested	types.variants.name.hint	nested-title
 3.1.0/integer/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/integer/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/items.json%2Fitems with boolean schema (false)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/items.json%2Fitems with boolean schema (true)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maxItems.json%2FmaxItems validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maxLength.json%2FmaxLength validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maxLength.json%2FmaxLength validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maxProperties.json%2FmaxProperties validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maximum.json%2FexclusiveMaximum validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maximum.json%2Fmaximum validation with unsigned integer/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/maximum.json%2Fmaximum validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minItems.json%2FminItems validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minItems.json%2FminItems validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minLength.json%2FminLength validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minLength.json%2FminLength validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minProperties.json%2FminProperties validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minimum.json%2FexclusiveMinimum validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minimum.json%2Fminimum validation with signed integer/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/minimum.json%2Fminimum validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/multipleOf.json%2FmultipleOf int/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/multipleOf.json%2FmultipleOf number/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/multipleOf.json%2FmultipleOf small number/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/multipleOf.json%2FmultipleOf very small number/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/not.json%2Fallow everything with boolean schema false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/not.json%2Fdouble negation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/not.json%2Fnot more complex schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/not.json%2Fnot multiple types/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/not.json%2Fnot/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/object/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
 3.1.0/object/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
 3.1.0/object/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	decorated-object
-3.1.0/object/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	carrier-or-model
-3.1.0/object/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	kept-key
 3.1.0/object/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
 3.1.0/object/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	carrier-or-model
-3.1.0/object/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	kept-key
 3.1.0/object/$dynamicRef/none/property/beside	types.properties.decorator,types.properties.unmodeled	carrier-or-model
-3.1.0/object/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator,types.properties.unmodeled	kept-key
 3.1.0/object/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
 3.1.0/object/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
@@ -1161,15 +1023,15 @@
 3.1.0/object/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
 3.1.0/object/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef~/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	decorated-object
-3.1.0/object/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef~/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	carrier-or-model
-3.1.0/object/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	kept-key
 3.1.0/object/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
 3.1.0/object/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef~/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	carrier-or-model
-3.1.0/object/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	kept-key
 3.1.0/object/$dynamicRef~/none/property/beside	types.properties.decorator,types.properties.unmodeled	carrier-or-model
-3.1.0/object/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/object/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator,types.properties.unmodeled	kept-key
 3.1.0/object/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
 3.1.0/object/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/object/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
@@ -1546,50 +1408,42 @@
 3.1.0/object/xml~/none/property/beside	types,types.properties.type.target,types.properties.xml	carrier-or-model
 3.1.0/object/xml~/none/requestBody/beside	types.abstract,types.inputOnly,types.kind,types.positional	decorated-object
 3.1.0/object/xml~/none/responseBody/beside	types.abstract,types.inputOnly,types.kind,types.positional	decorated-object
-3.1.0/oneOf.json%2FoneOf with boolean schemas, one true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/oneOf.json%2FoneOf with empty schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/oneOf.json%2FoneOf/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/pattern.json%2Fpattern is not anchored/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/pattern.json%2Fpattern validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/propertyNames.json%2FpropertyNames validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/ref.json%2F$ref to boolean schema true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/string/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/string/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/string/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/string/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/string/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/string/$dynamicRef/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/string/$dynamicRef/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/string/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/string/$dynamicRef/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/string/$dynamicRef/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/string/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/string/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
+3.1.0/string/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/string/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/string/$dynamicRef~/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/string/$dynamicRef~/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/string/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/string/$dynamicRef~/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/string/$dynamicRef~/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/string/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/string/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/string/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
 3.1.0/string/$vocabulary/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/string/$vocabulary/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/string/$vocabulary/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$vocabulary	kept-key
@@ -1797,56 +1651,42 @@
 3.1.0/string/title~/none/branch/nested	types.variants.name.hint	nested-title
 3.1.0/string/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/string/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/type.json%2Ftype: array or object/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/type.json%2Ftype: array, object or null/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2Fnon-array instances are valid/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems and contains interact to control item dependency relationship/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems as schema/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems can see annotations from if without then and else (prefixItems)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems false/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with $dynamicRef (2020-12)/property/beside	diagnostics:pass/default-outside-type	dynamic-ref-read
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with boolean schemas/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with minContains = 0/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested items/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with null instance elements/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/unevaluatedProperties.json%2Fnon-object instances are valid/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/union/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/component/beside	types.abstract,types.inputOnly,types.kind,types.positional	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/header/beside	services.groups.operations.responses.headers.decorator,services.groups.operations.responses.headers.unmodeled	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.decorator.unmodeled.openapi:,services.groups.operations.responses.headers.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types.elem.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types.elem.use.unmodeled.openapi:,types.elem.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/parameter/beside	services.groups.operations.params.decorator,services.groups.operations.params.unmodeled	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.decorator.unmodeled.openapi:,services.groups.operations.params.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/property/beside	types.properties.decorator,types.properties.unmodeled	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types.properties.decorator.unmodeled.openapi:,types.properties.decorator.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.use.unmodeled.openapi:,services.groups.operations.request.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
-3.1.0/union/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use	dynamic-ref-beside
-3.1.0/union/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:$dynamicRef	kept-key
+3.1.0/union/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/union/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/union/$dynamicRef/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/union/$dynamicRef/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/union/$dynamicRef/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/union/$dynamicRef/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/union/$dynamicRef/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/union/$dynamicRef/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/union/$dynamicRef/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
+3.1.0/union/$dynamicRef~/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types,types.value.target	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types,types.value.target,types.value.use	kept-key
+3.1.0/union/$dynamicRef~/none/branch/beside	diagnostics:openapi/degraded-construct,types,types.variants.name.hint,types.variants.type.target	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/branch/entry	diagnostics:openapi/degraded-construct,types,types.variants.decorator,types.variants.name.hint,types.variants.type.target	kept-key
+3.1.0/union/$dynamicRef~/none/component/beside	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/component/entry	diagnostics:openapi/degraded-construct,types.abstract,types.base,types.inputOnly,types.kind,types.positional,types.unmodeled.openapi:$dynamicRef,types.unmodeled.openapi:.value.$dynamicRef,types.unmodeled.openapi:.value.$ref	kept-key
+3.1.0/union/$dynamicRef~/none/header/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/header/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.headers.type.target,services.groups.operations.responses.headers.unmodeled,types	kept-key
+3.1.0/union/$dynamicRef~/none/items/beside	diagnostics:openapi/degraded-construct,types,types.elem.target	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/items/entry	diagnostics:openapi/degraded-construct,types,types.elem.target,types.elem.use	kept-key
+3.1.0/union/$dynamicRef~/none/parameter/beside	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/parameter/entry	diagnostics:openapi/degraded-construct,services.groups.operations.params.type.target,services.groups.operations.params.unmodeled,types	kept-key
+3.1.0/union/$dynamicRef~/none/property/beside	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/property/entry	diagnostics:openapi/degraded-construct,types,types.properties.type.target,types.properties.unmodeled	kept-key
+3.1.0/union/$dynamicRef~/none/requestBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/requestBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.request.contents.type.target,services.groups.operations.request.contents.type.use,types	kept-key
+3.1.0/union/$dynamicRef~/none/responseBody/beside	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,types	dynamic-ref-beside
+3.1.0/union/$dynamicRef~/none/responseBody/entry	diagnostics:openapi/degraded-construct,services.groups.operations.responses.payload.contents.type.target,services.groups.operations.responses.payload.contents.type.use,types	kept-key
 3.1.0/union/$vocabulary/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/union/$vocabulary/none/branch/entry	diagnostics:openapi/degraded-construct,types.variants.decorator.unmodeled.openapi:,types.variants.decorator.unmodeled.openapi:$vocabulary	kept-key
 3.1.0/union/$vocabulary/none/component/entry	diagnostics:openapi/degraded-construct,types.unmodeled.openapi:,types.unmodeled.openapi:$vocabulary	kept-key
@@ -1994,5 +1834,3 @@
 3.1.0/union/type~/none/responseBody/entry	services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:,services.groups.operations.responses.payload.contents.type.use.unmodeled.openapi:type	kept-key
 3.1.0/union/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/union/xml~/none/branch/beside	types.name.hint	hint-by-spelling
-3.1.0/uniqueItems.json%2FuniqueItems validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model

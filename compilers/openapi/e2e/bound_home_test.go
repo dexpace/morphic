@@ -307,9 +307,10 @@ func TestCompile_AMemberTheRedeclaredPropertyFoldComposesKeepsItsBounds(t *testi
 }
 
 // TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant holds that
-// a string bound beside a schema that lowers to a model, written alone, beside
-// a conjunct no object can satisfy or beside one admitting every kind, lands in
-// no Constraints and is kept verbatim, and that the compiled document draws no
+// a string bound beside a schema that lowers to a model, written alone or
+// beside a conjunct no object can satisfy, lands in no Constraints and is kept
+// verbatim, that one beside an allOf of a schema admitting every kind is held
+// by the use of it, and that the compiled document draws no
 // bound-of-another-kind violation.
 func TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant(t *testing.T) {
 	t.Parallel()
@@ -325,10 +326,10 @@ func TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant(t *testi
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, _ := compileAnnotationSpec(t, "kind", admissionSpec(version, "", schemas...))
-				assert.Empty(t, boundHomes(t, doc, "minLength"), "no node or carrier holds the length")
+				assert.Equal(t, []string{"t/openapi/components/schemas/Wide"}, boundHomes(t, doc, "minLength"),
+					"the use of the top type alone holds the length")
 				assert.Empty(t, boundHomes(t, doc, "maxLength"), "no node or carrier holds the other length")
-				assert.ElementsMatch(t, []string{"/components/schemas/O1/minLength", "/components/schemas/Wide/minLength"},
-					keptEntries(t, doc, "openapi:minLength"))
+				assert.ElementsMatch(t, []string{"/components/schemas/O1/minLength"}, keptEntries(t, doc, "openapi:minLength"))
 				for _, v := range irverify.Verify(doc) {
 					assert.NotEqual(t, "ir/bound-of-another-kind", v.Code, "violation at %s", v.Path)
 				}

@@ -638,6 +638,10 @@ const (
 	// unionValidationOnly marks a union whose branches only narrow what the
 	// sibling body accepts; it is kept verbatim under ReasonValidationOnly.
 	unionValidationOnly
+	// unionSharesNoKind marks a union none of whose branches shares a kind with
+	// what the allOf beside it admits (unionAside): no instance satisfies them
+	// together, so no variant would hold a value.
+	unionSharesNoKind
 	// unionUncomposableBody marks a union beside a body that is not a Model — a
 	// const, an enum, a scalar, or object keywords with no type where the kinds
 	// the position lowers to are not an object alone — so there are no
@@ -676,6 +680,9 @@ const (
 func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) unionLowering {
 	if !unionBranchesDeclareShape(c, s) {
 		return unionValidationOnly
+	}
+	if unionAside(c, s) {
+		return unionSharesNoKind
 	}
 	if !composesAsModel(c, s) {
 		return unionUncomposableBody
@@ -786,6 +793,9 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return lowerDistributedUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
 	case unionValidationOnly:
 		return beside(ir.ReasonValidationOnly, "")
+	case unionSharesNoKind:
+		return beside(ir.ReasonDegradedLowering,
+			"none of its branches shares a kind with the allOf beside it, so no instance satisfies them together")
 	case unionUncomposableBody:
 		return beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
 	case unionBothCombinators:

@@ -32,13 +32,12 @@ type reading struct {
 	// instance of a kind only where partial does not hold it.
 	partial kindSet
 	// cut marks a statement on or reaching a cycle of conjunct edges, a $ref
-	// landing on no schema or a value set no reading converts; dynamic one
-	// meeting a $dynamicRef the bindings read as no $ref, which an election
-	// cannot read; loose one meeting a keyword the read does not follow that
-	// could refuse a kind (looseIn), so admits may claim more than the schema
-	// admits; inferred one whose kinds are its claims, nothing it declares
-	// naming a kind.
-	cut, dynamic, loose, inferred bool
+	// landing on no schema or a value set no reading converts; loose one
+	// meeting a keyword the read does not follow that could refuse a kind
+	// (looseIn), a $dynamicRef the bindings read as no $ref among them, so
+	// admits may claim more than the schema admits; inferred one whose kinds
+	// are its claims, nothing it declares naming a kind.
+	cut, loose, inferred bool
 	// reads and members are the schemas and value-set members the read takes
 	// in, each counted per path and held to one past a reader's cap.
 	reads, members int
@@ -85,7 +84,6 @@ func (r *reading) settleKinds() {
 // is still within both caps. One past either stops (past).
 func (r *reading) took(child *reading) bool {
 	r.cut = r.cut || child.cut
-	r.dynamic = r.dynamic || child.dynamic
 	r.loose = r.loose || child.loose
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
 	r.members = min(r.members+child.members, maxAdmissionMembers+1)
@@ -345,8 +343,7 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 		r.past(r)
 	}
 	r.cut = own.members.Exhausted()
-	r.dynamic = declaresDynamicRef(st.Schema) && st.Ref == nil
-	r.loose = r.dynamic || looseIn(st.Schema)
+	r.loose = declaresDynamicRef(st.Schema) && st.Ref == nil || looseIn(st.Schema)
 	return r
 }
 

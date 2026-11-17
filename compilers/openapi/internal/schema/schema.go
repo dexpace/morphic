@@ -328,16 +328,28 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 	if !refines {
 		return lowerElected(c, ts, depth, s, pointer, d)
 	}
-	var id ir.TypeID
-	var diags []ir.Diagnostic
+	reported := refinedDisjoint(c, s, r)
 	if elected {
 		resolveBeaten(c, ts, r)
-		id, diags = lowerElected(c, ts, depth, s, pointer, d)
-	} else {
-		id, diags = lowerPrincipal(c, ts, depth, r)
+		id, diags := lowerElected(c, ts, depth, s, pointer, d)
+		typeValueSet(c, ts, s, r, pointer)
+		return id, append(diags, reported...)
 	}
+	id, diags := lowerPrincipal(c, ts, depth, r)
 	typeValueSet(c, ts, s, r, pointer)
-	return id, diags
+	return id, append(diags, reported...)
+}
+
+// refinedDisjoint reports the refinement r of s whose union beside the allOf
+// shares no kind with the rest (unionAside), at s, as a composition reports
+// conjuncts sharing no value.
+func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Diagnostic {
+	if !unionAside(c, s) {
+		return nil
+	}
+	comp := r.comp
+	comp.disjoint = disjointConjuncts(c, s, comp)
+	return diagDisjointConjuncts(c, comp, refinedShape)
 }
 
 // electionOf returns the election lower lowers s by, written at pointer, and
@@ -454,27 +466,21 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 
 // untypedKinds returns the kinds s, which writes no kind of its own, lowers to
 // as its shape keywords speak of them (shapeKinds), and whether the
-// kind-inference policy read them, by the run's admission of its statement.
-// Where its conjuncts, as a union kept beside it, admit a kind the keywords do
-// not speak of, there are none, as where nothing names a kind. Else s lowers
-// to the kinds they admit: the policy's where it read any, off s or a
-// conjunct, the document's otherwise. A read cut short leaves s the kinds its
-// keywords infer (claimedKinds).
+// kind-inference policy read them (lowersTo). Where its conjuncts, as a
+// union kept beside it, admit a kind the keywords do not speak of, there are
+// none, as where nothing names a kind. Else s lowers to the kinds they admit:
+// the policy's where it read any, off s or a conjunct, the document's
+// otherwise.
 func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 	claims := shapeKinds(s)
 	if claims == 0 || !stated(s) {
 		return 0, false
 	}
-	r := admissionOf(c, c.Statements().Read(s))
-	switch {
-	case r.cut:
-		inferred := claimedKinds(c, s)
-		return inferred, inferred != 0
-	case r.kinds&^claims != 0:
+	kinds, inferred := lowersTo(c, c.Statements().Read(s))
+	if kinds&^claims != 0 {
 		return 0, false
-	default:
-		return r.kinds, r.inferred
 	}
+	return kinds, inferred
 }
 
 // inferredKinds are the types a schema whose shape keywords speak of an object

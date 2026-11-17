@@ -294,8 +294,8 @@ func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    M:
       allOf:
-        - {type: string, allOf: []}
-        - {properties: {u: {type: string}}}
+        - {type: string, nullable: true, allOf: []}
+        - {type: object, nullable: true, properties: {u: {type: string}}}
 `))
 	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")

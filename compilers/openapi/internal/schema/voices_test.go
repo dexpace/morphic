@@ -351,7 +351,7 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 }
 
 // TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a value bound
-// written beside a Base declaring no type: the allOf lowers to a model, which
+// written beside a Base declaring an object: the allOf lowers to a model, which
 // takes property counts alone, so it holds the count written beside the allOf
 // and keeps the string bound there under its keyword, and each inline branch
 // writing a numeric bound is kept whole, each with one info, in either order of
@@ -360,7 +360,7 @@ func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for _, order := range [][2]string{{"{multipleOf: 4}", "{maximum: 9}"}, {"{maximum: 9}", "{multipleOf: 4}"}} {
-		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Base: {description: declares no type}\n"+
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, description: an object}\n"+
 			"    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"], minLength: 2, maxProperties: 3}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := typeByName(doc, "S").(*ir.Model)

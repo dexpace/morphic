@@ -298,8 +298,9 @@ components:
 
 // TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
 // allOf changes what a body is no more than a $ref does: a refinement is a use of
-// the schema it names, in either spelling, or of the branch an enum beside it
-// narrows to, and one over no binary schema is a plain body.
+// the schema it names, in either spelling, of the narrower of two it names, or
+// of the branch an enum beside it narrows to, and one over no binary schema is
+// a plain body.
 func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 	t.Parallel()
 	const alias ir.TypeID = "t/anon/paths/~1raw/post/requestBody/content/application~1octet-stream/schema"
@@ -309,13 +310,13 @@ func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 		// it writes something, and empty for a body that is no file.
 		want ir.TypeID
 	}{
-		"beside":      {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
-		"a branch":    {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
-		"bare":        {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "t/openapi/components/schemas/Blob"},
-		"a chain":     {"{$ref: '#/components/schemas/Wrapped'}", "t/openapi/components/schemas/Wrapped"},
-		"inline":      {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},
-		"not binary":  {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", ""},
-		"a composite": {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", ""},
+		"beside":     {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
+		"a branch":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
+		"bare":       {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "t/openapi/components/schemas/Blob"},
+		"a chain":    {"{$ref: '#/components/schemas/Wrapped'}", "t/openapi/components/schemas/Wrapped"},
+		"inline":     {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},
+		"not binary": {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", ""},
+		"two refs":   {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", alias},
 		"beside an enum it narrows": {"{enum: [a, b], allOf: [{type: string, format: binary, enum: [a]}]}",
 			alias + "/allOf/0"},
 	} {

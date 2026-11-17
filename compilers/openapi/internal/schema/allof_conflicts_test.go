@@ -1537,7 +1537,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		return propertyOf(t, doc, "T", "f"), diags
 	}
 	for _, entry := range []string{
-		ref("NotStr"), ref("ObjOneOf"), ref("ObjAnyOf"), ref("IfObj"), ref("AliasOneOf"),
+		ref("NotStr"), ref("ObjOneOf"), ref("IfObj"), ref("AliasOneOf"),
 		"{$ref: '#/components/schemas/Empty', type: object}",
 		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
 		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
@@ -1563,6 +1563,15 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
 		assert.Empty(t, p.Unmodeled, entry)
 	}
+
+	// A union admitting an object and an array makes the structure no model but
+	// a use of the union, which the merge does not compare with a string.
+	p, diags := compile(ref("ObjAnyOf"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union is not compared")
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
+	assert.Contains(t, p.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
+	assert.Len(t, p.Unmodeled, 2, "and so is the union the merge did not compare")
 }
 
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure

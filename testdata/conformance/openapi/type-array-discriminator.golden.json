@@ -115,6 +115,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/Pet"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Cat/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Cat"
@@ -148,10 +160,6 @@
           }
         }
       ],
-      "base": {
-        "target": "t/openapi/components/schemas/Pet",
-        "nullable": false
-      },
       "abstract": false,
       "positional": false,
       "discriminatorValue": "cat",
@@ -167,6 +175,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/Pet"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Dog"
@@ -200,10 +220,6 @@
           }
         }
       ],
-      "base": {
-        "target": "t/openapi/components/schemas/Pet",
-        "nullable": false
-      },
       "abstract": false,
       "positional": false,
       "discriminatorValue": "Dog",
@@ -311,6 +327,24 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Cat/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the schema this $ref names is not an object alone, and a model composes only models, so the $ref is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog/allOf/0"
       }
     }
   ],

@@ -134,7 +134,9 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 		kind       ir.TypeKind
 		kept       []string
 	}{
-		{"non-object type beside allOf", "{allOf: [{required: [a]}], type: string}",
+		// The conjuncts share only null, so no report names them and the allOf
+		// composes, as one sharing no value does.
+		{"non-object type beside allOf", "{allOf: [{type: object, nullable: true, required: [a]}], type: string, nullable: true}",
 			ir.KindModel, []string{"openapi:type"}},
 		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
 			ir.KindModel, nil},
