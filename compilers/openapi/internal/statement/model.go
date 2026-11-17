@@ -76,6 +76,9 @@ func (t *Table) read(js *model) *Schema {
 	s.Unknown = m.GetCore().GetUnknownProperties()
 	s.Extensions = listedExtensions(m.GetExtensions().Len(), m.GetExtensions().All())
 	readKeys(s, t.src.Rules.At(s.At))
+	if s.Truncated {
+		dropOutranked(s, m)
+	}
 	if kw := t.src.Bindings.RefKeyword(js); kw != "" {
 		e, bound := t.src.Bindings.Entry(js)
 		s.Ref = &Reference{Keyword: kw, Text: string(m.GetRef()), Entry: e, Bound: bound}
@@ -170,99 +173,199 @@ func fill(s *Schema, m *oas3.Schema) {
 }
 
 // fillNode reads k, a key of a slot open in s, into the field the statement
-// keeps as the node it was written as: a numeric bound, which the model holds
-// as a float, and a keyword the model holds no field for. A key of no such
-// field fills nothing.
+// keeps as the node it was written as, which its row of fillKeywords sets: a
+// numeric bound, which the model holds as a float, and a keyword the model
+// holds no field for. A key of no such field fills nothing.
 func fillNode(s *Schema, k Key) {
-	switch k.Name {
-	case "minimum":
-		s.Number.Minimum = k.Node
-	case "maximum":
-		s.Number.Maximum = k.Node
-	case "exclusiveMinimum":
-		s.Number.ExclusiveMinimum = k.Node
-	case "exclusiveMaximum":
-		s.Number.ExclusiveMaximum = k.Node
-	case "multipleOf":
-		s.Number.MultipleOf = k.Node
-	case "additionalItems":
-		s.Array.AdditionalItems = k.Node
-	case "dependentRequired":
-		s.Object.DependentRequired = k.Node
-	case "dependencies":
-		s.Logic.Dependencies = k.Node
-	case "$comment":
-		s.Notes.Comment = k.Node
+	for _, r := range fillKeywords {
+		if r.set != nil && r.name == k.Name {
+			r.set(s, k.Node)
+			return
+		}
 	}
 }
 
-// modelKeywords are the keywords fill reads from the parser's model, each
-// with how to clear the model's field holding it.
-var modelKeywords = []struct {
+// fillKeyword is one keyword fill reads: from the parser's model, whose field
+// clear empties on a copy of it, or from the node its key holds, which set
+// keeps, or both. node returns the node the parser read the keyword's value
+// from, and is nil for a keyword the parser holds no field for.
+type fillKeyword struct {
 	name  string
+	node  func(*oas3.Schema) *yaml.Node
 	clear func(*oas3.Schema)
-}{
-	{"allOf", func(m *oas3.Schema) { m.AllOf = nil }},
-	{"type", func(m *oas3.Schema) { m.Type = nil }},
-	{"nullable", func(m *oas3.Schema) { m.Nullable = nil }},
-	{"exclusiveMinimum", func(m *oas3.Schema) { m.ExclusiveMinimum = nil }},
-	{"exclusiveMaximum", func(m *oas3.Schema) { m.ExclusiveMaximum = nil }},
-	{"enum", func(m *oas3.Schema) { m.Enum = nil }},
-	{"const", func(m *oas3.Schema) { m.Const = nil }},
-	{"format", func(m *oas3.Schema) { m.Format = nil }},
-	{"minLength", func(m *oas3.Schema) { m.MinLength = nil }},
-	{"maxLength", func(m *oas3.Schema) { m.MaxLength = nil }},
-	{"pattern", func(m *oas3.Schema) { m.Pattern = nil }},
-	{"contentEncoding", func(m *oas3.Schema) { m.ContentEncoding = nil }},
-	{"contentMediaType", func(m *oas3.Schema) { m.ContentMediaType = nil }},
-	{"contentSchema", func(m *oas3.Schema) { m.ContentSchema = nil }},
-	{"items", func(m *oas3.Schema) { m.Items = nil }},
-	{"prefixItems", func(m *oas3.Schema) { m.PrefixItems = nil }},
-	{"contains", func(m *oas3.Schema) { m.Contains = nil }},
-	{"minContains", func(m *oas3.Schema) { m.MinContains = nil }},
-	{"maxContains", func(m *oas3.Schema) { m.MaxContains = nil }},
-	{"minItems", func(m *oas3.Schema) { m.MinItems = nil }},
-	{"maxItems", func(m *oas3.Schema) { m.MaxItems = nil }},
-	{"uniqueItems", func(m *oas3.Schema) { m.UniqueItems = nil }},
-	{"unevaluatedItems", func(m *oas3.Schema) { m.UnevaluatedItems = nil }},
-	{"properties", func(m *oas3.Schema) { m.Properties = nil }},
-	{"patternProperties", func(m *oas3.Schema) { m.PatternProperties = nil }},
-	{"additionalProperties", func(m *oas3.Schema) { m.AdditionalProperties = nil }},
-	{"propertyNames", func(m *oas3.Schema) { m.PropertyNames = nil }},
-	{"unevaluatedProperties", func(m *oas3.Schema) { m.UnevaluatedProperties = nil }},
-	{"required", func(m *oas3.Schema) { m.Required = nil }},
-	{"minProperties", func(m *oas3.Schema) { m.MinProperties = nil }},
-	{"maxProperties", func(m *oas3.Schema) { m.MaxProperties = nil }},
-	{"discriminator", func(m *oas3.Schema) { m.Discriminator = nil }},
-	{"oneOf", func(m *oas3.Schema) { m.OneOf = nil }},
-	{"anyOf", func(m *oas3.Schema) { m.AnyOf = nil }},
-	{"not", func(m *oas3.Schema) { m.Not = nil }},
-	{"if", func(m *oas3.Schema) { m.If = nil }},
-	{"then", func(m *oas3.Schema) { m.Then = nil }},
-	{"else", func(m *oas3.Schema) { m.Else = nil }},
-	{"dependentSchemas", func(m *oas3.Schema) { m.DependentSchemas = nil }},
-	{"title", func(m *oas3.Schema) { m.Title = nil }},
-	{"description", func(m *oas3.Schema) { m.Description = nil }},
-	{"default", func(m *oas3.Schema) { m.Default = nil }},
-	{"example", func(m *oas3.Schema) { m.Example = nil }},
-	{"examples", func(m *oas3.Schema) { m.Examples = nil }},
-	{"deprecated", func(m *oas3.Schema) { m.Deprecated = nil }},
-	{"readOnly", func(m *oas3.Schema) { m.ReadOnly = nil }},
-	{"writeOnly", func(m *oas3.Schema) { m.WriteOnly = nil }},
-	{"xml", func(m *oas3.Schema) { m.XML = nil }},
-	{"externalDocs", func(m *oas3.Schema) { m.ExternalDocs = nil }},
+	set   func(*Schema, *yaml.Node)
+}
+
+// fillKeywords are the keywords fill reads, one row each.
+var fillKeywords = []fillKeyword{
+	{name: "allOf", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().AllOf.ValueNode },
+		clear: func(m *oas3.Schema) { m.AllOf = nil }},
+	{name: "type", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Type.ValueNode },
+		clear: func(m *oas3.Schema) { m.Type = nil }},
+	{name: "nullable", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Nullable.ValueNode },
+		clear: func(m *oas3.Schema) { m.Nullable = nil }},
+	{name: "exclusiveMinimum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExclusiveMinimum.ValueNode },
+		clear: func(m *oas3.Schema) { m.ExclusiveMinimum = nil },
+		set:   func(s *Schema, n *yaml.Node) { s.Number.ExclusiveMinimum = n }},
+	{name: "exclusiveMaximum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExclusiveMaximum.ValueNode },
+		clear: func(m *oas3.Schema) { m.ExclusiveMaximum = nil },
+		set:   func(s *Schema, n *yaml.Node) { s.Number.ExclusiveMaximum = n }},
+	{name: "enum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Enum.ValueNode },
+		clear: func(m *oas3.Schema) { m.Enum = nil }},
+	{name: "const", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Const.ValueNode },
+		clear: func(m *oas3.Schema) { m.Const = nil }},
+	{name: "format", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Format.ValueNode },
+		clear: func(m *oas3.Schema) { m.Format = nil }},
+	{name: "minLength", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MinLength.ValueNode },
+		clear: func(m *oas3.Schema) { m.MinLength = nil }},
+	{name: "maxLength", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MaxLength.ValueNode },
+		clear: func(m *oas3.Schema) { m.MaxLength = nil }},
+	{name: "pattern", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Pattern.ValueNode },
+		clear: func(m *oas3.Schema) { m.Pattern = nil }},
+	{name: "contentEncoding", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ContentEncoding.ValueNode },
+		clear: func(m *oas3.Schema) { m.ContentEncoding = nil }},
+	{name: "contentMediaType", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ContentMediaType.ValueNode },
+		clear: func(m *oas3.Schema) { m.ContentMediaType = nil }},
+	{name: "contentSchema", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ContentSchema.ValueNode },
+		clear: func(m *oas3.Schema) { m.ContentSchema = nil }},
+	{name: "items", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Items.ValueNode },
+		clear: func(m *oas3.Schema) { m.Items = nil }},
+	{name: "prefixItems", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().PrefixItems.ValueNode },
+		clear: func(m *oas3.Schema) { m.PrefixItems = nil }},
+	{name: "contains", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Contains.ValueNode },
+		clear: func(m *oas3.Schema) { m.Contains = nil }},
+	{name: "minContains", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MinContains.ValueNode },
+		clear: func(m *oas3.Schema) { m.MinContains = nil }},
+	{name: "maxContains", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MaxContains.ValueNode },
+		clear: func(m *oas3.Schema) { m.MaxContains = nil }},
+	{name: "minItems", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MinItems.ValueNode },
+		clear: func(m *oas3.Schema) { m.MinItems = nil }},
+	{name: "maxItems", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MaxItems.ValueNode },
+		clear: func(m *oas3.Schema) { m.MaxItems = nil }},
+	{name: "uniqueItems", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().UniqueItems.ValueNode },
+		clear: func(m *oas3.Schema) { m.UniqueItems = nil }},
+	{name: "unevaluatedItems", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().UnevaluatedItems.ValueNode },
+		clear: func(m *oas3.Schema) { m.UnevaluatedItems = nil }},
+	{name: "properties", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Properties.ValueNode },
+		clear: func(m *oas3.Schema) { m.Properties = nil }},
+	{name: "patternProperties", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().PatternProperties.ValueNode },
+		clear: func(m *oas3.Schema) { m.PatternProperties = nil }},
+	{name: "additionalProperties", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().AdditionalProperties.ValueNode },
+		clear: func(m *oas3.Schema) { m.AdditionalProperties = nil }},
+	{name: "propertyNames", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().PropertyNames.ValueNode },
+		clear: func(m *oas3.Schema) { m.PropertyNames = nil }},
+	{name: "unevaluatedProperties", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().UnevaluatedProperties.ValueNode },
+		clear: func(m *oas3.Schema) { m.UnevaluatedProperties = nil }},
+	{name: "required", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Required.ValueNode },
+		clear: func(m *oas3.Schema) { m.Required = nil }},
+	{name: "minProperties", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MinProperties.ValueNode },
+		clear: func(m *oas3.Schema) { m.MinProperties = nil }},
+	{name: "maxProperties", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MaxProperties.ValueNode },
+		clear: func(m *oas3.Schema) { m.MaxProperties = nil }},
+	{name: "discriminator", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Discriminator.ValueNode },
+		clear: func(m *oas3.Schema) { m.Discriminator = nil }},
+	{name: "oneOf", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().OneOf.ValueNode },
+		clear: func(m *oas3.Schema) { m.OneOf = nil }},
+	{name: "anyOf", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().AnyOf.ValueNode },
+		clear: func(m *oas3.Schema) { m.AnyOf = nil }},
+	{name: "not", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Not.ValueNode },
+		clear: func(m *oas3.Schema) { m.Not = nil }},
+	{name: "if", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().If.ValueNode },
+		clear: func(m *oas3.Schema) { m.If = nil }},
+	{name: "then", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Then.ValueNode },
+		clear: func(m *oas3.Schema) { m.Then = nil }},
+	{name: "else", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Else.ValueNode },
+		clear: func(m *oas3.Schema) { m.Else = nil }},
+	{name: "dependentSchemas", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().DependentSchemas.ValueNode },
+		clear: func(m *oas3.Schema) { m.DependentSchemas = nil }},
+	{name: "title", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Title.ValueNode },
+		clear: func(m *oas3.Schema) { m.Title = nil }},
+	{name: "description", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Description.ValueNode },
+		clear: func(m *oas3.Schema) { m.Description = nil }},
+	{name: "default", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Default.ValueNode },
+		clear: func(m *oas3.Schema) { m.Default = nil }},
+	{name: "example", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Example.ValueNode },
+		clear: func(m *oas3.Schema) { m.Example = nil }},
+	{name: "examples", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Examples.ValueNode },
+		clear: func(m *oas3.Schema) { m.Examples = nil }},
+	{name: "deprecated", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Deprecated.ValueNode },
+		clear: func(m *oas3.Schema) { m.Deprecated = nil }},
+	{name: "readOnly", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ReadOnly.ValueNode },
+		clear: func(m *oas3.Schema) { m.ReadOnly = nil }},
+	{name: "writeOnly", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().WriteOnly.ValueNode },
+		clear: func(m *oas3.Schema) { m.WriteOnly = nil }},
+	{name: "xml", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().XML.ValueNode },
+		clear: func(m *oas3.Schema) { m.XML = nil }},
+	{name: "externalDocs", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().ExternalDocs.ValueNode },
+		clear: func(m *oas3.Schema) { m.ExternalDocs = nil }},
+	{name: "minimum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Minimum.ValueNode },
+		set: func(s *Schema, n *yaml.Node) { s.Number.Minimum = n }},
+	{name: "maximum", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().Maximum.ValueNode },
+		set: func(s *Schema, n *yaml.Node) { s.Number.Maximum = n }},
+	{name: "multipleOf", node: func(m *oas3.Schema) *yaml.Node { return m.GetCore().MultipleOf.ValueNode },
+		set: func(s *Schema, n *yaml.Node) { s.Number.MultipleOf = n }},
+	{name: "additionalItems", set: func(s *Schema, n *yaml.Node) { s.Array.AdditionalItems = n }},
+	{name: "dependentRequired", set: func(s *Schema, n *yaml.Node) { s.Object.DependentRequired = n }},
+	{name: "dependencies", set: func(s *Schema, n *yaml.Node) { s.Logic.Dependencies = n }},
+	{name: "$comment", set: func(s *Schema, n *yaml.Node) { s.Notes.Comment = n }},
+}
+
+// keywordRow returns the row of fillKeywords naming name, and false for a key
+// fill does not read.
+func keywordRow(name string) (fillKeyword, bool) {
+	for _, r := range fillKeywords {
+		if r.name == name {
+			return r, true
+		}
+	}
+	return fillKeyword{}, false
+}
+
+// dropOutranked takes out of the keys of s, a Truncated schema whose model is
+// m, each key of a keyword fill reads whose value the parser read from
+// another node: a source past nodeview.MergeDepthLimit writes the keyword too
+// and comes first, so the key lists the value that loses. A keyword the parser
+// holds no node for is kept only where s writes it itself, as no merge
+// outranks that (docs/parser-library.md#merge-keys).
+func dropOutranked(s *Schema, m *oas3.Schema) {
+	own := nodeview.WrittenChildren(s.Node)
+	kept := make([]Key, 0, len(s.Keys))
+	for _, k := range s.Keys {
+		if !outranked(k, own, m) {
+			kept = append(kept, k)
+		}
+	}
+	if len(kept) == len(s.Keys) {
+		return
+	}
+	s.Keys = kept
+	index(s)
+}
+
+// outranked reports whether the value the parser read for k's keyword is not
+// k's: k is no pair s writes itself, own, and the parser read the keyword from
+// another node, or holds no node to tell. A key fill does not read is never
+// outranked.
+func outranked(k Key, own map[string]*yaml.Node, m *oas3.Schema) bool {
+	r, reads := keywordRow(k.Name)
+	if !reads || nodeview.Deref(own[k.Name]) == k.Node {
+		return false
+	}
+	return r.node == nil || nodeview.Deref(r.node(m)) != k.Node
 }
 
 // listedOnly returns a copy of m holding no keyword s's keys do not list: s
 // is Truncated, so the model expands merges its keys stop short of, and a
 // schema is read from its keys or not at all, never half from each
-// (docs/parser-library.md#merge-keys). The model's extensions and the keys it
-// holds no field for stay, which the census of unknown keys reports.
+// (docs/parser-library.md#merge-keys). dropOutranked has left each keyword
+// the keys list only where the parser read it from that key. The model's
+// extensions and the keys it holds no field for stay, which the census of
+// unknown keys reports.
 func listedOnly(m *oas3.Schema, s *Schema) *oas3.Schema {
 	kept := *m
-	for _, k := range modelKeywords {
-		if i, _ := s.find(k.name); i < 0 {
-			k.clear(&kept)
+	for _, r := range fillKeywords {
+		if i, _ := s.find(r.name); i < 0 && r.clear != nil {
+			r.clear(&kept)
 		}
 	}
 	return &kept

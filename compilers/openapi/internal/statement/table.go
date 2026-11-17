@@ -89,16 +89,24 @@ func readKeys(s *Schema, rules oas.SchemaRules) {
 		slot, later := rules.Slot(p.Key)
 		s.Keys[i] = Key{Name: p.Key, Node: p.Val, Slot: slot, Later: later, Null: isNull(p.Val), Modeled: true}
 	}
-	if len(s.Keys) > indexAbove {
-		s.index = make(map[string]int, len(s.Keys))
-		for i, k := range s.Keys {
-			s.index[k.Name] = i
-		}
-	}
+	index(s)
 	for _, name := range s.Unknown {
 		if i, _ := s.find(name); i >= 0 {
 			s.Keys[i].Modeled = false
 		}
+	}
+}
+
+// index maps each key of s to its place, past indexAbove keys, and leaves s
+// none at or below it.
+func index(s *Schema) {
+	s.index = nil
+	if len(s.Keys) <= indexAbove {
+		return
+	}
+	s.index = make(map[string]int, len(s.Keys))
+	for i, k := range s.Keys {
+		s.index[k.Name] = i
 	}
 }
 

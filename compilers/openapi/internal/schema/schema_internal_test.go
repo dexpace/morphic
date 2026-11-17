@@ -105,9 +105,8 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 // TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates pins what states a
 // null in a schema merging past nodeview.MergeDepthLimit, read from its keys
 // alone: a `nullable` merged in past the bound states none, a truth word's or
-// a boolean, while one a later source writes within the bound is the key
-// read, beside which the deeper value the parser holds stands where the key is
-// a boolean, and none does where it is a string.
+// a boolean, nor does one a later source writes within the bound, which the
+// deeper one outranks, while one the schema merges within the bound does.
 func TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates(t *testing.T) {
 	t.Parallel()
 	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: true}")
@@ -125,10 +124,10 @@ func TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates(t *testing.T) {
 	assert.False(t, nullableTrue(s))
 	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "PastWord"))))
 	outranks := StatedIn(l, componentSchema(t, l, "Outranks"))
-	listed, _ := outranks.Key("nullable")
-	require.Equal(t, "false", listed.Node.Value, "the key listed is the one written within the bound")
-	assert.True(t, nullableTrue(outranks), "the merge past the bound comes first, so its true is the schema's")
-	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "OutranksWord"))), "a string states none")
+	_, listed := outranks.Key("nullable")
+	require.False(t, listed, "the key a source past the bound outranks is left out")
+	assert.False(t, nullableTrue(outranks))
+	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "OutranksWord"))))
 	assert.True(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Within"))))
 	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Yes"))))
 }

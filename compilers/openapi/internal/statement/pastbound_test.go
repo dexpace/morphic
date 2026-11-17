@@ -14,6 +14,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
@@ -105,10 +106,10 @@ type keywordSample struct {
 	version, leaf, beside, extra string
 }
 
-// keywordSamples holds a sample of each keyword fill reads from the parser's
-// model (statement.ModelKeywords), which the test holds it to, and of each
-// bound it reads from the key's node. A keyword the model holds no field for
-// is the census's to report past the bound (Schema.Unknown).
+// keywordSamples holds a sample of each keyword fill reads that the parser's
+// model holds a field for (statement.ParserNodes), which the test holds it
+// to. A keyword the model holds no field for is the census's to report past
+// the bound (Schema.Unknown).
 var keywordSamples = map[string]keywordSample{
 	"allOf":                 {"3.1.0", "{allOf: [{minLength: 1}]}", "type: string", ""},
 	"type":                  {"3.1.0", "{type: integer}", "description: d", ""},
@@ -160,7 +161,7 @@ var keywordSamples = map[string]keywordSample{
 	"writeOnly":        {"3.1.0", "{writeOnly: true}", "type: string", ""},
 	"xml":              {"3.1.0", "{xml: {name: n}}", "type: object", ""},
 	"externalDocs":     {"3.1.0", "{externalDocs: {url: 'https://example.com'}}", "type: string", ""},
-	// Read from the key's node, which a key past the bound does not list.
+	// Read from the key's node.
 	"minimum":    {"3.1.0", "{minimum: 1}", "type: number", ""},
 	"maximum":    {"3.1.0", "{maximum: 9}", "type: number", ""},
 	"multipleOf": {"3.1.0", "{multipleOf: 2}", "type: number", ""},
@@ -174,8 +175,10 @@ var keywordSamples = map[string]keywordSample{
 // compiles to, so the second comparison can fail.
 func TestRead_PastTheMergeBoundNoKeywordIsHalfRead(t *testing.T) {
 	t.Parallel()
-	for _, keyword := range statement.ModelKeywords() {
-		require.Contains(t, keywordSamples, keyword, "a keyword fill reads from the model has a sample")
+	for keyword, node := range statement.ParserNodes() {
+		if node != nil {
+			require.Contains(t, keywordSamples, keyword, "a keyword fill reads and the model holds has a sample")
+		}
 	}
 	for keyword, k := range keywordSamples {
 		t.Run(keyword, func(t *testing.T) {
@@ -346,4 +349,124 @@ func TestRead_PastTheMergeBoundEachReaderReadsNeither(t *testing.T) {
 			assert.Equal(t, withoutReport(at("{}")), withoutReport(at(tc.leaf)))
 		})
 	}
+}
+
+// TestFillKeywords_EachComparesTheNodeTheParserReadItFrom holds each keyword
+// fill reads to the node the parser's model read its value from: where the
+// model's core declares the keyword, the row returns that field's node, and
+// where it declares none, the row has no node, so a key merged in is taken
+// for outranked. A keyword added to the fill without its node fails here.
+func TestFillKeywords_EachComparesTheNodeTheParserReadItFrom(t *testing.T) {
+	t.Parallel()
+	m := &oas3.Schema{}
+	core := reflect.ValueOf(m.GetCore()).Elem()
+	fields := map[string]reflect.Value{}
+	for i := range core.NumField() {
+		if key := core.Type().Field(i).Tag.Get("key"); key != "" {
+			fields[key] = core.Field(i)
+		}
+	}
+	nodes := statement.ParserNodes()
+	require.NotEmpty(t, nodes)
+	for name, node := range nodes {
+		field, held := fields[name]
+		if !held {
+			assert.Nil(t, node, "%s: the parser holds no field for it", name)
+			continue
+		}
+		require.NotNil(t, node, "%s: the parser holds the node it read", name)
+		read := &yaml.Node{Kind: yaml.ScalarNode, Value: name}
+		field.FieldByName("ValueNode").Set(reflect.ValueOf(read))
+		assert.Same(t, read, node(m), name)
+	}
+}
+
+// outranking writes a document whose component P merges, beside what beside
+// writes, a list of two sources: a chain of anchors past
+// nodeview.MergeDepthLimit whose first writes deep, and a mapping within the
+// bound writing listed, the chain first where deepFirst says.
+func outranking(version, deep, listed, beside string, deepFirst bool) string {
+	sources := []string{fmt.Sprintf("*c%d", nodeview.MergeDepthLimit), listed}
+	if !deepFirst {
+		slices.Reverse(sources)
+	}
+	return strings.Replace(chained(version, nodeview.MergeDepthLimit, deep, beside, ""),
+		fmt.Sprintf("P: {<<: *c%d, ", nodeview.MergeDepthLimit),
+		"P: {<<: ["+strings.Join(sources, ", ")+"], ", 1)
+}
+
+// TestRead_PastTheMergeBoundAnOutrankedKeyIsLeftOut compiles, for a keyword of
+// each slot, a schema merging two sources that write it: one past
+// nodeview.MergeDepthLimit and one within it, whose key the schema lists.
+// Where the source past the bound comes first, it outranks the listed key,
+// which is then not read, and the schema compiles as with neither source
+// writing the keyword; where the listed source comes first, it is read as
+// written. A listed key equal to the value it loses to is left out too.
+func TestRead_PastTheMergeBoundAnOutrankedKeyIsLeftOut(t *testing.T) {
+	t.Parallel()
+	type outranks struct {
+		version, deep, listed, beside string
+	}
+	cases := map[string]outranks{
+		"nullable 3.0.3":   {"3.0.3", "{nullable: true}", "{nullable: false}", "type: string"},
+		"nullable 3.1.0":   {"3.1.0", "{nullable: true}", "{nullable: false}", "type: string"},
+		"nullable 3.2.0":   {"3.2.0", "{nullable: true}", "{nullable: false}", "type: string"},
+		"nullable, a word": {"3.0.3", "{nullable: true}", "{nullable: 'yes'}", "type: string"},
+		"nullable, equal":  {"3.0.3", "{nullable: true}", "{nullable: true}", "type: string"},
+		"type":             {"3.1.0", "{type: integer}", "{type: string}", "description: d"},
+		"enum":             {"3.1.0", "{enum: [a]}", "{enum: [b, c]}", "type: string"},
+		"format":           {"3.1.0", "{format: date}", "{format: email}", "type: string"},
+		"minimum":          {"3.1.0", "{minimum: 5}", "{minimum: 1}", "type: number"},
+		"minLength":        {"3.1.0", "{minLength: 5}", "{minLength: 1}", "type: string"},
+		"minLength, equal": {"3.1.0", "{minLength: 1}", "{minLength: 1}", "type: string"},
+		"items":            {"3.1.0", "{items: {type: integer}}", "{items: {type: string}}", "type: array"},
+		"properties":       {"3.1.0", "{properties: {a: {type: string}}}", "{properties: {b: {type: integer}}}", "type: object"},
+		"required":         {"3.1.0", "{required: [a]}", "{required: [b]}", "type: object, properties: {a: {type: string}, b: {type: string}}"},
+		"oneOf":            {"3.1.0", "{oneOf: [{type: integer}, {type: boolean}]}", "{oneOf: [{type: string}, {type: number}]}", "description: d"},
+		"not":              {"3.1.0", "{not: {type: integer}}", "{not: {type: boolean}}", "type: string"},
+		"allOf":            {"3.1.0", "{allOf: [{maxLength: 9}]}", "{allOf: [{minLength: 1}]}", "type: string"},
+		"title":            {"3.1.0", "{title: Deep}", "{title: Listed}", "type: string"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			at := func(deep, listed string, deepFirst bool) compiledP {
+				return withoutReport(compileP(t, outranking(tc.version, deep, listed, tc.beside, deepFirst)))
+			}
+			require.NotEqual(t, at("{}", "{}", false), at("{}", tc.deep, false),
+				"the value the parser holds changes what P compiles to")
+			written := at("{}", tc.listed, false)
+
+			assert.Equal(t, at("{}", "{}", true), at(tc.deep, tc.listed, true), "outranked: left out")
+			assert.Equal(t, written, at(tc.deep, tc.listed, false), "listed first: read as written")
+			reports := compileP(t, outranking(tc.version, tc.deep, tc.listed, tc.beside, true)).diags
+			assert.Equal(t, 1, strings.Count(strings.Join(reports, "\n"), "/components/schemas/P: "+pastBoundReport))
+		})
+	}
+}
+
+// TestRead_PastTheMergeBoundAKeyNoParserNodeTellsStaysOnlyWhereWritten reads
+// a schema merging past nodeview.MergeDepthLimit beside keywords the
+// parser's model holds no field for, so no node tells whether a source past
+// the bound outranks them: the one the schema writes itself is read, as no
+// merge outranks that, and one a source within the bound merges in is left
+// out with its value.
+func TestRead_PastTheMergeBoundAKeyNoParserNodeTellsStaysOnlyWhereWritten(t *testing.T) {
+	t.Parallel()
+	spec := strings.Replace(chained("3.1.0", nodeview.MergeDepthLimit, "{}", "$comment: c, type: object", ""),
+		fmt.Sprintf("P: {<<: *c%d, ", nodeview.MergeDepthLimit),
+		fmt.Sprintf("P: {<<: [*c%d, {dependentRequired: {a: [b]}, minimum: 1}], ", nodeview.MergeDepthLimit), 1)
+	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	p := table.At(component(c, "P"))
+	require.True(t, p.Truncated)
+	_, comment := p.Key("$comment")
+	assert.True(t, comment, "written by the schema itself")
+	require.NotNil(t, p.Notes)
+	assert.Equal(t, "c", text(p.Notes.Comment))
+	_, dependent := p.Key("dependentRequired")
+	assert.False(t, dependent, "merged in, with no node to tell it from one a source past the bound outranks")
+	assert.Nil(t, p.Object)
+	_, minimum := p.Key("minimum")
+	assert.True(t, minimum, "merged in, and the node the parser read")
+	assert.Equal(t, "1", text(p.Number.Minimum))
 }

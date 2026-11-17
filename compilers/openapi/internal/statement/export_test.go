@@ -3,7 +3,10 @@
 
 package statement
 
-import "github.com/speakeasy-api/openapi/jsonschema/oas3"
+import (
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	yaml "go.yaml.in/yaml/v3"
+)
 
 // Reads returns how many schema objects t has read, for the tests holding the
 // table to one read of each.
@@ -20,12 +23,12 @@ func Compared(s *Schema, name string) int {
 	return n
 }
 
-// ModelKeywords returns the keywords fill reads from the parser's model, in
-// modelKeywords' order.
-func ModelKeywords() []string {
-	out := make([]string, len(modelKeywords))
-	for i, k := range modelKeywords {
-		out[i] = k.name
+// ParserNodes returns, for each keyword fill reads, how its row finds the node
+// the parser read its value from, nil where the parser holds no field for it.
+func ParserNodes() map[string]func(*oas3.Schema) *yaml.Node {
+	out := make(map[string]func(*oas3.Schema) *yaml.Node, len(fillKeywords))
+	for _, k := range fillKeywords {
+		out[k.name] = k.node
 	}
 	return out
 }
