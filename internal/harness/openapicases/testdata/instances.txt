@@ -1,8 +1,5 @@
 # What the instance oracle finds at the core cases, and the reason each finding
 # stands: case name, what was found, reason (Reasons).
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/beside	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/entry	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/nested	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
@@ -52,9 +49,6 @@
 3.1.0/contains.json%2Fcontains with null instance elements/property/entry	"allows null items"	any-kind-model
 3.1.0/contains.json%2Fcontains with null instance elements/property/nested	"allows null items"	any-kind-model
 3.1.0/contains.json%2Fcontains with null instance elements/property/wrap	"allows null items"	any-kind-model
-3.1.0/contains.json%2Fitems + contains/property/entry	"matches both items and contains"	any-kind-model
-3.1.0/contains.json%2Fitems + contains/property/nested	"matches both items and contains"	any-kind-model
-3.1.0/contains.json%2Fitems + contains/property/wrap	"matches both items and contains"	any-kind-model
 3.1.0/contains.json%2FmaxContains = 0 with minContains = 0/property/entry	"empty array"	any-kind-model
 3.1.0/contains.json%2FmaxContains = 0 with minContains = 0/property/nested	"empty array"	any-kind-model
 3.1.0/contains.json%2FmaxContains = 0 with minContains = 0/property/wrap	"empty array"	any-kind-model
@@ -304,9 +298,6 @@
 3.1.0/format-uuid.json%2Fvalidation of non-string uuid values/property/entry	"all string formats ignore integers", "all string formats ignore floats", "all string formats ignore arrays", "all string formats ignore booleans", "all string formats ignore nulls"	any-kind-model
 3.1.0/format-uuid.json%2Fvalidation of non-string uuid values/property/nested	"all string formats ignore integers", "all string formats ignore floats", "all string formats ignore arrays", "all string formats ignore booleans", "all string formats ignore nulls"	any-kind-model
 3.1.0/format-uuid.json%2Fvalidation of non-string uuid values/property/wrap	"all string formats ignore integers", "all string formats ignore floats", "all string formats ignore arrays", "all string formats ignore booleans", "all string formats ignore nulls"	any-kind-model
-3.1.0/id.json%2Fbase URI change/property/entry	"base URI change ref valid"	any-kind-model
-3.1.0/id.json%2Fbase URI change/property/nested	"base URI change ref valid"	any-kind-model
-3.1.0/id.json%2Fbase URI change/property/wrap	"base URI change ref valid"	any-kind-model
 3.1.0/id.json%2Forder of evaluation: $id and $anchor and $ref/property/entry	"data is valid against first definition"	any-kind-model
 3.1.0/id.json%2Forder of evaluation: $id and $anchor and $ref/property/nested	"data is valid against first definition"	any-kind-model
 3.1.0/id.json%2Forder of evaluation: $id and $anchor and $ref/property/wrap	"data is valid against first definition"	any-kind-model
@@ -349,42 +340,12 @@
 3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/entry	"valid through then", "valid through else"	any-kind-model
 3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/nested	"valid through then", "valid through else"	any-kind-model
 3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/wrap	"valid through then", "valid through else"	any-kind-model
-3.1.0/items.json%2Fa schema given for items/property/entry	"valid items"	any-kind-model
-3.1.0/items.json%2Fa schema given for items/property/nested	"valid items"	any-kind-model
-3.1.0/items.json%2Fa schema given for items/property/wrap	"valid items"	any-kind-model
-3.1.0/items.json%2Fa schema given for prefixItems/property/entry	"correct types", "incomplete array of items", "array with additional items", "empty array"	any-kind-model
-3.1.0/items.json%2Fa schema given for prefixItems/property/nested	"correct types", "incomplete array of items", "array with additional items", "empty array"	any-kind-model
-3.1.0/items.json%2Fa schema given for prefixItems/property/wrap	"correct types", "incomplete array of items", "array with additional items", "empty array"	any-kind-model
-3.1.0/items.json%2Fadditional items are allowed by default/property/entry	"only the first item is validated"	any-kind-model
-3.1.0/items.json%2Fadditional items are allowed by default/property/nested	"only the first item is validated"	any-kind-model
-3.1.0/items.json%2Fadditional items are allowed by default/property/wrap	"only the first item is validated"	any-kind-model
-3.1.0/items.json%2Fitems does not look in applicators, valid case/property/entry	"prefixItems in allOf does not constrain items, valid case"	any-kind-model
-3.1.0/items.json%2Fitems does not look in applicators, valid case/property/nested	"prefixItems in allOf does not constrain items, valid case"	any-kind-model
-3.1.0/items.json%2Fitems does not look in applicators, valid case/property/wrap	"prefixItems in allOf does not constrain items, valid case"	any-kind-model
 3.1.0/items.json%2Fitems with boolean schema (false)/property/entry	"empty array is valid"	any-kind-model
 3.1.0/items.json%2Fitems with boolean schema (false)/property/nested	"empty array is valid"	any-kind-model
 3.1.0/items.json%2Fitems with boolean schema (false)/property/wrap	"empty array is valid"	any-kind-model
 3.1.0/items.json%2Fitems with boolean schema (true)/property/entry	"any array is valid", "empty array is valid"	any-kind-model
 3.1.0/items.json%2Fitems with boolean schema (true)/property/nested	"any array is valid", "empty array is valid"	any-kind-model
 3.1.0/items.json%2Fitems with boolean schema (true)/property/wrap	"any array is valid", "empty array is valid"	any-kind-model
-3.1.0/items.json%2Fitems with null instance elements/property/entry	"allows null elements"	any-kind-model
-3.1.0/items.json%2Fitems with null instance elements/property/nested	"allows null elements"	any-kind-model
-3.1.0/items.json%2Fitems with null instance elements/property/wrap	"allows null elements"	any-kind-model
-3.1.0/items.json%2FprefixItems validation adjusts the starting index for items/property/entry	"valid items"	any-kind-model
-3.1.0/items.json%2FprefixItems validation adjusts the starting index for items/property/nested	"valid items"	any-kind-model
-3.1.0/items.json%2FprefixItems validation adjusts the starting index for items/property/wrap	"valid items"	any-kind-model
-3.1.0/items.json%2FprefixItems with boolean schemas/property/entry	"array with one item is valid", "empty array is valid"	any-kind-model
-3.1.0/items.json%2FprefixItems with boolean schemas/property/nested	"array with one item is valid", "empty array is valid"	any-kind-model
-3.1.0/items.json%2FprefixItems with boolean schemas/property/wrap	"array with one item is valid", "empty array is valid"	any-kind-model
-3.1.0/items.json%2FprefixItems with heterogeneous array/property/entry	"valid instance"	any-kind-model
-3.1.0/items.json%2FprefixItems with heterogeneous array/property/nested	"valid instance"	any-kind-model
-3.1.0/items.json%2FprefixItems with heterogeneous array/property/wrap	"valid instance"	any-kind-model
-3.1.0/items.json%2FprefixItems with no additional items permitted/property/entry	"empty array", "fewer number of items present (1)", "fewer number of items present (2)", "equal number of items present"	any-kind-model
-3.1.0/items.json%2FprefixItems with no additional items permitted/property/nested	"empty array", "fewer number of items present (1)", "fewer number of items present (2)", "equal number of items present"	any-kind-model
-3.1.0/items.json%2FprefixItems with no additional items permitted/property/wrap	"empty array", "fewer number of items present (1)", "fewer number of items present (2)", "equal number of items present"	any-kind-model
-3.1.0/items.json%2FprefixItems with null instance elements/property/entry	"allows null elements"	any-kind-model
-3.1.0/items.json%2FprefixItems with null instance elements/property/nested	"allows null elements"	any-kind-model
-3.1.0/items.json%2FprefixItems with null instance elements/property/wrap	"allows null elements"	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/entry	"shorter is valid"	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/nested	"shorter is valid"	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/wrap	"shorter is valid"	any-kind-model
@@ -475,30 +436,15 @@
 3.1.0/pattern.json%2Fpattern validation/property/entry	"a matching pattern is valid", "ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores null"	any-kind-model
 3.1.0/pattern.json%2Fpattern validation/property/nested	"a matching pattern is valid", "ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores null"	any-kind-model
 3.1.0/pattern.json%2Fpattern validation/property/wrap	"a matching pattern is valid", "ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores null"	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/ref.json%2F$ref to boolean schema true/property/entry	"any value is valid"	any-kind-model
 3.1.0/ref.json%2F$ref to boolean schema true/property/nested	"any value is valid"	any-kind-model
 3.1.0/ref.json%2F$ref to boolean schema true/property/wrap	"any value is valid"	any-kind-model
-3.1.0/ref.json%2Frelative pointer ref to array/property/entry	"match array"	any-kind-model
-3.1.0/ref.json%2Frelative pointer ref to array/property/nested	"match array"	any-kind-model
-3.1.0/ref.json%2Frelative pointer ref to array/property/wrap	"match array"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/entry	"array is valid"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/nested	"array is valid"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/wrap	"array is valid"	any-kind-model
@@ -514,15 +460,9 @@
 3.1.0/unevaluatedItems.json%2FunevaluatedItems as schema/property/entry	"with no unevaluated items", "with valid unevaluated items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems as schema/property/nested	"with no unevaluated items", "with valid unevaluated items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems as schema/property/wrap	"with no unevaluated items", "with valid unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems before $ref (prefixItems)/property/entry	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems before $ref (prefixItems)/property/nested	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems before $ref (prefixItems)/property/wrap	"with no unevaluated items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems can see annotations from if without then and else (prefixItems)/property/entry	"valid in case if is evaluated"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems can see annotations from if without then and else (prefixItems)/property/nested	"valid in case if is evaluated"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems can see annotations from if without then and else (prefixItems)/property/wrap	"valid in case if is evaluated"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on adjacent contains/property/entry	"second item is evaluated by contains"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on adjacent contains/property/nested	"second item is evaluated by contains"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on adjacent contains/property/wrap	"second item is evaluated by contains"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on multiple nested contains/property/entry	"5 not evaluated, passes unevaluatedItems"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on multiple nested contains/property/nested	"5 not evaluated, passes unevaluatedItems"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems depends on multiple nested contains/property/wrap	"5 not evaluated, passes unevaluatedItems"	any-kind-model
@@ -535,69 +475,24 @@
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with $dynamicRef (2020-12)/property/entry	"with no unevaluated items"	dynamic-ref-read
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with $dynamicRef (2020-12)/property/nested	"with no unevaluated items"	dynamic-ref-read
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with $dynamicRef (2020-12)/property/wrap	"with no unevaluated items"	dynamic-ref-read
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with $ref (prefixItems)/property/entry	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with $ref (prefixItems)/property/nested	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with $ref (prefixItems)/property/wrap	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with anyOf (prefixItems)/property/entry	"when one schema matches and has no unevaluated items", "when two schemas match and has no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with anyOf (prefixItems)/property/nested	"when one schema matches and has no unevaluated items", "when two schemas match and has no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with anyOf (prefixItems)/property/wrap	"when one schema matches and has no unevaluated items", "when two schemas match and has no unevaluated items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with boolean schemas/property/entry	"with no unevaluated items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with boolean schemas/property/nested	"with no unevaluated items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with boolean schemas/property/wrap	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with if%2Fthen%2Felse (prefixItems)/property/entry	"when if matches and it has no unevaluated items", "when if doesn't match and it has no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with if%2Fthen%2Felse (prefixItems)/property/nested	"when if matches and it has no unevaluated items", "when if doesn't match and it has no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with if%2Fthen%2Felse (prefixItems)/property/wrap	"when if matches and it has no unevaluated items", "when if doesn't match and it has no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items and prefixItems/property/entry	"unevaluatedItems doesn't apply"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items and prefixItems/property/nested	"unevaluatedItems doesn't apply"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items and prefixItems/property/wrap	"unevaluatedItems doesn't apply"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items/property/entry	"valid under items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items/property/nested	"valid under items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with items/property/wrap	"valid under items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with minContains = 0/property/entry	"empty array is valid", "all items evaluated by contains"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with minContains = 0/property/nested	"empty array is valid", "all items evaluated by contains"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with minContains = 0/property/wrap	"empty array is valid", "all items evaluated by contains"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested items/property/entry	"with only (valid) additional items", "with no additional items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested items/property/nested	"with only (valid) additional items", "with no additional items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested items/property/wrap	"with only (valid) additional items", "with no additional items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested prefixItems and items/property/entry	"with no additional items", "with additional items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested prefixItems and items/property/nested	"with no additional items", "with additional items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested prefixItems and items/property/wrap	"with no additional items", "with additional items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested tuple (prefixItems)/property/entry	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested tuple (prefixItems)/property/nested	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested tuple (prefixItems)/property/wrap	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested unevaluatedItems (prefixItems)/property/entry	"with no additional items", "with additional items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested unevaluatedItems (prefixItems)/property/nested	"with no additional items", "with additional items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with nested unevaluatedItems (prefixItems)/property/wrap	"with no additional items", "with additional items"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with null instance elements/property/entry	"allows null elements"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with null instance elements/property/nested	"allows null elements"	any-kind-model
 3.1.0/unevaluatedItems.json%2FunevaluatedItems with null instance elements/property/wrap	"allows null elements"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with oneOf (prefixItems)/property/entry	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with oneOf (prefixItems)/property/nested	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with oneOf (prefixItems)/property/wrap	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with tuple (prefixItems)/property/entry	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with tuple (prefixItems)/property/nested	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with tuple (prefixItems)/property/wrap	"with no unevaluated items"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with uniform items/property/entry	"unevaluatedItems doesn't apply"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with uniform items/property/nested	"unevaluatedItems doesn't apply"	any-kind-model
-3.1.0/unevaluatedItems.json%2FunevaluatedItems with uniform items/property/wrap	"unevaluatedItems doesn't apply"	any-kind-model
 3.1.0/unevaluatedProperties.json%2Fnon-object instances are valid/property/entry	"ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores strings", "ignores null"	any-kind-model
 3.1.0/unevaluatedProperties.json%2Fnon-object instances are valid/property/nested	"ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores strings", "ignores null"	any-kind-model
 3.1.0/unevaluatedProperties.json%2Fnon-object instances are valid/property/wrap	"ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores strings", "ignores null"	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems validation/property/entry	"unique array of integers is valid", "false is not equal to zero", "true is not equal to one", "unique array of strings is valid", "unique array of objects is valid", "unique array of nested objects is valid", "unique array of arrays is valid", "[1] and [true] are unique", "[0] and [false] are unique", "nested [1] and [true] are unique", "nested [0] and [false] are unique", "unique heterogeneous types are valid", "different objects are unique", "{\"a\": false} and {\"a\": 0} are unique", "{\"a\": true} and {\"a\": 1} are unique"	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems validation/property/nested	"unique array of integers is valid", "false is not equal to zero", "true is not equal to one", "unique array of strings is valid", "unique array of objects is valid", "unique array of nested objects is valid", "unique array of arrays is valid", "[1] and [true] are unique", "[0] and [false] are unique", "nested [1] and [true] are unique", "nested [0] and [false] are unique", "unique heterogeneous types are valid", "different objects are unique", "{\"a\": false} and {\"a\": 0} are unique", "{\"a\": true} and {\"a\": 1} are unique"	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems validation/property/wrap	"unique array of integers is valid", "false is not equal to zero", "true is not equal to one", "unique array of strings is valid", "unique array of objects is valid", "unique array of nested objects is valid", "unique array of arrays is valid", "[1] and [true] are unique", "[0] and [false] are unique", "nested [1] and [true] are unique", "nested [0] and [false] are unique", "unique heterogeneous types are valid", "different objects are unique", "{\"a\": false} and {\"a\": 0} are unique", "{\"a\": true} and {\"a\": 1} are unique"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with an array of items (prefixItems)/property/entry	"[false, true] from items array is valid", "[true, false] from items array is valid", "unique array extended from [false, true] is valid", "unique array extended from [true, false] is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with an array of items (prefixItems)/property/nested	"[false, true] from items array is valid", "[true, false] from items array is valid", "unique array extended from [false, true] is valid", "unique array extended from [true, false] is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with an array of items (prefixItems)/property/wrap	"[false, true] from items array is valid", "[true, false] from items array is valid", "unique array extended from [false, true] is valid", "unique array extended from [true, false] is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with prefixItems and items=false/property/entry	"[false, true] from items array is valid", "[true, false] from items array is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with prefixItems and items=false/property/nested	"[false, true] from items array is valid", "[true, false] from items array is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems with prefixItems and items=false/property/wrap	"[false, true] from items array is valid", "[true, false] from items array is valid"	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems=false validation/property/entry	"unique array of integers is valid", "non-unique array of integers is valid", "numbers are unique if mathematically unequal", "false is not equal to zero", "true is not equal to one", "unique array of objects is valid", "non-unique array of objects is valid", "unique array of nested objects is valid", "non-unique array of nested objects is valid", "unique array of arrays is valid", "non-unique array of arrays is valid", "unique heterogeneous types are valid", "non-unique heterogeneous types are valid"	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems=false validation/property/nested	"unique array of integers is valid", "non-unique array of integers is valid", "numbers are unique if mathematically unequal", "false is not equal to zero", "true is not equal to one", "unique array of objects is valid", "non-unique array of objects is valid", "unique array of nested objects is valid", "non-unique array of nested objects is valid", "unique array of arrays is valid", "non-unique array of arrays is valid", "unique heterogeneous types are valid", "non-unique heterogeneous types are valid"	any-kind-model
 3.1.0/uniqueItems.json%2FuniqueItems=false validation/property/wrap	"unique array of integers is valid", "non-unique array of integers is valid", "numbers are unique if mathematically unequal", "false is not equal to zero", "true is not equal to one", "unique array of objects is valid", "non-unique array of objects is valid", "unique array of nested objects is valid", "non-unique array of nested objects is valid", "unique array of arrays is valid", "non-unique array of arrays is valid", "unique heterogeneous types are valid", "non-unique heterogeneous types are valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems and items=false/property/entry	"[false, true] from items array is valid", "[true, false] from items array is valid", "[false, false] from items array is valid", "[true, true] from items array is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems and items=false/property/nested	"[false, true] from items array is valid", "[true, false] from items array is valid", "[false, false] from items array is valid", "[true, true] from items array is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems and items=false/property/wrap	"[false, true] from items array is valid", "[true, false] from items array is valid", "[false, false] from items array is valid", "[true, true] from items array is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems/property/entry	"[false, true] from items array is valid", "[true, false] from items array is valid", "[false, false] from items array is valid", "[true, true] from items array is valid", "unique array extended from [false, true] is valid", "unique array extended from [true, false] is valid", "non-unique array extended from [false, true] is valid", "non-unique array extended from [true, false] is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems/property/nested	"[false, true] from items array is valid", "[true, false] from items array is valid", "[false, false] from items array is valid", "[true, true] from items array is valid", "unique array extended from [false, true] is valid", "unique array extended from [true, false] is valid", "non-unique array extended from [false, true] is valid", "non-unique array extended from [true, false] is valid"	any-kind-model
-3.1.0/uniqueItems.json%2FuniqueItems=false with prefixItems/property/wrap	"[false, true] from items array is valid", "[true, false] from items array is valid", "[false, false] from items array is valid", "[true, true] from items array is valid", "unique array extended from [false, true] is valid", "unique array extended from [true, false] is valid", "non-unique array extended from [false, true] is valid", "non-unique array extended from [true, false] is valid"	any-kind-model

@@ -880,7 +880,7 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 func TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpecVer("3.1.0",
-		"    A: {oneOf: [{$ref: '#/components/schemas/A'}, {type: 'null'}], properties: {a: {type: string}}}\n")
+		"    A: {oneOf: [{$ref: '#/components/schemas/A'}], anyOf: [{type: object}], properties: {a: {type: string}}}\n")
 	for _, off := range []bool{false, true} {
 		doc, diags := schema.LowerSpecWith(t, spec, lowering.Policy{KindInference: lowering.KindInference{Disabled: off}})
 		openapitest.RequireNoErrorDiags(t, diags)

@@ -486,10 +486,12 @@ func isNullValue(node *yaml.Node) bool {
 // unionNullReading reads the null branches of s's oneOf and anyOf
 // (nullAloneReading) under each reading: the union admits null where a branch
 // does, so its null rests on the policy where only a branch's lenient reading
-// admits it. A null branch counts only when the union is the type itself:
-// structural siblings intersect with the union, which is then kept verbatim,
-// and block its distribution. It never forbids: a union with no null branch
-// says nothing of a null a sibling admits, as in `{nullable: true, oneOf: …}`.
+// admits it. A null branch counts where the union is the type itself or is
+// distributed across the structural siblings beside it, as no variant of
+// either (buildUnion), the siblings' own verdicts conjoining with it; a union
+// kept verbatim beside them says nothing. It never forbids: a union with no
+// null branch says nothing of a null a sibling admits, as in
+// `{nullable: true, oneOf: …}`.
 func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	choice := choiceIn(s)
 	out := alike(nullSilent)
@@ -511,10 +513,22 @@ func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
 	}
 	// The lenient reading admits wherever the declared one does, so a union it
 	// leaves silent is silent under both, and asks no more of its siblings.
-	if out.lenient == nullSilent || hasUnionSiblings(c, s) {
+	if out.lenient == nullSilent || hasUnionSiblings(c, s) && !distributesUnion(c, s) {
 		return alike(nullSilent)
 	}
 	return out
+}
+
+// distributesUnion reports whether s, writing a union beside structural
+// keywords, lowers to a union of models conjoining its body with each branch
+// (classifyUnionSiblings), as read at the position its bindings place it at.
+func distributesUnion(c lowering.Ctx, s *statement.Schema) bool {
+	at, placed := siteOf(s)
+	if !placed {
+		return false
+	}
+	in, _ := lowering.InDocument(c, at.Doc)
+	return classifyUnionSiblings(in, s, at.Pointer) == unionDistributed
 }
 
 // NullAlone reports whether s admits null and no other value by its own

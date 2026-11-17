@@ -40,7 +40,8 @@ stays auditable (INV6). A configuration that wants only what the source declares
 ([type-graph](../../ir/type-graph.md#type-references)).
 
 A node whose own `Provenance.Inferred` names the heuristic that chose its kind, as a model, map,
-list, tuple or union the OpenAPI compiler reads off shape keywords beside no `type` names
+list, tuple or union the OpenAPI compiler reads off keywords typing a member, an element or a value
+beside no `type`, or a model composing conjuncts none of which declares its kind, names
 `kind-inference`, renders as the node it is, with nothing to act on: the policy already chose the
 kind, and the marker passes to the target AST so that choice stays auditable (INV6,
 [provenance](../../ir/provenance.md)).

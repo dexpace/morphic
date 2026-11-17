@@ -312,6 +312,37 @@ func (w *admission) of(js *statement.Statement) admitted {
 	return r.admitted
 }
 
+// lowered is what js admits as the node it lowers to does: what w reads of it,
+// narrowed to the kinds the kind-inference policy read off shape keywords
+// where nothing js declares names a kind (loweredAs). An election weighs what
+// each conjunct declares, and reads admission.of; a reader asking whether a
+// position already says what a keyword does reads this.
+func lowered(w *admission, js *statement.Statement) admitted {
+	return loweredAs(w.c, js, w.of(js))
+}
+
+// loweredAs is read, what js admits, narrowed to the kinds js lowers to where
+// the kind-inference policy read them (readOne), as the node it lowers to
+// excludes every other kind. A read cut short narrows nothing.
+func loweredAs(c lowering.Ctx, js *statement.Statement, read admitted) admitted {
+	if r := admissionOf(c, js); r.inferred && !r.cut {
+		read.kinds &= r.kinds
+	}
+	return read
+}
+
+// writtenLowered is what s's own keywords admit as w reads them
+// (admission.written), narrowed to the kinds its shape keywords claim where it
+// writes no type (claimedKinds): what a body lowering by those keywords alone
+// admits.
+func writtenLowered(w *admission, s *statement.Schema, nullable bool) admitted {
+	read := w.written(s, nullable)
+	if claims := claimedKinds(w.c, s); claims != 0 && !writesType(s) {
+		read.kinds &= claims
+	}
+	return read
+}
+
 // declarationSet is a set of schemas declaring together, with every schema they
 // compose, as the walk gathering them reached it, and the place of their
 // `items`, nil where none writes one. The place of a property is gathered from
@@ -384,9 +415,9 @@ func (w *admission) declarations(s *statement.Schema) declarationSet {
 // heldAt returns what p's declarations admit together, read once.
 func (w *admission) heldAt(p *place) admitted {
 	if p.held == nil {
-		held := w.of(p.decls[0])
+		held := lowered(w, p.decls[0])
 		for _, d := range p.decls[1:] {
-			held = held.and(w.of(d))
+			held = held.and(lowered(w, d))
 		}
 		p.held = &held
 	}
@@ -460,7 +491,7 @@ func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
 // adds null to there, `format`, `enum`, `const` and `items`. A schema in c's
 // document is read in w.nullable's dialect.
 func (w *admission) written(s *statement.Schema, nullable bool) admitted {
-	out := admitted{kinds: writtenKinds(w.c, s, nullable)}
+	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
 		out.items = items
@@ -483,13 +514,10 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 // writtenKinds reads a schema's `type`, with the null a `nullable: true` adds
 // to it, beside a $ref as anywhere, where the dialect defines the keyword, as
 // nullable says. A schema writing none, a null `type` among them (writesType),
-// admits what its shape keywords claim, as lowerUntyped lowers it
-// (claimedKinds), and every kind where they claim none.
-func writtenKinds(c lowering.Ctx, s *statement.Schema, nullable bool) kindSet {
+// admits every kind, whatever shape keywords it writes: each passes an
+// instance of another kind (docs/compilers/openapi.md#shape-applicator).
+func writtenKinds(s *statement.Schema, nullable bool) kindSet {
 	if !writesType(s) {
-		if claims := claimedKinds(c, s); claims != 0 {
-			return claims
-		}
 		return kindAny
 	}
 	var out kindSet
@@ -653,7 +681,7 @@ func (w *admission) text(js *statement.Statement) ir.RawValue {
 func (w *admission) holds(held admitted, s *statement.Schema, key string) bool {
 	switch key {
 	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(w.c, s, w.nullable)})
+		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
 	case "format":
 		return held.formsWithin(w.written(s, w.nullable))
 	case "enum", "const":

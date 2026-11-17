@@ -139,3 +139,23 @@ func TestNullAloneReading_ReadsASchemaOnce(t *testing.T) {
 	assert.True(t, ok, "the second ask reads what the first read")
 	assert.Equal(t, first, again)
 }
+
+// TestUnionNullReading_AnUnplacedUnionBesideABodyDistributesNothing pins the
+// guard on where a union beside a body is distributed: a schema the bindings
+// place nowhere has no position to lower its union at, so it distributes
+// nothing and its null branch says nothing of the reference, as beside a body
+// that keeps the union whole.
+func TestUnionNullReading_AnUnplacedUnionBesideABodyDistributesNothing(t *testing.T) {
+	t.Parallel()
+	js := &oas3.JSONSchema[oas3.Referenceable]{}
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader(
+		"{type: object, properties: {p: {type: string}}, oneOf: [{type: object}, {type: 'null'}]}"), js)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+
+	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
+	s := Standalone(js).Schema
+	require.True(t, hasUnionSiblings(c, s), "the union stands beside a body")
+	assert.False(t, distributesUnion(c, s))
+	assert.Equal(t, alike(nullSilent), unionNullReading(c, s))
+}

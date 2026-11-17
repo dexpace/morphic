@@ -894,12 +894,29 @@ it sees. Changes made together in one bump are listed together under it.
   A type node's `Provenance.Inferred` may name `kind-inference`: the OpenAPI compiler marks a node
   whose kind it read off the shape keywords of a schema naming none, under a policy that turned off
   lowers such a schema to the top type
-  ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads a kind off every
-  keyword applying to one kind alone, an `items`, an `additionalProperties`, a `required` or a
-  `discriminator` among them, where only a `properties` listing a member was read, and keywords of
-  both kinds as a union of the two. Beside a union kept whole whose branches each declare a kind the
-  keywords speak of, such a schema lowers to that kind unmarked, where it was the top type. A
-  consumer pinned to 0.69.0 refuses the document; one reading such a bound off `Constraints` finds
-  it under `Unmodeled`, one reading a carrier's bound finds it on the node the carrier names, one
-  reading a node's kind as declared finds the marker where it was not, and one reading an untyped
-  shape keyword under `Unmodeled` finds it typed on the node its kind lowers to.
+  ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads a kind off each keyword
+  giving the type of a member, an element or a value, an `items` or an `additionalProperties`
+  holding a schema that writes a keyword, a `patternProperties` and a `prefixItems` among them,
+  where only a `properties` listing a member was read, and keywords of both kinds as a union of the
+  two; a `required`, a `discriminator`, a closure and a `true` or `{}` infer none, and a schema
+  writing only those is the top type keeping them, as before. Beside a union kept whole whose
+  branches each declare a kind the keywords speak of, such a schema lowers to that kind unmarked,
+  where it was the top type. A kind the conjuncts of a schema declare decides before one the policy
+  reads off shape keywords: a conjunct writing such keywords narrows nothing a declared conjunct
+  says, and an `allOf` naming a `$ref` the policy reads as a kind its other conjuncts exclude is a
+  use of the declared kind, keeping the `$ref`, where it composed a model over a target writing
+  `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
+  Object keywords written with no `type` beside a union are a body it distributes across where the
+  kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
+  objects among them, and nowhere else: a `properties` beside a union naming another kind is the top
+  type keeping both. Such a union distributes past a null branch too, as no variant, the reference
+  to the position admitting null where the body admits it, where the null branch kept the union
+  whole beside the body. A consumer pinned to 0.69.0 refuses the document; one reading such a bound
+  off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
+  the carrier names, one reading a node's kind as declared finds the marker where it was not, one
+  reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
+  one reading such an `allOf` as a model finds the declared kind, one reading a closure or a
+  catch-all beside a union of objects finds a union of models holding it where it found the top
+  type, one reading a property set beside a union naming another kind finds the top type where it
+  found a union of models over each branch, and one reading a union with a null branch beside a body
+  finds it distributed, behind a reference admitting null as the body does.

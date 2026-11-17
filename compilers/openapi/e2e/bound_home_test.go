@@ -315,9 +315,8 @@ func TestCompile_ABoundOfAnotherKindIsKeptOnItsHomeAndBreaksNoInvariant(t *testi
 	t.Parallel()
 	schemas := []string{
 		"Base: {type: object, properties: {id: {type: string}}}",
-		"Untyped: {properties: {id: {type: string}}}",
 		"O1: {properties: {a: {type: string}}, minLength: 3}",
-		"Contradicted: {allOf: [{$ref: '#/components/schemas/Untyped'}, {type: string, maxLength: 3}]}",
+		"Contradicted: {allOf: [{$ref: '#/components/schemas/Base'}, {type: string, maxLength: 3}]}",
 		"Open: {description: declares no type}",
 		"Wide: {allOf: [{$ref: '#/components/schemas/Open'}], minLength: 4}",
 	}

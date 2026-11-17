@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,4 +115,79 @@ func TestAdmitted_ACompileErrorEndsTheCase(t *testing.T) {
 	assert.True(t, res.Faulted())
 	assert.Equal(t, OutcomePanic, res.Outcome)
 	assert.Contains(t, res.Detail, "harness: compiling case [0]: the engine is misconfigured")
+}
+
+// kindSpec writes the components schemas, and a model C holding props.
+func kindSpec(schemas, props string) []byte {
+	return fmt.Appendf(nil, `{"openapi": "3.1.0", "info": {"title": "t", "version": "1"}, "paths": {},
+  "components": {"schemas": {%s, "C": {"type": "object", "properties": {%s}}}}}`, schemas, props)
+}
+
+// Where kindSpec's defaults are: the property t of C, and the property m of O
+// in the row that writes it.
+const (
+	kindT = "p/openapi/components/schemas/C/properties/t"
+	kindM = "p/openapi/components/schemas/O/properties/m"
+)
+
+// TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred holds the verdict
+// on a property of C defaulting to def under its schema to what the node it is
+// checked against and the default's kind decide: a default of another kind
+// than a node marked kind-inference is excused, and every other finding
+// stands, among them one of a member, an element or a bound of a marked node,
+// and any of an unmarked one. The validate pass judges no member and no
+// element, so a row asking one has the finding drawn at the carrier.
+func TestAdmitted_ExcusesAnOtherKindOnlyWhereTheKindWasInferred(t *testing.T) {
+	const (
+		model  = `"M": {"properties": {"a": {"type": "string"}}, "required": ["a"], "maxProperties": 1}`
+		list   = `"L": {"items": {"type": "string"}, "maxItems": 1}`
+		typed  = `"U": {"type": "object", "properties": {"a": {"type": "string"}}}`
+		nested = `"O": {"type": "object", "properties": {"m": {"properties": {"a": {"type": "string"}}, "default": "s"}}}`
+	)
+	tests := []struct {
+		name    string
+		schemas string
+		ref     string
+		def     string
+		drawn   bool   // the pass draws no finding the row asks, so the test does
+		also    string // a second instance, held at the node of the nested row
+		want    string // the instances found, as the detail names them
+	}{
+		{"marked model against a string", model, "M", `"s"`, false, "", ""},
+		{"marked model against a missing member", model, "M", `{"b": 1}`, true, "", `"t"`},
+		{"marked model against a bound", model, "M", `{"a": "x", "b": 2}`, false, "", `"t"`},
+		{"unmarked model against a string", typed, "U", `"s"`, false, "", `"t"`},
+		{"marked list against an object", list, "L", `{"a": 1}`, false, "", ""},
+		{"marked list against a wrong-typed element", list, "L", `[1]`, true, "", `"t"`},
+		{"marked list against a bound", list, "L", `["a", "b"]`, false, "", `"t"`},
+		{"marked node nested in an unmarked one", nested, "O", `"s"`, false, kindM, `"t"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			props := fmt.Sprintf(`"t": {"$ref": "#/components/schemas/%s", "default": %s}`, tc.ref, tc.def)
+			instances := []Instance{{Node: kindT, Valid: true, Name: "t"}}
+			if tc.also != "" {
+				instances = append(instances, Instance{Node: tc.also, Valid: true, Name: "m"})
+			}
+			orig := compileSources
+			t.Cleanup(func() { compileSources = orig })
+			compileSources = func(ctx context.Context, sources []compilers.Source, options map[string]string,
+				ps []pass.Pass,
+			) (*ir.Document, []ir.Diagnostic, error) {
+				doc, diags, err := orig(ctx, sources, options, ps)
+				if tc.drawn {
+					diags = append(diags, ir.NewDiagnostic(ir.SeverityWarning, codeOutsideType,
+						"default has a member it does not hold", ir.Provenance{Node: kindT}))
+				}
+				return doc, diags, err
+			}
+			v := instanceVerdict(t, instanceCase(kindSpec(tc.schemas, props), instances...))
+			if tc.want == "" {
+				assert.Equal(t, passed(OracleInstance), v)
+				return
+			}
+			assert.True(t, v.Found(), "%+v", v)
+			assert.Equal(t, tc.want, strings.SplitN(v.Detail, "\n", 2)[0])
+		})
+	}
 }

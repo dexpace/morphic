@@ -19,28 +19,58 @@ type reading struct {
 	admitted admitted
 	// admits is the kinds of instance the statement's keywords leave, null
 	// aside; words those the keywords beside its $ref leave; and kinds those it
-	// lowers to, which a bound is placed by.
+	// lowers to, which a bound is placed by (settleKinds).
 	admits, words, kinds kindSet
+	// firm is the kinds what the statement declares leaves, its `type` and
+	// value sets conjoined with each conjunct's; claims the kinds the
+	// kind-inference policy reads off its own shape keywords (claimedKinds),
+	// united with the kinds of each conjunct whose kinds are claims.
+	firm, claims kindSet
 	// cut marks a statement on or reaching a cycle of conjunct edges, a $ref
 	// landing on no schema or a value set no reading converts; dynamic one
 	// meeting a $dynamicRef the bindings read as no $ref, which an election
 	// cannot read; loose one meeting a keyword the read does not follow that
 	// could refuse a kind (looseIn), so admits may claim more than the schema
-	// admits; inferred one whose kinds rest on the kind-inference policy's
-	// reading of shape keywords (claimedKinds): its own, where it names no
-	// kind, or those of a statement it conjoins or joins.
+	// admits; inferred one whose kinds are its claims, nothing it declares
+	// naming a kind.
 	cut, dynamic, loose, inferred bool
 	// reads and members are the schemas and value-set members the read takes
 	// in, each counted per path and held to one past a reader's cap.
 	reads, members int
 }
 
-// conjoin adds what r's conjunct child admits, and what its read took in, to r.
+// conjoin adds what r's conjunct child admits, declares and claims, and what
+// its read took in, to r.
 func (r *reading) conjoin(child *reading) {
 	r.admits &= child.admits
-	r.kinds &= child.kinds
+	r.conjoinKinds(child)
 	if r.took(child) {
 		r.admitted = r.admitted.and(child.admitted)
+	}
+}
+
+// conjoinKinds adds what child declares to what r declares, and its kinds to
+// r's claims where they are claims: JSON Schema applies a shape keyword to the
+// instances of its kind and passes every other, so a claim narrows nothing a
+// conjunct beside it declares (docs/compilers/openapi.md#shape-applicator).
+func (r *reading) conjoinKinds(child *reading) {
+	r.firm &= child.firm
+	if child.inferred {
+		r.claims |= child.kinds
+	}
+}
+
+// settleKinds derives the kinds r lowers to once its conjuncts are read: what
+// it declares where that names a kind, else what it claims where that names
+// one, inferred, else every kind.
+func (r *reading) settleKinds() {
+	switch {
+	case r.firm != anyInstance:
+		r.kinds, r.inferred = r.firm, false
+	case r.claims != 0 && r.claims != anyInstance:
+		r.kinds, r.inferred = r.claims, true
+	default:
+		r.kinds, r.inferred = anyInstance, false
 	}
 }
 
@@ -50,7 +80,6 @@ func (r *reading) took(child *reading) bool {
 	r.cut = r.cut || child.cut
 	r.dynamic = r.dynamic || child.dynamic
 	r.loose = r.loose || child.loose
-	r.inferred = r.inferred || child.inferred
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
 	r.members = min(r.members+child.members, maxAdmissionMembers+1)
 	if r.reads <= maxAdmissionReads && r.members <= maxAdmissionMembers {
@@ -79,7 +108,7 @@ func (r *reading) past(child *reading) {
 // cap.
 func cycleRead() *reading {
 	return &reading{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance,
-		cut: true, reads: maxAdmissionReads + 1}
+		firm: anyInstance, cut: true, reads: maxAdmissionReads + 1}
 }
 
 // admissionsIn keys a run's admissions. A statement the bindings do not place
@@ -255,16 +284,16 @@ func (w *admissionWalk) settle(f *admissionFrame) {
 // readOne reads st, whose conjunct edges each lead to a settled statement:
 // what its own keywords say, in the dialect of the document holding it,
 // conjoined with its allOf entries, the join of each union's branches and what
-// its $ref lands on, in conjunctsOf's order. A statement stating no schema
-// object admits nothing where it reads as `false`, and anything else. One
-// whose kinds that leaves every kind lowers to those its shape keywords claim
-// (claimedKinds), where they claim any.
+// its $ref lands on, in conjunctsOf's order, its kinds settled last
+// (settleKinds). A statement stating no schema object admits nothing where it
+// reads as `false`, and anything else.
 func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Statement) *reading {
 	if st.Truth != statement.Stated {
 		if st.Truth.ReadsFalse() {
 			return &reading{reads: 1}
 		}
-		return &reading{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance, reads: 1}
+		return &reading{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance,
+			firm: anyInstance, reads: 1}
 	}
 	r := w.readOwn(st)
 	choice := choiceIn(st.Schema)
@@ -287,17 +316,11 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 	case len(edges) > 0:
 		target := w.store.read[edges[0]]
 		r.admits &= target.admits
-		r.kinds &= target.kinds
+		r.conjoinKinds(target)
 		r.cut = r.cut || target.cut
 		r.loose = r.loose || target.loose
-		r.inferred = r.inferred || target.inferred
 	}
-	if r.kinds != anyInstance {
-		return r
-	}
-	if claims := claimedKinds(w.c, st.Schema); claims != 0 {
-		r.kinds, r.inferred = claims, true
-	}
+	r.settleKinds()
 	return r
 }
 
@@ -307,7 +330,7 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 	own := admission{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
 	r := &reading{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
 	r.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
-	r.kinds = r.admits
+	r.firm, r.claims = r.admits, claimedKinds(w.c, st.Schema)
 	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
 	if r.members > maxAdmissionMembers {
 		r.past(r)
@@ -318,17 +341,23 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 	return r
 }
 
-// join is what any of a union's settled branches admits, with what their reads
-// took in.
+// join is what any of a union's settled branches admits, declares and lowers
+// to, with what their reads took in: a branch reading as every kind leaves
+// what the join declares open, so the kinds the branches lower to reach the
+// position as a claim where any branch's is one.
 func (w *admissionWalk) join(branches []*statement.Statement) *reading {
 	first := w.store.read[branches[0]]
-	out := &reading{admitted: first.admitted, admits: first.admits, kinds: first.kinds}
+	out := &reading{admitted: first.admitted, admits: first.admits, kinds: first.kinds, firm: first.firm,
+		inferred: first.inferred}
 	out.took(first)
 	for _, b := range branches[1:] {
-		out.admits |= w.store.read[b].admits
-		out.kinds |= w.store.read[b].kinds
-		if out.took(w.store.read[b]) {
-			out.admitted = out.admitted.or(w.store.read[b].admitted)
+		branch := w.store.read[b]
+		out.admits |= branch.admits
+		out.kinds |= branch.kinds
+		out.firm |= branch.firm
+		out.inferred = out.inferred || branch.inferred
+		if out.took(branch) {
+			out.admitted = out.admitted.or(branch.admitted)
 		}
 	}
 	return out

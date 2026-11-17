@@ -1025,7 +1025,7 @@ func assertUnionRestatedType(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 
 // assertUnionInlineBranches pins a union beside a model body distributed
 // across inline branches, each conjoined by the node at its own pointer, which
-// an outside $ref finds too, and a bare null branch declining it
+// an outside $ref finds too, and past a bare null branch, which is no variant
 // (docs/compilers/openapi.md#union-beside-structure).
 func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
@@ -1052,9 +1052,10 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Placement/oneOf/0"), region.Base.Target,
 		"the reference gets the branch schema, never the variant composed for it")
 
-	maybe, ok := doc.Types[componentID("MaybePlacement")].(*ir.Model)
-	require.True(t, ok, "a bare null branch keeps the body")
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, maybe.Unmodeled, "openapi:oneOf").Reason)
+	maybe, ok := doc.Types[componentID("MaybePlacement")].(*ir.Union)
+	require.True(t, ok, "the union distributes past a bare null branch")
+	require.Len(t, maybe.Variants, 1, "the null branch is no variant")
+	assert.Empty(t, maybe.Unmodeled)
 }
 
 // assertAllOfUnionBranch pins a union written as an allOf branch, distributed

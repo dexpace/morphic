@@ -32,6 +32,11 @@ import (
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+		if admissionOf(c, c.Statements().Read(s)).inferred {
+			// No conjunct declares the kind: the model is one by the
+			// kind-inference policy's reading of their shape keywords.
+			common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
+		}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, comp.bounds)
 		diags = append(diags, consDiags...)

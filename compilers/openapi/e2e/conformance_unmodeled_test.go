@@ -34,13 +34,13 @@ import (
 // other beside it, the rule about a degraded lowering in
 // docs/ir/boundaries.md#degraded-constructs and
 // docs/compilers/openapi.md#shape-applicator. And a keyword with no `type`
-// beside it that speaks of no kind, a `format`, where the position lowers to
-// the top type. An applicator with no `type` speaks of its kind, which the
+// beside it that infers no kind, a `format`, a `required` or a
+// `discriminator`, where the position lowers to the top type. An applicator
+// with no `type` that types an element infers its kind, which the
 // kind-inference policy lowers it as, so it keeps nothing.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, kind := range map[string]ir.TypeKind{
 		"UntypedItems": ir.KindList, "UntypedPrefixItems": ir.KindTuple,
-		"UntypedRequired": ir.KindModel, "UntypedDiscriminator": ir.KindModel,
 	} {
 		td := doc.Types[componentID(name)]
 		require.NotNil(t, td, name)
@@ -50,7 +50,9 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+name), name)
 	}
 	untyped := map[string]struct{ keyword, raw string }{
-		"UntypedFormat": {"format", `"uuid"`},
+		"UntypedFormat":        {"format", `"uuid"`},
+		"UntypedRequired":      {"required", `["name"]`},
+		"UntypedDiscriminator": {"discriminator", `{"propertyName":"kind"}`},
 	}
 	for name, want := range untyped {
 		sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
