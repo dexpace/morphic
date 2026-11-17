@@ -40,3 +40,23 @@ func TestKeepEntryDynamicRef_AnEntryWritingNoneKeepsNothing(t *testing.T) {
 	assert.Empty(t, keepEntryDynamicRef(l.Ctx, &p, StandaloneSchema(&oas3.Schema{}), "$dynamicRef", "/p/allOf/1"))
 	assert.Empty(t, p)
 }
+
+// TestWritesTopLevelRef_TellsAKeptRefFromAnInlineEntry pins the reading that
+// keeps dropFoldedIntoWhole from asking a kept $ref what it holds: a $ref at
+// the top of an object only, and nothing of a value no object is or that does
+// not decode.
+func TestWritesTopLevelRef_TellsAKeptRefFromAnInlineEntry(t *testing.T) {
+	t.Parallel()
+	for raw, want := range map[string]bool{
+		`{"$ref":"#/a"}`:                      true,
+		`{"x-a":1,"$ref":"#/a"}`:              true,
+		`{"properties":{"p":{"$ref":"#/a"}}}`: false,
+		`false`:                               false,
+		`{"a"`:                                false,
+		`{"a`:                                 false,
+		`{`:                                   false,
+		``:                                    false,
+	} {
+		assert.Equal(t, want, writesTopLevelRef(ir.RawValue(raw)), raw)
+	}
+}

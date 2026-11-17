@@ -335,10 +335,10 @@ func recordKeptEntry(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, comp al
 // kept whole within another stays under its own path too, as
 // docs/compilers/openapi.md#allof-inline-residue keeps it.
 func dropFoldedIntoWhole(c lowering.Ctx, p *ir.Unmodeled) {
-	whole := make(ir.Unmodeled)
+	var whole ir.Unmodeled
 	for key, entry := range *p {
-		if strings.HasPrefix(key, allOfKeyPrefix) {
-			whole[key] = entry
+		if strings.HasPrefix(key, allOfKeyPrefix) && !writesTopLevelRef(entry.Value) {
+			whole = annotation.MergeUnmodeled(whole, ir.Unmodeled{key: entry})
 		}
 	}
 	if len(whole) == 0 {
@@ -346,6 +346,30 @@ func dropFoldedIntoWhole(c lowering.Ctx, p *ir.Unmodeled) {
 	}
 	promotion.DropContained(c.Promoter(), p, slices.Collect(maps.Keys(whole))...)
 	maps.Copy(*p, whole)
+}
+
+// writesTopLevelRef reports whether raw, a kept entry's value, is an object
+// naming a $ref member: a $ref entry an allOf keeps whole, which folds nothing,
+// where an inline one writes none. Asking only inline entries what they hold
+// keeps the question linear in an allOf of many $refs.
+func writesTopLevelRef(raw ir.RawValue) bool {
+	dec := jsontext.NewDecoder(bytes.NewReader(raw))
+	if tok, err := dec.ReadToken(); err != nil || tok.Kind() != '{' {
+		return false
+	}
+	for dec.PeekKind() == '"' {
+		name, err := dec.ReadToken()
+		if err != nil {
+			return false
+		}
+		if name.String() == "$ref" {
+			return true
+		}
+		if dec.SkipValue() != nil {
+			return false
+		}
+	}
+	return false
 }
 
 // allOfKeyPrefix opens the key of an allOf entry kept whole (branchKey).
