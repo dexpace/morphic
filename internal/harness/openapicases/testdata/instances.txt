@@ -1,8 +1,5 @@
 # What the instance oracle finds at the core cases, and the reason each finding
 # stands: case name, what was found, reason (Reasons).
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/additionalProperties.json%2FadditionalProperties being false does not allow other properties/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/beside	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/entry	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
 3.1.0/allOf.json%2FallOf combined with anyOf, oneOf/property/nested	"allOf: true, anyOf: true, oneOf: true"	union-beside-allof
@@ -343,6 +340,12 @@
 3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/entry	"valid through then", "valid through else"	any-kind-model
 3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/nested	"valid through then", "valid through else"	any-kind-model
 3.1.0/if-then-else.json%2Fvalidate against correct branch, then vs else/property/wrap	"valid through then", "valid through else"	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (false)/property/entry	"empty array is valid"	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (false)/property/nested	"empty array is valid"	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (false)/property/wrap	"empty array is valid"	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (true)/property/entry	"any array is valid", "empty array is valid"	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (true)/property/nested	"any array is valid", "empty array is valid"	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (true)/property/wrap	"any array is valid", "empty array is valid"	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/entry	"shorter is valid"	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/nested	"shorter is valid"	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/wrap	"shorter is valid"	any-kind-model
@@ -433,15 +436,6 @@
 3.1.0/pattern.json%2Fpattern validation/property/entry	"a matching pattern is valid", "ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores null"	any-kind-model
 3.1.0/pattern.json%2Fpattern validation/property/nested	"a matching pattern is valid", "ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores null"	any-kind-model
 3.1.0/pattern.json%2Fpattern validation/property/wrap	"a matching pattern is valid", "ignores booleans", "ignores integers", "ignores floats", "ignores arrays", "ignores null"	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/patternProperties.json%2FpatternProperties validates properties matching a regex/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fobject properties validation/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/properties.json%2Fproperties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores booleans"	any-kind-model
@@ -451,9 +445,6 @@
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/entry	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/nested	"ignores arrays", "ignores other non-objects"	any-kind-model
 3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/wrap	"ignores arrays", "ignores other non-objects"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/entry	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/nested	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
-3.1.0/required.json%2Frequired validation/property/wrap	"ignores arrays", "ignores strings", "ignores other non-objects", "ignores null", "ignores boolean"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/entry	"array is valid"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/nested	"array is valid"	any-kind-model
 3.1.0/type.json%2Ftype: array or object/property/wrap	"array is valid"	any-kind-model

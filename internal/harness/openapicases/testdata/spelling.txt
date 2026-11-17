@@ -1111,6 +1111,8 @@
 3.1.0/integer/title~/none/branch/nested	types.variants.name.hint	nested-title
 3.1.0/integer/xml/none/branch/beside	types.name.hint	hint-by-spelling
 3.1.0/integer/xml~/none/branch/beside	types.name.hint	hint-by-spelling
+3.1.0/items.json%2Fitems with boolean schema (false)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
+3.1.0/items.json%2Fitems with boolean schema (true)/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/maxItems.json%2FmaxItems validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/maxLength.json%2FmaxLength validation with a decimal/property/beside	diagnostics:pass/default-outside-type	any-kind-model
@@ -1551,6 +1553,7 @@
 3.1.0/pattern.json%2Fpattern validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/propertyNames.json%2FpropertyNames validation/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/ref.json%2F$ref to boolean schema true/property/beside	diagnostics:pass/default-outside-type	any-kind-model
+3.1.0/required.json%2Frequired properties whose names are Javascript object property names/property/beside	diagnostics:pass/default-outside-type	any-kind-model
 3.1.0/string/$dynamicRef/none/additionalProperties/beside	diagnostics:openapi/degraded-construct,types.value.use	dynamic-ref-beside
 3.1.0/string/$dynamicRef/none/additionalProperties/entry	diagnostics:openapi/degraded-construct,types.value.use.unmodeled.openapi:,types.value.use.unmodeled.openapi:$dynamicRef	kept-key
 3.1.0/string/$dynamicRef/none/branch/beside	diagnostics:openapi/degraded-construct,types.variants.decorator	dynamic-ref-beside
