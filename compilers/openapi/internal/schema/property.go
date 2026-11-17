@@ -27,7 +27,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *s
 	if js.Truth != statement.Stated {
 		return nil
 	}
-	use := UseOf(c, js, p.Type, pointer)
+	use := UseOf(c, ts, js, p.Type, pointer)
 	def, diags := use.Default(c, js.Schema, pointer)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(js.Schema).Chain(), pointer)...)
@@ -143,7 +143,7 @@ func KeysLentTo(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer j
 	if js.Truth != statement.Stated || LoweredToOwnNode(c, pointer, t) {
 		return promotion.Referent{}
 	}
-	return UseOf(c, js, t, pointer).lentKeys(c)
+	return readUse(c, js, t, pointer).lentKeys(c)
 }
 
 // LoweredToOwnNode reports whether t, what the declaration at pointer in c's

@@ -336,8 +336,9 @@ func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
 }
 
 // recordVoicedResidue is recordDeclarationResidue for what voices write, each
-// reported at the keyword it wrote, the last first: an entry several write is the
-// nearest's, and the schema written at the position records after them.
+// reported at the keyword it wrote, in ResidueWriters' order: an entry several
+// write is the nearest voice's kept apart, and the schema written at the
+// position records after them.
 func recordVoicedResidue(c lowering.Ctx, ts *compile.Types, voices []annotation.Voice, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
 	if home != annotation.HomeOwnNode {
 		return nil
@@ -347,8 +348,25 @@ func recordVoicedResidue(c lowering.Ctx, ts *compile.Types, voices []annotation.
 		return nil
 	}
 	var diags []ir.Diagnostic
-	for _, v := range slices.Backward(voices) {
+	for _, v := range ResidueWriters(voices) {
 		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At)...)
 	}
 	return diags
+}
+
+// ResidueWriters returns voices in the order a keeper overwriting what each
+// writes takes them: those kept whole, then the rest, each the last first. The
+// nearest voice kept apart holds a keyword several write, and one kept whole,
+// whose branch holds it (annotation.Voice.KeptWhole), only one no other writes,
+// which that branch then holds alone (dropFoldedIntoWhole).
+func ResidueWriters(voices []annotation.Voice) []annotation.Voice {
+	out := make([]annotation.Voice, 0, len(voices))
+	for _, whole := range []bool{true, false} {
+		for _, v := range slices.Backward(voices) {
+			if v.KeptWhole == whole {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
 }

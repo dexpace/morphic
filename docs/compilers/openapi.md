@@ -2615,12 +2615,13 @@ from two places, under the reason its kept keywords share where they share one, 
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
 folds is typed as any branch's is, and what its fold would keep beside it, a vendor extension or a
 validation-only keyword, is kept once, inside it, but for a key the promotion policy reads
-([unmodeled](../ir/unmodeled.md#keys)) and for one another branch folds alike, which the position
-keeps too, at its own pointer, as below. A keyword two branches
-keep alike, and the keywords beside the `allOf` do not write, is kept once, its provenance the
-position's pointer, as no one writer's is the same in every order of the branches; one the keywords
-beside the `allOf` write alike is theirs, kept as they keep it. An entry two folding branches write
-alike is the position's the same way.
+([unmodeled](../ir/unmodeled.md#keys)). Such a branch writes no keyword for anyone else: one another
+branch keeps or folds alike is that branch's, kept at its keyword, so each is kept once. A keyword
+two branches not kept whole keep alike, and the keywords beside the `allOf` do not write, is kept
+once, its provenance the position's pointer, as no one writer's is the same in every order of the
+branches; one the keywords beside the `allOf` write alike is theirs, kept as they keep it. An entry
+two such folding branches write alike is the position's the same way, but `default`, `readOnly`
+and `writeOnly`, kept at the nearest branch writing them.
 
 A position composes beside a branch declaring a `type` that excludes `object` only where the
 conjuncts share no value but null, as `{allOf: [{type: [object, "null"], …}, {type: [string, "null"],
@@ -2682,7 +2683,12 @@ every entry reads that one twice.
   `e2e.TestKeptFailedRef_ARefOnALoopIsKeptLikeOneThatNamesNothing`,
   `e2e.TestKeptFailedRef_TheFailureIsReportedOnceWhereTheRefIsWritten`,
   `schema.TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason`,
-  `annotation.TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite`,
+  `annotation.TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite`,
+  `annotation.TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne`,
+  `schema.TestEntryKeptOnce_AKeywordAnEntryKeptWholeSharesIsKeptInsideItAlone`,
+  `schema.TestEntryKeptOnce_AtACarrierTheEntryKeptWholeHoldsItsOwn`,
+  `schema.TestEntryKeptOnce_APromotedKeyStaysBesideTheEntryKeptWhole`,
+  `schema.TestEntryKeptOnce_EveryKeywordOfAGridIsKeptOnce`,
   `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,

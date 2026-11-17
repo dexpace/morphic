@@ -958,8 +958,8 @@ it sees. Changes made together in one bump are listed together under it.
   another conjunct writes otherwise, under the reason its keywords share, else `degraded_lowering`
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
   keep alike is kept once, at the position's pointer, what an entry kept whole folds and would keep
-  beside it is kept once, inside the entry, a key the promotion policy reads and one another entry
-  folds alike, which the position keeps too, aside, and an entry's `$comment`, `$anchor` and `$defs`
+  beside it is kept once, inside the entry, a key the promotion policy reads aside, the entry being
+  no writer of a keyword another entry keeps or folds alike, and an entry's `$comment`, `$anchor` and `$defs`
   are read as beside the `allOf` and kept nowhere. A `$ref` entry naming no schema, which was kept
   nowhere with each keyword beside it, is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
   reference text where several are, with each keyword beside it under its own key, or the entry

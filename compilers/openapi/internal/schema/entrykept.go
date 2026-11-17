@@ -45,7 +45,12 @@ type keptEntry struct {
 }
 
 // keeps reports whether k keeps anything.
-func (k keptEntry) keeps() bool { return k.whole != keptApart || len(k.own) > 0 }
+func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 }
+
+// keptWhole reports whether k is kept whole, holding what its entry writes: it
+// is no writer of a keyword it writes alike with another conjunct, kept apart
+// or folded, which that conjunct keeps alone (annotation.Voice.KeptWhole).
+func (k keptEntry) keptWhole() bool { return k.whole != keptApart }
 
 // wholeCause is why an inline allOf entry is kept whole.
 type wholeCause uint8
@@ -98,7 +103,7 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 			apartHere = apartKept
 		}
 		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apartHere)
-		if out[i].whole != keptApart {
+		if out[i].keptWhole() {
 			out[i].reason = sharedReason(c, s, comp, i, kept)
 			continue
 		}
@@ -112,6 +117,39 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 	}
 	for i := range out {
 		out[i].alike = slices.DeleteFunc(slices.Clone(out[i].own), func(key string) bool { return held[key] < 2 })
+	}
+	return out
+}
+
+// markKeptWhole marks each of voices, the voices of s written at pointer, which
+// lowered to target, whose branch the outcome keeps whole (keptWhole), so
+// annotation.Read counts it as no writer of what it folds, as entryKeeps
+// counts no such entry as a writer of what it keeps: the entry holds it once.
+// One voice writes no keyword alike with another, so fewer than two stand.
+func markKeptWhole(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+	voices []annotation.Voice,
+) []annotation.Voice {
+	if len(voices) < 2 {
+		return voices
+	}
+	var kept []keptEntry
+	if _, refined := refinementOf(c, s, pointer); refined {
+		kept = keepsAtOutcome(c, ts, s, target, pointer).entries
+	} else {
+		kept = readAllOf(c, s, pointer).kept
+	}
+	whole := map[jsontext.Pointer]bool{}
+	for _, k := range kept {
+		if k.keptWhole() {
+			whole[k.entry.pointer] = true
+		}
+	}
+	if len(whole) == 0 {
+		return voices
+	}
+	out := slices.Clone(voices)
+	for i, v := range out {
+		out[i].KeptWhole = whole[v.At]
 	}
 	return out
 }
@@ -355,7 +393,7 @@ func recordKeptEntry(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, comp al
 		return nil
 	}
 	e := k.entry
-	if k.whole != keptApart {
+	if k.keptWhole() {
 		kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(e.pointer), e.schema.Node, k.reason, c.Place().At(e.pointer))
 		if !kept {
 			return diags
@@ -574,7 +612,7 @@ func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfCo
 	var apart []keptBranch
 	for _, i := range failed {
 		k := comp.kept[i]
-		if k.whole == keptApart {
+		if !k.keptWhole() {
 			apart = append(apart, keptBranch{entry: k.entry})
 		}
 		diags = append(diags, recordKeptEntry(c, ts, &m.Unmodeled, comp, k, nodeShape(ir.KindModel), false,
