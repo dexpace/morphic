@@ -327,7 +327,7 @@ func TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced(t *testing.T) {
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
 	assert.Nil(t, m.Base, "a model composes no string")
-	assert.Contains(t, m.Unmodeled, "openapi:allOf/0/$ref", "the reference converts")
+	assert.Contains(t, m.Unmodeled, "openapi:$ref", "the reference converts")
 	assert.NotContains(t, m.Unmodeled, "openapi:allOf/0", "the rest of the entry, which folds, is no residue")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 		"/components/schemas/M/allOf/0"), `extension "x-t" could not be serialized`)

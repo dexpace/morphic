@@ -299,12 +299,14 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 		require.NotNil(t, m.Base, id)
 		assert.Equal(t, componentID("Cat"), m.Base.Target, id)
 	}
+	// A discriminator an entry writes beside its $ref is kept on the
+	// composition under its own key, as on an entry of its own.
 	sub, ok := typeByName(doc, "Sub").(*ir.Model)
 	require.True(t, ok)
-	assert.Contains(t, string(sub.Unmodeled["openapi:allOf/0"].Value), `"discriminator"`, "the entry keeps it")
+	assertKeptDiscriminator(t, sub.Unmodeled, "/components/schemas/Sub/allOf/0")
 
 	marshaled := marshalForTest(t, doc)
-	assert.Equal(t, len(owners), strings.Count(marshaled, `"openapi:discriminator"`)+
+	assert.Equal(t, len(owners)+1, strings.Count(marshaled, `"openapi:discriminator"`)+
 		strings.Count(marshaled, `"openapi:schema/discriminator"`), "one entry per position, none duplicated")
 }
 

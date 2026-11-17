@@ -6,6 +6,5 @@ package openapicases
 // Reasons maps each reason a record's line may give to the issue saying why
 // its finding stands, which the tests holding each record judge it by.
 func Reasons() map[string]string {
-	return map[string]string{
-	}
+	return map[string]string{}
 }

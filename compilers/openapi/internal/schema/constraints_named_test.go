@@ -824,11 +824,13 @@ func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, schema string
-		held         *ir.Constraints
+		name, schema, kept string
+		held               *ir.Constraints
 	}{
-		{name: "a value bound beside an array", schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}]}"},
-		{name: "a collection bound beside a string", schema: "{allOf: [{$ref: '#/components/schemas/Str', minItems: 2}]}"},
+		{name: "a value bound beside an array", schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}]}",
+			kept: "minLength"},
+		{name: "a collection bound beside a string", schema: "{allOf: [{$ref: '#/components/schemas/Str', minItems: 2}]}",
+			kept: "minItems"},
 		{name: "a value bound the target takes", held: &ir.Constraints{MinLength: new(int64(1))},
 			schema: "{allOf: [{$ref: '#/components/schemas/Str', minLength: 1}]}"},
 	} {
@@ -847,9 +849,14 @@ func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
 				assert.Empty(t, diags)
 				return
 			}
-			assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(s.Unmodeled))
-			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
-				"has no home for what this inline branch adds")
+			// The bound the entry writes beside its $ref is kept on its own, as
+			// an inline entry's is, at the keyword, and reported at the entry.
+			assert.Equal(t, []string{"openapi:" + tc.kept}, unmodeledKeys(s.Unmodeled))
+			assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled["openapi:"+tc.kept].Reason)
+			assert.Equal(t, at+"/"+tc.kept, string(s.Unmodeled["openapi:"+tc.kept].Provenance.Pointer))
+			reports := diagsAtPointer(diags, diag.DegradedConstruct, at)
+			require.Len(t, reports, 1)
+			assert.Equal(t, ir.SeverityInfo, reports[0].Severity)
 		})
 	}
 }

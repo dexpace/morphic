@@ -304,14 +304,14 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	ownType, ok := doc.Types[componentID("OwnType")].(*ir.Model)
 	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
 	assert.Nil(t, ownType.Base, "a model composes no list")
-	assert.Contains(t, ownType.Unmodeled, "openapi:allOf/0", "the $ref to the list is kept")
+	assert.Contains(t, ownType.Unmodeled, "openapi:$ref", "the $ref to the list is kept")
 
 	twoRefs, ok := doc.Types[componentID("TwoRefs")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, twoRefs.Base, "the one $ref to an object is the Base")
 	assert.Equal(t, componentID("Obj"), twoRefs.Base.Target)
 	assert.Empty(t, twoRefs.Mixins)
-	assert.Contains(t, twoRefs.Unmodeled, "openapi:allOf/0", "the $ref to the string is kept")
+	assert.Contains(t, twoRefs.Unmodeled, "openapi:$ref", "the $ref to the string is kept")
 
 	inline, ok := doc.Types[componentID("Inline")].(*ir.Model)
 	require.True(t, ok)

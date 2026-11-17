@@ -383,7 +383,6 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", statement.MaxFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
 		"Shapeless": {"openapi:anyOf"},
-		"RefBranch": nil,
 		"Capped":    {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)

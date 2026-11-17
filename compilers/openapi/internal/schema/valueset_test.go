@@ -131,7 +131,7 @@ func TestValueSet_SetsAlikeTheElectionCannotTellApartElectNone(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := typeByName(doc, "S").(*ir.Model)
 		require.True(t, ok, "%s: got %T", entries, typeByName(doc, "S"))
-		assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1", "openapi:allOf/2"}, unmodeledKeys(m.Unmodeled), entries)
+		assert.Equal(t, []string{"openapi:$ref", "openapi:allOf/1", "openapi:allOf/2"}, unmodeledKeys(m.Unmodeled), entries)
 		assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), entries)
 	}
 }

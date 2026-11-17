@@ -183,7 +183,7 @@ func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	// conjunct of: beside a $ref to an object a string or an integer shares no
 	// value with it, so each is the model over Base keeping what shares none,
 	// with the warning that the conjuncts share no value.
-	for name, key := range map[string]string{"G": "openapi:oneOf", "H": "openapi:anyOf", "I": "openapi:allOf/0"} {
+	for name, key := range map[string]string{"G": "openapi:oneOf", "H": "openapi:anyOf", "I": "openapi:type"} {
 		m, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, name)
 		require.NotNil(t, m.Base, name)
@@ -777,13 +777,14 @@ func assertAllOfRefBranchSiblings(t *testing.T, doc *ir.Document, diags []ir.Dia
 // beside a oneOf or a nested allOf (GitHub #406). The keywords beside the $ref
 // are conjuncts of the composition, as an inline entry's are: here they share
 // no value with Base, so the composition warns that no instance satisfies it,
-// still composes Base, and keeps what Base cannot hold, once, under the
-// entry's key.
+// still composes Base, and keeps what Base cannot hold, once, under its own
+// key, as an inline entry's keyword is kept.
 func assertAllOfRefBranchUnion(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	for name, want := range map[string]struct{ key, raw, at string }{
-		"UnionBranch": {"openapi:allOf/0",
-			`{"$ref":"#/components/schemas/Base","oneOf":[{"type":"string"},{"type":"integer"}]}`, "/allOf/0"},
+		"UnionBranch": {"openapi:oneOf", `[{"type":"string"},{"type":"integer"}]`, "/allOf/0"},
+		// Its type disagrees with the one the composition writes, so the entry
+		// is kept whole.
 		"NestedAllOfBranch": {"openapi:allOf/0/allOf/0", `{"type":"string"}`, "/allOf/0/allOf/0"},
 	} {
 		m := requireModelNode(t, doc, componentID(name))

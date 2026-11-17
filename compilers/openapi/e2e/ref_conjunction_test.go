@@ -148,3 +148,38 @@ func TestRefConjunction_AKeywordBesideAValueSetIsKeptOnceOnItsNode(t *testing.T)
 		}
 	}
 }
+
+// TestRefConjunction_AKeptRefsSiblingsAreKeptEachUnderItsOwnKey holds that a
+// $ref a composition or a value set passes over is kept under openapi:$ref as
+// the reference alone, and that each keyword written beside it, beside the
+// $ref or beside it on an allOf entry, is a conjunct kept under its own key
+// with its own reason: a note is the node's, a bound and a format no node
+// holds degraded, an unknown keyword out of scope, an extension a vendor's.
+func TestRefConjunction_AKeptRefsSiblingsAreKeptEachUnderItsOwnKey(t *testing.T) {
+	t.Parallel()
+	const siblings = "description: d, maxLength: 9, format: email, foo: bar, x-v: 1"
+	ref := refTo("Str")
+	object := "{type: object, properties: {p: {type: string}}}"
+	for name, schema := range map[string]string{
+		"a value set, beside the $ref":   "{" + ref + ", " + siblings + ", enum: [a]}",
+		"a value set, on an entry":       "{allOf: [{" + ref + ", " + siblings + "}], enum: [a]}",
+		"a composition, beside the $ref": "{" + ref + ", " + siblings + ", allOf: [" + object + "]}",
+		"a composition, on an entry":     "{allOf: [{" + ref + ", " + siblings + "}, " + object + "]}",
+	} {
+		doc, _ := compileAnnotationSpec(t, "kept", admissionSpec("3.1.0", "", conjTargets["Str"], "Use: "+schema))
+		node := kindNode(t, doc, componentID("Use"))
+		kept := node.Common().Unmodeled
+		want := map[string]ir.UnmodeledReason{
+			"openapi:$ref": ir.ReasonDegradedLowering, "openapi:maxLength": ir.ReasonDegradedLowering,
+			"openapi:format": ir.ReasonDegradedLowering, "openapi:foo": ir.ReasonOutOfScope,
+			"openapi:x-v": ir.ReasonVendorExtension,
+		}
+		got := map[string]ir.UnmodeledReason{}
+		for key, entry := range kept {
+			got[key] = entry.Reason
+		}
+		assert.Equal(t, want, got, name)
+		assert.JSONEq(t, `{"$ref":"#/components/schemas/Str"}`, string(kept["openapi:$ref"].Value), "%s: the reference alone", name)
+		assert.Equal(t, "d", node.Common().Docs.Description, "%s: the note is the node's", name)
+	}
+}

@@ -714,14 +714,14 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 
 // keepConjuncts keeps on p the conjuncts s, written at pointer, writes beside
 // its own keywords, which an election passed over: the $ref written beside them
-// under keptRefKey, and the allOf whole. It returns the keywords it kept, `$ref`
+// under openapi:$ref, its node writing the reference alone, and the allOf whole. It returns the keywords it kept, `$ref`
 // and `allOf`, in that order.
 func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	var written []string
 	var diags []ir.Diagnostic
 	if s.BesideRef != nil {
-		e := allOfBranch{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
-		kept, keptDiags := keepRef(c, p, allOfComposition{pointer: pointer}, e)
+		kept, keptDiags := annotation.PreserveNodeInto(p, "openapi:$ref", s.BesideRef.Node, ir.ReasonDegradedLowering,
+			c.Place().At(pointer))
 		diags = append(diags, keptDiags...)
 		if kept {
 			written = append(written, "$ref")

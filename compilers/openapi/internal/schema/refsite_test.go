@@ -780,14 +780,14 @@ func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 func TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, sibling, kept string
-		requires            []string
-		disjoint            bool
+		name, sibling, kept, at string
+		requires                []string
+		disjoint                bool
 	}{
-		{"format and required", "format: email, required: [a]", "openapi:allOf/0", []string{"a"}, false},
-		{"oneOf", "oneOf: [{type: string}, {type: integer}]", "openapi:allOf/0", nil, true},
-		{"anyOf", "anyOf: [{type: string}, {type: integer}]", "openapi:allOf/0", nil, true},
-		{"allOf", "allOf: [{type: string}]", "openapi:allOf/0/allOf/0", nil, true},
+		{"format and required", "format: email, required: [a]", "openapi:format", "allOf/0/format", []string{"a"}, false},
+		{"oneOf", "oneOf: [{type: string}, {type: integer}]", "openapi:oneOf", "allOf/0/oneOf", nil, true},
+		{"anyOf", "anyOf: [{type: string}, {type: integer}]", "openapi:anyOf", "allOf/0/anyOf", nil, true},
+		{"allOf", "allOf: [{type: string}]", "openapi:type", "allOf/0/allOf/0/type", nil, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -799,7 +799,11 @@ func TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts(t *testing.T) 
 			require.NotNil(t, m.Base, "the entry still composes")
 			assert.Equal(t, componentID("BaseObj"), m.Base.Target, "its $ref is the Base itself")
 			assert.Equal(t, tc.requires, m.Requires)
+			// Each keyword the entry writes beside its $ref is kept on its own,
+			// as an inline entry's is, at the keyword.
 			assert.Equal(t, []string{tc.kept}, unmodeledKeys(m.Unmodeled))
+			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled[tc.kept].Reason)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.at), m.Unmodeled[tc.kept].Provenance.Pointer)
 			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/S/allOf/0"), "no node at the entry")
 			assert.Equal(t, tc.disjoint, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S") &&
 				openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) == 1)

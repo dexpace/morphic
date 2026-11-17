@@ -121,7 +121,7 @@ func TestAllOfCompose_OnlyATypeListsObjectVariantIsComposed(t *testing.T) {
 		for _, name := range []string{"OverSI", "OverU"} {
 			model := requireModelOf(t, doc, name)
 			assert.Empty(t, parentsOf(model), name)
-			assert.Equal(t, degradedKept(entryKey(0)), keptOn(model), name)
+			assert.Equal(t, degradedKept("openapi:$ref"), keptOn(model), "%s: the $ref kept as a refinement keeps one", name)
 			assert.Equal(t, 1, degradedInfosAt(diags, name), name)
 		}
 	})

@@ -236,33 +236,6 @@ func (a allOfComposition) subject() string {
 	return "this allOf"
 }
 
-// keepRef keeps on p the $ref conjunct e of comp whole, under keptRefKey: the
-// reference as written, and not what else the object writing it writes beside
-// it, a conjunct of its own whose node writes the reference alone
-// (statement.Entry). It reports whether it kept it
-// (annotation.PreserveNodeInto).
-func keepRef(c lowering.Ctx, p *ir.Unmodeled, comp allOfComposition, e allOfBranch) (bool, []ir.Diagnostic) {
-	return annotation.PreserveNodeInto(p, keptRefKey(comp, e), e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
-}
-
-// keptRefKey is the Unmodeled key the $ref conjunct e of comp is kept under:
-// "openapi:$ref" for the one the composed schema writes beside its keywords,
-// its entry's key for one an entry writes alone (branchKey), and that key's
-// "$ref" for one an entry writes beside other keys, whose rest is a conjunct
-// of its own at the same pointer (statement.Entry).
-func keptRefKey(comp allOfComposition, e allOfBranch) string {
-	switch {
-	case e.pointer == comp.pointer:
-		return "openapi:$ref"
-	case slices.ContainsFunc(comp.branches, func(o allOfBranch) bool {
-		return o.pointer == e.pointer && o.schema.Ref == nil
-	}):
-		return comp.branchKey(e.pointer) + "/$ref"
-	default:
-		return comp.branchKey(e.pointer)
-	}
-}
-
 // compositionRequired collects every required-property name declared across an
 // allOf composition, in source order: each branch's required list (a flattened
 // wrapper's included), then own, the list the composed schema writes itself. A
@@ -294,6 +267,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c, comp.branches, m.ID)
+	var uncomposed []keptBranch
 	for i, e := range comp.branches {
 		switch {
 		case e.schema.Ref == nil:
@@ -302,8 +276,13 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 		case composesRef(c, e):
 			diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
 		default:
-			diags = append(diags, keepUncomposedRef(c, ts, m, comp, e)...)
+			uncomposed = append(uncomposed, keptBranch{entry: e})
 		}
+	}
+	// Kept as a refinement keeps a $ref it does not lower, by reference text.
+	refs := keptRefKeys(uncomposed, comp.pointer)
+	for _, b := range uncomposed {
+		diags = append(diags, keepUncomposedRef(c, ts, m, b.entry, refs[b.entry.pointer])...)
 	}
 	return diags
 }
@@ -346,11 +325,13 @@ func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
 }
 
 // keepUncomposedRef keeps the $ref entry e, whose target is no object alone,
-// verbatim under m's Unmodeled and reports it, resolving the target so the
-// document holds what it names.
-func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, e allOfBranch) []ir.Diagnostic {
+// verbatim under m's Unmodeled, as ref says, and reports it, resolving the
+// target so the document holds what it names. What the entry writes beside
+// its $ref is an entry of its own (statement.Entry), so e's node writes the
+// reference alone.
+func keepUncomposedRef(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch, ref keptRef) []ir.Diagnostic {
 	resolveSchemaRef(c, ts, e.schema)
-	kept, diags := keepRef(c, &m.Unmodeled, comp, e)
+	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, ref.key, e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(ref.at))
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s",
 			"the schema this $ref names is not an object alone, and a model composes only models, so the $ref "+
