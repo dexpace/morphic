@@ -180,7 +180,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              other, never emitters/engine.
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
-             only ir and barrier) up to operation, document and detect. None may reach the
+             only ir and barrier) up to operation, document and detect: each sits in one of
+             five layers, which `layers` in `internal/archtest` names. None may reach the
              compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
@@ -227,6 +228,11 @@ under `compilers/` and `emitters/` the same test requires one. `TestImportGraph_
 fails on an entry that no production file the rule audits imports, so a change that drops a
 package's last import of something drops the entry with it, and on an entry naming no directory,
 unless `unbuilt` says why it is ruled before its package exists, as `emitters` is.
+
+A package under `compilers/openapi/internal` takes a row in `layers`, the layer its imports and its
+role say, because `TestLayers_EveryCompilerPackageHasOne` fails without one;
+`TestLayers_NoPackageImportsAboveItsLayer` reads the packages' real imports, not the `rules`
+entries, and fails on one of a layer above the package's own or of a library its layer may not reach.
 
 Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
@@ -322,7 +328,8 @@ These all exist already — extend them rather than building a parallel mechanis
   The calls each production package makes into one it does not import, which only a function, an
   interface or a type argument handed to it can make, are held to `callShapeBaseline`, pair by
   pair. A count rises only for a call of a kind the table keeps, a traversal callback or a designed
-  seam among them, and only with the table's edit (#1478).
+  seam among them, and only with the table's edit (#1478). It holds the OpenAPI compiler's packages
+  to five layers too (`layers_test.go`), each package importing its own layer and those below.
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
   `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
   analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
