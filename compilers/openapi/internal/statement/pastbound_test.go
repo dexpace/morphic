@@ -470,3 +470,63 @@ func TestRead_PastTheMergeBoundAKeyNoParserNodeTellsStaysOnlyWhereWritten(t *tes
 	assert.True(t, minimum, "merged in, and the node the parser read")
 	assert.Equal(t, "1", text(p.Number.Minimum))
 }
+
+// bodySpec writes a document whose one operation takes an octet-stream body
+// merging, beside what beside writes, a chain of n anchors whose first writes
+// leaf, as chained does for a component.
+func bodySpec(n int, leaf, beside string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\nx-c0: &c0 %s\n", leaf)
+	for i := 1; i <= n; i++ {
+		fmt.Fprintf(&b, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	fmt.Fprintf(&b, "paths:\n  /u:\n    post:\n      requestBody:\n        content:\n"+
+		"          application/octet-stream: {schema: {<<: *c%d, %s}}\n"+
+		"      responses: {'204': {description: ok}}\n", n, beside)
+	return b.String()
+}
+
+// compileBody compiles spec and returns its operation's body, its type and its
+// file reading, with the types the body's pointer names, encoded.
+func compileBody(t *testing.T, spec string) string {
+	t.Helper()
+	doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
+	require.NoError(t, err)
+	op := openapitest.FirstOp(t, doc.Services[0])
+	require.NotNil(t, op.Request)
+	types := ir.TypeRegistry{}
+	for id, td := range doc.Types {
+		if strings.Contains(string(id), "/requestBody/") {
+			types[id] = td
+		}
+	}
+	raw, err := json.Marshal(struct {
+		Contents []ir.Content
+		Types    ir.TypeRegistry
+	}{op.Request.Contents, types}, json.Deterministic(true))
+	require.NoError(t, err)
+	return string(raw)
+}
+
+// TestRead_PastTheMergeBoundABodyIsReadAsItsTypeIs compiles an operation's
+// octet-stream body merging a keyword the file reading and the type both read,
+// through as many `<<` as nodeview.MergeDepthLimit expands and one more:
+// within the bound the body reads as written, and past it, its type and its
+// file reading are both what the body's keys within the bound alone say.
+func TestRead_PastTheMergeBoundABodyIsReadAsItsTypeIs(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ leaf, beside string }{
+		{"{contentEncoding: base64}", "type: string, format: binary"},
+		{"{pattern: '^a'}", "type: string"},
+		{"{format: binary}", "type: string"},
+	} {
+		t.Run(tc.leaf, func(t *testing.T) {
+			t.Parallel()
+			written := compileBody(t, bodySpec(0, tc.leaf, tc.beside))
+			require.NotEqual(t, compileBody(t, bodySpec(0, "{}", tc.beside)), written, "the leaf changes the body")
+			assert.Equal(t, written, compileBody(t, bodySpec(nodeview.MergeDepthLimit-1, tc.leaf, tc.beside)))
+			assert.Equal(t, compileBody(t, bodySpec(nodeview.MergeDepthLimit, "{}", tc.beside)),
+				compileBody(t, bodySpec(nodeview.MergeDepthLimit, tc.leaf, tc.beside)))
+		})
+	}
+}

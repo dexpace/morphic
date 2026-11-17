@@ -53,13 +53,13 @@ var modelReadBaseline = map[string]map[string]int{
 		"GetPatternProperties":     2,
 		"GetPrefixItems":           1,
 		"GetProperties":            3,
-		"GetRootNode":              2,
+		"GetRootNode":              1,
 		"GetSchema":                4,
 		"GetThen":                  1,
 		"GetType":                  6,
 		"GetUnevaluatedProperties": 2,
 		"IsSchema":                 2,
-		"statement.Parsed":         14,
+		"statement.Parsed":         12,
 	},
 }
 

@@ -34,10 +34,15 @@ func (t *Table) Of(js *model) *Statement {
 
 // Parsed returns the parser's schema object s was read from, nil for a nil s
 // and for a value that is no schema object: what the operation walk reads
-// beside the statement (GitHub #1991). It goes once that walk reads none.
+// beside the statement (GitHub #1991). For a Truncated s it is the copy fill
+// read, holding only what s's keys list (listedOnly), so the walk reads what
+// the statement holds. It goes once that walk reads none.
 func Parsed(s *Schema) *oas3.Schema {
 	if s == nil {
 		return nil
+	}
+	if s.Truncated {
+		return listedOnly(s.m.GetSchema(), s)
 	}
 	return s.m.GetSchema()
 }
