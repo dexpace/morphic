@@ -5675,8 +5675,8 @@ rather than merely asserted: `TestCases_CoverTheRuleTable` holds the schema case
 of the rule table at each version, and `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`
 compiles, for each keyword at each position the cases write a schema and in each spelling they write
 it in (merged into the schema it is said of, beside a `$ref` to that schema, beside an `allOf` of
-the `$ref`, on an entry of the `allOf` after the `$ref`, and on such an entry nested one `allOf`
-deeper), three documents: the keyword absent, written with one value, written with a second.
+the `$ref`, on an entry of the `allOf` after the `$ref`, on such an entry nested one `allOf`
+deeper, and beside the `$ref` on the `allOf`'s one entry), three documents: the keyword absent, written with one value, written with a second.
 It requires the absent form to differ from the first and the first from the second, and an exception
 to equal the absent form, its justification written beside the keyword; where the target writes the
 keyword itself, there is no absent form, and the two values are compared alone. So are the values of
@@ -5684,9 +5684,9 @@ keyword itself, there is no absent form, and the two values are compared alone. 
 differs from it by them, so one dropped is found as a value discarded. A keyword that stops
 being carried at any one position or in any one spelling fails there rather than waiting for a
 reader to notice, and a finding that stands is listed with its reason in the package's
-`testdata/presence.txt`. The test asks this of the core cases, which the gate runs;
-`morphic-harness -cases full` asks it of every case, an entry written before the `$ref` among them,
-and reports what the record does not explain. The guarantee is a floor rather than an inventory:
+`testdata/presence.txt`. The test asks this of the core cases, which the gate runs; `make cases`
+asks it of every case, an entry written before the `$ref` and a second keyword written with the
+first among them, and fails on what the records, `testdata/full` among them, do not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
 another would still pass. A dependency map with no entry is no value in that sense but the keyword
 left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions

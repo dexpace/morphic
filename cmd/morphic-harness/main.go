@@ -91,7 +91,7 @@ func sweep(ctx context.Context, paths []string, stdout, stderr io.Writer) int {
 }
 
 // format is one format's schema cases and the record of what each case oracle
-// is known to find at its core cases.
+// is known to find at them.
 type format struct {
 	cases  harness.Cases
 	record func(harness.Oracle) (harness.Recorded, error)
@@ -102,8 +102,8 @@ type format struct {
 // groups written as OpenAPI defaults.
 func formats() []format {
 	return []format{
-		{cases: openapicases.New(), record: openapicases.Record},
-		{cases: openapicases.Groups(), record: openapicases.Record},
+		{cases: openapicases.New(), record: openapicases.FullRecord},
+		{cases: openapicases.Groups(), record: openapicases.FullRecord},
 	}
 }
 
@@ -228,10 +228,12 @@ when every spec passes, 1 when any spec fails an oracle, 2 on a usage or
 filesystem error.
 
 With -cases, each format's schema cases are checked instead: core, the cases
-the gate runs, or full, every case, as make cases runs them each night. Each
+the gate runs, or full, every case, as make cases checks them each night. Each
 case is a document the case oracles (spelling, presence, instance) judge, the
-first two against its neighbours. A finding a format's record lists at the core
-case the case projects to is explained; the rest are a line each, and a summary
+first two against its neighbours. A finding a format's records list at its case
+or, alike, at the core case it projects to is explained, and so is a spelling
+at a case writing two keywords that differs only where a spelling of the case
+writing either alone does; the rest are a line each, and a summary
 counts, per case oracle, the cases it asked and declined. With -at N, the case
 at index N alone is checked, whichever of core or full is named, and its name,
 its sources and each verdict are written. N counts the cases of one product

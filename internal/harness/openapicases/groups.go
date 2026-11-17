@@ -101,7 +101,7 @@ func (c groupCases) Write(at []int) (harness.Document, bool) {
 		if !t.Valid {
 			continue
 		}
-		use, ok := spell(c.spellings[at[3]], object{{"$ref", groupPath}}, object{{"default", raw(string(t.Data))}})
+		use, ok := spell(c.spellings[at[3]], object{{"$ref", groupPath}}, object{{"default", raw(string(t.Data))}}, nil)
 		if !ok {
 			return harness.Document{}, false
 		}

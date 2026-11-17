@@ -209,6 +209,38 @@ func TestCheckCase_AnswersForOneCase(t *testing.T) {
 	assert.Equal(t, harness.Result{Spec: "a0/b1/x"}, r)
 }
 
+// parted is a fake product of one axis whose first case names a partner and
+// the given parts, each case writing a tiny spec.
+type parted struct{ parts [][]int }
+
+func (parted) Axes() []harness.Axis { return []harness.Axis{axis("n", "a", "b", "c")} }
+
+func (p parted) Write(at []int) (harness.Document, bool) {
+	doc := harness.Document{Sources: []compilers.Source{{Path: "spec.yaml", Data: []byte(testspec.Tiny)}}}
+	if at[0] == 0 {
+		doc.Equal = &harness.Equal{To: []int{1}, Rule: "docs/compilers/openapi.md#ref-use-site",
+			Relocate: func(s string) string { return s }, Parts: p.parts}
+	}
+	return doc, true
+}
+
+// TestCheckCase_NamesTheParts holds a result to the parts its case names, and a
+// part outside the product or naming the case itself to a panic: either is
+// the product's mistake.
+func TestCheckCase_NamesTheParts(t *testing.T) {
+	r, ok := harness.CheckCase(t.Context(), parted{parts: [][]int{{1}, {2}}}, []int{0})
+	require.True(t, ok)
+	assert.Equal(t, []string{"b", "c"}, r.Parts)
+	assert.Equal(t, harness.OutcomeOK, r.Outcome)
+
+	for _, bad := range [][]int{{3}, {0}, nil} {
+		r, ok = harness.CheckCase(t.Context(), parted{parts: [][]int{bad}}, []int{0})
+		require.True(t, ok)
+		assert.Equal(t, harness.OutcomePanic, r.Outcome, "%v", bad)
+		assert.Contains(t, r.Detail, "outside the product or itself", "%v", bad)
+	}
+}
+
 func TestCheckCase_ACallersMistakeIsAnErrorOutcome(t *testing.T) {
 	g := grid{axes: threeAxes()}
 	for _, tc := range []struct {

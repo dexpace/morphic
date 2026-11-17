@@ -232,3 +232,55 @@ func TestFindings_ListTheDeclinesARecordHolds(t *testing.T) {
 	assert.Equal(t, "g/p", got[0].Spec)
 	assert.Equal(t, harness.OraclePresence, got[0].Verdicts[0].Oracle)
 }
+
+// spelt is the result of a case whose spelling found what, projecting to like
+// and naming parts.
+func spelt(spec, like, what string, parts ...string) harness.Result {
+	return harness.Result{Spec: spec, Like: like, Parts: parts, Outcome: harness.OutcomeSpellingDependent,
+		Detail: what + "\nthe diff", Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeSpellingDependent, Detail: what + "\nthe diff"},
+		}}
+}
+
+// TestUnexplained_ATwoKeywordFindingIsNewWhereNeitherPartDiffers pins how a
+// spelling found at a case writing two keywords is read: explained where every
+// place it differs at is one a spelling of either part differs at in the same
+// run, and left to report at a place neither does, a part outside the run
+// adding none. A presence finding is read against the record alone, and a
+// line at a case's own name explains what it lists.
+func TestUnexplained_ATwoKeywordFindingIsNewWhereNeitherPartDiffers(t *testing.T) {
+	carriesNothing := harness.Verdict{Oracle: harness.OraclePresence, Outcome: harness.OutcomeNotCarried,
+		Detail: "changes nothing"}
+	alone := spelt("none/s", "none/none", "types.unmodeled")
+	alone.Verdicts = append(alone.Verdicts, carriesNothing)
+	both := spelt("k/s", "k/none", "types.kind", "k/none", "none/s")
+	both.Verdicts = append(both.Verdicts, carriesNothing)
+	results := []harness.Result{
+		spelt("k/none", "k/none", "types.kind"),
+		alone,
+		spelt("k/t", "k/none", "types.kind,types.unmodeled", "k/none", "none/s"),
+		spelt("k/u", "k/none", "types.kind,types.base", "k/none", "none/s"),
+		both,
+		spelt("k/v", "k/none", "types.kind", "k/none", "gone/x"),
+		spelt("q/v", "q/none", "types.kind", "gone/x"),
+		spelt("own/s", "own/none", "listed"),
+	}
+	lines := "k/none\ttypes.kind\tr\nnone/s\ttypes.unmodeled\tr\nown/s\tlisted\tr\n"
+	spelling, err := harness.ReadRecorded([]byte(lines))
+	require.NoError(t, err)
+	presence, err := harness.ReadRecorded([]byte("none/s\tchanges nothing\tr\n"))
+	require.NoError(t, err)
+
+	got := harness.Unexplained(results, map[harness.Oracle]harness.Recorded{
+		harness.OracleSpelling: spelling, harness.OraclePresence: presence})
+
+	left := map[string]harness.Oracle{}
+	for _, r := range got {
+		require.Len(t, r.Verdicts, 1, r.Spec)
+		left[r.Spec] = r.Verdicts[0].Oracle
+	}
+	assert.Equal(t, map[string]harness.Oracle{
+		"k/u": harness.OracleSpelling, "k/s": harness.OraclePresence, "q/v": harness.OracleSpelling,
+	}, left)
+	assert.Equal(t, []string{"k/none", "none/s"}, got[0].Parts, "a result left keeps the parts it names")
+}
