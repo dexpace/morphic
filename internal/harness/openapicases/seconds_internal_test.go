@@ -55,6 +55,8 @@ func TestWrite_PlacesASecondBesideItsConstruct(t *testing.T) {
 			`{"allOf":[{"title":"T"},{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"}]}`},
 		{"3.0.3/string/title/secondRef/component/nested",
 			`{"allOf":[{"allOf":[{"$ref":"#/components/schemas/T"},{"$ref":"#/components/schemas/S"},{"title":"T"}]}]}`},
+		{"3.0.3/string/title/secondRef/component/besideEntry",
+			`{"allOf":[{"$ref":"#/components/schemas/T","title":"T"},{"$ref":"#/components/schemas/S"}]}`},
 		{"3.0.3/string/title/secondRef/component/inline",
 			`{"type":"string","title":"T","allOf":[{"$ref":"#/components/schemas/S"}]}`},
 		{"3.0.3/string/none/secondRef/component/wrap",

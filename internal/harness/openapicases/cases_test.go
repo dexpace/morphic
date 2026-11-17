@@ -226,7 +226,7 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 		assert.Equal(t, "none", v.Like, "a second construct, %s, is recorded under none", v.Name)
 	}
 	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
-		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}}, axes[5].Values)
+		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}, {Name: "besideEntry"}}, axes[5].Values)
 	assert.Len(t, axes[4].Values, 9)
 }
 

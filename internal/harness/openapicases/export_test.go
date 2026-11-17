@@ -21,5 +21,7 @@ func Reasons() map[string]string {
 	return map[string]string{
 		"dynamic-ref-beside": "#2009: a $dynamicRef an allOf entry writes over an object is read as a reference " +
 			"of its own, where beside the $ref it is kept unexpanded on the model over the object",
+		"ref-entry-sibling": "an allOf entry writing enum or const beside its $ref reads that $ref a second time, " +
+			"reporting it twice, where on an entry of its own the keyword draws one report",
 	}
 }

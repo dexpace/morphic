@@ -105,6 +105,10 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 		{[]string{"3.1.0", "object", "allOf", "none", "items", "nested"}, true, entry},
 		{[]string{"3.1.0", "string", "none", "none", "items", "entry"}, false, ""},
 		{[]string{"3.1.0", "string", "none", "none", "items", "nested"}, true, wrap},
+		{[]string{"3.1.0", "string", "minLength", "none", "items", "besideEntry"}, true, entry},
+		{[]string{"3.1.0", "string", "none", "none", "items", "besideEntry"}, false, ""},
+		{[]string{"3.1.0", "string", "none", "secondRef", "items", "besideEntry"}, false, ""},
+		{[]string{"3.1.0", "string", "$comment", "none", "items", "besideEntry"}, false, ""},
 	} {
 		doc, ok := c.Write(caseAt(t, c, tc.at...))
 		require.Equal(t, tc.written, ok, "%v", tc.at)
@@ -140,6 +144,12 @@ func TestWrite_EachSpellingNamesItsPartner(t *testing.T) {
 	assert.Equal(t, []harness.Stated{warning("openapi/later-version-construct", item+"/title"),
 		warning("openapi/later-version-construct", item+"/allOf")},
 		eq("3.0.3", "string", "title", "secondRef", "items", "beside").Stated, "a second $ref is an allOf beside it")
+	onEntry := eq("3.0.3", "string", "nullable", "secondRef", "items", "besideEntry")
+	assert.Equal(t, []harness.Stated{warning("openapi/later-version-construct", item+"/allOf/0/nullable")}, onEntry.Stated,
+		"beside the $ref on its entry, and the second $ref an entry after it")
+	assert.Equal(t, []harness.Stated{warning("openapi/validation/validation-no-effect", item+"/allOf/2/nullable")},
+		onEntry.Replaced, "where the entry spelling writes it, after both references")
+	assert.Empty(t, eq("3.1.0", "string", "minLength", "none", "items", "besideEntry").Stated, "3.1 admits it")
 	assert.Empty(t, eq("3.1.0", "string", "minLength", "none", "items", "beside").Stated)
 	assert.Equal(t, "docs/compilers/openapi.md#ref-use-site", nullable.Rule)
 }
@@ -148,6 +158,8 @@ func TestSpell_RefusesAUseWritingAKeyTwice(t *testing.T) {
 	ref := object{{"$ref", "#/components/schemas/T"}}
 	_, ok := spell(beside, ref, object{{"$ref", "#/components/schemas/RefString"}}, nil)
 	assert.False(t, ok)
+	_, ok = spell(besideEntry, ref, object{{"$ref", "#/components/schemas/RefString"}}, nil)
+	assert.False(t, ok, "the entry would write $ref twice")
 	_, ok = spell(inline, ref, nil, nil)
 	assert.False(t, ok, "inline writes the body, no use")
 	use, ok := spell(nested, ref, object{{"title", "T"}}, nil)

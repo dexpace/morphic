@@ -46,7 +46,9 @@ func versions() []version {
 }
 
 // spellings returns the spellings, in the order the spelling axis lists them.
-func spellings() []string { return []string{inline, beside, wrap, entry, entryFirst, nested} }
+func spellings() []string {
+	return []string{inline, beside, wrap, entry, entryFirst, nested, besideEntry}
+}
 
 // cases is the OpenAPI product: the tables each axis lists the values of.
 type cases struct {
@@ -218,7 +220,7 @@ func (c cases) neighbours(doc *harness.Document, v version, t target, at []int) 
 	doc.Absent = slices.Concat(at[:2], []int{0}, at[3:])
 	if row := c.rowOf(at[3]); row >= 0 {
 		doc.Absent[2], doc.Absent[3] = 1+2*row, 0 // the row's second alone is the row's case
-	} else if s := c.spellings[at[5]]; s == entry || s == entryFirst {
+	} else if writesWrapEmpty(c.spellings[at[5]]) {
 		if sec, _ := c.secondAt(at[3], v, t); len(sec.members) == 0 {
 			doc.Absent[5] = slices.Index(c.spellings, wrap) // an entry saying nothing writes wrap's document
 		}

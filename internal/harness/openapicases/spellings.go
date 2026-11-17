@@ -6,6 +6,7 @@ package openapicases
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/internal/harness"
@@ -25,6 +26,8 @@ const (
 	entryFirst = "entryFirst"
 	// nested writes {allOf: [{allOf: [{$ref: T}, {K}]}]}.
 	nested = "nested"
+	// besideEntry writes {allOf: [{$ref: T, K}]}, beside as an allOf's entry.
+	besideEntry = "besideEntry"
 )
 
 // targetSchema is the component every spelling but inline writes the target
@@ -45,6 +48,8 @@ func partnerOf(s string) (partner, rule string, ok bool) {
 		return wrap, "allof-inline-residue", true
 	case entryFirst, nested:
 		return entry, "allof-classification", true
+	case besideEntry:
+		return entry, "ref-use-site", true
 	default:
 		return "", "", false
 	}
@@ -59,7 +64,7 @@ func (c cases) spelt(u written, s string, t target) (object, bool) {
 	if s == inline {
 		return t.body.with(slices.Concat(u.members, allOfOf(u.entries))), true
 	}
-	if len(u.members) == 0 && (s == entry || s == entryFirst) {
+	if len(u.members) == 0 && writesWrapEmpty(s) {
 		return nil, false
 	}
 	switch u.stays {
@@ -73,6 +78,11 @@ func (c cases) spelt(u written, s string, t target) (object, bool) {
 	}
 	return spell(s, object{{"$ref", "#/components/schemas/" + targetSchema}}, u.members, u.entries)
 }
+
+// writesWrapEmpty reports whether s, given no keyword, writes wrap's document,
+// which wrap writes: the spellings writing the keywords in an entry of their
+// own or beside the reference's entry.
+func writesWrapEmpty(s string) bool { return s == entry || s == entryFirst || s == besideEntry }
 
 // staysAt is where the construct at index i of the construct axis is written;
 // none, saying nothing, is moved.
@@ -96,6 +106,12 @@ func spell(s string, ref, k object, follow []any) (object, bool) {
 		use = slices.Concat(object{{"allOf", slices.Concat([]any{ref}, follow)}}, k)
 	case entry, entryFirst, nested:
 		use = object{{"allOf", allOfEntries(s, ref, k, follow)}}
+	case besideEntry:
+		first := slices.Concat(ref, k)
+		if repeats(first) {
+			return nil, false
+		}
+		use = object{{"allOf", slices.Concat([]any{first}, follow)}}
 	default:
 		return nil, false
 	}
@@ -160,22 +176,33 @@ func (c cases) equal(at []int, u written) *harness.Equal {
 	to[5] = slices.Index(c.spellings, partner)
 	use := c.positions[at[4]].pointer
 	eq := &harness.Equal{To: to, Rule: rulePrefix + rule, Relocate: relocation(use)}
-	if s != beside || c.versions[at[0]].dialect {
+	if c.versions[at[0]].dialect {
 		return eq
 	}
-	for _, m := range slices.Concat(u.members, allOfOf(u.entries)) {
-		at := jsontext.Pointer(use).AppendToken(m.name)
-		eq.Stated = append(eq.Stated, laterVersion(at))
-		// docs/compilers/openapi.md#nullable: beside a $ref the keyword is a later
-		// minor's construct, warned of as one, so it draws no second warning
-		// there, where beside the allOf it draws validation-no-effect unless a
-		// type is written in the same schema, which gives it its effect.
-		if m.name == "nullable" && m.value == raw("true") && !typed(u.members) {
-			eq.Replaced = append(eq.Replaced, harness.Stated{Severity: ir.SeverityWarning,
-				Code: "openapi/validation/validation-no-effect", Pointer: at})
-		}
+	switch s {
+	case beside:
+		eq.Stated, eq.Replaced = besideRef(use, slices.Concat(u.members, allOfOf(u.entries)), use, u.members)
+	case besideEntry:
+		eq.Stated, eq.Replaced = besideRef(use+"/allOf/0", u.members, use+"/allOf/"+strconv.Itoa(1+len(u.entries)), u.members)
+	default:
 	}
 	return eq
+}
+
+// besideRef returns the reports a 3.0 use states where it writes members
+// beside a $ref in the schema at, its partner writing them in the schema at
+// theirs: each draws the warning a later minor's keyword draws, and a
+// nullable: true, which the partner warns has no effect where no type is
+// written with it (docs/compilers/openapi.md#nullable), draws no second there.
+func besideRef(at string, members object, theirs string, unit object) (stated, replaced []harness.Stated) {
+	for _, m := range members {
+		stated = append(stated, laterVersion(jsontext.Pointer(at).AppendToken(m.name)))
+		if m.name == "nullable" && m.value == raw("true") && !typed(unit) {
+			replaced = append(replaced, harness.Stated{Severity: ir.SeverityWarning,
+				Code: "openapi/validation/validation-no-effect", Pointer: jsontext.Pointer(theirs).AppendToken(m.name)})
+		}
+	}
+	return stated, replaced
 }
 
 // typed reports whether members write a type, a type written null being none:
