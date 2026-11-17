@@ -66,7 +66,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  site.enumType(c, members, memberPrim),
+			ValueType:  site.enumType(c, func(p ir.PrimKind) bool { return enumMembersAre(members, p) }, memberPrim),
 			Members:    members,
 			Closed:     true,
 		}
@@ -193,7 +193,7 @@ func emptyEnum(c lowering.Ctx, site valueSetSite, common ir.TypeCommon) (ir.Type
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
 		TypeCommon: common,
-		ValueType:  site.enumType(c, nil, ir.PrimAny),
+		ValueType:  site.enumType(c, admitsEvery, ir.PrimAny),
 		Closed:     true,
 	}, diags
 }
@@ -212,14 +212,14 @@ func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimK
 	occurrences := make(map[string]int, len(entries))
 	prim := ir.PrimAny
 	for i, e := range entries {
-		if e.err != nil {
+		memberPrim, text, admissible := enumMemberOf(entries, i)
+		if !admissible {
 			return nil, "", false
 		}
-		memberPrim, text, admissible := enumMemberForm(e.val)
 		key, keyed := ir.EnumMemberKey(e.val)
 		occurrences[key]++
 		id, placed := ir.EnumMemberIDFor(enum, key, occurrences[key])
-		if !admissible || !keyed || !placed || (i > 0 && e.val.Kind != entries[0].val.Kind) {
+		if !keyed || !placed {
 			return nil, "", false
 		}
 		prim = memberPrim
@@ -230,6 +230,44 @@ func enumMembers(entries []enumEntry, enum ir.TypeID) ([]ir.EnumMember, ir.PrimK
 		})
 	}
 	return members, prim, true
+}
+
+// enumMemberOf classifies the entry at index i of entries as an Enum member, as
+// enumMemberForm does its value, and refuses one converting to no value or of
+// another kind than the first, which no Enum holds beside it.
+func enumMemberOf(entries []enumEntry, i int) (ir.PrimKind, string, bool) {
+	e := entries[i]
+	if e.err != nil || i > 0 && e.val.Kind != entries[0].val.Kind {
+		return "", "", false
+	}
+	return enumMemberForm(e.val)
+}
+
+// enumMemberPrim is the PrimKind enumMembers gives entries, and false where it
+// refuses one (enumMemberOf), read with no member built: a value
+// enumMemberForm admits always has a key, and a type's ID always places one. A
+// position asking only its ValueType names no member (enumSetType).
+func enumMemberPrim(entries []enumEntry) (ir.PrimKind, bool) {
+	prim := ir.PrimAny
+	for i := range entries {
+		memberPrim, _, admissible := enumMemberOf(entries, i)
+		if !admissible {
+			return "", false
+		}
+		prim = memberPrim
+	}
+	return prim, true
+}
+
+// entriesAre reports whether every entry's value is a value of prim, as
+// enumMembersAre asks of the members they lower to.
+func entriesAre(entries []enumEntry, prim ir.PrimKind) bool {
+	for _, e := range entries {
+		if !merge.Admits(prim, e.val) {
+			return false
+		}
+	}
+	return true
 }
 
 // enumAsUnion lowers the entries of a heterogeneous or non-scalar enum that
@@ -303,7 +341,7 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 // top type where they select none, narrowed as the site types it.
 func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
 	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
-		return &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, nil, ir.PrimAny), Closed: true}
+		return &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
 	})
 }
 
@@ -362,8 +400,8 @@ func literalValueType(s *statement.Schema, val ir.Value) ir.PrimKind {
 // format the members do not fit is one no target could back the enum with, so
 // it stays verbatim. It does not re-derive memberPrim from a ValueKind:
 // enumMemberForm decided it once, for the same members.
-func enumValueType(s *statement.Schema, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
-	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return enumMembersAre(members, p) }); ok {
+func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPrim ir.PrimKind) ir.PrimKind {
+	if prim, ok := declaredPrim(s, admits); ok {
 		return prim
 	}
 	return memberPrim

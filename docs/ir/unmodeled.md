@@ -103,7 +103,7 @@ held apart by no one key ([`allof-inline-residue`](../compilers/openapi.md#allof
 a `$ref` entry a `Model` does not compose keeps its path key too
 ([`allof-classification`](../compilers/openapi.md#allof-classification)). A keyword several entries
 write alike is one entry, its provenance the position's pointer, as no one writer's is the same in
-every order of the entries.
+every order of the entries; an entry kept whole is no such writer, as it holds its own.
 
 An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
 document's, keyed by the declaration's coordinate rather than a scope:

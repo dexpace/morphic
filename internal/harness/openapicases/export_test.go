@@ -19,8 +19,6 @@ func Record(o harness.Oracle) (harness.Recorded, error) {
 // its finding stands, which the tests holding each record judge it by.
 func Reasons() map[string]string {
 	return map[string]string{
-		"dynamic-ref-beside": "#2009: a $dynamicRef an allOf entry writes over an object is read as a reference " +
-			"of its own, where beside the $ref it is kept unexpanded on the model over the object",
 		"ref-entry-sibling": "an allOf entry writing keywords beside its $ref reads that $ref a second time: beside " +
 			"an enum or const it is reported twice, and an entry kept whole keeps the $ref with its keywords, " +
 			"where the entry spelling keeps the keywords alone",
@@ -35,9 +33,6 @@ func Reasons() map[string]string {
 		"unfiled-entry-residue-per-variant": "no issue yet: a keyword kept verbatim beside a union on an inline " +
 			"allOf entry is kept on each variant the union distributes into, where beside the allOf it is kept " +
 			"once on the Union",
-		"unfiled-entry-union-dropped": "no issue yet: a oneOf or anyOf that an enum or const beside it on an " +
-			"inline allOf entry leaves nothing to say is dropped with no record and no report, where beside the " +
-			"allOf it is kept verbatim with an info",
 		"unfiled-disjoint-value-keywords": "no issue yet: a value keyword contradicting another, or the union " +
 			"beside it, lowers to another node in each spelling, keeping the reference under the keyword that " +
 			"spelling wrote it with",

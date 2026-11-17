@@ -14,7 +14,8 @@ components:
     #
     # allOf beside enum is the narrowing idiom: a Base whose value set this
     # declaration restricts. The enum is the value and the $ref it beats is
-    # kept, so the relationship to Base stays recoverable.
+    # kept, so the relationship to Base stays recoverable. Base is an object,
+    # which no member is, so the allOf also warns that no instance satisfies it.
     NarrowedEnum:
       allOf:
         - {$ref: '#/components/schemas/Base'}

@@ -6,6 +6,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 
 	entry, ok := m.Unmodeled["openapi:allOf/0"]
 	require.True(t, ok, "the branch is kept verbatim; got %+v", m.Unmodeled)
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.Equal(t, ir.ReasonValidationOnly, entry.Reason, "the reason its unevaluatedProperties has beside the allOf")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/S/allOf/0"), entry.Provenance.Pointer,
 		"the entry locates the branch, not the composed schema")
 	for _, kept := range []string{
@@ -56,9 +57,9 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	} {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
-	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
-		"the branch (unevaluatedProperties)", "the diagnostic names what nothing read")
+	assert.True(t, slices.ContainsFunc(diagsAtPointer(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/allOf/0"),
+		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the branch (unevaluatedProperties)") }),
+		"the diagnostic names what nothing read: %+v", diags)
 	assert.Equal(t, "BranchDoc", m.Docs.Description)
 	require.NotNil(t, m.Constraints)
 	assert.Equal(t, new(int64(2)), m.Constraints.MinProps)
@@ -286,7 +287,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
 	}
 	assert.Equal(t, "BranchDoc", u.Docs.Description)
-	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
 

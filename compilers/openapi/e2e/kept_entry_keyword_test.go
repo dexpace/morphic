@@ -44,9 +44,10 @@ func TestKeptEntryKeyword_AClosureTheEntryCannotTypeKeepsTheBranchWhole(t *testi
 			finds: []keptFinding{keptDegraded("/allOf/{i}", "additionalProperties")},
 		},
 		{
+			// The entry takes the reason the keyword has beside the allOf.
 			name: "unevaluated-properties", principal: keptObj, keyword: "unevaluatedProperties: false", versions: keptOnly31,
-			whole: true, want: map[string]ir.UnmodeledReason{"openapi:allOf/{i}": ""},
-			finds: []keptFinding{keptDegraded("/allOf/{i}", "unevaluatedProperties")},
+			whole: true, want: map[string]ir.UnmodeledReason{"openapi:allOf/{i}": ir.ReasonValidationOnly},
+			finds: []keptFinding{keptValidationOnly("unevaluatedProperties")},
 		},
 		{
 			// A keyword kept apart from the entry's $id would be read against the

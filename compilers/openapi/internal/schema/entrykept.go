@@ -44,10 +44,18 @@ type keptEntry struct {
 	whole wholeCause
 	// reason is what a whole entry is kept as (sharedReason).
 	reason ir.UnmodeledReason
+	// numberText says the position's own node carries a number as text, whose
+	// Constraints hold no value bound own keeps (keepTextBounds).
+	numberText bool
 }
 
 // keeps reports whether k keeps anything.
-func (k keptEntry) keeps() bool { return k.whole != keptApart || len(k.own) > 0 }
+func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 }
+
+// keptWhole reports whether k is kept whole, holding what its entry writes: it
+// is no writer of a keyword it writes alike with another conjunct, kept apart
+// or folded, which that conjunct keeps alone (annotation.Voice.KeptWhole).
+func (k keptEntry) keptWhole() bool { return k.whole != keptApart }
 
 // wholeCause is why an inline allOf entry is kept whole.
 type wholeCause uint8
@@ -100,7 +108,7 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 			apartHere = apartKept
 		}
 		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apartHere)
-		if out[i].whole != keptApart {
+		if out[i].keptWhole() {
 			out[i].reason = sharedReason(c, s, comp, i, kept)
 			continue
 		}
@@ -114,6 +122,39 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 	}
 	for i := range out {
 		out[i].alike = slices.DeleteFunc(slices.Clone(out[i].own), func(key string) bool { return held[key] < 2 })
+	}
+	return out
+}
+
+// markKeptWhole marks each of voices, the voices of s written at pointer, which
+// lowered to target, whose branch the outcome keeps whole (keptWhole), so
+// annotation.Read counts it as no writer of what it folds, as entryKeeps
+// counts no such entry as a writer of what it keeps: the entry holds it once.
+// One voice writes no keyword alike with another, so fewer than two stand.
+func markKeptWhole(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+	voices []annotation.Voice,
+) []annotation.Voice {
+	if len(voices) < 2 {
+		return voices
+	}
+	var kept []keptEntry
+	if _, refined := refinementOf(c, s, pointer); refined {
+		kept = keepsAtOutcome(c, ts, s, target, pointer).entries
+	} else {
+		kept = readAllOf(c, s, pointer).kept
+	}
+	whole := map[jsontext.Pointer]bool{}
+	for _, k := range kept {
+		if k.keptWhole() {
+			whole[k.entry.pointer] = true
+		}
+	}
+	if len(whole) == 0 {
+		return voices
+	}
+	out := slices.Clone(voices)
+	for i, v := range out {
+		out[i].KeptWhole = whole[v.At]
 	}
 	return out
 }
@@ -296,7 +337,7 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 		return ir.ReasonVendorExtension
 	case annotation.DialectKeyword(twin), writesUnknown(c, bs, key, e.pointer):
 		return ir.ReasonOutOfScope
-	case slices.Contains(logicKeywords, twin):
+	case slices.Contains(logicKeywords, twin), unevaluatedKeyword(twin):
 		return ir.ReasonValidationOnly
 	case key == "oneOf" || key == "anyOf":
 		return entryUnionReason(c, s, comp, i)
@@ -357,7 +398,7 @@ func recordKeptEntry(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, comp al
 		return nil
 	}
 	e := k.entry
-	if k.whole != keptApart {
+	if k.keptWhole() {
 		kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(e.pointer), wordsNode(e.schema.Schema), k.reason, c.Place().At(e.pointer))
 		if !kept {
 			return diags
@@ -468,9 +509,11 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 ) []ir.Diagnostic {
 	bs, at := k.entry.schema.Schema, k.entry.pointer
 	var diags []ir.Diagnostic
-	var unknown, unhomed []string
+	var unknown, unhomed, text []string
 	for _, key := range k.own {
 		switch twin := TwinKeyword(c, bs, key); {
+		case k.numberText && slices.Contains(valueConstraintKeywords, key):
+			text = append(text, key)
 		case annotation.DialectKeyword(twin):
 			// Ahead of the unknown keywords, as Read keeps $vocabulary before
 			// PreserveUnknownKeywords meets it.
@@ -492,6 +535,7 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 		}
 	}
 	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
+	diags = append(diags, keepTextBounds(c, p, bs, text, at)...)
 	where := "on this inline branch"
 	if k.entry.schema.Ref != nil {
 		where = "beside this $ref, which names nothing"
@@ -595,7 +639,7 @@ func keepFailedRefs(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfCo
 	var apart []keptBranch
 	for _, i := range failed {
 		k := comp.kept[i]
-		if k.whole == keptApart {
+		if !k.keptWhole() {
 			apart = append(apart, keptBranch{entry: k.entry})
 		}
 		diags = append(diags, recordKeptEntry(c, ts, &m.Unmodeled, comp, k, nodeShape(ir.KindModel), false,

@@ -918,8 +918,12 @@ it sees. Changes made together in one bump are listed together under it.
   declared string is kept on the use with an info. Of several `$ref`s none of which is an object, the
   one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
   declared kind, or a conjunct naming one, a union beside the `allOf` among them, decides before a
-  `$ref` whose target admits every kind. A `$dynamicRef` a conjunct writes masks no kind in that
-  reading. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
+  `$ref` whose target admits every kind. An `allOf` electing no entry, with no keyword beside it
+  naming a kind, is the primitive its entries admit together, or the `Union` of several, where those
+  are a string, a number or a boolean, where it was the top type, which it stays where they admit an
+  object or an array. A `$dynamicRef` a conjunct writes masks no kind in that
+  reading, and one on an entry, which no position expands, admits every kind, where it was read as
+  what it names: over an object it is the `Model` beside the `allOf` makes, not a use. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
   base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
   union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
@@ -963,8 +967,8 @@ it sees. Changes made together in one bump are listed together under it.
   another conjunct writes otherwise, under the reason its keywords share, else `degraded_lowering`
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
   keep alike is kept once, at the position's pointer, what an entry kept whole folds and would keep
-  beside it is kept once, inside the entry, a key the promotion policy reads and one another entry
-  folds alike, which the position keeps too, aside, and an entry's `$comment`, `$anchor` and `$defs`
+  beside it is kept once, inside the entry, a key the promotion policy reads aside, the entry being
+  no writer of a keyword another entry keeps or folds alike, and an entry's `$comment`, `$anchor` and `$defs`
   are read as beside the `allOf` and kept nowhere. A `$ref` entry naming no schema, which was kept
   nowhere with each keyword beside it, is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
   reference text where several are, with each keyword beside it under its own key, or the entry

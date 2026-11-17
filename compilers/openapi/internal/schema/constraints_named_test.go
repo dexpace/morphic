@@ -937,12 +937,12 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 }
 
 // TestConstraints_AnInlineBranchIsReadAtItsOwnPointer pins that an inline
-// branch is read where it is written: its dynamic reference expands in its own
+// branch is read where it is written: its dynamic reference resolves in its own
 // schema resource, so one under an identifier of its own names no anchor of the
 // document's, which makes it the $ref it spells, resolving nowhere, so the
-// position stays a model holding the property count, while one beside it
-// expands to the array, which is no object, so no model holds the count and
-// the position keeps it.
+// position stays a model holding the property count, while one in the
+// document's resource names the array's anchor, which no entry expands, so it
+// masks no kind and the top type the position lowers to holds the count.
 func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -951,7 +951,7 @@ func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
 		model        bool
 		errs         []string
 	}{
-		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}"},
+		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}", held: &ir.Constraints{MinProps: new(int64(1))}},
 		{name: "in a resource of its own", branch: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
 			held: &ir.Constraints{MinProps: new(int64(1))}, model: true,
 			errs: []string{"openapi/unresolved-ref at /components/schemas/S/allOf/0"}},
