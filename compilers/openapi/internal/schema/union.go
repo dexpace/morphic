@@ -792,12 +792,13 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 // qualifies exactly when it names a schema this compilation resolves, and an
 // inline one does as the node hoisted at its own pointer. The test is over the
 // whole union because a half-distributed one would leave variants disagreeing
-// about whether they carry the body, with nothing in the IR saying which.
+// about whether they carry the body, with nothing in the IR saying which. A
+// branch writing its $ref beside other keywords is read by that $ref.
 func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
 	branches, _, _ := unionBranches(s)
 	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
-		st := c.Statements().Sub(b)
-		return st.Ref != nil && !namesReferent(c, st)
+		ref := referenceOf(c, c.Statements().Sub(b))
+		return ref != nil && !namesReferent(c, ref)
 	})
 }
 
@@ -848,8 +849,8 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 	branches, key, _ := unionBranches(s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
-		st := c.Statements().Sub(b)
-		if st.Ref == nil || namesReferent(c, st) || onLoop(st) {
+		st := referenceOf(c, c.Statements().Sub(b))
+		if st == nil || namesReferent(c, st) || onLoop(st) {
 			continue
 		}
 		keyword, ref := refSpelling(st)
