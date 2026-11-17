@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -34,6 +35,14 @@ import (
 // census's (keywordHome). td is the node the position lowered to, nil for none
 // of its own.
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), unknownTaken(c, s, pointer)...)
+	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)
+}
+
+// unknownTaken returns the keys s, written at pointer, writes that the schema
+// model names no field for and a reader other than PreserveUnknownKeywords
+// reads, by the dialect it is read in.
+func unknownTaken(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []string {
 	var taken []string
 	if _, listed := listedItems(s); listed {
 		taken = append(taken, "additionalItems")
@@ -52,8 +61,16 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schem
 			taken = append(taken, "$recursiveRef")
 		}
 	}
-	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), taken...)
-	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)
+	return taken
+}
+
+// writesUnknown reports whether key, a key s writes at pointer, is one
+// PreserveUnknownKeywords keeps there.
+func writesUnknown(c lowering.Ctx, s *statement.Schema, key string, pointer jsontext.Pointer) bool {
+	if slices.Contains(undefinedKeywords(c, s), key) {
+		return true
+	}
+	return annotation.UnknownKeyword(s, key) && !slices.Contains(unknownTaken(c, s, pointer), key)
 }
 
 // undefinedKeywords returns the keywords s writes that the schema model names

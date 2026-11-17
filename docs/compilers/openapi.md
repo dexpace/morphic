@@ -2061,8 +2061,9 @@ does not read is a keyword its dialect does not define, kept verbatim under `ope
 (`out_of_scope`) with an info `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys)
 keeps a keyword the schema model does not name: every one with the policy off, and with it on every
 one that is not the boolean `true`, a `false` among them, wherever it is written, beside a `$ref`
-included. Written on an inline `allOf` branch or a union's null branch, it keeps the branch whole
-as the policy off does, since no fold reads it. Under either policy only the boolean `true` states a
+included. Written on an inline `allOf` branch it is kept under its own key as beside the `allOf`
+([`allof-inline-residue`](#allof-inline-residue)), and on a union's null branch it keeps the branch
+whole, as the policy off does, since no fold reads it. Under either policy only the boolean `true` states a
 null: a `nullable` holding a string states none at any version, a YAML 1.1 truth word the parser
 decodes as true, such as `"yes"` or a plain `on`, among them, and neither does any other value that
 is no boolean. A `null` written for `nullable` is the keyword left out
@@ -2169,7 +2170,7 @@ merge after them, as a composing schema's own merge after its entries'. So `allO
 B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
 the merge does not consume is kept beside the composition as residue
 ([`allof-inline-residue`](#allof-inline-residue)), so `{unevaluatedProperties: false, allOf: [A,
-B]}` composes `A` and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside
+B]}` composes `A` and `B` and is also kept whole, for its unevaluated keyword. Flattening stops 32 levels down: an entry nested inside
 32 flattened entries is not flattened itself, so its `allOf` is residue, and it is reported as nested
 past the flattening depth of 32. This is not the flattening the
 [design rules](../ir/README.md#design-rules) leave to emitters: every `$ref` entry still composes as
@@ -2343,9 +2344,9 @@ so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. Two schemas written a
 say the same where every relative `$ref` in them reads against one base: under an `$id` naming
 another URI, the same spelling may name another schema, while an absolute one names the same
 wherever it is read. A copy in another document is read apart. One saying
-more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the
-`allOf` under `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the
-branch or at the position. A `$ref` conjunct the position is no use of is kept as written under
+more is kept under its own keyword, `openapi:<keyword>`, on a branch as beside the `allOf`, each
+reported as an info `openapi/degraded-construct` at the branch or at the position, a branch kept
+whole only where [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept as written under
 `openapi:$ref`, or `openapi:$ref/<i>` where it keeps several, `i` its rank by reference text, then by
 the entry as written, so no order of the entries decides, two written alike being one entry at the
 position. One a value set beats still
@@ -2361,7 +2362,7 @@ each value the position holds:
 `{type: string, maxLength: 1000}` does, keeping nothing. A branch writing a bound, a `pattern` or an
 annotation says more than the principal, so
 `{allOf: [{anyOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}`
-keeps the union with its branch.
+keeps the union under `openapi:anyOf`.
 
 A `oneOf` or `anyOf` written beside the `allOf` is one more conjunct, as one on a branch is: the
 keywords beside the `allOf` are read with it, and name a kind where they write one. Where a branch
@@ -2557,38 +2558,85 @@ compared with. One writing none
 there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
 writes from folding.
 
-A branch declaring anything no reader consumes is kept verbatim in
-`Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
-included, so the source stays reconstructable rather than having to be reassembled from two places —
-keyed by its path from the composed schema (`allOf/1`, or `allOf/1/allOf/0` for an entry of a
-flattened one) so siblings cannot overwrite each other, and reported by an
-`openapi/degraded-construct` at the branch naming the keywords that made it residue. Which keywords
-those are is derived from the branch's own declared key set rather than from a fixed list, so a
-keyword the dialect gains later is residue without anyone maintaining an enumeration. The key set is
-read through YAML aliases and merge keys, so a branch written `[*shared]` or `[{<<: *shared}]`
-derives the same residue as one written out. The diagnostic is an info, and a warning where the
-branch declares a `type` that excludes `object`, because the composing `Model` then asserts a shape
-the source contradicts. A position composes beside such a branch only where the conjuncts share no
-value but null, as `{allOf: [{type: [object, "null"], …}, {type: [string, "null"], maxLength: 3}]}`
-do, or where its read is cut short ([`allof-refinement`](#allof-refinement)): beside conjuncts
-admitting a string, `{allOf: [{$ref: Pet}, {type: string, maxLength: 3}]}` over a `Pet` writing no
-`type` is a use of the string. Where the conjuncts share no value, as they do when `Pet` writes
-`type: object`, [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reports that once at the
-schema and the branch's report is an info. Two branch kinds are outside this
-rule rather than limits of it: a `$ref` branch owns a node, so what is written beside the `$ref` is
-*modeled* on the branch alias [models](../ir/models.md#composition-entries) describes rather than kept
-as residue, and a boolean branch declares no keywords at all, so there is no residue to derive — it is
-a decision about the composed node instead, stated with the `false`-schema rule
-[`allof-false-branch`](#allof-false-branch).
+What a branch writes that no reader consumes is kept as the same keyword beside the `allOf` is: each
+keyword under its own key, `Unmodeled["openapi:<keyword>"]`, its provenance the keyword where the
+branch writes it, with the reason its slot gives. Content vocabulary is kept `no_ir_home`
+([`content-vocabulary`](#content-vocabulary)), and a dialect keyword and a key no dialect defines
+`out_of_scope` ([`dialect-keywords`](#dialect-keywords), [`unknown-keys`](#unknown-keys)), each
+reported at the keyword, the last by an `openapi/unknown-schema-keyword`, as is a `$dynamicRef`
+([`dynamic-ref`](#dynamic-ref)), kept `degraded_lowering`. A `oneOf` or `anyOf` is `validation_only` where its branches declare no shape
+against the position, reported by an `openapi/validation-only-keyword` at the branch, and
+`degraded_lowering` where they do or where it shares no kind with the rest
+([`union-beside-structure`](#union-beside-structure)). Every other keyword is `degraded_lowering`, and
+those of one branch are reported by one `openapi/degraded-construct` at the branch naming them, an
+info, and a warning where the branch declares a `type` that excludes `object`, because the composing
+`Model` then asserts a shape the source contradicts. A `$comment`, `$anchor`, `$dynamicAnchor` or
+`$defs`, or a draft's twin of one, is read as it is beside the `allOf` and kept nowhere; one the
+dialect does not define is a key no dialect defines. Which keywords a branch keeps is derived from its
+own declared key set rather than from a fixed list, so a keyword the dialect gains later is kept
+without anyone maintaining an enumeration. The key set is read through YAML aliases and merge keys,
+so a branch written `[*shared]` or `[{<<: *shared}]` keeps what one written out does.
 
-A flattened entry kept as residue is whole too, its own entries included, so an entry inside it that
+A branch is kept whole, under `Unmodeled["openapi:<path>"]` keyed by its path from the composed
+schema (`allOf/1`, or `allOf/1/allOf/0` for an entry of a flattened one) so siblings cannot overwrite
+each other, only where a keyword of it is read against the rest of it or cannot be held apart: it
+writes an `additionalProperties` the position takes no catch-all from, in a composition a
+`patternProperties` beside another object's members ([`additional-properties`](#additional-properties)),
+or an `unevaluatedProperties` or `unevaluatedItems`; its own `allOf` is not flattened, nested past
+the flattening depth or empty; what it folds or keeps writes a relative `$ref` it reads against
+another base than the position does; it writes a keyword that folds and another conjunct writes
+otherwise (above); or it keeps a keyword that another conjunct, the keywords beside the `allOf` among
+them, writes otherwise, where one entry under the keyword holds one value. The whole branch is kept,
+consumed keywords included, so the source stays reconstructable rather than having to be reassembled
+from two places, under the reason its kept keywords share where they share one, else
+`degraded_lowering`, and reported at the branch by an `openapi/validation-only-keyword` where that
+reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
+folds is typed as any branch's is, and what its fold would keep beside it, a vendor extension or a
+validation-only keyword, is kept once, inside it, but for a key the promotion policy reads
+([unmodeled](../ir/unmodeled.md#keys)). A keyword two branches
+keep alike, and the keywords beside the `allOf` do not write, is kept once, its provenance the
+position's pointer, as no one writer's is the same in every order of the branches; one the keywords
+beside the `allOf` write alike is theirs, kept as they keep it. An entry two folding branches write
+alike is the position's the same way.
+
+A position composes beside a branch declaring a `type` that excludes `object` only where the
+conjuncts share no value but null, as `{allOf: [{type: [object, "null"], …}, {type: [string, "null"],
+maxLength: 3}]}` do, or where its read is cut short ([`allof-refinement`](#allof-refinement)): beside
+conjuncts admitting a string, `{allOf: [{$ref: Pet}, {type: string, maxLength: 3}]}` over a `Pet`
+writing no `type` is a use of the string. Where the conjuncts share no value, as they do when `Pet`
+writes `type: object`, [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reports that once at
+the schema and the branch's report is an info. Two branch kinds are outside this rule rather than
+limits of it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on the
+branch alias [models](../ir/models.md#composition-entries) describes rather than kept as residue, and
+a boolean branch declares no keywords at all, so there is nothing to keep — it is a decision about the
+composed node instead, stated with the `false`-schema rule [`allof-false-branch`](#allof-false-branch).
+
+A flattened entry kept whole is whole too, its own entries included, so an entry inside it that
 is kept on its own account, or a `false` one ([`allof-false-branch`](#allof-false-branch)), is in
 `Unmodeled` twice: inside the flattened entry's copy and under its own path. A consumer that reads
 every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`
 - Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
+  `e2e.TestKeptEntryKeyword_EverySpellingOfAContentOrUnknownKeywordKeepsOneKeyAndReason`,
+  `e2e.TestKeptEntryKeyword_AKindKeywordIsKeptUnderItsOwnKey`,
+  `e2e.TestKeptEntryKeyword_APerKindBoundNoHomeTakesIsKeptUnderItsOwnKey`,
+  `e2e.TestKeptEntryKeyword_AChoiceIsKeptUnderItsKeywordWithItsReason`,
+  `e2e.TestKeptEntryKeyword_ADynamicReferenceOnAnEntryOfAnItemIsKeptUnderItsOwnKey`,
+  `e2e.TestKeptEntryKeyword_AScopedKeywordIsKeptOutOfScopeAndAConsumedOneNowhere`,
+  `e2e.TestKeptEntryKeyword_ACommentAnchorOrDefsOnAnEntryReachesNoNode`,
+  `e2e.TestKeptEntryKeyword_AnEntryWritingSeveralKeywordsKeepsEachUnderItsOwnReason`,
+  `e2e.TestKeptEntryKeyword_AClosureTheEntryCannotTypeKeepsTheBranchWhole`,
+  `e2e.TestKeptEntryKeyword_ARelativeReferenceMergedInPlaceKeepsTheEntryApart`,
+  `e2e.TestKeptEntryKeyword_TwoUnionsDeclaringNoShapeAreKeptWholeAsValidationOnly`,
+  `e2e.TestKeptEntryKeyword_AnEntryDisagreeingWithAnotherKeepsItsKeywordsReasonWhenKeptWhole`,
+  `e2e.TestKeptEntryKeyword_TwoWritersOfOneKeywordAndValueKeepOneEntryAtThePosition`,
+  `e2e.TestKeptEntryKeyword_TwoEntriesKeepingOneKeywordAlikeKeepOneEntryAtThePosition`,
+  `schema.TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce`,
+  `schema.TestEntryKept_AnEntryOfAnUndecidedAllOfIsReportedAgainstTheKeywordsBesideIt`,
+  `schema.TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason`,
+  `annotation.TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite`,
   `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
@@ -3651,8 +3699,9 @@ writes no union of its own, its `allOf` composes rather than refines
 declare shape (below), or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. The `discriminator` standing with it is the one its branch writes, else the
-one beside the `allOf`: where both write one, nothing says which routes the union, so it stays whole
-with its branch and the `Model` holds the schema's own. It routes the union as one beside it does,
+one beside the `allOf`: where both write one, nothing says which routes the union, so it is kept as
+what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword, and the
+`Model` holds the schema's own. It routes the union as one beside it does,
 a `mapping` entry naming no schema reported at the entry under the schema writing it, and it routes
 by name the schemas the union lists ([`discriminator-value`](#discriminator-value)). Its variants
 take their IDs from the branch's pointers, its `$ref` and inline branches conjoin as above, and the
@@ -3663,9 +3712,10 @@ OpenAPI defines for no Discriminator Object ride on the `Union` holding it
 is read at the position, as for a union beside the `allOf`, so an inline schema below a
 discriminated base no route names distributes. A union on a branch that is one of the shapes below,
 one of two branch unions declaring shape and written under one keyword, distributing either of which
-would drop the other and no rule ranking them, or one on a branch nested past the flattening depth
-stays whole with its branch, and so does one whose branches declare no shape, on each variant where
-another union distributes. Distribution cannot
+would drop the other and no rule ranking them, or one whose branches declare no shape, is kept on each
+variant where another union distributes as what a branch writes is
+([`allof-inline-residue`](#allof-inline-residue)): under its keyword, or with its branch kept whole
+where that rule says, as for one nested past the flattening depth. Distribution cannot
 reach these shapes:
 
 1. the structural body is not a `Model`: a `const`, an `enum`, a scalar, or keywords written with
@@ -4690,8 +4740,8 @@ written beside it, but for a number carried as text, whose `Constraints` speak o
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
 `openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
-at it, one an inline `allOf` branch writes keeps its branch whole
-([`allof-inline-residue`](#allof-inline-residue)), and neither the `Scalar` nor a property or
+at it, one an inline `allOf` branch writes kept under its own key too but as `degraded_lowering`,
+reported at the branch ([`allof-inline-residue`](#allof-inline-residue)), and neither the `Scalar` nor a property or
 parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
 with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
 table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
@@ -5010,8 +5060,8 @@ beside a node with no `Constraints` field (an `Enum`, a `Literal`, the `Union` o
 `enum` lowers to), is kept verbatim on the node under `openapi:<keyword>` (`degraded_lowering`),
 once, with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object
-([unions](../ir/unions.md#bounds-beside-a-union)), and one an inline `allOf` branch writes there
-keeps its branch whole ([`allof-inline-residue`](#allof-inline-residue)). A collection bound beside a reference that
+([unions](../ir/unions.md#bounds-beside-a-union)), and one an inline `allOf` branch writes there is
+kept under its own key, reported at the branch ([`allof-inline-residue`](#allof-inline-residue)). A collection bound beside a reference that
 `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`, which a bool cannot
 tell from one never written, and a count that does not fit in 64 bits. A count,
 `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
@@ -6051,7 +6101,7 @@ did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
   `operation.TestParameter_SchemaAndObjectSpellOneKey`, `e2e.TestUnknownKeys_ACarrierAndItsSchemaKeepOneKeyApart`,
   `annotation.TestUnder_KeysEachEntryBeneathTheScope`, `promotion.TestDropContained_KeepsWhatIsNotInside`,
   `promotion.TestDropContained_KeepsAKeyAPromotionReads`, `operation.TestPromotion_ReadsAKeyInABranchKeptWhole`,
-  `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptWholeOnce`,
+  `operation.TestParameter_XMLKeptOnce`, `operation.TestParameter_BranchKeptOnce`,
   `schema.TestDiscriminator_KeptWholeOnce`
 
 ## 10. Request bodies and content

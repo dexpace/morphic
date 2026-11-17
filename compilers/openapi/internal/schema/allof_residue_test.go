@@ -21,7 +21,8 @@ import (
 // TestAllOf_InlineBranchResidueKeptVerbatim covers GitHub #123: what an inline
 // allOf branch writes that neither the merge nor the position reads used to be
 // dropped without a diagnostic. The branch now survives whole beside the composed
-// model, and what the position does read lands where it would beside the allOf.
+// model, and what the position does read lands where it would beside the allOf,
+// what it would keep verbatim kept once, inside the branch.
 func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
@@ -61,8 +62,9 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	assert.Equal(t, "BranchDoc", m.Docs.Description)
 	require.NotNil(t, m.Constraints)
 	assert.Equal(t, new(int64(2)), m.Constraints.MinProps)
-	assert.Contains(t, m.Unmodeled, "openapi:x-vendor")
-	assert.Contains(t, m.Unmodeled, "openapi:not")
+	// What the branch kept whole folds is kept once, inside it.
+	assert.NotContains(t, m.Unmodeled, "openapi:x-vendor")
+	assert.NotContains(t, m.Unmodeled, "openapi:not")
 }
 
 // TestAllOf_InlineBranchNonObjectTypeWarns is the worse half of #123: a scalar
@@ -203,19 +205,18 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	for name, want := range map[string]string{
-		"Unknown":        `"futureKeyword":{"some":"thing"}`,
-		"NullableBranch": `"type":["object","null"]`,
+	for name, tc := range map[string]struct{ key, value, code, at string }{
+		"Unknown":        {"openapi:futureKeyword", `{"some":"thing"}`, diag.UnknownSchemaKeyword, "/allOf/0/futureKeyword"},
+		"NullableBranch": {"openapi:type", `["object","null"]`, diag.DegradedConstruct, "/allOf/0"},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s should be a model", name)
 		require.Len(t, m.Properties, 1, "%s still merges the branch's properties", name)
-		entry, ok := m.Unmodeled["openapi:allOf/0"]
-		require.True(t, ok, "%s keeps the branch verbatim; got %+v", name, m.Unmodeled)
-		assert.Contains(t, string(entry.Value), want, "%s", name)
+		entry, ok := m.Unmodeled[tc.key]
+		require.True(t, ok, "%s keeps the keyword under its own key; got %+v", name, m.Unmodeled)
+		assert.JSONEq(t, tc.value, string(entry.Value), "%s", name)
 		assert.Contains(t,
-			openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-				"/components/schemas/"+name+"/allOf/0"),
+			openapitest.DiagMessageAt(t, diags, tc.code, ir.SeverityInfo, "/components/schemas/"+name+tc.at),
 			"kept verbatim under Unmodeled", name)
 	}
 }
@@ -340,7 +341,7 @@ func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 `))
 	var severities []ir.Severity
 	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "inline allOf branch") {
+		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "inline") {
 			severities = append(severities, d.Severity)
 		}
 	}
@@ -361,23 +362,25 @@ const rebasedBranchTargets = `    A: {$id: 'https://ex.test/a/n.json', type: str
 // with no $ref in it.
 func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 	t.Parallel()
-	for name, tc := range map[string]struct{ schema, kept, folded string }{
+	// code is the report's: a branch holding validation logic alone is kept as
+	// that, and reported so.
+	for name, tc := range map[string]struct{ schema, kept, folded, code string }{
 		"Wrapped": {`      $id: 'https://ex.test/b/s.json'
       allOf:
         - $id: 'https://ex.test/a/w.json'
           allOf: [{type: object, not: {$ref: 'n.json'}}]
         - {type: object, not: {$ref: 'n.json'}}
-`, "openapi:allOf/0/allOf/0", `{"$ref":"n.json"}`},
+`, "openapi:allOf/0/allOf/0", `{"$ref":"n.json"}`, diag.ValidationOnlyKeyword},
 		"Spelled": {`      $id: 'https://ex.test/b/s.json'
       allOf:
         - $id: 'https://ex.test/a/w.json'
           allOf: [{type: object, not: {$ref: 'n.json'}}]
         - {type: object, not: {$ref: 'https://ex.test/b/n.json'}}
-`, "openapi:allOf/0/allOf/0", `{"$ref":"https://ex.test/b/n.json"}`},
+`, "openapi:allOf/0/allOf/0", `{"$ref":"https://ex.test/b/n.json"}`, diag.ValidationOnlyKeyword},
 		"Annotated": {`      allOf:
         - {type: object, properties: {a: {type: string}}}
         - {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}
-`, "openapi:allOf/1", ""},
+`, "openapi:allOf/1", "", diag.DegradedConstruct},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -389,7 +392,7 @@ func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 			require.True(t, ok, "the branch is kept whole; got %+v", um)
 			assert.Contains(t, string(kept.Value), `"not":{"$ref":"n.json"}`)
 			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+tc.kept[len("openapi:"):]),
+				openapitest.DiagMessageAt(t, diags, tc.code, ir.SeverityInfo, "/components/schemas/S/"+tc.kept[len("openapi:"):]),
 				"reads its $refs against another base")
 			assert.Equal(t, tc.folded, string(um["openapi:not"].Value), "the outer branch folds its not, if it writes one")
 			assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the kept branch writes folds")
@@ -437,7 +440,8 @@ func TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) 
 	require.NotNil(t, s.Constraints.MaxLength)
 	assert.Equal(t, int64(1), *s.Constraints.MinLength)
 	assert.Equal(t, int64(5), *s.Constraints.MaxLength)
-	assert.JSONEq(t, `{"const":"q"}`, string(s.Unmodeled["openapi:not"].Value))
+	assert.NotContains(t, s.Unmodeled, "openapi:not", "its entries write $id apart, so each is kept whole, holding its not")
+	assert.Contains(t, string(s.Unmodeled["openapi:allOf/0"].Value), `"not":{"const":"q"}`)
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "against another base")
 	}

@@ -112,6 +112,9 @@ type allOfComposition struct {
 	// closer names the schema object whose additionalProperties and
 	// patternProperties the Model composing the branches types (closerOf).
 	closer closure
+	// kept is what each inline branch keeps verbatim beside the Model
+	// composing them, by index (entryKeeps).
+	kept []keptEntry
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -149,6 +152,8 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 	if u, _, ok := branchUnion(c, s, pointer); ok {
 		comp.conjoins = u.at
 	}
+	comp.kept = entryKeeps(c, s, comp, func(i int) []string { return compositionResidue(c, comp, i) },
+		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword)
 	return comp
 }
 
@@ -238,7 +243,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields
 		switch {
 		case e.schema.Ref == nil:
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.Schema, e.pointer)...)
-			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
+			diags = append(diags, preserveUnmergedBranch(c, ts, m, comp, i)...)
 		case composesRef(c, e):
 			diags = append(diags, fillRefBranch(c, ts, fields, e, hasBase && i == base)...)
 		default:
@@ -373,57 +378,55 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 	return diags
 }
 
-// preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
-// composed model when it declares more than the merge consumes, under
-// ReasonDegradedLowering and located at the branch
-// (docs/compilers/openapi.md#allof-inline-residue). comp keys the entry, so
-// sibling branches never overwrite one another. A flattened branch's allOf is
-// consumed: allOfBranches replaced it by its own entries.
-//
-// A boolean branch has no keywords to leave a residue; applyFalseBranches
-// handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
-// an alias over the target. What the branch writes for the position folds there
-// where comp says it speaks.
-func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, i int) []ir.Diagnostic {
+// preserveUnmergedBranch keeps what the inline allOf branch at index i of comp
+// writes that the merge consumes nowhere beside the composed model, as comp.kept
+// says: each keyword under its own key and reason, or the branch whole under a
+// key comp gives it, so sibling branches never overwrite one another
+// (docs/compilers/openapi.md#allof-inline-residue).
+func preserveUnmergedBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, comp allOfComposition, i int) []ir.Diagnostic {
+	k := comp.kept[i]
+	disjoint := len(comp.disjoint) > 0
+	warn := branchExcludesObject(k.entry.schema.Schema) && !disjoint
+	return recordKeptEntry(c, ts, &m.Unmodeled, comp, k, nodeShape(ir.KindModel), warn, func(k keptEntry) ir.Diagnostic {
+		return diagUnmergedBranch(c, k, disjoint)
+	})
+}
+
+// compositionResidue returns what the inline allOf branch at index i of comp
+// writes that the in-place merge reads nowhere: not its properties and
+// required, nor what folds where comp says it speaks, nor the union the
+// position lowers, nor the catch-all of the branch closing the model. A
+// flattened branch's allOf is consumed: allOfBranches replaced it by its own
+// entries. A boolean branch has no keywords to leave a residue
+// (applyFalseBranches), and a $ref branch homes its siblings on an alias over
+// its target (fillRefBranch).
+func compositionResidue(c lowering.Ctx, comp allOfComposition, i int) []string {
 	e := comp.branches[i]
-	if e.schema.Truth != statement.Stated {
-		return nil // boolean branch; applyFalseBranches handles it.
+	if e.schema.Ref != nil || e.schema.Truth != statement.Stated {
+		return nil
 	}
 	speaks := comp.branchSpeaks(i)
 	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
 	closes := comp.closer.entryAt(e.pointer)
-	residue := unmergedBranchKeys(e.schema.Schema, func(keyword string) bool {
+	return unmergedBranchKeys(e.schema.Schema, func(keyword string) bool {
 		return mergeConsumes(e.schema.Schema, keyword, e.wrapper) || (speaks && folds(c, e.schema.Schema, keyword, boundHomes{value: comp.bounds})) ||
 			(conjoined && conjoinedKeyword(keyword)) || (closes && catchAllKeyword(keyword))
 	})
-	if len(residue) == 0 {
-		return nil
-	}
-	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
-		e.schema.Node, ir.ReasonDegradedLowering, c.Place().At(e.pointer))
-	if !kept {
-		return keptDiags
-	}
-	unfolded := ""
-	if comp.speaks != nil {
-		unfolded = unfoldedWhy(c, speaks, comp.rebased[i], e.schema.Schema, residue)
-	}
-	return append(keptDiags, diagUnmergedBranch(c, e.schema.Schema, residue, e, unfolded, len(comp.disjoint) > 0))
 }
 
-// diagUnmergedBranch builds the diagnostic announcing one merged branch's
-// residue, naming the keywords so two branches of the same schema are told
-// apart. The caller records it.
+// diagUnmergedBranch builds the diagnostic announcing the branch k keeps whole,
+// naming the keywords so two branches of the same schema are told apart. The
+// caller records it.
 //
 // A branch declaring a type that cannot be an object is a warning rather than
 // info: the composed ir.Model asserts the value *is* an object, which the branch
 // contradicts. Any other residue only narrows a model the IR describes correctly,
 // the under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
-// unfolded says why the branch did not fold (unfoldedWhy), if that is the
-// reason. disjoint says the schema reports its conjuncts share no value, so this
+// disjoint says the schema reports its conjuncts share no value, so this
 // reports residue alone.
-func diagUnmergedBranch(c lowering.Ctx, bs *statement.Schema, residue []string, e allOfBranch, unfolded string, disjoint bool) ir.Diagnostic {
-	if branchExcludesObject(bs) && !disjoint {
+func diagUnmergedBranch(c lowering.Ctx, k keptEntry, disjoint bool) ir.Diagnostic {
+	e, residue := k.entry, k.residue
+	if branchExcludesObject(e.schema.Schema) && !disjoint {
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {
@@ -431,10 +434,10 @@ func diagUnmergedBranch(c lowering.Ctx, bs *statement.Schema, residue []string, 
 		}
 		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer, "%s", msg)
 	}
-	if unfolded != "" && !e.capped {
-		return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unfolded)
+	if why := wholeWhy(k); why != "" && !e.capped {
+		return c.DiagAt(ir.SeverityInfo, wholeCode(k), e.pointer, "%s", why)
 	}
-	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unmergedWhy(residue, e))
+	return c.DiagAt(ir.SeverityInfo, wholeCode(k), e.pointer, "%s", unmergedWhy(residue, e))
 }
 
 // keptKeywords is residue as a diagnostic names it: a capped branch is kept for

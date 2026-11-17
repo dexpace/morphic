@@ -277,7 +277,8 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 			return unmodeledEntry(t, td.Common().Unmodeled, key).Reason
 		}
 		assert.Equal(t, ir.ReasonValidationOnly, reason("D4", "openapi:dependencies"))
-		assert.Equal(t, ir.ReasonDegradedLowering, reason("Now", "openapi:allOf/1"), "the source names no dialect")
+		assert.Equal(t, ir.ReasonOutOfScope, reason("Now", "openapi:dependencies"),
+			"the source names no dialect, whose 2020-12 defines no dependencies")
 	})
 	t.Run("a body's $ref into a document of schemas naming a draft", func(t *testing.T) {
 		t.Parallel()

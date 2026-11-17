@@ -564,7 +564,7 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 
 	onABranch, ok := typeByName(doc, "OnABranch").(*ir.Model)
 	require.True(t, ok, "a branch's union naming nothing distributes nowhere; got %T", typeByName(doc, "OnABranch"))
-	assert.Contains(t, onABranch.Unmodeled, "openapi:allOf/0", "the union stays whole with its branch")
+	assert.Contains(t, onABranch.Unmodeled, "openapi:oneOf", "the union is kept under its keyword")
 }
 
 // TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported pins that a branch

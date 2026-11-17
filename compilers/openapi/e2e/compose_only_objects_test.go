@@ -113,7 +113,7 @@ func TestAllOfRefine_AKeywordOfAnotherKindIsKeptOnWhatTheTargetDeclares(t *testi
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, swapped := range []bool{false, true} {
-			itemsList, _, itemsAt := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", "{items: {type: string}}")
+			itemsList, _, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", "{items: {type: string}}")
 			propsList, propsAt, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Props'}", "{type: string}")
 			schemas := []string{
 				"Str: {type: string}",
@@ -139,7 +139,7 @@ func TestAllOfRefine_AKeywordOfAnotherKindIsKeptOnWhatTheTargetDeclares(t *testi
 					}
 
 					items := requireScalarOver(t, doc, "StrItems", componentID("Str"))
-					assert.Equal(t, degradedKept(entryKey(itemsAt)), keptOn(items))
+					assert.Equal(t, degradedKept("openapi:items"), keptOn(items), "kept under its own key, as beside the allOf")
 					assert.Equal(t, 1, degradedInfosAt(diags, "StrItems"))
 
 					declared := requireScalarOver(t, doc, "DeclaredString", prim(ir.PrimString))
@@ -207,7 +207,7 @@ func TestAllOfUnion_AUnionSharingAKindWithTheRestStaysDistributed(t *testing.T) 
 	for _, version := range []string{"3.0.3", "3.1.0"} {
 		for _, swapped := range []bool{false, true} {
 			objList, _, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Obj'}", "{oneOf: "+branches+"}")
-			disjList, _, disjAt := composeEntries(swapped, "{$ref: '#/components/schemas/Obj'}", "{oneOf: [{type: string}, {type: boolean}]}")
+			disjList, _, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Obj'}", "{oneOf: [{type: string}, {type: boolean}]}")
 			schemas := []string{
 				"Obj: {type: object, properties: {a: {type: string}}}",
 				"BWrapObj: {allOf: [{$ref: '#/components/schemas/Obj'}], oneOf: " + branches + "}",
@@ -234,7 +234,7 @@ func TestAllOfUnion_AUnionSharingAKindWithTheRestStaysDistributed(t *testing.T) 
 					disj := requireModelOf(t, doc, "BEntryDisj")
 					require.NotNil(t, disj.Base)
 					assert.Equal(t, componentID("Obj"), disj.Base.Target)
-					assert.Equal(t, degradedKept(entryKey(disjAt)), keptOn(disj))
+					assert.Equal(t, degradedKept("openapi:oneOf"), keptOn(disj), "kept under its keyword, as beside the allOf")
 
 					typed, ok := kindNode(t, doc, componentID("BesideTyped")).(*ir.Union)
 					require.True(t, ok, "a union naming its kinds holds the bound")
@@ -397,16 +397,16 @@ func TestAllOfCompose_ATargetAdmittingEveryKindIsUsedNotComposed(t *testing.T) {
 // keyword only a model holds, beside an allOf or in an entry, does not make a
 // model of a position whose declared kind is a string or an array: the
 // position is a use of the conjunct that declares the kind, the keyword is
-// kept under its own key beside the allOf or under its entry's index, with one
-// info and no warning.
+// kept under its own key beside the allOf and on an entry alike, with one info
+// and no warning.
 func TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept(t *testing.T) {
 	t.Parallel()
 	for _, version := range composeVersions {
 		for _, swapped := range []bool{false, true} {
-			hList, _, hAt := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", "{properties: {a: {type: string}}}")
-			iList, _, iAt := composeEntries(swapped, "{type: string}", "{properties: {a: {type: string}}}")
-			jList, _, jAt := composeEntries(swapped, "{type: string}", "{required: [a]}")
-			tList, tAt, _ := composeEntries(swapped, "{properties: {a: {type: string}}}", "{items: {type: string}}")
+			hList, _, _ := composeEntries(swapped, "{$ref: '#/components/schemas/Str'}", "{properties: {a: {type: string}}}")
+			iList, _, _ := composeEntries(swapped, "{type: string}", "{properties: {a: {type: string}}}")
+			jList, _, _ := composeEntries(swapped, "{type: string}", "{required: [a]}")
+			tList, _, _ := composeEntries(swapped, "{properties: {a: {type: string}}}", "{items: {type: string}}")
 			schemas := []string{
 				"Str: {type: string}",
 				"Arr: {type: array, items: {type: string}}",
@@ -433,9 +433,9 @@ func TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept(t *testing.T) {
 					}{
 						"StrProps":    {componentID("Str"), "openapi:properties"},
 						"ArrProps":    {componentID("Arr"), "openapi:properties"},
-						"RefEntry":    {componentID("Str"), entryKey(hAt)},
-						"StrEntry":    {prim(ir.PrimString), entryKey(iAt)},
-						"StrRequired": {prim(ir.PrimString), entryKey(jAt)},
+						"RefEntry":    {componentID("Str"), "openapi:properties"},
+						"StrEntry":    {prim(ir.PrimString), "openapi:properties"},
+						"StrRequired": {prim(ir.PrimString), "openapi:required"},
 					} {
 						node := requireScalarOver(t, doc, name, want.target)
 						assert.Equal(t, degradedKept(want.key), keptOn(node), name)
@@ -447,7 +447,7 @@ func TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept(t *testing.T) {
 					}
 					wrap, ok := kindNode(t, doc, componentID("ArrayWrap")).(*ir.List)
 					require.True(t, ok, "a declared array is a list, not a model")
-					assert.Contains(t, keptOn(wrap), entryKey(tAt), "the properties entry is kept")
+					assert.Contains(t, keptOn(wrap), "openapi:properties", "the properties entry's keyword is kept")
 					assert.NotContains(t, keptOn(wrap), "openapi:type", "the declared type is the list's own")
 				})
 			})
@@ -457,9 +457,9 @@ func TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept(t *testing.T) {
 
 // TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel holds that entries
 // whose keywords speak of an object and of an array do not compose a model:
-// with no type declared, the position is the top type keeping both entries;
-// beside a type list naming both, it is the union of an object and an array,
-// the entries kept. Nothing is reported as unsatisfiable.
+// with no type declared, the position is the top type keeping each entry's
+// keyword; beside a type list naming both, it is the union of an object and an
+// array, the keywords kept. Nothing is reported as unsatisfiable.
 func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 	t.Parallel()
 	for _, version := range composeVersions {
@@ -477,8 +477,8 @@ func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 					requireModelsNameModels(t, doc)
 
 					top := requireScalarOver(t, doc, "TwoKinds", prim(ir.PrimAny))
-					assert.Equal(t, degradedKept(entryKey(propsAt), entryKey(itemsAt)), keptOn(top))
-					assert.Equal(t, 2, degradedInfosAt(diags, "TwoKinds"), "one info for each entry kept")
+					assert.Equal(t, degradedKept("openapi:properties", "openapi:items"), keptOn(top))
+					assert.Equal(t, 2, degradedInfosAt(diags, "TwoKinds"), "one info for each entry keeping a keyword")
 					assert.False(t, markedKindInference(top), "no kind was read")
 
 					if version != "3.1.0" {
@@ -489,8 +489,11 @@ func TestAllOfCompose_EntriesClaimingTwoKindsAreNotAModel(t *testing.T) {
 					require.Len(t, union.Variants, 2)
 					assert.Equal(t, ir.KindModel, kindNode(t, doc, union.Variants[0].Type.Target).Kind())
 					assert.Equal(t, ir.KindList, kindNode(t, doc, union.Variants[1].Type.Target).Kind())
-					assert.Equal(t, []string{"/components/schemas/Listed/allOf/0", "/components/schemas/Listed/allOf/1"},
-						keptPointersUnder(doc, "Listed"), "each entry is kept")
+					kept := []string{
+						string(entryPointer("Listed", propsAt)) + "/properties", string(entryPointer("Listed", itemsAt)) + "/items",
+					}
+					slices.Sort(kept)
+					assert.Equal(t, kept, keptPointersUnder(doc, "Listed"), "each entry's keyword is kept")
 				})
 			})
 		}

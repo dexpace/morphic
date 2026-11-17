@@ -599,7 +599,7 @@
           }
         },
         "openapi:allOf/0": {
-          "reason": "degraded_lowering",
+          "reason": "out_of_scope",
           "value": {
             "$id": "https://ex.test/a/wrapper.json",
             "allOf": [
@@ -617,7 +617,7 @@
           }
         },
         "openapi:allOf/0/allOf/0": {
-          "reason": "degraded_lowering",
+          "reason": "validation_only",
           "value": {
             "not": {
               "$ref": "item.json"
@@ -711,7 +711,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Contradicted/allOf/0"
@@ -755,8 +755,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this inline allOf branch reads its $refs against another base than the position does, as an identifier at or above it names another URI, so nothing it writes folds; the branch (not) is kept verbatim under Unmodeled",
+      "code": "openapi/validation-only-keyword",
+      "message": "this inline allOf branch reads its $refs against another base than the position does, as an identifier at or above it names another URI, so nothing it writes folds or is kept apart; the branch (not) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Rebased/allOf/0/allOf/0"
@@ -765,7 +765,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch ($id) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch ($id) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Rebased/allOf/0"
