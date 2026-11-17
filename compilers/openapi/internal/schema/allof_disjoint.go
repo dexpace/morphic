@@ -173,12 +173,12 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 // toldWhereWritten reports whether st, written apart from the allOf naming it
 // and admitting no value, says so where it is written, so the allOf need not:
 // it reads as `false` (docs/compilers/openapi.md#allof-false-branch), its
-// value set holds no value its own type admits, an `enum` of none among them
-// (docs/compilers/openapi.md#enum-const), or its allOf's conjuncts share no
-// kind, which this report reads at it. A $ref landing on a schema admitting no
-// value is read through, up to maxAdmissionReads hops. Anything else leaving
-// st no value, a type beside a union no branch of which it admits among them,
-// is reported nowhere else.
+// value set holds no value its own type admits (docs/compilers/openapi.md#enum-const),
+// its allOf's conjuncts share no kind, which this report reads at it, or no
+// branch of a union beside its object body lives (keepsDeadUnion). A $ref
+// landing on a schema admitting no value is read through, up to
+// maxAdmissionReads hops. Anything else leaving st no value is reported
+// nowhere else.
 func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 	for range maxAdmissionReads {
 		switch {
@@ -190,6 +190,8 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 			return true
 		case st.Ref == nil && len(st.AllOf) > 0:
 			return conjunctsShareNothing(c, st.Schema)
+		case st.Ref == nil && keepsDeadUnion(c, st.Schema):
+			return true
 		}
 		next, _ := declaredOf(c, st)
 		if next == nil || !empty(c, conjunctAtom{admits: admissionOf(c, next).admits, st: next}) {

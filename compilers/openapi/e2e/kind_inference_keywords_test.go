@@ -393,13 +393,14 @@ func TestKindInference_AKindReadThroughAnInferredBranchIsMarked(t *testing.T) {
 // over a branch that is an object only as the policy reads it is a model by the
 // policy's reading of the property set and names it, as does one over a branch
 // whose read a cycle cuts short, which the policy off composes nothing over. A
-// body writing `type: object` marks none, a variant over a string among them.
+// body writing `type: object` marks none, a variant over a branch that may be
+// a string among them.
 func TestKindInference_AVariantComposedOverAnInferredBodyIsMarked(t *testing.T) {
 	t.Parallel()
 	const objects = "{type: object, properties: {o: {type: string}}}, {properties: {u: {type: string}}}"
 	schemas := []string{
 		"Untyped: {properties: {x: {type: string}}, oneOf: [" + objects + "]}",
-		"Typed: {type: object, properties: {x: {type: string}}, oneOf: [" + objects + ", {type: string}]}",
+		"Typed: {type: object, properties: {x: {type: string}}, oneOf: [" + objects + ", {anyOf: [{type: object}, {type: string}]}]}",
 		"Cycle: {allOf: [{$ref: '#/components/schemas/Cycle'}]}",
 		"CutShort: {properties: {x: {type: string}}, oneOf: [{type: object, allOf: [{$ref: '#/components/schemas/Cycle'}]}]}",
 	}

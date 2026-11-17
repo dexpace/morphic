@@ -68,7 +68,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// they return: immediate callbacks. operation's are a union's file reading
 		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    21,
+		"compilers/openapi/internal/schema":    22,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:

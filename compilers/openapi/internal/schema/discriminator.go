@@ -311,20 +311,20 @@ func componentNamed(scope resolve.Scope, b *statement.Statement) (string, ir.Typ
 	return name, id, true
 }
 
-// spellImplicitRoutes writes into the discriminator of u, the union holder
-// writes, the route OpenAPI implies to each variant no mapping entry routes:
+// spellImplicitRoutes writes into the discriminator of u, the Union at lowers,
+// the route OpenAPI implies to each variant no mapping entry routes:
 // the name of the component its $ref branch names, unless another branch names
 // it too or an entry spells it. The IR routes by type name only where the
 // Mapping is nil (docs/ir/models.md#discriminator), so these are written where
 // it holds an entry, or a variant's type is not that component, as a composed
 // variant's or an alias's is not. A non-null branch lacking its variant is a
 // compiler bug, reported at pointer.
-func spellImplicitRoutes(c lowering.Ctx, holder *statement.Schema, u *ir.Union, pointer jsontext.Pointer) []ir.Diagnostic {
+func spellImplicitRoutes(c lowering.Ctx, at unionAt, u *ir.Union, pointer jsontext.Pointer) []ir.Diagnostic {
 	d := u.Discriminator
 	if d == nil {
 		return nil
 	}
-	routes := implicitRoutes(c, holder)
+	routes := implicitRoutes(c, at)
 	if len(routes) != len(u.Variants) {
 		return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 			"internal: the union has %d variants for %d branches, so no route is written for them",
@@ -391,16 +391,16 @@ func typesAreNamed(routes []implicitRoute, variants []ir.Variant) bool {
 	return true
 }
 
-// implicitRoutes returns the implicit route to each branch but a null one of
-// the union s writes, in branch order: one per variant. A branch written
-// inline, or a $ref to any other position, names none.
-func implicitRoutes(c lowering.Ctx, s *statement.Schema) []implicitRoute {
+// implicitRoutes returns the implicit route to each branch of the union u
+// that is a variant (unionAt.variantBranch), in branch order: one per variant.
+// A branch written inline, or a $ref to any other position, names none.
+func implicitRoutes(c lowering.Ctx, u unionAt) []implicitRoute {
 	scope := c.RefScope()
-	branches, _, _ := unionBranches(s)
+	branches, _, _ := unionBranches(u.holder)
 	routes := make([]implicitRoute, 0, len(branches))
-	for _, b := range branches {
+	for i, b := range branches {
 		st := c.Statements().Sub(b)
-		if nullBranch(c, st) {
+		if !u.variantBranch(c, i, st) {
 			continue
 		}
 		name, id, ok := componentNamed(scope, st)

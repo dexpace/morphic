@@ -239,8 +239,8 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
-		if nullBranch(c, st) {
-			continue // null branches lift to the enclosing ref's Nullable bit
+		if !u.variantBranch(c, i, st) {
+			continue // a null branch lifts to the enclosing ref's Nullable bit; a dead one is kept
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
 		t := variantType(st, vptr)
@@ -264,7 +264,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
 	diags = append(diags, keepBranchDiscriminatorKeys(c, node, u)...)
-	diags = append(diags, spellImplicitRoutes(c, u.holder, node, common.Provenance.Pointer)...)
+	diags = append(diags, spellImplicitRoutes(c, u, node, common.Provenance.Pointer)...)
 	deferUnionTags(c, ts, u, node, common.Provenance.Pointer)
 	return node, diags
 }
@@ -306,6 +306,18 @@ type unionAt struct {
 	discAt jsontext.Pointer
 	// branch marks a holder that is an allOf branch, no schema at a position.
 	branch bool
+	// dead marks, by branch index, each branch of a distributed union no
+	// instance of its body satisfies (deadBranches), which is no variant; nil
+	// for a union distributing nothing.
+	dead []bool
+}
+
+// variantBranch reports whether st, the branch of u at index i, is a variant
+// of the Union u lowers to: every branch but a null one, which lifts to the
+// reference's Nullable, and one no instance of the body u is distributed over
+// satisfies. Each reader aligning branches with variants asks it.
+func (u unionAt) variantBranch(c lowering.Ctx, i int, st *statement.Statement) bool {
+	return !nullBranch(c, st) && (u.dead == nil || !u.dead[i])
 }
 
 // besideUnion is the union s, written at pointer, writes itself, with the
@@ -344,7 +356,7 @@ func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 		u.disc, u.discAt = d, e.pointer
 	}
 	how := classifyConjoined(c, s, u, pointer)
-	return u, how, how != unionHierarchyBase
+	return u, how, how == unionDistributed || how == unionRoutedSubtype
 }
 
 // branchUnionIndexOf returns findBranchUnion's reading of s, read once a run, as
@@ -672,6 +684,10 @@ const (
 	// union would be no subtype of that ancestor, so it stays a Model composing
 	// the union as a mixin (lowerSubtypeUnion).
 	unionRoutedSubtype
+	// unionNoLiveBranch marks a union no branch of which an instance of the
+	// body satisfies (deadBranch), a null branch aside: distributing it would
+	// build no variant a value inhabits.
+	unionNoLiveBranch
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
@@ -704,15 +720,18 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 // conjoins with a composing body, beside it or on a branch of its allOf, once
 // u's own shape allows distribution: kept whole where the discriminator standing
 // with u routes to branches composing s (composedByBranch), composed as a mixin
-// where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion); else
-// distributed, the discriminator routing the composed variants
-// (indexBranches).
+// where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion), kept
+// whole where no branch lives beside s (deadBranches); else distributed, the
+// discriminator routing the composed variants (indexBranches).
 func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
 	}
 	if routedSubtype(c, s, pointer) {
 		return unionRoutedSubtype
+	}
+	if !hasLiveBranch(c, u, deadBranches(c, s, u.holder)) {
+		return unionNoLiveBranch
 	}
 	return unionDistributed
 }
@@ -814,6 +833,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return id, append(diagUnresolvedBranches(c, s, pointer), diags...)
 	case unionRoutedSubtype:
 		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
+	case unionNoLiveBranch:
+		id, diags := beside(ir.ReasonDegradedLowering,
+			"none of its branches admits a value its body admits, so no instance satisfies them together")
+		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
@@ -936,10 +959,12 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 // not residue each variant keeps (allOfComposition.conjoins).
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
+	u.dead = deadBranches(c, s, u.holder)
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
 			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s)}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
+		diags = append(diags, keepDeadBranches(c, &common.Unmodeled, s, u, pointer)...)
 		def, unionDiags := buildUnion(c, ts, u, common,
 			func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)
@@ -1074,10 +1099,6 @@ func admitsObjectsAlone(c lowering.Ctx, st *statement.Statement) bool {
 func composedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody,
 	b *statement.Statement, vptr jsontext.Pointer,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	// The branch lowers through the ordinary schema path, at its own pointer, so
-	// it keeps whatever it declares beside the $ref and a reference to that
-	// pointer still finds the branch rather than the variant.
-	branch, diags := Ref(c, ts, depth, b, vptr)
 	id := c.IDs().ComposedType(vptr)
 	common := commonFor(c, id, vptr)
 	// The Model conjoins the union's body with the branch, so it is named for
@@ -1086,32 +1107,52 @@ func composedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composed
 	if body.inferred && !admitsObjectsAlone(c, b) {
 		common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
 	}
-	def, variantDiags := buildComposedVariant(c, ts, depth, body, b, branch.Target, common)
+	variant, unpacked, composes := branchReferent(c, b)
+	if !composes {
+		// The variant is the branch's one home, so the branch lowers nowhere and
+		// what it says of null is read off it, reported where the policy reads one.
+		def, diags := buildComposedVariant(c, ts, depth, body, b, "", false, common)
+		ts.Register(id, def)
+		n := newNulls(c)
+		r := n.conjunct(b, siteAt(vptr))
+		ref := composedVariantRef(c, id, body.schema, r.declared == nullAdmitted, r.lenient == nullAdmitted)
+		return ref, append(diags, n.findings(c)...)
+	}
+	// The branch lowers through the ordinary schema path, at its own pointer, so
+	// it keeps whatever it declares beside the $ref and a reference to that
+	// pointer still finds the branch rather than the variant.
+	branch, diags := Ref(c, ts, depth, b, vptr)
+	referent := branch.Target
+	if unpacked {
+		referent = variant
+	}
+	def, variantDiags := buildComposedVariant(c, ts, depth, body, b, referent, true, common)
 	ts.Register(id, def)
-	return composedVariantRef(c, id, body.schema, branch), append(diags, variantDiags...)
+	ref := composedVariantRef(c, id, body.schema, branch.Nullable && branch.Inferred == "", branch.Nullable)
+	return ref, append(diags, variantDiags...)
 }
 
 // composedVariantRef returns the reference a union variant naming the
-// synthesized variant id takes. The variant conjoins the enclosing body with
-// the branch, so it admits null exactly when the branch does and the body does
-// not forbid it: the allOf rule, applied to a conjunction the source does not
-// spell as an allOf, under each reading of nullable. The branch's declared
-// reading is its bit with no marker. The bit lives on this TypeRef, not on the
-// variant's Base or Mixins, for the reason conjoinBranch records.
-func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, branch ir.TypeRef) ir.TypeRef {
-	if !branch.Nullable {
+// synthesized variant id takes, its branch admitting null under the declared
+// reading and the lenient one as given. The variant conjoins the enclosing
+// body with the branch, so it admits null exactly when the branch does and the
+// body does not forbid it: the allOf rule, applied to a conjunction the source
+// does not spell as an allOf, under each reading of nullable. The bit lives on
+// this TypeRef, not on the variant's Base or Mixins, for the reason
+// conjoinBranch records.
+func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, declared, lenient bool) ir.TypeRef {
+	if !declared && !lenient {
 		return ir.TypeRef{Target: id}
 	}
 	n := newNulls(c)
 	r := n.schema(body, nullSite{})
-	return nullRef(c, id, branch.Inferred == "" && r.declared != nullForbidden, r.lenient != nullForbidden)
+	return nullRef(c, id, declared && r.declared != nullForbidden, lenient && r.lenient != nullForbidden)
 }
 
-// buildComposedVariant assembles the variant Model itself. Every fill reads the
-// enclosing schema at the enclosing pointer, so the properties, their PropIDs
-// and any shared additionalProperties node are the single set the source
-// declared, named after the enclosing schema, not after whichever branch built
-// them first.
+// buildComposedVariant assembles the variant Model itself, composing branch,
+// b's referent, or keeping b where composes is false. Every fill reads the
+// enclosing schema at its pointer, so the properties, their PropIDs and any
+// shared additionalProperties node are the one set the source declared.
 //
 // The enclosing schema's value constraints, its folding branches' among them,
 // are read as lowerAllOf reads them (GitHub #407), for the kinds the variant
@@ -1119,13 +1160,12 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, br
 // object satisfies holds none, and the census keeps a bound no variant holds
 // on the Union (GitHub #1936).
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, b *statement.Statement,
-	branch ir.TypeID, common ir.TypeCommon,
+	branch ir.TypeID, composes bool, common ir.TypeCommon,
 ) (ir.TypeDef, []ir.Diagnostic) {
 	kinds, _ := lowersTo(c, b)
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer, body.comp.bounds&kinds)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
-	branch, composes := branchReferent(c, b, branch, m.Provenance.Pointer)
 	if composes {
 		// The branch is distributed into the body, whose own declarations are
 		// read after it, as a model's own declarations follow what it composes.
@@ -1137,7 +1177,9 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
 	if !composes {
-		return m, append(diags, keepUncomposedBranch(c, m, body.comp, b)...)
+		// A variant composing nothing over a body that is a map alone is that map.
+		diags = append(diags, keepUncomposedBranch(c, m, b)...)
+		return objectNode(m), diags
 	}
 	conjoinBranch(m, branch)
 	// No variant carries a DiscriminatorValue, which tags a hierarchy's
@@ -1147,34 +1189,36 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	return m, diags
 }
 
-// branchReferent returns what the variant composed over the union branch b,
-// written at at and lowered to branch, names as its Base or a Mixin, and
-// whether it names one, as an allOf's $ref entry composes (composesRef): the
-// branch where it lowers to an object alone, null aside, or its read is cut
-// short; the object variant of a type list it names (objectVariant) where it
-// writes nothing beside its $ref, which its own node holds over the list
-// (LoweredToOwnNode); else nothing, since a model composes only models.
-func branchReferent(c lowering.Ctx, b *statement.Statement, branch ir.TypeID, at jsontext.Pointer) (ir.TypeID, bool) {
+// branchReferent reports whether the variant composed over the union branch b
+// names a referent as its Base or a Mixin, as an allOf's $ref entry composes
+// (composesRef), read before b lowers, so a branch the variant keeps lowers
+// nowhere: the node b lowers to where it is an object alone, null aside, or its
+// read is cut short; the object variant of a type list b's $ref names, unpacked
+// (objectVariant), where b writes nothing beside its $ref, which would bind the
+// whole list on no node the variant names; else none, since a model composes
+// only models.
+func branchReferent(c lowering.Ctx, b *statement.Statement) (variant ir.TypeID, unpacked, composes bool) {
 	if admissionOf(c, b).cut {
-		return branch, true
+		return "", false, true
 	}
 	if kinds, _ := lowersTo(c, b); kinds == kindObject {
-		return branch, true
+		return "", false, true
 	}
-	variant, unpacked := objectVariant(c, b)
-	if !unpacked || LoweredToOwnNode(c, at, ir.TypeRef{Target: branch}) {
-		return "", false
+	variant, unpacked = objectVariant(c, b)
+	if !unpacked || writesMoreThanRef(b.Schema) {
+		return "", false, false
 	}
-	return variant, true
+	return variant, true, true
 }
 
 // keepUncomposedBranch keeps the union branch b, which the variant m does not
-// compose (branchReferent), verbatim under m's Unmodeled, keyed by its path
-// from the body comp composes, and reports it, as keepUncomposedRef keeps an
-// allOf's $ref entry.
-func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, b *statement.Statement) []ir.Diagnostic {
+// compose (branchReferent), verbatim under m's Unmodeled (unionBranchKey), and
+// reports it, as keepUncomposedRef keeps an allOf's $ref entry. b lowers
+// nowhere, so this is its one home; the target of a $ref it writes lowers
+// where the $ref lands, as every landing does (PromiseLandings).
+func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, b *statement.Statement) []ir.Diagnostic {
 	at := m.Provenance.Pointer
-	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(at), b.Node,
+	kept, diags := annotation.PreserveNodeInto(&m.Unmodeled, unionBranchKey(at), b.Node,
 		ir.ReasonDegradedLowering, c.Place().At(at))
 	if !kept {
 		return diags
