@@ -375,3 +375,23 @@ func TestRead_ASplitEntryReadAsAPositionIsTheSameTwoConjuncts(t *testing.T) {
 	require.Len(t, entry.Entries, 1)
 	assert.Same(t, st.Entries[0].Schema, entry.Entries[0].Schema, "and one reference")
 }
+
+// TestOf_AnEntryWhoseReferenceEndsNowhereIsReadWhole pins that an allOf entry
+// writing a $ref the bindings read as naming nothing beside other keys is
+// listed whole, its reference and its keys one entry, while the same spelling
+// written as a component is the conjunction of the two.
+func TestOf_AnEntryWhoseReferenceEndsNowhereIsReadWhole(t *testing.T) {
+	t.Parallel()
+	spec := document("3.1.0", "S: {allOf: [{$ref: '#/components/schemas/Ghost', description: d}]}",
+		"G: {$ref: '#/components/schemas/Ghost', description: d}")
+	table, c := tableOver(t, spec, rulesAt(t, "3.1.0", ""))
+	st := table.At(component(c, "S"))
+	require.Len(t, st.Entries, 1)
+	entry := st.Entries[0].Schema
+	require.NotNil(t, entry.Ref, "the entry is read as written")
+	assert.Nil(t, entry.BesideRef)
+	assert.Equal(t, []string{"$ref", "description"}, keyNames(entry))
+	g := table.At(component(c, "G"))
+	assert.Nil(t, g.Ref)
+	assert.NotNil(t, g.BesideRef, "a component conjoins")
+}

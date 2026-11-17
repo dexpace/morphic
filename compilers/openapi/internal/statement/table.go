@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -166,10 +167,25 @@ func (t *Table) flatten(st *Statement) {
 // (docs/compilers/openapi.md#ref-use-site). A reference merged in past
 // nodeview.MergeDepthLimit, which no key of s names, conjoins as any does.
 func conjoins(s *Schema) bool {
-	if s.Truth != Stated || s.Ref == nil {
+	if s.Truth != Stated || s.Ref == nil || failedEntry(s) {
 		return false
 	}
 	return slices.ContainsFunc(s.Keys, func(k Key) bool { return ReadBeside(k.Name, k.Node, s.Ref.Keyword) })
+}
+
+// failedEntry reports whether s, writing a reference, is an allOf entry whose
+// reference the bindings read as ending on no schema. Such an entry is read
+// whole: nothing reads what it writes beside the reference, which the
+// composition keeps as the entry wrote it
+// (docs/compilers/openapi.md#allof-inline-residue). Written anywhere else, the
+// same object conjoins, as `{allOf: [{$ref: …}], …}` does.
+func failedEntry(s *Schema) bool {
+	if !s.Ref.Bound || s.Ref.Entry.Chain.Status == bind.Resolved {
+		return false
+	}
+	at := string(s.At.Pointer)
+	i := strings.LastIndexByte(at, '/')
+	return i >= 0 && strings.HasSuffix(at[:i], "/allOf")
 }
 
 // refKey returns the place in s, which writes a reference, of the key naming
