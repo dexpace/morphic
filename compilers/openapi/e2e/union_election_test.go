@@ -39,11 +39,12 @@ func TestElection_TwoAnyOfUnionsBesideABodyDistributeNeither(t *testing.T) {
 	}
 }
 
-// TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole holds the one
-// shape the golden spec writes, an allOf of two anyOf entries and nothing
-// else, each only naming required members: neither is a candidate, so both are
-// kept whole under their indices and reported, in both orders of the entries
-// and of the components, and no union stands for the position.
+// TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole holds an allOf of
+// two anyOf entries and nothing else, each only naming required members, as
+// the golden spec writes beside an object it composes: written alone it
+// refines, two unions of one keyword elect neither, so both are kept whole
+// under their indices and reported, in both orders of the entries and of the
+// components, and no union stands for the position.
 func TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole(t *testing.T) {
 	t.Parallel()
 	for _, version := range electionVersions {
