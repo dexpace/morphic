@@ -985,3 +985,25 @@ func nullCollapseSpec(hostFirst bool) string {
 	}
 	return openapitest.ComponentSpec(outside + host)
 }
+
+// TestDistributedUnion_AVariantOverAnInferredBranchOfAnInferredBodyIsMarked
+// pins the marker on the variants a union distributes an untyped property set
+// into: one over a branch declaring an object is a model by that branch, and
+// one over a branch that is an object only as the kind-inference policy reads
+// its `properties` is a model by that reading, so it names the policy.
+func TestDistributedUnion_AVariantOverAnInferredBranchOfAnInferredBodyIsMarked(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Body:
+      properties: {x: {type: string}}
+      oneOf: [{type: object, properties: {o: {type: string}}}, {properties: {u: {type: string}}}]
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "Body").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	for i, marked := range []bool{false, true} {
+		v := doc.Types[u.Variants[i].Type.Target]
+		require.NotNil(t, v, "variant %d", i)
+		assert.Equal(t, marked, v.Common().Provenance.Inferred == "kind-inference", "variant %d", i)
+	}
+}

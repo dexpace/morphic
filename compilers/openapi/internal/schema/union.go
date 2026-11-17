@@ -639,8 +639,9 @@ const (
 	// sibling body accepts; it is kept verbatim under ReasonValidationOnly.
 	unionValidationOnly
 	// unionUncomposableBody marks a union beside a body that is not a Model — a
-	// const, an enum, a scalar, a bare catch-all — so there are no composition
-	// fields to distribute into.
+	// const, an enum, a scalar, or object keywords with no type where the kinds
+	// the position lowers to are not an object alone — so there are no
+	// composition fields to distribute into.
 	unionUncomposableBody
 	// unionBothCombinators marks a schema declaring oneOf and anyOf at once:
 	// only one of the two can become the value, so distributing either drops the
@@ -736,11 +737,12 @@ func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 // composesAsModel reports whether the structural siblings lower to a Model,
 // which is the only node with composition fields for a union to distribute
 // across. It mirrors lower's dispatch: const and enum win over everything, then
-// an allOf that composes, then a declared object type or a bare property set,
-// which the kind-inference policy reads as an object (claimedKinds). A bare
-// `required` is one too where every branch admits only an object, the one
-// instance it constrains, or null, which it leaves alone
-// (branchesAdmitOnlyObjects), and so is a bare property set with the policy off.
+// an allOf that composes, then a declared object type, then object keywords
+// with no type where the kinds the position lowers to are an object alone
+// (untypedKinds): what the union's branches declare, else what the
+// kind-inference policy reads off the keywords. So a bare property set,
+// `required`, closure or catch-all beside branches each declaring an object
+// composes, as beside `type: object`.
 func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 	if constIn(s) != nil || enumWritten(s) {
 		return false
@@ -752,22 +754,8 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 	if len(types) > 0 {
 		return len(types) == 1 && types[0] == statement.KindObject
 	}
-	if len(objectIn(s).Properties) > 0 {
-		return claimedKinds(c, s) == kindObject || branchesAdmitOnlyObjects(c, s)
-	}
-	return slices.Equal(siblingKeywords(s), []string{"required"}) && branchesAdmitOnlyObjects(c, s)
-}
-
-// branchesAdmitOnlyObjects reports whether each branch of the combinator
-// unionBranches elects admits an object or null and nothing else, read as
-// admission reads it. A read cut short says no.
-func branchesAdmitOnlyObjects(c lowering.Ctx, s *statement.Schema) bool {
-	branches, _, _ := unionBranches(s)
-	w := newAdmission(c)
-	objectsOnly := !slices.ContainsFunc(branches, func(b statement.Sub) bool {
-		return lowered(&w, c.Statements().Sub(b)).kinds&^(kindObject|kindNull) != 0
-	})
-	return objectsOnly && !w.incomplete()
+	kinds, _ := untypedKinds(c, s)
+	return kinds == kindObject
 }
 
 // branchesNameReferents reports whether every union branch can be conjoined with
@@ -807,7 +795,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 	case unionValidationOnly:
 		return beside(ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
-		return beside(ir.ReasonDegradedLowering, uncomposableWhy(c, s))
+		return beside(ir.ReasonDegradedLowering, "the body is not a model, so it carries no composition to distribute into")
 	case unionBothCombinators:
 		return beside(ir.ReasonDegradedLowering,
 			"oneOf and anyOf are both declared, so distributing either would drop the other")
@@ -824,17 +812,6 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
 	}
-}
-
-// uncomposableWhy says why the body of s, which composesAsModel refuses,
-// takes none of the union beside it: it is no model, or it declares no
-// property and is an object only by a keyword written beside branches naming
-// objects (untypedKinds), as a bare `additionalProperties: false` is.
-func uncomposableWhy(c lowering.Ctx, s *statement.Schema) string {
-	if kinds, _ := untypedKinds(c, s); kinds == kindObject && len(objectIn(s).Properties) == 0 {
-		return "the body declares no property, so it carries no composition to distribute into"
-	}
-	return "the body is not a model, so it carries no composition to distribute into"
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref

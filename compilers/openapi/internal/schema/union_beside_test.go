@@ -160,13 +160,12 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 }
 
 // TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches pins a body writing
-// only `required` beside branches that admit only an object or null: each
-// variant requires the names of its branch, which keeps its null, and a branch
-// that may be no object, a keyword beside `required` or a branch read past its
-// bounds leaves the body nothing to compose
-// (docs/compilers/openapi.md#union-beside-structure). The report says which:
-// beside a branch that may be a string the body is the top type, and the other
-// two are models declaring no property.
+// `required` with no type beside branches that admit only an object or null:
+// each variant requires the names of its branch, which keeps its null, an
+// `items` beside it among what the union keeps, and a branch read past the
+// reading's caps still names its kind. A branch that may be no object, or one
+// on a cycle, leaves the body nothing to compose, and it is the top type
+// (docs/compilers/openapi.md#union-beside-structure).
 func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -176,7 +175,9 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
       anyOf: [{$ref: '#/components/schemas/A'}, {type: [object, 'null'], properties: {c: {type: string}}}]
     BesideString: {required: [a], oneOf: [{$ref: '#/components/schemas/A'}, {type: string}]}
     BesideItems: {required: [a], items: {type: string}, oneOf: [{$ref: '#/components/schemas/A'}]}
-    CutShort: {required: [a], oneOf: [{$ref: '#/components/schemas/A'}, {type: object, allOf: [{$ref: '#/components/schemas/D0'}]}]}
+    PastTheCaps: {required: [a], oneOf: [{$ref: '#/components/schemas/A'}, {type: object, allOf: [{$ref: '#/components/schemas/D0'}]}]}
+    Cyc: {allOf: [{$ref: '#/components/schemas/Cyc'}]}
+    OnACycle: {required: [a], oneOf: [{$ref: '#/components/schemas/A'}, {type: object, allOf: [{$ref: '#/components/schemas/Cyc'}]}]}
 `+deepChain(300)))
 	openapitest.RequireNoErrorDiags(t, diags)
 
@@ -195,19 +196,27 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	assert.False(t, nullable.Variants[0].Type.Nullable)
 	assert.True(t, nullable.Variants[1].Type.Nullable, "a required list leaves the branch's null alone")
 
-	for name, why := range map[string]string{
-		"BesideString": "the body is not a model",
-		"BesideItems":  "the body declares no property",
-		"CutShort":     "the body declares no property",
-	} {
+	for name, variants := range map[string]int{"BesideItems": 1, "PastTheCaps": 2} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		assert.Len(t, u.Variants, variants, name)
+		assert.Equal(t, name == "BesideItems", keepsKey(u.Unmodeled, "openapi:items"), name)
+	}
+	for _, name := range []string{"BesideString", "OnACycle"} {
 		assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, name), name)
 		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 			return d.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
-				strings.Contains(d.Message, why)
+				strings.Contains(d.Message, "the body is not a model")
 		}), "%s: %+v", name, diags)
-		_, isModel := typeByName(doc, name).(*ir.Model)
-		assert.Equal(t, name != "BesideString", isModel, "%s: the report names the body the document holds", name)
+		_, isScalar := typeByName(doc, name).(*ir.Scalar)
+		assert.True(t, isScalar, "%s: the top type", name)
 	}
+}
+
+// keepsKey reports whether u keeps an entry under key.
+func keepsKey(u ir.Unmodeled, key string) bool {
+	_, ok := u[key]
+	return ok
 }
 
 // deepChain declares D0 to Dn, each an allOf naming the next and Dn an object,

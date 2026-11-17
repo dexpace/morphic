@@ -2170,13 +2170,13 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 ### `allof-refinement`
 
 An `allOf` is a composition where a conjunct writes `properties`, `patternProperties`,
-`additionalProperties`, `required` or `discriminator`, which only a `Model` holds, or where the kinds
-the position lowers to include an object and a conjunct is a `$ref` or names a kind, the keywords
-beside the `allOf` being a conjunct as much as a branch is. Those kinds are what the conjuncts
-declare together, or, where nothing declares one, what their shape keywords claim
-([`shape-applicator`](#shape-applicator)), so `{allOf: [{$ref: E}], description: d}` over
-`E: {items: …}` is a use of the list the policy reads `E` as. A `Model` anywhere else asserts an object the
-source rules out, so that `{allOf: [{type: integer}, {type: integer, format: int32}]}` reaches a
+`additionalProperties`, `required` or `discriminator`, which only a `Model` holds, or where the
+kinds the position lowers to include an object and a conjunct is a `$ref` or names a kind, the
+keywords beside the `allOf` being a conjunct as much as a branch is. Those kinds are what the
+conjuncts declare together, or, where nothing declares one, what their shape keywords claim
+([`shape-applicator`](#shape-applicator)), so `{allOf: [{$ref: E}], description: d}` over `E:
+{items: …}` is a use of the list the policy reads `E` as. A `Model` anywhere else asserts an object
+the source rules out, so that `{allOf: [{type: integer}, {type: integer, format: int32}]}` reaches a
 consumer as an object with no fields, where it means `int32`. Any other `allOf` is a *refinement*:
 one use of the conjunct that decides it, its *principal*, with what the other conjuncts say read as
 said of that use. So `{allOf: [{$ref: T}, {type: string}]}` refines a `T` that may be a string or an
@@ -2185,9 +2185,9 @@ object, as the two together admit no object.
 What the conjuncts admit is read from the source and the bindings, never the registry, so no
 lowering order decides it. Each conjunct's JSON kinds and value set are read across `$ref`, `allOf`,
 `oneOf`, `anyOf`, `type`, `enum` and `const`, a shape keyword written with no `type` claiming no
-kind there ([`shape-applicator`](#shape-applicator)), values comparing as an `enum`'s entries do, so that `1` and `1.0` are one, and the read takes
-in at most 256 schemas and 4096 `enum` members. An `allOf` stays the composition it would otherwise
-be, with nothing lost, where:
+kind there ([`shape-applicator`](#shape-applicator)), values comparing as an `enum`'s entries do, so
+that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `enum` members. An
+`allOf` stays the composition it would otherwise be, with nothing lost, where:
 
 1. the read does not finish: a cycle, either bound, a `$ref` landing on no schema, a `$dynamicRef`,
    or a value it cannot convert;
@@ -2220,9 +2220,9 @@ The principal is chosen from the whole set:
    what a `$ref` fixes: it says which values the position holds, and what it narrows cannot;
 2. else the `$ref`, since a narrower inline `type` replacing it would drop what its target says,
    unless the kind-inference policy reads its target as a kind the position's declarations exclude:
-   a declared kind decides before an inference ([`policies`](#policies)), so
-   `{allOf: [{$ref: E}, {type: string}]}` over `E: {items: …}` is the string, the `$ref` kept with an
-   info naming the policy;
+   a declared kind decides before an inference ([`policies`](#policies)), so `{allOf: [{$ref: E},
+   {type: string}]}` over `E: {items: …}` is the string, the `$ref` kept with an info naming the
+   policy;
 3. else, of the conjuncts naming a kind by `type`, `enum` or `const`, the one within the most others,
    the keywords beside the `allOf` among them, those first and then source order on a tie. A conjunct
    is within another where its kinds, its values, its `format` and its `items` are. Two formats of the
@@ -3449,9 +3449,14 @@ variant conjoins its branch by reference: a `$ref` branch's target, through the 
 written beside the `$ref` hoists, and an inline branch's own node, hoisted at its pointer as any
 inline schema is ([`inline-hoisting`](#inline-hoisting)), which an outside `$ref` to that pointer
 finds too. The referent is carried as written, a branch admitting no object among them
-([models](../ir/models.md#composition-entries)). A bare `required` is a body too where every
-branch admits only an object or null, the values it constrains or leaves alone, so each variant
-requires those names of its branch.
+([models](../ir/models.md#composition-entries)). Object keywords written with no `type`, a
+`properties`, a `patternProperties`, a `required`, a closure or a catch-all, are a body too where
+the kinds the position lowers to are an object alone ([`shape-applicator`](#shape-applicator)):
+what the branches declare, each an object, or, where nothing declares a kind, what the
+kind-inference policy reads off them. Each variant, a model over its branch, then holds those
+keywords, as beside `type: object`: `{oneOf: [{$ref: A}, {$ref: B}], additionalProperties:
+false}` is a `Union` of closed models over `A` and `B`, and a bare `required` names the members each
+variant requires.
 
 A `discriminator` standing with the union, where no branch composes the schema (shape 4), routes
 the distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
@@ -3484,13 +3489,10 @@ on a branch nested past the flattening depth stays whole with its branch, and so
 branches declare no shape, on each variant where another union distributes. Distribution cannot
 reach these shapes:
 
-1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
-   `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
-   that may be no object, with neither `properties` nor a `type`), so there are no composition
-   fields for the variants to carry; or it is one only by an object keyword other than a bare
-   `required`, written with no `properties` beside branches that each name an object
-   ([`shape-applicator`](#shape-applicator)), as a bare `additionalProperties: false` is, where the
-   report says that the body declares no property;
+1. the structural body is not a `Model`: a `const`, an `enum`, a scalar, or keywords written with
+   no `type` where the kinds the position lowers to are not an object alone, beside a branch that
+   may be no object, or where a cycle cuts the read short and the keywords infer no object, so there
+   are no composition fields for the variants to carry;
 2. a branch is a null branch, whatever spells its `null`, which a union lifts onto the position's
    `Nullable` rather than conjoining it ([`union-null-variant`](#union-null-variant)), so no
    variant could say whether the body admits the null;
@@ -4098,7 +4100,10 @@ closed for `false` and a catch-all for anything else, and the inert keyword is k
 unevaluatedProperties: false}` is a `MapT`. `minProperties` and `maxProperties` lower to the
 `Model`'s `Constraints`, which bound the property set's cardinality as against `Additional`'s
 openness, or to a `MapT`'s, which bound its entry count, and to the node alone: a property, a
-parameter or a header naming the node holds neither ([`constraints`](#constraints)).
+parameter or a header naming the node holds neither ([`constraints`](#constraints)). Written with no
+`type` beside a union whose branches each declare an object, either is a body the union distributes
+into ([`union-beside-structure`](#union-beside-structure)): each variant is a model over its branch
+holding the closure or the catch-all, as beside `type: object`.
 
 `true` writes a catch-all; an absent keyword does not. In JSON Schema, `additionalProperties: true`
 is the empty schema, so it types the catch-all as the top type exactly as `{}` does: alone it is a
@@ -4120,7 +4125,9 @@ patterns and no `Value` beside `Additional` closed after composition. That objec
   `schema.TestObject_AnInertClosureLeavesAMap`,
   `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
   `schema.TestAllOf_ACatchAllLeavesAClosureAfterCompositionInert`,
-  `annotation.TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside`
+  `annotation.TestClosesAfterComposition_OnlyWhereNoAdditionalPropertiesStandsBeside`,
+  `e2e.TestKindInference_AClosureBesideAUnionOfObjectsDistributes`,
+  `e2e.TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes`
 - Status: partly built: the closure is typed beside an applicator kept verbatim that evaluates a
   member, an inline `allOf` branch's `additionalProperties` or `patternProperties`, `then`, `else`
   or `dependentSchemas`, so the typed members refuse one the source admits (#1904); and what a
@@ -4376,10 +4383,9 @@ union of models.
   `e2e.TestKindInference_ATwoKindUnionIsOneInEitherKeywordOrder`,
   `e2e.TestKindInference_AKindAConjunctNamesIsDeclared`,
   `e2e.TestKindInference_KeywordsNarrowingAKeptUnionNameNoKind`,
-  `e2e.TestKindInference_APropertySetBesideAUnionOfOtherKindsIsTheTopTypeWhenOff`,
+  `e2e.TestKindInference_APropertySetBesideAUnionOfOtherKindsIsTheTopType`,
   `e2e.TestKindInference_AKindReadThroughAnInferredBranchIsMarked`,
   `e2e.TestKindInference_AVariantComposedOverAnInferredBodyIsMarked`,
-  `e2e.TestKindInference_AModelBesideAKeptUnionIsReportedAsOne`,
   `e2e.TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim`,
   `e2e.TestKindInference_TheEntryOrderAndThePolicyLeaveTheDeclaredKindAlone`,
   `e2e.TestKindInference_ACompositionIsMarkedWhereNoConjunctDeclaresItsKind`,
@@ -4389,6 +4395,10 @@ union of models.
   `e2e.TestKindInference_OnlyAKeywordGivingATypeInfersItsKind`,
   `e2e.TestKindInference_AKeywordTypingNothingStillSpeaksOfItsKind`,
   `e2e.TestKindInference_ANarrowingBesideATypingKeywordStaysOnItsModel`,
+  `e2e.TestKindInference_AClosureBesideAUnionOfObjectsDistributes`,
+  `e2e.TestKindInference_ACatchAllBesideAUnionOfObjectsDistributes`,
+  `e2e.TestKindInference_AClosureBesideAUnionOfOtherKindsIsTheTopType`,
+  `e2e.TestKindInference_AClosedFormBodyBesideAUnionKeysNoPartItsModelsLack`,
   `schema.TestAdmissionOf_KindsAreWhatEachConjunctionLowersTo`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
@@ -6827,11 +6837,12 @@ how operations are arranged rather than filling a fact a node holds.
    already ([`naming`](#naming)), so its text option, `title-names`, spells the policy's name.
 3. **Precedence.** Where several state a fact, a keyword decides first, then a promotion, then an
    inference, as a kind a conjunct declares decides before the one kind inference reads off
-   another's shape keywords ([`shape-applicator`](#shape-applicator)); what a keyword's value states beside a promotion's key is the promotion's rule, as
-   [`extension-promotion`](#extension-promotion) says of a `deprecated: false`. To an inference,
-   the document has spoken wherever it writes a keyword, or a key a promotion maps to the fact's
-   target, whatever its value: a value filled, one that failed to resolve, and an explicit `false`
-   each keep the inference from filling that fact.
+   another's shape keywords ([`shape-applicator`](#shape-applicator)); what a keyword's value states
+   beside a promotion's key is the promotion's rule, as
+   [`extension-promotion`](#extension-promotion) says of a `deprecated: false`. To an inference, the
+   document has spoken wherever it writes a keyword, or a key a promotion maps to the fact's target,
+   whatever its value: a value filled, one that failed to resolve, and an explicit `false` each keep
+   the inference from filling that fact.
 4. **Reports.** An inference filling a field the document leaves silent reports nothing. One whose
    reading replaces what the document writes, as an HTTP-date replaces the RFC 3339 text a written
    `date-time` names, reports an info `openapi/inferred-<fact>`. One whose trigger, the evidence its
