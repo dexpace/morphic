@@ -333,6 +333,16 @@
           "eventPayload": false,
           "secret": false,
           "docs": {},
+          "unmodeled": {
+            "openapi:nullable": {
+              "reason": "out_of_scope",
+              "value": false,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Holder/properties/notNullable/nullable"
+              }
+            }
+          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/notNullable"
@@ -531,6 +541,15 @@
     },
     {
       "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"nullable\" is not defined by the dialect this schema is read in, and no policy reads it here; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/notNullable/nullable"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/inferred-nullable",
       "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
@@ -561,7 +580,7 @@
     {
       "format": "openapi@3.1",
       "path": "nullable-keyword-31.yaml",
-      "hash": "aea9a29cdacbf13a6cd83861596ce564d2937edd026e56f129cb927cbe660f8b"
+      "hash": "3fc0bfc907ea10851c1e682173c526fa17f2c22fe4c3bdd09a2330e74f64cb56"
     }
   ]
 }

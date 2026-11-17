@@ -377,12 +377,16 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    and `compilers/compile` by exact path, its own internal tree once it has one, and its format
    libraries, with `barrier` for a package that runs one of them behind `barrier.Catch`, the one
    way to recover a panic outside a test. Give each package under its `internal/` an entry of its
-   own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours.
+   own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours. A package of
+   the OpenAPI compiler also needs a row in `layers` (`internal/archtest/layers_test.go`), in the
+   layer its imports and its role say, which `architecture.md` §3 describes.
    *Fails if missed:* `TestImportGraph_EveryPackageIsRuledOrExempt`, which requires every package
    under `compilers/` to carry an entry of its own and names the one that does not, and
    `TestImportGraph_LayeringHolds` for an import an entry does not allow, whose message says when
    the package is audited under an ancestor's entry for want of its own, and for an entry no
-   production file the rule audits imports.
+   production file the rule audits imports. For a package of the OpenAPI compiler,
+   `TestLayers_EveryCompilerPackageHasOne` fails for one with no row in `layers`, and
+   `TestLayers_NoPackageImportsAboveItsLayer` for an import of a layer above its own.
 3. **Mint IDs and names through the framework.** Intern types through `compile.Types`, derive IDs
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
    ID lives in, source-addressed as well as minted (`docs/ir/identity.md`), and stamp

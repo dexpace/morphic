@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -19,18 +18,20 @@ import (
 const anyInstance = kindAny &^ kindNull
 
 // kindWords spells the members of a kindSet in the order a diagnostic lists
-// them. A number holds an integer, so it is spelled before one: an integer is
-// named only where no number is left beside it.
+// them. A number holds an integer and a number with a fraction, so it is
+// spelled before either: each is named only where the other is not left
+// beside it, the second as no type names it.
 var kindWords = []struct {
 	kinds kindSet
-	word  statement.Kind
+	word  string
 }{
-	{kindObject, statement.KindObject},
-	{kindArray, statement.KindArray},
-	{kindString, statement.KindString},
-	{kindNumber, statement.KindNumber},
-	{kindInteger, statement.KindInteger},
-	{kindBoolean, statement.KindBoolean},
+	{kindObject, string(statement.KindObject)},
+	{kindArray, string(statement.KindArray)},
+	{kindString, string(statement.KindString)},
+	{kindNumber, string(statement.KindNumber)},
+	{kindInteger, string(statement.KindInteger)},
+	{kindFraction, "number that is no integer"},
+	{kindBoolean, string(statement.KindBoolean)},
 }
 
 // instanceWords spells t, a set of instance types, for a diagnostic.
@@ -41,7 +42,7 @@ func instanceWords(t kindSet) string {
 	out := make([]string, 0, len(kindWords))
 	for _, w := range kindWords {
 		if t&w.kinds == w.kinds {
-			out = append(out, string(w.word))
+			out = append(out, w.word)
 			t &^= w.kinds
 		}
 	}
@@ -72,21 +73,29 @@ func declaredInstanceTypes(s *statement.Schema) kindSet {
 // its name below the composing schema, what it admits, and whether its read
 // was cut short. Its null is the statement st's, or, for keywords read apart
 // from a $ref or an allOf they stand beside, those of the schema words.
+// written is where the conjunct is written apart from the allOf, whose report
+// of admitting nothing would be its own (toldWhereWritten): what a $ref entry
+// lands on, or a `false` entry itself, and nil for any other.
 type conjunctAtom struct {
-	name   string
-	admits kindSet
-	st     *statement.Statement
-	words  *statement.Schema
-	cut    bool
+	name    string
+	admits  kindSet
+	st      *statement.Statement
+	words   *statement.Schema
+	written *statement.Statement
+	cut     bool
 }
+
+// noValue is how a disjoint report names a conjunct admitting no value at all.
+const noValue = "no value"
 
 // disjointConjuncts names what each conjunct of comp, the allOf s writes,
 // admits where they share no value, and returns nil where they share one
 // (docs/compilers/openapi.md#allof-disjoint-conjuncts). A null is one: the
 // shared reading of it is the nulls walk's. A read cut short decides nothing,
-// a conjunct admitting nothing by itself is its own schema's to report, and
-// one conjunct contradicts nothing, so a lone `type: "null"` beside what takes
-// its null away draws nil too.
+// and a conjunct admitting nothing whose schema reports it where it is written
+// leaves the report to it. One conjunct contradicts nothing, so a lone
+// `type: "null"` beside what takes its null away draws nil too, but one
+// admitting nothing by itself is named, as nothing else reports it.
 func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
 	atoms := conjunctAtoms(c, s, comp)
 	joint := anyInstance
@@ -105,16 +114,21 @@ func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfCompositio
 	if n.schema(s, nullSite{}).admits(c) || n.conjuncts.Exhausted() {
 		return nil
 	}
-	if slices.ContainsFunc(atoms, func(a conjunctAtom) bool { return empty(c, a) }) {
-		return nil
-	}
 	var names []string
+	void := false
 	for _, a := range atoms {
-		if a.admits != anyInstance {
-			names = append(names, a.name+": "+instanceWords(a.admits))
+		switch {
+		case !empty(c, a):
+			if a.admits != anyInstance {
+				names = append(names, a.name+": "+instanceWords(a.admits))
+			}
+		case a.written != nil && toldWhereWritten(c, a.written):
+			return nil
+		default:
+			names, void = append(names, a.name+": "+noValue), true
 		}
 	}
-	if len(names) < 2 {
+	if len(names) < 2 && !void {
 		return nil
 	}
 	return names
@@ -132,18 +146,64 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 	for _, e := range comp.branches {
 		name := comp.branchPath(e.pointer)
 		r := admissionOf(c, e.schema)
+		ref, _ := declaredOf(c, e.schema)
 		switch {
 		case e.wrapper:
 			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
 		case e.schema.Ref != nil && r.words != anyInstance && !r.cut:
-			ref, _ := declaredOf(c, e.schema)
-			out = append(out, conjunctAtom{name: name + "/$ref", admits: admissionOf(c, ref).admits, st: ref},
+			out = append(out, conjunctAtom{name: name + "/$ref", admits: admissionOf(c, ref).admits, st: ref, written: ref},
 				conjunctAtom{name: name, admits: r.words, words: e.schema.Schema})
 		default:
-			out = append(out, conjunctAtom{name: name, admits: r.admits, st: e.schema, cut: r.cut || e.capped})
+			a := conjunctAtom{name: name, admits: r.admits, st: e.schema, cut: r.cut || e.capped, written: ref}
+			if e.schema.Truth.ReadsFalse() {
+				a.written = e.schema
+			}
+			out = append(out, a)
 		}
 	}
 	return out
+}
+
+// toldWhereWritten reports whether st, written apart from the allOf naming it
+// and admitting no value, says so where it is written, so the allOf need not:
+// it reads as `false` (docs/compilers/openapi.md#allof-false-branch), its
+// value set holds no value its own type admits, an `enum` of none among them
+// (docs/compilers/openapi.md#enum-const), or its allOf's conjuncts share no
+// kind, which this report reads at it. A $ref landing on a schema admitting no
+// value is read through, up to maxAdmissionReads hops. Anything else leaving
+// st no value, a type beside a union no branch of which it admits among them,
+// is reported nowhere else.
+func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
+	for range maxAdmissionReads {
+		switch {
+		case st.Truth.ReadsFalse():
+			return true
+		case st.Truth != statement.Stated:
+			return false
+		case (enumWritten(st.Schema) || constIn(st.Schema) != nil) && declaredInstanceTypes(st.Schema)&valueKinds(c, st.Schema) == 0:
+			return true
+		case st.Ref == nil && len(st.AllOf) > 0:
+			return conjunctsShareNothing(c, st.Schema)
+		}
+		next, _ := declaredOf(c, st)
+		if next == nil || !empty(c, conjunctAtom{admits: admissionOf(c, next).admits, st: next}) {
+			return false
+		}
+		st = next
+	}
+	return false
+}
+
+// conjunctsShareNothing reports whether the conjuncts of the allOf s writes,
+// read as a disjoint report reads them, share no kind. Its caller's read is
+// whole, so none of them is cut short.
+func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
+	at, _ := siteOf(s)
+	joint := anyInstance
+	for _, a := range conjunctAtoms(c, s, allOfBranches(c, s, at.Pointer)) {
+		joint &= a.admits
+	}
+	return joint == 0
 }
 
 // empty reports whether a admits no value by itself, the null included as

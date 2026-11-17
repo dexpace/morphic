@@ -2056,12 +2056,17 @@ such null is reported once as an info `openapi/inferred-nullable`, at the `nulla
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
 whatever references its schema. The policy is the Go option `Options.NullableInference`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
-its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
-`openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
-model does not name. Under either policy only the boolean `true` states a null: a `nullable`
-holding a string states none at any version, a YAML 1.1 truth word the parser decodes as true, such
-as `"yes"` or a plain `on`, among them, and neither does any other value that is no boolean.
+`nullable-inference`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema that the policy
+does not read is a keyword its dialect does not define, kept verbatim under `openapi:nullable`
+(`out_of_scope`) with an info `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys)
+keeps a keyword the schema model does not name: every one with the policy off, and with it on every
+one that is not the boolean `true`, a `false` among them, wherever it is written, beside a `$ref`
+included. Written on an inline `allOf` branch or a union's null branch, it keeps the branch whole
+as the policy off does, since no fold reads it. Under either policy only the boolean `true` states a
+null: a `nullable` holding a string states none at any version, a YAML 1.1 truth word the parser
+decodes as true, such as `"yes"` or a plain `on`, among them, and neither does any other value that
+is no boolean. A `null` written for `nullable` is the keyword left out
+([`null-keywords`](#null-keywords)).
 
 Whether a 3.0 `nullable: true` has an effect is a fact of the specification, not of the policy: with
 no `type` written in the same Schema Object, a `type` written `null` being none, it has none, beside
@@ -2086,7 +2091,10 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `oas.TestCheck_NullableAppliesBesideAType`,
   `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
   `schema.TestNullableInference_OnlyABooleanStatesNull`,
-  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`
+  `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`,
+  `e2e.TestNullable_AValueThePolicyDoesNotReadIsKeptAtOpenAPI31`,
+  `e2e.TestNullable_AValueNoPolicyReadsIsKeptOnANullBranch`,
+  `e2e.TestNullable_OpenAPI30KeepsNoValueAsAnUnknownKeyword`
 
 ### `schema-examples`
 
@@ -2636,7 +2644,20 @@ admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
 `enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
 `$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
-the union admits too. Where that read meets what it does not follow but which could refuse a value of
+the union admits too, and each schema holding that one in turn as an `allOf` entry or a union
+branch, up to the first that is neither: a union written in an `allOf` entry of `{type: object}`
+admits no array, however deep the entry. A schema read as an `allOf` entry and no union's branch is
+read alone. It admits a kind whole only where no keyword it takes in refuses some instance
+of that kind while admitting others: a value set, a numeric or a string bound, a `format`, and a
+keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
+kinds in part, but for one whose schemas, applied to the instance's parts, each state nothing, as
+`items: {}` and `additionalProperties: true` do; and a union admits a kind whole where a branch does
+and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
+`{enum: [1, 2]}` and `{anyOf: [{type: object}, {type: integer, minimum: 5}]}` each admit some
+integers and not every one, and a structure composing one of them is judged against `integer` as a
+structure stating its type is: the conflict is reported and the declaration the field does not keep
+is kept verbatim, since a field of either type alone would lose what the other says. Where that read
+meets what it does not follow but which could refuse a value of
 some kind, a `not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a
 `$recursiveRef` the bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no
 schema, the structure reads as stating its type; a `not` or an `if` written `null` is the keyword
@@ -2814,7 +2835,7 @@ whose say the field kept. A dropped declaration is reported against the winner a
 warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
 against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
 admits, two `const`s of different values, two enums sharing no value, a scalar against a
-structure stating its instance type, two structures of different instance types each stating
+structure stating its instance type or admitting the scalar's kind only in part, two structures of different instance types each stating
 theirs, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
@@ -2941,6 +2962,10 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_ANullNotOrIfIsTheKeywordLeftOut`,
   `schema.TestAllOf_ADistributedVariantIsReadWithItsUnion`,
   `e2e.TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict`,
+  `e2e.TestCompile_AStructureAdmittingPartOfAKindConflictsWithIt`,
+  `e2e.TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion`,
+  `schema.TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch`,
+  `schema.TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart`,
   `e2e.TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestTypeJudge_ModelsAlikeAreCopies`,
@@ -3214,7 +3239,8 @@ The reading is of the source, since a `Model` cannot say whether its source wrot
 and `{properties: …}` alone admits a string. That is where it parts from the reading
 [`allof-refinement`](#allof-refinement) elects a principal by, which takes such a `properties` to
 claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
-admits a set of JSON instance types, an `integer` within a `number` and named as written, read once
+admits a set of JSON instance types, an `integer` within a `number` and named as written, and a
+number with a fraction, which no `type` names, named a `number that is no integer`, read once
 a compile, whatever its size: the `type` beside the `allOf`; an inline entry's `type`, the members
 of its `enum` or `const`, the join of what each branch of its `oneOf` or `anyOf` admits, and what
 its own `allOf` admits; and for a `$ref` entry, what the schema it lands on admits, read the same
@@ -3228,14 +3254,21 @@ conjunct admits some value by itself and none is cut short, and the schema admit
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
 null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
-the instance types nothing is reported, since one conjunct contradicts nothing.
+the instance types nothing is reported, since one conjunct contradicts nothing, unless it admits no
+value by itself and nothing else says so (below).
 
 What writes no `type` and no value set admits every kind, so a report is made only of what the
 source declares: a `true` entry, a `format` and a `properties` state nothing. A conjunct admitting no
-value by itself, the null included, is its own to report and the `allOf` composing it draws
-nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch) reports, a `$ref`
-landing on `false`, and a schema whose own conjuncts share no value, which is reported where it is
-written, so a schema composing a reported one draws no second report. A read cut short decides
+value by itself, the null included, that says so where it is written is its own to report, and the
+`allOf` composing it draws nothing: a `false` entry, which [`allof-false-branch`](#allof-false-branch)
+reports, and a `$ref` landing on `false`, on a schema whose value set holds no value its own type
+admits, an empty `enum` among them ([`enum-const`](#enum-const)), or on a schema whose own
+conjuncts share no value, which is reported where it is written, each read through a chain of
+`$ref`s each admitting no value, up to 256 of them. So a schema composing a reported one draws no
+second report. Any other conjunct admitting no value is named `no value` in the report, alone or
+beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
+a schema that admits none and says nothing of it, such as a `type` beside a union none of whose
+branches it admits, or beside a `$ref` to another kind. A read cut short decides
 nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
 converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
 no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
@@ -3260,7 +3293,11 @@ lowered as.
   `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,
   `e2e.TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema`,
   `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
-  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`
+  `e2e.TestCompile_AnEmptyConjunctIsItsOwnSchemasToReport`,
+  `e2e.TestCompile_AnEmptyConjunctIsReportedWhereNothingElseSaysSo`,
+  `schema.TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing`,
+  `e2e.TestCompile_ADisjointReportNamesAFraction`,
+  `schema.TestInstanceWords_NamesEverySetOfKinds`
 
 ### `union`
 
@@ -4640,7 +4677,8 @@ declares no type, unlike `type: "null"`, and nothing is kept verbatim for want o
 `default` and `example` hold an instance, of which `null` is one, so a `null` there is that value
 ([`enum-const`](#enum-const), [`nullable`](#nullable)), as an `enum` member is. A keyword of no
 vocabulary has no type to break and is kept with the `null` it wrote, as
-[`unknown-keys`](#unknown-keys) keeps any value. The load phase reports each such `null` at the node
+[`unknown-keys`](#unknown-keys) keeps any value. An empty dependency map is read the same way
+([`validation-only`](#validation-only)). The load phase reports each such `null` at the node
 as the warning a field left out draws ([`validation`](#validation)); the lowering reports nothing
 of its own, since reading it so loses nothing.
 
@@ -4908,6 +4946,16 @@ leave the keyword live, and an entry holding only unevaluated keywords holds liv
 `allOf` branch writes stays with the branch kept whole, whatever its form
 ([`allof-inline-residue`](#allof-inline-residue)), since at the position it would exempt what the
 other conjuncts evaluate.
+A keyword whose value is the empty collection JSON Schema equates with its absence states nothing,
+and is read as the keyword left out, as [`null-keywords`](#null-keywords) reads a `null`: nothing
+is typed, kept or reported for it, and the schema lowers as it does with the key removed.
+`dependentSchemas`, `dependentRequired` and a draft's `dependencies` are read so when written as a
+mapping with no entry, at every position, an inline `allOf` branch writing only one included, which
+says nothing for the position and is no conjunct another branch's keyword disagrees with. Where
+the dialect defines no `dependencies`, an empty one is an unknown keyword like any other
+([`unknown-keys`](#unknown-keys)), as `definitions` is, and kept whatever it holds. A keyword
+holding a schema, `not`, `if`, `then`, `else`, `propertyNames`, `contains` and the unevaluated
+keywords, states something when it holds `{}`, the schema every instance satisfies, and is kept.
 Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
 4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
@@ -4931,7 +4979,11 @@ document lands on, hop by hop, as it would one a lowered keyword names.
   `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
   `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
   `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
-  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`
+  `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`,
+  `annotation.TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry`,
+  `statement.TestKey_DefinedTellsAKeywordTheRowsDefine`,
+  `e2e.TestEmptyDependencyMap_IsTheKeywordLeftOut`,
+  `e2e.TestEmptyDependencyMap_AnEntryWritingOnlyOneSaysNothing`
 
 ### `dynamic-ref`
 
@@ -5215,7 +5267,8 @@ reader to notice, and a finding that stands is listed with its reason in the pac
 `morphic-harness -cases full` asks it of every case, an entry written before the `$ref` among them,
 and reports what the record does not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
-another would still pass. A keyword kept verbatim keeps its `$ref`s as written, and the positions
+another would still pass. A dependency map with no entry is no value in that sense but the keyword
+left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions
 they land on are lowered ([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
@@ -6786,8 +6839,8 @@ to ignore a keyword it does not know, and a position that lowers to a shared nod
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
 `$dynamicRef`, and 2019-09's `$recursiveAnchor` and `$recursiveRef` where the schema's dialect
 defines them, are decided elsewhere and left out. A keyword the model names and the dialect the
-schema is read in does not define, which only `nullable` is, with the nullable-inference policy off
-([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
+schema is read in does not define, which only `nullable` is, where the nullable-inference policy is
+off or does not read its value ([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
 object.
