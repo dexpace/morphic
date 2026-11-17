@@ -43,7 +43,8 @@ func TestGroups_TheAxesInTheirOrder(t *testing.T) {
 
 func TestGroups_WritesNothingOutsideTheProduct(t *testing.T) {
 	c := openapicases.Groups()
-	for _, at := range [][]int{nil, {0, 0, 0}, {0, 0, 0, 5}, {0, -1, 0, 0}, {2, 0, 0, 0}, {0, 0, 3, 0}} {
+	past := len(c.Axes()[3].Values)
+	for _, at := range [][]int{nil, {0, 0, 0}, {0, 0, 0, past}, {0, -1, 0, 0}, {2, 0, 0, 0}, {0, 0, 3, 0}} {
 		_, ok := c.Write(at)
 		assert.False(t, ok, "%v", at)
 	}

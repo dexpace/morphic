@@ -236,9 +236,10 @@ jobs:
             report "ci: the nightly race run fails on main" race race.log \
               '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' "the suite"
           fi
-          # A report line names a case, its values joined by "/", then what the
-          # oracle found; panic: and morphic-harness: lines end the run itself.
+          # Each failure is a test log line, its file and line then a case, its
+          # values joined by "/", and what was found or the record line gone
+          # stale; panic: and --- FAIL lines end the run itself.
           if [ "$CASES" = failure ]; then
             report "ci: the nightly cases run finds a difference on main" cases cases.log \
-              '^(panic:|morphic-harness:|[^[:space:]]+/[^[:space:]]+[[:space:]])' "the cases"
+              '(^panic:|^--- FAIL|_test\.go:[0-9]+: )' "the cases"
           fi

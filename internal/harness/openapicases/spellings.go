@@ -6,6 +6,7 @@ package openapicases
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/internal/harness"
@@ -25,6 +26,8 @@ const (
 	entryFirst = "entryFirst"
 	// nested writes {allOf: [{allOf: [{$ref: T}, {K}]}]}.
 	nested = "nested"
+	// besideEntry writes {allOf: [{$ref: T, K}]}, beside as an allOf's entry.
+	besideEntry = "besideEntry"
 )
 
 // targetSchema is the component every spelling but inline writes the target
@@ -45,24 +48,26 @@ func partnerOf(s string) (partner, rule string, ok bool) {
 		return wrap, "allof-inline-residue", true
 	case entryFirst, nested:
 		return entry, "allof-classification", true
+	case besideEntry:
+		return entry, "ref-use-site", true
 	default:
 		return "", "", false
 	}
 }
 
 // spelt returns the schema a case writes at its position: for inline, t's
-// body with members merged in; otherwise the use of the target saying members
-// in spelling s. It is false where s writes no such use: the construct at index
-// i of the construct axis stays where inline writes it (stays), s would write a
-// key twice, or an entry spelling saying nothing writes wrap's document.
-func (c cases) spelt(i int, s string, t target, members object) (object, bool) {
+// body with u's members and entries merged in; otherwise the use of the target
+// saying u in spelling s. It is false where s writes no such use: the unit
+// stays where inline writes it, s would write a key twice, or an entry
+// spelling saying nothing writes wrap's document.
+func (c cases) spelt(u written, s string, t target) (object, bool) {
 	if s == inline {
-		return t.body.with(members), true
+		return t.body.with(slices.Concat(u.members, allOfOf(u.entries))), true
 	}
-	if len(members) == 0 && (s == entry || s == entryFirst) {
+	if len(u.members) == 0 && writesWrapEmpty(s) {
 		return nil, false
 	}
-	switch c.staysAt(i) {
+	switch u.stays {
 	case inlineAlone:
 		return nil, false
 	case besideToo:
@@ -71,8 +76,13 @@ func (c cases) spelt(i int, s string, t target, members object) (object, bool) {
 		}
 	default:
 	}
-	return spell(s, object{{"$ref", "#/components/schemas/" + targetSchema}}, members)
+	return spell(s, object{{"$ref", "#/components/schemas/" + targetSchema}}, u.members, u.entries)
 }
+
+// writesWrapEmpty reports whether s, given no keyword, writes wrap's document,
+// which wrap writes: the spellings writing the keywords in an entry of their
+// own or beside the reference's entry.
+func writesWrapEmpty(s string) bool { return s == entry || s == entryFirst || s == besideEntry }
 
 // staysAt is where the construct at index i of the construct axis is written;
 // none, saying nothing, is moved.
@@ -83,37 +93,54 @@ func (c cases) staysAt(i int) stays {
 	return c.constructs[(i-1)/2].stays
 }
 
-// spell returns the use of the target ref names saying k in spelling s, and
-// false where s cannot write it: k names the keyword s writes the use with.
-// Both products write their uses through it.
-func spell(s string, ref, k object) (object, bool) {
+// spell returns the use of the target ref names saying k in spelling s, the
+// allOf entries follow right after ref, and false where s cannot write it: k
+// names the keyword s writes the use with. Both products write their uses
+// through it.
+func spell(s string, ref, k object, follow []any) (object, bool) {
 	var use object
 	switch s {
 	case beside:
-		use = slices.Concat(ref, k)
+		use = slices.Concat(ref, k, allOfOf(follow))
 	case wrap:
-		use = slices.Concat(object{{"allOf", []any{ref}}}, k)
+		use = slices.Concat(object{{"allOf", slices.Concat([]any{ref}, follow)}}, k)
 	case entry, entryFirst, nested:
-		use = object{{"allOf", allOfEntries(s, ref, k)}}
+		use = object{{"allOf", allOfEntries(s, ref, k, follow)}}
+	case besideEntry:
+		first := slices.Concat(ref, k)
+		if repeats(first) {
+			return nil, false
+		}
+		use = object{{"allOf", slices.Concat([]any{first}, follow)}}
 	default:
 		return nil, false
 	}
 	return use, !repeats(use)
 }
 
-// allOfEntries is the allOf an entry spelling writes: the reference and, when k
-// writes a keyword, an entry of it, in s's order and nesting.
-func allOfEntries(s string, ref, k object) []any {
-	out := []any{ref}
-	if len(k) > 0 {
+// allOfOf returns the member writing entries as an allOf, and none for no
+// entry.
+func allOfOf(entries []any) object {
+	if len(entries) == 0 {
+		return nil
+	}
+	return object{{"allOf", entries}}
+}
+
+// allOfEntries is the allOf an entry spelling writes: the reference, then
+// follow, and, when k writes a keyword, an entry of it, last or, for
+// entryFirst, first; nested writes them one allOf deeper.
+func allOfEntries(s string, ref, k object, follow []any) []any {
+	out := slices.Concat([]any{ref}, follow)
+	switch {
+	case len(k) == 0:
+	case s == entryFirst:
+		out = slices.Concat([]any{k}, out)
+	default:
 		out = append(out, k)
 	}
-	switch s {
-	case entryFirst:
-		slices.Reverse(out)
-	case nested:
+	if s == nested {
 		out = []any{object{{"allOf", out}}}
-	default:
 	}
 	return out
 }
@@ -130,40 +157,87 @@ func repeats(o object) bool {
 	return false
 }
 
-// equal is what the case at, saying members, must equal: its partner
-// spelling, nil for a spelling with none or whose partner writes nothing.
-// Beside a $ref at 3.0 each keyword states the warning it draws there.
-func (c cases) equal(at []int, members object) *harness.Equal {
+// equal is what the case at, writing u, must equal: its partner spelling, nil
+// for a spelling with none or whose partner writes nothing. Beside a $ref at
+// 3.0 each keyword states the warning it draws there.
+func (c cases) equal(at []int, u written) *harness.Equal {
 	s := c.spellings[at[5]]
 	partner, rule, ok := partnerOf(s)
 	if !ok {
 		return nil
 	}
-	if partner == entry && len(members) == 0 {
+	if partner == entry && len(u.members) == 0 {
 		partner = wrap // an entry saying nothing is wrap's document, which wrap writes
 	}
-	if _, writes := c.spelt(at[2], partner, c.targets[at[1]], members); !writes {
+	if readApart(s, u.members) {
+		return nil
+	}
+	if _, writes := c.spelt(u, partner, c.targets[at[1]]); !writes {
 		return nil
 	}
 	to := slices.Clone(at)
 	to[5] = slices.Index(c.spellings, partner)
 	use := c.positions[at[4]].pointer
 	eq := &harness.Equal{To: to, Rule: rulePrefix + rule, Relocate: relocation(use)}
-	if s != beside || c.versions[at[0]].dialect {
+	if c.versions[at[0]].dialect {
 		return eq
 	}
-	for _, m := range members {
-		at := jsontext.Pointer(use).AppendToken(m.name)
-		eq.Stated = append(eq.Stated, laterVersion(at))
-		// docs/compilers/openapi.md#nullable: beside a $ref the keyword is a later
-		// minor's construct, warned of as one, so it draws no second warning
-		// there, where beside the allOf it draws validation-no-effect.
-		if m.name == "nullable" && m.value == raw("true") {
-			eq.Replaced = append(eq.Replaced, harness.Stated{Severity: ir.SeverityWarning,
-				Code: "openapi/validation/validation-no-effect", Pointer: at})
-		}
+	switch s {
+	case beside:
+		eq.Stated, eq.Replaced = besideRef(use, slices.Concat(u.members, allOfOf(u.entries)), use, u.members)
+	case besideEntry:
+		eq.Stated, eq.Replaced = besideRef(use+"/allOf/0", u.members, use+"/allOf/"+strconv.Itoa(1+len(u.entries)), u.members)
+	default:
 	}
 	return eq
+}
+
+// besideRef returns the reports a 3.0 use states where it writes members
+// beside a $ref in the schema at, its partner writing them in the schema at
+// theirs: each draws the warning a later minor's keyword draws, and a
+// nullable: true, which the partner warns has no effect where no type is
+// written with it (docs/compilers/openapi.md#nullable), draws no second there.
+func besideRef(at string, members object, theirs string, unit object) (stated, replaced []harness.Stated) {
+	for _, m := range members {
+		stated = append(stated, laterVersion(jsontext.Pointer(at).AppendToken(m.name)))
+		if m.name == "nullable" && m.value == raw("true") && !typed(unit) {
+			replaced = append(replaced, harness.Stated{Severity: ir.SeverityWarning,
+				Code: "openapi/validation/validation-no-effect", Pointer: jsontext.Pointer(theirs).AppendToken(m.name)})
+		}
+	}
+	return stated, replaced
+}
+
+// readApart reports whether the nullable-inference policy reads a 3.0
+// nullable in members apart in spelling s and its partner, so the two are not
+// one: on an allOf entry it folds into the position only from an entry writing
+// no properties (docs/compilers/openapi.md#allof-inline-residue), and a
+// nullable: true beside a $ref admits null for the whole reference, inferred,
+// where beside a type on an entry it is declared
+// (docs/compilers/openapi.md#nullable).
+func readApart(s string, members object) bool {
+	i := slices.IndexFunc(members, named("nullable"))
+	if i < 0 {
+		return false
+	}
+	properties := slices.ContainsFunc(members, named("properties"))
+	switch s {
+	case entry:
+		return properties
+	case besideEntry:
+		return members[i].value == raw("true") && (properties || typed(members))
+	default:
+		return false
+	}
+}
+
+// typed reports whether members write a type, a type written null being none:
+// beside one a 3.0 nullable: true has an effect
+// (docs/compilers/openapi.md#nullable).
+func typed(members object) bool {
+	return slices.ContainsFunc(members, func(m member) bool {
+		return m.name == "type" && m.value != "null" && m.value != raw(`"null"`)
+	})
 }
 
 // laterVersion is the warning a 3.0 keyword beside a $ref draws at at.

@@ -87,6 +87,10 @@ type Equal struct {
 	// Replaced are the reports the partner draws where this spelling draws one
 	// of Stated in their place.
 	Replaced []Stated
+	// Parts are, for a case writing two keywords in one unit, the cases writing
+	// each alone, the rest alike: what this spelling finds is new only where it
+	// differs at a place neither part differs at in the same run (Unexplained).
+	Parts [][]int
 }
 
 // Stated is one report a spelling states it causes.
@@ -424,11 +428,13 @@ func (s *shard) check(ctx context.Context, at []int) (Result, bool) {
 	name := caseName(s.axes, at)
 	written := true
 	var verdicts []Verdict
+	var parts []string
 	err := barrier.Catch(func() {
 		var doc Document
 		if doc, written = s.cases.Write(slices.Clone(at)); !written {
 			return
 		}
+		parts = s.partNames(at, doc.Equal)
 		for _, ask := range asked {
 			verdicts = append(verdicts, ask(ctx, s, at, doc))
 		}
@@ -446,5 +452,23 @@ func (s *shard) check(ctx context.Context, at []int) (Result, bool) {
 		res.Outcome, res.Detail = OutcomePanic, panicDetail(err)
 	}
 	res.Like = caseName(s.axes, project(s.axes, at))
+	res.Parts = parts
 	return res, true
+}
+
+// partNames returns the names of the parts eq names (Equal.Parts), none for no
+// partner. A part outside the product, or the case at itself, is the product's
+// mistake, and a panic.
+func (s *shard) partNames(at []int, eq *Equal) []string {
+	if eq == nil {
+		return nil
+	}
+	names := make([]string, 0, len(eq.Parts))
+	for _, part := range eq.Parts {
+		if !inProduct(s.axes, part) || slices.Equal(part, at) {
+			panic(fmt.Sprintf("harness: case %v names the part %v, outside the product or itself", at, part))
+		}
+		names = append(names, caseName(s.axes, part))
+	}
+	return names
 }

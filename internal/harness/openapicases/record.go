@@ -10,7 +10,8 @@ import (
 	"github.com/dexpace/morphic/internal/harness"
 )
 
-// The records of what each case oracle finds at the core cases.
+// The records of what each case oracle finds at the core cases, and at the
+// cases outside it that what the core cases find does not explain.
 var (
 	//go:embed testdata/spelling.txt
 	spellingRecord string
@@ -18,20 +19,36 @@ var (
 	presenceRecord string
 	//go:embed testdata/instances.txt
 	instanceRecord string
+	//go:embed testdata/full/spelling.txt
+	spellingFull string
+	//go:embed testdata/full/presence.txt
+	presenceFull string
+	//go:embed testdata/full/instances.txt
+	instanceFull string
 )
 
-// Record returns what case oracle o is known to find at the core cases.
-func Record(o harness.Oracle) (harness.Recorded, error) {
-	var data string
+// FullRecord returns what case oracle o is known to find at every case: the
+// lines at the core cases, and those at cases outside the core. A name listed
+// in both is an error.
+func FullRecord(o harness.Oracle) (harness.Recorded, error) {
+	core, full, err := records(o)
+	if err != nil {
+		return nil, err
+	}
+	return harness.ReadRecorded([]byte(core + "\n" + full))
+}
+
+// records returns the text of o's record at the core cases and of its record
+// outside them.
+func records(o harness.Oracle) (core, full string, err error) {
 	switch o {
 	case harness.OracleSpelling:
-		data = spellingRecord
+		return spellingRecord, spellingFull, nil
 	case harness.OraclePresence:
-		data = presenceRecord
+		return presenceRecord, presenceFull, nil
 	case harness.OracleInstance:
-		data = instanceRecord
+		return instanceRecord, instanceFull, nil
 	default:
-		return nil, fmt.Errorf("openapicases: oracle %q keeps no record", o)
+		return "", "", fmt.Errorf("openapicases: oracle %q keeps no record", o)
 	}
-	return harness.ReadRecorded([]byte(data))
 }

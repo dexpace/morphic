@@ -79,8 +79,8 @@ func (r Recorded) Judge(findings []Finding, reasons map[string]string) (unlisted
 	return unlisted, changed, stale, unreasoned
 }
 
-// Explains reports whether r lists f at as, the name of the core case f's case
-// projects to (Result.Like), with f's What.
+// Explains reports whether r lists f at as, with f's What: as is f's case's
+// own name, or the name of the core case it projects to (Result.Like).
 func (r Recorded) Explains(f Finding, as string) bool {
 	e, ok := r[as]
 	return ok && e.what == f.What
@@ -144,12 +144,13 @@ func findingOf(r Result, v Verdict) Finding {
 func declinedWhat(d Decline) string { return "declined: " + string(d) }
 
 // Unexplained returns, of results, those records does not explain: a result a
-// fault ended (Result.Faulted), whole, and one with a finding its oracle's
-// record does not list at the core case the result projects to (Result.Like),
-// which holds the verdicts of such findings alone, the first its outcome. A
-// decline the record lists as a finding and does not list here is held as a
-// finding of OutcomeDeclined, so whatever reads findings reads it.
+// fault ended (Result.Faulted), whole, and one with a finding (explained) its
+// oracle's record does not explain, which holds the verdicts of such findings
+// alone, the first its outcome. A decline the record lists as a finding and
+// does not list here is held as a finding of OutcomeDeclined, so whatever reads
+// findings reads it.
 func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
+	run := byName(results)
 	var out []Result
 	for _, r := range results {
 		if r.Faulted() {
@@ -158,7 +159,7 @@ func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 		}
 		var left []Verdict
 		for _, v := range r.Verdicts {
-			if !listed(v) || records[v.Oracle].Explains(findingOf(r, v), r.Like) {
+			if !listed(v) || explained(records[v.Oracle], run, r, v) {
 				continue
 			}
 			if !v.Asked() {
@@ -167,8 +168,59 @@ func Unexplained(results []Result, records map[Oracle]Recorded) []Result {
 			left = append(left, v)
 		}
 		if len(left) > 0 {
-			out = append(out, Result{Spec: r.Spec, Like: r.Like, Outcome: left[0].Outcome, Detail: left[0].Detail, Verdicts: left})
+			out = append(out, Result{Spec: r.Spec, Like: r.Like, Parts: r.Parts, Outcome: left[0].Outcome,
+				Detail: left[0].Detail, Verdicts: left})
 		}
 	}
 	return out
+}
+
+// byName indexes the results naming parts (Result.Parts) by name, and nil
+// where none does.
+func byName(results []Result) map[string]Result {
+	if !slices.ContainsFunc(results, func(r Result) bool { return len(r.Parts) > 0 }) {
+		return nil
+	}
+	out := make(map[string]Result, len(results))
+	for _, r := range results {
+		out[r.Spec] = r
+	}
+	return out
+}
+
+// explained reports whether rec, or run, the results of the same run by name,
+// explains v, a verdict of r its record lists: rec lists what v found at r's
+// own name or at the core case r projects to; or v is a spelling of a case
+// writing two keywords whose every place it differs at, a part of its What, is
+// a place a spelling of either part differs at in run. Each part is held to
+// the records itself, so a place forgiven here is one already recorded or
+// reported where it stands alone.
+func explained(rec Recorded, run map[string]Result, r Result, v Verdict) bool {
+	f := findingOf(r, v)
+	if rec.Explains(f, r.Spec) || rec.Explains(f, r.Like) {
+		return true
+	}
+	if v.Oracle != OracleSpelling || len(r.Parts) == 0 {
+		return false
+	}
+	places := map[string]bool{}
+	for _, name := range r.Parts {
+		part, ok := run[name]
+		if !ok {
+			continue
+		}
+		for _, w := range part.Verdicts {
+			if w.Oracle == v.Oracle && listed(w) {
+				for place := range strings.SplitSeq(findingOf(part, w).What, ",") {
+					places[place] = true
+				}
+			}
+		}
+	}
+	for place := range strings.SplitSeq(f.What, ",") {
+		if !places[place] {
+			return false
+		}
+	}
+	return true
 }
