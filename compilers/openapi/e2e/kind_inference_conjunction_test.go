@@ -145,8 +145,9 @@ var declaredBesideClaim = []struct {
 // that an allOf entry writing `items` and no type claims no kind against a
 // conjunct declaring one: JSON Schema applies `items` to arrays alone, so the
 // conjunction admits every string. At every position, in both entry orders and
-// under either policy, the position is a use of the string, the entry is kept
-// under its key with one info, nothing is marked and nothing warns.
+// under either policy, the position is a use of the string, the entry's items
+// is kept under its own key with one info at the entry, nothing is marked and
+// nothing warns.
 func TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0"} {
@@ -161,7 +162,7 @@ func TestKindInference_ADeclaredKindDecidesBesideAnEntryTheKeywordsClaim(t *test
 						for _, at := range conjunctionPositions {
 							entry := at + jsontext.Pointer(fmt.Sprintf("/allOf/%d", tc.entry))
 							assert.Equal(t, prim(ir.PrimString), usedAt(t, doc, at), "%s at %s", tc.name, at)
-							assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry: ir.ReasonDegradedLowering},
+							assert.Equal(t, map[jsontext.Pointer]ir.UnmodeledReason{entry + "/items": ir.ReasonDegradedLowering},
 								keptUnder(doc, at), "%s at %s", tc.name, at)
 							assert.Equal(t, []jsontext.Pointer{entry}, degradedUnder(diags, at), "%s at %s", tc.name, at)
 						}

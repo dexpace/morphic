@@ -264,14 +264,20 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	assert.Equal(t, componentID("Str"), byRef.Base.Target)
 	assert.Empty(t, byRef.Unmodeled, "Str lies within one branch and shares no kind with another")
 
+	// The union is kept under its keyword with the reason it has beside the
+	// allOf: validation logic where its branches declare no shape.
 	for name, key := range map[string]string{
-		"TwoMatch": "openapi:allOf/0", "BothWithin": "openapi:allOf/0", "FormatNotHeld": "openapi:allOf/0",
-		"Overlapping": "openapi:allOf/0", "Bounded": "openapi:allOf/0", "BoundedOne": "openapi:allOf/0",
-		"Patterned": "openapi:allOf/0", "Described": "openapi:allOf/0",
+		"TwoMatch": "openapi:oneOf", "BothWithin": "openapi:oneOf", "FormatNotHeld": "openapi:anyOf",
+		"Overlapping": "openapi:oneOf", "Bounded": "openapi:anyOf", "BoundedOne": "openapi:oneOf",
+		"Patterned": "openapi:anyOf", "Described": "openapi:anyOf",
 	} {
+		reason, code := ir.ReasonDegradedLowering, diag.DegradedConstruct
+		if name == "TwoMatch" || name == "BothWithin" {
+			reason, code = ir.ReasonValidationOnly, diag.ValidationOnlyKeyword
+		}
 		kept := typeByName(doc, name).Common().Unmodeled[key]
-		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, "%s keeps the union, which says more", name)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/allOf/0"), name)
+		assert.Equal(t, reason, kept.Reason, "%s keeps the union, which says more", name)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, code, "/components/schemas/"+name+"/allOf/0"), name)
 	}
 
 	_, composes := typeByName(doc, "Disjoint").(*ir.Model)
@@ -397,8 +403,8 @@ func TestRefinement_AShapelessUnionBesideIsValidationLogic(t *testing.T) {
 			assert.Len(t, diagsAtPointer(doc.Diagnostics, diag.ValidationOnlyKeyword, at), 1, at)
 			assert.Empty(t, diagsAtPointer(doc.Diagnostics, diag.DegradedConstruct, at), at)
 		}
-		assert.Equal(t, ir.ReasonDegradedLowering, typeByName(doc, "OnBranch").Common().Unmodeled["openapi:allOf/1"].Reason,
-			"on a branch, the union stays whole with it")
+		assert.Equal(t, ir.ReasonValidationOnly, typeByName(doc, "OnBranch").Common().Unmodeled["openapi:oneOf"].Reason,
+			"on a branch, the union is kept as beside the allOf")
 	}
 }
 
@@ -616,42 +622,46 @@ func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
 }
 
 // TestRefinement_KeptKeywordsLandAtEveryPosition pins what no reference can
-// hold: a narrower keyword beside the allOf or in a branch, kept verbatim where
-// the position keeps what it writes, with one report.
+// hold: a narrower keyword beside the allOf or in a branch, kept verbatim under
+// its own key where the position keeps what it writes, with one report.
 func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		schema string
 		key    string
 		report string
+		// code and reason are those of a degraded lowering where empty.
+		code   string
+		reason ir.UnmodeledReason
 	}{
 		"a narrower type beside": {
-			"{allOf: [{$ref: '#/components/schemas/Port'}], type: integer, format: int32}",
-			"openapi:format", "no home for format declared beside it",
+			schema: "{allOf: [{$ref: '#/components/schemas/Port'}], type: integer, format: int32}",
+			key:    "openapi:format", report: "no home for format declared beside it",
 		},
 		"a format in a branch": {
-			"{allOf: [{$ref: '#/components/schemas/Port'}, {type: integer, format: int32}]}",
-			"openapi:allOf/1", "the branch (format)",
+			schema: "{allOf: [{$ref: '#/components/schemas/Port'}, {type: integer, format: int32}]}",
+			key:    "openapi:format", report: "no home for format written on this inline branch",
 		},
 		"a type narrowing a number": {
-			"{allOf: [{$ref: '#/components/schemas/Num'}, {type: integer}]}",
-			"openapi:allOf/1", "the branch (type)",
+			schema: "{allOf: [{$ref: '#/components/schemas/Num'}, {type: integer}]}",
+			key:    "openapi:type", report: "no home for type written on this inline branch",
 		},
 		"items narrowing a list": {
-			"{allOf: [{$ref: '#/components/schemas/Names'}, {type: array, items: {type: string, minLength: 1}}]}",
-			"openapi:allOf/1", "the branch (items)",
+			schema: "{allOf: [{$ref: '#/components/schemas/Names'}, {type: array, items: {type: string, minLength: 1}}]}",
+			key:    "openapi:items", report: "no home for items written on this inline branch",
 		},
 		"a collection bound no field states": {
-			"{allOf: [{$ref: '#/components/schemas/Names'}, {uniqueItems: false}]}",
-			"openapi:allOf/1", "the branch (uniqueItems)",
+			schema: "{allOf: [{$ref: '#/components/schemas/Names'}, {uniqueItems: false}]}",
+			key:    "openapi:uniqueItems", report: "no home for uniqueItems written on this inline branch",
 		},
 		"an overlapping enum": {
-			"{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set, put]}]}",
-			"openapi:allOf/1", "the branch (enum)",
+			schema: "{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set, put]}]}",
+			key:    "openapi:enum", report: "no home for enum written on this inline branch",
 		},
 		"an unknown keyword": {
-			"{allOf: [{$ref: '#/components/schemas/Str'}, {fancy: 1}]}",
-			"openapi:allOf/1", "the branch (fancy)",
+			schema: "{allOf: [{$ref: '#/components/schemas/Str'}, {fancy: 1}]}",
+			key:    "openapi:fancy", report: `keyword "fancy" has no field`,
+			code: diag.UnknownSchemaKeyword, reason: ir.ReasonOutOfScope,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -659,11 +669,15 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 			targets := refinementTargets + "    Num: {type: number}\n"
 			doc, diags := parseFull(t, positionsDoc(targets, tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
+			code, reason := diag.DegradedConstruct, ir.ReasonDegradedLowering
+			if tc.code != "" {
+				code, reason = tc.code, tc.reason
+			}
 			held := func(where string, u ir.Unmodeled) {
 				t.Helper()
 				entry, ok := u[tc.key]
 				if assert.True(t, ok, "%s keeps %s: got %v", where, tc.key, u) {
-					assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, where)
+					assert.Equal(t, reason, entry.Reason, where)
 				}
 			}
 			op := openapitest.FindOp(t, doc, "op")
@@ -683,12 +697,17 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 				assert.NotContains(t, typeByName(doc, target).Common().Unmodeled, tc.key, "%s is shared", target)
 			}
 			var reports []string
-			for _, d := range withCode(diags, diag.DegradedConstruct) {
+			for _, d := range withCode(diags, code) {
 				reports = append(reports, d.Message)
 				assert.Contains(t, d.Message, tc.report)
 				assert.Equal(t, ir.SeverityInfo, d.Severity)
 			}
 			assert.NotEmpty(t, reports)
+			other := diag.UnknownSchemaKeyword
+			if code == other {
+				other = diag.DegradedConstruct
+			}
+			assert.Empty(t, withCode(diags, other), "no other report")
 		})
 	}
 }
@@ -862,8 +881,8 @@ func TestRefinement_ATypeBesideTheAllOfIsThePosition(t *testing.T) {
 	bare, ok := typeByName(doc, "Bare").(*ir.List)
 	require.True(t, ok, "got %T", typeByName(doc, "Bare"))
 	assert.Equal(t, "mine", bare.Docs.Description)
-	_, kept := bare.Unmodeled["openapi:allOf/0"]
-	assert.True(t, kept, "a list holds no value bound, so the branch keeps it: got %v", bare.Unmodeled)
+	_, kept := bare.Unmodeled["openapi:maxLength"]
+	assert.True(t, kept, "a list holds no value bound, so the bound is kept: got %v", bare.Unmodeled)
 	listed, ok := doc.Types[propertyOf(t, doc, "Holder", "list").Type.Target].(*ir.List)
 	require.True(t, ok)
 	assert.NotContains(t, listed.Unmodeled, "openapi:minItems", "the list holds what it is written beside")
@@ -1028,11 +1047,11 @@ func TestRefinement_AValueSetIsTypedByEveryConjunct(t *testing.T) {
 		"two formats": {"{allOf: [{type: integer, format: int8}, {type: integer, format: uint8}, {const: 80}]}",
 			ir.PrimNumber, []string{"openapi:allOf/0", "openapi:allOf/1"}},
 		"a format the value is not of": {"{allOf: [{type: integer, format: int8}, {const: 300}]}", ir.PrimInteger,
-			[]string{"openapi:allOf/0"}},
+			[]string{"openapi:format"}},
 		"a format a member is not of": {"{allOf: [{type: integer, format: int8}, {enum: [1, 300]}]}", ir.PrimInteger,
-			[]string{"openapi:allOf/0"}},
+			[]string{"openapi:format"}},
 		"a format with no type": {"{allOf: [{type: integer}, {format: int32}, {const: 80}]}", ir.PrimInteger,
-			[]string{"openapi:allOf/1"}},
+			[]string{"openapi:format"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1116,15 +1135,16 @@ func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
 	bounded, ok := typeByName(doc, "Bounded").(*ir.Enum)
 	require.True(t, ok, "got %T", typeByName(doc, "Bounded"))
 	assert.Equal(t, ir.PrimInt64, bounded.ValueType)
-	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(bounded.Unmodeled))
+	assert.Equal(t, []string{"openapi:maximum"}, unmodeledKeys(bounded.Unmodeled))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Bounded/allOf/0"), "the branch (maximum) is kept verbatim")
+		"/components/schemas/Bounded/allOf/0"), "no home for maximum written on this inline branch")
 
 	composes, ok := typeByName(doc, "Composes").(*ir.Enum)
 	require.True(t, ok)
-	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(composes.Unmodeled), "the election's loser is kept as written")
+	assert.Equal(t, []string{"openapi:properties", "openapi:type"}, unmodeledKeys(composes.Unmodeled),
+		"the election's loser is kept keyword by keyword")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Composes/allOf/0"), "the branch (type, properties) is kept verbatim")
+		"/components/schemas/Composes/allOf/0"), "no home for type, properties written on this inline branch")
 }
 
 // TestRefinement_ACarrierReadsThroughARefinement pins GitHub #1029's sibling: a
@@ -1289,18 +1309,23 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
 // conjuncts naming kinds neither of which lies within the other, as many
 // conjuncts lying within each: no rule ranks them, so neither is the
 // principal, and in either order the position is the top type keeping both
-// with a report at each. Beside the allOf, the keywords there decide, as they
-// do wherever no branch is elected.
+// with a report at each: whole where they write one keyword apart, else each
+// keyword under its own key. Beside the allOf, the keywords there decide, as
+// they do wherever no branch is elected.
 func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	t.Parallel()
-	for name, tc := range map[string]struct{ a, b string }{
-		"two hoisting formats":             {"{type: string, format: email}", "{type: string, format: hostname}"},
-		"two table formats":                {"{type: string, format: date}", "{type: string, format: uuid}"},
-		"a format and a bare wider one":    {"{type: integer, format: int32}", "{type: integer, format: uint32}"},
-		"an overlap of value sets":         {"{enum: [a, b]}", "{enum: [b, c]}"},
-		"two element types":                {"{type: array, items: {type: string}}", "{type: array, items: {type: integer}}"},
-		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}"},
-		"two type lists":                   {"{type: [string, boolean]}", "{type: [string, integer]}"},
+	for name, tc := range map[string]struct {
+		a, b string
+		// keys are what the top type keeps, both branches whole where nil.
+		keys []string
+	}{
+		"two hoisting formats":             {"{type: string, format: email}", "{type: string, format: hostname}", nil},
+		"two table formats":                {"{type: string, format: date}", "{type: string, format: uuid}", nil},
+		"a format and a bare wider one":    {"{type: integer, format: int32}", "{type: integer, format: uint32}", nil},
+		"an overlap of value sets":         {"{enum: [a, b]}", "{enum: [b, c]}", nil},
+		"two element types":                {"{type: array, items: {type: string}}", "{type: array, items: {type: integer}}", nil},
+		"a value set reaching past a type": {"{type: string}", "{enum: [a, 1]}", []string{"openapi:enum", "openapi:type"}},
+		"two type lists":                   {"{type: [string, boolean]}", "{type: [string, integer]}", nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1310,7 +1335,11 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 				openapitest.RequireNoErrorDiags(t, diags)
 				p := propertyOf(t, doc, "Holder", "f")
 				assert.Equal(t, ir.PrimTypeID(ir.PrimAny), p.Type.Target, branches)
-				assert.Equal(t, []string{"openapi:allOf/0", "openapi:allOf/1"}, slices.Sorted(maps.Keys(p.Unmodeled)), branches)
+				keys := tc.keys
+				if keys == nil {
+					keys = []string{"openapi:allOf/0", "openapi:allOf/1"}
+				}
+				assert.Equal(t, keys, slices.Sorted(maps.Keys(p.Unmodeled)), branches)
 				assert.Equal(t, []jsontext.Pointer{
 					"/components/schemas/Holder/properties/f/allOf/0", "/components/schemas/Holder/properties/f/allOf/1",
 				}, openapitest.PointersOf(diags, diag.DegradedConstruct), branches)
@@ -1344,13 +1373,18 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 		kept         int
 		top          bool
 		node         ir.TypeID
+		// reports is how many reports of a degraded lowering, where not kept.
+		reports int
 	}{
-		"one writes content":     {"", "{type: string}", "{type: string, contentEncoding: base64}", 0, false, ""},
-		"each writes other":      {"", "{type: string, contentEncoding: base64}", "{type: string, contentMediaType: text/plain}", 2, true, ""},
-		"a union written twice":  {"", union, union, 0, false, ""},
-		"words beside the allOf": {"type: string, ", "{type: string, description: d}", "{type: string, minLength: 1}", 0, false, ""},
+		"one writes content": {"", "{type: string}", "{type: string, contentEncoding: base64}", 0, false, "", 0},
+		// The type both write alike is kept once; each content keyword is
+		// reported at itself, and each branch's type at the branch.
+		"each writes other": {"", "{type: string, contentEncoding: base64}", "{type: string, contentMediaType: text/plain}",
+			3, true, "", 4},
+		"a union written twice":  {"", union, union, 0, false, "", 0},
+		"words beside the allOf": {"type: string, ", "{type: string, description: d}", "{type: string, minLength: 1}", 0, false, "", 0},
 		"a set beside the allOf": {"enum: [a, b], ", "{enum: [b, a]}", "{enum: [a, b], description: d}", 0, false,
-			"t/anon/components/schemas/Holder/properties/f"},
+			"t/anon/components/schemas/Holder/properties/f", 0},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -1361,7 +1395,7 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 				p := propertyOf(t, doc, "Holder", "f")
 				assert.Equal(t, tc.top, p.Type.Target == ir.PrimTypeID(ir.PrimAny), branches)
 				assert.Len(t, p.Unmodeled, tc.kept, branches)
-				assert.Len(t, withCode(diags, diag.DegradedConstruct), tc.kept, branches)
+				assert.Len(t, withCode(diags, diag.DegradedConstruct), max(tc.kept, tc.reports), branches)
 				if tc.node != "" {
 					assert.Equal(t, tc.node, p.Type.Target, branches)
 				}
@@ -1477,14 +1511,14 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 
 // TestRefinement_NoConjunctNamingAKindLeavesTheTopType pins the same rule where
 // nothing names a kind: no conjunct decides, so the position admits what the
-// keywords do and the branch stays whole.
+// keywords do and the branch's format is kept under its own key.
 func TestRefinement_NoConjunctNamingAKindLeavesTheTopType(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpec("    T: {allOf: [{format: int32}]}\n"))
 	alias, ok := doc.Types[componentID("T")].(*ir.Scalar)
 	require.True(t, ok, "%#v", doc.Types[componentID("T")])
 	assert.Equal(t, ir.TypeID("t/prim/any"), alias.Base.Target)
-	assert.Contains(t, alias.Unmodeled, "openapi:allOf/0")
+	assert.Contains(t, alias.Unmodeled, "openapi:format")
 }
 
 // typeShapes renders what the first property of Holder says and the kind of what
@@ -1608,9 +1642,9 @@ func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
 	assert.Contains(t, en.Unmodeled, "openapi:x-kept")
 	assert.NotContains(t, owned.Unmodeled, "openapi:x-kept", "one home per declaration")
 	assert.Empty(t, owned.Unmodeled, "and its node keeps what the position does")
-	assert.Equal(t, []string{"openapi:allOf/0", "openapi:x-kept"}, unmodeledKeys(en.Unmodeled))
-	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Holder/properties/owned/allOf/0"), "the branch (fancy) is kept verbatim")
+	assert.Equal(t, []string{"openapi:fancy", "openapi:x-kept"}, unmodeledKeys(en.Unmodeled))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnknownSchemaKeyword, ir.SeverityInfo,
+		"/components/schemas/Holder/properties/owned/allOf/0/fancy"), `keyword "fancy" has no field`)
 	assert.Equal(t, "owned", en.Name.Hint, "named for the position, not the branch's index")
 	require.NotNil(t, owned.Default, "what binds a use reaches the carrier all the same")
 	assert.NotEmpty(t, owned.Visibility.Only)
@@ -1841,7 +1875,7 @@ components:
     Local: {type: array, items: {$ref: '#/components/schemas/Item'}}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Contains(t, propertyOf(t, doc, "Holder", "f").Unmodeled, "openapi:allOf/1")
+	assert.Contains(t, propertyOf(t, doc, "Holder", "f").Unmodeled, "openapi:items")
 	assert.Empty(t, propertyOf(t, doc, "Holder", "same").Unmodeled)
 }
 
@@ -1868,7 +1902,7 @@ func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"g", "h"} {
-		assert.Contains(t, propertyOf(t, doc, "Holder", name).Unmodeled, "openapi:allOf/1", name)
+		assert.Contains(t, propertyOf(t, doc, "Holder", name).Unmodeled, "openapi:items", name)
 	}
 	for _, name := range []string{"k", "m"} {
 		assert.Empty(t, propertyOf(t, doc, "Holder", name).Unmodeled, name)
@@ -2051,7 +2085,7 @@ func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *test
 		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{str, num}, nil},
 		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{str, num}, nil},
 		{"no listed type takes it", "[{maxLength: 2}, {minProperties: 1}]", [2]*ir.Constraints{str, nil},
-			[]string{"openapi:allOf/1"}},
+			[]string{"openapi:minProperties"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -2068,7 +2102,7 @@ func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *test
 			}
 			if tc.kept != nil {
 				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-					"/components/schemas/OnBranch/allOf/1"), "the branch (minProperties)")
+					"/components/schemas/OnBranch/allOf/1"), "no home for minProperties written on this inline branch")
 				return
 			}
 			assert.Empty(t, diags)

@@ -318,7 +318,7 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 	require.True(t, ok)
 	require.NotNil(t, inline.Base, "the sole $ref is the Base")
 	assert.Equal(t, componentID("Obj"), inline.Base.Target)
-	assert.Contains(t, inline.Unmodeled, "openapi:allOf/1", "and the inline branch is still kept")
+	assert.Contains(t, inline.Unmodeled, "openapi:type", "and the inline branch's type is still kept, under its own key")
 }
 
 // assertAllOfPositionConstraints pins GitHub #407: a value constraint written
@@ -398,7 +398,7 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	unmodeledEntry(t, narrowed.Unmodeled, "openapi:$ref")
 
 	assert.Equal(t, componentID("Port"), props["width"].Type.Target, "a $ref beats a narrower inline type")
-	unmodeledEntry(t, props["width"].Unmodeled, "openapi:allOf/1")
+	unmodeledEntry(t, props["width"].Unmodeled, "openapi:format")
 
 	scan := props["scan"]
 	assert.Equal(t, "A scan", scan.Docs.Description)
@@ -1098,8 +1098,8 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	request, ok := doc.Types[componentID("AppRequest")].(*ir.Union)
 	require.True(t, ok)
 	for _, v := range request.Variants {
-		assert.Contains(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:allOf/1",
-			"the union that only narrows stays with its branch on every variant")
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:anyOf").Reason,
+			"the union that only narrows is kept on every variant as validation logic")
 	}
 
 	upload := openapitest.FirstOp(t, doc.Services[0]).Request.Contents[0]

@@ -191,6 +191,13 @@ func keptFindingsUnder(t *testing.T, diags []ir.Diagnostic, name string, want []
 	}
 }
 
+// requireKeptKeys holds what td keeps under Unmodeled to keys, each a
+// degraded lowering.
+func requireKeptKeys(t *testing.T, td ir.TypeDef, what string, keys ...string) {
+	t.Helper()
+	assert.Equal(t, degradedKept(keys...), keptOn(td), what)
+}
+
 // keptKeywordCase is one keyword written on an entry of an allOf beside a
 // principal, with what it must be kept as. The same keyword is written
 // beside the allOf too, which a twin case holds to the same keys and reasons.
@@ -276,7 +283,11 @@ func runKept(t *testing.T, c keptKeywordCase) {
 					}
 					finds := make([]keptFinding, 0, len(c.finds))
 					for _, f := range c.finds {
-						f.at = keptIndexed(c.pos+f.at, spelling.index)
+						ats := strings.Split(f.at, "|")
+						for n, at := range ats {
+							ats[n] = keptIndexed(c.pos+at, spelling.index)
+						}
+						f.at = strings.Join(ats, "|")
 						finds = append(finds, f)
 					}
 					got := keptKeywordsOf(doc, spelling.name)

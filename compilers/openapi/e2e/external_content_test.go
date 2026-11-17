@@ -1010,7 +1010,7 @@ func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.
 	m, ok := doc.Types["t/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok)
 	props := openapitest.PropsByWire(m.Properties)
-	assert.Contains(t, props["there"].Unmodeled, "openapi:allOf/1", "the copy in another document is kept")
+	assert.Contains(t, props["there"].Unmodeled, "openapi:items", "the copy in another document is kept")
 	assert.Empty(t, props["here"].Unmodeled, "the copy in the source restates its target")
 }
 

@@ -244,23 +244,6 @@ func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 	return placed && known && knownAt && own == position
 }
 
-// unfoldedWhy words why a branch that writes what folds kept it, residue being
-// what it keeps, and is "" where the branch spoke or writes nothing folding
-// reads: what it folds writes a relative $ref it reads against another base
-// than the position, or the conjuncts disagree on an entry it writes.
-func unfoldedWhy(c lowering.Ctx, speaks, rebased bool, bs *statement.Schema, residue []string) string {
-	switch {
-	case speaks || !disagreed(c, bs, residue):
-		return ""
-	case rebased:
-		return "this inline allOf branch reads its $refs against another base than the position does, as an " +
-			"identifier at or above it names another URI, so nothing it writes folds; the branch (" +
-			strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
-	default:
-		return disagreedWhy(residue)
-	}
-}
-
 // disagreedWhy words why a branch that would have folded is kept: its keywords
 // have homes, and what they say is what is in question.
 func disagreedWhy(residue []string) string {

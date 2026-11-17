@@ -206,19 +206,25 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 	}, MergeUnmodeled(dst, src))
 }
 
-// TestUnderlayUnmodeled_ANearerEntryStands pins what a voice may add: an entry the
-// site does not hold, never one it does, so a keyword several write stays the
-// nearest's, its provenance with it.
-func TestUnderlayUnmodeled_ANearerEntryStands(t *testing.T) {
+// TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite pins what a voice may add: an
+// entry the site does not hold. One the site's own schema holds stays the
+// site's, its provenance with it; one another voice wrote takes the site's
+// provenance, so no order of the voices names a writer.
+func TestUnderlayVoice_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	t.Parallel()
+	site := ir.Provenance{Pointer: "/site"}
 	near := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/near"}}
 	far := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/far"}}
+	atSite := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: site}
 
-	got := underlayUnmodeled(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far})
-	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got)
+	got := underlayVoice(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far}, map[string]bool{"x-a": true}, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got, "the site's own entry stands")
 
-	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayUnmodeled(nil, ir.Unmodeled{"x-b": far}))
-	assert.Nil(t, underlayUnmodeled(nil, nil), "nothing to add allocates nothing")
+	got = underlayVoice(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far}, nil, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": atSite}, got, "an entry two voices write is the site's")
+
+	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayVoice(nil, ir.Unmodeled{"x-b": far}, nil, site))
+	assert.Nil(t, underlayVoice(nil, nil, nil, site), "nothing to add allocates nothing")
 }
 
 // TestCopyEntriesInto_KeepsWhatTheCarrierHolds pins that a copied entry never

@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,8 +64,8 @@ type nullableFacts struct {
 
 // factsOfNullable returns what the value at index i leaves: the keyword is kept
 // beside its position when no one reads it, and with it an info of the dialect
-// not defining it; an allOf entry holding it is kept whole. A value that is read
-// leaves one info, of the null read in, and a null is the keyword left out.
+// not defining it, on an allOf entry as beside it. A value that is read leaves
+// one info, of the null read in, and a null is the keyword left out.
 func factsOfNullable(i int, policyOn bool) nullableFacts {
 	v := nullableValues[i]
 	f := nullableFacts{kept: map[string]string{}, infos: map[string][]jsontext.Pointer{}, reasons: map[string]ir.UnmodeledReason{}}
@@ -80,20 +81,19 @@ func factsOfNullable(i int, policyOn bool) nullableFacts {
 		}
 		return f
 	}
-	f.kept["C"], f.kept["P"], f.kept["R"] = v.json, v.json, v.json
-	f.kept["A"] = `{"nullable":` + v.json + `}`
-	f.reasons["C"], f.reasons["P"], f.reasons["R"] = ir.ReasonOutOfScope, ir.ReasonOutOfScope, ir.ReasonOutOfScope
-	f.reasons["A"] = ir.ReasonDegradedLowering
-	f.infos[diag.UnknownSchemaKeyword] = []jsontext.Pointer{
-		at("C") + "/nullable", at("P") + "/properties/p/nullable", at("R") + "/properties/r/nullable",
+	for _, letter := range []string{"A", "C", "P", "R"} {
+		f.kept[letter], f.reasons[letter] = v.json, ir.ReasonOutOfScope
 	}
-	f.infos[diag.DegradedConstruct] = []jsontext.Pointer{at("A") + "/allOf/1"}
+	f.infos[diag.UnknownSchemaKeyword] = []jsontext.Pointer{
+		at("A") + "/allOf/1/nullable", at("C") + "/nullable", at("P") + "/properties/p/nullable", at("R") + "/properties/r/nullable",
+	}
 	return f
 }
 
 // nullableEntries returns the Unmodeled entry the position kept for its
-// nullable, by position letter: a component's own, a property's, and the entry
-// of an allOf the component keeps. Each is absent where nothing was kept.
+// nullable, by position letter: a component's own, a property's, and the one an
+// allOf entry writes, which the component keeps. Each is absent where nothing
+// was kept.
 func nullableEntries(t *testing.T, doc *ir.Document, i int) map[string]ir.UnmodeledEntry {
 	t.Helper()
 	out := map[string]ir.UnmodeledEntry{}
@@ -109,7 +109,7 @@ func nullableEntries(t *testing.T, doc *ir.Document, i int) map[string]ir.Unmode
 		}
 		assert.NotContains(t, model.Unmodeled, "openapi:nullable", "%s%d keeps it beside the property", letter, i)
 	}
-	if e, ok := doc.Types[componentID(fmt.Sprintf("A%d", i))].Common().Unmodeled["openapi:allOf/1"]; ok {
+	if e, ok := doc.Types[componentID(fmt.Sprintf("A%d", i))].Common().Unmodeled["openapi:nullable"]; ok {
 		out["A"] = e
 	}
 	return out
@@ -200,13 +200,17 @@ func TestNullable_OpenAPI30KeepsNoValueAsAnUnknownKeyword(t *testing.T) {
 			doc, diags := compileNullable(t, admissionSpec("3.0.3", "", nullableSchemas()...), !policyOn)
 			assert.Empty(t, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword))
 			for id, td := range doc.Types {
+				if strings.HasPrefix(string(id), string(componentID("A"))) {
+					continue // an allOf entry's, below
+				}
 				for key := range td.Common().Unmodeled {
 					assert.NotContains(t, key, "nullable", "%s keeps %s", id, key)
 				}
 			}
 			for i := range nullableValues {
 				entries := nullableEntries(t, doc, i)
-				// An allOf entry the policy does not fold is kept whole at any version, as it was.
+				// An allOf entry's nullable the policy does not fold is kept under its own
+				// key, the conjunction it narrows nothing of, at any version.
 				delete(entries, "A")
 				assert.Empty(t, entries, "value %s", nullableValues[i].yaml)
 			}

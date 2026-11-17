@@ -10,12 +10,12 @@ paths:
           schema:
             allOf:
               - $ref: '#/components/schemas/Id'
-              - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+              - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
         - name: branch_first
           in: query
           schema:
             allOf:
-              - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+              - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
               - $ref: '#/components/schemas/Id'
         - name: content_ref_first
           in: query
@@ -24,14 +24,14 @@ paths:
               schema:
                 allOf:
                   - $ref: '#/components/schemas/Id'
-                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
         - name: content_branch_first
           in: query
           content:
             application/json:
               schema:
                 allOf:
-                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
                   - $ref: '#/components/schemas/Id'
       responses:
         "200":
@@ -41,11 +41,11 @@ paths:
               schema:
                 allOf:
                   - $ref: '#/components/schemas/Id'
-                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
             H-Branch-First:
               schema:
                 allOf:
-                  - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                  - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
                   - $ref: '#/components/schemas/Id'
           content:
             application/json:
@@ -55,10 +55,10 @@ paths:
                   ref_first:
                     allOf:
                       - $ref: '#/components/schemas/Id'
-                      - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                      - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
                   branch_first:
                     allOf:
-                      - {type: string, format: uuid, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
+                      - {type: string, format: uuid, additionalProperties: false, x-sensitive: true, x-stability: deprecated, x-deprecated-reason: old, x-k: 1}
                       - $ref: '#/components/schemas/Id'
   /pages-ref-first:
     get:

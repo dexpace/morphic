@@ -1151,15 +1151,12 @@
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:allOf/1": {
+            "openapi:format": {
               "reason": "degraded_lowering",
-              "value": {
-                "format": "int32",
-                "type": "integer"
-              },
+              "value": "int32",
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/Zone/properties/width/allOf/1"
+                "pointer": "/components/schemas/Zone/properties/width/allOf/1/format"
               }
             }
           },
@@ -1376,7 +1373,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch adds; the branch (format) is kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for format written on this inline branch; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Zone/properties/width/allOf/1"
@@ -1403,7 +1400,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/0"
@@ -1412,7 +1409,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/1"

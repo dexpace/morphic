@@ -683,34 +683,35 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 const refinedShape = "a use of one of its allOf conjuncts"
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
-// census keywords it wrote, described by shape, the allOf branches its lowering
-// left unread, the null branches a collapsed union lifts that say more than
-// their null (nullBranchKeeps), and the union keywords beside the allOf it
-// keeps as validation logic, their branches declaring no shape (keptUnion).
+// census keywords it wrote, described by shape, the $ref branches of its allOf
+// its lowering left unread, what its inline branches keep (entryKeeps), the
+// null branches a collapsed union lifts that say more than their null
+// (nullBranchKeeps), and the union keywords beside the allOf it keeps as
+// validation logic, their branches declaring no shape (keptUnion).
 type outcomeKeeps struct {
 	keywords   []string
 	shape      string
 	comp       allOfComposition
 	branches   []keptBranch
+	entries    []keptEntry
 	nulls      []keptNullBranch
 	validation []string
+	// undecided marks a refinement electing no entry, which lowered by the
+	// keywords beside its allOf.
+	undecided bool
 }
 
-// keptBranch is one allOf branch a refinement keeps whole, the keywords nothing
-// consumed, none for a $ref the position lost, how that $ref stood in the
-// election (voteOf), and why what it writes did not fold where that is the
-// reason (unfoldedWhy).
+// keptBranch is one $ref branch of an allOf a refinement keeps whole, the
+// position having lost it, and how it stood in the election (voteOf).
 type keptBranch struct {
-	entry     allOfBranch
-	residue   []string
-	vote      refVote
-	unfolded  string
-	undecided bool
+	entry allOfBranch
+	vote  refVote
 }
 
 // holdsAny reports whether k keeps anything.
 func (k outcomeKeeps) holdsAny() bool {
-	return len(k.keywords) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0
+	return len(k.keywords) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0 ||
+		slices.ContainsFunc(k.entries, keptEntry.keeps)
 }
 
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
@@ -726,7 +727,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		}
 		return k
 	}
-	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
+	k := outcomeKeeps{shape: refinedShape, comp: r.comp, undecided: r.principal == nil}
 	typed := refinedValueType(c, r, s, pointer)
 	if r.principal != nil {
 		degraded, validation := keptUnion(c, r, s)
@@ -736,6 +737,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 	voices := voicingOf(c, s)
 	w := newAdmission(c)
 	set, setAtPosition := valueSetPrincipal(r)
+	residues := make([][]string, len(r.comp.branches))
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
 		// inline branch on the node it owns, a type array's census included. A
@@ -750,18 +752,19 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targ
 		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
-			residue := unmergedBranchKeys(e.schema.Schema, func(key string) bool {
+			residues[i] = unmergedBranchKeys(e.schema.Schema, func(key string) bool {
 				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, e.schema.Schema, key, homes)) ||
 					said(&w, r, typed, e.schema.Schema, key) || censused && censusReads(key)
 			})
-			if len(residue) > 0 {
-				k.branches = append(k.branches, keptBranch{entry: e, residue: residue, undecided: r.principal == nil,
-					unfolded: unfoldedWhy(c, voices.speaks[i], voices.rebased[i], e.schema.Schema, residue)})
-			}
 		}
 	}
+	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties)
 	return k
 }
+
+// isAdditionalProperties reports whether keyword is additionalProperties: the
+// closure no use of a conjunct types, which reads the keywords beside it.
+func isAdditionalProperties(keyword string) bool { return keyword == "additionalProperties" }
 
 // principalTwin reports whether e, a branch of r other than its principal, is
 // written as the principal is (admission.sameText): one schema written twice,
@@ -929,8 +932,23 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))
 		}
 	}
+	shape := refinedShape
+	if k.undecided {
+		shape = undecidedShape
+	}
+	for _, e := range k.entries {
+		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, func(e keptEntry) ir.Diagnostic {
+			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(e, k.undecided))
+		})...)
+	}
+	dropFoldedIntoWhole(c, p)
 	return diags
 }
+
+// undecidedShape describes what a refinement electing no entry lowers to, for
+// the report of what an entry of it keeps.
+const undecidedShape = "what the keywords beside it say, as no entry of it is the one it lowers from " +
+	"(the top type where they name no kind)"
 
 // keptRef is the key a kept $ref conjunct is kept under, and where the entry
 // is said to be written.
@@ -947,9 +965,6 @@ type keptRef struct {
 func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.Pointer]keptRef {
 	alike := map[[2]string][]jsontext.Pointer{}
 	for _, b := range branches {
-		if b.entry.schema.Ref == nil {
-			continue
-		}
 		raw, _ := annotation.RawFromNode(b.entry.schema.Node)
 		_, text := refSpelling(b.entry.schema)
 		alike[[2]string{text, string(raw)}] = append(alike[[2]string{text, string(raw)}], b.entry.pointer)
@@ -973,34 +988,40 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 	return out
 }
 
-// keptWhy words why a refinement keeps a branch.
+// keptEntryWhy words why a refinement keeps an inline branch whole, undecided
+// saying it elected no entry.
+func keptEntryWhy(e keptEntry, undecided bool) string {
+	if why := wholeWhy(e); why != "" {
+		return why
+	}
+	if undecided {
+		return "no entry of this allOf is the one it lowers from, so it lowered by the keywords beside it, the top " +
+			"type where those name no kind, and nothing there homes what this inline branch adds; the branch (" +
+			strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
+	}
+	return "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
+		"adds; the branch (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
+}
+
+// keptWhy words why a refinement keeps a $ref branch.
 func keptWhy(b keptBranch) string {
-	switch {
-	case b.vote == refInferredApart:
+	switch b.vote {
+	case refInferredApart:
 		return "the kind-inference policy reads this $ref's target as kinds leaving out one the rest of this " +
 			"allOf admits, so the $ref is kept verbatim under Unmodeled"
-	case b.vote == refAdmitsEvery:
+	case refAdmitsEvery:
 		return "this $ref's target admits every kind, and what the other conjuncts of this allOf name, a kind " +
 			"or a union, decides first, so the $ref is kept verbatim under Unmodeled"
-	case b.vote == refNarrowed:
+	case refNarrowed:
 		return "another $ref of this allOf lies within as many of its conjuncts or more, a tie going to the " +
 			"least reference text, then to the least text of its entry, and a use names one target, so this " +
 			"$ref is kept verbatim under Unmodeled"
-	case b.vote == refOutsideSet:
+	case refOutsideSet:
 		return "the conjuncts of this allOf share no value, and its value set is elected before the rest, " +
 			"holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled"
-	case len(b.residue) == 0:
+	default:
 		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"
-	case b.unfolded != "":
-		return b.unfolded
-	case b.undecided:
-		return "no entry of this allOf is the one it lowers from, so it lowered by the keywords beside it, the top " +
-			"type where those name no kind, and nothing there homes what this inline branch adds; the branch (" +
-			strings.Join(b.residue, ", ") + ") is kept verbatim under Unmodeled"
-	default:
-		return "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
-			"adds; the branch (" + strings.Join(b.residue, ", ") + ") is kept verbatim under Unmodeled"
 	}
 }
 

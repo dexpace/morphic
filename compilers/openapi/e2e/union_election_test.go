@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,8 +43,9 @@ func TestElection_TwoAnyOfUnionsBesideABodyDistributeNeither(t *testing.T) {
 // TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole holds an allOf of
 // two anyOf entries and nothing else, each only naming required members, as
 // the golden spec writes beside an object it composes: written alone it
-// refines, two unions of one keyword elect neither, so both are kept whole
-// under their indices and reported, in both orders of the entries and of the
+// refines, two unions of one keyword elect neither, and one key cannot hold
+// both, so both are kept whole under their indices as the validation logic
+// each is, and reported as that, in both orders of the entries and of the
 // components, and no union stands for the position.
 func TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole(t *testing.T) {
 	t.Parallel()
@@ -57,8 +59,14 @@ func TestElection_TwoAnyOfEntriesThatDeclareNoShapeAreKeptWhole(t *testing.T) {
 			})
 			requireErrorsAndWarnings(t, diags, nil)
 
-			requireKeptEntries(t, kindNode(t, doc, componentID("Golden")), "both entries", 0, 1)
-			requireOneInfoAtEach(t, diags, "Golden", "both entries", 0, 1)
+			assert.Equal(t, map[string]ir.UnmodeledReason{
+				entryKey(0): ir.ReasonValidationOnly, entryKey(1): ir.ReasonValidationOnly,
+			}, keptOn(kindNode(t, doc, componentID("Golden"))), "both entries")
+			for i := range 2 {
+				at := fmt.Sprintf("/components/schemas/Golden/allOf/%d", i)
+				assert.Equal(t, 1, countAt(diags, diag.ValidationOnlyKeyword, at), at)
+			}
+			assert.Zero(t, degradedInfosAt(diags, "Golden"), "nothing else is reported")
 			assert.Empty(t, unionsUnder(doc, "Golden"))
 		})
 	}
@@ -144,7 +152,7 @@ func TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst(t *testing.T)
 			require.NotNil(t, union, "the oneOf is elected, though the anyOf is written first")
 			assert.True(t, union.Exclusive)
 			assert.Equal(t, []ir.TypeID{prim(ir.PrimString), prim(ir.PrimInteger)}, variantTargets(union))
-			requireKeptEntries(t, kindNode(t, doc, componentID("OneAny")), "the anyOf, written first", 0)
+			requireKeptKeys(t, kindNode(t, doc, componentID("OneAny")), "the anyOf, written first", "openapi:anyOf")
 			requireOneInfoAtEach(t, diags, "OneAny", "the anyOf is reported where it is written", 0)
 		})
 	}
@@ -201,7 +209,7 @@ func TestElection_TwoUnionsBesideABodyDistributeTheOneOf(t *testing.T) {
 			for _, v := range union.Variants {
 				variant := kindNode(t, doc, v.Type.Target)
 				assert.Equal(t, ir.KindModel, variant.Kind())
-				assert.Equal(t, degradedKept(entryKey(0)), keptOn(variant), "the anyOf, written first, on each variant")
+				assert.Equal(t, degradedKept("openapi:anyOf"), keptOn(variant), "the anyOf, written first, on each variant")
 			}
 		})
 	}
