@@ -3753,9 +3753,20 @@ object}, {type: array}, {type: string}]}` is a `Union` of one variant, as a unio
 branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the entry a union is
 written on aside, the warning of that rule already says no instance satisfies the schema, and no
 branch is read as dead. Where no branch
-lives, the union is shape 6 below. A `mapping` entry naming the component a dead branch names routes
-to that component, which is no variant of the union, as an entry naming any schema the union does
-not list does, and `pass/validate` reports it; no route is implied to it.
+lives, the union is shape 6 below. A route the discriminator standing with the union takes to a
+dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
+dead branch meets first, as a variant's branch meets one ([`discriminator`](#discriminator)), and a
+`defaultMapping` doing so, are left out of the `Discriminator` and kept verbatim on the `Union`
+(`degraded_lowering`), keyed by their path from the position as the discriminator's extensions are
+([`vendor-extensions`](#vendor-extensions)): `openapi:discriminator/mapping/<key>`, the key one
+escaped segment, and `openapi:discriminator/defaultMapping` for one written beside the union or the
+`allOf`, and `openapi:allOf/<n>/discriminator/mapping/<key>` for one on the entry writing the union.
+The name of the component a dead branch names, which OpenAPI routes by where no entry keys it and no
+other branch names it, keys nothing in the `Mapping` either. The warning naming the dead branches
+names each such tag, in byte order, so a document whose routes are all the union's own compiles with
+no error; an entry naming a schema the union does not list still routes to it, which
+`pass/validate` reports. Where no branch lives, the discriminator routes nothing and is kept whole
+(below).
 
 A `discriminator` standing with the union, where no branch composes the schema (shape 3), routes
 the distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
@@ -3872,7 +3883,8 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 3).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
-`allOf` branch among them, stays on that `Model` only when every type it routes to is a subtype of it
+`allOf` branch among them and shape 6 on an entry, stays on that `Model` only when every type it
+routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
 `oneOf`'s branches where `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch,
@@ -3982,7 +3994,11 @@ judged as one whose branches declare shape.
   `e2e.TestCompile_ABranchAVariantKeepsLowersNowhereElse`,
   `e2e.TestCompile_ABranchNoObjectSatisfiesIsNoVariant`,
   `e2e.TestCompile_AnUntypedBranchLivesWithKindInferenceOff`,
-  `e2e.TestCompile_AMappingToADeadBranchRoutesToNoVariant`,
+  `e2e.TestCompile_AMappingToADeadBranchIsNoRoute`,
+  `e2e.TestCompile_TheNameOfADeadBranchIsNoRoute`,
+  `e2e.TestCompile_ADefaultMappingToADeadBranchIsNoRoute`,
+  `e2e.TestCompile_ADiscriminatorBesideAUnionNoBranchOfWhichLivesIsKeptWhole`,
+  `schema.TestDiscriminator_ARouteToADeadBranchRoutesNowhere`,
   `e2e.TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept`,
   `e2e.TestCompile_TwoUnionsOnEntriesKeepTheirBranchesApart`,
   `e2e.TestCompile_AnEntryUnionNoBranchOfWhichLivesIsKeptOnTheEntry`,
@@ -4168,7 +4184,9 @@ in branch order where several do. Several branches each aliasing one type for a 
 first, reported as an info `openapi/degraded-construct` at the entry naming the branches; neither
 the mapping's key order nor any lowering order decides. A chain no branch meets routes to the type
 it ends on, as on a model, which `pass/discriminator-missing-variant` reports as no variant, the
-compiler reporting nothing. Where a position on a chain writes a `$ref` landing on no schema, or on
+compiler reporting nothing. A chain a branch no instance of the union's body satisfies meets first
+routes nowhere, its entry kept verbatim on the `Union`
+([`union-beside-structure`](#union-beside-structure)). Where a position on a chain writes a `$ref` landing on no schema, or on
 a loop, the value names no type: its entry is left out, unreported, since the failing `$ref` is
 reported where it is written, and the last position the chain reached is lowered all the same. A
 union's value naming the failing branch itself still routes to that branch's variant, as the branch

@@ -6,8 +6,12 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -150,6 +154,10 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 		r.on = pathFrom(pointer, u.at)
 	}
 	if hasLiveBranch(c, u, dead) {
+		r.routes = routesClause(u, "it")
+		if r.dead > 1 {
+			r.routes = routesClause(u, "them")
+		}
 		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "%s",
 			r.some(bodyForbidsNull(c, body), kept))}
 	}
@@ -164,6 +172,7 @@ type deadReport struct {
 	branches []statement.Sub
 	key, on  string
 	listed   string
+	routes   string
 	dead     int
 }
 
@@ -191,6 +200,7 @@ func (r deadReport) some(forbids, kept bool) string {
 	if kept {
 		rest += ", kept verbatim under Unmodeled"
 	}
+	rest += r.routes
 	if r.on != "" {
 		return fmt.Sprintf("%d of the %d branches of the %s on %s %s no value the rest of the allOf admits (%s), "+
 			"so no instance satisfies %s: %s", r.dead, len(r.branches), r.key, r.on, verb, r.listed, pronoun, rest)
@@ -244,6 +254,120 @@ func diagDeadEntryUnion(c lowering.Ctx, s *statement.Schema, u unionAt, pointer 
 		return nil
 	}
 	return diagDeadBranches(c, s, u, deadBranches(c, s, u.holder), pointer, false)
+}
+
+// deadRoute is a route the discriminator standing with a union takes to a
+// dead branch of it, which routes to no variant: the mapping entry keyed tag,
+// written to target, the defaultMapping, tag empty, or, keyword empty, the
+// implicit route by tag, the name of the component the branch names.
+type deadRoute struct {
+	keyword, tag, target string
+}
+
+// deadRoutesOf returns the routes the discriminator standing with u takes to
+// a dead branch: each value of its mapping and its defaultMapping whose chain
+// a dead branch meets first, every branch but a null one indexed as
+// indexBranches indexes a variant's, and the name of each dead branch's
+// component that no entry keys and no other branch names, which OpenAPI
+// routes by. A union with no dead branch has none.
+func deadRoutesOf(c lowering.Ctx, u unionAt) []deadRoute {
+	if u.disc == nil || !slices.Contains(u.dead, true) {
+		return nil
+	}
+	branches, key, _ := unionBranches(u.holder)
+	x := newBranchIndex(nil)
+	named := map[string][]int{}
+	for n, b := range branches {
+		st := c.Statements().Sub(b)
+		if nullBranch(c, st) {
+			continue
+		}
+		x.key(c, st, u.at+ids.Ptr(key, strconv.Itoa(n)), n)
+		if name, _, ok := componentNamed(c.RefScope(), referenceOf(c, st)); ok {
+			named[name] = append(named[name], n)
+		}
+	}
+	meets := func(value string) bool {
+		chain, ok := chainOf(c, u.disc, value)
+		if !ok {
+			return false
+		}
+		n, _, met := x.route(chain)
+		return met && u.dead[n]
+	}
+	var out []deadRoute
+	for _, e := range u.disc.Mapping {
+		if meets(e.Target) {
+			out = append(out, deadRoute{keyword: "mapping", tag: e.Value, target: e.Target})
+		}
+		delete(named, e.Value) // an entry keying the name overrides its route
+	}
+	if dm := u.disc.DefaultMapping; dm != "" && meets(dm) {
+		out = append(out, deadRoute{keyword: "defaultMapping", target: dm})
+	}
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		if ns := named[name]; len(ns) == 1 && u.dead[ns[0]] {
+			out = append(out, deadRoute{tag: name})
+		}
+	}
+	return out
+}
+
+// keepDeadRoutes keeps on n, the Union of u, each route its discriminator
+// writes to a dead branch of u, which n's Discriminator leaves out: verbatim,
+// keyed by its path from n's position as the discriminator's extensions are
+// (discriminatorScope), `openapi:discriminator/mapping/<tag>` beside the
+// union. Where n holds no discriminator the census keeps it whole.
+func keepDeadRoutes(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
+	if n.Discriminator == nil {
+		return nil
+	}
+	owner, scope := discriminatorScope(u, n.Provenance.Pointer)
+	var diags []ir.Diagnostic
+	for _, r := range u.deadRoutes {
+		if r.keyword == "" {
+			continue // an implicit route writes nothing to keep
+		}
+		tokens := []string{r.keyword}
+		if r.keyword == "mapping" {
+			tokens = append(tokens, r.tag)
+		}
+		at := ids.Ptr(tokens...)
+		node := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: r.target}
+		_, keptDiags := annotation.PreserveNodeInto(&n.Unmodeled, "openapi:"+scope+string(at), node,
+			ir.ReasonDegradedLowering, c.Place().At(owner+at))
+		diags = append(diags, keptDiags...)
+	}
+	return diags
+}
+
+// routesClause is what the warning of u's dead branches says of the routes
+// its discriminator takes to them (deadRoutesOf), pronoun naming the branches:
+// none routes, and those it writes are kept. Tags are listed in byte order, as
+// no order of the mapping is the document's.
+func routesClause(u unionAt, pronoun string) string {
+	if len(u.deadRoutes) == 0 {
+		return ""
+	}
+	tags := make([]string, 0, len(u.deadRoutes))
+	written := false
+	for _, r := range u.deadRoutes {
+		switch r.keyword {
+		case "mapping":
+			tags = append(tags, "mapping "+strconv.Quote(r.tag))
+		case "defaultMapping":
+			tags = append(tags, "defaultMapping")
+		default:
+			tags = append(tags, "the name "+strconv.Quote(r.tag))
+		}
+		written = written || r.keyword != ""
+	}
+	slices.Sort(tags)
+	clause := "; no tag of the discriminator routes to " + pronoun + " (" + strings.Join(tags, ", ") + ")"
+	if written {
+		clause += ", the routes it writes kept verbatim under Unmodeled"
+	}
+	return clause
 }
 
 // hasLiveBranch reports whether some branch of u is neither dead nor null.

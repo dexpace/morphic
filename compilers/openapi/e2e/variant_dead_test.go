@@ -217,42 +217,6 @@ func TestCompile_AnUntypedBranchLivesWithKindInferenceOff(t *testing.T) {
 		[]deadBranch{{schema: "{$ref: '#/components/schemas/A'}"}, {schema: "{minLength: 1}"}})
 }
 
-// TestCompile_AMappingToADeadBranchRoutesToNoVariant holds that a
-// discriminator mapping naming the component a dead branch names routes to
-// that component, as a mapping naming any schema no branch lists does, which
-// is no variant of the union: pass.Validate reports it, and nothing else
-// errs, in either order of the branches.
-func TestCompile_AMappingToADeadBranchRoutesToNoVariant(t *testing.T) {
-	t.Parallel()
-	refs := []string{"{$ref: '#/components/schemas/A'}", "{$ref: '#/components/schemas/Str'}"}
-	for _, version := range bothVersions {
-		for _, reverse := range []bool{false, true} {
-			order := slices.Clone(refs)
-			if reverse {
-				slices.Reverse(order)
-			}
-			spec := admissionSpec(version, "", append([]string{"P: {type: object, properties: {kind: {type: string}}, " +
-				"oneOf: [" + strings.Join(order, ", ") + "], " +
-				"discriminator: {propertyName: kind, mapping: {a: '#/components/schemas/A', s: '#/components/schemas/Str'}}}",
-			}, deadBranchComponents...)...)
-			t.Run(fmt.Sprintf("%s/reversed-%t", version, reverse), func(t *testing.T) {
-				t.Parallel()
-				doc, diags := parseVerified(t, spec)
-				union, ok := kindNode(t, doc, componentID("P")).(*ir.Union)
-				require.True(t, ok)
-				require.Len(t, union.Variants, 1)
-				require.NotNil(t, union.Discriminator)
-				assert.Equal(t, union.Variants[0].Type.Target, union.Discriminator.Mapping["a"], "a routes to A's variant")
-				assert.Equal(t, componentID("Str"), union.Discriminator.Mapping["s"], "the route names the branch's component")
-				errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool { return d.Severity != ir.SeverityError })
-				require.Len(t, errs, 1, "the pass reports it, and nothing else errs: %v", errs)
-				assert.Equal(t, "pass/discriminator-missing-variant", errs[0].Code)
-				assert.Contains(t, errs[0].Message, `"s"`)
-			})
-		}
-	}
-}
-
 // TestEntryClosure_ADeadBranchDeclaringMembersLeavesTheClosureKept holds that
 // a union whose one member-declaring inline branch is dead still leaves an
 // entry's additionalProperties kept on each variant rather than closing it:
