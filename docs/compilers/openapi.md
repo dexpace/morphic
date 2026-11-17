@@ -3656,6 +3656,9 @@ and teaching the relation the step would change what it means for every document
   `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`,
   `schema.TestLower_ATypeArraysContentIsTheStringVariants`,
   `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`
+- Status: built. Limits: an object bound an `allOf` entry writes beside the list reaches no
+  variant and is kept on the `Union` under its keyword, where the same bound beside the list is the
+  object variant's (#2062).
 
 ### `union-null-variant`
 
