@@ -220,21 +220,19 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	assert.Equal(t, first, lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents, "the second ask reads what the first read")
 }
 
-// TestAdmissionReader_RendersASchemaOnce pins that a schema's text is rendered once a run
+// TestWrittenText_RendersASchemaOnce pins that a schema's text is rendered once a run
 // however many positions restate it: the node changes after the first render, which
 // no lowering does, so only remembered text stays.
-func TestAdmissionReader_RendersASchemaOnce(t *testing.T) {
+func TestWrittenText_RendersASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
-	first := newAdmissionReader(l.Ctx)
-	text := first.text(l.Ctx.Statements().Of(js))
+	text := writtenText(l.Ctx, l.Ctx.Statements().Of(js))
 	require.NotNil(t, text)
 
 	*js.GetCore().GetRootNode() = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "other"}
-	second := newAdmissionReader(l.Ctx)
-	assert.Equal(t, text, second.text(l.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
+	assert.Equal(t, text, writtenText(l.Ctx, l.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
 }
 
 // TestReadVoices_RendersEachValueOnce pins what a first writer costs: every later

@@ -132,10 +132,10 @@ func unionKeyword(keyword string) bool { return keyword == "oneOf" || keyword ==
 func isAdditionalProperties(keyword string) bool { return keyword == "additionalProperties" }
 
 // principalTwin reports whether e, a branch of r other than its principal, is
-// written as the principal is (admissionReader.sameText): one schema written twice,
+// written as the principal is (sameText): one schema written twice,
 // whose first copy the election takes for both.
 func principalTwin(w *admissionReader, r refinement, e allOfBranch) bool {
-	return r.principal != nil && !r.principalIs(e) && w.sameText(r.principal.schema, e.schema)
+	return r.principal != nil && !r.principalIs(e) && sameText(w.c, r.principal.schema, e.schema)
 }
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that

@@ -116,10 +116,10 @@ func untie(w *admissionReader, conjuncts []conjunct, tied []*conjunct) *conjunct
 }
 
 // writtenAlike reports whether each of tied is an allOf branch written as the
-// first is (admissionReader.sameText): one schema written several times.
+// first is (sameText): one schema written several times.
 func writtenAlike(w *admissionReader, tied []*conjunct) bool {
 	return !slices.ContainsFunc(tied, func(cj *conjunct) bool {
-		return cj.branch == nil || !w.sameText(tied[0].branch.schema, cj.branch.schema)
+		return cj.branch == nil || !sameText(w.c, tied[0].branch.schema, cj.branch.schema)
 	})
 }
 
@@ -175,7 +175,7 @@ func writesWithin(a, b *statement.Schema) bool {
 func leastText(w *admissionReader, tied []*conjunct) *conjunct {
 	best := tied[0]
 	for _, cj := range tied[1:] {
-		if bytes.Compare(w.text(cj.branch.schema), w.text(best.branch.schema)) < 0 {
+		if bytes.Compare(writtenText(w.c, cj.branch.schema), writtenText(w.c, best.branch.schema)) < 0 {
 			best = cj
 		}
 	}
@@ -204,7 +204,7 @@ func refBefore(w *admissionReader, a, b *conjunct) bool {
 	if order := strings.Compare(refText(a), refText(b)); order != 0 {
 		return order < 0
 	}
-	return bytes.Compare(w.text(a.branch.schema), w.text(b.branch.schema)) < 0
+	return bytes.Compare(writtenText(w.c, a.branch.schema), writtenText(w.c, b.branch.schema)) < 0
 }
 
 // refText is the reference the $ref conjunct cj writes, as written.

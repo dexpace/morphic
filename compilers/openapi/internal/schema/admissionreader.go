@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"bytes"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -411,7 +410,7 @@ func (w *admissionReader) itemsWithin(a, b admitted) bool {
 // at all, which is within anything. A keyword no reading compares, a $ref among
 // them, says what it cannot tell, and a null one says nothing.
 func (w *admissionReader) restates(held admitted, from, js *statement.Statement) bool {
-	if !held.reachable() || w.sameText(from, js) {
+	if !held.reachable() || sameText(w.c, from, js) {
 		return true
 	}
 	if js.Truth != statement.Stated || w.reads.Exhausted() {
@@ -419,49 +418,6 @@ func (w *admissionReader) restates(held admitted, from, js *statement.Statement)
 	}
 	return !slices.ContainsFunc(js.Keys, func(k statement.Key) bool {
 		return !annotation.WritesKeywordLeftOut(js.Schema, k.Name) && !w.holds(held, js.Schema, k.Name)
-	})
-}
-
-// sameText reports whether a and b, both written in one document, write the
-// same JSON, read against one base where it writes a relative $ref: under an
-// $id naming another URI, the same spelling resolves elsewhere. A copy in
-// another document is read apart: its $refs resolve against that document, and
-// its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
-// placed nowhere, a nil one among them, is written alike with none.
-func (w *admissionReader) sameText(a, b *statement.Statement) bool {
-	at, placed := siteOf(a.Schema)
-	bt, placedB := siteOf(b.Schema)
-	if !placed || !placedB || at.Doc != bt.Doc {
-		return false
-	}
-	text := w.text(a)
-	if text == nil || !bytes.Equal(text, w.text(b)) {
-		return false
-	}
-	// The texts are remembered, so comparing them first leaves a base, which
-	// walks the document, to the rare pair written alike.
-	if !annotation.WritesReference(text) {
-		return true
-	}
-	base, known := w.c.Bindings().Table().Base(at)
-	other, knownB := w.c.Bindings().Table().Base(bt)
-	return known && knownB && base == other
-}
-
-// textOf keys what text rendered of one schema.
-type textOf struct {
-	schema *statement.Statement
-}
-
-// text renders js, nil where it cannot be rendered. Every position restating a
-// shared schema asks, so it is rendered once a run.
-func (w *admissionReader) text(js *statement.Statement) ir.RawValue {
-	return lowering.Remembered(w.c, textOf{js}, func() ir.RawValue {
-		raw, err := annotation.RawFromNode(js.Node)
-		if err != nil {
-			return nil
-		}
-		return raw
 	})
 }
 

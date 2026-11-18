@@ -287,7 +287,7 @@ func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
 		return claim{}, false, false
 	}
 	alike := func(d *statement.Statement) bool {
-		return r.w.sameText(d, n.written)
+		return sameText(r.w.c, d, n.written)
 	}
 	if n.written.Truth != statement.Stated || slices.ContainsFunc(n.at.decls, alike) {
 		return claim{}, false, true
