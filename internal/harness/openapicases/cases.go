@@ -127,15 +127,19 @@ func spellingValues(of []string) []harness.Value {
 }
 
 // Write returns the document at one value index per axis, and false where the
-// combination writes nothing: a construct or a second its version lacks or its
-// target is not said of (unit), a spelling that moves no such keyword or writes
-// another's document (spelt), or indices outside the product. A table the
+// combination writes nothing: a position its version lacks, a construct or a
+// second its version lacks or its target is not said of (unit), a spelling that
+// moves no such keyword or writes another's document (spelt), or indices
+// outside the product. A table the
 // writer cannot encode panics, which CheckCase reports as the case's outcome.
 func (c cases) Write(at []int) (harness.Document, bool) {
 	if !c.holds(at) {
 		return harness.Document{}, false
 	}
 	v, t, p, s := c.versions[at[0]], c.targets[at[1]], c.positions[at[4]], c.spellings[at[5]]
+	if !p.span.holds(v) {
+		return harness.Document{}, false
+	}
 	u, ok := c.unit(at, v, t)
 	if !ok {
 		return harness.Document{}, false

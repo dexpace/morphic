@@ -7,12 +7,13 @@ package openapicases
 // which returns the paths and the component schemas holding schema there.
 // Where the validate pass judges a default, carry writes a carrier of each of
 // uses there, and returns the ID each carrier compiles to. pointer is the
-// pointer of the schema place writes.
+// pointer of the schema place writes, and span the versions it is written at.
 type position struct {
 	name    string
 	place   func(schema object) (paths, schemas object)
 	carry   func(uses []object) (paths, schemas object, nodes []string)
 	pointer string
+	span    span
 }
 
 // caseSchema is the component, and casePath the path, a position writes the
@@ -35,31 +36,34 @@ func positions() []position {
 		{"component", func(s object) (object, object) {
 			user := object{{"type", "object"}, {"properties", object{{"p", object{{"$ref", "#/components/schemas/" + caseSchema}}}}}}
 			return nil, object{{caseSchema, s}, {userSchema, user}}
-		}, nil, "/components/schemas/C"},
+		}, nil, "/components/schemas/C", every},
 		{"property", func(s object) (object, object) {
 			return in(object{{"type", "object"}, {"properties", object{{"p", s}}}})
-		}, carryProperties, "/components/schemas/C/properties/p"},
-		{"items", func(s object) (object, object) { return in(object{{"type", "array"}, {"items", s}}) }, nil, "/components/schemas/C/items"},
+		}, carryProperties, "/components/schemas/C/properties/p", every},
+		{"items", func(s object) (object, object) { return in(object{{"type", "array"}, {"items", s}}) }, nil, "/components/schemas/C/items", every},
 		{"additionalProperties", func(s object) (object, object) {
 			return in(object{{"type", "object"}, {"additionalProperties", s}})
-		}, nil, "/components/schemas/C/additionalProperties"},
+		}, nil, "/components/schemas/C/additionalProperties", every},
 		{"branch", func(s object) (object, object) {
 			return in(object{{"oneOf", []any{s, object{{"type", "boolean"}}}}})
-		}, nil, "/components/schemas/C/oneOf/0"},
+		}, nil, "/components/schemas/C/oneOf/0", every},
+		{name: "anyOfBranch", place: func(s object) (object, object) {
+			return in(object{{"anyOf", []any{s, object{{"type", "boolean"}}}}})
+		}, pointer: "/components/schemas/C/anyOf/0"},
 		{"parameter", func(s object) (object, object) {
 			param := object{{"name", "q"}, {"in", "query"}, {"schema", s}}
 			return atCasePath(object{{"get", object{{"parameters", []any{param}}, {"responses", okResponses}}}})
-		}, carryParameters, "/paths/~1c/get/parameters/0/schema"},
+		}, carryParameters, "/paths/~1c/get/parameters/0/schema", every},
 		{"requestBody", func(s object) (object, object) {
 			body := object{{"content", object{{"application/json", object{{"schema", s}}}}}}
 			return atCasePath(object{{"post", object{{"requestBody", body}, {"responses", okResponses}}}})
-		}, nil, "/paths/~1c/post/requestBody/content/application~1json/schema"},
+		}, nil, "/paths/~1c/post/requestBody/content/application~1json/schema", every},
 		{"responseBody", func(s object) (object, object) {
 			return atCasePath(response(member{"content", object{{"application/json", object{{"schema", s}}}}}))
-		}, nil, "/paths/~1c/get/responses/200/content/application~1json/schema"},
+		}, nil, "/paths/~1c/get/responses/200/content/application~1json/schema", every},
 		{"header", func(s object) (object, object) {
 			return atCasePath(response(member{"headers", object{{"H", object{{"schema", s}}}}}))
-		}, carryHeaders, "/paths/~1c/get/responses/200/headers/H/schema"},
+		}, carryHeaders, "/paths/~1c/get/responses/200/headers/H/schema", every},
 	}
 }
 
