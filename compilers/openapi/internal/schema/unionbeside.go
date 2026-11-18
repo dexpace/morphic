@@ -153,6 +153,10 @@ const (
 	// elect, sharing no kind with the body (passedApart): no instance satisfies
 	// the two together, whichever branch it takes.
 	unionPassedApart
+	// unionPairApart marks a oneOf and an anyOf sharing no value with each
+	// other (pairSharesNoValue) beside a body that is not a Model: no instance
+	// satisfies them, whatever it admits.
+	unionPairApart
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
@@ -173,6 +177,9 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 		return unionSharesNoKind
 	}
 	if !composesAsModel(c, s) {
+		if pairSharesNoValue(c, s) {
+			return unionPairApart
+		}
 		return unionUncomposableBody
 	}
 	// Of a oneOf and an anyOf written beside the body, the oneOf is elected
@@ -240,6 +247,17 @@ func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 		return false
 	}
 	return slices.ContainsFunc(passed, func(p admitted) bool { return p.kinds != 0 && rest.kinds&p.kinds == 0 })
+}
+
+// pairSharesNoValue reports whether s writes a oneOf and an anyOf that share
+// no value, a null only where both admit it, as an admissionReader reads the
+// two together (unionsIn); a read cut short says no.
+func pairSharesNoValue(c lowering.Ctx, s *statement.Schema) bool {
+	if !writesBothUnions(s) {
+		return false
+	}
+	w := newAdmissionReader(c)
+	return !unionsIn(&w, s).reachable() && !w.incomplete()
 }
 
 // routedSubtype reports whether a discriminator on an ancestor of s, written at
@@ -329,6 +347,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
 		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
+	case unionPairApart:
+		// A schema writing conjuncts beside them refines past them (entryPairApart).
+		id, diags := beside(ir.ReasonDegradedLowering, "its oneOf and anyOf share no value, so no instance satisfies them together")
+		return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
 	case unionPassedApart:
 		_, passed := passedOver(c, s, s)
 		id, diags := beside(ir.ReasonDegradedLowering, "the "+passed+" beside it shares no kind with the body, so no "+

@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -174,5 +175,33 @@ func TestUnion_ANullBranchIsReadAgainstTheUnionPassedOver(t *testing.T) {
 		require.True(t, ok, "%s distributes", name)
 		assert.Len(t, union.Variants, 1, "%s's second branch is dead", name)
 		assert.Contains(t, union.Unmodeled, "openapi:anyOf/1", name)
+	}
+}
+
+// TestUnion_TwoUnionsSharingNoValueBesideAScalarKeepBoth pins a oneOf of
+// strings and an anyOf of booleans beside a string body, beside its keywords,
+// beside an allOf of it, on one entry and on two: each is the string the body
+// gives, keeping both unions, with one warning that they share no value.
+func TestUnion_TwoUnionsSharingNoValueBesideAScalarKeepBoth(t *testing.T) {
+	t.Parallel()
+	const one, anyOf = "oneOf: [{type: string}]", "anyOf: [{type: boolean}]"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {type: string, `+one+`, `+anyOf+`}
+    Beside: {allOf: [{type: string}], `+one+`, `+anyOf+`}
+    OneEntry: {allOf: [{type: string}, {`+one+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{type: string}, {`+one+`}, {`+anyOf+`}]}
+    S: {type: string}
+    BesideRef: {$ref: '#/components/schemas/S', `+one+`, `+anyOf+`}
+`))
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries", "BesideRef"} {
+		_, ok := typeByName(doc, name).(*ir.Scalar)
+		assert.True(t, ok, "%s is the string its body gives", name)
+		var warned []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				warned = append(warned, d.Message)
+			}
+		}
+		require.Len(t, warned, 1, name)
+		assert.Contains(t, warned[0], "share no value", name)
 	}
 }

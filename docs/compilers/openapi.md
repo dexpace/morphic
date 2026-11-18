@@ -4119,7 +4119,9 @@ reach these shapes:
    ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
    [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union, and no other; the unions inline
    entries write are read together as two beside the `allOf` are, and so are a union and the one
-   the position passes over for it (above);
+   the position passes over for it (above), and a `oneOf` and an `anyOf` sharing no value with each other, beside
+   a body that is not a `Model`, leave no instance whatever it admits: the position lowers as its
+   body does in every spelling, keeping both, with that warning alone;
 5. every branch but a null one of a union the body would distribute is dead (above), so no variant
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
@@ -4363,7 +4365,9 @@ judged as one whose branches declare shape.
   `e2e.TestElection_UnionsSharingNullAloneWithEachOtherDrawOneWarning`,
   `e2e.TestElection_AUnionOfNullAloneBesideAnAllOfDrawsOneWarning`,
   `e2e.TestElection_ANullBranchIsReadAgainstTheUnionPassedOver`,
-  `schema.TestUnion_ANullBranchIsReadAgainstTheUnionPassedOver`
+  `schema.TestUnion_ANullBranchIsReadAgainstTheUnionPassedOver`,
+  `e2e.TestElection_TwoUnionsSharingNoValueWarnOnceBesideAnyBody`,
+  `schema.TestUnion_TwoUnionsSharingNoValueBesideAScalarKeepBoth`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
   legal (#1806).
 

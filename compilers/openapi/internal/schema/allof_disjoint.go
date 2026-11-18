@@ -436,16 +436,23 @@ const composedShape = "a composition"
 const unionShape = "the union it lowered as"
 
 // diagUnionsShareNothing is the warning s, written at pointer and writing a
-// oneOf and an anyOf with nothing conjoining with them, draws where the two
-// share no value, a null only where both may admit it, as the same two on
-// its allOf's entries draw (docs/compilers/openapi.md#allof-disjoint-conjuncts):
-// each named by its keyword.
-func diagUnionsShareNothing(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+// oneOf and an anyOf, draws where the two share no value (pairApart), a null
+// only where both may admit it, as the same two on its allOf's entries draw
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
+// keyword, and the position lowered as shape.
+func diagUnionsShareNothing(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, shape string) []ir.Diagnostic {
+	comp := allOfComposition{pointer: pointer}
+	comp.disjoint = pairApartNames(c, s)
+	return diagDisjointConjuncts(c, comp, shape)
+}
+
+// pairApartNames names the oneOf and the anyOf s writes, by their keywords,
+// where the two share no value, a null only where both may admit it, and is
+// nil where they share one or s writes but one of them.
+func pairApartNames(c lowering.Ctx, s *statement.Schema) []string {
 	choice := s.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
-	comp := allOfComposition{pointer: pointer}
-	comp.disjoint = disjointAtoms(c, s, slices.Concat(unionAtoms(c, "oneOf", choice.OneOf), unionAtoms(c, "anyOf", choice.AnyOf)))
-	return diagDisjointConjuncts(c, comp, unionShape)
+	return disjointAtoms(c, s, slices.Concat(unionAtoms(c, "oneOf", choice.OneOf), unionAtoms(c, "anyOf", choice.AnyOf)))
 }

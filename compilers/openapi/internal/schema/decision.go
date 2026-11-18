@@ -568,6 +568,12 @@ func competingSet(w *admissionReader, s *statement.Schema) admitted {
 func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kindSet, bool) {
 	rest := admission{firm: declaredInstanceTypes(s) & valueKinds(c, s), claims: claimedKinds(c, s)}
 	for _, e := range comp.branches {
+		bs := e.schema.Schema
+		if e.schema.Ref == nil && declaresUnion(bs) {
+			// An entry's union is the one left out, as s's own (entryPairApart).
+			rest.conjoinKinds(&admission{firm: declaredInstanceTypes(bs) & valueKinds(c, bs), claims: claimedKinds(c, bs)})
+			continue
+		}
 		rest.conjoinKinds(admissionOf(c, e.schema))
 	}
 	rest.settleKinds()
@@ -685,17 +691,60 @@ func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) 
 		}
 	}
 	if !declaresUnion(s) {
-		return out, false
+		return out, w.entryPairApart(s, comp, out)
 	}
 	union, rest := unionsIn(w, s), out[0].read
 	for _, cj := range out[1:] {
 		rest = rest.and(cj.read)
 	}
-	if rest.reachable() && union.kinds != 0 && rest.kinds&union.kinds == 0 {
+	if rest.reachable() && (pairApartBeside(s, union, rest) || union.kinds != 0 && rest.kinds&union.kinds == 0) {
 		return out, true
 	}
 	out[0].read, out[0].says, out[0].form = out[0].read.and(union), true, unionForm(s)
 	return out, false
+}
+
+// entryPairApart reports whether the unions comp's inline entries write are a
+// oneOf and an anyOf sharing no value, beside a rest that admits one: no
+// instance satisfies them, so the position lowers as that rest does, as
+// beside the allOf (unionAside). Each such entry of out is then read by its
+// own keywords alone, its unions left out of the election. Beside a rest of
+// objects alone, null aside, the allOf composes as it would anyway.
+func (w *admissionReader) entryPairApart(s *statement.Schema, comp allOfComposition, out []conjunct) bool {
+	if !writesUnionPair(s, comp) {
+		return false
+	}
+	unions, rest := admitted{kinds: kindAny}, out[0].read
+	var holders []int
+	for i := 1; i < len(out); i++ {
+		cj := &out[i]
+		if cj.branch == nil || cj.branch.schema.Ref != nil || !declaresUnion(cj.schema) {
+			rest = rest.and(cj.read)
+			continue
+		}
+		unions = unions.and(unionsIn(w, cj.schema))
+		rest = rest.and(w.written(cj.schema, w.nullable))
+		holders = append(holders, i)
+	}
+	if w.incomplete() || !rest.reachable() || !pairApartBeside(nil, unions, rest) {
+		return false
+	}
+	for _, i := range holders {
+		bs := out[i].schema
+		out[i].read, out[i].says, out[i].form = w.written(bs, w.nullable), saysKind(bs), formWords
+	}
+	return true
+}
+
+// pairApartBeside reports whether a oneOf and an anyOf, s's own where s is
+// given, admitting union together, share no value beside a rest admitting
+// rest that is neither every kind, where the two stand alone (unionPair), nor
+// objects alone, null aside, where the allOf composes the Model keeping both.
+func pairApartBeside(s *statement.Schema, union, rest admitted) bool {
+	if s != nil && !writesBothUnions(s) {
+		return false
+	}
+	return !union.reachable() && rest.kinds != kindAny && rest.kinds&^kindNull != kindObject
 }
 
 // inferredClaims returns the kinds s lowers to, null aside, where the

@@ -67,7 +67,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
 	if st.of == nil {
 		// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
-		diags = append(diags, diagUnionsShareNothing(c, s, pointer)...)
+		diags = append(diags, diagUnionsShareNothing(c, s, pointer, unionShape)...)
 	}
 	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
 }
@@ -557,6 +557,12 @@ func variantNamesTarget(s *statement.Schema, branches []allOfBranch) bool {
 		}
 	}
 	return refs == 1
+}
+
+// writesBothUnions reports whether s writes a oneOf and an anyOf.
+func writesBothUnions(s *statement.Schema) bool {
+	choice := s.ChoiceKeywords()
+	return len(choice.OneOf) > 0 && len(choice.AnyOf) > 0
 }
 
 // declaresUnion reports whether s writes oneOf or anyOf at all.
