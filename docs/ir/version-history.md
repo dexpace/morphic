@@ -1149,11 +1149,12 @@ it sees. Changes made together in one bump are listed together under it.
     `…/allOf/0/allOf/0` too. A draft entry's `dependencies` and a key no dialect defines are kept so
     too, where the entry's was dropped unreported or the principal was kept whole. Written alike on
     both, a keyword is one writing whichever reading keeps it: read once, or kept once and reported
-    once. One the principal's census, its bounds on a number carried as text, its content vocabulary
-    or its build keeps is kept at the entry, where it was kept on two nodes; a `default`,
-    `readOnly`, `writeOnly`, validation-only keyword, extension or key no dialect defines is kept at
-    the position, where the entry reported it too; and where the position keeps the principal whole
-    the entry holds it alone, where it was kept there and under its own key. Of two patterns the
+    once. One the principal's census or its bounds on a number carried as text keeps is kept at the
+    entry, where it was kept on two nodes, and so is one its build keeps; a content keyword the
+    node's `Encoding` holds is read there, where the position kept it too; a `default`, `readOnly`,
+    `writeOnly` or validation-only keyword is kept at the position, where the entry reported it too;
+    and where the position keeps the principal whole the entry holds it alone, where it was kept
+    there and under its own key. Of two patterns the
     node's field holds the position's, and the principal is kept whole under its entry's key. A
     principal the position keeps whole under `openapi:allOf/<n>`, for a disagreeing extension or a
     closure, holds every keyword of it, each once, and takes the reason those the node does not read
