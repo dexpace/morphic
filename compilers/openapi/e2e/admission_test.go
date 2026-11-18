@@ -493,33 +493,24 @@ func redeclaredField(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, id, 
 }
 
 // TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict holds
-// that a field declared integer in one allOf branch and as a structure beside
-// a union of an object and an integer in the other keeps integer with nothing
-// reported, in both branch orders, while a structure refusing only strings
-// through a not stays reported as before.
+// that a field declared integer in one allOf branch and in the other as a
+// structure over a schema stating no type, which admits every integer, keeps
+// integer with nothing reported, in both branch orders, while a structure
+// refusing only strings through a not stays reported as before.
 func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *testing.T) {
 	t.Parallel()
-	structure := func(ref string) string {
-		return "properties: {f: {allOf: [{$ref: '#/components/schemas/" + ref + "'}], properties: {a: {type: string}}}}"
-	}
 	for _, swapped := range []bool{false, true} {
-		branches := func(ref string) string {
-			a, b := "{properties: {f: {type: integer}}}", "{"+structure(ref)+"}"
-			if swapped {
-				a, b = b, a
-			}
-			return "{allOf: [" + a + ", " + b + "]}"
-		}
 		schemas := []string{
-			"ObjOrInt: {anyOf: [{type: object}, {type: integer}]}",
+			"Obj: {properties: {b: {type: string}}}",
 			"NotStr: {not: {type: string}}",
-			"U: " + branches("ObjOrInt"),
-			"T: " + branches("NotStr"),
+			"U: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/Obj'}], properties: {a: {type: string}}}", swapped),
+			"T: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/NotStr'}], properties: {a: {type: string}}}", swapped),
 		}
 		t.Run(fmt.Sprintf("branches-swapped-%t", swapped), func(t *testing.T) {
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "redecl", admissionSpec("3.1.0", "", schemas...))
+				requireStructure(t, doc, "U", swapped)
 				target, conflicts := redeclaredField(t, doc, diags, "t/openapi/components/schemas/U", "f", "/components/schemas/U")
 				assert.Equal(t, ir.TypeID("t/prim/integer"), target, "U's field takes the narrower, integer")
 				assert.Zero(t, conflicts, "no conflict is reported for U")
@@ -532,27 +523,77 @@ func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *t
 	}
 }
 
+// TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind holds
+// that a field declared integer in one allOf branch and in the other as an
+// allOf naming a union of an object and an integer, with properties beside it,
+// keeps integer with nothing reported, in both branch orders: that declaration
+// is no structure but a use of the union (docs/compilers/openapi.md#allof-refinement),
+// and integer is within one of its variants.
+func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *testing.T) {
+	t.Parallel()
+	for _, swapped := range []bool{false, true} {
+		schemas := []string{
+			"ObjOrInt: {anyOf: [{type: object}, {type: integer}]}",
+			"U: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/ObjOrInt'}], properties: {a: {type: string}}}", swapped),
+		}
+		t.Run(fmt.Sprintf("branches-swapped-%t", swapped), func(t *testing.T) {
+			t.Parallel()
+			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+				doc, diags := compileAnnotationSpec(t, "redecl", admissionSpec("3.1.0", "", schemas...))
+				assert.NotContains(t, doc.Types, redeclaredNode("U", swapped), "the declaration is a use, not a node of its own")
+				target, conflicts := redeclaredField(t, doc, diags, "t/openapi/components/schemas/U", "f", "/components/schemas/U")
+				assert.Equal(t, ir.TypeID("t/prim/integer"), target, "U's field takes the narrower, integer")
+				assert.Zero(t, conflicts, "no conflict is reported for U")
+			})
+		})
+	}
+}
+
+// redeclaredAsStructure is an allOf declaring f integer in one branch and as
+// declaration in the other, the integer first unless swapped.
+func redeclaredAsStructure(declaration string, swapped bool) string {
+	a, b := "{properties: {f: {type: integer}}}", "{properties: {f: "+declaration+"}}"
+	if swapped {
+		a, b = b, a
+	}
+	return "{allOf: [" + a + ", " + b + "]}"
+}
+
+// redeclaredNode is the ID of the node the declaration of f other than
+// integer would own in the component name (redeclaredAsStructure).
+func redeclaredNode(name string, swapped bool) ir.TypeID {
+	branch := "1"
+	if swapped {
+		branch = "0"
+	}
+	return ir.TypeID("t/anon/components/schemas/" + name + "/allOf/" + branch + "/properties/f")
+}
+
+// requireStructure requires the declaration of f other than integer in the
+// component name to lower to a Model, the structure the exception reads.
+func requireStructure(t *testing.T, doc *ir.Document, name string, swapped bool) {
+	t.Helper()
+	_, isModel := doc.Types[redeclaredNode(name, swapped)].(*ir.Model)
+	require.True(t, isModel, "the redeclaration of %s's f must be a structure", name)
+}
+
 // TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut holds that a field
-// redeclared as a structure whose allOf names a union of an object and an
-// integer and writes a null not is judged as the structure without the not,
-// which the validation table warns of once: the field keeps integer, and the
-// only error or warning is that one.
+// redeclared as a structure over a schema stating no type, whose allOf writes
+// a null not, is judged as the structure without the not, which the
+// validation table warns of once: the field keeps integer, and the only error
+// or warning is that one.
 func TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
 	for _, swapped := range []bool{false, true} {
-		a := "{properties: {f: {type: integer}}}"
-		b := "{properties: {f: {allOf: [{$ref: '#/components/schemas/ObjOrInt'}, {not: null}], properties: {a: {type: string}}}}}"
-		if swapped {
-			a, b = b, a
-		}
 		schemas := []string{
-			"ObjOrInt: {anyOf: [{type: object}, {type: integer}]}",
-			"V: {allOf: [" + a + ", " + b + "]}",
+			"Obj: {properties: {b: {type: string}}}",
+			"V: " + redeclaredAsStructure("{allOf: [{$ref: '#/components/schemas/Obj'}, {not: null}], properties: {a: {type: string}}}", swapped),
 		}
 		t.Run(fmt.Sprintf("branches-swapped-%t", swapped), func(t *testing.T) {
 			t.Parallel()
 			inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 				doc, diags := compileAnnotationSpec(t, "nullnot", admissionSpec("3.1.0", "", schemas...))
+				requireStructure(t, doc, "V", swapped)
 				target, conflicts := redeclaredField(t, doc, diags, "t/openapi/components/schemas/V", "f", "/components/schemas/V")
 				assert.Equal(t, ir.TypeID("t/prim/integer"), target)
 				assert.Zero(t, conflicts)
