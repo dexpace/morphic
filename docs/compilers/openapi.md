@@ -2433,11 +2433,21 @@ spelling keeps it, and an object bound of a `type` list's object variant as
 [`type-arrays`](#type-arrays) says. The node reads the position's own keywords before the
 principal's, as the keywords beside an `allOf` stand before an entry's: of two `pattern`s written
 otherwise its field holds the position's, and the principal, disagreeing, is kept whole
-([`allof-inline-residue`](#allof-inline-residue)). A keyword the principal's census, its bounds on
-a number carried as text or its content vocabulary reads, written beside the `allOf` as the
-principal writes it, is one writing: the node reads it once, or keeps it once. So a content keyword written alike is read in the `Encoding` the principal's node holds, a
+([`allof-inline-residue`](#allof-inline-residue)). A keyword written beside the `allOf` as the
+inline principal writes it is one writing, whichever reading reads or keeps it: read once, or kept
+once and reported once. What the principal's census, its bounds on a number carried as text, its
+content vocabulary or its build keeps is the principal's, kept at the entry, and the position's
+readers leave it; a keyword the position keeps through its declaration or as validation logic, a
+`default`, `readOnly`, `writeOnly`, a validation-only keyword, an extension or a key no dialect
+defines, is the position's, kept and reported there, and the entry's reading says nothing of it.
+Where the position keeps the principal whole, or a wrapper around it, that entry holds the one
+writing and the position keeps none of it, but an extension the promotion policy reads
+([unmodeled](../ir/unmodeled.md#keys)). So a content keyword written alike is read in the `Encoding`
+the principal's node holds, a
 type list's on its string variant, and one written otherwise is kept under its keyword, reported
-as held beside an `Encoding` holding its branch's. The conjunct reads as a voice of the position, what it
+as held beside an `Encoding` holding its branch's. A `discriminator` written beside the `allOf`
+of a principal whose `Union` holds its own is kept under its keyword, its mapping resolved, and
+reported as kept beside the discriminator the `Union` holds, which one `Union` is routed by. The conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is, once the
 position has written its own ([`allof-inline-residue`](#allof-inline-residue)). A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
@@ -2641,7 +2651,10 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestStandingShape_AReportNamesWhatAnInlinePrincipalLoweredTo`,
   `schema.TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth`,
   `schema.TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept`,
-  `schema.TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes`
+  `schema.TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes`,
+  `schema.TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader`,
+  `schema.TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds`,
+  `annotation.TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce`
 
 ### `allof-beside-ref`
 
@@ -2776,14 +2789,28 @@ lowered. That key holds one object of every such keyword, whichever reading of t
 it, its census, its bounds on a number carried as text, its content vocabulary or the entry's
 residue, a key no dialect defines among it, under the reason they share, else `degraded_lowering`,
 at the entry, and each reading names its own there in one `openapi/degraded-construct` info, by the
-entry's path, `allOf/<n>`, which the key ends in on a carrier too. Two values are the same where
+entry's path, `allOf/<n>`, which the key ends in on a carrier too. What the principal's build keeps
+beside the field it could not fill, a `format` beside a `contentEncoding`
+([`content-vocabulary`](#content-vocabulary)), the `oneOf` or `anyOf` its `Union` passes over
+([`competing-keywords`](#competing-keywords)), a `prefixItems` beside a listed tuple
+([`tuples`](#tuples)), is held against the position's the same way and joins that object, its one
+report the one the same keyword written flat draws, where it is written. An entry naming no kind
+whose own `allOf` holds the principal, at any depth, is flattened
+([`allof-classification`](#allof-classification)) and is one the position lowers from too: its
+keywords are written beside the principal's `allOf`, so it is not kept whole for this cause
+either, and each level is held against the levels around it, the outermost first:
+`{allOf: [{allOf: [{type: string, minimum: 3}], minimum: 2}], minimum: 1}` keeps `1` under
+`openapi:minimum`, `2` under `openapi:allOf/0` and `3` under `openapi:allOf/0/allOf/0`, and with
+no `minimum` beside the outer `allOf`, `2` under `openapi:minimum`. Two values are the same where
 they render to the same JSON, member order aside, a number's spelling and an array's order
 included: `1` and `1.0` are two values, each kept. A value no JSON holds is refused where it is
 written, as the flat spelling's is, and kept nowhere. A principal the position keeps whole
 for one of the causes above holds there every keyword of it that no field reads: each is kept once,
 inside the whole entry, and named once, by that entry's report, whose reason reads them as it reads
 the rest, and the principal's own reading keeps and reports none of them apart, a type list's
-variants included. One whose entry no JSON holds is not kept whole: what it keeps is held keyword
+variants included. A wrapper kept whole holds the principal inside it the same way, and what is
+kept of an entry within one kept whole is kept there alone. One whose entry no JSON holds is not
+kept whole: what it keeps is held keyword
 by keyword, as above, the value no JSON holds refused where it is written by an
 `openapi/unpreservable-construct` error. It is kept
 under the reason its kept keywords share where they share one, else
@@ -2827,7 +2854,8 @@ adds no second report of it.
 A flattened entry kept whole is whole too, its own entries included, so an entry inside it that
 is kept on its own account, or a `false` one ([`allof-false-branch`](#allof-false-branch)), is in
 `Unmodeled` twice: inside the flattened entry's copy and under its own path. A consumer that reads
-every entry reads that one twice.
+every entry reads that one twice. An inline principal and the wrappers around it are no such
+entries: the position lowers from them, and each of their keywords is kept once (above).
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`,
@@ -2846,6 +2874,10 @@ every entry reads that one twice.
   `schema.TestPrincipalKept_AWholeEntryThatCannotRenderIsKeptByKeyword`,
   `schema.TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName`,
   `schema.TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing`,
+  `schema.TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions`,
+  `schema.TestPrincipalKept_AVoicesBuildKeepStaysThePositions`,
+  `schema.TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken`,
+  `schema.TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce`,
   `e2e.TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce`,
   `e2e.TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds`,
   `e2e.TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping`,
