@@ -17,11 +17,12 @@ import (
 
 // A position's reading of what a schema admits is cut twice: past
 // maxAdmissionReads schemas taken in, each counted per path to it, and past
-// maxAdmissionMembers value-set members. A reading past either says nothing, and
-// the position stays the composition it would be with no reading at all, which
-// loses nothing. What each statement admits is read once a run (admissionOf),
-// and a position spends what that read takes in, so its verdict is the one a
-// read of its own would reach.
+// maxAdmissionMembers value-set members. Past either, what an election compares
+// says nothing (admission.past), and the position stays the composition it would
+// be with no reading at all, which loses nothing; the kinds the read admits and
+// lowers to stay whole. What each statement admits is read once a run
+// (admissionOf), and a position spends what that read takes in, so its verdict
+// is the one a read of its own would reach.
 const (
 	maxAdmissionReads   = 256
 	maxAdmissionMembers = 4096
