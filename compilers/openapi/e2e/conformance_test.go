@@ -193,6 +193,8 @@ func conformanceCases() []conformanceCase {
 		{"allof-redeclared-bounds", assertAllOfRedeclaredBounds},
 		{"allof-position-constraints", assertAllOfPositionConstraints},
 		{"allof-refinement", assertAllOfRefinement},
+		{"allof-entry-infers-array", assertAllOfEntryInfersArray},
+		{"ref-use-bound-keywords", assertRefUseBoundKeywords},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-discriminated", assertAnyOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},

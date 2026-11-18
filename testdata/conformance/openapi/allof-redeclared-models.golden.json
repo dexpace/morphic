@@ -241,27 +241,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/KeptDefault/allOf/0/properties/data": {
-      "kind": "model",
-      "id": "t/anon/components/schemas/KeptDefault/allOf/0/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/Meeting",
-        "nullable": false
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
     "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data": {
       "kind": "list",
       "id": "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data",
@@ -1217,13 +1196,13 @@
         "source": 0,
         "pointer": "/components/schemas/KeptDefault/allOf/1/properties/data"
       },
-      "base": {
-        "target": "t/openapi/components/schemas/Recording",
-        "nullable": false
-      },
       "mixins": [
         {
-          "target": "t/anon/components/schemas/KeptDefault/allOf/0/properties/data",
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],

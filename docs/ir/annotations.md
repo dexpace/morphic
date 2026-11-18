@@ -248,6 +248,9 @@ the use it is where it cannot ([models](./models.md#an-allof-no-object-satisfies
 same use `{$ref: Status, description: …}`, which hoists an anonymous `Scalar` alias over `Status`
 wherever no carrier holds the annotations
 ([one structural home per declaration](#one-structural-home-per-declaration)).
+A keyword that binds only the use, `readOnly`, `writeOnly`, `default` or a `nullable` a policy reads
+as widening the reference, makes no decorator where a carrier holds the use: the carrier holds it
+and names `Status` itself.
 Neither node says anything about a value that its `Base` does not. Such a node is a **decorator**,
 and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
 which is

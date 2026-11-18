@@ -103,6 +103,47 @@ func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfCompositio
 	return disjointAtoms(c, s, conjunctAtoms(c, s, comp))
 }
 
+// disjointNames names what each conjunct of comp, the allOf s writes, states
+// where they share no value: what their kinds leave (disjointConjuncts), else,
+// where those share a kind, what the election found apart (conjunctsApart).
+func disjointNames(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
+	if names := disjointConjuncts(c, s, comp); len(names) > 0 {
+		return names
+	}
+	return conjunctsApart(c, s)
+}
+
+// conjunctsApart names what each conjunct of the allOf s writes states where
+// the election reads them sharing no value though their kinds share one, as
+// two enums sharing no member do: a value set by its member count
+// (decision.apart). A null the nulls walk reads s admitting is a value they
+// share, so it names none there, nor where that read is cut short.
+func conjunctsApart(c lowering.Ctx, s *statement.Schema) []string {
+	names := decisionOf(c, s).apart
+	if len(names) == 0 {
+		return nil
+	}
+	n := newNulls(c)
+	if n.schema(s, nullSite{}).admits(c) || n.conjuncts.Exhausted() {
+		return nil
+	}
+	return names
+}
+
+// contradictionShape describes what the refinement r of s, whose conjuncts
+// share no value, lowered as, for diagDisjointConjuncts: the value set elected
+// before them, else what the keywords beside the allOf write, a family or a
+// type, else the top type, where they write neither.
+func contradictionShape(r refinement, s *statement.Schema) string {
+	if won := electedSet(r, s); won != "" {
+		return "the " + won + " it lowered as"
+	}
+	if kinds := declaredInstanceTypes(s); kinds != anyInstance {
+		return "the " + instanceWords(kinds) + " it lowered as"
+	}
+	return "the top type it lowered as"
+}
+
 // disjointAtoms names what each of atoms, the conjuncts of the allOf s
 // writes, admits where they share no value, as disjointConjuncts does.
 func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []string {

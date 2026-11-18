@@ -432,7 +432,7 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 		classifyBranchSet(c, branches[index].schema.Schema) != unionDistributed {
 		return branchUnionIndex{}
 	}
-	if _, refines := refinementOf(c, s, ""); refines {
+	if decisionOf(c, s).refines {
 		return branchUnionIndex{}
 	}
 	return branchUnionIndex{index: index, ok: true}

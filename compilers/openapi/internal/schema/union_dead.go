@@ -28,11 +28,12 @@ type deadBranchesOf struct {
 
 // deadBranches marks, by index, each branch of the union holder writes that no
 // instance of body satisfies (deadBranch), read once a run, as every reader of
-// the position asks. Where body's own conjuncts share no kind, the entry
-// holder is aside, it admits no object for a branch to share, which the
-// warning docs/compilers/openapi.md#allof-disjoint-conjuncts gives says of the
-// schema whole, so none is marked. That reading leaves null out: the nulls
-// walk would classify body's union again.
+// the position asks. None is marked where body's own conjuncts share no kind,
+// the entry holder aside, which the warning
+// docs/compilers/openapi.md#allof-disjoint-conjuncts gives says of the schema
+// whole, nor where what body writes but the union admits anything but objects
+// or is cut short (restAdmitsObjects). That reading leaves null out: the
+// nulls walk would classify body's union again.
 func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 	return lowering.Remembered(c, deadBranchesOf{body, holder}, func() []bool {
 		branches, _, _ := unionBranches(holder)
@@ -41,7 +42,7 @@ func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 		if holder != body {
 			aside = holder
 		}
-		if conjunctsShareNothing(c, body, aside) {
+		if conjunctsShareNothing(c, body, aside) || !restAdmitsObjects(c, body, holder) {
 			return out
 		}
 		for i, b := range branches {
@@ -50,6 +51,28 @@ func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 		}
 		return out
 	})
+}
+
+// restAdmitsObjects reports whether what body writes but the union holder
+// writes, beside it or on an entry of its allOf whose own type and value set
+// stay, admits objects alone, null aside, as its conjuncts are read for a
+// disjoint report (conjunctAtoms): the premise deadBranch reads a branch
+// against. A rest of another kind leaves the contradiction to that report,
+// and one cut short, as by a $ref naming no schema, decides nothing.
+func restAdmitsObjects(c lowering.Ctx, body, holder *statement.Schema) bool {
+	at, _ := siteOf(body)
+	joint := anyInstance
+	for _, a := range conjunctAtoms(c, body, allOfBranches(c, body, at.Pointer)) {
+		switch {
+		case a.cut:
+			return false
+		case a.st != nil && a.st.Schema == holder:
+			joint &= declaredInstanceTypes(holder) & valueKinds(c, holder)
+		default:
+			joint &= a.admits
+		}
+	}
+	return joint == kindObject
 }
 
 // deadBranch reports whether no instance satisfies both body, which admits
@@ -250,7 +273,7 @@ func (r deadReport) none(c lowering.Ctx, body *statement.Schema) string {
 // reads a union as the nulls walk does, admitting a null the rest admits,
 // where a union no branch of which admits null refuses it.
 func diagDeadEntryUnion(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
-	if len(disjointConjuncts(c, s, allOfBranches(c, s, pointer))) > 0 {
+	if len(disjointNames(c, s, allOfBranches(c, s, pointer))) > 0 {
 		return nil
 	}
 	return diagDeadBranches(c, s, u, deadBranches(c, s, u.holder), pointer, false)

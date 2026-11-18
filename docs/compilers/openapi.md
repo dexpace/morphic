@@ -1779,7 +1779,15 @@ where any of its annotations is. An extension the promotion
 policy maps is read the same way ([`extension-promotion`](#extension-promotion)). Over a target
 that lowers to an object alone the keywords beside the `$ref` are a conjunct at a carrier too: the
 property, parameter or header names the `Model` over the target, a decorator holding them that the
-emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. At a position that
+emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
+bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
+and a `nullable: true` the nullable-inference policy reads, beside the `$ref` or beside an `allOf` of
+it, with nothing else but what says nothing of the instance, make no decorator there: the carrier
+names the reference and holds them, as over any other target, so
+`{$ref: Obj, readOnly: true}` at a property names `Obj`. Whether a carrier holds the position is
+read off where the schema is written, a property a schema lists or a parameter's or a header's
+schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the `Model`
+over the object the position owns for it, keeping the keywords as a declaration does. At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
 the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
@@ -1809,8 +1817,10 @@ it composes as `Base` and `Mixins`, which lends a carrier nothing, where a conju
 the `$ref` would lend written alone, since the visibility and `default` of the use have no other home.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
-  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`
+  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`, `ref-use-bound-keywords`
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
+  `e2e.TestRefUseBound_ACarriedUseIsTheReference`, `e2e.TestRefUseBound_AnotherKeywordKeepsTheModel`,
+  `e2e.TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
@@ -2262,11 +2272,15 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
 3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
    depth ([`allof-classification`](#allof-classification));
 4. the conjuncts share no value, a null they all admit being no shared value unless a conjunct
-   admits nothing else, and no value set is elected (below). A warning says so at the schema where
-   their instance types share none ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), and
+   admits nothing else, no value set is elected (below), and the kinds they admit share none or
+   are an object alone. A warning says so at the schema where their instance types share none
+   ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), or their value sets no member, and
    otherwise at a branch writing a `type` that excludes an object
-   ([`allof-inline-residue`](#allof-inline-residue)). Where neither holds, as for two `enum`s
-   sharing no member, each branch is kept with an info and no report names the contradiction.
+   ([`allof-inline-residue`](#allof-inline-residue)). Value sets sharing no member whose kinds
+   share one that is no object alone compose nothing: no conjunct is the principal, so the
+   position lowers by the keywords beside the `allOf`, and to the top type keeping each entry
+   where those name no kind, `{allOf: [{enum: [a, b]}, {enum: [c, d]}]}` among them, with the one
+   warning. A `$ref` among such conjuncts is kept with an info saying so.
 
 A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in what a `$ref` lands on,
 is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
@@ -2295,9 +2309,8 @@ over a string; a set that keyword leaves no value either, as `enum: []`, is elec
 `{allOf: [{$ref: Obj},
 {enum: [{a: x}]}]}` is the `Union` of `Literal`s that enum is, as written beside the `allOf`, and
 `{allOf: [{$ref: Level}, {enum: [other]}]}` with `other` outside `Level` an `Enum` of `other`, the
-`$ref` kept with an info saying they share no value, and where their instance types share none the
-warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names the value set it lowered
-as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
+`$ref` kept with an info saying they share no value, and the warning of
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the value set it lowered as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
 set is elected, as `enum: []` or two neither lying within the other,
 and the `allOf` writes an inline entry: one of `$ref` entries alone keeps each as below then too, as
 the `$ref` written beside the value set is kept.
@@ -2341,8 +2354,13 @@ only overlap. The position then lowers by the keywords beside the `allOf`, keepi
 an info. Where they name no kind, it is what its conjuncts admit together, null aside, as a `type`
 list naming those kinds lowers, where those are a string, a number or a boolean alone or together:
 `{allOf: [{type: string, format: email}, {type: string, format: uuid}]}` is a `string`, two type lists
-sharing a string and an integer the `Union` of the two, two `enum`s the kinds each holds a member
-of, as `{allOf: [{enum: [true, a]}, {enum: [true, b]}]}` is the `Union` of a string and a boolean. Where they admit an object or an array, every kind among them, it is the top type, as no entry
+sharing a string and an integer the `Union` of the two, and value sets the kinds of the members
+every set holds, as an instance meets each only as a member of it, so `{allOf: [{enum: [true, a]},
+{enum: [true, b]}]}` is a boolean, `true` alone meeting both, `{allOf: [{enum: [1, true, x]}, {enum:
+[1, true, y]}, {type: [integer, string]}]}` an integer, the other conjuncts' kinds leaving `1`, and
+sets sharing no member, or whose shared members another conjunct's kinds exclude, admit no value:
+the top type, with the warning that they share no value
+([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Where they admit an object or an array, every kind among them, it is the top type, as no entry
 was elected to give that shape and a node of the kind would assert members or items none states.
 Words admitting alike part only where a node reads a
 keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
@@ -2356,7 +2374,13 @@ in the pointer of the node it lowers to.
 A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
 `{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second branch kept, in
 either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
-naming neither. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
+naming neither. Where nothing declares a kind and the kind-inference policy reads the position's
+kinds off its conjuncts' claims ([`shape-applicator`](#shape-applicator)), a conjunct whose own
+keywords claim every one of them names them, as one writing that `type` would: `{allOf: [{items:
+{type: string}}, {minItems: 1}]}` is a use of the `List` its first entry builds, marked, holding the
+bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a use of its unmarked
+one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by the keywords beside
+the `allOf`. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
 principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
 as if no `allOf` were written. An inline principal writing a value set lowers it at the position's
 pointer, as the keywords beside the `allOf` would, so one node stands for the position whichever
@@ -2444,9 +2468,12 @@ The IR's rule that compilers leave flattening to emitters
 keeping such an `allOf` a decorator for emitters to collapse is weighed in
 [models](../ir/models.md#an-allof-no-object-satisfies).
 
-- Cases: `allof-refinement`
+- Cases: `allof-refinement`, `allof-entry-infers-array`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
 - Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+  `e2e.TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal`,
+  `e2e.TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder`,
+  `schema.TestRefinementUndecided_ValueSetsAreTypedByTheMembersTheyShare`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAlikeInEitherOrder`,
   `e2e.TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling`,
@@ -3566,9 +3593,25 @@ is, the value set beside it among its conjuncts, so `{allOf: [{$ref: Obj}], enum
 lowered as. A value set beside the `allOf` holding no value its own type admits is reported where it
 is written ([`enum-const`](#enum-const)), so the `allOf` draws nothing more.
 
+Where the kinds the conjuncts admit share one but the election of
+[`allof-refinement`](#allof-refinement) reads them sharing no value, the null included, as value
+sets sharing no member do, or a set none of whose members a `format` it reads as narrowing a number
+to an integer admits, the same warning is drawn, read by that election, and names each value set
+by its member count and each other conjunct by the kinds and formats it admits, one admitting every
+kind left out, listed by what each states and then by name, so no order written orders them:
+`{allOf: [{enum: [a, b]}, {enum: [c, d]}]}` draws `allOf/0: 2 values, allOf/1: 2 values`, and
+`{allOf: [{type: number, format: int32}, {type: number, enum: [1.5]}]}` draws
+`allOf/1: 1 value, allOf/0: integer of format int32`, the format read as
+[`numeric-formats`](#numeric-formats) reads it, where JSON Schema asserts none by default. A null
+the schema admits as the nulls reading has it, a conjunct admitting no value by itself and a read
+cut short draw it nowhere, as above.
+
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
+  `schema.TestAllOf_ValueSetsSharingNoMemberWarnOnce`, `schema.TestAllOf_ValueSetsSharingAValueDrawNoWarning`,
+  `schema.TestAllOf_ValueSetsSharingNoMemberReportAlikeInEitherOrder`,
+  `schema.TestAllOf_ARefAmongValueSetsSharingNoMemberIsKept`,
   `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
   `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`, `schema.TestAllOf_AValueSetBesideAUnionWarnsOnce`,
   `schema.TestAllOf_DisjointReportStaysSilent`,
@@ -3827,7 +3870,13 @@ branch, and it lowers nowhere. Leaving out a branch no instance satisfies change
 object}, {type: array}, {type: string}]}` is a `Union` of one variant, as a union written with one
 branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the entry a union is
 written on aside, the warning of that rule already says no instance satisfies the schema, and no
-branch is read as dead. Where no branch
+branch is read as dead. Nor is one where the rest of the conjunction, what the schema writes but the
+union, an entry's own `type` and value set kept, admits anything but objects, null aside, as that
+report reads its conjuncts, or its read is cut short, as by a `$ref` naming no schema: the union is
+then a conjunct like any other, a contradiction with the rest is that report's to state, and a rest
+whose kinds are not known draws neither, so a schema draws one of the two warnings at most.
+`{allOf: [{$ref: Str}, {oneOf: [{type: boolean}, {$ref: Obj}]}]}` over a string `Str` draws the
+warning that its conjuncts share no value and none naming a dead branch. Where no branch
 lives, the union is shape 6 below. A route the discriminator standing with the union takes to a
 dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
 dead branch meets first, as a variant's branch meets one ([`discriminator`](#discriminator)), and a
@@ -4049,7 +4098,9 @@ judged as one whose branches declare shape.
   `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
-- Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`, `schema.TestLower_AllOfWithOneOfKeepsBoth`,
+- Tests: `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
+  `e2e.TestCompile_ARestOfAValueSetIsNotSaidToRefuseABranchItAdmits`,
+  `e2e.TestCompile_AUnionBesideAnyRestDrawsOneWarningAtMost`, `schema.TestOneOf_CoDeclaredNotDistributedReasons`, `schema.TestLower_AllOfWithOneOfKeepsBoth`,
   `e2e.TestAllOfUnion_AUnionSharingNoKindWithTheRestIsKeptNotDistributed`,
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
   `schema.TestOneOf_CoDeclaredTypeReadsNullableByItsDialect`,
@@ -4811,7 +4862,11 @@ is a claim, and only then is the node marked. So that schema is a use of the str
 entry with an info, as with the policy off, and a `$ref` whose target the policy reads as kinds
 leaving out one the declarations name is no principal ([`allof-refinement`](#allof-refinement)). An `allOf`
 composed as a model where no conjunct declares a kind, as one over two `$ref`s to schemas writing
-`properties` alone, is marked. Split over entries, keywords of both kinds part from their flat
+`properties` alone, is marked. Split over entries, a keyword infers as in its flat spelling where the
+claims of one conjunct name every kind the position lowers to: that conjunct is the principal
+([`allof-refinement`](#allof-refinement)), so `{allOf: [{items: …}]}` is a use of the marked `List`
+its entry builds, as `{items: …}` is that `List`, and a bound of another kind beside a `$ref` to it
+is placed by the `List`. Keywords of both kinds part from their flat
 spelling: `{allOf: [{properties: …}, {items: …}]}` admits an object and an array, so it is no model
 but the top type keeping each entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
 already says what a keyword does, as a union lowered alone restating the body's `type` or a body
@@ -4868,9 +4923,11 @@ any reads it, a value bound where a variant whose type takes it does: a distribu
 `properties` are consumed, and a `format` or `maxItems` beside them is kept on the union, under a
 report naming a union of models.
 
-- Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
+- Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`, `allof-entry-infers-array`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
+  `e2e.TestKindInference_AnEntryClaimNamesNoKindItDoesNotHoldAlone`,
+  `e2e.TestKindInference_ABoundBesideARefToAnInferredListIsPlacedByTheList`,
   `e2e.TestKindInference_AnUntypedPropertiesSchemaIsMarked`,
   `e2e.TestKindInference_AnInlineSchemaIsMarkedAtEachPositionOwningANode`,
   `e2e.TestKindInference_ANullTypeStillInfersTheKind`,

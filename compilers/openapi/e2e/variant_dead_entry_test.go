@@ -121,8 +121,10 @@ func TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns(t *testing.T
 // TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets holds the
 // warning of a union on an allOf entry whose only branch not dead is its null
 // one to the null the rest of the allOf admits: beside a rest admitting null,
-// null alone satisfies the schema; beside one keeping it out, read whole past
-// a conjunct cut short on a cycle, nothing does.
+// null alone satisfies the schema; beside one keeping it out, nothing does,
+// which the report of conjuncts sharing no value says; and beside a rest
+// whose read is cut short on a cycle, nothing is said, as what it admits is
+// not known.
 func TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets(t *testing.T) {
 	t.Parallel()
 	branches := "{oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Str'}]}"
@@ -130,14 +132,14 @@ func TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets(t *testi
 		"ON: {type: [object, 'null'], properties: {a: {type: string}}}", "Str: {type: string}",
 		"Cyc: {properties: {n: {$ref: '#/components/schemas/Cyc'}}, allOf: [{$ref: '#/components/schemas/Cyc'}]}",
 		"Admits: {allOf: [{$ref: '#/components/schemas/ON'}, "+branches+"]}",
-		"Refuses: {allOf: [{$ref: '#/components/schemas/Obj'}, {$ref: '#/components/schemas/Cyc'}, "+branches+"]}")
+		"Refuses: {allOf: [{$ref: '#/components/schemas/Obj'}, "+branches+"]}",
+		"Unknown: {allOf: [{$ref: '#/components/schemas/Obj'}, {$ref: '#/components/schemas/Cyc'}, "+branches+"]}")
 	_, diags := compileAnnotationSpec(t, "entry-null-branch", spec)
 	requireErrorsAndWarnings(t, diags, []wantFinding{
 		{code: diag.DegradedConstruct, pointer: "/components/schemas/Admits", contains: []string{
 			"none of the 2 branches of the oneOf on allOf/1 but a null one admits a value the rest",
 			"(allOf/1/oneOf/1: string)", "so no instance but null satisfies this schema"}},
 		{code: diag.DegradedConstruct, pointer: "/components/schemas/Refuses", contains: []string{
-			"none of the 2 branches of the oneOf on allOf/2 admits a value the rest",
-			"(allOf/2/oneOf/1: string)", "so no instance satisfies this schema"}},
+			"the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string)"}},
 	})
 }

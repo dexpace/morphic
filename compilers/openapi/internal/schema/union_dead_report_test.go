@@ -41,7 +41,7 @@ func TestOneOf_TheWarningOfADeadBranchSaysWhereTheUnionIs(t *testing.T) {
       properties: {p: {type: string}}
       oneOf: [{type: 'null'}, {type: integer}, {type: 'null'}]
     Entry:
-      allOf: [{type: [object, string]}, {oneOf: [{$ref: '#/components/schemas/A'}, {type: boolean}]}]
+      allOf: [{type: object}, {oneOf: [{$ref: '#/components/schemas/A'}, {type: boolean}]}]
     ON: {type: [object, 'null'], properties: {a: {type: string}}}
     Str: {type: string}
     EntryNull:

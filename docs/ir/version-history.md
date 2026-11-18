@@ -906,6 +906,9 @@ it sees. Changes made together in one bump are listed together under it.
   says, and an `allOf` naming a `$ref` the policy reads as kinds leaving out one its other
   conjuncts declare is a use of the declared kinds, keeping the `$ref`, where it composed a model
   over a target writing `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
+  An `allOf` entry whose own keywords claim every kind the policy reads its position as says that kind,
+  as one writing that `type` does, so `{allOf: [{items: …}]}` is a use of the marked `List` its entry
+  builds, as `{items: …}` is that `List`, where it was the top type keeping the `items`.
   Object keywords written with no `type` beside a union are a body it distributes across where the
   kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
   objects among them, and nowhere else: a `properties` beside a union naming another kind is the top
@@ -921,7 +924,11 @@ it sees. Changes made together in one bump are listed together under it.
   `$ref` whose target admits every kind. An `allOf` electing no entry, with no keyword beside it
   naming a kind, is the primitive its entries admit together, or the `Union` of several, where those
   are a string, a number or a boolean, where it was the top type, which it stays where they admit an
-  object or an array. A `$dynamicRef` a conjunct writes masks no kind in that
+  object or an array; of value sets, the kinds of the members every set holds. Value sets sharing no member, whose kinds share one other than an object
+  alone, compose no `Model` and elect no conjunct: the keywords beside the `allOf` decide, the top
+  type keeping each entry where they name no kind, and the warning that the conjuncts share no value,
+  naming each set by its member count, is drawn wherever the election reads them so, where it
+  composed an empty `Model` and nothing reported the contradiction. A `$dynamicRef` a conjunct writes masks no kind in that
   reading, and one on an entry, which no position expands, admits every kind, where it was read as
   what it names: over an object it is the `Model` beside the `allOf` makes, not a use. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
   or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
@@ -933,7 +940,9 @@ it sees. Changes made together in one bump are listed together under it.
   `MapT`, and holds only the bounds the kinds it admits take, its branch's within the body's, where
   it held each the position took. A branch admitting no object, nor a null the body admits, is no
   variant: the `Union` keeps it under that key, the schema warning of it, where a variant over it
-  kept it, and a body none of whose branches lives lowers as itself, keeping the union whole under
+  kept it, a branch read so only where the rest of the conjunction admits objects alone and is read
+  whole, a contradiction with any other rest left to the warning that the conjuncts share no value,
+  so a schema draws one of the two at most, and a body none of whose branches lives lowers as itself, keeping the union whole under
   `openapi:oneOf` or `openapi:anyOf`, the union written beside it or on an entry of its `allOf`,
   where it was a `Union` of variants no value inhabits. A discriminator's route to such a branch keys
   nothing in the union's `Mapping`, a `mapping` entry or a `defaultMapping` kept verbatim under
@@ -987,7 +996,12 @@ it sees. Changes made together in one bump are listed together under it.
   anonymous `Model` over an object, and over `false` or a reference naming no schema an open empty
   one, a `true` beside it saying nothing, as `{}` does, and a component or a position a `$ref`
   names written as either spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
-  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A use writing beside
+  its one `$ref` nothing but `readOnly`, `writeOnly`, `default` or a `nullable: true` the
+  nullable-inference policy reads, in either spelling, is the reference where a property, a
+  parameter or a header carries it, read off where it is written, hoisting no node, where it hoisted
+  an anonymous `Model` over an object holding nothing, the carrier then reading what the target
+  lends it as over any other target. A node a use
   hoists is hinted by its position, a variant naming one target that declares no member by that
   target, and a title on any inline conjunct names (the names golden moves)
   ([`ref-use-site`](../compilers/openapi.md#ref-use-site),

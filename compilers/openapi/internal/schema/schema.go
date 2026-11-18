@@ -263,7 +263,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationVoices(c, schema, target, pointer))) {
 		var homeDiags []ir.Diagnostic
 		decl.target = target
-		ref, homeDiags = hoistDeclarationHome(c, ts, schema, target, pointer, decl.finish)
+		ref, homeDiags = hoistUseHome(c, ts, schema, target, pointer, decl.finish)
 		diags = append(diags, homeDiags...)
 	}
 	return ref, slices.Concat(diags, decl.diags, decl.principal, decl.kept)
@@ -376,8 +376,7 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 	if !writesConjuncts(s) {
 		return false
 	}
-	_, refines := refinementOf(c, s, "")
-	return !refines
+	return !decisionOf(c, s).refines
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf
@@ -419,12 +418,15 @@ func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Dia
 	switch {
 	case unionAside(c, s):
 	case r.contradicts:
-		shape = "the " + electedSet(r, s) + " it lowered as"
+		shape = contradictionShape(r, s)
 	default:
 		return nil
 	}
 	comp := r.comp
 	comp.disjoint = disjointAtoms(c, s, refinedAtoms(c, s, r))
+	if len(comp.disjoint) == 0 && r.contradicts {
+		comp.disjoint = conjunctsApart(c, s)
+	}
 	return diagDisjointConjuncts(c, comp, shape)
 }
 

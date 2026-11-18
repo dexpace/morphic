@@ -428,11 +428,10 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 		{model: "TwoComponents", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}, nullable: true},
 		{model: "DiscriminatedBase", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
 		{model: "DiscriminatedFirst", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
-		// The default beside the first declaration's $ref is a conjunct of that
-		// use, which is then the node over Meeting it makes, as its allOf
-		// spelling is: the composition elects the named declaration its base.
-		{model: "KeptDefault", field: "data", naming: "1", base: "t/openapi" + schemas + "Recording",
-			mixins: []ir.TypeID{anon("KeptDefault", "0")}},
+		// The default beside the first declaration's $ref binds that use, which
+		// a property carries, so the declaration is the reference, as one writing
+		// nothing beside its $ref is: the field composes the two components.
+		{model: "KeptDefault", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}},
 	} {
 		owner, ok := doc.Types[ir.TypeID("t/openapi"+schemas+tc.model)].(*ir.Model)
 		require.True(t, ok, tc.model)

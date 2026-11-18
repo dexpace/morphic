@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -75,6 +76,9 @@ const (
 	// refOutsideSet marks one whose target admits none of the value set
 	// elected before the composition the conjuncts would lower to.
 	refOutsideSet
+	// refApart marks one of conjuncts whose value sets share no member, of
+	// which none is the principal (decide).
+	refApart
 )
 
 // conjunct is one conjunct's reading, for the election.
@@ -122,38 +126,68 @@ func unionForm(s *statement.Schema) conjunctForm {
 	}
 }
 
-// refinementAt keys a position's decision: where a schema is read from says where
-// its branches are, so one schema read from two pointers is two answers.
-type refinementAt struct {
-	schema  *statement.Schema
-	pointer jsontext.Pointer
+// decisionAt keys a schema's decision: nothing decide reads turns on where the
+// schema is written, which only prefixes its branches' pointers.
+type decisionAt struct {
+	schema *statement.Schema
 }
 
 // decision is what a position's readers share: a refinement, where it is one,
-// and whether a union written beside the allOf shares no kind with the rest,
-// which the position leaves out and keeps (unionAside).
+// its composition, principal and ref left for refinementOf to read at the
+// pointer asked; the indices of that principal and ref among the branches, -1
+// for none and the principal for the keywords beside the allOf; whether a
+// union written beside the allOf shares no kind with the rest, which the
+// position leaves out and keeps (unionAside); and apart, what each conjunct
+// states where the election found they share no value (apartNames).
 type decision struct {
-	r       refinement
-	refines bool
-	aside   bool
+	r           refinement
+	apart       []string
+	principalAt int
+	refAt       int
+	refines     bool
+	aside       bool
 }
 
 // refinementOf decides whether s, written at pointer, refines rather than
 // composes (docs/compilers/openapi.md#allof-refinement). It reads the source and
 // the bindings, never the registry, so a decision turns on no lowering order, and
-// each position's many readers share one reading.
+// the many readers of a schema share one reading wherever it is written.
 func refinementOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	d := decisionOf(c, s, pointer)
-	return d.r, d.refines
+	d := decisionOf(c, s)
+	if !d.refines {
+		return refinement{}, false
+	}
+	r := d.r
+	r.comp = allOfBranches(c, s, pointer)
+	r.principal, r.ref = branchAt(r.comp, d.principalAt), branchAt(r.comp, d.refAt)
+	return r, true
 }
 
-// decisionOf returns the decision on s, written at pointer, read once a run,
-// and none where its allOf may not refine.
-func decisionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
+// branchAt returns the branch of comp at index i, nil for -1.
+func branchAt(comp allOfComposition, i int) *allOfBranch {
+	if i < 0 {
+		return nil
+	}
+	return &comp.branches[i]
+}
+
+// entryAt returns the statement of the branch of s's allOf at index i, as
+// allOfBranches reads it, nil for -1: a reader of the decision with no pointer
+// builds no branch list.
+func entryAt(c lowering.Ctx, s *statement.Schema, i int) *statement.Statement {
+	if i < 0 {
+		return nil
+	}
+	return c.Statements().Read(c.Statements().Read(s).Entries[i].Schema)
+}
+
+// decisionOf returns the decision on s, read once a run, and none where its
+// allOf may not refine.
+func decisionOf(c lowering.Ctx, s *statement.Schema) decision {
 	if !allOfMayRefine(s) {
 		return decision{}
 	}
-	return lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
+	return lowering.Remembered(c, decisionAt{s}, func() decision { return decide(c, s) })
 }
 
 // unionAside reports whether the oneOf or anyOf s writes beside its allOf
@@ -161,15 +195,19 @@ func decisionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) d
 // together, so the position lowers as the rest does and keeps the union
 // (docs/compilers/openapi.md#union-beside-structure).
 func unionAside(c lowering.Ctx, s *statement.Schema) bool {
-	return decisionOf(c, s, "").aside
+	return decisionOf(c, s).aside
 }
 
 // usesOneRef reports whether s, whose flattened conjuncts are comp, is a use of
 // one target saying nothing of it: one conjunct is a $ref writing nothing
 // read beside it, as an entry read whole may (statement.ReadBeside), and s
-// and every other conjunct state nothing (statesNothing). It is the
-// reference, as the $ref alone is (docs/compilers/openapi.md#allof-classification).
-func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
+// and every other conjunct state nothing (statesNothing), or, where a carrier
+// holds s's position (carriedAt), nothing but what binds the use
+// (bindsUseOnly), which the carrier holds. It is the reference, as the $ref
+// alone is (docs/compilers/openapi.md#allof-classification).
+func usesOneRef(c lowering.Ctx, s *statement.Schema, comp allOfComposition) bool {
+	carried := carriedAt(c, s)
+	quiet := func(x *statement.Schema) bool { return statesNothing(x) || carried && bindsUseOnly(c, x) }
 	refs := 0
 	for _, e := range comp.branches {
 		switch {
@@ -179,11 +217,78 @@ func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
 			return false
 		case e.schema.Ref != nil:
 			refs++
-		case !statesNothing(e.schema.Schema):
+		case !quiet(e.schema.Schema):
 			return false
 		}
 	}
-	return refs == 1 && statesNothing(s)
+	return refs == 1 && quiet(s)
+}
+
+// hoistUseHome hoists the home of the declaration s, written at pointer,
+// whose body lowered to ref, a use of what it names: over an object alone the
+// Model composing it, as internOwnNode builds one, so no Scalar stands over a
+// model, a position a carrier holds that a $ref naming it reaches among them
+// (usesOneRef); over anything else the alias hoistDeclarationHome builds.
+func hoistUseHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
+	js := c.Statements().Read(s)
+	if kinds, _ := lowersTo(c, js); kinds != kindObject || ref.Nullable {
+		return hoistDeclarationHome(c, ts, s, ref, pointer, fin)
+	}
+	out := ref
+	out.Target = c.IDs().ForPointer(pointer)
+	return out, internOwnNode(c, ts, js, pointer, ref, fin)
+}
+
+// bindsUseOnly reports whether every key s writes that says something of the
+// instance binds a use of the type rather than the type: `readOnly`,
+// `writeOnly`, `default`, and a `nullable: true` the nullable-inference policy
+// reads as widening the reference (docs/compilers/openapi.md#nullable), each
+// of which a carrier holds and a node cannot
+// (docs/compilers/openapi.md#use-bound-annotations).
+func bindsUseOnly(c lowering.Ctx, s *statement.Schema) bool {
+	return s.Truth == statement.Stated && !slices.ContainsFunc(s.Keys, func(k statement.Key) bool {
+		if k.Name == "allOf" && len(s.AllOf) > 0 || !statement.ReadBeside(k.Name, k.Node, "") {
+			return false
+		}
+		switch k.Name {
+		case "readOnly", "writeOnly", "default":
+			return false
+		case "nullable":
+			return !c.NullableInference.Honours() || !nullableTrue(s)
+		default:
+			return true
+		}
+	})
+}
+
+// carriedAt reports whether a carrier holds the position the bindings place s
+// at: a property a schema lists, or the schema of a parameter or a header,
+// its content's included. It reads the placement, never the lowering that
+// reaches s, so every reader of s's decision, the carrier's and a $ref's
+// naming the position alike, reads one answer.
+func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
+	at, placed := siteOf(s)
+	if !placed {
+		return false
+	}
+	p := at.Pointer
+	if p.Parent().LastToken() == "properties" {
+		owner := c.Statements().At(bind.Position{Doc: at.Doc, Pointer: p.Parent().Parent()})
+		return owner.Truth == statement.Stated && slices.ContainsFunc(objectIn(owner.Schema).Properties, func(sub statement.Sub) bool {
+			return sub.Name == p.LastToken() && c.Statements().Sub(sub).Schema == s
+		})
+	}
+	if p.LastToken() != "schema" {
+		return false
+	}
+	holder := p.Parent()
+	if holder.Parent().LastToken() == "content" {
+		holder = holder.Parent().Parent()
+	}
+	kind := holder.Parent().LastToken()
+	return kind == "parameters" || kind == "headers"
 }
 
 // statesNothing reports whether s states nothing of the instance: `true`, a
@@ -205,10 +310,13 @@ func statesNothing(s *statement.Schema) bool {
 // no value, or the kinds the position lowers to, null aside, are an object
 // alone, it composes, unless a conjunct states a value set, which is elected
 // first (docs/compilers/openapi.md#competing-keywords); it composes too where
-// the read is cut short. Anything else, and a use of one target saying nothing
-// more (usesOneRef), whatever that target admits, is one use of its principal.
-func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
-	comp := allOfBranches(c, s, pointer)
+// the read is cut short. Value sets sharing no member compose a Model only
+// where those kinds are an object alone; elsewhere no conjunct is the
+// principal, so the keywords beside the allOf decide. Anything else, and a use
+// of one target saying nothing more (usesOneRef), whatever that target
+// admits, is one use of its principal.
+func decide(c lowering.Ctx, s *statement.Schema) decision {
+	comp := allOfBranches(c, s, "")
 	if !refinableBranches(comp) {
 		return decision{}
 	}
@@ -223,32 +331,128 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 		kinds, inferred = restKinds(c, s, comp)
 	}
 	var principal *conjunct
-	one := usesOneRef(s, comp)
+	one := usesOneRef(c, s, comp)
 	contradicts := !one && disjoint(joint, conjuncts)
+	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
+	var names []string
+	if contradicts {
+		names = apartNames(s, comp, conjuncts, joint)
+	}
 	if contradicts || kinds == kindObject && !one {
-		if principal = setElected(&w, s, conjuncts); principal == nil {
-			return decision{aside: aside}
+		if principal = setElected(&w, s, conjuncts); principal == nil && !apart {
+			return decision{aside: aside, apart: names}
 		}
 	}
 	votes, electable := voteRefs(c, conjuncts, kinds, inferred, len(comp.branches))
-	if principal == nil {
+	undecided := principal == nil && apart
+	switch {
+	case undecided:
+		principal = &conjuncts[0]
+	case principal == nil:
 		principal = w.elect(conjuncts, electable)
 	}
-	r := refinement{comp: comp, principal: principal.branch, votes: votes, joint: joint, held: heldBy(c, principal),
-		contradicts: contradicts}
-	r.ref = readThrough(conjuncts, principal)
-	for _, cj := range electable {
-		switch {
-		case cj != principal && principal.branch != nil && principal.branch.schema.Ref != nil:
-			r.votes[cj.at] = refNarrowed
-		case contradicts && !w.within(principal.read, cj.read):
-			r.votes[cj.at] = refOutsideSet
-		}
-	}
+	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts}
+	refAt := readThrough(conjuncts, principal)
+	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
 	// A use saying nothing more of a reference naming no schema is that
 	// reference, which has nothing for the read to finish.
-	failed := one && r.ref != nil && !namesReferent(c, r.ref.schema)
-	return decision{r: r, refines: failed || !w.incomplete(), aside: aside}
+	failed := one && refAt >= 0 && !namesReferent(c, comp.branches[refAt].schema)
+	return decision{r: r, apart: names, principalAt: principal.at, refAt: refAt, refines: failed || !w.incomplete(),
+		aside: aside}
+}
+
+// markBeaten marks in votes how each $ref of electable stood once principal
+// was elected: beaten by a $ref principal, outside the value set elected for
+// conjuncts that contradict one another, or, where value sets sharing no
+// member leave no conjunct the principal (undecided), apart.
+func markBeaten(w *admission, votes []refVote, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
+	for _, cj := range electable {
+		switch {
+		case undecided:
+			votes[cj.at] = refApart
+		case cj != principal && principal.branch != nil && principal.branch.schema.Ref != nil:
+			votes[cj.at] = refNarrowed
+		case contradicts && !w.within(principal.read, cj.read):
+			votes[cj.at] = refOutsideSet
+		}
+	}
+}
+
+// apartNames names what each conjunct of s, read as the election reads them,
+// states where their reads share no value at all, the null included, joint
+// being what they admit together: a value set by its member count, any other
+// conjunct by the kinds and formats it admits, one admitting every kind left
+// out, listed by what each states, so no order written orders them. It names
+// none where a conjunct admits no value by itself, which its own schema
+// reports where it is written, or fewer than two are named.
+func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct, joint admitted) []string {
+	if joint.reachable() {
+		return nil
+	}
+	names := make([]string, 0, len(conjuncts))
+	for _, cj := range conjuncts {
+		if !cj.read.reachable() {
+			return nil
+		}
+		if word := readWords(cj.read); word != "" {
+			names = append(names, conjunctName(s, comp, cj)+": "+word)
+		}
+	}
+	if len(names) < 2 {
+		return nil
+	}
+	slices.SortFunc(names, func(a, b string) int {
+		_, wa, _ := strings.Cut(a, ": ")
+		_, wb, _ := strings.Cut(b, ": ")
+		return cmp.Or(strings.Compare(wa, wb), strings.Compare(a, b))
+	})
+	return names
+}
+
+// conjunctName is how a disjoint report names cj, a conjunct of comp, the
+// allOf s writes, as conjunctAtoms names one: the keywords beside the allOf by
+// the value set or the type they write, a branch by its path, a $ref written
+// beside other keys by its own.
+func conjunctName(s *statement.Schema, comp allOfComposition, cj conjunct) string {
+	switch {
+	case cj.branch != nil && splitRef(comp, cj.at):
+		return comp.branchPath(cj.branch.pointer) + "/$ref"
+	case cj.branch != nil:
+		return comp.branchPath(cj.branch.pointer)
+	case constIn(s) != nil:
+		return "const"
+	case enumWritten(s):
+		return "enum"
+	default:
+		return "type"
+	}
+}
+
+// readWords spells what read admits for a disjoint report: a value set's
+// member count, else its kinds, null aside, with the formats it is held to,
+// and nothing for a read admitting every kind and held to none.
+func readWords(read admitted) string {
+	if read.fixed {
+		if n := read.size(); n != 1 {
+			return strconv.Itoa(n) + " values"
+		}
+		return "1 value"
+	}
+	formats := make([]string, 0, len(read.forms))
+	for _, f := range read.forms {
+		formats = append(formats, f.spelled)
+	}
+	kinds := read.kinds &^ kindNull
+	switch {
+	case len(formats) == 0 && kinds == anyInstance:
+		return ""
+	case len(formats) == 0:
+		return instanceWords(kinds)
+	case kinds == anyInstance:
+		return "format " + strings.Join(formats, ", ")
+	default:
+		return instanceWords(kinds) + " of format " + strings.Join(formats, ", ")
+	}
 }
 
 // setElected returns the conjunct stating a value set that is elected before
@@ -353,22 +557,22 @@ func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
 	}
 }
 
-// readThrough returns the $ref branch a use of the position reads on through:
-// the principal where it is a $ref, else the one $ref written, nil where none
-// or several are.
-func readThrough(conjuncts []conjunct, principal *conjunct) *allOfBranch {
+// readThrough returns the index of the $ref branch a use of the position reads
+// on through: the principal where it is a $ref, else the one $ref written, -1
+// where none or several are.
+func readThrough(conjuncts []conjunct, principal *conjunct) int {
 	if principal.branch != nil && principal.branch.schema.Ref != nil {
-		return principal.branch
+		return principal.at
 	}
-	var ref *allOfBranch
+	ref := -1
 	for _, cj := range conjuncts {
 		if cj.branch == nil || cj.branch.schema.Ref == nil {
 			continue
 		}
-		if ref != nil {
-			return nil
+		if ref >= 0 {
+			return -1
 		}
-		ref = cj.branch
+		ref = cj.at
 	}
 	return ref
 }
@@ -403,7 +607,8 @@ func refinableBranches(comp allOfComposition) bool {
 // read alone: its entries are conjuncts of their own.
 func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s), at: -1}
+	claims := inferredClaims(w.c, s)
+	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s) || claimsAll(w.c, s, claims), at: -1}
 	if nullIdiom(w.c, s) {
 		// The null is the reference's, which the policy widens (nulls.widenRef).
 		own.read.kinds, own.says = kindAny, false
@@ -418,7 +623,7 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]con
 			out = append(out, conjunct{branch: e, at: i, read: w.of(e.schema), schema: bs})
 		default:
 			out = append(out, conjunct{branch: e, at: i, read: inlineConjunct(w, bs), schema: bs,
-				says: saysKind(bs) || declaresUnion(bs), form: unionForm(bs)})
+				says: saysKind(bs) || declaresUnion(bs) || claimsAll(w.c, bs, claims), form: unionForm(bs)})
 		}
 	}
 	if !declaresUnion(s) {
@@ -433,6 +638,26 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]con
 	}
 	out[0].read, out[0].says, out[0].form = out[0].read.and(union), true, unionForm(s)
 	return out, false
+}
+
+// inferredClaims returns the kinds s lowers to, null aside, where the
+// kind-inference policy read them off the claims of its conjuncts, and none
+// where s or a conjunct declares a kind.
+func inferredClaims(c lowering.Ctx, s *statement.Schema) kindSet {
+	kinds, inferred := lowersTo(c, c.Statements().Read(s))
+	if !inferred {
+		return 0
+	}
+	return kinds &^ kindNull
+}
+
+// claimsAll reports whether the keywords s writes itself claim every kind of
+// claims, the kinds the position lowers to by the kind-inference policy
+// (inferredClaims): s then says what kind of value the position is, as one
+// writing that `type` would, so `{allOf: [{items: X}]}` is a use of the list
+// its entry is, as `{items: X}` is one (docs/compilers/openapi.md#shape-applicator).
+func claimsAll(c lowering.Ctx, s *statement.Schema, claims kindSet) bool {
+	return claims != 0 && claims&^claimedKinds(c, s) == 0
 }
 
 // inlineConjunct is what bs, an inline branch, admits as w reads it: its own
@@ -1114,17 +1339,19 @@ const primitiveKinds = kindString | kindNumber | kindBoolean
 
 // undecidedTypes returns the types s, written at pointer, lowers by where its
 // allOf refines electing no entry: the kinds its conjuncts admit together, null
-// aside (lowersTo), in one order whatever the order written. It returns none
-// where they are none, or hold an object or an array, whose shape no entry was
-// elected to give, every kind among them, or the kind-inference policy read
-// them, as it reads only those: the position is then the top type.
+// aside (lowersTo), and where they state value sets of the members those share
+// (sharedKinds), in one order whatever the order written. It returns none
+// where those are none, as for sets sharing no member, or hold an object or an
+// array, whose shape no entry was elected to give, every kind among them, or
+// the kind-inference policy read them, as it reads only those: the position is
+// then the top type.
 func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.Kind {
 	r, refines := refinementOf(c, s, pointer)
 	if !refines || r.principal != nil {
 		return nil
 	}
 	kinds, inferred := lowersTo(c, c.Statements().Read(s))
-	kinds &^= kindNull
+	kinds &= sharedKinds(r.joint) &^ kindNull
 	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
 		return nil
 	}
@@ -1141,6 +1368,21 @@ func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 	}
 	if kinds&kindBoolean != 0 {
 		out = append(out, statement.KindBoolean)
+	}
+	return out
+}
+
+// sharedKinds returns the kinds of what joint, what the conjuncts of a
+// refinement admit together as its election reads them, holds: where they
+// state value sets, the kinds of the members every set shares, as an instance
+// meets each set only as a member of it; else its kinds.
+func sharedKinds(joint admitted) kindSet {
+	if !joint.fixed {
+		return joint.kinds
+	}
+	var out kindSet
+	for _, kind := range joint.members {
+		out |= kind
 	}
 	return out
 }
@@ -1256,6 +1498,9 @@ func keptWhy(comp allOfComposition, b keptBranch) string {
 	case refOutsideSet:
 		return "the conjuncts of " + of + " share no value, and its value set is elected before the rest, " +
 			"holding values this $ref's target does not, so the $ref is kept verbatim under Unmodeled"
+	case refApart:
+		return "the value sets of " + of + " share no member, so no conjunct is the one it lowers from, and the " +
+			"$ref is kept verbatim under Unmodeled"
 	default:
 		return "the value set of " + of + " narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"

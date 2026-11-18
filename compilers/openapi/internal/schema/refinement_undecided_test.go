@@ -66,6 +66,8 @@ func TestRefinementUndecided_ThePositionIsTheKindsItsEntriesAdmit(t *testing.T) 
 		"two sets of fractions":         {"{enum: [1.5, 2.5]}", "{enum: [2.5, 3.5]}", ir.PrimNumber},
 		"two type lists sharing a flag": {"{type: [boolean, string], format: a}", "{type: [boolean, integer], format: b}",
 			ir.PrimBool},
+		"two enums sharing a flag alone": {"{enum: [true, a]}", "{enum: [true, b]}", ir.PrimBool},
+		"two enums sharing an integer":   {"{enum: [1, true, x]}", "{enum: [1, false, y]}", ir.PrimInteger},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

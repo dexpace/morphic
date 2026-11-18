@@ -1,0 +1,29 @@
+# An allOf entry whose keywords claim every kind the position lowers to by the
+# kind-inference policy says what the position is, as one writing that type
+# does: each allOf spelling below is a use of the list or tuple its entry
+# builds, marked as the policy's reading, as each flat spelling is that node.
+openapi: 3.1.0
+info: {title: AllOfEntryInfersArray, version: "1.0.0"}
+paths:
+  /tags:
+    get:
+      operationId: listTags
+      parameters:
+        - name: names
+          in: query
+          schema: {allOf: [{items: {type: string}}]}
+      responses:
+        '204': {description: ok}
+components:
+  schemas:
+    Names: {items: {type: string}}
+    NamesEntry: {allOf: [{items: {type: string}}]}
+    NamesBounded: {allOf: [{items: {type: string}}, {minItems: 1}]}
+    Pair: {prefixItems: [{type: string}, {type: integer}]}
+    PairEntry: {allOf: [{prefixItems: [{type: string}, {type: integer}]}]}
+    Tagged:
+      type: object
+      properties:
+        flat: {items: {type: string}}
+        entry: {allOf: [{items: {type: string}}]}
+        bounded: {$ref: '#/components/schemas/NamesBounded', maxItems: 3}

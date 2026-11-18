@@ -251,11 +251,8 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 		}
 		return refs[0]
 	}
-	if r, refines := refinementOf(c, s, ""); refines {
-		if r.ref == nil {
-			return nil
-		}
-		return r.ref.schema
+	if d := decisionOf(c, s); d.refines {
+		return entryAt(c, s, d.refAt)
 	}
 	if len(refs) != 1 || !allOfMayRefine(s) || declaresUnion(s) || !decoratesOnly(c, s) {
 		return nil
@@ -494,13 +491,14 @@ func (p referentPlace) beneath(below jsontext.Pointer) referentPlace {
 // owning a node, a $ref or a narrower inline branch, is what the position is.
 func DecidingSchema(c lowering.Ctx, s *statement.Schema) *statement.Schema {
 	for range maxLentHops {
-		r, refined := refinementOf(c, s, "")
-		if !refined || r.principal == nil {
+		d := decisionOf(c, s)
+		if !d.refines || d.principalAt < 0 {
 			break
 		}
-		s = r.principal.schema.Schema
-		if r.principal.schema.Ref != nil {
-			s = refBranchTarget(c, r.principal.schema)
+		principal := entryAt(c, s, d.principalAt)
+		s = principal.Schema
+		if principal.Ref != nil {
+			s = refBranchTarget(c, principal)
 		}
 	}
 	return s
