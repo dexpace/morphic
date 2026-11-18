@@ -321,9 +321,10 @@ func TestRead_NodeTypeIsReadFromTheRawXMLObject(t *testing.T) {
 	assert.Empty(t, diags, "a key the dialect defines is not announced as undefined")
 }
 
-// TestRead_NodeTypeWithNoXMLObjectHasNothingToFill covers applyNodeType's first
-// branch. `nodeType` is written inside the xml object, so a schema declaring no
-// xml object has no position the key could sit at — and no hints to carry it.
+// TestRead_NodeTypeWithNoXMLObjectHasNothingToFill covers a schema subObjectKeys
+// asks nothing of. `nodeType` is written inside the xml object, so a schema
+// declaring no xml object has no position the key could sit at — and no hints
+// to carry it.
 func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\n")

@@ -356,45 +356,33 @@ func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 // Unmodeled map, so the entries ride on the schema's node, keyed apart by the
 // keyword each was written under. The census is graded as an OpenAPI object's,
 // not a schema keyword's. It first reads the XML object's nodeType into hints
-// (applyNodeType). discriminator says whether s's discriminator is read.
+// (applyNodeType). discriminator says whether s's discriminator is read. An
+// object s does not write is not asked, so a schema writing none costs nothing.
 func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
-	x := s.XML()
-	xmlTaken, diags := applyNodeType(&out, hints, x, doc, pointer+ids.Ptr("xml"))
-	subs := []struct {
-		keyword string
-		unknown []string
-		node    *yaml.Node
-		ext     []statement.Extension
-		taken   []string
-	}{
-		{"xml", nil, nil, nil, xmlTaken},
-		{"discriminator", nil, nil, nil, nil},
-		{"externalDocs", nil, nil, nil, nil},
+	var diags []ir.Diagnostic
+	keep := func(keyword string, unknown []string, node *yaml.Node, ext []statement.Extension, taken []string) {
+		owner := pointer + ids.Ptr(keyword)
+		kept, extDiags := SchemaExtensions(ext, doc, owner, keyword)
+		out = MergeUnmodeled(out, kept)
+		diags = append(diags, extDiags...)
+		diags = append(diags, UnknownKeysNamed(&out, unknown, node, doc, owner, keyword, taken...)...)
 	}
-	if x != nil {
-		subs[0].unknown, subs[0].node, subs[0].ext = x.Unknown, x.Node, x.Extensions
+	if x := s.XML(); x != nil {
+		taken, xmlDiags := applyNodeType(&out, hints, x, doc, pointer+ids.Ptr("xml"))
+		diags = append(diags, xmlDiags...)
+		keep("xml", x.Unknown, x.Node, x.Extensions, taken)
 	}
-	if d := s.Discriminator(); d != nil {
-		subs[1].unknown, subs[1].node, subs[1].ext = d.Unknown, d.Node, d.Extensions
+	if d := s.Discriminator(); d != nil && discriminator {
+		keep("discriminator", d.Unknown, d.Node, d.Extensions, nil)
 	}
 	if e := s.ExternalDocs(); e != nil {
-		subs[2].unknown, subs[2].node, subs[2].ext = e.Unknown, e.Node, e.Extensions
-	}
-	for _, sub := range subs {
-		if sub.keyword == "discriminator" && !discriminator {
-			continue
-		}
-		owner := pointer + ids.Ptr(sub.keyword)
-		ext, extDiags := SchemaExtensions(sub.ext, doc, owner, sub.keyword)
-		out = MergeUnmodeled(out, ext)
-		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysNamed(&out, sub.unknown, sub.node, doc, owner, sub.keyword, sub.taken...)...)
+		keep("externalDocs", e.Unknown, e.Node, e.Extensions, nil)
 	}
 	return out, diags
 }
 
-// applyNodeType places the nodeType an XML object writes on hints, which the
+// applyNodeType places the nodeType the XML object x writes on hints, which the
 // parser's model has no field for (GitHub #615), and returns the keys it read
 // for the census to leave alone. It reads at every version, as load reports the
 // field below 3.2 (diag.LaterVersionConstruct). A non-empty value outside the
@@ -403,9 +391,6 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 // 3.2 forbids writing beside it, is kept verbatim on p rather than placed, so
 // the hints never name two kinds of node.
 func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *statement.XML, doc provenance.Doc, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
-	if x == nil {
-		return nil, nil
-	}
 	nodeType, read, diags := TakeString(p, x.Node, "nodeType", definedNodeType, doc, owner, "xml")
 	if !read {
 		return nil, diags
