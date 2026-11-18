@@ -5209,7 +5209,7 @@ numeric bound no string instance, so each value bound written beside it is kept 
 `openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
 at it, one an inline `allOf` branch writes, and one beside an `allOf` whose inline principal it is,
 the same way ([`allof-inline-residue`](#allof-inline-residue)), both on the `Union` where the
-principal is a type list, and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+principal is a type list, where the flat spelling keeps them on its text variant, and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
 with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
 table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
 ([`type-arrays`](#type-arrays)).

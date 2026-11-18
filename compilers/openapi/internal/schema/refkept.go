@@ -172,7 +172,8 @@ func principalTwin(w *admissionReader, r refinement, e allOfBranch) bool {
 // textBoundsOf splits unhomed, the keywords a position keeps, into the value
 // bounds a node carrying a number as text holds none of, where numberText says
 // the node carries one, which it keeps as it keeps them written beside its
-// own keywords (keepTextBounds), and the rest.
+// own keywords (keepTextBounds), and the rest. A type list's are kept on its
+// Union, where the flat spelling keeps them on the variant carrying the text.
 func textBoundsOf(unhomed []string, numberText bool) (text, rest []string) {
 	if !numberText {
 		return nil, unhomed
