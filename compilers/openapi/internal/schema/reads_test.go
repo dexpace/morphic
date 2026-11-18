@@ -17,9 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/internal/harness/openapicases"
+	"github.com/dexpace/morphic/ir"
 )
 
 // readDisagreementClasses are the census sites, node kinds, keys and verdicts
@@ -71,9 +73,27 @@ func TestCensus_AgreesWithWhatTheBuildsRead(t *testing.T) {
 	}
 }
 
+// TestCensus_EdgesCompileAsTheyDid pins what the documents readEdges adds
+// compile to, which the census decides and the builds' reads must keep: the
+// empty pattern no variant holds is kept on the union, and the type an enum's
+// members all are values of says nothing the Enum does not.
+func TestCensus_EdgesCompileAsTheyDid(t *testing.T) {
+	t.Parallel()
+	doc, _ := schema.LowerSpec(t, string(readEdges()[0].Data))
+	pattern := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "EmptyPattern"))]
+	require.NotNil(t, pattern)
+	assert.Equal(t, ir.KindUnion, pattern.Kind())
+	assert.Contains(t, pattern.Common().Unmodeled, "openapi:pattern", "no variant holds the empty pattern")
+	enum, ok := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "EnumOfTypes"))].(*ir.Enum)
+	require.True(t, ok, "the members are of one kind")
+	assert.Equal(t, ir.PrimString, enum.ValueType)
+	assert.NotContains(t, enum.Unmodeled, "openapi:type", "every member is a value of the types")
+}
+
 // readEdges returns the documents of what reaches a census site no document
 // under testdata or core case does: an empty pattern beside a type list whose
-// string variant is a Scalar of its own.
+// string variant is a Scalar of its own, and an enum whose members are all
+// values of the several types beside it.
 func readEdges() []compilers.Source {
 	const spec = `openapi: 3.1.0
 info: {title: t, version: "1"}
@@ -81,6 +101,7 @@ paths: {}
 components:
   schemas:
     EmptyPattern: {type: [string, integer], format: x-text, pattern: ""}
+    EnumOfTypes: {type: [string, integer], enum: [a, b]}
 `
 	return []compilers.Source{{Path: "edges.yaml", Data: []byte(spec)}}
 }
