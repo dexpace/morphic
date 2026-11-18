@@ -153,3 +153,26 @@ func TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten(t *testing.T)
 	}
 	assert.ElementsMatch(t, []string{"/components/schemas/Flat", "/components/schemas/TwoEntries"}, warned)
 }
+
+// TestUnion_ANullBranchIsReadAgainstTheUnionPassedOver pins the anyOf a schema
+// elects over a body admitting an object or null, beside a oneOf of objects
+// alone: its branch naming null is dead, the passed-over oneOf keeping null
+// out of the rest, beside the allOf as on two entries; beside a body admitting
+// no null its string branch is dead too.
+func TestUnion_ANullBranchIsReadAgainstTheUnionPassedOver(t *testing.T) {
+	t.Parallel()
+	const unions = "oneOf: [{type: object}], anyOf: [{type: object, properties: {x: {type: string}}}, {$ref: '#/components/schemas/Null'}]"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    Null: {type: 'null'}
+    TN: {type: [object, 'null'], properties: {a: {type: string}}}
+    T: {type: object, properties: {a: {type: string}}}
+    Beside: {allOf: [{$ref: '#/components/schemas/TN'}], `+unions+`}
+    Two: {allOf: [{$ref: '#/components/schemas/TN'}, {oneOf: [{type: object}]}, {anyOf: [{type: object, properties: {x: {type: string}}}, {$ref: '#/components/schemas/Null'}]}]}
+    NoNull: {allOf: [{$ref: '#/components/schemas/T'}], anyOf: [{type: object, properties: {x: {type: string}}}, {type: string}]}
+`))
+	for _, name := range []string{"Beside", "Two", "NoNull"} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s distributes", name)
+		assert.Len(t, union.Variants, 1, "%s's second branch is dead", name)
+		assert.Contains(t, union.Unmodeled, "openapi:anyOf/1", name)
+	}
+}

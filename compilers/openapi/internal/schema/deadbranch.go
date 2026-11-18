@@ -96,9 +96,21 @@ func deadBranch(c lowering.Ctx, body, holder *statement.Schema, b *statement.Sta
 }
 
 // bodyAdmitsNull reports whether body may admit null by what it writes but the
-// union of holder, whose branches are read against it.
+// union of holder, whose branches are read against it. The union holder passes
+// over is a conjunct of that rest wherever it is written, keeping null out
+// where every branch does within the read's budget, as an entry writing it is
+// read (docs/compilers/openapi.md#union-beside-structure).
 func bodyAdmitsNull(c lowering.Ctx, body, holder *statement.Schema) bool {
-	return mayAdmitNull(c, c.Statements().Read(body), holder)
+	if !mayAdmitNull(c, c.Statements().Read(body), holder) {
+		return false
+	}
+	passed, _ := passedOver(c, body, holder)
+	if passed == nil {
+		return true
+	}
+	n := newNulls(c)
+	n.variants = true
+	return !n.branchesNull(passed).forbids(c) || n.conjuncts.Exhausted()
 }
 
 // deadBranchAt is one branch of u that dead marks, with where it is written.

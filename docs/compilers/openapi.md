@@ -4003,7 +4003,8 @@ under the nullable-inference policy as it selects, and wherever the IR holds it:
 null where it is or names a union one of whose branches does, as a `$ref` to `{type: 'null'}`, a
 `{type: [integer, 'null']}` or a further such union does, whose null lies on that variant's
 reference rather than on one to the union ([`union-null-variant`](#union-null-variant)), and the
-body admits it by all it writes but the union, its `allOf` entries among it. That read takes in at
+body admits it by all it writes but the union, its `allOf` entries among it and the union passed
+over for it, which admits null where one of its branches does, in every spelling. That read takes in at
 most 256 schemas, and a body or branch whose read passes them, what it read leaving null in, is
 read as one that may admit null. The bounds of
 [`allof-refinement`](#allof-refinement) cut short only what an election compares: a branch whose
@@ -4360,7 +4361,9 @@ judged as one whose branches declare shape.
   `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
   `e2e.TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs`,
   `e2e.TestElection_UnionsSharingNullAloneWithEachOtherDrawOneWarning`,
-  `e2e.TestElection_AUnionOfNullAloneBesideAnAllOfDrawsOneWarning`
+  `e2e.TestElection_AUnionOfNullAloneBesideAnAllOfDrawsOneWarning`,
+  `e2e.TestElection_ANullBranchIsReadAgainstTheUnionPassedOver`,
+  `schema.TestUnion_ANullBranchIsReadAgainstTheUnionPassedOver`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
   legal (#1806).
 
