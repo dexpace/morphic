@@ -1128,7 +1128,11 @@ it sees. Changes made together in one bump are listed together under it.
     position's node keeps the position's under `openapi:<keyword>` and the principal's under the
     entry's key, `openapi:allOf/<n>`, an object of those keywords alone, each with one report:
     `{allOf: [{type: string, minimum: 1}], minimum: 2}` holds `openapi:minimum: 2` and
-    `openapi:allOf/0: {"minimum": 1}`, where 1 stood on the entry's node `…/allOf/0`.
+    `openapi:allOf/0: {"minimum": 1}`, where 1 stood on the entry's node `…/allOf/0`. A principal
+    the position keeps whole under `openapi:allOf/<n>` holds every keyword of it that no field
+    reads, each once, and takes the reason those keywords share, else `degraded_lowering`: `{allOf:
+    [{type: string, minimum: 1, x-k: 1}], x-k: 2}` keeps it as `degraded_lowering`, where the
+    entry's own node kept `minimum` as `degraded_lowering` and `x-k` as `vendor_extension`.
 
   - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
     the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
