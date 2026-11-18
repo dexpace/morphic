@@ -39,8 +39,7 @@ func TestAllOfUnion_AUnionBesideARefSharingNoKindIsKeptLikeTheAllOfSpelling(t *t
 // TestAllOfRefine_ADynamicRefBesideTheAllOfMasksNoKind holds that a $dynamicRef
 // the position does not expand, written beside an allOf, admits every kind as
 // it does on an entry: the position is a use of what its conjuncts declare, not
-// a Model, and keeps the $dynamicRef. It stays behind the pending tag until
-// #2009 is fixed.
+// a Model, and keeps the $dynamicRef (GitHub #2009).
 func TestAllOfRefine_ADynamicRefBesideTheAllOfMasksNoKind(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
