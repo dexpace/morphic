@@ -3119,8 +3119,9 @@ nowhere to sit it would go nowhere at all: a release in which a losing branch's 
 changed would produce no change in the document, which a consumer diffing two versions reads as
 nothing having happened. The losing declaration is therefore kept verbatim, as the document wrote
 it, in `Unmodeled["openapi:conflicting-redeclaration<pointer>"]` under `degraded_lowering`, keyed by
-its own JSON Pointer so a field three branches type three incompatible ways keeps all three entries,
-and with the entry's `Provenance` locating that declaration rather than the merged property. The
+its own JSON Pointer so a field three branches type three incompatible ways keeps an entry for each
+of the two that lose, and with the entry's `Provenance` locating that declaration rather than the
+merged property. The
 source node is kept rather than the IR values the merge dropped:
 [unmodeled](../ir/unmodeled.md) defines an `Unmodeled` value as the source construct, a
 `TypeID` is a compiler-minted registry ID that `irverify`'s reference walk cannot see dangle inside
