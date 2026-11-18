@@ -2433,7 +2433,9 @@ spelling keeps it, and an object bound of a `type` list's object variant as
 [`type-arrays`](#type-arrays) says. The conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
-as the same union beside the `allOf` is. Where the node is a `Union`, a `discriminator` the
+as the same union beside the `allOf` is, and so are the unions conjuncts beside a principal writing
+none write, judged together as two beside the `allOf` are: each kept as `degraded_lowering` where
+one of them declares shape, and as validation logic where none does. Where the node is a `Union`, a `discriminator` the
 conjunct writes is the node's, so the extensions and keys OpenAPI defines for no Discriminator
 Object are kept on it, under `openapi:discriminator/<key>` at the conjunct's pointer, as one
 written at the position is ([`vendor-extensions`](#vendor-extensions)); any other node keeps the
@@ -2520,7 +2522,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 - Cases: `allof-refinement`, `allof-entry-infers-array`, `union-joined-value-sets`,
   `kept-ref-unrenderable`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
-- Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+- Tests: `e2e.TestElection_TwoUnionsKeptBesideABodyAdmittingNullKeepTheirReasonEverywhere`,
+  `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
   `e2e.TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal`,
   `e2e.TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder`,
   `schema.TestRefinementUndecided_ValueSetsAreTypedByTheMembersTheyShare`,

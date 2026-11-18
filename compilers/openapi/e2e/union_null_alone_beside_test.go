@@ -116,3 +116,59 @@ func requireNullAloneUnion(t *testing.T, site bothKeywordsSite, version, keyword
 	require.True(t, ok, "the position is the Model its body gives")
 	assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:" + keyword: ir.ReasonDegradedLowering}, keptOn(m))
 }
+
+// TestElection_TwoUnionsKeptBesideABodyAdmittingNullKeepTheirReasonEverywhere
+// holds that a oneOf of an object and null and an anyOf of null alone over a
+// $ref to an object or null, which admit null alone together, lower alike
+// beside the allOf, on one entry, on two in either order and one allOf deeper,
+// in either order of the branches and the components: a use of the body
+// keeping both unions as degraded_lowering, as beside the allOf, the oneOf
+// declaring shape for the two.
+func TestElection_TwoUnionsKeptBesideABodyAdmittingNullKeepTheirReasonEverywhere(t *testing.T) {
+	t.Parallel()
+	const body = "{$ref: '#/components/schemas/TN'}"
+	sites := []bothKeywordsSite{
+		{"component", "/components/schemas/P", func(version, schema string, reversed bool) string {
+			return bothKeywordsDoc(version, "", reversed, "TN: {type: [object, 'null'], properties: {a: {type: string}}}", "P: "+schema)
+		}},
+		{"property", "/components/schemas/C/properties/p", func(version, schema string, reversed bool) string {
+			return bothKeywordsDoc(version, "", reversed, "TN: {type: [object, 'null'], properties: {a: {type: string}}}",
+				"C: {type: object, properties: {p: "+schema+"}}")
+		}},
+	}
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		for _, site := range sites {
+			for _, reversed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/%t", version, site.name, reversed), func(t *testing.T) {
+					t.Parallel()
+					one, anyOf := "[{type: object, properties: {p: {type: string}}}, {type: 'null'}]", "[{type: 'null'}]"
+					if reversed {
+						one = reversedBranches(t, one)
+					}
+					doc, _ := compileSpellingsAlike(t, site, version, unionPairSpellings(body, one, anyOf))
+					assert.Equal(t, map[string]ir.UnmodeledReason{
+						"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
+					}, keptAtUse(t, doc, site), "the position keeps both unions")
+				})
+			}
+		}
+	}
+}
+
+// keptAtUse is what the use of the body at site keeps by reason: the node a
+// component stands at, or the property a model's carrier holds, a use of a
+// component keeping on its carrier what no node of its own holds.
+func keptAtUse(t *testing.T, doc *ir.Document, site bothKeywordsSite) map[string]ir.UnmodeledReason {
+	t.Helper()
+	if site.name != "property" {
+		return keptOn(kindNode(t, doc, entryPositionID(site.at)))
+	}
+	model, ok := kindNode(t, doc, componentID("C")).(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, model.Properties, 1)
+	out := map[string]ir.UnmodeledReason{}
+	for key, kept := range model.Properties[0].Unmodeled {
+		out[key] = kept.Reason
+	}
+	return out
+}

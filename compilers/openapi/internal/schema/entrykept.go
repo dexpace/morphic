@@ -403,15 +403,44 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 // i of comp, the allOf s writes, is kept under, as the union beside s would
 // be: validation logic where its branches declare no shape against s, and
 // degraded where they do or the union shares no kind with the rest
-// (docs/compilers/openapi.md#union-beside-structure).
+// (docs/compilers/openapi.md#union-beside-structure). Where s refines to no
+// union, each kept union is judged with the others, as beside s (keptUnion).
 func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
 	holder := comp.branches[i].schema.Schema
 	choice := holder.ChoiceKeywords()
-	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, choice.OneOf, choice.AnyOf) ||
+	sets := [][]statement.Sub{choice.OneOf, choice.AnyOf}
+	if refinesToNoUnion(c, s) {
+		sets = entryUnionSets(comp)
+	}
+	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, sets...) ||
 		keptWithElected(c, s, comp.pointer) || pairedWithNullOnly(c, s) {
 		return ir.ReasonDegradedLowering
 	}
 	return ir.ReasonValidationOnly
+}
+
+// refinesToNoUnion reports whether s, writing no union, refines to a principal
+// writing none, so every union its entries write is kept beside it.
+func refinesToNoUnion(c lowering.Ctx, s *statement.Schema) bool {
+	d := decisionOf(c, s)
+	if !d.refines || declaresUnion(s) {
+		return false
+	}
+	return d.principalAt < 0 || !declaresUnion(branchStatement(c, s, d.principalAt).Schema)
+}
+
+// entryUnionSets returns the branch sets of every union comp's inline entries
+// write, in order.
+func entryUnionSets(comp allOfComposition) [][]statement.Sub {
+	var sets [][]statement.Sub
+	for _, e := range comp.branches {
+		if e.schema.Ref != nil {
+			continue
+		}
+		choice := e.schema.ChoiceKeywords()
+		sets = append(sets, choice.OneOf, choice.AnyOf)
+	}
+	return sets
 }
 
 // pairedWithNullOnly reports whether s refines to the union one inline entry
