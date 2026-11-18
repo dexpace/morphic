@@ -29,65 +29,81 @@ import (
 // which a build reading the key lowers below the key's pointer.
 var applicators = []string{"properties", "patternProperties", "additionalProperties", "items", "prefixItems", "enum"}
 
-// TestUnread_NoKeyIsBothReadAndKept holds each node of the component schemas
-// of every document under testdata and every core case to keeping only what
-// no build read: no key holding schemas that a node keeps verbatim has a node
-// or a property built from what it holds. A builder omitting a key it read
-// would keep a key it typed.
-func TestUnread_NoKeyIsBothReadAndKept(t *testing.T) {
+// TestUnread_KeepsWhatNoBuildRead holds the keeping of what a build did not
+// read over the component schemas of every document under testdata, of the
+// edges readEdges writes and of every core case, each lowered once for both
+// of its checks, as lowering is nearly all their cost.
+func TestUnread_KeepsWhatNoBuildRead(t *testing.T) {
 	t.Parallel()
-	for _, doc := range readInputs(t) {
-		built := map[string]bool{}
-		for _, td := range doc.Types {
-			built[string(td.Common().Provenance.Pointer)] = true
-			if m, ok := td.(*ir.Model); ok {
-				for _, p := range m.Properties {
-					built[string(p.Provenance.Pointer)] = true
-				}
+	inputs := readInputs(t)
+	t.Run("no key is both read and kept", func(t *testing.T) {
+		for _, in := range inputs {
+			assertNoKeyIsBothReadAndKept(t, in.doc)
+		}
+	})
+	t.Run("every key is read, handled or kept", func(t *testing.T) {
+		domain := schema.CensusDomain()
+		for _, in := range inputs {
+			for _, js := range in.statements {
+				assertEveryKeyIsReadHandledOrKept(t, js.Schema, domain)
 			}
 		}
-		for id, td := range doc.Types {
-			for _, k := range applicators {
-				entry, kept := td.Common().Unmodeled["openapi:"+k]
-				if !kept {
-					continue
-				}
-				prefix := string(entry.Provenance.Pointer) + "/"
-				for at := range built {
-					assert.False(t, strings.HasPrefix(at, prefix), "%s keeps %s and %s was built from it", id, k, at)
-				}
+	})
+}
+
+// assertNoKeyIsBothReadAndKept holds each node of doc to keeping only what no
+// build read: no key holding schemas that a node keeps verbatim has a node or
+// a property built from what it holds. A builder omitting a key it read would
+// keep a key it typed.
+func assertNoKeyIsBothReadAndKept(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	built := map[string]bool{}
+	for _, td := range doc.Types {
+		built[string(td.Common().Provenance.Pointer)] = true
+		if m, ok := td.(*ir.Model); ok {
+			for _, p := range m.Properties {
+				built[string(p.Provenance.Pointer)] = true
+			}
+		}
+	}
+	for id, td := range doc.Types {
+		for _, k := range applicators {
+			entry, kept := td.Common().Unmodeled["openapi:"+k]
+			if !kept {
+				continue
+			}
+			prefix := string(entry.Provenance.Pointer) + "/"
+			for at := range built {
+				assert.False(t, strings.HasPrefix(at, prefix), "%s keeps %s and %s was built from it", id, k, at)
 			}
 		}
 	}
 }
 
-// TestUnread_EveryKeyIsReadHandledOrKept holds the keeping of what a build
-// did not read to every key of the census's domain each component schema of
-// those documents writes: kept unless read or handled, in the domain's order.
-func TestUnread_EveryKeyIsReadHandledOrKept(t *testing.T) {
-	t.Parallel()
-	domain := schema.CensusDomain()
-	for _, s := range readStatements(t) {
-		var written []string
-		for _, k := range domain {
-			if _, read := s.Key(k); read {
-				written = append(written, k)
-			}
+// assertEveryKeyIsReadHandledOrKept holds the keeping of what a build did not
+// read to every key of domain, the census's, that s writes: kept unless read
+// or handled, in the domain's order.
+func assertEveryKeyIsReadHandledOrKept(t *testing.T, s *statement.Schema, domain []string) {
+	t.Helper()
+	var written []string
+	for _, k := range domain {
+		if _, read := s.Key(k); read {
+			written = append(written, k)
 		}
-		assert.Equal(t, written, nilIfEmpty(schema.UnreadKeys(s, nil, nil)), "%s: nothing read keeps every key", s.At.Pointer)
-		assert.Empty(t, schema.UnreadKeys(s, domain, nil), "%s: everything read keeps nothing", s.At.Pointer)
-		assert.Empty(t, schema.UnreadKeys(s, nil, domain), "%s: everything handled keeps nothing", s.At.Pointer)
-		even := make([]string, 0, len(written))
-		var odd []string
-		for i, k := range written {
-			if i%2 == 0 {
-				even = append(even, k)
-			} else {
-				odd = append(odd, k)
-			}
-		}
-		assert.Equal(t, odd, nilIfEmpty(schema.UnreadKeys(s, even, nil)), "%s: a key read is the one not kept", s.At.Pointer)
 	}
+	assert.Equal(t, written, nilIfEmpty(schema.UnreadKeys(s, nil, nil)), "%s: nothing read keeps every key", s.At.Pointer)
+	assert.Empty(t, schema.UnreadKeys(s, domain, nil), "%s: everything read keeps nothing", s.At.Pointer)
+	assert.Empty(t, schema.UnreadKeys(s, nil, domain), "%s: everything handled keeps nothing", s.At.Pointer)
+	even := make([]string, 0, len(written))
+	var odd []string
+	for i, k := range written {
+		if i%2 == 0 {
+			even = append(even, k)
+		} else {
+			odd = append(odd, k)
+		}
+	}
+	assert.Equal(t, odd, nilIfEmpty(schema.UnreadKeys(s, even, nil)), "%s: a key read is the one not kept", s.At.Pointer)
 }
 
 // keyValues writes a value for each key of the census's domain beside a target.
@@ -141,29 +157,22 @@ func nilIfEmpty(keys []string) []string {
 	return keys
 }
 
+// lowered is a document lowered once: its IR and the statements of its
+// component schemas.
+type lowered struct {
+	doc        *ir.Document
+	statements []*statement.Statement
+}
+
 // readInputs returns the documents the census's replacement is held to: the
 // component schemas of every document under testdata, of the edges readEdges
 // writes and of every core case, lowered.
-func readInputs(t *testing.T) []*ir.Document {
+func readInputs(t *testing.T) []lowered {
 	t.Helper()
-	var out []*ir.Document
+	var out []lowered
 	for _, src := range readSources(t) {
-		if doc, _, loaded := schema.LowerSource(t, src); loaded {
-			out = append(out, doc)
-		}
-	}
-	return out
-}
-
-// readStatements returns the component statements of those documents.
-func readStatements(t *testing.T) []*statement.Schema {
-	t.Helper()
-	var out []*statement.Schema
-	for _, src := range readSources(t) {
-		if _, statements, loaded := schema.LowerSource(t, src); loaded {
-			for _, js := range statements {
-				out = append(out, js.Schema)
-			}
+		if doc, statements, loaded := schema.LowerSource(t, src); loaded {
+			out = append(out, lowered{doc: doc, statements: statements})
 		}
 	}
 	return out
