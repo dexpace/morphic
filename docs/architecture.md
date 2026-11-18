@@ -709,7 +709,9 @@ no row, or a row naming no package, fails `TestLayers_EveryCompilerPackageHasOne
 
 In `internal/schema` a position is lowered from three readings, each made once a run: what its
 schema writes (`statement.Table`), what that admits (`admissionOf`), and which conjunct of its
-`allOf` decides it (`decisionOf`).
+`allOf` decides it (`decisionOf`). The build of its node then says which keywords it read, of those
+whose home the node's kind decides (`keySet`), and the node keeps the rest verbatim under
+`Unmodeled` (`keepUnread`).
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
