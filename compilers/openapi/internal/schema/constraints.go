@@ -283,17 +283,17 @@ func isCount(keyword string) bool {
 func countOf(s *statement.Schema, keyword string) *int64 {
 	switch keyword {
 	case "minLength":
-		return textIn(s).MinLength
+		return s.TextKeywords().MinLength
 	case "maxLength":
-		return textIn(s).MaxLength
+		return s.TextKeywords().MaxLength
 	case "minItems":
-		return arrayIn(s).MinItems
+		return s.ArrayKeywords().MinItems
 	case "maxItems":
-		return arrayIn(s).MaxItems
+		return s.ArrayKeywords().MaxItems
 	case "minProperties":
-		return objectIn(s).MinProperties
+		return s.ObjectKeywords().MinProperties
 	default:
-		return objectIn(s).MaxProperties
+		return s.ObjectKeywords().MaxProperties
 	}
 }
 
@@ -363,10 +363,10 @@ func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
 	}
 	cons := &ir.Constraints{UniqueItems: referenceHolds(s, "uniqueItems")}
 	if referenceHolds(s, "minItems") {
-		cons.MinItems = arrayIn(s).MinItems
+		cons.MinItems = s.ArrayKeywords().MinItems
 	}
 	if referenceHolds(s, "maxItems") {
-		cons.MaxItems = arrayIn(s).MaxItems
+		cons.MaxItems = s.ArrayKeywords().MaxItems
 	}
 	return cons
 }
@@ -377,7 +377,7 @@ func heldCollectionBounds(s *statement.Schema) *ir.Constraints {
 // (annotation.CountIsExact), and a false uniqueItems, which a plain bool cannot
 // tell from unset and which would stop an alias being a decorator.
 func referenceHolds(s *statement.Schema, keyword string) bool {
-	array := arrayIn(s)
+	array := s.ArrayKeywords()
 	switch keyword {
 	case "minItems":
 		return annotation.CountIsExact(s, keyword, array.MinItems)

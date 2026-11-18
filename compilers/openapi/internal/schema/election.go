@@ -19,7 +19,7 @@ import (
 // one, so it never decides, and where nothing names a kind no branch does. No
 // tie goes by the order written: untie breaks one, and words neither within
 // the other elect none.
-func (w *admission) elect(conjuncts []conjunct, refs []*conjunct) *conjunct {
+func (w *admissionReader) elect(conjuncts []conjunct, refs []*conjunct) *conjunct {
 	for i := range conjuncts {
 		if w.narrowsAll(conjuncts, i, refs) {
 			return untie(w, conjuncts, strongest(narrowingSets(conjuncts, i, refs)))
@@ -58,7 +58,7 @@ func sameValues(a, b admitted) bool {
 
 // mostWithin returns the conjuncts naming a kind that lie within the most
 // conjuncts, in the order written.
-func mostWithin(w *admission, conjuncts []conjunct) []*conjunct {
+func mostWithin(w *admissionReader, conjuncts []conjunct) []*conjunct {
 	var tied []*conjunct
 	most := 0
 	for i := range conjuncts {
@@ -87,7 +87,7 @@ func strongest(tied []*conjunct) []*conjunct {
 
 // admitAlike reports whether each of tied lies within every other: what they admit
 // is one, so far as a reading holds it.
-func admitAlike(w *admission, tied []*conjunct) bool {
+func admitAlike(w *admissionReader, tied []*conjunct) bool {
 	first := tied[0].read
 	return !slices.ContainsFunc(tied[1:], func(cj *conjunct) bool {
 		return !w.within(first, cj.read) || !w.within(cj.read, first)
@@ -100,7 +100,7 @@ func admitAlike(w *admission, tied []*conjunct) bool {
 // again, else none, as no rule ranks their branches, and the keywords beside
 // the allOf decide (docs/compilers/openapi.md#allof-refinement). A tie of no
 // conjunct leaves those keywords too.
-func untie(w *admission, conjuncts []conjunct, tied []*conjunct) *conjunct {
+func untie(w *admissionReader, conjuncts []conjunct, tied []*conjunct) *conjunct {
 	switch {
 	case len(tied) == 0:
 		return &conjuncts[0]
@@ -116,10 +116,10 @@ func untie(w *admission, conjuncts []conjunct, tied []*conjunct) *conjunct {
 }
 
 // writtenAlike reports whether each of tied is an allOf branch written as the
-// first is (admission.sameText): one schema written several times.
-func writtenAlike(w *admission, tied []*conjunct) bool {
+// first is (sameText): one schema written several times.
+func writtenAlike(w *admissionReader, tied []*conjunct) bool {
 	return !slices.ContainsFunc(tied, func(cj *conjunct) bool {
-		return cj.branch == nil || !w.sameText(tied[0].branch.schema, cj.branch.schema)
+		return cj.branch == nil || !sameText(w.c, tied[0].branch.schema, cj.branch.schema)
 	})
 }
 
@@ -134,7 +134,7 @@ var principalKeywords = slices.Concat([]string{"items", "prefixItems", "addition
 // alike, one is elected, and where none does, none is, and beside, the
 // keywords beside the allOf, decide. Where nothing tells them apart, beside
 // stands if tied, else the least text (leastText).
-func untieWords(w *admission, beside *conjunct, tied []*conjunct) *conjunct {
+func untieWords(w *admissionReader, beside *conjunct, tied []*conjunct) *conjunct {
 	most := slices.MaxFunc(tied, func(a, b *conjunct) int {
 		return countKeys(a.schema, principalKeywords) - countKeys(b.schema, principalKeywords)
 	})
@@ -172,10 +172,10 @@ func writesWithin(a, b *statement.Schema) bool {
 // node stands, and the text, its keys sorted, reads no order the branches are
 // written in. Of a schema written twice, the first copy stands for both, the
 // one place order shows, and only in that node's pointer.
-func leastText(w *admission, tied []*conjunct) *conjunct {
+func leastText(w *admissionReader, tied []*conjunct) *conjunct {
 	best := tied[0]
 	for _, cj := range tied[1:] {
-		if bytes.Compare(w.text(cj.branch.schema), w.text(best.branch.schema)) < 0 {
+		if bytes.Compare(writtenText(w.c, cj.branch.schema), writtenText(w.c, best.branch.schema)) < 0 {
 			best = cj
 		}
 	}
@@ -187,7 +187,7 @@ func leastText(w *admission, tied []*conjunct) *conjunct {
 // writing it: a $ref's name stays put under edits to what it names, so no
 // order written decides. Of a $ref written twice alike, the first copy stands
 // for both, and keepsAtOutcome keeps neither.
-func narrowestRef(w *admission, conjuncts []conjunct, refs []*conjunct) *conjunct {
+func narrowestRef(w *admissionReader, conjuncts []conjunct, refs []*conjunct) *conjunct {
 	best, most := refs[0], w.conesOver(conjuncts, refs[0].read)
 	for _, ref := range refs[1:] {
 		n := w.conesOver(conjuncts, ref.read)
@@ -200,11 +200,11 @@ func narrowestRef(w *admission, conjuncts []conjunct, refs []*conjunct) *conjunc
 
 // refBefore reports whether the $ref conjunct a goes before b where both lie
 // within as many conjuncts: by reference text, then by the text of the entry.
-func refBefore(w *admission, a, b *conjunct) bool {
+func refBefore(w *admissionReader, a, b *conjunct) bool {
 	if order := strings.Compare(refText(a), refText(b)); order != 0 {
 		return order < 0
 	}
-	return bytes.Compare(w.text(a.branch.schema), w.text(b.branch.schema)) < 0
+	return bytes.Compare(writtenText(w.c, a.branch.schema), writtenText(w.c, b.branch.schema)) < 0
 }
 
 // refText is the reference the $ref conjunct cj writes, as written.
@@ -218,7 +218,7 @@ func refText(cj *conjunct) string {
 // $ref's own is not. The keywords beside the allOf are one where they write an
 // enum or a const (allOfDecides). No set is compared with itself, which answers
 // nothing and walks the whole set.
-func (w *admission) narrowsAll(conjuncts []conjunct, i int, refs []*conjunct) bool {
+func (w *admissionReader) narrowsAll(conjuncts []conjunct, i int, refs []*conjunct) bool {
 	cj := &conjuncts[i]
 	if !cj.read.fixed || slices.Contains(refs, cj) ||
 		slices.ContainsFunc(refs, func(ref *conjunct) bool { return w.setWithin(ref.read, cj.read) }) {
@@ -233,7 +233,7 @@ func (w *admission) narrowsAll(conjuncts []conjunct, i int, refs []*conjunct) bo
 }
 
 // setWithin is a.valuesWithin(b), telling walked how many members it looked up.
-func (w *admission) setWithin(a, b admitted) bool {
+func (w *admissionReader) setWithin(a, b admitted) bool {
 	within, walked := a.walkWithin(b)
 	if w.walked != nil {
 		w.walked(walked)
@@ -242,7 +242,7 @@ func (w *admission) setWithin(a, b admitted) bool {
 }
 
 // conesOver counts the conjuncts what read admits lies within.
-func (w *admission) conesOver(conjuncts []conjunct, read admitted) int {
+func (w *admissionReader) conesOver(conjuncts []conjunct, read admitted) int {
 	n := 0
 	for j := range conjuncts {
 		if w.within(read, conjuncts[j].read) {

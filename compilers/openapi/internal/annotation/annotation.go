@@ -331,7 +331,7 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 // dialect spells otherwise (Site.Dialect), and closure is Site.Closure.
 func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect, closure bool) (Set, []ir.Diagnostic) {
 	var out Set
-	out.XML = XMLHints(xmlIn(s))
+	out.XML = XMLHints(s.XML())
 
 	examples, exDiags := schemaExamplesAt(s, pointer, doc)
 	out.Examples = examples
@@ -359,7 +359,7 @@ func readLocal(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc
 // (applyNodeType). discriminator says whether s's discriminator is read.
 func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
-	x := xmlIn(s)
+	x := s.XML()
 	xmlTaken, diags := applyNodeType(&out, hints, x, doc, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
@@ -375,10 +375,10 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 	if x != nil {
 		subs[0].unknown, subs[0].node, subs[0].ext = x.Unknown, x.Node, x.Extensions
 	}
-	if d := discriminatorIn(s); d != nil {
+	if d := s.Discriminator(); d != nil {
 		subs[1].unknown, subs[1].node, subs[1].ext = d.Unknown, d.Node, d.Extensions
 	}
-	if e := externalDocsIn(s); e != nil {
+	if e := s.ExternalDocs(); e != nil {
 		subs[2].unknown, subs[2].node, subs[2].ext = e.Unknown, e.Node, e.Extensions
 	}
 	for _, sub := range subs {
@@ -605,52 +605,4 @@ func extensionsIn(s *statement.Schema) []statement.Extension {
 		return nil
 	}
 	return s.Extensions
-}
-
-// arrayIn returns what s says of an array, nothing for a nil s.
-func arrayIn(s *statement.Schema) statement.Array {
-	if s == nil || s.Array == nil {
-		return statement.Array{}
-	}
-	return *s.Array
-}
-
-// objectIn returns what s says of an object, nothing for a nil s.
-func objectIn(s *statement.Schema) statement.Object {
-	if s == nil || s.Object == nil {
-		return statement.Object{}
-	}
-	return *s.Object
-}
-
-// logicIn returns what s's in-place applicators say, nothing for a nil s.
-func logicIn(s *statement.Schema) statement.Logic {
-	if s == nil || s.Logic == nil {
-		return statement.Logic{}
-	}
-	return *s.Logic
-}
-
-// xmlIn returns the xml object s writes, nil for none.
-func xmlIn(s *statement.Schema) *statement.XML {
-	if s == nil || s.Notes == nil {
-		return nil
-	}
-	return s.Notes.XML
-}
-
-// externalDocsIn returns the externalDocs object s writes, nil for none.
-func externalDocsIn(s *statement.Schema) *statement.ExternalDocs {
-	if s == nil || s.Notes == nil {
-		return nil
-	}
-	return s.Notes.ExternalDocs
-}
-
-// discriminatorIn returns the discriminator s writes, nil for none.
-func discriminatorIn(s *statement.Schema) *statement.Discriminator {
-	if s == nil || s.Object == nil {
-		return nil
-	}
-	return s.Object.Discriminator
 }

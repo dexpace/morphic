@@ -108,7 +108,7 @@ const (
 // unionForm is the form of a conjunct whose keywords s writes, its unions
 // among them.
 func unionForm(s *statement.Schema) conjunctForm {
-	switch choice := choiceIn(s); {
+	switch choice := s.ChoiceKeywords(); {
 	case len(choice.OneOf) > 0:
 		return formOneOf
 	case len(choice.AnyOf) > 0:
@@ -249,7 +249,7 @@ func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
 	p := at.Pointer
 	if p.Parent().LastToken() == "properties" {
 		owner := c.Statements().At(bind.Position{Doc: at.Doc, Pointer: p.Parent().Parent()})
-		return owner.Truth == statement.Stated && slices.ContainsFunc(objectIn(owner.Schema).Properties, func(sub statement.Sub) bool {
+		return owner.Truth == statement.Stated && slices.ContainsFunc(owner.ObjectKeywords().Properties, func(sub statement.Sub) bool {
 			return sub.Name == p.LastToken() && c.Statements().Sub(sub).Schema == s
 		})
 	}
@@ -292,7 +292,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if !refinableBranches(comp) {
 		return decision{}
 	}
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	// The decision is remembered by s alone, so s is read in its own
 	// document's dialect, never in that of the reader asking first.
 	w.nullable = definesNullableAt(c, c.Statements().Read(s))
@@ -340,7 +340,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 // was elected: beaten by a $ref principal, outside the value set elected for
 // conjuncts that contradict one another, or, where value sets sharing no
 // member leave no conjunct the principal (undecided), apart.
-func markBeaten(w *admission, votes []refVote, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
+func markBeaten(w *admissionReader, votes []refVote, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
 	for _, cj := range electable {
 		switch {
 		case undecided:
@@ -361,7 +361,7 @@ func markBeaten(w *admission, votes []refVote, electable []*conjunct, principal 
 // competing keywords elect (competingSet), so it lowers alike beside the allOf
 // and on an entry; one that keyword leaves none either, as `enum: []`, is none
 // to lower: the composition reports it.
-func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjunct {
+func setElected(w *admissionReader, s *statement.Schema, conjuncts []conjunct) *conjunct {
 	var sets []*conjunct
 	for i := range conjuncts {
 		cj := &conjuncts[i]
@@ -370,7 +370,7 @@ func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjun
 			bs = cj.branch.schema.Schema
 		}
 		inline := cj.branch == nil || cj.branch.schema.Ref == nil
-		if !inline || !enumWritten(bs) && constIn(bs) == nil {
+		if !inline || !enumWritten(bs) && bs.Const() == nil {
 			continue
 		}
 		if !cj.read.reachable() {
@@ -395,11 +395,11 @@ func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjun
 // competingSet is what the value set s writes admits read as the election of
 // competing keywords lowers it, its `const` before its `enum`, each alone
 // (docs/compilers/openapi.md#competing-keywords).
-func competingSet(w *admission, s *statement.Schema) admitted {
-	if constant := constIn(s); constant != nil {
+func competingSet(w *admissionReader, s *statement.Schema) admitted {
+	if constant := s.Const(); constant != nil {
 		return w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant})
 	}
-	return w.valueSet(valueSetOf{s, "enum"}, enumIn(s))
+	return w.valueSet(valueSetOf{s, "enum"}, s.Enum())
 }
 
 // restKinds returns the kinds s lowers to with the union it writes beside
@@ -407,7 +407,7 @@ func competingSet(w *admission, s *statement.Schema) admitted {
 // its own keywords and comp's entries declare, else claim, as the run's
 // admission settles a statement's (settleKinds).
 func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kindSet, bool) {
-	rest := reading{firm: declaredInstanceTypes(s) & valueKinds(c, s), claims: claimedKinds(c, s)}
+	rest := admission{firm: declaredInstanceTypes(s) & valueKinds(c, s), claims: claimedKinds(c, s)}
 	for _, e := range comp.branches {
 		rest.conjoinKinds(admissionOf(c, e.schema))
 	}
@@ -503,7 +503,7 @@ func refinableBranches(comp allOfComposition) bool {
 // own keywords, as on an inline branch. A union sharing no kind with the rest
 // is left out, which the second result reports. A wrapper's own keywords are
 // read alone: its entries are conjuncts of their own.
-func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
+func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
 	claims := inferredClaims(w.c, s)
 	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s) || claimsAll(w.c, s, claims), at: -1}
@@ -562,7 +562,7 @@ func claimsAll(c lowering.Ctx, s *statement.Schema, claims kindSet) bool {
 // keywords and the oneOf and anyOf it writes, whose branches name the kinds it
 // admits. Its allOf is read apart, since its entries are conjuncts of their
 // own.
-func inlineConjunct(w *admission, bs *statement.Schema) admitted {
+func inlineConjunct(w *admissionReader, bs *statement.Schema) admitted {
 	read := w.written(bs, w.nullable)
 	if declaresUnion(bs) {
 		read = read.and(unionsIn(w, bs))
@@ -572,9 +572,9 @@ func inlineConjunct(w *admission, bs *statement.Schema) admitted {
 
 // unionsIn is what an instance of each oneOf and anyOf s writes admits
 // together, any of a union's branches, as w reads them.
-func unionsIn(w *admission, s *statement.Schema) admitted {
+func unionsIn(w *admissionReader, s *statement.Schema) admitted {
 	read := admitted{kinds: kindAny}
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
 		if len(branches) > 0 {
 			read = read.and(w.union(branches))
@@ -593,7 +593,7 @@ func nullIdiom(c lowering.Ctx, s *statement.Schema) bool {
 
 // saysKind reports whether s writes what kind of value it admits.
 func saysKind(s *statement.Schema) bool {
-	return writesType(s) || enumWritten(s) || constIn(s) != nil
+	return writesType(s) || enumWritten(s) || s.Const() != nil
 }
 
 // disjoint reports whether the conjuncts share no value. A null they all admit

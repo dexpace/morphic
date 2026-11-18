@@ -129,7 +129,7 @@ func instanceWords(t kindSet) string {
 // constrains objects and admits a string. A word no dialect defines says
 // nothing either: load reports it, so it is no conjunct's to contradict another.
 func declaredInstanceTypes(s *statement.Schema) kindSet {
-	declared := kindsIn(s)
+	declared := s.Types()
 	if len(declared) == 0 {
 		return anyInstance
 	}

@@ -31,12 +31,12 @@ var shapelessKeywords = slices.Concat(
 
 // bodyReading is what a union's branches are judged against: what the body's
 // own keywords and its allOf admit, its unions apart, and what it declares of
-// its properties and elements, read once a branch nests a claim. One admission
+// its properties and elements, read once a branch nests a claim. One admissionReader
 // reads all of it, so a body's branches share one budget, and each place they
 // restate is read once, so repeating a restatement reads no more of the body.
 // What each branch writes is still read within it, an enum's members included.
 type bodyReading struct {
-	w     admission
+	w     admissionReader
 	body  *statement.Schema
 	held  admitted
 	decls *declarationSet
@@ -48,7 +48,7 @@ type bodyReading struct {
 // readBody reads s, the schema writing a union, for its branches to be judged
 // against.
 func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
-	r := &bodyReading{w: newAdmission(c), body: s}
+	r := &bodyReading{w: newAdmissionReader(c), body: s}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	for _, b := range conjunctsIn(c, s) {
 		r.held = r.held.and(lowered(&r.w, b))
@@ -61,7 +61,7 @@ func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 // whole as readBody reads it. It spends a budget of its own, so what it reads
 // the whole reading does not pay for.
 func readOwnBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
-	r := &bodyReading{w: newAdmission(c), body: s, own: true}
+	r := &bodyReading{w: newAdmissionReader(c), body: s, own: true}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	return r
 }
@@ -75,7 +75,7 @@ func (r *bodyReading) declared() declarationSet {
 		if r.own {
 			d.add(r.w.c.Statements(), r.body)
 		} else {
-			d = r.w.declarations(r.body)
+			d = declarationsOf(&r.w, r.body)
 		}
 		r.decls = &d
 	}
@@ -90,7 +90,7 @@ func (r *bodyReading) declared() declarationSet {
 // declares shape, so the body is read only once an inline branch needs it, and
 // a reading its budget cut short says nothing, so it counts as one that does.
 func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	return setsDeclareShape(c, s, choice.OneOf, choice.AnyOf)
 }
 
@@ -195,7 +195,7 @@ type nested struct {
 // off a stack, so the walk adds no recursion cycle, and it visits the branch's
 // tree once: bounded by the size of a tree the load phase holds
 // (docs/compilers/openapi.md#source-budgets), while what each restates is read
-// within admission's budget. Comparing a nested schema's text renders it again
+// within the admissionReader's budget. Comparing a nested schema's text renders it again
 // at each level, so restating one d levels deep renders about d squared nodes.
 func (r *bodyReading) restates(top claim) bool {
 	claims := []claim{top}
@@ -244,7 +244,7 @@ func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 			conjuncts = c.written.AllOf
 		case k.Name == "properties":
 			decls := r.declarationsAt(c)
-			for _, p := range objectIn(c.written.Schema).Properties {
+			for _, p := range c.written.ObjectKeywords().Properties {
 				inner = append(inner, nested{written: t.Sub(p), at: decls.property(t, p.Name)})
 			}
 		case k.Name == "items":
@@ -252,7 +252,7 @@ func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
-			inner = append(inner, nested{written: t.Sub(arrayIn(c.written.Schema).Items), at: r.declarationsAt(c).items})
+			inner = append(inner, nested{written: t.Sub(c.written.ArrayKeywords().Items), at: r.declarationsAt(c).items})
 		case k.Name == refKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false
@@ -271,7 +271,7 @@ func (r *bodyReading) declarationsAt(c claim) declarationSet {
 	if c.at == nil {
 		return r.declared()
 	}
-	return r.w.innerAt(c.at)
+	return c.at.declares(&r.w)
 }
 
 // claimOf returns the claim n makes, and false for open where n says nothing
@@ -279,7 +279,7 @@ func (r *bodyReading) declarationsAt(c claim) declarationSet {
 // for, a declaration written alike against one base says the same, and
 // declarations admitting nothing together leave nothing to say. ok is false
 // where the body declares nothing there, so n is new shape. What n restates is
-// what its declarations say together, each read as admission reads it, the
+// what its declarations say together, each read as an admissionReader reads it, the
 // keywords beside a $ref conjoining with it at every version
 // (docs/compilers/openapi.md#ref-use-site).
 func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
@@ -287,12 +287,12 @@ func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
 		return claim{}, false, false
 	}
 	alike := func(d *statement.Statement) bool {
-		return r.w.sameText(d, n.written)
+		return sameText(r.w.c, d, n.written)
 	}
 	if n.written.Truth != statement.Stated || slices.ContainsFunc(n.at.decls, alike) {
 		return claim{}, false, true
 	}
-	held := r.w.heldAt(n.at)
+	held := n.at.admits(&r.w)
 	if !held.reachable() {
 		return claim{}, false, true
 	}
@@ -308,7 +308,7 @@ func (r *bodyReading) lands(c claim) bool {
 		return false
 	}
 	at, _ := declaredOf(r.w.c, c.written)
-	return at != nil && slices.Contains(r.w.innerAt(c.at).composed, at)
+	return at != nil && slices.Contains(c.at.declares(&r.w).composed, at)
 }
 
 // shapeless reports whether s's keyword key declares no shape whatever it
@@ -320,5 +320,5 @@ func shapeless(t *statement.Table, s *statement.Schema, key string) bool {
 	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
 	}
-	return key == "unevaluatedProperties" && !t.Sub(objectIn(s).UnevaluatedProperties).Truth.ReadsFalse()
+	return key == "unevaluatedProperties" && !t.Sub(s.ObjectKeywords().UnevaluatedProperties).Truth.ReadsFalse()
 }

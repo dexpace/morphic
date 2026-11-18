@@ -202,11 +202,10 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 	prov := func(name string) ir.Provenance {
 		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
 	}
-	w := newAdmission(l.Ctx)
 	fields := modelFields{c: l.Ctx}
 
-	assert.True(t, w.sameText(l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Twin"))))
-	assert.False(t, w.sameText(l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Deep"))))
+	assert.True(t, sameText(l.Ctx, l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Twin"))))
+	assert.False(t, sameText(l.Ctx, l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Deep"))))
 	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
 	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))

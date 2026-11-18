@@ -351,7 +351,7 @@ func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *statement.Schema, p
 // holds, which no carrier takes (Use.Default, which reports it).
 func residueReach(s *statement.Schema, keyword string) string {
 	if keyword == "default" {
-		if _, err := value.FromNode(defaultOf(s)); err != nil {
+		if _, err := value.FromNode(s.Default()); err != nil {
 			return "applied to no carrier, as no IR value holds it"
 		}
 	}

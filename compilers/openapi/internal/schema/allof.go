@@ -63,11 +63,11 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	base, hasBase := selectAllOfBase(c, comp.branches, common.ID)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp, base, hasBase)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
-	requireMembers(m, compositionRequired(objectIn(s).Required, comp))
+	requireMembers(m, compositionRequired(s.ObjectKeywords().Required, comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, s, comp)...)
 	diags = append(diags, applyFalseBranches(c, m, comp)...)
 	if discriminated {
-		d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
+		d, discDiags := lowerDiscriminator(c, ts, s.Discriminator(), pointer, m, nil)
 		diags = append(diags, discDiags...)
 		m.Discriminator = d
 	}
@@ -249,8 +249,8 @@ func (a allOfComposition) subject() string {
 func compositionRequired(own []string, comp allOfComposition) []string {
 	var out []string
 	for _, e := range comp.branches {
-		// A boolean branch writes no object keyword, so objectIn reads none.
-		out = append(out, objectIn(e.schema.Schema).Required...)
+		// A boolean branch writes no object keyword, so ObjectKeywords reads none.
+		out = append(out, e.schema.ObjectKeywords().Required...)
 	}
 	return append(out, own...)
 }
@@ -576,14 +576,14 @@ func conjoinedKeyword(keyword string) bool {
 // nothing by reading it. A set — `[object, "null"]` included — says more than
 // that, and the more is what the merge would drop.
 func declaresObjectOnly(bs *statement.Schema) bool {
-	types := kindsIn(bs)
+	types := bs.Types()
 	return len(types) == 1 && types[0] == statement.KindObject
 }
 
 // branchExcludesObject reports whether the branch declares a type set with no
 // `object` in it. An undeclared type set excludes nothing.
 func branchExcludesObject(bs *statement.Schema) bool {
-	return writesType(bs) && !slices.Contains(kindsIn(bs), statement.KindObject)
+	return writesType(bs) && !slices.Contains(bs.Types(), statement.KindObject)
 }
 
 // selectAllOfBase returns the index into branches, the conjuncts of the
@@ -628,7 +628,7 @@ func selectAllOfBase(c lowering.Ctx, branches []allOfBranch, id ir.TypeID) (int,
 // composition of s lowers to; an empty id is no node, which none names.
 func routesTo(c lowering.Ctx, s *statement.Schema, id ir.TypeID) bool {
 	return slices.ContainsFunc(append([]*statement.Schema{s}, discriminatedAncestors(c, s)...), func(a *statement.Schema) bool {
-		d := discriminatorIn(a)
+		d := a.Discriminator()
 		return d != nil && len(mappingTagsFor(c, d, id)) > 0
 	})
 }
@@ -657,6 +657,6 @@ type inHierarchyOf struct {
 // naming s asks, so it is read once a run.
 func inHierarchy(c lowering.Ctx, s *statement.Schema) bool {
 	return lowering.Remembered(c, inHierarchyOf{s}, func() bool {
-		return discriminatorIn(s) != nil || len(discriminatedAncestors(c, s)) > 0
+		return s.Discriminator() != nil || len(discriminatedAncestors(c, s)) > 0
 	})
 }

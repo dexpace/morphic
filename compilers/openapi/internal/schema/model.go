@@ -39,10 +39,10 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
-		requireMembers(m, objectIn(s).Required)
+		requireMembers(m, s.ObjectKeywords().Required)
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		if discriminated {
-			d, discDiags := lowerDiscriminator(c, ts, discriminatorIn(s), pointer, m, nil)
+			d, discDiags := lowerDiscriminator(c, ts, s.Discriminator(), pointer, m, nil)
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
@@ -203,9 +203,9 @@ func holderOf(c lowering.Ctx, at bind.Position, st *statement.Statement) (*state
 	var entries []statement.Sub
 	switch keyword {
 	case "oneOf":
-		entries = choiceIn(holder.Schema).OneOf
+		entries = holder.ChoiceKeywords().OneOf
 	case "anyOf":
-		entries = choiceIn(holder.Schema).AnyOf
+		entries = holder.ChoiceKeywords().AnyOf
 	case "allOf":
 		entries = holder.AllOf
 	default:
@@ -290,7 +290,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 	pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, prop := range objectIn(s).Properties {
+	for _, prop := range s.ObjectKeywords().Properties {
 		js := c.Statements().Sub(prop)
 		ppointer := pointer + ids.Ptr("properties", prop.Name)
 		ref, refDiags := CarriedRef(c, ts, depth, js, ppointer)
@@ -367,7 +367,7 @@ func requireMembers(m *ir.Model, required []string) {
 // which this sets only for `false` and for an `unevaluatedProperties: false`
 // no additionalProperties leaves inert (annotation.ClosesAfterComposition).
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	return fillCatchAll(c, ts, depth, m, objectIn(s).AdditionalProperties, s, pointer, annotation.ClosesAfterComposition(s))
+	return fillCatchAll(c, ts, depth, m, s.ObjectKeywords().AdditionalProperties, s, pointer, annotation.ClosesAfterComposition(s))
 }
 
 // fillCatchAll is fillAdditional with its sources named: the
@@ -431,7 +431,7 @@ func forbidRest(m *ir.Model) {
 // patternProps lowers patternProperties into pattern/value bindings in source
 // order.
 func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProps, []ir.Diagnostic) {
-	pp := objectIn(s).PatternProperties
+	pp := s.ObjectKeywords().PatternProperties
 	if len(pp) == 0 {
 		return nil, nil
 	}
@@ -443,13 +443,4 @@ func patternProps(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		out = append(out, ir.PatternProps{Pattern: p.Name, Value: ref})
 	}
 	return out, diags
-}
-
-// objectIn returns what s's object keywords say, the zero Object where it
-// writes none.
-func objectIn(s *statement.Schema) statement.Object {
-	if s == nil || s.Object == nil {
-		return statement.Object{}
-	}
-	return *s.Object
 }

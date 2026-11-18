@@ -86,7 +86,7 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	c := service.New(0, &unlisted, service.Policy{})
 	js, ok := c.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
-	d := discriminatorIn(c.Statements().Of(js).Schema)
+	d := (c.Statements().Of(js).Schema).Discriminator()
 	require.NotNil(t, d)
 	at, ok := c.RefScope().MappingTarget(d.At, "./ext.yaml#/X")
 	require.True(t, ok, "the bindings read ext.yaml")
@@ -281,7 +281,7 @@ func TestMappingWhy_SaysBothReadingsOfAValueWithNoHash(t *testing.T) {
 	require.True(t, l.Ctx.Bindings().Table().Truncated(), "the merge bound cut a read")
 	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
-	d := discriminatorIn(l.Ctx.Statements().Of(p).Schema)
+	d := (l.Ctx.Statements().Of(p).Schema).Discriminator()
 	require.NotNil(t, d)
 	assert.Equal(t, ": the entry document declares no schema component of that name, and as a URI reference "+
 		"it names another document, and external references are not read", mappingWhy(l.Ctx, d, "Undeclared"))
@@ -307,7 +307,7 @@ func TestMappingWhy_GivesAnUnreadReferenceTheTablesReason(t *testing.T) {
 	l, _ := LoweredFor(t, deep.String())
 	p, ok := l.Doc.Components.GetSchemas().Get("P")
 	require.True(t, ok)
-	d := discriminatorIn(l.Ctx.Statements().Of(p).Schema)
+	d := (l.Ctx.Statements().Of(p).Schema).Discriminator()
 	require.NotNil(t, d, "the parser expands the whole chain")
 	const unread = "it is past a `<<` merge chain deeper than the 64 levels the compiler expands"
 	assert.Equal(t, ": "+unread, mappingWhy(l.Ctx, d, "#/components/schemas/T"))

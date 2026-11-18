@@ -74,7 +74,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	}
 	homes := homesAt(c, s, target, pointer)
 	voices := voicingOf(c, s)
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	set, setAtPosition := valueSetPrincipal(r)
 	residues := make([][]string, len(r.comp.branches))
 	for i, e := range r.comp.branches {
@@ -108,7 +108,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // keeps on its node (keepUnread). A union that set writes is none it says, as
 // the node it lowers to holds no union, so it is kept as the union beside a
 // value set is.
-func residueRead(c lowering.Ctx, w *admission, r refinement, typed setType, e allOfBranch, speaks, censused bool,
+func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused bool,
 	homes boundHomes,
 ) func(string) bool {
 	bs := e.schema.Schema
@@ -132,10 +132,10 @@ func unionKeyword(keyword string) bool { return keyword == "oneOf" || keyword ==
 func isAdditionalProperties(keyword string) bool { return keyword == "additionalProperties" }
 
 // principalTwin reports whether e, a branch of r other than its principal, is
-// written as the principal is (admission.sameText): one schema written twice,
+// written as the principal is (sameText): one schema written twice,
 // whose first copy the election takes for both.
-func principalTwin(w *admission, r refinement, e allOfBranch) bool {
-	return r.principal != nil && !r.principalIs(e) && w.sameText(r.principal.schema, e.schema)
+func principalTwin(w *admissionReader, r refinement, e allOfBranch) bool {
+	return r.principal != nil && !r.principalIs(e) && sameText(w.c, r.principal.schema, e.schema)
 }
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that
@@ -148,7 +148,7 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed set
 	if _, atPosition := valueSetPrincipal(r); atPosition {
 		return nil
 	}
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	held := slices.DeleteFunc(slices.Clone(nodeKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
 	return unreadByReference(c, s, held)
 }
@@ -163,7 +163,7 @@ func keptUnion(c lowering.Ctx, r refinement, s *statement.Schema) (degraded, val
 		return nil, nil
 	}
 	shapeless := !unionBranchesDeclareShape(c, s)
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	for _, key := range []string{"oneOf", "anyOf"} {
 		switch {
 		case !hasKey(s, key) || unionHeld(&w, r, s, key):
@@ -181,7 +181,7 @@ func keptUnion(c lowering.Ctx, r refinement, s *statement.Schema) (degraded, val
 // (unionHeld), or it is a format the value set it lowered to, typed, holds in
 // its ValueType, that format's primitive or a narrower one, or a redaction. A
 // type that ValueType holds, its values hold too.
-func said(w *admission, r refinement, typed setType, s *statement.Schema, key string) bool {
+func said(w *admissionReader, r refinement, typed setType, s *statement.Schema, key string) bool {
 	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) || key == "type" && nullIdiom(w.c, s) {
 		return true
 	}
@@ -190,17 +190,17 @@ func said(w *admission, r refinement, typed setType, s *statement.Schema, key st
 
 // unionHeld reports whether every value r holds satisfies s's oneOf or anyOf,
 // the keyword key names: a branch says nothing r's principal does not
-// (admission.restates), and for a oneOf one alone, sharing no kind with any
+// (admissionReader.restates), and for a oneOf one alone, sharing no kind with any
 // other, so that exactly one admits each of its values. A branch is compared
 // keyword by keyword, as what it admits leaves its bounds and annotations unread,
 // and one writing what no reading compares says more. A read cut short says no.
-func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool {
+func unionHeld(w *admissionReader, r refinement, s *statement.Schema, key string) bool {
 	var branches []statement.Sub
 	switch key {
 	case "oneOf":
-		branches = choiceIn(s).OneOf
+		branches = s.ChoiceKeywords().OneOf
 	case "anyOf":
-		branches = choiceIn(s).AnyOf
+		branches = s.ChoiceKeywords().AnyOf
 	default:
 		return false
 	}

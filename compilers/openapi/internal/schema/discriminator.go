@@ -111,7 +111,7 @@ func subtypeDiscriminatorValue(c lowering.Ctx, s *statement.Schema, id ir.TypeID
 		ancestors = append(ancestors, level...)
 	}
 	for _, a := range ancestors {
-		tags := mappingTagsFor(c, discriminatorIn(a), id)
+		tags := mappingTagsFor(c, a.Discriminator(), id)
 		if len(tags) == 0 {
 			continue
 		}
@@ -132,7 +132,7 @@ func subtypeDiscriminatorValue(c lowering.Ctx, s *statement.Schema, id ir.TypeID
 	}
 	for _, a := range ancestors {
 		if routesByName(c, a, s) {
-			return subtypeTag{value: name, routed: true, byName: discriminatorIn(a)}, nil
+			return subtypeTag{value: name, routed: true, byName: a.Discriminator()}, nil
 		}
 	}
 	return subtypeTag{}, nil
@@ -222,7 +222,7 @@ func ancestorLevels(c lowering.Ctx, s *statement.Schema) [][]*statement.Schema {
 		}
 		var found []*statement.Schema
 		for _, target := range next {
-			if discriminatorIn(target) != nil {
+			if target.Discriminator() != nil {
 				found = append(found, target)
 			}
 		}
@@ -249,7 +249,7 @@ type composedByOf struct {
 // one, it is the one standing with u (findBranchUnion). Every reader of the
 // position asks, so it is read once a run.
 func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
-	d := discriminatorIn(s)
+	d := s.Discriminator()
 	if d == nil {
 		return false
 	}
@@ -262,7 +262,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 				target = refBranchTarget(c, st)
 			}
 			return stated(target) && slices.ContainsFunc(discriminatedAncestors(c, target),
-				func(a *statement.Schema) bool { return discriminatorIn(a) == d })
+				func(a *statement.Schema) bool { return a.Discriminator() == d })
 		})
 	})
 }
@@ -508,9 +508,4 @@ func routesToSubtypes(reg ir.TypeRegistry, m *ir.Model, named []ir.TypeID) bool 
 		}
 	}
 	return true
-}
-
-// discriminatorIn returns the discriminator s writes, nil for none.
-func discriminatorIn(s *statement.Schema) *statement.Discriminator {
-	return objectIn(s).Discriminator
 }

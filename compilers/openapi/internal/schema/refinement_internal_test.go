@@ -37,9 +37,9 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    A: {type: string}\n"))
 	r := refinement{held: admitted{kinds: kindString}}
 
-	whole := newAdmission(l.Ctx)
+	whole := newAdmissionReader(l.Ctx)
 	assert.True(t, unionHeld(&whole, r, StandaloneSchema(js.GetSchema()), "anyOf"), "read whole, the string branch says the union")
-	cut := newAdmission(l.Ctx)
+	cut := newAdmissionReader(l.Ctx)
 	require.True(t, cut.reads.Spend(maxAdmissionReads), "the budget holds what is spent")
 	assert.False(t, unionHeld(&cut, r, StandaloneSchema(js.GetSchema()), "anyOf"), "the integer branch's read runs past it")
 }
@@ -96,19 +96,19 @@ func TestRefinementOf_ReadsASchemaOnce(t *testing.T) {
 	assert.True(t, decisionOf(l.Ctx, StatedIn(l, s)).refines, "a reader with no pointer reads it too")
 }
 
-// TestAdmission_ReadsAValueSetOnce pins that an enum is read once a run however
+// TestAdmissionReader_ReadsAValueSetOnce pins that an enum is read once a run however
 // many positions read it, which is what keeps positions times members from being
 // the cost of a shared enum: a member changes after the first read, which no
 // lowering does, so only a remembered set stays.
-func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
+func TestAdmissionReader_ReadsAValueSetOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
-	first := newAdmission(l.Ctx)
+	first := newAdmissionReader(l.Ctx)
 	require.Contains(t, first.written(StatedIn(l, s), first.nullable).values, "s:a")
 
 	s.GetEnum()[0].Value = "z"
-	second := newAdmission(l.Ctx)
+	second := newAdmissionReader(l.Ctx)
 	read := second.written(StatedIn(l, s), second.nullable)
 	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
@@ -220,21 +220,19 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	assert.Equal(t, first, lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents, "the second ask reads what the first read")
 }
 
-// TestAdmission_RendersASchemaOnce pins that a schema's text is rendered once a run
+// TestWrittenText_RendersASchemaOnce pins that a schema's text is rendered once a run
 // however many positions restate it: the node changes after the first render, which
 // no lowering does, so only remembered text stays.
-func TestAdmission_RendersASchemaOnce(t *testing.T) {
+func TestWrittenText_RendersASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
-	first := newAdmission(l.Ctx)
-	text := first.text(l.Ctx.Statements().Of(js))
+	text := writtenText(l.Ctx, l.Ctx.Statements().Of(js))
 	require.NotNil(t, text)
 
 	*js.GetCore().GetRootNode() = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "other"}
-	second := newAdmission(l.Ctx)
-	assert.Equal(t, text, second.text(l.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
+	assert.Equal(t, text, writtenText(l.Ctx, l.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
 }
 
 // TestReadVoices_RendersEachValueOnce pins what a first writer costs: every later
@@ -328,68 +326,68 @@ func TestKindOfValue_NamesEachValuesKind(t *testing.T) {
 	}
 }
 
-// TestAdmission_AnEnumAndAConstAreTwoSets pins that one schema's two value sets are
+// TestAdmissionReader_AnEnumAndAConstAreTwoSets pins that one schema's two value sets are
 // remembered apart: each is read and conjoined, so an instance is held to both.
-func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
+func TestAdmissionReader_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
-	w := newAdmission(l.Ctx)
+	w := newAdmissionReader(l.Ctx)
 	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable).values)
 }
 
-// TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
+// TestAdmissionReader_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
 // applied as 3.1 applies them and read as their document's dialect defines
 // them, so a 3.0 `nullable` there adds null to the type beside it, and a 3.1
 // one, which that dialect does not define, adds nothing.
-func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
+func TestAdmissionReader_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
 	t.Parallel()
 	for version, want := range map[string]kindSet{"3.0.3": kindString | kindNull, "3.1.0": kindString} {
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, `    S: {type: string}
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
-		w := newAdmission(l.Ctx)
+		w := newAdmissionReader(l.Ctx)
 		assert.Equal(t, want, w.written(StatedIn(l, componentSchema(t, l, "T")), w.nullable).kinds, version)
 	}
 }
 
-// TestAdmission_ASchemaIsWithinItself pins the comparison every election makes of
+// TestAdmissionReader_ASchemaIsWithinItself pins the comparison every election makes of
 // a conjunct with itself, which needs no rendering: rendering costs the whole
 // `items` subtree at each level, and a value that will not render shows it ran.
-func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
+func TestAdmissionReader_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
-	w := newAdmission(l.Ctx)
+	w := newAdmissionReader(l.Ctx)
 	read := w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable)
 	assert.True(t, w.within(read, read))
 }
 
-// TestAdmission_ARememberedSetStillSpends pins why a remembered set costs its
+// TestAdmissionReader_ARememberedSetStillSpends pins why a remembered set costs its
 // budget: a read's verdict turns on what it spent, so a set a first reader
 // read must cut a later one exactly as reading it would, or which position
 // lowered first would decide what another lowers to.
-func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
+func TestAdmissionReader_ARememberedSetStillSpends(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
-	first := newAdmission(l.Ctx)
+	first := newAdmissionReader(l.Ctx)
 	first.written(StatedIn(l, s), first.nullable)
 	require.False(t, first.incomplete())
 
-	short := newAdmission(l.Ctx)
+	short := newAdmissionReader(l.Ctx)
 	short.members = budget.New(budget.AtMost(1))
 	assert.Empty(t, short.written(StatedIn(l, s), short.nullable).values, "a set past the budget is not read at all")
 	assert.True(t, short.incomplete())
 }
 
-// TestAdmission_AnUnreadableSetIsRememberedAsUnread pins that a set no reader could
+// TestAdmissionReader_AnUnreadableSetIsRememberedAsUnread pins that a set no reader could
 // read cuts every read of it, the first and those after.
-func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
+func TestAdmissionReader_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
-		w := newAdmission(l.Ctx)
+		w := newAdmissionReader(l.Ctx)
 		w.written(StatedIn(l, s), w.nullable)
 		assert.True(t, w.incomplete())
 	}
@@ -412,7 +410,7 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		l, _ := LoweredFor(t, openapitest.ComponentSpec("    En: {type: string, enum: ["+target.String()+"]}\n"+
 			"    T: {allOf: [{$ref: '#/components/schemas/En'}, {enum: ["+narrowed.String()+"]}]}\n"))
 		s := componentSchema(t, l, "T")
-		w := newAdmission(l.Ctx)
+		w := newAdmissionReader(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }
 		conjuncts, _ := w.conjuncts(StatedIn(l, s), allOfBranches(l.Ctx, StatedIn(l, s), ""))
@@ -444,7 +442,7 @@ func TestElect_ComparesEachPairOnce(t *testing.T) {
 			}
 			l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
 			s := StatedIn(l, componentSchema(t, l, "T"))
-			w := newAdmission(l.Ctx)
+			w := newAdmissionReader(l.Ctx)
 			conjuncts, _ := w.conjuncts(s, allOfBranches(l.Ctx, s, ""))
 			compared := 0
 			w.compared = func() { compared++ }

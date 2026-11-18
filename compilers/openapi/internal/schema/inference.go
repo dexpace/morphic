@@ -84,7 +84,7 @@ func claimedKinds(c lowering.Ctx, s *statement.Schema) kindSet {
 // they speak of.
 func shapeKinds(s *statement.Schema) kindSet {
 	var out kindSet
-	if discriminatorIn(s) != nil {
+	if s.Discriminator() != nil {
 		out = kindObject
 	}
 	for _, set := range [...][]siblingKeyword{shapeKeywords, narrowingKeywords} {
@@ -122,18 +122,20 @@ type siblingKeyword struct {
 // set, a value set, composition, or a catch-all — rather than only narrowing
 // what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
 var shapeKeywords = []siblingKeyword{
-	{"properties", func(s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }, kindObject,
-		func(_ *statement.Table, s *statement.Schema) bool { return len(objectIn(s).Properties) > 0 }},
-	{"const", func(s *statement.Schema) bool { return constIn(s) != nil }, 0, nil},
+	{"properties", func(s *statement.Schema) bool { return len(s.ObjectKeywords().Properties) > 0 }, kindObject,
+		func(_ *statement.Table, s *statement.Schema) bool { return len(s.ObjectKeywords().Properties) > 0 }},
+	{"const", func(s *statement.Schema) bool { return s.Const() != nil }, 0, nil},
 	{"enum", enumWritten, 0, nil},
 	{"allOf", writesConjuncts, 0, nil},
 	{"additionalProperties", func(s *statement.Schema) bool {
-		return written(objectIn(s).AdditionalProperties)
+		return written(s.ObjectKeywords().AdditionalProperties)
 	}, kindObject, func(t *statement.Table, s *statement.Schema) bool {
-		return typesInstances(t, objectIn(s).AdditionalProperties)
+		return typesInstances(t, s.ObjectKeywords().AdditionalProperties)
 	}},
-	{"patternProperties", func(s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }, kindObject,
-		func(_ *statement.Table, s *statement.Schema) bool { return len(objectIn(s).PatternProperties) > 0 }},
+	{"patternProperties", func(s *statement.Schema) bool { return len(s.ObjectKeywords().PatternProperties) > 0 }, kindObject,
+		func(_ *statement.Table, s *statement.Schema) bool {
+			return len(s.ObjectKeywords().PatternProperties) > 0
+		}},
 	{"type", func(s *statement.Schema) bool { return len(effectiveTypes(s)) > 0 }, 0, nil},
 }
 
@@ -146,16 +148,16 @@ var shapeKeywords = []siblingKeyword{
 // co-declared property set. An `items` list narrows too, read off the raw node,
 // since nothing documents what the parser's model holds there.
 var narrowingKeywords = []siblingKeyword{
-	{"required", func(s *statement.Schema) bool { return len(objectIn(s).Required) > 0 }, kindObject, nil},
+	{"required", func(s *statement.Schema) bool { return len(s.ObjectKeywords().Required) > 0 }, kindObject, nil},
 	{"items", func(s *statement.Schema) bool {
 		_, listed := listedItems(s)
-		return listed || written(arrayIn(s).Items)
+		return listed || written(s.ArrayKeywords().Items)
 	}, kindArray, func(t *statement.Table, s *statement.Schema) bool {
 		_, listed := listedItems(s)
-		return listed || typesInstances(t, arrayIn(s).Items)
+		return listed || typesInstances(t, s.ArrayKeywords().Items)
 	}},
-	{"prefixItems", func(s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }, kindArray,
-		func(_ *statement.Table, s *statement.Schema) bool { return len(arrayIn(s).PrefixItems) > 0 }},
+	{"prefixItems", func(s *statement.Schema) bool { return len(s.ArrayKeywords().PrefixItems) > 0 }, kindArray,
+		func(_ *statement.Table, s *statement.Schema) bool { return len(s.ArrayKeywords().PrefixItems) > 0 }},
 }
 
 // typesInstances reports whether sub, the schema an `items` or an

@@ -99,7 +99,7 @@ func (u Use) Default(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 	chain := u.Site(s).Chain()
 	own := len(chain) - len(u.Referents) + u.narrowedFrom
 	for i, r := range chain {
-		d := defaultOf(r)
+		d := r.Default()
 		if d == nil || u.narrowed != nil && i >= own && !u.takes(d) {
 			continue
 		}
@@ -159,14 +159,6 @@ func (u Use) lentKeys(c lowering.Ctx) promotion.Referent {
 		}
 	}
 	return from
-}
-
-// defaultOf returns the default s writes, nil for none.
-func defaultOf(s *statement.Schema) *yaml.Node {
-	if s == nil || s.Notes == nil {
-		return nil
-	}
-	return s.Notes.Default
 }
 
 // deprecates reports whether s writes `deprecated: true`, which a `false` or
@@ -230,7 +222,7 @@ func passageOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (p
 		return passage{}, false
 	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
-		w := newAdmission(c)
+		w := newAdmissionReader(c)
 		return passage{ref: ref, lost: true, admits: w.written(s, w.nullable), narrows: true}, true
 	}
 	return passage{ref: ref}, true

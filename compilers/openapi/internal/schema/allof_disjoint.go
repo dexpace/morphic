@@ -104,7 +104,7 @@ func conjunctName(s *statement.Schema, comp allOfComposition, cj conjunct) strin
 		return comp.branchPath(cj.branch.pointer) + "/$ref"
 	case cj.branch != nil:
 		return comp.branchPath(cj.branch.pointer)
-	case constIn(s) != nil:
+	case s.Const() != nil:
 		return "const"
 	case enumWritten(s):
 		return "enum"
@@ -213,7 +213,7 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		out = append(out, set)
 	}
 	if unionAside(c, s) {
-		choice := choiceIn(s)
+		choice := s.ChoiceKeywords()
 		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
 		out = append(out, unionAtoms(c, "anyOf", choice.AnyOf)...)
 	}
@@ -259,7 +259,7 @@ func refinedAtoms(c lowering.Ctx, s *statement.Schema, r refinement) []conjunctA
 		set.name = name + "/" + set.name
 		own = append(own, set)
 	}
-	choice := choiceIn(bs)
+	choice := bs.ChoiceKeywords()
 	own = append(own, unionAtoms(c, name+"/oneOf", choice.OneOf)...)
 	own = append(own, unionAtoms(c, name+"/anyOf", choice.AnyOf)...)
 	return slices.Concat(atoms[:at], own, atoms[at+1:])
@@ -272,11 +272,11 @@ func refinedAtoms(c lowering.Ctx, s *statement.Schema, r refinement) []conjunctA
 // whose report that the set holds no value its type admits leaves this report
 // none to make (toldWhereWritten).
 func valueSetAtom(c lowering.Ctx, s *statement.Schema) (conjunctAtom, bool) {
-	name, members := "enum", enumIn(s)
+	name, members := "enum", s.Enum()
 	switch {
 	case enumWritten(s):
-	case constIn(s) != nil:
-		name, members = "const", []*yaml.Node{constIn(s)}
+	case s.Const() != nil:
+		name, members = "const", []*yaml.Node{s.Const()}
 	default:
 		return conjunctAtom{}, false
 	}
@@ -308,7 +308,7 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 			return true
 		case st.Truth != statement.Stated:
 			return false
-		case (enumWritten(st.Schema) || constIn(st.Schema) != nil) && declaredInstanceTypes(st.Schema)&valueKinds(c, st.Schema) == 0:
+		case (enumWritten(st.Schema) || st.Const() != nil) && declaredInstanceTypes(st.Schema)&valueKinds(c, st.Schema) == 0:
 			return true
 		case st.Ref == nil && len(st.AllOf) > 0:
 			return conjunctsShareNothing(c, st.Schema)

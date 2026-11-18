@@ -405,7 +405,7 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 // degraded where they do or the union shares no kind with the rest
 // (docs/compilers/openapi.md#union-beside-structure).
 func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
-	choice := choiceIn(comp.branches[i].schema.Schema)
+	choice := comp.branches[i].schema.ChoiceKeywords()
 	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 		return ir.ReasonDegradedLowering
 	}
@@ -415,10 +415,10 @@ func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition
 // unionApart reports whether the oneOf and anyOf the inline entry at index i
 // of comp writes share no kind with what the rest of s, the schema writing
 // comp, admits, the entry's other keywords among it: no instance satisfies
-// them together, as admission.conjuncts reads a union beside the allOf. A
+// them together, as admissionReader.conjuncts reads a union beside the allOf. A
 // read cut short says no.
 func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) bool {
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	bs := comp.branches[i].schema.Schema
 	union := unionsIn(&w, bs)
 	rest := w.written(s, w.nullable).and(w.written(bs, w.nullable))
