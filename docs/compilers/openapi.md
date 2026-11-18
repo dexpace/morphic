@@ -1672,7 +1672,7 @@ one.
   `lowering.TestTitleNames_TheZeroValueNamesByTitle`, `e2e.TestTitleNames_DisabledNamesByPosition`,
   `naming.TestAt_ATitleNamesAlikeInEitherOrder`,
   `naming.TestAt_ATitleNamesAcrossDocuments`, `naming.TestTitle_IsTheNameATitleGives`,
-  `naming.TestAt_NamesAHeaderAnEncodingNests`, `schema.TestRefinement_TwinsTheRefSpelling`,
+  `naming.TestAt_NamesAHeaderAnEncodingNests`,
   `e2e.TestGolden_HintPositions`, `e2e.TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader`
 
 ### `values`
