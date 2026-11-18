@@ -378,41 +378,49 @@ func (f *folding) disagree(i, kept int, detail string) {
 	if slices.ContainsFunc(f.notes[i], func(n note) bool { return n.detail == detail }) {
 		return
 	}
-	at, named := f.place(i)
-	keptAt, keptNamed := f.place(kept)
+	at, keptAt := f.place(i), f.place(kept)
 	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, at: at,
 		kept: &keptAt,
 		msg: fmt.Sprintf("declarations of field %q disagree: %s; kept what the declaration at %s says over the one "+
-			"at %s, which %s", f.merged.WireName, detail, keptNamed, named, f.decls[i].keptAs())})
+			"at %s, which %s", f.merged.WireName, detail, f.named(keptAt, at.Source), f.named(at, at.Source),
+			f.decls[i].keptAs())})
 }
 
-// at is how a report the fold makes names where decls[i] was written (place).
+// at is how a report the fold makes at a declaration (note), which stands in
+// the composing model's document, names where decls[i] was written (place).
 func (f *folding) at(i int) string {
-	_, named := f.place(i)
-	return named
+	return f.named(f.place(i), f.g.Doc.Source)
 }
 
-// place is where decls[i] was written, in its own document, and how a report
-// the fold makes names it: its pointer, followed by its document's name where
-// that is not the document the report is in, as a declaration an entry brings
-// may be written in another. A member an entry brings settled names its first
-// declaration, which need not say what the member does, so the report names
-// the one place its type is written, or, where that is the member's own and no
-// schema is written there (unwritten), the entry bringing it.
-func (f *folding) place(i int) (ir.Provenance, string) {
+// named is how a report standing in the document in names p, a place: its
+// pointer, followed by its document's name where that is another document, in
+// which the pointer alone would read as one in the report's.
+func (f *folding) named(p ir.Provenance, in int) string {
+	if p.Source == in {
+		return string(p.Pointer)
+	}
+	return string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+}
+
+// place is where decls[i] was written, in its own document, as a declaration
+// an entry brings may be written in another. A member an entry brings settled
+// names its first declaration, which need not say what the member does, so
+// its place is the one place its type is written, or, where that is the
+// member's own and no schema is written there (unwritten), the entry bringing
+// it. A source out of range reads as the composing model's document.
+func (f *folding) place(i int) ir.Provenance {
 	d := f.decls[i]
 	p := d.prop.Provenance
 	if d.via != nil && len(d.typeAt) == 1 {
 		p = d.typeAt[0]
 	}
 	if p.Pointer == d.prop.Provenance.Pointer && f.unwritten(d) {
-		return f.g.Doc.At(d.via.at), string(d.via.at)
+		return f.g.Doc.At(d.via.at)
 	}
 	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {
-		return f.g.Doc.At(p.Pointer), string(p.Pointer)
+		return f.g.Doc.At(p.Pointer)
 	}
-	return ir.Provenance{Source: p.Source, Pointer: p.Pointer, WrittenBy: p.WrittenBy},
-		string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+	return ir.Provenance{Source: p.Source, Pointer: p.Pointer, WrittenBy: p.WrittenBy}
 }
 
 // unwritten reports whether d is a member an entry brings that its model's

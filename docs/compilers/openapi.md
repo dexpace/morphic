@@ -3276,8 +3276,9 @@ is reported.
 The declarations are read in the order the source writes them, a `$ref` entry's where the entry is
 written and the schema's own `properties` after its `allOf`; a union branch distributed into a
 variant reads before the body. A declaration an entry brings stays declared on its own model, so it
-is not kept verbatim. A report names a declaration another document holds with that document's
-name, a member a part settled by the one place its type is written, or by its first declaration
+is not kept verbatim. A report names a declaration in a document other than the one it stands in
+with that document's name, and one in its own by its pointer alone, a member a part settled by the
+one place its type is written, or by its first declaration
 where its type is written at several places or none, and one that would so be named where nothing is
 written, as a member only a part's entries declare, by the entry bringing it. A report about a
 declaration an entry brings sits at that entry, naming the member in its `Provenance.Node`, but for

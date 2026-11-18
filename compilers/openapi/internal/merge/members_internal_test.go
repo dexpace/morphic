@@ -6,6 +6,7 @@ package merge
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -358,12 +359,12 @@ func TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone(t *testing.T) {
 	}
 }
 
-// TestFold_NamesADeclarationAnotherDocumentHolds pins how a report names a
-// declaration an entry brings from another document: its pointer and that
-// document's name, since the pointer alone reads as one in the document the
-// report is in; a declaration in that document is named by its pointer alone.
-// A conflict over the first sits where it is written, in its document, by the
-// input that wrote it.
+// TestFold_NamesADeclarationAnotherDocumentHolds pins a conflict over a
+// declaration an entry brings from another document: it sits where that
+// declaration is written, in its document, by the input that wrote it, and so
+// names it by its pointer alone and the kept one, in the model's document, by
+// its pointer and that document's name, since the pointer alone reads as one
+// in the document the report is in.
 func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(membersRegistry())
@@ -380,8 +381,69 @@ func TestFold_NamesADeclarationAnotherDocumentHolds(t *testing.T) {
 
 	require.Len(t, diags, 1)
 	assert.Contains(t, diags[0].Message,
-		"kept what the declaration at /M/allOf/1/properties/p says over the one at /B/p in other.yaml,")
+		"kept what the declaration at /M/allOf/1/properties/p in root.yaml says over the one at /B/p,")
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/B/p", WrittenBy: 2}, diags[0].Provenance)
+}
+
+// TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn pins how a conflict
+// names the two declarations: against the document it stands in, the losing
+// declaration's, so that one is named by its pointer alone and the one kept
+// carries its document's name where it is in another, wherever the composing
+// model is. The kept place the report lists is the one its message names.
+func TestFold_NamesEachPlaceAgainstTheDocumentTheReportIsIn(t *testing.T) {
+	t.Parallel()
+	at := func(target ir.TypeID, pointer string, source int) declaration {
+		d := declared("p", target, pointer)
+		d.Provenance.Source = source
+		return declaration{prop: d, via: &composedEntry{target: "t/E", at: "/M/allOf/0", order: 1}}
+	}
+	for name, tc := range map[string]struct {
+		sources     []string
+		lost, kept  declaration
+		message     string
+		lostIn      int
+		keptIn      int
+		keptNamesIn bool
+	}{
+		"the loser in another document": {
+			sources: []string{"root.yaml", "other.yaml"},
+			lost:    at("t/prim/integer", "/B/p", 1), kept: at("t/prim/string", "/A/p", 0),
+			message: "kept what the declaration at /A/p in root.yaml says over the one at /B/p,", lostIn: 1, keptIn: 0, keptNamesIn: true,
+		},
+		"the winner in another document": {
+			sources: []string{"root.yaml", "other.yaml"},
+			lost:    at("t/prim/integer", "/A/p", 0), kept: at("t/prim/string", "/B/p", 1),
+			message: "kept what the declaration at /B/p in other.yaml says over the one at /A/p,", lostIn: 0, keptIn: 1, keptNamesIn: true,
+		},
+		"both in the model's document": {
+			sources: []string{"root.yaml"},
+			lost:    at("t/prim/integer", "/A/p", 0), kept: at("t/prim/string", "/B/p", 0),
+			message: "kept what the declaration at /B/p says over the one at /A/p,", lostIn: 0, keptIn: 0,
+		},
+		"each in a document of its own": {
+			sources: []string{"root.yaml", "a.yaml", "b.yaml"},
+			lost:    at("t/prim/integer", "/A/p", 1), kept: at("t/prim/string", "/B/p", 2),
+			message: "kept what the declaration at /B/p in b.yaml says over the one at /A/p,", lostIn: 1, keptIn: 2, keptNamesIn: true,
+		},
+	} {
+		g, _ := stubMerger(membersRegistry())
+		for _, path := range tc.sources {
+			g.Sources = append(g.Sources, ir.SourceInfo{Path: path})
+		}
+		lost, kept := tc.lost, tc.kept
+		lost.order, kept.order = 1, 2
+
+		_, diags := g.foldAt([]declaration{lost, kept}, "/M/allOf/properties/p", nil)
+
+		require.Len(t, diags, 1, name)
+		assert.Contains(t, diags[0].Message, tc.message, name)
+		assert.Equal(t, tc.lostIn, diags[0].Provenance.Source, "%s: the report stands in the losing declaration's document", name)
+		require.Len(t, diags[0].Related, 1, name)
+		listed := diags[0].Related[0].Provenance
+		assert.Equal(t, ir.Provenance{Source: tc.keptIn, Pointer: kept.prop.Provenance.Pointer}, listed, name)
+		assert.Equal(t, tc.keptNamesIn, listed.Source != diags[0].Provenance.Source, "%s: the message names a document where the entry lists another", name)
+		assert.Equal(t, tc.keptNamesIn, strings.Contains(diags[0].Message, string(listed.Pointer)+" in "+tc.sources[listed.Source]), name)
+	}
 }
 
 // TestTypeSites_NamesWhereAFoldedTypesNodesAreWritten pins where a settled
