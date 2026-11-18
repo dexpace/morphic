@@ -876,168 +876,157 @@ it sees. Changes made together in one bump are listed together under it.
   carrier finds the bound on its node, one reading such a member took the declaration the flattening
   reached last, one reading such a discriminator found it by `PropertyName`, and one reading a tie
   between two inline declarations took the first's.
-- **0.70.0** — no change of shape; a bound is read by the kinds its position lowers from. A
-  compiler keeps a bound none of those kinds takes verbatim under its keyword
-  (`ReasonDegradedLowering`) on the node or carrier it would have reached, a value set's among them
-  ([constraints](./constraints.md#constraints)). The OpenAPI compiler reads the kinds a value set's
-  members have, a `type` written beside a `$ref` at any depth, an object where a schema states no
-  kind and its `properties` lists a member, and a read of any size, where it read every bound beside
-  a value set naming no `type` and past 256 named schemas: a numeric bound beside an `enum` of
-  strings, or a string bound beside a schema that is an object by its `properties`, is kept and no
-  longer held ([`constraints`](../compilers/openapi.md#constraints)). A bound has one home: a
-  `Property` or a `Parameter` whose use owns its node holds none of that node's bounds, where it
-  restated its value bounds, and a field the redeclared-property fold composes holds what its
-  declarations' own nodes bound ([annotations](./annotations.md#one-structural-home-per-declaration)).
-  A `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, a numeric or string bound beside a
-  schema that lowers to one being kept under its keyword, or with the `allOf` branch writing it, and
-  `irverify` reports a structural node holding a bound of another kind (`ir/bound-of-another-kind`).
-  A type node's `Provenance.Inferred` may name `kind-inference`: the OpenAPI compiler marks a node
-  whose kind it read off the shape keywords of a schema naming none, under a policy that turned off
-  lowers such a schema to the top type
-  ([`shape-applicator`](../compilers/openapi.md#shape-applicator)). It reads a kind off each keyword
-  giving the type of a member, an element or a value, an `items` or an `additionalProperties`
-  holding a schema that writes a keyword, a `patternProperties` and a `prefixItems` among them,
-  where only a `properties` listing a member was read, and keywords of both kinds as a union of the
-  two; a `required`, a `discriminator`, a closure and a `true` or `{}` infer none, and a schema
-  writing only those is the top type keeping them, as before. Beside a union kept whole whose
-  branches each declare a kind the keywords speak of, such a schema lowers to that kind unmarked,
-  where it was the top type. A kind the conjuncts of a schema declare decides before one the policy
-  reads off shape keywords: a conjunct writing such keywords narrows nothing a declared conjunct
-  says, and an `allOf` naming a `$ref` the policy reads as kinds leaving out one its other
-  conjuncts declare is a use of the declared kinds, keeping the `$ref`, where it composed a model
-  over a target writing `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
-  An `allOf` entry whose own keywords claim every kind the policy reads its position as says that kind,
-  as one writing that `type` does, so `{allOf: [{items: …}]}` is a use of the marked `List` its entry
-  builds, as `{items: …}` is that `List`, where it was the top type keeping the `items`.
-  Object keywords written with no `type` beside a union are a body it distributes across where the
-  kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
-  objects among them, and nowhere else: a `properties` beside a union naming another kind is the top
-  type keeping both. Such a union distributes past a null branch too, as no variant, the reference
-  to the position admitting null where the body admits it, where the null branch kept the union
-  whole beside the body. An `allOf` is a `Model` only where the kinds its position lowers to are an
-  object alone, null aside, no longer wherever a conjunct writes a keyword only a `Model` holds or a
-  `$ref` stands where an object may be: over a target admitting every kind, or an object among
-  other kinds, it is a use of the target holding the bound beside it, and a `properties` beside a
-  declared string is kept on the use with an info. Of several `$ref`s none of which is an object, the
-  one within more conjuncts is the use, the other kept, a tie going to the least reference text; a
-  declared kind, or a conjunct naming one, a union beside the `allOf` among them, decides before a
-  `$ref` whose target admits every kind. An `allOf` electing no entry, with no keyword beside it
-  naming a kind, is the primitive its entries admit together, or the `Union` of several, where those
-  are a string, a number or a boolean, where it was the top type, which it stays where they admit an
-  object or an array; of value sets, the kinds of the members every set holds. Value sets sharing no member, whose kinds share one other than an object
-  alone, compose no `Model` and elect no conjunct: the keywords beside the `allOf` decide, the top
-  type keeping each entry where they name no kind, and the warning that the conjuncts share no value,
-  naming each set by its member count, is drawn wherever the election reads them so, where it
-  composed an empty `Model` and nothing reported the contradiction. A `$dynamicRef` a conjunct writes masks no kind in that
-  reading, and one on an entry, which no position expands, admits every kind, where it was read as
-  what it names: over an object it is the `Model` beside the `allOf` makes, not a use. A `$ref` entry is a `Base` or a `Mixin` only where its target is an object alone,
-  or, for a `type` list holding an object, through the list's object variant, so no `Model` names a
-  base or a mixin that is no object; any other is kept under `openapi:allOf/<n>`. A distributed
-  union's variant composes its branch by that rule, a branch writing a keyword beside its `$ref` to
-  such a list aside, keeping any other under its keyword and index, `openapi:oneOf/<i>` or
-  `openapi:anyOf/<i>`, beside the body as on an entry, whose provenance names it, a branch so
-  kept lowering at no pointer of its own and a variant keeping one beside a map being that map's
-  `MapT`, and holds only the bounds the kinds it admits take, its branch's within the body's, where
-  it held each the position took. A branch admitting no object, nor a null the body admits, is no
-  variant: the `Union` keeps it under that key, the schema warning of it, where a variant over it
-  kept it, a branch read so only where the rest of the conjunction admits objects alone and is read
-  whole, a contradiction with any other rest left to the warning that the conjuncts share no value,
-  so a schema draws one of the two at most, and a body none of whose branches lives lowers as itself, keeping the union whole under
-  `openapi:oneOf` or `openapi:anyOf`, the union written beside it or on an entry of its `allOf`,
-  where it was a `Union` of variants no value inhabits. A discriminator's route to such a branch keys
-  nothing in the union's `Mapping`, a `mapping` entry or a `defaultMapping` kept verbatim under
-  `openapi:discriminator/mapping/<key>` or `openapi:discriminator/defaultMapping` on the `Union`,
-  where it routed to the variant composed over the branch, and a discriminator beside a union none
-  of whose branches lives is kept whole. A union beside an `allOf` naming no kind is the `Union`, holding the bound in
-  `Union.Constraints`, and one sharing no kind with the rest is kept under its keyword, not
-  distributed. A composed `Model` takes `Additional` and `AdditionalProps` from the one schema
-  object of its `allOf` whose `additionalProperties` reads every member the position and its entries
-  declare, a `$ref` entry's target declaring none
-  ([`additional-properties`](../compilers/openapi.md#additional-properties)): an entry closing such
-  a model types its closure, where the entry was kept whole, and a closure beside an `allOf` whose
-  entries declare members is kept under `openapi:additionalProperties`, where it closed or typed the
-  model. Which conjunct an `allOf` lowers from, and which union on its entries a composition
-  distributes, does not follow the order written: a `oneOf` goes before an `anyOf` and a union
-  before words admitting as much, two unions of one keyword or two conjuncts neither within the
-  other elect none, the position then lowering by the keywords beside the `allOf`, and a schema
-  written twice is one conjunct, where each tie went to the entry written first
-  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An `allOf` one of whose
-  conjuncts states a value set lowers to that value set, where it composed a `Model` over an object
-  or conjuncts sharing no value; the `Enum`, `Literal` or `Union` of `Literal`s an inline entry's
-  value set lowers to stands at the position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
-  carrier holding the `$ref` it narrows; and a `$ref` conjunct a refinement does not lower is kept
-  under `openapi:$ref`, or `openapi:$ref/<i>` by reference text where several are, where it was kept
-  under `openapi:allOf/<n>`, or with the `allOf` whole beside a value set, an `allOf` of `$ref`
-  entries alone the election of competing keywords passes over among them. A keyword an inline
-  `allOf` entry writes that no reader consumes is kept under its own key, `openapi:<keyword>`, with
-  the reason and the report it has beside the `allOf`, its provenance the keyword on the entry, where
-  the entry was kept whole under `openapi:allOf/<n>` as `degraded_lowering`; an inline entry is now
-  kept under `openapi:allOf/<n>` only where it is kept whole, for a closure or an unevaluated keyword read against the rest of it,
-  an `allOf` of its own not flattened, a relative `$ref` read against another base, or a keyword
-  another conjunct writes otherwise, under the reason its keywords share, else `degraded_lowering`
-  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A keyword several entries
-  keep alike is kept once, at the position's pointer, what an entry kept whole folds and would keep
-  beside it is kept once, inside the entry, a key the promotion policy reads aside, the entry being
-  no writer of a keyword another entry keeps or folds alike, and an entry's `$comment`, `$anchor` and `$defs`
-  are read as beside the `allOf` and kept nowhere. A `$ref` entry naming no schema, which was kept
-  nowhere with each keyword beside it, is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
-  reference text where several are, with each keyword beside it under its own key, or the entry
-  whole under `openapi:allOf/<n>` where one cannot be kept apart. A `$ref` and the keywords
-  written beside it are one conjunction, lowered as the `allOf` of the two is, where the `$ref`
-  site was an alias keeping what it could not hold: a use of an object saying anything beside its
-  `$ref` is the `Model` over it, a decorator holding the notes, a promoted fact and its mark, and a
-  value set, a union and a bound beside it lower as beside an `allOf` of it; an entry's keywords
-  beside its `$ref` are conjuncts of the position, an inline entry of their own that writes no
-  reference, as `{allOf: [{$ref: T}, {K}]}` writes them, so the reference is read, kept and
-  reported once and no node is hoisted at the entry for it, and a `$ref`
-  kept, a refinement's, a composition's for a target it does not compose, or a failed one's, holds
-  the reference's text, where a refinement's held the object `{$ref: …}`. An `allOf`
-  of one `$ref` saying nothing else is the reference, hoisting no node, where it hoisted an
-  anonymous `Model` over an object, and over `false` or a reference naming no schema an open empty
-  one, a `true` beside it saying nothing, as `{}` does, and a component or a position a `$ref`
-  names written as either spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
-  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A use writing beside
-  its one `$ref` nothing but `readOnly`, `writeOnly`, `default` or a `nullable: true` the
-  nullable-inference policy reads, in either spelling, is the reference where a property, a
-  parameter or a header carries it, read off where it is written, hoisting no node, where it hoisted
-  an anonymous `Model` over an object holding nothing, the carrier then reading what the target
-  lends it as over any other target. A node a use
-  hoists is hinted by its position, a variant naming one target that declares no member by that
-  target, and a title on any inline conjunct names (the names golden moves)
-  ([`ref-use-site`](../compilers/openapi.md#ref-use-site),
-  [`allof-beside-ref`](../compilers/openapi.md#allof-beside-ref)). An
-  `openapi/conflicting-redeclaration` warning sits where the declaration that lost is written, and
-  one every model composing the same two declarations draws alike is reported once, saying how many
-  models compose both, where each of them reported it at the entry bringing that declaration
-  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A value set
-  an `allOf` entry writes whose own keywords leave it no value, a `const` and an `enum` sharing none,
-  a `const` outside its `type` or one beside a union of another kind, lowers as the keyword the
-  election of competing keywords elects, keeping the `$ref` and the rest, as beside the `$ref` or the
-  `allOf`, where the `allOf` composed a `Model` over a target of another kind; there the `$ref` it
-  beats is reported apart from the keyword passed over
-  ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). A consumer pinned to 0.69.0
-  refuses the document; one reading such a bound
-  off `Constraints` finds it under `Unmodeled`, one reading a carrier's bound finds it on the node
-  the carrier names, one reading a node's kind as declared finds the marker where it was not, one
-  reading an untyped shape keyword under `Unmodeled` finds it typed on the node its kind lowers to,
-  one reading such an `allOf` as a model finds the declared kind, one reading a closure or a
-  catch-all beside a union of objects finds a union of models holding it where it found the top
-  type, one reading a property set beside a union naming another kind finds the top type where it
-  found a union of models over each branch, and one reading a union with a null branch beside a body
-  finds it distributed, behind a reference admitting null as the body does, one reading an `allOf`
-  over a target that is no object alone as a model finds a use of the target, and one reading a
-  `Model`'s `Base` or `Mixins` finds no node that is no object there, its `$ref` or a variant's
-  branch kept instead, and over a `type` list holding an object the list's object variant where it
-  found the union, and one reading a variant's `Constraints` finds a property count only where the
-  variant admits an object, and one reading a distributed union's variants finds none over a branch
-  no object satisfies, the branch kept on the `Union` instead, and one reading an
-  `additionalProperties` finds it typed where the
-  schema object writing it declares every member the position and its entries do, on an entry as
-  beside the `allOf`, and kept elsewhere, and one reading the first entry of a tie as the position's
-  finds the conjunct those rules elect, or none, and one naming a value set's node by its entry's ID
-  finds it at the position's, and one reading `openapi:allOf/<n>` for what an entry keeps finds each
-  keyword under `openapi:<keyword>` on the same node, its provenance naming the entry, and one
-  reading the keywords of a document with an unresolved `$ref` entry finds the reference and each
-  keyword beside it under `Unmodeled` where it found nothing, and one counting conflicting
-  redeclarations finds one per pair of declarations, member and outcome, where it found one per model
-  composing them, and one reading such an entry's `allOf` as a `Model` finds the value set.
+- **0.70.0** — no change of shape. The OpenAPI compiler changes where a bound lives, what an
+  `allOf`, a `$ref` with keywords beside it and a union beside a body lower to, and the keys it
+  keeps under `Unmodeled`; a consumer pinned to 0.69.0 refuses the document. By what a consumer
+  reads:
+  - **The kind of an `allOf`** ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An
+    `allOf` is a `Model` where the kinds its position lowers to are an object alone, null aside. It
+    stays one where the read of what its conjuncts admit is cut short, at 256 schemas or 4,096
+    `enum` members, and where those kinds share none, so `{allOf: [{type: string}, {type:
+    integer}]}` is still an empty `Model`, with a warning. Anywhere else it is one use of the
+    conjunct that decides it, where a keyword only a `Model` holds, or a `$ref` where an object may
+    be, made it a `Model`: `{allOf: [{type: string}], properties: …}` is a string keeping the
+    `properties` with an info, and a component that becomes a use is an alias. A declared kind
+    decides before a `$ref` whose target admits every kind, and a `$ref` the kind-inference policy
+    reads as kinds leaving out a declared one is kept: `{allOf: [{$ref: P}, {type: string}]}` over
+    `P: {properties: …}` is a string. A `$dynamicRef` on an entry, which no position expands, admits
+    every kind, where it was read as what it names.
+  - **Value sets in an `allOf`.** A conjunct's value set lying within the rest is lowered before a
+    composition, over an object too: `{allOf: [{$ref: Obj}, {enum: [{a: x}]}]}` is the `Union` of
+    its `Literal`s keeping the `$ref`, where it was a `Model` over `Obj`. One its own keywords leave
+    no value, a `const` outside its `type` say, lowers as
+    [`competing-keywords`](../compilers/openapi.md#competing-keywords) elects, keeping the `$ref`
+    and the rest, each reported apart. Value sets sharing no member, whose kinds share one that is
+    not an object alone, compose nothing: the keywords beside the `allOf` decide, else the top type
+    keeps each entry, and a warning names each set by its member count, where an empty `Model` stood
+    unreported.
+  - **An `allOf` electing no entry**, with no keyword beside it naming a kind, is the primitive its
+    entries admit together, or the `Union` of several where they are strings, numbers or booleans,
+    of value sets the kinds of the members every set holds, and the top type keeping each entry
+    where they admit an object or an array. It was a use of the entry written first, keeping the
+    others, or an empty `Model`.
+  - **Which conjunct decides** no longer follows the order written: a `oneOf` goes before an
+    `anyOf`, a union before words admitting as much, and among conjuncts admitting alike the least
+    text, so an `Enum`'s member order can follow; among `$ref`s none of which is an object, the one
+    within more conjuncts is the use, then the least reference text, the others kept. Two unions of
+    one keyword, or two conjuncts neither within the other, elect none, and a schema written twice
+    is one conjunct. Each tie went to the first written.
+  - **A `$ref` with keywords beside it** is one conjunction, lowered as the `allOf` of the two
+    ([`ref-use-site`](../compilers/openapi.md#ref-use-site),
+    [`allof-beside-ref`](../compilers/openapi.md#allof-beside-ref)). A use of an object saying more
+    than its `$ref`, a description, a title, a bound or an extension, is an anonymous `Model` over
+    the target holding it, where the carrier named the target and held or kept the rest; a value
+    set, a union or a bound beside a `$ref` lowers as beside an `allOf` of it. At OpenAPI 3.0, a
+    `type` beside a `$ref`, which `openapi/later-version-construct` says is applied, is now applied.
+    On an `allOf` entry, the keywords beside its `$ref` are a conjunct of their own, hoisting no
+    node at the entry. An `allOf` of one `$ref` saying nothing else, a `true` entry aside, is the
+    reference and hoists no node, its carrier reading the target's docs as under a bare `$ref`,
+    where it hoisted an anonymous `Model` over an object and an empty open one over a reference
+    naming no schema. So is one writing beside it only `readOnly`, `writeOnly`, `default` or a
+    `nullable: true` the nullable-inference policy reads, where a property, a parameter or a header
+    carries it, as the bare `$ref` already was. A component `{$ref: Obj}` or `{allOf: [{$ref:
+    Obj}]}` over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias.
+  - **`Model.Base` and `Model.Mixins`** name only objects
+    ([`allof-classification`](../compilers/openapi.md#allof-classification)). A `$ref` entry whose
+    target is not an object alone is kept under `openapi:$ref`, where it was a base or a mixin; over
+    a `type` list holding an object, the list's object variant (`…/type/<i>`) is the base, where the
+    union was. Of several `$ref` entries in discriminator hierarchies, the base is the one whose
+    mapping names the model, where it was the first written. A composed `Model` takes `Additional`
+    and `AdditionalProps` from the one schema object of its `allOf` whose `additionalProperties`
+    reads every member the position and its entries declare: an entry closing the model types the
+    closure, where the entry was kept whole, and a closure beside an `allOf` whose entries declare
+    members is kept under `openapi:additionalProperties`, where it closed or typed the model
+    ([`additional-properties`](../compilers/openapi.md#additional-properties)).
+  - **A union beside a body**
+    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Object keywords
+    with no `type` beside a `oneOf` or an `anyOf` are distributed across it where the position's
+    kinds are an object alone, so a closure beside a union of objects is a `Union` of closed models,
+    where it was the top type, and properties beside a union naming another kind are the top type
+    keeping both, where they were a `Union` of models. A null branch is no variant: the union
+    distributes past it and a reference to the position admits null, where the null branch kept the
+    union whole. A variant composes its branch only where the branch is an object alone or a `type`
+    list's object variant, keeps any other under `openapi:oneOf/<i>` or `openapi:anyOf/<i>`, and is
+    a `MapT` where it composes nothing beside a map. Where the rest admits objects alone, a branch
+    admitting no object, nor a null the body admits, is dead and no variant: the `Union` keeps it
+    under that key with a warning, where a variant over it was a `Model` no value inhabits, and a
+    `mapping` entry routing to it is kept under `openapi:discriminator/mapping/<key>`. Where no
+    branch lives, the body lowers as itself keeping the union under `openapi:oneOf` or
+    `openapi:anyOf`, and a discriminator mapping to a branch under `openapi:discriminator`. A union
+    on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed.
+  - **`Constraints`** ([constraints](./constraints.md#constraints),
+    [`constraints`](../compilers/openapi.md#constraints)). A bound is read by the kinds its home
+    lowers from: those of a value set's members, a `type` beside any `$ref` of its chain, and an
+    object where a schema writes no kind and its `properties` lists a member; a read taking in more
+    than 256 schemas no longer takes every bound. A bound none of them takes is kept under
+    `openapi:<keyword>`, or `openapi:schema/<keyword>` on a parameter, as `degraded_lowering` with
+    an info: `{$ref: Colors, minimum: 1}` over an `enum` of strings, or a string bound beside a
+    schema that is an object by its `properties`, was held. A `Property` or a `Parameter` whose use
+    owns its node, a member the redeclared-property fold composes among them, no longer restates
+    that node's bounds ([annotations](./annotations.md#one-structural-home-per-declaration)). A
+    `Model` or a `MapT` holds `MinProps` and `MaxProps` alone, a distributed union's variant among
+    them, where a variant held each bound the position took; another bound beside one is kept under
+    its keyword, on an `allOf` entry as beside it (`openapi:minLength`, not inside
+    `openapi:allOf/<n>`). `irverify` reports a structural node holding a bound of another kind
+    (`ir/bound-of-another-kind`).
+  - **`Provenance.Inferred` names `kind-inference`** on a node whose kind is read off the shape
+    keywords of a schema naming none
+    ([`shape-applicator`](../compilers/openapi.md#shape-applicator)): `items` or `prefixItems` make
+    a `List` or a `Tuple`, `additionalProperties` a `MapT`, `patternProperties` or a `properties`
+    listing a member a `Model`, and keywords of both an array and an object a `Union` of the two. It
+    was the top type keeping the keyword, or an unmarked `Model` where `properties` lists a member.
+    An `items` or an `additionalProperties` infers only where its schema writes a keyword, and
+    `required`, `discriminator`, a closure, `true` and `{}` infer none. The option
+    `kind-inference=false` ([CLI](../cli.md#inference-and-naming)) restores the top type keeping the
+    keywords. A kind a conjunct declares decides first; a model an `allOf` composes is marked where
+    no conjunct declares its kind, and an entry claiming every kind its position is read as says
+    that kind, so `{allOf: [{items: …}]}` is a use of the marked `List` its entry builds. Beside a
+    union kept whole whose branches each declare the kind the keywords speak of, such a schema
+    lowers to that kind, unmarked.
+  - **Type IDs and nodes.** The `Enum`, `Literal` or `Union` of `Literal`s an inline `allOf` entry's
+    value set lowers to stands at the position's pointer and ID, where it stood at the entry's
+    (`…/allOf/<n>`) behind an alias or a carrier. The node an `allOf` of one `$ref` hoisted, the
+    alias a `$ref` with notes on an entry hoisted, and each dead variant with its branch's nodes are
+    gone; an anonymous `Model` stands where a `$ref` to an object has something beside it. A schema
+    a reference lands on beneath a nested Encoding Object (OpenAPI 3.2) lowers to a node, where it
+    was never lowered, and a pointer into another document that passes a Reference Object is read on
+    to where that reference's chain ends, where it was unresolved
+    ([`references`](../compilers/openapi.md#references)).
+  - **Names** (`Naming.Hint`). A node a use hoists is hinted by its position, `variant_0` or the
+    property's name, where it took its target's name; the `Variant` naming it keeps the target's
+    hint, and one naming several targets, a `$ref` beside an `allOf`, takes its position's, where it
+    took the first target's. A `title` on an inline conjunct, beside a `$ref` or nested, names the
+    node and its variant.
+  - **Keys under `Unmodeled`** ([keys](./unmodeled.md#keys)). A keyword an inline `allOf` entry
+    writes that nothing reads is kept under `openapi:<keyword>`, its provenance at the entry, where
+    the entry was kept whole under `openapi:allOf/<n>`; one several entries keep alike is kept once,
+    at the position's pointer, and an entry's `$comment`, `$anchor` and `$defs` nowhere.
+    `openapi:allOf/<n>` holds an entry only where it must be kept whole, under the reason its
+    keywords share, `validation_only` for an `unevaluatedProperties` say, else `degraded_lowering`
+    ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). `openapi:$ref`, or
+    `openapi:$ref/<i>` by reference text where a node keeps several, holds the reference's text: a
+    `$ref` the position does not lower from, one a `Model` does not compose, and one naming no
+    schema, each keyword beside it under its own key. These stood under `openapi:allOf/<n>` or
+    `openapi:allOf` whole, a refinement's as the object `{$ref: …}`, and an unresolved entry's not
+    at all. A `$dynamicRef` an entry writes, naming an anchor, is kept under `openapi:$dynamicRef`.
+    `openapi:nullable` (`out_of_scope`) holds a `nullable` at OpenAPI 3.1 or 3.2 the
+    nullable-inference policy does not read, `false` or no boolean, where it left no trace
+    ([`nullable`](../compilers/openapi.md#nullable)). An empty `dependentRequired` or draft
+    `dependencies` is no longer kept ([`validation-only`](../compilers/openapi.md#validation-only)),
+    and a keyword merged in through more than 64 chained `<<` is neither lowered nor kept, where it
+    was lowered from the parser's model ([merge keys](../parser-library.md#merge-keys)).
+  - **`TypeRef.Nullable`.** A `nullable` written as a string states no null at OpenAPI 3.1 and 3.2,
+    where a YAML 1.1 truth word such as `"yes"` read as true.
+  - **Reports.** `openapi/conflicting-redeclaration` is drawn once per pair of declarations, at the
+    one that lost, saying how many models compose both, where each composing model drew it
+    ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A member one
+    entry declares as a kind and another as a structure admitting only part of it, a `Model` over a
+    target bounding that kind say, is such a conflict keeping the loser, where the fold took the
+    kind and dropped the structure. `openapi/degraded-construct` warns where the conjuncts share no
+    value and one is a union, or is a `type` beside a `$ref` at OpenAPI 3.0
+    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts)), where a union
+    beside a body has a dead branch, and at a schema merging through more than 64 `<<`. An `allOf`
+    beside a value set with an entry no JSON renders keeps each `$ref` by its text, where it drew
+    `openapi/unpreservable-construct` and kept nothing. `openapi/unknown-schema-keyword` is an info
+    at each `nullable` kept, and an entry kept whole as `validation_only` draws
+    `openapi/validation-only-keyword` where it drew `openapi/degraded-construct`.
