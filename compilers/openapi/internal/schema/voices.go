@@ -279,9 +279,9 @@ func foldsNullable(bs *statement.Schema) bool {
 }
 
 // positionVoices returns the voices of s, written at pointer, as a reader of
-// what the position holds takes them. A refinement's inline principal is one
-// only where it reduced to a shared node, target being what the position lowered
-// to: a branch owning that node keeps what it writes there.
+// what the position holds takes them, target being what the position lowered
+// to. A branch whose own node that is, the alias a $ref principal writing
+// keywords beside it stands at its entry, keeps what it writes there.
 func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
 	if !allOfDecides(c, s) {
 		return nil

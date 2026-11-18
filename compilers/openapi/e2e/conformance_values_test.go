@@ -514,14 +514,21 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	require.True(t, ok)
 	for wire, key := range map[string]string{
 		"refined": "openapi:minLength", "site": "openapi:minLength", "nullable": "openapi:minLength",
-		"voiced": "openapi:minLength", "chained": "openapi:minLength", "inline": "openapi:minLength",
-		"counted": "openapi:minItems",
+		"voiced": "openapi:minLength", "chained": "openapi:minLength", "counted": "openapi:minItems",
 	} {
 		p, found := propByWire(holder, wire)
 		require.True(t, found, wire)
 		assert.Nil(t, p.Constraints, wire)
 		assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, p.Unmodeled, key).Reason, wire)
 	}
+	inline, found := propByWire(holder, "inline")
+	require.True(t, found)
+	assert.Nil(t, inline.Constraints)
+	assert.Empty(t, inline.Unmodeled, "the list the entry builds stands at the property and keeps the bound")
+	list, ok := doc.Types[inline.Type.Target].(*ir.List)
+	require.True(t, ok, "%T", doc.Types[inline.Type.Target])
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Failure/properties/inline"), list.ID)
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, list.Unmodeled, "openapi:minLength").Reason)
 
 	composed, found := propByWire(holder, "composed")
 	require.True(t, found)

@@ -21,26 +21,16 @@ import (
 // written (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat
 // is still resolved: nothing else may lower what it names.
 func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, r refinement,
-	fin, principal finisher,
+	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
 	resolveBeaten(c, ts, r)
 	if e.schema.Ref != nil {
-		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode, principal)
+		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode)
 		return ref.Target, diags
 	}
-	if !standsYet(e.schema.Schema) {
-		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeCarrier, principal)
-		return ref.Target, diags
-	}
-	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, nil, stand{of: s, at: pointer})
+	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, stand{of: s, at: pointer})
 	return ref.Target, append(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags...)
-}
-
-// standsYet reports whether the inline principal s lowers standing at its
-// position: a union and a type list.
-func standsYet(s *statement.Schema) bool {
-	return declaresUnion(s) || len(effectiveTypes(s)) > 1
 }
 
 // resolveBeaten resolves each $ref of r but its principal: nothing else may
@@ -142,20 +132,3 @@ func sharedKinds(joint admitted) kindSet {
 // the report of what an entry of it keeps.
 const undecidedShape = "what the keywords beside it say, as no entry of it is the one it lowers from " +
 	"(where they name no kind, the primitive kinds its entries admit together, else the top type)"
-
-// principalResidue returns the finisher keeping what binds a use on the node
-// the principal of s, written at pointer, builds, where no carrier reads it,
-// its report into into: a principal lowers with no home of its own
-// (lowerPrincipal), so the branch keeps it as any declaration owning a node
-// does. It is nil where s has no principal, or home is a carrier, which keeps
-// it.
-func principalResidue(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home, into *[]ir.Diagnostic) finisher {
-	r, refined := refinementOf(c, s, pointer)
-	if home != annotation.HomeOwnNode || !refined || r.principal == nil || !stated(r.principal.schema.Schema) {
-		return nil
-	}
-	principal := r.principal
-	return func(td ir.TypeDef, _ keySet) {
-		*into = recordResidue(c, td.Common(), principal.schema.Schema, principal.pointer)
-	}
-}

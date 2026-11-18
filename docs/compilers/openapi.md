@@ -2405,21 +2405,22 @@ bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a 
 one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by the keywords beside
 the `allOf`. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
 principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
-as if no `allOf` were written. An inline principal writing a value set lowers it at the position's
-pointer, as the keywords beside the `allOf` would, so one node stands for the position whichever
-conjunct writes the set, its members and the reports on them where they are written. What the
-branch writes beside the set is kept on that node at its own pointer, as any conjunct's is, a
-`oneOf` or `anyOf` among it, which the set does not say since the node holds no union, kept under its
-keyword as the same union beside the `allOf` is. A `$ref`
-to the branch's own pointer names the branch alone, a node of its own typed by what it writes. An
-inline principal writing a union or a type list stands at the position's pointer too, holding the
-bounds the conjunction writes, its variants where they are written. Any other principal lowers at
-the pointer it is written at, so nothing is minted and each node stands at a pointer naming its
-schema: a `$ref` as any `$ref` branch does, what is written beside it on the
-alias [models](../ir/models.md#composition-entries) describes, and an inline branch as a schema
-carried by the position. A branch that reduces to a shared node reads as
-written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
-`readOnly` and `writeOnly` as it keeps its schema's.
+as if no `allOf` were written. An inline principal lowers at the position's pointer, as the keywords
+beside the `allOf` would, so one node stands for the position whichever conjunct decides it: a
+value set, a `Union`, a `List`, a `Tuple` or a hoisted `Scalar`, its children and the reports on
+what it writes where they are written, so `{allOf: [{description: d}, {type: array, items: {type:
+string}}]}` is the `List` at the position, as its flat spelling is, and a node its `items` builds
+stands at `…/allOf/1/items`. The node holds the
+bounds of the conjunction, the position's own and each other conjunct's, as the same keywords
+written beside each other give it them, and the conjunct reads as a voice of the position, what it
+writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
+or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
+as the same union beside the `allOf` is. A `$ref` to the branch's own pointer names the branch
+alone, a node of its own typed by what it writes. A wrapper's `allOf` is the position's conjuncts,
+so `{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}` is the one `List` its
+flat spelling is, holding the bound once. A `$ref` principal lowers as any `$ref` branch does, what
+is written beside it on the alias [models](../ir/models.md#composition-entries) describes, and an
+inline one that reduces to a shared node reads as written beside the `allOf`.
 
 The value set a refinement lowers to, the `Enum` or `Literal` of a principal or of the keywords
 beside the `allOf`, is typed by every conjunct. Each selects a primitive as
@@ -2591,6 +2592,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestInlinePrincipal_TheNodeStandsAtThePositionInEverySpelling`,
   `e2e.TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction`,
   `e2e.TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt`,
+  `e2e.TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone`,
+  `e2e.TestInlinePrincipal_AWrapperHoldsEachBoundOnce`,
   `e2e.TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition`,
   `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`
 

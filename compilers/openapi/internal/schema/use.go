@@ -37,9 +37,6 @@ type Use struct {
 	// places[i] is where Referents[i] is written, in whichever document;
 	// lend and lendAll write the two together.
 	places []referentPlace
-	// Principal is a refinement's inline principal where it owns a node, and nil
-	// otherwise: it is also the first of Referents.
-	Principal *annotation.Voice
 	// narrowed is what the position admits where a referent may say more, and nil
 	// where every referent's default stands.
 	narrowed *admitted
@@ -179,16 +176,6 @@ func keysOf(c lowering.Ctx, r *statement.Schema) promotion.Referent {
 	})
 }
 
-// Written returns the inline branches written for the position that a keeper of
-// what only the position can hold reads beside its schema: u's voices, then a
-// principal owning a node, which holds no such keyword itself.
-func (u Use) Written() []annotation.Voice {
-	if u.Principal == nil {
-		return u.Voices
-	}
-	return append(slices.Clone(u.Voices), *u.Principal)
-}
-
 // passage is how a use of a schema reads past it, into the one $ref its allOf
 // writes (throughRef).
 type passage struct {
@@ -197,8 +184,6 @@ type passage struct {
 	admits admitted
 	// ref is nil for a refinement writing no $ref.
 	ref *statement.Statement
-	// principal is a refinement's, nil for any other schema.
-	principal *allOfBranch
 	// lost marks a ref the position does not lower to, so no Base reaches it.
 	lost bool
 	// narrows reports that the schema admits less than ref admits, so admits
@@ -210,7 +195,7 @@ type passage struct {
 // a use does not read past.
 func passageOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (passage, bool) {
 	if r, refined := refinementOf(c, s, pointer); refined {
-		p := passage{admits: r.joint, principal: r.principal}
+		p := passage{admits: r.joint}
 		if r.ref != nil {
 			p.ref, p.lost = r.ref.schema, !r.principalIs(*r.ref)
 			p.narrows = p.lost || r.held.narrowedTo(r.joint)
@@ -275,12 +260,6 @@ func (p passage) speakers(c lowering.Ctx) Use {
 	return u
 }
 
-// ownsNode reports whether p's principal lowered to a node of its own, which
-// keeps what it writes, t being what the position lowered to.
-func (p passage) ownsNode(c lowering.Ctx, t ir.TypeRef) bool {
-	return p.principal != nil && LoweredToOwnNode(c, p.principal.pointer, t)
-}
-
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
 // t (readUse), its voices marked where the outcome keeps their branch whole
 // (markKeptWhole).
@@ -291,8 +270,8 @@ func UseOf(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsonte
 }
 
 // readUse reads what speaks for a carrier holding js at pointer, which lowered
-// to t: what a $ref names, or what passageOf reads on through. A principal owning
-// a node keeps its annotations there, so it speaks here as a referent does. A
+// to t: what a $ref names, or what passageOf reads on through, an inline
+// principal speaking as a voice, as its node stands at the position. A
 // composition throughRef reads no $ref through lends nothing: its Model holds
 // what it composes as Base and Mixins.
 func readUse(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
@@ -305,10 +284,6 @@ func readUse(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer json
 	p, ok := passageOf(c, js.Schema, pointer)
 	if !ok {
 		return u
-	}
-	if p.ownsNode(c, t) {
-		u.Principal = &annotation.Voice{Node: p.principal.schema.Schema, At: p.principal.pointer}
-		u.lend(u.Principal.Node, placeIn(c, p.principal.pointer))
 	}
 	if p.ref == nil {
 		return u
@@ -464,11 +439,6 @@ func placeOf(c lowering.Ctx, js *statement.Statement) referentPlace {
 	p, known := siteOf(js.Schema)
 	in, read := lowering.InDocument(c, p.Doc)
 	return referentPlace{doc: in.Place(), pointer: p.Pointer, known: known && read}
-}
-
-// placeIn returns pointer of c's document as a place.
-func placeIn(c lowering.Ctx, pointer jsontext.Pointer) referentPlace {
-	return referentPlace{doc: c.Place(), pointer: pointer, known: true}
 }
 
 // beneath returns the place of what is written at below, relative to p, and

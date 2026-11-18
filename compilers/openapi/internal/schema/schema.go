@@ -98,7 +98,7 @@ const maxSchemaDepth = 256
 // inherits the lossless behaviour, and only a caller that can prove it already
 // carries the annotations opts out through CarriedRef.
 func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeOwnNode, nil)
+	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeOwnNode)
 }
 
 // CarriedRef lowers a schema whose annotations the calling position
@@ -106,15 +106,12 @@ func Ref(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, 
 // copy the declaration onto their own ir.Property/ir.Parameter, so the pointer
 // must not also hoist a node to hold it: one home per declaration.
 func CarriedRef(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeCarrier, nil)
+	return schemaRefHomed(c, ts, depth, js, pointer, annotation.HomeCarrier)
 }
 
 // schemaRefHomed is the shared body of the two entry points above; home only
-// reaches the two places that can hoist an annotation-holding alias. fin, an
-// outer frame's finisher, runs after the position's own on the node standing
-// at pointer, where this lowering builds one.
+// reaches the two places that can hoist an annotation-holding alias.
 func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.Statement, pointer jsontext.Pointer, home annotation.Home,
-	fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	// depth counts the active frames of this function, which is where every
 	// recursive descent re-enters. Incrementing on entry and passing the result
@@ -155,10 +152,10 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *statement.
 	}
 	diags := mergedPastBound(c, js)
 	if js.Ref != nil {
-		ref, refDiags := refSiteRef(c, ts, js, js.Schema, pointer, home, fin)
+		ref, refDiags := refSiteRef(c, ts, js, js.Schema, pointer, home)
 		return ref, append(diags, refDiags...)
 	}
-	ref, bodyDiags := schemaBody(c, ts, depth, js.Schema, pointer, home, fin)
+	ref, bodyDiags := schemaBody(c, ts, depth, js.Schema, pointer, home)
 	return ref, append(diags, bodyDiags...)
 }
 
@@ -244,14 +241,12 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 // position that is no $ref site (refSiteRef takes those). A rule about the
 // declaration itself is checked here, above the dispatch that picks what it
 // lowers to (missingArrayItems). The findings keep their order: the body's, the
-// home's, a principal's residue, what the position keeps beside it.
+// home's, what the position keeps beside it.
 func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer, home annotation.Home,
-	fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	diags := missingArrayItemsConjoined(c, schema, pointer)
-	decl := &declaring{c: c, ts: ts, s: schema, target: ir.TypeRef{Target: c.IDs().ForPointer(pointer)}, pointer: pointer, home: home, fin: fin}
-	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer, decl.finish,
-		principalResidue(c, schema, pointer, home, &decl.principal), stand{})
+	decl := &declaring{c: c, ts: ts, s: schema, target: ir.TypeRef{Target: c.IDs().ForPointer(pointer)}, pointer: pointer, home: home}
+	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer, decl.finish, stand{})
 	diags = append(diags, bodyDiags...)
 	ref := target
 	// A body's census ran where its node was built, the only thing that can
@@ -264,38 +259,30 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 		ref, homeDiags = hoistUseHome(c, ts, schema, target, pointer, decl.finish)
 		diags = append(diags, homeDiags...)
 	}
-	return ref, slices.Concat(diags, decl.diags, decl.principal, decl.kept)
+	return ref, slices.Concat(diags, decl.diags, decl.kept)
 }
 
 // declaring is a body's declaration s, written at pointer under home, on its
 // way to the node the position lowered to target stands at: what finishes it
-// there (finish), fin after, and what it reported, its principal's residue
-// among it.
+// there (finish), and what it reported.
 type declaring struct {
 	c       lowering.Ctx
 	ts      *compile.Types
 	s       *statement.Schema
-	fin     finisher
 	pointer jsontext.Pointer
 	target  ir.TypeRef
 	diags   []ir.Diagnostic
-	// principal is what a refinement's principal reported keeping on its own
-	// node (principalResidue).
-	principal []ir.Diagnostic
-	kept      []ir.Diagnostic
-	home      annotation.Home
-	ran       bool
+	kept    []ir.Diagnostic
+	home    annotation.Home
+	ran     bool
 }
 
 // finish writes the declaration and what the position keeps beside it on td,
-// in hand (declarationOn, keptOn), then d.fin.
-func (d *declaring) finish(td ir.TypeDef, read keySet) {
+// in hand (declarationOn, keptOn).
+func (d *declaring) finish(td ir.TypeDef, _ keySet) {
 	d.ran = true
 	d.diags = declarationOn(d.c, d.ts, d.s, d.target, d.pointer, d.home, td)
 	d.kept = keptOn(d.c, d.ts, d.s, d.target, d.pointer, td)
-	if d.fin != nil {
-		d.fin(td, read)
-	}
 }
 
 // keptOn keeps on td, in hand, the node the position s, written at pointer,
@@ -317,7 +304,7 @@ func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.Ty
 // fin finishes the node the body builds at pointer, and principal the node a
 // refinement's principal builds at its own (lower).
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer,
-	fin, principal finisher, st stand,
+	fin finisher, st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
 		// The expansion settled that the target resolves, by what resolveAt
@@ -352,7 +339,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		// on the model, held to its routes as one beside the union is.
 		fin = discriminatorBesideUnion(c, ts, schema, u.holder, pointer).then(fin)
 	}
-	id, bodyDiags := lower(c, ts, depth, schema, pointer, fin, principal, st)
+	id, bodyDiags := lower(c, ts, depth, schema, pointer, fin, st)
 	if how == unionNoLiveBranch {
 		bodyDiags = append(bodyDiags, diagDeadEntryUnion(c, schema, u, pointer)...)
 	}
@@ -385,8 +372,7 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 // one written beside the allOf does, and either is typed by every conjunct
 // (valueSetSite.valueType). Any other schema lowers by its election (lowerElected).
 // fin finishes the node built at pointer, principal an inline principal's.
-func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin, principal finisher,
-	st stand,
+func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	if st.of != nil {
 		// s is the inline principal of the refinement st stands for, a wrapper's
@@ -410,7 +396,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 		id, diags := lowerElected(c, ts, depth, s, pointer, d, fin, st)
 		return id, append(diags, reported...)
 	}
-	id, diags := lowerPrincipal(c, ts, depth, s, pointer, r, fin, principal)
+	id, diags := lowerPrincipal(c, ts, depth, s, pointer, r, fin)
 	return id, append(diags, reported...)
 }
 

@@ -25,14 +25,23 @@ type inlinePrincipal struct {
 	only31                bool // it writes a keyword 3.0 has no spelling of
 }
 
-// inlinePrincipals are the principals that build a node: a type list, a union,
+// inlinePrincipals are the principals that build a node: a list, a tuple, a
+// type list, a union, a hoisted scalar, a list the kind-inference policy reads,
 // a union of null alone, a union of value sets, and a map, which composes and
 // stood at its position before; each bound beside it where it takes one.
 var inlinePrincipals = []inlinePrincipal{
+	{name: "list", keywords: "type: array, items: {type: string}", other: "description: d", kind: ir.KindList},
+	{name: "list bounded apart", keywords: "type: array, items: {type: string}", other: "minItems: 1", kind: ir.KindList},
+	{
+		name: "tuple", keywords: "type: array, prefixItems: [{type: string}, {type: integer}], items: false",
+		other: "description: d", kind: ir.KindTuple, only31: true,
+	},
 	{name: "type list", keywords: "type: [string, integer], minLength: 2", other: "description: d", kind: ir.KindUnion, only31: true},
 	{name: "type list bounded apart", keywords: "type: [string, integer]", other: "minLength: 2", kind: ir.KindUnion, only31: true},
 	{name: "union", keywords: "oneOf: [{$ref: '#/components/schemas/S'}, {type: integer}]", other: "description: d", kind: ir.KindUnion},
 	{name: "union bounded apart", keywords: "oneOf: [{$ref: '#/components/schemas/S'}]", other: "type: string, minLength: 1", kind: ir.KindUnion},
+	{name: "scalar", keywords: "type: string, format: byte, maxLength: 4", other: "description: d", kind: ir.KindScalar},
+	{name: "inferred list", keywords: "items: {type: string}", other: "description: d", kind: ir.KindList},
 	{name: "null alone", keywords: "oneOf: [{type: 'null'}]", other: "description: d", kind: ir.KindEnum, only31: true},
 	{name: "union of value sets", keywords: "anyOf: [{enum: [a, b]}, {enum: [b, c]}]", other: "description: d", kind: ir.KindUnion},
 	{name: "map", keywords: "type: object, additionalProperties: {type: string}", other: "description: d", kind: ir.KindMap},
@@ -146,8 +155,8 @@ type boundedPrincipal struct {
 	check                  func(t *testing.T, doc *ir.Document, node ir.TypeDef)
 }
 
-// boundedPrincipals are #2053's union bounded by a minLength, and a type list
-// by a minLength, which its string variant holds.
+// boundedPrincipals are #2053's union bounded by a minLength, a list by a
+// minItems, and a type list by a minLength, which its string variant holds.
 var boundedPrincipals = []boundedPrincipal{
 	{name: "union", principal: "{oneOf: [{$ref: '#/components/schemas/S'}]}", bound: "{type: string, minLength: 1}",
 		check: func(t *testing.T, _ *ir.Document, node ir.TypeDef) {
@@ -157,6 +166,15 @@ var boundedPrincipals = []boundedPrincipal{
 			require.NotNil(t, u.Constraints)
 			require.NotNil(t, u.Constraints.MinLength)
 			assert.EqualValues(t, 1, *u.Constraints.MinLength)
+		}},
+	{name: "list", principal: "{type: array, items: {type: string}}", bound: "{minItems: 1}",
+		check: func(t *testing.T, _ *ir.Document, node ir.TypeDef) {
+			t.Helper()
+			l, ok := node.(*ir.List)
+			require.True(t, ok, "a list")
+			require.NotNil(t, l.Constraints)
+			require.NotNil(t, l.Constraints.MinItems)
+			assert.EqualValues(t, 1, *l.Constraints.MinItems)
 		}},
 	{name: "type list", principal: "{type: [string, integer]}", bound: "{minLength: 2}",
 		check: func(t *testing.T, doc *ir.Document, node ir.TypeDef) {
@@ -206,16 +224,63 @@ func TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction(t *testing.T) {
 	}
 }
 
+// TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone holds a $ref to
+// an entry an allOf lowers from to a node at the entry's own ID typed by what
+// the entry writes alone, beside the node at the position holding the bounds
+// of the whole conjunction, whichever is declared first.
+func TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"ArrE: {allOf: [{description: d, minItems: 2}, {type: array, items: {type: string}, maxItems: 9}]}",
+		"R: {$ref: '#/components/schemas/ArrE/allOf/1'}",
+	}
+	docs := map[string]string{}
+	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
+		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "", schemas...))
+		requireErrorsAndWarnings(t, diags, nil)
+		whole, ok := kindNode(t, doc, componentID("ArrE")).(*ir.List)
+		require.True(t, ok, "the position is the list")
+		require.NotNil(t, whole.Constraints)
+		require.NotNil(t, whole.Constraints.MinItems)
+		require.NotNil(t, whole.Constraints.MaxItems)
+		assert.EqualValues(t, 2, *whole.Constraints.MinItems)
+		assert.EqualValues(t, 9, *whole.Constraints.MaxItems)
+		assert.Equal(t, "d", whole.Docs.Description, "the position's description")
+
+		entry, ok := kindNode(t, doc, "t/anon/components/schemas/ArrE/allOf/1").(*ir.List)
+		require.True(t, ok, "the entry a $ref names is a list of its own")
+		require.NotNil(t, entry.Constraints)
+		assert.Nil(t, entry.Constraints.MinItems, "the entry alone writes no minItems")
+		require.NotNil(t, entry.Constraints.MaxItems)
+		assert.EqualValues(t, 9, *entry.Constraints.MaxItems)
+		assert.Empty(t, entry.Docs.Description, "nor the description beside it")
+		assert.Equal(t, entry.Elem.Target, whole.Elem.Target, "one element, at the entry's items")
+		docs[t.Name()] = withoutVersion(t, doc)
+	})
+	declared, reversed := docs[t.Name()+"/declared"], docs[t.Name()+"/reversed"]
+	require.NotEmpty(t, declared)
+	assert.Empty(t, cmp.Diff(declared, reversed), "either order of declaration compiles one document")
+}
+
 // TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt holds what an
-// inline principal holds beneath it to the pointer it is written at: a type
-// list's variants and a union's at the entry's type and oneOf.
+// inline principal holds beneath it to the pointer it is written at: a list's
+// element at the entry's items, the position's own items kept and no element,
+// a type list's variants and a union's at the entry's type and oneOf.
 func TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt(t *testing.T) {
 	t.Parallel()
 	spec := admissionSpec("3.1.0", "",
+		"L: {allOf: [{type: array, items: {type: object, properties: {a: {}}}}], items: {type: object, properties: {b: {}}}}",
 		"Tl: {allOf: [{description: d}, {type: [object, string], properties: {a: {}}}]}",
 		"U: {allOf: [{description: d}, {oneOf: [{type: object, properties: {a: {}}}, {type: integer}]}]}")
 	doc, _ := compileUnrefused(t, spec)
 	const at = "t/anon/components/schemas/"
+	list, ok := kindNode(t, doc, componentID("L")).(*ir.List)
+	require.True(t, ok, "L is the list")
+	assert.Equal(t, ir.TypeID(at+"L/allOf/0/items"), list.Elem.Target, "the element where it is written")
+	assert.Contains(t, keptOn(list), "openapi:items", "the position's own items is kept")
+	_, own := doc.Types[at+"L/items"]
+	assert.False(t, own, "and builds no node")
+
 	tl, ok := kindNode(t, doc, componentID("Tl")).(*ir.Union)
 	require.True(t, ok, "Tl is the union of its types")
 	require.Len(t, tl.Variants, 2)
@@ -225,4 +290,30 @@ func TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt(t *testing.T) {
 	require.True(t, ok, "U is the union")
 	require.Len(t, u.Variants, 2)
 	assert.Equal(t, ir.TypeID(at+"U/allOf/1/oneOf/0"), u.Variants[0].Type.Target)
+}
+
+// TestInlinePrincipal_AWrapperHoldsEachBoundOnce holds a principal written as
+// a wrapper of an entry bounding it to the one list its flat spelling is, the
+// bound held once, at a component and at a property, whose carrier holds none.
+func TestInlinePrincipal_AWrapperHoldsEachBoundOnce(t *testing.T) {
+	t.Parallel()
+	wrapped := "{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}"
+	flat := "{allOf: [{minItems: 1}], type: array, items: {type: string}}"
+	for _, schema := range []string{wrapped, flat} {
+		doc, diags := compileUnrefused(t, admissionSpec("3.1.0", "",
+			"Use: "+schema, "H: {type: object, properties: {p: "+schema+"}}"))
+		requireErrorsAndWarnings(t, diags, nil)
+		for _, id := range []ir.TypeID{componentID("Use"), "t/anon/components/schemas/H/properties/p"} {
+			list, ok := kindNode(t, doc, id).(*ir.List)
+			require.True(t, ok, "%s: %s is the list", schema, id)
+			require.NotNil(t, list.Constraints)
+			require.NotNil(t, list.Constraints.MinItems)
+			assert.EqualValues(t, 1, *list.Constraints.MinItems)
+		}
+		p := requireModelOf(t, doc, "H").Properties[0]
+		assert.Nil(t, p.Constraints, "%s: the carrier holds no bound", schema)
+		for id := range doc.Types {
+			assert.NotContains(t, string(id), "/allOf/", "%s: %s stands at an entry", schema, id)
+		}
+	}
 }

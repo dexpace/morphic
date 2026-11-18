@@ -78,12 +78,11 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	standing := standsAtPosition(c, r, target, pointer)
 	residues := make([][]string, len(r.comp.branches))
 	for i, e := range r.comp.branches {
-		// A principal keeps what it writes where it lowered: a $ref on its alias, an
-		// inline branch on the node it owns, a type array's census included. A
-		// branch written as the principal is says nothing it does not. An inline
+		// A $ref principal keeps what is written beside it on its alias. A branch
+		// written as the principal is says nothing it does not. An inline
 		// principal standing at the position had its census run on the node,
 		// which keeps the rest as any conjunct's.
-		if r.principalIs(e) && (e.schema.Ref != nil || LoweredToOwnNode(c, e.pointer, target)) || principalTwin(&w, r, e) {
+		if r.principalIs(e) && e.schema.Ref != nil || principalTwin(&w, r, e) {
 			continue
 		}
 		censused := standing && r.principalIs(e)
@@ -105,9 +104,9 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // position lowered, leaving no residue: a wrapper's allOf, what folds where e
 // speaks, what the principal says (said), and a key of censusDomain the
 // principal standing at the position, e where censused says so, reads or keeps
-// on its node (keepUnread). The union a value set writes is none it says, as
-// the node it lowers to holds no union, so it is kept as the union beside a
-// value set is; any other principal's is its node's.
+// on its node (keepUnread). A value set's union is kept, as its node holds no
+// union; any other principal's union is its node's, as is the content
+// vocabulary of one whose types take it (holdsContent).
 func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused bool,
 	homes boundHomes,
 ) func(string) bool {
@@ -119,6 +118,8 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 			return true
 		case censused && unionKeyword(key):
 			return !set
+		case censused && slices.Contains(contentKeywords, key):
+			return takesContent(declaredInstanceTypes(bs))
 		case censused:
 			return keyBit(key) != 0 || said(w, r, typed, bs, key)
 		default:

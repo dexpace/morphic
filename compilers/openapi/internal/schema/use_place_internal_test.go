@@ -34,7 +34,7 @@ func TestUseDefault_PlacesEachSchemaOfTheChain(t *testing.T) {
 	assert.False(t, unknown.beneath("/allOf/0").known, "nor is a branch beneath it")
 
 	u := Use{Voices: []annotation.Voice{{At: "/v"}}}
-	u.lend(StandaloneSchema(&oas3.Schema{}), placeIn(c, "/r"))
+	u.lend(StandaloneSchema(&oas3.Schema{}), referentPlace{doc: c.Place(), pointer: "/r", known: true})
 	u.lend(StandaloneSchema(&oas3.Schema{}), unknown)
 	const carrier = jsontext.Pointer("/p")
 	for i, want := range []jsontext.Pointer{"/p/default", "/v/default", "/r/default", "/p"} {

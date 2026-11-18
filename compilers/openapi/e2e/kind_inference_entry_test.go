@@ -38,8 +38,8 @@ func withoutKindInference(t *testing.T, doc *ir.Document) string {
 // TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal holds that
 // an allOf entry whose keywords claim every kind the position lowers to by the
 // policy says what the position is, as one writing that type does: at every
-// position `{allOf: [{K}]}` is a use of the node its entry builds, marked,
-// keeping nothing and reporting nothing, and compiles to what
+// position `{allOf: [{K}]}` is the node its entry builds, standing at the
+// position, marked, keeping nothing and reporting nothing, and compiles to what
 // `{allOf: [{type: array, K}]}` compiles to but for the marker, as `{K}` does
 // beside `{type: array, K}`. With the policy off it is the top type keeping K.
 func TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal(t *testing.T) {
@@ -53,7 +53,7 @@ func TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal(t *testing.
 				requireErrorsAndWarnings(t, diags, nil)
 				for _, at := range conjunctionPositions {
 					used := usedAt(t, doc, at)
-					assert.Equal(t, ir.TypeID("t/anon"+string(at)+"/allOf/0"), used, "a use of the entry at %s", at)
+					assert.Equal(t, entryPositionID(at), used, "the node standing at %s", at)
 					node := kindNode(t, doc, used)
 					assert.Equal(t, tc.kind, node.Kind(), at)
 					assert.True(t, markedKindInference(node), "the entry's node is the policy's reading at %s", at)
@@ -99,8 +99,8 @@ var entryClaimOrders = []struct {
 // TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder holds that the
 // entry claiming the position's kind is its principal whichever order the
 // entries are written in: the two orders compile to one document but for the
-// entries' indices, the position a use of the list built at the claiming
-// entry (the first copy of one written twice).
+// entries' indices, the position the list the claiming entry builds (the
+// first copy of one written twice), standing at the position.
 func TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	for _, tc := range entryClaimOrders {
@@ -120,7 +120,7 @@ func TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder(t *testing.T)
 				node := kindNode(t, one, usedAt(t, one, at))
 				assert.Equal(t, ir.KindList, node.Kind(), at)
 				assert.True(t, markedKindInference(node), at)
-				assert.Equal(t, at+"/allOf/0", node.Common().Provenance.Pointer, at)
+				assert.Equal(t, at, node.Common().Provenance.Pointer, at)
 			}
 		})
 	}
@@ -184,11 +184,10 @@ func TestKindInference_ABoundBesideARefToAnInferredListIsPlacedByTheList(t *test
 			" n: {$ref: '#/components/schemas/F', minItems: 2}}}")
 	on, onDiags := compileKindInference(t, "bound", spec, false)
 	requireErrorsAndWarnings(t, onDiags, nil)
-	alias, ok := kindNode(t, on, componentID("F")).(*ir.Scalar)
-	require.True(t, ok)
-	require.NotNil(t, alias.Base)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/F/allOf/0"), alias.Base.Target)
-	assert.Equal(t, ir.KindList, kindNode(t, on, alias.Base.Target).Kind())
+	list, ok := kindNode(t, on, componentID("F")).(*ir.List)
+	require.True(t, ok, "F is the list its entry builds")
+	require.NotNil(t, list.Constraints)
+	assert.Equal(t, new(int64(1)), list.Constraints.MinItems, "holding the bound beside it")
 	props := holderProps(t, on)
 	assert.True(t, props["s"].Constraints == nil || props["s"].Constraints.MinLength == nil,
 		"no string bound is typed beside a list")

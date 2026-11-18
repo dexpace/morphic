@@ -328,7 +328,7 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *
 	beside := discriminatorBesideUnion(c, ts, s, s, pointer).then(siblings.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)
 	})).then(fin)
-	inner, diags := lower(c, ts, depth, s, pointer, beside, nil, st)
+	inner, diags := lower(c, ts, depth, s, pointer, beside, st)
 	owner := inner
 	if !siblings.ran && !LoweredToOwnNode(c, st.pointer(pointer), ir.TypeRef{Target: inner}) {
 		// The structural body reduced to a shared/aliased target; hoist an alias

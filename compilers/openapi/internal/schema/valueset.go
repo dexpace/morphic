@@ -31,11 +31,6 @@ type valueSetSite struct {
 	member  bool
 }
 
-// ownValueSet is the site of the value set s, written at pointer, lowers to.
-func ownValueSet(s *statement.Schema, pointer jsontext.Pointer) valueSetSite {
-	return valueSetSite{set: s, written: pointer}
-}
-
 // standingValueSet is the site of the value set s, written at pointer, lowers
 // to, its node standing where st says.
 func standingValueSet(s *statement.Schema, pointer jsontext.Pointer, st stand) valueSetSite {
@@ -164,7 +159,7 @@ type setType struct {
 // set lowers to a union of literals or the top type. It reads the source
 // alone, so a reader of the position asks no registry.
 func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer jsontext.Pointer) setType {
-	site := ownValueSet(s, pointer)
+	site := standingValueSet(s, pointer, stand{})
 	d := dispatchOf(s).besideAllOf()
 	if e, ok := valueSetPrincipal(r); ok {
 		site = valueSetSite{set: e.schema.Schema, written: e.pointer, at: stand{of: s, at: pointer}}

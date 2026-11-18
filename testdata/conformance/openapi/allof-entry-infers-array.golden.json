@@ -73,7 +73,7 @@
                     "canonical": "names"
                   },
                   "type": {
-                    "target": "t/anon/paths/~1tags/get/parameters/0/schema/allOf/0",
+                    "target": "t/anon/paths/~1tags/get/parameters/0/schema",
                     "nullable": false
                   },
                   "required": false,
@@ -141,76 +141,9 @@
     }
   ],
   "types": {
-    "t/anon/components/schemas/NamesBounded/allOf/0": {
+    "t/anon/components/schemas/Tagged/properties/entry": {
       "kind": "list",
-      "id": "t/anon/components/schemas/NamesBounded/allOf/0",
-      "name": {
-        "hint": "names_bounded"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/NamesBounded/allOf/0",
-        "inferred": "kind-inference"
-      },
-      "elem": {
-        "target": "t/prim/string",
-        "nullable": false
-      }
-    },
-    "t/anon/components/schemas/NamesEntry/allOf/0": {
-      "kind": "list",
-      "id": "t/anon/components/schemas/NamesEntry/allOf/0",
-      "name": {
-        "hint": "names_entry"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/NamesEntry/allOf/0",
-        "inferred": "kind-inference"
-      },
-      "elem": {
-        "target": "t/prim/string",
-        "nullable": false
-      }
-    },
-    "t/anon/components/schemas/PairEntry/allOf/0": {
-      "kind": "tuple",
-      "id": "t/anon/components/schemas/PairEntry/allOf/0",
-      "name": {
-        "hint": "pair_entry"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/PairEntry/allOf/0",
-        "inferred": "kind-inference"
-      },
-      "elems": [
-        {
-          "target": "t/prim/string",
-          "nullable": false
-        },
-        {
-          "target": "t/prim/integer",
-          "nullable": false
-        }
-      ],
-      "rest": {
-        "target": "t/prim/any",
-        "nullable": false
-      }
-    },
-    "t/anon/components/schemas/Tagged/properties/entry/allOf/0": {
-      "kind": "list",
-      "id": "t/anon/components/schemas/Tagged/properties/entry/allOf/0",
+      "id": "t/anon/components/schemas/Tagged/properties/entry",
       "name": {
         "hint": "entry"
       },
@@ -219,7 +152,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Tagged/properties/entry/allOf/0",
+        "pointer": "/components/schemas/Tagged/properties/entry",
         "inferred": "kind-inference"
       },
       "elem": {
@@ -246,9 +179,9 @@
         "nullable": false
       }
     },
-    "t/anon/paths/~1tags/get/parameters/0/schema/allOf/0": {
+    "t/anon/paths/~1tags/get/parameters/0/schema": {
       "kind": "list",
-      "id": "t/anon/paths/~1tags/get/parameters/0/schema/allOf/0",
+      "id": "t/anon/paths/~1tags/get/parameters/0/schema",
       "name": {
         "hint": "names"
       },
@@ -257,7 +190,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1tags/get/parameters/0/schema/allOf/0",
+        "pointer": "/paths/~1tags/get/parameters/0/schema",
         "inferred": "kind-inference"
       },
       "elem": {
@@ -286,7 +219,7 @@
       }
     },
     "t/openapi/components/schemas/NamesBounded": {
-      "kind": "scalar",
+      "kind": "list",
       "id": "t/openapi/components/schemas/NamesBounded",
       "name": {
         "source": "NamesBounded",
@@ -297,10 +230,11 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/NamesBounded"
+        "pointer": "/components/schemas/NamesBounded",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/anon/components/schemas/NamesBounded/allOf/0",
+      "elem": {
+        "target": "t/prim/string",
         "nullable": false
       },
       "constraints": {
@@ -309,7 +243,7 @@
       }
     },
     "t/openapi/components/schemas/NamesEntry": {
-      "kind": "scalar",
+      "kind": "list",
       "id": "t/openapi/components/schemas/NamesEntry",
       "name": {
         "source": "NamesEntry",
@@ -320,10 +254,11 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/NamesEntry"
+        "pointer": "/components/schemas/NamesEntry",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/anon/components/schemas/NamesEntry/allOf/0",
+      "elem": {
+        "target": "t/prim/string",
         "nullable": false
       }
     },
@@ -358,7 +293,7 @@
       }
     },
     "t/openapi/components/schemas/PairEntry": {
-      "kind": "scalar",
+      "kind": "tuple",
       "id": "t/openapi/components/schemas/PairEntry",
       "name": {
         "source": "PairEntry",
@@ -369,10 +304,21 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/PairEntry"
+        "pointer": "/components/schemas/PairEntry",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/anon/components/schemas/PairEntry/allOf/0",
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
         "nullable": false
       }
     },
@@ -426,7 +372,7 @@
           },
           "wireName": "entry",
           "type": {
-            "target": "t/anon/components/schemas/Tagged/properties/entry/allOf/0",
+            "target": "t/anon/components/schemas/Tagged/properties/entry",
             "nullable": false
           },
           "required": false,
@@ -535,7 +481,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-entry-infers-array.yaml",
-      "hash": "c4931ac79cf9e7d1fa5759db4328f02e812c49fdd742db88cdda837c09f3577f"
+      "hash": "eefe459c412a8d477a49549a73019bb2d735205e37eaceb3f12cf627603bf4fb"
     }
   ]
 }

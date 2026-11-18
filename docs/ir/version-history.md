@@ -995,9 +995,11 @@ it sees. Changes made together in one bump are listed together under it.
     that kind, so `{allOf: [{items: …}]}` is a use of the marked `List` its entry builds. Beside a
     union kept whole whose branches each declare the kind the keywords speak of, such a schema
     lowers to that kind, unmarked.
-  - **Type IDs and nodes.** The `Enum`, `Literal` or `Union` of `Literal`s an inline `allOf` entry's
-    value set lowers to stands at the position's pointer and ID, where it stood at the entry's
-    (`…/allOf/<n>`) behind an alias or a carrier. The node an `allOf` of one `$ref` hoisted, the
+  - **Type IDs and nodes.** The node an inline `allOf` entry the position lowers from builds, a value
+    set's `Enum`, `Literal` or `Union` of `Literal`s, a `Union`, a `List`, a `Tuple` or a `Scalar`,
+    stands at the position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an
+    alias or a carrier; its children keep their pointers. It holds the bounds written beside it,
+    which the alias, the property or the parameter held, a wrapper's once. The node an `allOf` of one `$ref` hoisted, the
     alias a `$ref` with notes on an entry hoisted, and each dead variant with its branch's nodes are
     gone; an anonymous `Model` stands where a `$ref` to an object has something beside it. A schema
     a reference lands on beneath a nested Encoding Object (OpenAPI 3.2) lowers to a node, where it

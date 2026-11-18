@@ -97,9 +97,10 @@ func TestElection_ARefIsThePrincipalOverAUnionWhichSaysNothingMoreOfIt(t *testin
 
 // TestElection_TwoInlineEntriesTieOnTheOneWritingItems holds that of two array
 // entries the one writing `items` is the principal whichever is written first,
-// and that two writing the same items are one: the list holds the string,
-// nothing is kept or reported, and the two orders differ in no entry's index,
-// the entry a node stands at being all a tie among alike entries may move.
+// and that two writing the same items are one: the list stands at the position
+// and holds the string, nothing is kept or reported, and the two orders differ
+// in no entry's index, the entry a child stands under being all a tie among
+// alike entries may move.
 func TestElection_TwoInlineEntriesTieOnTheOneWritingItems(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -119,13 +120,10 @@ func TestElection_TwoInlineEntriesTieOnTheOneWritingItems(t *testing.T) {
 				})
 				requireErrorsAndWarnings(t, diags, nil)
 
-				scalar, ok := kindNode(t, doc, componentID(tc.name)).(*ir.Scalar)
-				require.True(t, ok)
-				require.NotNil(t, scalar.Base)
-				list, ok := kindNode(t, doc, scalar.Base.Target).(*ir.List)
-				require.True(t, ok, "the position is a use of a list")
+				list, ok := kindNode(t, doc, componentID(tc.name)).(*ir.List)
+				require.True(t, ok, "the position is the list")
 				assert.Equal(t, prim(ir.PrimString), list.Elem.Target)
-				assert.Empty(t, keptOn(scalar))
+				assert.Empty(t, keptOn(list))
 				assert.Zero(t, degradedInfosAt(diags, tc.name))
 			})
 		}

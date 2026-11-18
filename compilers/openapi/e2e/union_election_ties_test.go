@@ -104,7 +104,8 @@ func TestElection_TwoRefsWrittenAlikeGoByTheirEntries(t *testing.T) {
 // TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads holds that of two
 // entries admitting alike, the pick turns on the keywords a node reads from
 // its principal alone, whichever is written first: the one writing all the
-// other does and more is the principal, keeping nothing of its own, and two
+// other does and more is the principal, standing at the position, keeping
+// nothing of its own, and two
 // writing them otherwise, or writing one keyword with values that differ,
 // elect neither, the position the string both admit, or the top type where
 // they admit an array, keeping what each writes under its own key, a type both
@@ -143,12 +144,14 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 				return pairSchemas(swapped, tc.name, tc.a, tc.b, "")
 			})
 			requireErrorsAndWarnings(t, diags, nil)
-			use, ok := kindNode(t, doc, componentID(tc.name)).(*ir.Scalar)
-			require.True(t, ok)
-			require.NotNil(t, use.Base)
-			assert.Equal(t, tc.elected, kindNode(t, doc, use.Base.Target).Kind())
+			use := kindNode(t, doc, componentID(tc.name))
 			if tc.elected == ir.KindPrimitive {
-				assert.Equal(t, prim(tc.prim), use.Base.Target, "neither is elected")
+				alias, ok := use.(*ir.Scalar)
+				require.True(t, ok)
+				require.NotNil(t, alias.Base)
+				assert.Equal(t, prim(tc.prim), alias.Base.Target, "neither is elected")
+			} else {
+				assert.Equal(t, tc.elected, use.Kind(), "the principal's node is the position's")
 			}
 			kept := tc.kept
 			if kept == nil {

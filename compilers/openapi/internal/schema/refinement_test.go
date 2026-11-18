@@ -802,7 +802,7 @@ func TestRefinement_KindsBeyondAnObjectAreAUse(t *testing.T) {
 		},
 		"properties in a branch": {
 			schemas: "    S: {allOf: [{type: string, properties: {a: {type: string}}}]}\n",
-			base:    "t/anon/components/schemas/S/allOf/0",
+			base:    "t/prim/string",
 		},
 		"required beside": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}], required: [a]}\n", base: componentID("Str"),
@@ -1501,13 +1501,11 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 			t.Parallel()
 			for _, branches := range []string{tc.list + ", " + tc.other, tc.other + ", " + tc.list} {
 				doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    T: {allOf: ["+branches+"]}\n"))
-				alias, ok := doc.Types[componentID("T")].(*ir.Scalar)
+				list, ok := doc.Types[componentID("T")].(*ir.List)
 				require.True(t, ok, "%s: %#v", branches, doc.Types[componentID("T")])
-				list, ok := doc.Types[alias.Base.Target].(*ir.List)
-				require.True(t, ok, "%s: %#v", branches, doc.Types[alias.Base.Target])
 				assert.Equal(t, tc.elem, doc.Types[list.Elem.Target].Kind(), branches)
 				assert.NotEqual(t, ir.TypeID("t/prim/any"), list.Elem.Target, branches)
-				assert.Empty(t, alias.Unmodeled, branches)
+				assert.Empty(t, list.Unmodeled, branches)
 			}
 		})
 	}
@@ -2047,15 +2045,17 @@ func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
 
 // TestRefinement_ItemsItCannotRenderRestateNothing pins the comparison of two
 // `items`, one of which holds what no JSON renders: neither restates the other,
-// in either order.
+// in either order, and the one elected is the list at the position, its element
+// the one written beside what no JSON renders.
 func TestRefinement_ItemsItCannotRenderRestateNothing(t *testing.T) {
 	t.Parallel()
 	bad := "{type: array, items: {type: string, x-t: " + unpreservableValue + "}}"
 	good := "{type: array, items: {type: string}}"
-	for _, branches := range []string{bad + ", " + good, good + ", " + bad} {
+	for i, branches := range []string{bad + ", " + good, good + ", " + bad} {
 		doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+branches+"]}\n"))
-		_, ok := typeByName(doc, "S").(*ir.Scalar)
-		assert.True(t, ok, "got %T", typeByName(doc, "S"))
+		list, ok := typeByName(doc, "S").(*ir.List)
+		require.True(t, ok, "got %T", typeByName(doc, "S"))
+		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/S/allOf/%d/items", i)), list.Elem.Target, branches)
 	}
 }
 

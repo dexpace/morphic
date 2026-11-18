@@ -74,16 +74,19 @@ type namedSite struct {
 	base ir.TypeID
 }
 
-// namedSites returns S and the property p of a namedSpec document.
+// namedSites returns S and the property p of a namedSpec document, p read off
+// the node it owns where it owns one.
 func namedSites(t *testing.T, doc *ir.Document) []namedSite {
 	t.Helper()
 	s := typeByName(doc, "S")
 	require.NotNil(t, s)
 	p := propertyOf(t, doc, "Holder", "p")
-	return []namedSite{
-		{at: namedS, held: heldBounds(s), kept: s.Common().Unmodeled, base: baseOf(s)},
-		{at: namedP, held: p.Constraints, kept: p.Unmodeled, base: p.Type.Target},
+	site := namedSite{at: namedP, held: p.Constraints, kept: p.Unmodeled, base: p.Type.Target}
+	if own, ok := doc.Types["t/anon"+namedP]; ok && p.Type.Target == own.Common().ID {
+		// A property owning its node leaves what it says to the node.
+		site.held, site.kept = heldBounds(own), own.Common().Unmodeled
 	}
+	return []namedSite{{at: namedS, held: heldBounds(s), kept: s.Common().Unmodeled, base: baseOf(s)}, site}
 }
 
 // baseOf returns the type a scalar or a model is declared over, "" for any
@@ -241,7 +244,7 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 		},
 		{
 			name: "row 6: a refinement of an inline array", schema: "{allOf: [{type: array, items: {type: string}}], minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, base: "t/anon/components/schemas/S/allOf/0",
+			kept: []keptAt{{key: "minLength"}},
 		},
 		{
 			name: "row 7: a refinement of an inline string", schema: "{allOf: [{type: string}], minimum: 1, maxLength: 3}",

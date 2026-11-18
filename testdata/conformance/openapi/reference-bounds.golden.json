@@ -268,18 +268,28 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/anon/components/schemas/Failure/properties/inline/allOf/0": {
+    "t/anon/components/schemas/Failure/properties/inline": {
       "kind": "list",
-      "id": "t/anon/components/schemas/Failure/properties/inline/allOf/0",
+      "id": "t/anon/components/schemas/Failure/properties/inline",
       "name": {
         "hint": "inline"
       },
       "anonymous": true,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:minLength": {
+          "reason": "degraded_lowering",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Failure/properties/inline/minLength"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Failure/properties/inline/allOf/0"
+        "pointer": "/components/schemas/Failure/properties/inline"
       },
       "elem": {
         "target": "t/prim/string",
@@ -570,7 +580,7 @@
           },
           "wireName": "inline",
           "type": {
-            "target": "t/anon/components/schemas/Failure/properties/inline/allOf/0",
+            "target": "t/anon/components/schemas/Failure/properties/inline",
             "nullable": false
           },
           "required": false,
@@ -584,16 +594,6 @@
           "eventPayload": false,
           "secret": false,
           "docs": {},
-          "unmodeled": {
-            "openapi:minLength": {
-              "reason": "degraded_lowering",
-              "value": 1,
-              "provenance": {
-                "source": 0,
-                "pointer": "/components/schemas/Failure/properties/inline/minLength"
-              }
-            }
-          },
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Failure/properties/inline"
