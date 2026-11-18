@@ -371,8 +371,10 @@ assertion shapes:
   members, and the diagnostics without their message text or line and column. It permutes mappings
   alone. The sequence-order oracle beside it reverses each `allOf` and `required` sequence that
   `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
-  and what `canonicalForm` in `canon.go` lists, and a report naming no node that moves among the
-  declarations of a tie the documents show (`tieClasses` in `tieclass.go`), whatever its code.
+  and what `canonicalForm` in `canon.go` lists, and, among declarations a member folds that do not
+  all say the same, a report the other order holds one of its key for, whatever its code, member or
+  count, and the member where the documents show a tie traded what it takes (`tieClasses` in
+  `tieclass.go`).
   Both compile at the default limits, so an order dependence among a listed collection's elements,
   in any other sequence or another order of one, or in a verdict at another limit (#1519) needs its
   own two-order diff. A targeted case still earns its place when it pins one lowering, because the

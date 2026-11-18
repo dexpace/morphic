@@ -207,6 +207,64 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want:  passed(OracleSequenceOrder),
 		},
 		{
+			// M1's tie keeps B over A as written and A over B reversed, and M2,
+			// whose A and C agree, keeps them over B in either order: reversed,
+			// the two models say one conflict at B, once for both, and as
+			// written each says its own, naming its member.
+			name: "a conflict said for one model in one order and for two in the other",
+			src: schemas(composes("M1", "A", "B"), composes("M2", "A", "B", "C"),
+				"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}",
+				"C: {type: object, properties: {p: {type: string}}}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/A/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// The two families trade declarations, and M2 also requires p,
+			// which its model decides whatever declaration p takes.
+			name: "two ties trading declarations, one model requiring the member",
+			src: schemas(composes("M1", "A", "B"), "M2: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}], required: [p]}",
+				composes("N1", "B", "A"), composes("N2", "B", "A"),
+				"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}"),
+			kept:  []string{merged, `"required":true`},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/B/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// The same trade where A gives a description, which each member
+			// keeps whichever type it takes: no member takes what one
+			// declaration says alone, and M2's requires p besides.
+			name:  "two ties trading declarations, one giving a description both keep",
+			src:   fixtureDescTrade,
+			kept:  []string{merged, `"description":"da"`, `"required":true`},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/A/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// C2 loses to the booleans in either order, and which boolean its
+			// report names as kept, and so which models say it together,
+			// follows the order; no member differs.
+			name: "a conflict regrouped at a declaration that loses in either order",
+			src: schemas("M0: {allOf: [{type: object, properties: {p: {type: boolean}}}, {allOf: [{$ref: '#/components/schemas/C2'}]}, "+
+				"{allOf: [{$ref: '#/components/schemas/C1'}]}]}",
+				"M4: {allOf: [{allOf: [{$ref: '#/components/schemas/C2'}]}, {$ref: '#/components/schemas/C3'}, {allOf: [{$ref: '#/components/schemas/C1'}]}]}",
+				"C1: {type: object, properties: {p: {type: boolean}}}", "C2: {type: object, properties: {p: {type: object, properties: {x: {type: string}}}}}",
+				"C3: {type: object, properties: {p: {type: boolean}}}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/C2/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// As written C0 loses in M1 and C1 in M3 and M4; reversed C1 loses
+			// in all four: the report at C1 is in both orders, and C0's has its
+			// counterpart there.
+			name: "a conflict at one declaration in one order and at another of its class in both",
+			src: schemas(composes("M1", "C0", "C1"), "M3: {allOf: [{allOf: [{$ref: '#/components/schemas/C1'}]}, {$ref: '#/components/schemas/C0'}, "+
+				"{$ref: '#/components/schemas/C1'}]}", composes("M4", "C1", "ViaC0", "C1"), composes("M5", "C0", "WrapC1"),
+				"ViaC0: {$ref: '#/components/schemas/C0'}", "WrapC1: {allOf: [{$ref: '#/components/schemas/C1'}]}",
+				"C0: {type: object, properties: {p: {type: integer}}}", "C1: {type: object, properties: {p: {type: string}}}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/C0/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
 			name: "a redeclared array keeps the declaration naming an item type",
 			src: schemas("N: {allOf: [{type: object, properties: {p: {type: array}}}, " +
 				"{type: object, properties: {p: {type: array, items: {type: string}}}}]}"),
@@ -469,7 +527,55 @@ var (
 		"BG: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/gamma'}]}",
 		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
 		"gamma: {type: object, properties: {p: {type: integer}}}")
+	// fixtureThree: two models composing A, B and C, where A and B disagree
+	// and C gives p a description, so p takes what neither A nor B says
+	// alone.
+	fixtureThree = schemas(composesAll("M1", "A", "B", "C"), composesAll("M2", "A", "B", "C"),
+		"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}",
+		"C: {type: object, properties: {p: {description: from C}}}")
+	// fixtureDescTrade: two families composing A and B in either order,
+	// trading their ties, where A also gives p a description both keep and
+	// M2 requires p.
+	fixtureDescTrade = schemas(composesAll("M1", "A", "B"),
+		"M2: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}], required: [p]}",
+		composesAll("N1", "B", "A"), composesAll("N2", "B", "A"),
+		"A: {type: object, properties: {p: {type: string, description: da}}}", "B: {type: object, properties: {p: {type: integer}}}")
+	// fixtureFar: a model composing beta and gamma, where gamma narrows beta,
+	// beside ties over alpha and beta and over gamma and delta, which report
+	// at gamma as written and at beta reversed.
+	fixtureFar = schemas(composesAll("AB1", "alpha", "beta"), composesAll("AB2", "alpha", "beta"),
+		composesAll("GD1", "gamma", "delta"), composesAll("GD2", "gamma", "delta"), composesAll("BG", "beta", "gamma"),
+		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
+		"gamma: {type: object, properties: {p: {type: integer, minimum: 1}}}",
+		"delta: {type: object, properties: {p: {type: boolean}}}")
+	// fixtureTrade: two families composing alpha and beta in either order,
+	// whose ties trade declarations, each reporting at both in either order.
+	fixtureTrade = schemas(composesAll("AB1", "alpha", "beta"), composesAll("AB2", "alpha", "beta"),
+		composesAll("BA1", "beta", "alpha"), composesAll("BA2", "beta", "alpha"),
+		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}")
+	// fixtureLoser: fixtureSwap's tie over alpha and beta, a tie over beta and
+	// delta, so beta's p loses as written and reversed, a model composing beta
+	// alone, which holds that declaration as beta does, and one composing beta
+	// and gamma, whose p agree.
+	fixtureLoser = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"AB2: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"BD: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/delta'}]}",
+		"BD2: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/delta'}]}",
+		"B: {allOf: [{$ref: '#/components/schemas/beta'}]}",
+		"BG: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/gamma'}]}",
+		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
+		"delta: {type: object, properties: {p: {type: boolean}}}", "gamma: {type: object, properties: {p: {type: integer}}}")
 )
+
+// composesAll is a schema named name whose allOf references each of
+// entries.
+func composesAll(name string, entries ...string) string {
+	refs := make([]string, len(entries))
+	for i, e := range entries {
+		refs[i] = "{$ref: '#/components/schemas/" + e + "'}"
+	}
+	return name + ": {allOf: [" + strings.Join(refs, ", ") + "]}"
+}
 
 // abID is the model every detection fixture declares.
 const abID ir.TypeID = "t/openapi/components/schemas/AB"
@@ -797,6 +903,121 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			},
 			found:    true,
 			contains: []string{"document depends on sequence order", `BG member "p"`},
+		},
+		{
+			// beta's own p is one declaration, which two models' flattenings
+			// hold and the ties report at in either order: no tie decides it.
+			name: "a member of one declaration differing where ties report at it in either order",
+			src:  fixtureLoser,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				beta, ok := doc.Types["t/openapi/components/schemas/beta"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower beta to a model")
+				require.Len(t, beta.Properties, 1, "the fixture must declare beta's p")
+				if reversed {
+					beta.Properties[0].Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `beta member "p"`},
+		},
+		{
+			// BG's p folds beta's declaration, at which the two ties report in
+			// either order, and gamma's, which says the same and at which no
+			// order reports: no tie moves a report between BG.p's declarations.
+			name: "a member folding a declaration ties report at in either order differing",
+			src:  fixtureLoser,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				bg, ok := doc.Types["t/openapi/components/schemas/BG"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower BG to a model")
+				require.Len(t, bg.Properties, 1, "the fixture must fold BG's p into BG")
+				if reversed {
+					bg.Properties[0].Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `BG member "p"`},
+		},
+		{
+			// BG's p takes gamma's narrower type in either order, while the
+			// ties beside it report at gamma as written and at beta reversed:
+			// the reports change at its declarations, never where it does not
+			// take the type.
+			name: "a member taking one type in either order beside other ties' moving reports",
+			src:  fixtureFar,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				bg, ok := doc.Types["t/openapi/components/schemas/BG"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower BG to a model")
+				require.Len(t, bg.Properties, 1, "the fixture must fold BG's p into BG")
+				if reversed {
+					bg.Properties[0].Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `BG member "p"`},
+		},
+		{
+			// Each order reports the tie at the declaration p takes, not at
+			// the one it lost.
+			name: "a conflict reported at the declaration that won",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, _ bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				const alpha, beta = "/components/schemas/alpha/properties/p", "/components/schemas/beta/properties/p"
+				out := slices.Clone(diags)
+				for i, d := range out {
+					switch {
+					case d.Code != "openapi/conflicting-redeclaration":
+					case d.Provenance.Pointer == alpha:
+						out[i].Provenance.Pointer = beta
+					case d.Provenance.Pointer == beta:
+						out[i].Provenance.Pointer = alpha
+					}
+				}
+				require.NotEqual(t, diags, out, "the fixture must report the tie")
+				return doc, out, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `member "p"`},
+		},
+		{
+			// The AB models' and BA models' ties trade declarations; as
+			// written the BA models' report at beta is missing, though AB's
+			// at alpha stands for it by its key.
+			name: "a conflict two ties trading declarations miss in one order",
+			src:  fixtureTrade,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if reversed {
+					return doc, diags, nil
+				}
+				out := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
+					return d.Provenance.Pointer == "/components/schemas/beta/properties/p"
+				})
+				require.Len(t, out, len(diags)-1, "the fixture must report the BA models' tie at beta")
+				return doc, out, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", "flattened shape depends on sequence order"},
+		},
+		{
+			// q's declarations differ in whether their models require it
+			// alone, which no tie decides, so a report moving between them
+			// ties nothing.
+			name: "a report moving between declarations differing only in what their models require",
+			src: schemas(composesAll("AB", "alpha", "beta"), composesAll("AB2", "alpha", "beta"),
+				"alpha: {type: object, required: [q], properties: {p: {type: string}, q: {type: string}}}",
+				"beta: {type: object, properties: {p: {type: integer}, q: {type: string}}}"),
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				at := "/components/schemas/alpha/properties/q"
+				if reversed {
+					at = "/components/schemas/beta/properties/q"
+					property(t, doc, "q").Docs.Description = "reversed"
+				}
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/swap", at, "")), nil
+			},
+			found:    true,
+			contains: []string{"diagnostics depend on sequence order", "x/swap", `member "q"`},
 		},
 		{
 			name: "a report moving between declarations that changes more than its pointer",

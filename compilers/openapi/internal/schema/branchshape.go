@@ -53,11 +53,7 @@ func readBody(c lowering.Ctx, s, holder *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmissionReader(c), body: s}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	for _, b := range conjunctsIn(c, s) {
-		if b.Schema == holder && b.Ref == nil {
-			r.held = r.held.and(writtenLowered(&r.w, holder, r.w.nullable))
-			continue
-		}
-		r.held = r.held.and(lowered(&r.w, b))
+		r.held = r.held.and(conjunctWithout(&r.w, b, holder))
 	}
 	return r
 }
@@ -328,4 +324,34 @@ func shapeless(t *statement.Table, s *statement.Schema, key string) bool {
 		return true
 	}
 	return key == "unevaluatedProperties" && !t.Sub(s.ObjectKeywords().UnevaluatedProperties).Truth.ReadsFalse()
+}
+
+// conjunctWithout is what the conjunct b admits, as lowered reads it, but
+// where b is holder or holds it among its flattened entries, nested in an
+// allOf or written beside a $ref: there holder is read by its own keywords,
+// its unions left out, and every other entry as it is.
+func conjunctWithout(w *admissionReader, b *statement.Statement, holder *statement.Schema) admitted {
+	switch {
+	case b.Schema == holder && b.Ref == nil:
+		return writtenLowered(w, holder, w.nullable)
+	case holder != nil && b.BesideRef != nil && holder.WrittenBeside == b.BesideRef:
+		// An entry writing its union beside a $ref is listed as that reference
+		// and the rest of its keywords (statement.Table.restOf), the holder.
+		return lowered(w, w.c.Statements().Read(b.BesideRef)).and(writtenLowered(w, holder, w.nullable))
+	}
+	if holder == nil || !slices.ContainsFunc(b.Entries, func(e statement.Entry) bool { return e.Schema == holder }) {
+		return lowered(w, b)
+	}
+	read := inlineConjunct(w, b.Schema)
+	for _, e := range b.Entries {
+		switch {
+		case e.Schema == holder:
+			read = read.and(writtenLowered(w, holder, w.nullable))
+		case e.Wrapper:
+			read = read.and(inlineConjunct(w, e.Schema))
+		default:
+			read = read.and(lowered(w, w.c.Statements().Read(e.Schema)))
+		}
+	}
+	return read
 }

@@ -4222,6 +4222,8 @@ judged as one whose branches declare shape.
   `e2e.TestElection_AnEntryWritingBothBesideAnotherOneOfDistributesNeither`,
   `e2e.TestElection_BothKeywordsOnOneEntryOfARoutedSubtypeKeepTheAnyOfAsBeside`,
   `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `e2e.TestElection_AnEntryHoldingBothIsJudgedWithoutThemAtAnyDepth`,
+  `schema.TestUnion_AnEntryHoldingBothIsReadWithoutThemWhereverListed`,
   `e2e.TestElection_TwoAnyOfUnionsBesideABodyDistributeNeither`,
   `e2e.TestElection_TwoOneOfUnionsBesideABodyDistributeNeither`,
   `schema.TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin`,

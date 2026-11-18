@@ -119,16 +119,25 @@ func (r *rewriter) tie(ties tieSites) {
 		r.nodes[node] = true
 	}
 	r.digests, r.visiting, r.computing = map[string]string{}, map[string]bool{}, ""
+	r.sayings = map[*ir.Property]string{}
 }
 
 // memberForm is what a member takes in one model: the model, as a form writes
-// it, and the member's shape there (rewriter.memberShape).
-type memberForm struct{ model, shape string }
+// it, the member's shape there (rewriter.memberShape) and its tie shape
+// (rewriter.tieShape); the pointers, erased, of the declarations it overrides
+// saying what it says (rewriter.said), which it takes, and of those whose type
+// it takes (rewriter.typeOf); and whether those declarations do not all say
+// the same, where a tie has something to decide.
+type memberForm struct {
+	model, shape, tie string
+	takes, typed      []string
+	conflicts         bool
+}
 
 // memberForms returns, for each member of f's models whose ID, erased in
 // f.seqs, members holds, its form in each model whose flattening holds it,
 // where no tie decides anything, sorted. It fails as a form does.
-func memberForms(f *formReader, members map[string][]string) (map[string][]memberForm, error) {
+func memberForms(f *formReader, members map[string]folds) (map[string][]memberForm, error) {
 	r, err := f.rewriter(tieSites{})
 	if err != nil {
 		return nil, err
@@ -140,9 +149,10 @@ func memberForms(f *formReader, members map[string][]string) (map[string][]membe
 		}
 		for _, p := range ir.FlattenedProperties(f.doc.Types, id).Properties {
 			member := erase(string(p.Property.ID), f.seqs)
-			if _, wanted := members[member]; wanted {
-				out[member] = append(out[member], memberForm{model: r.text(string(id), 0), shape: r.memberShape(p)})
+			if _, wanted := members[member]; !wanted {
+				continue
 			}
+			out[member] = append(out[member], r.memberForm(string(id), p))
 		}
 	}
 	for _, forms := range out {
@@ -151,6 +161,23 @@ func memberForms(f *formReader, members map[string][]string) (map[string][]membe
 		})
 	}
 	return out, r.err
+}
+
+// memberForm is p's form in the model whose ID is model.
+func (r *rewriter) memberForm(model string, p ir.FlatProperty) memberForm {
+	form := memberForm{model: r.text(model, 0), shape: r.memberShape(p), tie: r.tieShape(p)}
+	said, typ := r.said(p.Property), r.typeOf(p.Property)
+	for _, d := range p.Overridden {
+		at := erase(string(d.Property.Provenance.Pointer), r.seqs)
+		form.conflicts = form.conflicts || r.said(d.Property) != r.said(p.Overridden[0].Property)
+		if r.said(d.Property) == said {
+			form.takes = append(form.takes, at)
+		}
+		if r.typeOf(d.Property) == typ {
+			form.typed = append(form.typed, at)
+		}
+	}
+	return form
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -204,6 +231,7 @@ type rewriter struct {
 	digests   map[string]string
 	visiting  map[string]bool
 	computing string
+	sayings   map[*ir.Property]string
 	err       error
 }
 
@@ -518,6 +546,39 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// tieShape is p's shape (memberShape) without what its model decides itself,
+// whether it requires the member, which a tie between declarations does not
+// decide: the outcome of a tie two models trade.
+func (r *rewriter) tieShape(p ir.FlatProperty) string {
+	decl := *p.Property
+	decl.Required = false
+	p.Property, p.Required = &decl, false
+	return r.memberShape(p)
+}
+
+// said is what a declaration says, rewritten without its identity and
+// without whether it is required, which the model holding it decides, so two
+// declarations saying the same are one. It is computed once per declaration
+// until r reads other ties.
+func (r *rewriter) said(p *ir.Property) string {
+	if s, ok := r.sayings[p]; ok {
+		return s
+	}
+	decl := *p
+	decl.Required = false
+	encoded, err := json.Marshal(&decl, comparableOptions(markedArray, nil))
+	r.fail(err)
+	s := string(r.rewrite(r.decode(encoded), place{how: noIdentity}, 0))
+	r.sayings[p] = s
+	return s
+}
+
+// typeOf is the type a declaration names, as a form writes a reference to
+// it, and whether it admits null.
+func (r *rewriter) typeOf(p *ir.Property) string {
+	return r.text(string(p.Type.Target), 0) + " " + strconv.FormatBool(p.Type.Nullable)
 }
 
 // memberShape is what a flattened member takes: whether it is required,

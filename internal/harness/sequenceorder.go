@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -67,7 +65,7 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 		return "", false, why
 	}
 	ties, left, right := movedReports(a, b, perm.written)
-	left, right = difference(classes.classed(left, perm.written), classes.classed(right, perm.written))
+	left, right = classes.unmatched(left, b, perm.written), classes.unmatched(right, a, perm.written)
 	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, classes.members))))
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
 	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
@@ -114,10 +112,10 @@ func compareForms(first, second *formReader, ties tieSites, left, right []report
 	left, right = sameNodes(left, right, a.identify, b.identify)
 	var found []string
 	if !slices.Equal(a.document, b.document) {
-		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.document, b.document))
+		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+lineDifference(a.document, b.document))
 	}
 	if !slices.Equal(a.shape, b.shape) {
-		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.shape, b.shape))
+		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+lineDifference(a.shape, b.shape))
 	}
 	return left, right, found, ""
 }
@@ -191,22 +189,13 @@ func formDecline(err error) Decline {
 // report is one diagnostic as the comparison reads it, in the coordinates of
 // the source as written: as diagnosticKey renders it, the same with every
 // index of a reversed sequence erased, and with no pointer where it names a
-// node, its pointer and its node; match, where set, the key it is matched by
-// instead (tieClasses.classed); and raw, the diagnostic in its own compile's
-// coordinates. A report naming the node it decided is told apart by that
+// node, its pointer and its node; and raw, the diagnostic in its own
+// compile's coordinates. A report naming the node it decided is told apart by that
 // node: it sits at the declaration the order made lose, which a nested allOf
 // can place at another depth.
 type report struct {
-	key, erased, pointer, node, match string
-	raw                               ir.Diagnostic
-}
-
-// matched is the key r is matched by: its match where set, else its key.
-func (r report) matched() string {
-	if r.match != "" {
-		return r.match
-	}
-	return r.key
+	key, erased, pointer, node string
+	raw                        ir.Diagnostic
 }
 
 // tieSites is what the reports a reversal moved decided: the erased pointer of
@@ -388,23 +377,22 @@ func inferenceTied(doc *ir.Document, u *ir.Union, isTied func(ir.PropertyDecl) b
 }
 
 // difference returns the reports of a that b does not hold and those of b
-// that a does not, as multisets of the keys they are matched by
-// (report.matched), each sorted by key.
+// that a does not, as multisets of their keys, each sorted by key.
 func difference(a, b []report) (onlyA, onlyB []report) {
 	return without(a, b), without(b, a)
 }
 
 // without returns the reports of a left once each report of b takes one of a
-// matched by the same key, sorted by key.
+// of the same key, sorted by key.
 func without(a, b []report) []report {
 	taken := make(map[string]int, len(b))
 	for _, r := range b {
-		taken[r.matched()]++
+		taken[r.key]++
 	}
 	var out []report
 	for _, r := range a {
-		if taken[r.matched()] > 0 {
-			taken[r.matched()]--
+		if taken[r.key] > 0 {
+			taken[r.key]--
 			continue
 		}
 		out = append(out, r)
