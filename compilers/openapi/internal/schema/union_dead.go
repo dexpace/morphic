@@ -28,21 +28,17 @@ type deadBranchesOf struct {
 
 // deadBranches marks, by index, each branch of the union holder writes that no
 // instance of body satisfies (deadBranch), read once a run, as every reader of
-// the position asks. None is marked where body's own conjuncts share no kind,
-// the entry holder aside, which the warning
-// docs/compilers/openapi.md#allof-disjoint-conjuncts gives says of the schema
-// whole, nor where what body writes but the union admits anything but objects
-// or is cut short (restAdmitsObjects). That reading leaves null out: the
-// nulls walk would classify body's union again.
+// the position asks. None is marked where what body writes but the union
+// admits anything but objects, or is cut short (restAdmitsObjects): a rest
+// sharing no kind is the warning's that
+// docs/compilers/openapi.md#allof-disjoint-conjuncts gives of the schema
+// whole. That reading leaves null out: the nulls walk would classify body's
+// union again.
 func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 	return lowering.Remembered(c, deadBranchesOf{body, holder}, func() []bool {
 		branches, _, _ := unionBranches(holder)
 		out := make([]bool, len(branches))
-		var aside *statement.Schema
-		if holder != body {
-			aside = holder
-		}
-		if conjunctsShareNothing(c, body, aside) || !restAdmitsObjects(c, body, holder) {
+		if !restAdmitsObjects(c, body, holder) {
 			return out
 		}
 		for i, b := range branches {

@@ -238,7 +238,7 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 		case (enumWritten(st.Schema) || constIn(st.Schema) != nil) && declaredInstanceTypes(st.Schema)&valueKinds(c, st.Schema) == 0:
 			return true
 		case st.Ref == nil && len(st.AllOf) > 0:
-			return conjunctsShareNothing(c, st.Schema, nil)
+			return conjunctsShareNothing(c, st.Schema)
 		case st.Ref == nil && keepsDeadUnion(c, st.Schema):
 			return true
 		}
@@ -252,16 +252,13 @@ func toldWhereWritten(c lowering.Ctx, st *statement.Statement) bool {
 }
 
 // conjunctsShareNothing reports whether the conjuncts of the allOf s writes,
-// read as a disjoint report reads them, share no kind, the entry whose schema
-// is aside left out where aside is not nil. A read cut short admits more than
-// the schema does, never less, so it never makes them share nothing.
-func conjunctsShareNothing(c lowering.Ctx, s, aside *statement.Schema) bool {
+// read as a disjoint report reads them, share no kind. A read cut short admits
+// more than the schema does, never less, so it never makes them share nothing.
+func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
 	at, _ := siteOf(s)
 	joint := anyInstance
 	for _, a := range conjunctAtoms(c, s, allOfBranches(c, s, at.Pointer)) {
-		if aside == nil || a.st == nil || a.st.Schema != aside {
-			joint &= a.admits
-		}
+		joint &= a.admits
 	}
 	return joint == 0
 }
