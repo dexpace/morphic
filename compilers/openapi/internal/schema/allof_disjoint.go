@@ -34,23 +34,11 @@ type conjunctAtom struct {
 // noValue is how a disjoint report names a conjunct admitting no value at all.
 const noValue = "no value"
 
-// disjointConjuncts names what each conjunct of comp, the allOf s writes,
-// admits where they share no value, and returns nil where they share one
-// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A null is one: the
-// shared reading of it is the nulls walk's. A read cut short decides nothing,
-// and a conjunct admitting nothing whose schema reports it where it is written
-// leaves the report to it. One conjunct contradicts nothing, so a lone
-// `type: "null"` beside what takes its null away draws nil too, but one
-// admitting nothing by itself is named, as nothing else reports it.
-func disjointConjuncts(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
-	return disjointAtoms(c, s, conjunctAtoms(c, s, comp))
-}
-
 // disjointNames names what each conjunct of comp, the allOf s writes, states
-// where they share no value: what their kinds leave (disjointConjuncts), else,
+// where they share no value: what their kinds leave (disjointAtoms), else,
 // where those share a kind, what the election found apart (conjunctsApart).
 func disjointNames(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []string {
-	if names := disjointConjuncts(c, s, comp); len(names) > 0 {
+	if names := disjointAtoms(c, s, conjunctAtoms(c, s, comp)); len(names) > 0 {
 		return names
 	}
 	return conjunctsApart(c, s)
@@ -88,7 +76,13 @@ func contradictionShape(r refinement, s *statement.Schema) string {
 }
 
 // disjointAtoms names what each of atoms, the conjuncts of the allOf s
-// writes, admits where they share no value, as disjointConjuncts does.
+// writes, admits where they share no value, and returns nil where they share
+// one (docs/compilers/openapi.md#allof-disjoint-conjuncts). A null is one: the
+// shared reading of it is the nulls walk's. A read cut short decides nothing,
+// and a conjunct admitting nothing whose schema reports it where it is written
+// leaves the report to it. One conjunct contradicts nothing, so a lone
+// `type: "null"` beside what takes its null away draws nil too, but one
+// admitting nothing by itself is named, as nothing else reports it.
 func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []string {
 	joint := anyInstance
 	for _, a := range atoms {
