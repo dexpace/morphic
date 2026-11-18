@@ -1783,8 +1783,8 @@ property, parameter or header names the `Model` over the target, a decorator hol
 emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
 bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
 and a `nullable: true` the nullable-inference policy reads, beside the `$ref` or beside an `allOf` of
-it, with nothing else but what says nothing of the instance, make no decorator there: the carrier
-names the reference and holds them, as over any other target, so
+it, with nothing else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no
+decorator there: the carrier names the reference and holds them, as over any other target, so
 `{$ref: Obj, readOnly: true}` at a property names `Obj`. Whether a carrier holds the position is
 read off where the schema is written, a property a schema lists or a parameter's or a header's
 schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the `Model`
