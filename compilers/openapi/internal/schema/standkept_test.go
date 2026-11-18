@@ -636,6 +636,10 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	require.Len(t, whole, 1)
 	assert.Contains(t, whole[0], "the branch (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
 	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
+	for _, d := range diags {
+		assert.False(t, strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/WholeAround/allOf/0/allOf/0"),
+			"what a whole wrapper holds is reported by it alone: %s", d.Message)
+	}
 }
 
 // TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader pins a keyword an
