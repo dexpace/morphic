@@ -661,8 +661,9 @@ func refinableBranches(comp allOfComposition) bool {
 
 // conjuncts reads s's own keywords, then each branch of comp but a `true`,
 // which says nothing, then a union s writes beside the allOf as part of its
-// own keywords, as on an inline branch. A union sharing no kind with the rest
-// is left out, which the second result reports. A wrapper's own keywords are
+// own keywords, as on an inline branch. A union sharing no kind with the rest,
+// one of null alone beside a rest admitting no null among them, is left out,
+// which the second result reports. A wrapper's own keywords are
 // read alone: its entries are conjuncts of their own.
 func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
@@ -692,7 +693,7 @@ func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) 
 	for _, cj := range out[1:] {
 		rest = rest.and(cj.read)
 	}
-	if rest.reachable() && union.kinds&^kindNull != 0 && rest.kinds&union.kinds == 0 {
+	if rest.reachable() && union.kinds != 0 && rest.kinds&union.kinds == 0 {
 		return out, true
 	}
 	out[0].read, out[0].says, out[0].form = out[0].read.and(union), true, unionForm(s)

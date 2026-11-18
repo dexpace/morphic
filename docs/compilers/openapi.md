@@ -4086,10 +4086,11 @@ reach these shapes:
    the schema through `allOf`, at any depth (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the
    base of a hierarchy the discriminator routes, which a union of composed variants would no longer
    be the base of;
-4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
-   no instance satisfies the two together and a variant would hold no value: the position lowers as
-   the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
-   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union; the unions inline
+4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, a
+   null among them only where the rest admits one too, so no instance satisfies the two together
+   and a variant would hold no value: the position lowers as the rest does
+   ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
+   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union, and no other; the unions inline
    entries write are read together as two beside the `allOf` are, and so are a union and the one
    the position passes over for it (above);
 5. every branch but a null one of a union the body would distribute is dead (above), so no variant
@@ -4331,11 +4332,11 @@ judged as one whose branches declare shape.
   `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
   `e2e.TestUnionAlone_ABodyBesideItStillDistributes`,
   `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
-  `e2e.TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs`
+  `e2e.TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs`,
+  `e2e.TestElection_UnionsSharingNullAloneWithEachOtherDrawOneWarning`,
+  `e2e.TestElection_AUnionOfNullAloneBesideAnAllOfDrawsOneWarning`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806). A `oneOf` and an `anyOf` beside an `allOf` of an object body whose branches share
-  null alone, as `[{type: object}, {type: 'null'}]` and `[{type: string}, {type: 'null'}]` do, draw
-  both warnings, where on its entries they draw the one naming the conjuncts (#2011).
+  legal (#1806).
 
 ### `union-beside-ref`
 
