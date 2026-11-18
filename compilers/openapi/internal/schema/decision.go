@@ -279,12 +279,11 @@ func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
 	if p.LastToken() != "schema" {
 		return false
 	}
-	holder := p.Parent()
-	if holder.Parent().LastToken() == "content" {
-		holder = holder.Parent().Parent()
+	holder := bind.Position{Doc: at.Doc, Pointer: p.Parent()}
+	if holder.Pointer.Parent().LastToken() == "content" {
+		holder.Pointer = holder.Pointer.Parent().Parent()
 	}
-	kind := holder.Parent().LastToken()
-	return kind == "parameters" || kind == "headers"
+	return c.Bindings().ObjectAt(holder, bind.RefParameter) != nil || c.Bindings().ObjectAt(holder, bind.RefHeader) != nil
 }
 
 // statesNothing reports whether s states nothing of the instance: `true`, a

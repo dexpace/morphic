@@ -49,8 +49,9 @@ func TestEntryAt_ReadsTheBranchAtAnIndex(t *testing.T) {
 
 // TestCarriedAt_ReadsWhereASchemaIsWritten pins which positions a carrier
 // holds by where the bindings place the schema: a property a schema lists,
-// and a parameter's schema, its content's included, but not a component, a
-// list's element, nor a schema no binding places.
+// and a parameter's or a header's schema, its content's included, but not a
+// component, a list's element, a schema keyed `schema` beneath a component
+// named as a carrier's collection is, nor a schema no binding places.
 func TestCarriedAt_ReadsWhereASchemaIsWritten(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, `openapi: 3.1.0
@@ -61,18 +62,23 @@ paths:
       parameters:
         - {name: q, in: query, schema: {type: string}}
         - {name: c, in: query, content: {application/json: {schema: {type: string}}}}
-      responses: {"204": {description: ok}}
+      responses: {"204": {description: ok, headers: {X-A: {schema: {type: string}}}}}
 components:
   schemas:
     H: {type: object, properties: {p: {type: string}}}
     L: {type: array, items: {type: string}}
+    parameters: {type: object, $defs: {schema: {type: string}}}
+    headers: {type: object, patternProperties: {schema: {type: string}}}
 `)
 	for at, want := range map[jsontext.Pointer]bool{
 		"/components/schemas/H/properties/p":                           true,
 		"/paths/~1x/get/parameters/0/schema":                           true,
 		"/paths/~1x/get/parameters/1/content/application~1json/schema": true,
+		"/paths/~1x/get/responses/204/headers/X-A/schema":              true,
 		"/components/schemas/H":                                        false,
 		"/components/schemas/L/items":                                  false,
+		"/components/schemas/parameters/$defs/schema":                  false,
+		"/components/schemas/headers/patternProperties/schema":         false,
 	} {
 		st := l.Ctx.Statements().At(bind.Position{Pointer: at})
 		require.Equal(t, statement.Stated, st.Truth, "%s is written", at)
