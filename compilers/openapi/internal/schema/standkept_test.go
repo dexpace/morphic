@@ -168,3 +168,42 @@ func TestPrincipalKept_AValueThatCannotRenderIsRefusedAsWrittenFlat(t *testing.T
 	assert.Equal(t, map[string]string{"openapi:contentSchema": `{"const":1} [no_ir_home]`}, keptOn(t, doc, "Content"))
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, "/components/schemas/Content/allOf/0/contentSchema"))
 }
+
+// draft07 opens an allOf entry read in JSON Schema draft 7, which defines
+// `dependencies`.
+const draft07 = "$id: 'https://example.com/e', $schema: 'http://json-schema.org/draft-07/schema#'"
+
+// TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines pins the one
+// key two readers spell alike: an entry naming a draft keeps its
+// `dependencies` as validation logic, the position its own as a key its
+// dialect does not define, both under openapi:dependencies. Written otherwise,
+// the plain key holds the position's, the principal's is kept under its
+// entry's key, and another entry whole; written alike, it is kept once.
+func TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Principal: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}], dependencies: {b: [z]}}\n"+
+			"    Entry: {allOf: [{type: string}, {"+draft07+", dependencies: {a: [z]}}], dependencies: {b: [z]}}\n"+
+			"    Alike: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}], dependencies: {a: [z]}}\n"+
+			"    Alone: {allOf: [{"+draft07+", type: string, dependencies: {a: [z]}}]}\n"+
+			"    Model: {type: object, allOf: [{"+draft07+", dependencies: {a: [z]}}], dependencies: {b: [z]}}\n"))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken), "no value is refused its key")
+
+	principal := keptOn(t, doc, "Principal")
+	assert.Equal(t, `{"b":["z"]} [out_of_scope]`, principal["openapi:dependencies"])
+	assert.Equal(t, `{"dependencies":{"a":["z"]}} [validation_only]`, principal["openapi:allOf/0"])
+	assert.Len(t, reportsAt(diags, "/components/schemas/Principal/allOf/0"), 1)
+
+	entry := keptOn(t, doc, "Entry")
+	assert.Equal(t, `{"b":["z"]} [out_of_scope]`, entry["openapi:dependencies"])
+	assert.Contains(t, entry["openapi:allOf/1"], `"dependencies":{"a":["z"]}`, "an entry that is no principal is kept whole")
+
+	alike := keptOn(t, doc, "Alike")
+	assert.Equal(t, `{"a":["z"]} [out_of_scope]`, alike["openapi:dependencies"])
+	assert.NotContains(t, alike, "openapi:allOf/0")
+	assert.Equal(t, `{"a":["z"]} [validation_only]`, keptOn(t, doc, "Alone")["openapi:dependencies"], "alone, it folds as written flat")
+
+	model := keptOn(t, doc, "Model")
+	assert.Equal(t, `{"b":["z"]} [out_of_scope]`, model["openapi:dependencies"])
+	assert.Contains(t, model["openapi:allOf/0"], `"dependencies":{"a":["z"]}`, "a composition keeps its entry whole")
+}

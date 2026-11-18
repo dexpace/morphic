@@ -97,7 +97,7 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 ) []keptEntry {
 	out := make([]keptEntry, len(comp.branches))
 	for i := range comp.branches {
-		out[i] = keptEntry{entry: comp.branches[i], residue: residueOf(i)}
+		out[i] = keptEntry{entry: comp.branches[i], residue: withDraftDependencies(c, s, comp, i, residueOf(i))}
 	}
 	kepts := make([][]string, len(out))
 	for i, k := range out {
@@ -137,6 +137,28 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 		out[i].alike = slices.DeleteFunc(slices.Clone(out[i].own), func(key string) bool { return held[key] < 2 })
 	}
 	return out
+}
+
+// withDraftDependencies returns residue, what the entry at index i of comp
+// leaves unread, with the `dependencies` it writes where foldsNoDependencies
+// says that does not fold: kept, it is held against the position's as any
+// keyword two conjuncts keep is.
+func withDraftDependencies(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int, residue []string) []string {
+	bs := comp.branches[i].schema.Schema
+	if !hasKey(bs, "dependencies") || slices.Contains(residue, "dependencies") || !foldsNoDependencies(c, s, comp.pointer) {
+		return residue
+	}
+	return unmergedBranchKeys(bs, func(key string) bool { return key != "dependencies" && !slices.Contains(residue, key) })
+}
+
+// foldsNoDependencies reports whether s, written at pointer, writes a
+// `dependencies` its own dialect does not define, kept as a key no dialect
+// defines under openapi:dependencies. An allOf entry naming a draft that
+// defines the keyword keeps its own under that same key, so the entry's does
+// not fold beside it: one key of one node holds one value
+// (docs/compilers/openapi.md#allof-inline-residue).
+func foldsNoDependencies(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
+	return hasKey(s, "dependencies") && writesUnknown(c, s, "dependencies", pointer)
 }
 
 // markKeptWhole marks each of voices, the voices of s written at pointer, which
@@ -400,6 +422,9 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 	switch {
 	case strings.HasPrefix(key, "x-"):
 		return ir.ReasonVendorExtension
+	case key == "dependencies" && twin != key:
+		// A draft's own keyword, validation logic as written flat in it.
+		return ir.ReasonValidationOnly
 	case annotation.DialectKeyword(twin), writesUnknown(c, bs, key, e.pointer):
 		return ir.ReasonOutOfScope
 	case slices.Contains(logicKeywords, twin), unevaluatedKeyword(twin):

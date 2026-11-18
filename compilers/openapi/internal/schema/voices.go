@@ -293,7 +293,10 @@ func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 		if !speaks || LoweredToOwnNode(c, e.pointer, target) {
 			continue
 		}
-		out = append(out, voiceAt(c, e.schema.Schema, e.pointer))
+		v := voiceAt(c, e.schema.Schema, e.pointer)
+		// The entry keeps a `dependencies` that does not fold (entryKeeps).
+		v.Dependencies = v.Dependencies && !foldsNoDependencies(c, s, pointer)
+		out = append(out, v)
 	}
 	return out
 }
