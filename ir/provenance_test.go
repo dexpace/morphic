@@ -481,6 +481,11 @@ func TestDiagnostic_KeyIsTheWholeValue(t *testing.T) {
 			assert.NotEqual(t, base.Key(), changed.Key())
 		})
 	}
+
+	spaced := func(node string, inferred ir.Inferred) ir.DiagnosticKey {
+		return ir.Diagnostic{Related: []ir.Related{{Provenance: ir.Provenance{Node: node, Inferred: inferred}}}}.Key()
+	}
+	assert.NotEqual(t, spaced("p/x b", "c"), spaced("p/x", "b c"), "a space between two neighbouring fields is no boundary")
 }
 
 // TestMergeDiagnostics_TellsFindingsApartByTheirRelatedEntries holds the merge
