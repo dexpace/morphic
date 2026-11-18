@@ -47,3 +47,18 @@ func TestAllOf_AUnionAloneOnAnEntryLowersAsItsBareSpelling(t *testing.T) {
 		assert.NotEqual(t, ir.SeverityWarning, d.Severity, d.Message)
 	}
 }
+
+// TestAllOf_AUnionBesideTheAllOfKeepsAnEntrysFromStandingAlone holds a union
+// on an allOf entry, the schema writing a union of its own beside the allOf,
+// to be no principal standing alone (docs/compilers/openapi.md#allof-refinement):
+// the two conjoin, so the position is a Union, not the nullable reference to
+// the entry's one other branch its union alone would be.
+func TestAllOf_AUnionBesideTheAllOfKeepsAnEntrysFromStandingAlone(t *testing.T) {
+	t.Parallel()
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    X: {type: object, properties: {id: {type: string}}}
+    Y: {type: object, properties: {n: {type: integer}}}
+    Beside: {allOf: [{oneOf: [{$ref: '#/components/schemas/X'}, {type: 'null'}]}], anyOf: [{$ref: '#/components/schemas/Y'}]}
+`))
+	_, ok := typeByName(doc, "Beside").(*ir.Union)
+	assert.True(t, ok, "the position is a Union")
+}

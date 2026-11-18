@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -154,14 +155,14 @@ func TestCanonicalForm_LeavesOutANodeATieMints(t *testing.T) {
 	with.Types[minted.ID] = minted
 	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}}
 
-	a, err := (&formReader{doc: with}).canonicalForm(ties)
+	a, err := canonicalForm(with, nil, ties)
 	require.NoError(t, err)
-	b, err := (&formReader{doc: settledDoc()}).canonicalForm(ties)
+	b, err := canonicalForm(settledDoc(), nil, ties)
 	require.NoError(t, err)
 	assert.Equal(t, b.document, a.document)
 	assert.Equal(t, b.shape, a.shape)
 
-	untied, err := (&formReader{doc: with}).canonicalForm(tieSites{})
+	untied, err := canonicalForm(with, nil, tieSites{})
 	require.NoError(t, err)
 	assert.NotEqual(t, b.document, untied.document, "the node is compared where no tie decides it")
 }
@@ -176,14 +177,14 @@ func TestCanonicalForm_ForgivesANodeATieNamesWhereverItSits(t *testing.T) {
 	retyped.Types["t/M"].(*ir.Model).Properties[0].Type.Target = "t/prim/integer"
 	ties := tieSites{nodes: []string{"p/M/p"}}
 
-	a, err := (&formReader{doc: settledDoc()}).canonicalForm(ties)
+	a, err := canonicalForm(settledDoc(), nil, ties)
 	require.NoError(t, err)
-	b, err := (&formReader{doc: retyped}).canonicalForm(ties)
+	b, err := canonicalForm(retyped, nil, ties)
 	require.NoError(t, err)
 	assert.Equal(t, a.document, b.document)
 	assert.Equal(t, a.shape, b.shape)
 
-	c, err := (&formReader{doc: retyped}).canonicalForm(tieSites{nodes: []string{"p/Q/q"}})
+	c, err := canonicalForm(retyped, nil, tieSites{nodes: []string{"p/Q/q"}})
 	require.NoError(t, err)
 	assert.NotEqual(t, a.shape, c.shape, "a member no tie names is compared")
 }
@@ -264,25 +265,41 @@ func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 	assert.Equal(t, diagnosticKey(want), nodeKey(named, tells))
 }
 
-// TestSequenceOrderInvariant_ReadsTieClassesOneWayOnEveryRun plants reports
-// at alpha's and beta's p, one class of the tie fixtureSwap's two models
-// compose, and one at AB, of no class: the oracle finds the last alone, on
-// every run.
-func TestSequenceOrderInvariant_ReadsTieClassesOneWayOnEveryRun(t *testing.T) {
-	plant(t, func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
-		planted := []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/alpha/properties/p", "")}
-		if reversed {
-			planted = []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/beta/properties/p", ""),
-				diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/AB", "")}
-		}
-		return doc, append(slices.Clip(diags), planted...), nil
-	})
-
-	first := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureSwap), true)
-	require.True(t, first.Found(), "the report at AB must stay unpaired: %+v", first)
-	assert.Contains(t, first.Detail, `x/swap\x00/components/schemas/AB\x00`)
-	assert.NotContains(t, first.Detail, "properties/p", "the reports at p's declarations are one class's")
-	for range 19 {
-		assert.Equal(t, first, sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureSwap), true))
+// TestCanonicalForm_ComparesWhetherATiedMemberIsRequired pins the one thing
+// of a tied member the forms compare: a member is required where any of its
+// declarations or its model says so, which no tie decides, so two documents
+// differing there differ, in the document and in the shape, by the member's
+// ID and by a tie site alike. A tied node that is no property, as what a
+// member keeps verbatim at a tie site is, is written as the tie alone.
+func TestCanonicalForm_ComparesWhetherATiedMemberIsRequired(t *testing.T) {
+	t.Parallel()
+	required := settledDoc()
+	required.Types["t/M"].(*ir.Model).Properties[0].Required = true
+	for name, ties := range map[string]tieSites{
+		"by its ID":     {nodes: []string{"p/M/p"}},
+		"at a tie site": {pointers: []string{"/M/allOf/properties/p"}},
+	} {
+		a, err := canonicalForm(settledDoc(), nil, ties)
+		require.NoError(t, err)
+		b, err := canonicalForm(required, nil, ties)
+		require.NoError(t, err)
+		assert.NotEqual(t, a.document, b.document, name)
+		assert.NotEqual(t, a.shape, b.shape, name)
+		assert.Contains(t, strings.Join(b.document, "\n"), `"required": true`, name)
 	}
+
+	kept := func(value string) *ir.Document {
+		doc := settledDoc()
+		doc.Types["t/Q"].(*ir.Model).Unmodeled = ir.Unmodeled{"x:kept": {
+			Reason: ir.ReasonDegradedLowering, Value: ir.RawValue(value), Provenance: ir.Provenance{Pointer: "/M/allOf/properties/p/items"},
+		}}
+		return doc
+	}
+	ties := tieSites{pointers: []string{"/M/allOf/properties/p"}}
+	a, err := canonicalForm(kept(`1`), nil, ties)
+	require.NoError(t, err)
+	b, err := canonicalForm(kept(`2`), nil, ties)
+	require.NoError(t, err)
+	assert.Equal(t, a.document, b.document)
+	assert.Contains(t, strings.Join(a.document, "\n"), `"reportedTie": "/M/allOf/properties/p/items"`)
 }

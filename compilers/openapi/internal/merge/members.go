@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
@@ -101,7 +102,7 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 		merged, diags := g.fold(decls)
 		idx.place(pos, merged)
 		idx.typeAt[merged.WireName] = g.typeSites(merged, decls)
-		return diags
+		return deciding(diags, merged.ID)
 	}
 	own := slices.DeleteFunc(slices.Clone(decls), isBrought)
 	field := composedMember(g.IDs, idx.m, decls[0].prop.WireName)
@@ -127,7 +128,7 @@ func (idx *PropIndex) settle(g Merger, pos int, decls []declaration) []ir.Diagno
 	}
 	idx.place(pos, merged)
 	idx.typeAt[merged.WireName] = g.typeSites(merged, decls)
-	return naming(diags, merged.ID)
+	return deciding(naming(diags, merged.ID), merged.ID)
 }
 
 // maxTypeSites bounds the nodes a settled member reads of a type its fold
@@ -303,6 +304,23 @@ func (idx *PropIndex) place(pos int, p ir.Property) {
 func naming(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
 	for i := range diags {
 		diags[i].Provenance.Node = string(id)
+	}
+	return diags
+}
+
+// deciding returns diags, each conflict between two declarations listing id,
+// the property the fold decided, among what it concerns (ir.RelatedDecided):
+// every model composing the two draws the report, and the run says it once
+// for all of them (ReportOnce), where one node named beside its place could
+// not say which.
+func deciding(diags []ir.Diagnostic, id ir.PropID) []ir.Diagnostic {
+	for i := range diags {
+		if diags[i].Code != diag.ConflictingRedecl {
+			continue
+		}
+		diags[i].Related = append(diags[i].Related, ir.Related{
+			Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: string(id)},
+		})
 	}
 	return diags
 }

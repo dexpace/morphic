@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"strings"
 	"testing"
@@ -66,45 +67,80 @@ func composing(names ...string) string {
 // saying how many models compose them and naming no member, or naming the
 // member where one model does. Each distinct conflict stays: two pairs, one
 // pair over two members, one member between two pairs, and one pair two models
-// fold to opposite outcomes.
+// fold to opposite outcomes. Each report lists where the declaration it kept
+// is written and the member every model composing the pair decided, in order.
 func TestConflictOnce_IsReportedOncePerPairOfDeclarations(t *testing.T) {
 	t.Parallel()
 	const (
 		common  = "/components/schemas/Common/properties/"
 		failure = "/components/schemas/Failure/properties/success"
 	)
-	type report struct{ at, node, says string }
+	type report struct {
+		at, node, says, kept string
+		decided              []string
+	}
+	member := func(model int, field string) string {
+		return fmt.Sprintf("p/composed/components/schemas/M%d/allOf/properties/%s", model, field)
+	}
 	for name, tc := range map[string]struct {
 		models []string
 		want   []report
 	}{
 		"three models compose one pair": {
 			models: []string{composing("Common", "Failure"), composing("Common", "Failure"), composing("Common", "Failure")},
-			want:   []report{{common + "success", "", "over the one at " + common + "success, which stays declared on its model; the same holds at each of 3 models composing both"}},
+			want: []report{{
+				at: common + "success", kept: failure,
+				says:    "over the one at " + common + "success, which stays declared on its model; the same holds at each of 3 models composing both",
+				decided: []string{member(0, "success"), member(1, "success"), member(2, "success")},
+			}},
 		},
 		"one model": {
 			models: []string{composing("Common", "Failure")},
-			want:   []report{{common + "success", "p/composed/components/schemas/M0/allOf/properties/success", "over the one at " + common + "success, which stays declared on its model"}},
+			want: []report{{
+				at: common + "success", node: member(0, "success"), kept: failure,
+				says:    "over the one at " + common + "success, which stays declared on its model",
+				decided: []string{member(0, "success")},
+			}},
 		},
 		"two pairs": {
 			models: []string{composing("Common", "Failure"), composing("Common", "Other"), composing("Common", "Failure"), composing("Common", "Other")},
 			want: []report{
-				{common + "success", "", "kept what the declaration at " + failure + " says over the one at " + common + "success, which stays declared on its model; the same holds at each of 2 models"},
-				{common + "success", "", "kept what the declaration at /components/schemas/Other/properties/success says over the one at " + common + "success, which stays declared on its model; the same holds at each of 2 models"},
+				{
+					at: common + "success", kept: failure,
+					says:    "kept what the declaration at " + failure + " says over the one at " + common + "success, which stays declared on its model; the same holds at each of 2 models",
+					decided: []string{member(0, "success"), member(2, "success")},
+				},
+				{
+					at: common + "success", kept: "/components/schemas/Other/properties/success",
+					says:    "kept what the declaration at /components/schemas/Other/properties/success says over the one at " + common + "success, which stays declared on its model; the same holds at each of 2 models",
+					decided: []string{member(1, "success"), member(3, "success")},
+				},
 			},
 		},
 		"one pair over two members": {
 			models: []string{composing("Common", "Mixed"), composing("Common", "Mixed")},
 			want: []report{
-				{common + "code", "", "field \"code\" disagree"},
-				{common + "success", "", "field \"success\" disagree"},
+				{
+					at: common + "code", kept: "/components/schemas/Mixed/properties/code", says: "field \"code\" disagree",
+					decided: []string{member(0, "code"), member(1, "code")},
+				},
+				{
+					at: common + "success", kept: "/components/schemas/Mixed/properties/success", says: "field \"success\" disagree",
+					decided: []string{member(0, "success"), member(1, "success")},
+				},
 			},
 		},
 		"one pair, opposite outcomes": {
 			models: []string{composing("Common", "Failure"), composing("Failure", "Common")},
 			want: []report{
-				{common + "success", "p/composed/components/schemas/M0/allOf/properties/success", "kept what the declaration at " + failure + " says"},
-				{failure, "p/composed/components/schemas/M1/allOf/properties/success", "kept what the declaration at " + common + "success says"},
+				{
+					at: common + "success", node: member(0, "success"), kept: failure,
+					says: "kept what the declaration at " + failure + " says", decided: []string{member(0, "success")},
+				},
+				{
+					at: failure, node: member(1, "success"), kept: common + "success",
+					says: "kept what the declaration at " + common + "success says", decided: []string{member(1, "success")},
+				},
 			},
 		},
 	} {
@@ -121,8 +157,47 @@ func TestConflictOnce_IsReportedOncePerPairOfDeclarations(t *testing.T) {
 			assert.Equal(t, w.at, string(got[i].Provenance.Pointer), name)
 			assert.Equal(t, w.node, got[i].Provenance.Node, name)
 			assert.Contains(t, got[i].Message, w.says, name)
+			kept, decided := concerns(t, got[i])
+			assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(w.kept)}, kept, name)
+			assert.Equal(t, w.decided, decided, name)
 		}
 	}
+}
+
+// concerns reads what a conflict report concerns besides its place: where the
+// declaration it kept is written, first, and then the members it decided,
+// each named on no source.
+func concerns(t *testing.T, d ir.Diagnostic) (kept ir.Provenance, decided []string) {
+	t.Helper()
+	require.NotEmpty(t, d.Related)
+	require.Equal(t, ir.RelatedKept, d.Related[0].Role)
+	for _, r := range d.Related[1:] {
+		require.Equal(t, ir.RelatedDecided, r.Role)
+		require.Equal(t, ir.Provenance{Source: ir.NoSource, Node: r.Provenance.Node}, r.Provenance)
+		decided = append(decided, r.Provenance.Node)
+	}
+	return d.Related[0].Provenance, decided
+}
+
+// TestConflictOnce_AModelsOwnDeclarationsListTheMember pins what a conflict
+// among declarations one model writes itself concerns: no entry brings one, so
+// the report names no member beside its place, and it lists the member it
+// decided and where the declaration it kept is written all the same.
+func TestConflictOnce_AModelsOwnDeclarationsListTheMember(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.ComponentSpec(`
+    M:
+      allOf:
+        - {type: object, properties: {p: {type: string}}}
+        - {type: object, properties: {p: {type: integer}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	got := conflicts(diags)
+	require.Len(t, got, 1)
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/M/allOf/0/properties/p"}, got[0].Provenance)
+	kept, decided := concerns(t, got[0])
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/M/allOf/1/properties/p"}, kept)
+	assert.Equal(t, []string{"p/openapi/components/schemas/M/allOf/0/properties/p"}, decided)
 }
 
 // TestConflictOnce_InlineCompositionsAtOperationsAreOneReport pins the shape

@@ -4,6 +4,7 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -17,6 +18,9 @@ import (
 // is said once, where it is first, with how many and no member; one drawn at
 // one model keeps its member; two differing in what they say or where they
 // sit are two; and every other report stays as it is, in order, repeats too.
+// A report said for several lists the member each decided, in ascending order
+// whatever order the models came in, after what all of them kept, and two
+// keeping different declarations are two.
 func TestReportOnce_SaysEachConflictOnce(t *testing.T) {
 	t.Parallel()
 	conflict := func(source int, node, msg string) ir.Diagnostic {
@@ -44,9 +48,35 @@ func TestReportOnce_SaysEachConflictOnce(t *testing.T) {
 			in:   []ir.Diagnostic{conflict(0, "p/M", "x"), conflict(1, "p/N", "x")},
 			want: []ir.Diagnostic{conflict(0, "p/M", "x"), conflict(1, "p/N", "x")},
 		},
+		"the members each decided are listed in order": {
+			in: []ir.Diagnostic{
+				concerning(conflict(0, "p/N", "x"), "/K", "p/N"), other, concerning(conflict(0, "p/M", "x"), "/K", "p/M"),
+			},
+			want: []ir.Diagnostic{
+				concerning(conflict(0, "", "x; the same holds at each of 2 models composing both"), "/K", "p/M", "p/N"), other,
+			},
+		},
+		"one model keeps the member it lists": {
+			in:   []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M")},
+			want: []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M")},
+		},
+		"what they kept differs": {
+			in:   []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M"), concerning(conflict(0, "p/N", "x"), "/L", "p/N")},
+			want: []ir.Diagnostic{concerning(conflict(0, "p/M", "x"), "/K", "p/M"), concerning(conflict(0, "p/N", "x"), "/L", "p/N")},
+		},
 	} {
 		if diff := cmp.Diff(tc.want, ReportOnce(tc.in)); diff != "" {
 			t.Errorf("%s (-want +got):\n%s", name, diff)
 		}
 	}
+}
+
+// concerning is d concerning the declaration kept at kept and the members
+// decided, in the order a fold and ReportOnce list them.
+func concerning(d ir.Diagnostic, kept jsontext.Pointer, decided ...string) ir.Diagnostic {
+	d.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: kept}}}
+	for _, node := range decided {
+		d.Related = append(d.Related, ir.Related{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: node}})
+	}
+	return d
 }

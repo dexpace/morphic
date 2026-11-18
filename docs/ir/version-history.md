@@ -1032,7 +1032,8 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi/unpreservable-construct` and kept nothing. `openapi/unknown-schema-keyword` is an info
     at each `nullable` kept, and an entry kept whole as `validation_only` draws
     `openapi/validation-only-keyword` where it drew `openapi/degraded-construct`.
-- **0.71.0** — no change of shape. The OpenAPI compiler changes what three conjunctions lower to:
+- **0.71.0** — one change of shape, a diagnostic's `related` member, and the OpenAPI compiler
+  changes what these conjunctions lower to:
   - **A `oneOf` and an `anyOf` over a body**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
     [`competing-keywords`](../compilers/openapi.md#competing-keywords)). Written together beside a
@@ -1058,9 +1059,16 @@ it sees. Changes made together in one bump are listed together under it.
     The node an inline `allOf` entry the position lowers from builds, a `Union`, a `type` list's
     union, a `List`, a `Tuple` or a `Scalar`, stands at the position's pointer and ID, as a value
     set's node already did, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
-    carrier; its children keep their pointers. It holds the bounds written beside it, which the
-    alias, the property or the parameter held, a wrapper's once. A `$ref` to the entry's own
-    pointer names a node of the entry alone.
+    carrier; its children keep their pointers. A `type` list's variants, which no pointer of the
+    source names, and the nodes beneath them stand under the position's (`<position>/type/<i>`),
+    where they stood under the entry's, where the same keywords written flat at the position put
+    them. It holds
+    the bounds, notes and kept keywords written beside it, which the alias, the property or the
+    parameter held, a wrapper's once: a `type` list's variant each bound its type takes, its array
+    variant the collection bounds, and a bound no part of the node reads, a collection bound
+    beside a `oneOf` or an object bound beside a `type` list, kept on the node under its keyword
+    with a report. A `$ref` to the entry's own pointer names a node of the entry alone, a `type`
+    list's variants under the entry's pointer built from what the entry writes.
 
   - **A union alone on an inline `allOf` entry**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). A `oneOf` or
@@ -1071,6 +1079,28 @@ it sees. Changes made together in one bump are listed together under it.
     compiler does not read are kept under `openapi:discriminator/<key>`, where an entry's stood
     under `openapi:allOf/<n>/discriminator/<key>`. A union that collapses to a reference keeps no
     `openapi:oneOf`, and a null branch writing more than null is kept under `openapi:oneOf/<i>`.
+
+  - **Conjuncts that share no value**
+    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts),
+    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Conjuncts share a
+    null only where every one of them may admit it, so a union none of whose branches admits
+    null, beside an `allOf` whose rest admits null, on an entry of it or beside a `$ref` to it,
+    draws the warning that its conjuncts share no value, where it drew infos only. A `oneOf` and
+    an `anyOf` that no instance satisfies together lower, beside the body, beside its `allOf`, on
+    one entry or on two, to the body's `Model` keeping both as `degraded_lowering` with that one
+    warning, where two entries, and a union passed over that shares no kind with the body,
+    distributed the elected union.
+
+  - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
+    the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
+    `Provenance`, left out when empty. A finding concerning two declarations named the second in
+    its message alone, and one said for several models gave their number. The OpenAPI compiler
+    fills it on `openapi/conflicting-redeclaration`
+    ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): the place
+    of the declaration whose say the field kept, then every member the report decided; its
+    message, its place and the node it names are as they were. A consumer decoding a diagnostic
+    strictly meets a member it does not know; one comparing two diagnostics as values no longer
+    can, and keys on `Diagnostic.Key`.
 
   A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
   keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, the

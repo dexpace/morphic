@@ -23,21 +23,21 @@ import (
 // exactly one, so overlapping variants must not exclude each other; with an
 // integer width, integer and number name the same primitive, and the two
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
-// Each variant reads what the position's folding allOf branches write, at the
-// pointers they are written at, and stands where it is written, the Union
-// where st says.
+// The Union stands where st says, and each variant, which no source pointer
+// names, under it at /type/<i>, built from what the Union reads beside s.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, list typeArray,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	types := list.types
-	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	at := st.pointer(pointer)
+	id := internNode(c, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		list.voices = st.voices(c, s, pointer)
 		var read keySet
 		collect := finisher(func(_ ir.TypeDef, variant keySet) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
-			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
+			vptr := at + ids.Ptr("type", strconv.Itoa(i))
 			vid, shared, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list, collect)
 			read |= shared
 			diags = append(diags, vDiags...)
@@ -69,12 +69,12 @@ type typeArray struct {
 // lowerTypeVariant lowers the variant of s's type array that st names, at
 // pointer, as lowerTyped lowers st alone, but for what applies to another listed
 // type (docs/compilers/openapi.md#type-arrays). An object variant holds no
-// discriminator, which no $ref or mapping can name it by: the union keeps
-// it. A variant reads the value bounds of the kinds of st the
-// position admits (boundKinds), so a bound is held or kept, never both. A
-// scalar one holding them, the format or the content vocabulary is a Scalar of
-// its own, else the shared primitive, which returns what it read; fin
-// finishes one built.
+// discriminator, which no $ref or mapping can name it by: the union keeps it.
+// A variant reads, of s and list's voices, the value bounds of the kinds of
+// st the position admits (boundKinds), an array one the collection bounds. A
+// scalar one holding them, the format or the content vocabulary is its own
+// Scalar, else the shared primitive, returning what it read; fin finishes one
+// built.
 func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind,
 	list typeArray, fin finisher,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
@@ -84,7 +84,7 @@ func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		id, diags := lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark.then(fin))
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, list.mark.then(fin), stand{})
+		id, diags := lowerArray(c, ts, depth, s, pointer, pointer, list.voices, list.mark.then(fin))
 		return id, 0, diags
 	default:
 		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
