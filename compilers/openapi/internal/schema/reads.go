@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -27,6 +26,10 @@ var censusDomain = [...]string{
 	"exclusiveMaximum", "exclusiveMinimum", "maxLength", "maxProperties", "maximum", "minLength",
 	"minProperties", "minimum", "multipleOf", "pattern",
 }
+
+// nodeKeywords are censusDomain's keywords before the value bounds, those whose
+// home a node's kind decides.
+var nodeKeywords = censusDomain[:len(censusDomain)-len(valueConstraintKeywords)]
 
 // keyBit returns the bit of name, and none for a key outside censusDomain.
 func keyBit(name string) keySet {
@@ -76,19 +79,6 @@ func scalarTypeRead(s *statement.Schema) keySet {
 		return 0
 	}
 	return keyBit("type")
-}
-
-// declaredReads returns what a value set's typing reads of s: the type and
-// format declaredPrim selects a primitive by, where fits says the values are of
-// it, the type alone where it selects by the type alone.
-func declaredReads(s *statement.Schema, fits func(ir.PrimKind) bool) keySet {
-	if prim, paired := formatPrimitive(s); paired && fits(prim) {
-		return keySetOf("type", "format")
-	}
-	if _, ok := declaredPrim(s, fits); ok {
-		return keyBit("type")
-	}
-	return 0
 }
 
 // boundsRead returns the value bounds s writes that a reader of the kinds held
@@ -148,6 +138,17 @@ func readElsewhere(s *statement.Schema) keySet {
 	return out
 }
 
+// readBeside is readElsewhere for td, the node a position lowered to: the
+// type of an Enum or a Literal is its own typing's to read (valueSetReads),
+// which the nulls reader leaves.
+func readBeside(s *statement.Schema, td ir.TypeDef) keySet {
+	read := readElsewhere(s)
+	if isKind(td, ir.KindEnum) || isKind(td, ir.KindLiteral) {
+		read &^= keyBit("type")
+	}
+	return read
+}
+
 // referenceReads returns what the alias or carrier of a position s lowered to
 // a reference reads (referenceConstraintsOf, CarrierConstraintsOf): the value
 // bounds the types it admits take, and where they admit an array the
@@ -163,39 +164,4 @@ func referenceReads(c lowering.Ctx, s *statement.Schema) keySet {
 		}
 	}
 	return out
-}
-
-// readCheck records, for a test that asks for it before lowering, each key of
-// censusDomain a census site keeps where the builds it judges read it, or
-// homes where none read it.
-type readCheck struct {
-	disagreements []string
-}
-
-// readCheckOf keys a run's readCheck.
-type readCheckOf struct{}
-
-// readCheckIn returns the readCheck a test seeded c's run with, nil where none
-// did.
-func readCheckIn(c lowering.Ctx) *readCheck {
-	return lowering.Remembered(c, readCheckOf{}, func() *readCheck { return nil })
-}
-
-// compare records, for s written at at and its node of kind, each key it
-// writes but handled where kept, the census's verdict, and read disagree.
-func (r *readCheck) compare(site, kind string, s *statement.Schema, read keySet, handled, kept []string, at string) {
-	for _, k := range censusDomain {
-		if !hasKey(s, k) || slices.Contains(handled, k) {
-			continue
-		}
-		isKept, isRead := slices.Contains(kept, k), read.has(k)
-		if isKept == !isRead {
-			continue
-		}
-		verdict := "kept, read"
-		if !isKept {
-			verdict = "homed, unread"
-		}
-		r.disagreements = append(r.disagreements, fmt.Sprintf("%s\t%s\t%s\t%s\t%s", site, kind, k, verdict, at))
-	}
 }

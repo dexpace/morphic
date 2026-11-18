@@ -116,10 +116,10 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	d := principalDispatch(e)
 	var kept, own finished
 	site := valueSetSite{set: bs, written: e.pointer, position: s, pointer: pointer, finish: kept.onRead(func(td ir.TypeDef, read keySet) []ir.Diagnostic {
-		return censusOn(c, ts, bs, e.pointer, td, d, read)
+		return keepUnread(c, ts, bs, e.pointer, td, d, read)
 	}).then(own.on(func(td ir.TypeDef) []ir.Diagnostic {
 		// The position's own keywords type the value set as a conjunct does.
-		return censusOn(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td))
+		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td))
 	})).then(fin)}
 	var id ir.TypeID
 	var built []ir.Diagnostic

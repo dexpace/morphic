@@ -49,7 +49,8 @@ func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
 }
 
 // TestReferenceHolds_NoCollectionBoundIsHeld pins the switch's default, which
-// keywordHome's arm never reaches: a keyword that is no collection bound.
+// no reader of a reference's collection bounds reaches: a keyword that is no
+// collection bound.
 func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
 	t.Parallel()
 	assert.False(t, referenceHolds(StandaloneSchema(&oas3.Schema{}), "pattern"))

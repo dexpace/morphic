@@ -3644,8 +3644,8 @@ A `format` the table pairs with a listed type is that variant's alone: with `dat
 to `date | integer`, and with `int32` to `string | int32`. One the table pairs with no listed type
 is every scalar variant's encoding name, since nothing says which type it describes and a format
 validates only the instances of the types it is defined for (JSON Schema Validation 2020-12 §7.1).
-The keyword census asks the variants rather than the union: a keyword or bound some variant holds is
-homed, and one none holds, a bound no listed type takes among them, is kept on the union
+What the variants read, not the union, decides a keyword's home: a keyword or bound some variant
+reads is homed, and one none reads, a bound no listed type takes among them, is kept on the union
 ([`shape-applicator`](#shape-applicator)).
 
 The `object` variant holds no `discriminator`, so the census keeps it on the union, whether or not a
@@ -4835,9 +4835,10 @@ off, a schema naming no kind is the top type, its shape keywords kept as any unh
 
 Each unhomed keyword is kept verbatim in `Unmodeled["openapi:<keyword>"]` under `degraded_lowering`,
 reported as one info `openapi/degraded-construct` at the position naming the kind it lowered to and
-the keywords it cannot hold. Which keyword has a home is asked of the node the lowering produced,
-never re-derived from the dispatch that produced it. A position that reduced to a shared node gets
-an alias of its own first: a shared primitive must never carry one declaration's keywords. The
+the keywords it cannot hold. Which keyword has a home is what the build of the node a position
+lowers to says it read, where it reads it, never re-derived from the node or the dispatch that
+produced it. A position that reduced to a shared node gets an alias of its own first: a shared
+primitive must never carry one declaration's keywords. The
 `format` keyword joins the list wherever the lowered node does not pair it with a primitive — no
 `type` declared, or an object, an array or an enum — since it is homed by pairing with a type rather
 than by a node kind, and `password` is never unhomed ([`password`](#password)). A format on an array
@@ -4862,10 +4863,10 @@ reference, so they are read as a `$ref` position is, and an `allOf` that refines
 census, but for what its principal already says, a union beside it among what it keeps
 ([`allof-refinement`](#allof-refinement)). A
 multi-typed schema (`type: [string, object]`) and a union distributed over its branches are built
-from the one schema per variant, so the census asks the variants, and a keyword is homed where any
-holds it, a value bound where a variant whose type takes it does: a distributed union's `properties`
-are consumed, and a `format` or `maxItems` beside them is kept on the union, under a report naming a
-union of models.
+from the one schema per variant, so what the variants read decides, and a keyword is homed where
+any reads it, a value bound where a variant whose type takes it does: a distributed union's
+`properties` are consumed, and a `format` or `maxItems` beside them is kept on the union, under a
+report naming a union of models.
 
 - Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
 - Codes: `openapi/degraded-construct`

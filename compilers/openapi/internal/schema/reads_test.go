@@ -4,9 +4,9 @@
 package schema_test
 
 import (
+	"encoding/json/v2"
 	"flag"
 	"io/fs"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,65 +19,177 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/internal/harness/openapicases"
 	"github.com/dexpace/morphic/ir"
 )
 
-// readDisagreementClasses are the census sites, node kinds, keys and verdicts
-// at which the census and the reads of the builds it judges still disagree,
-// each of which some document under testdata or a core case reaches.
-var readDisagreementClasses = []string{}
+// applicators are the keys of the census's domain whose value holds schemas,
+// which a build reading the key lowers below the key's pointer.
+var applicators = []string{"properties", "patternProperties", "additionalProperties", "items", "prefixItems", "enum"}
 
-// TestCensus_AgreesWithWhatTheBuildsRead holds the census, at every site it
-// judges a key of the component schemas of each document under testdata and
-// of each core case, to what the builds it judges say they read: it keeps a
-// key no build read and homes one a build did. A class it disagrees at is
-// listed in readDisagreementClasses until the builder reads what the census
-// credits it with.
-func TestCensus_AgreesWithWhatTheBuildsRead(t *testing.T) {
+// TestUnread_NoKeyIsBothReadAndKept holds each node of the component schemas
+// of every document under testdata and every core case to keeping only what
+// no build read: no key holding schemas that a node keeps verbatim has a node
+// or a property built from what it holds. A builder omitting a key it read
+// would keep a key it typed.
+func TestUnread_NoKeyIsBothReadAndKept(t *testing.T) {
 	t.Parallel()
-	found := map[string]string{}
-	add := func(where string, lines []string) {
-		for _, line := range lines {
-			fields := strings.Split(line, "\t")
-			class := strings.Join(fields[:4], "\t")
-			if _, seen := found[class]; !seen {
-				found[class] = where + " " + fields[4]
+	for _, doc := range readInputs(t) {
+		built := map[string]bool{}
+		for _, td := range doc.Types {
+			built[string(td.Common().Provenance.Pointer)] = true
+			if m, ok := td.(*ir.Model); ok {
+				for _, p := range m.Properties {
+					built[string(p.Provenance.Pointer)] = true
+				}
+			}
+		}
+		for id, td := range doc.Types {
+			for _, k := range applicators {
+				entry, kept := td.Common().Unmodeled["openapi:"+k]
+				if !kept {
+					continue
+				}
+				prefix := string(entry.Provenance.Pointer) + "/"
+				for at := range built {
+					assert.False(t, strings.HasPrefix(at, prefix), "%s keeps %s and %s was built from it", id, k, at)
+				}
 			}
 		}
 	}
-	for _, src := range append(testdataSources(t), readEdges()...) {
-		if lines, loaded := schema.ReadDisagreements(t, src); loaded {
-			add(src.Path, lines)
+}
+
+// TestUnread_EveryKeyIsReadHandledOrKept holds the keeping of what a build
+// did not read to every key of the census's domain each component schema of
+// those documents writes: kept unless read or handled, in the domain's order.
+func TestUnread_EveryKeyIsReadHandledOrKept(t *testing.T) {
+	t.Parallel()
+	domain := schema.CensusDomain()
+	for _, s := range readStatements(t) {
+		var written []string
+		for _, k := range domain {
+			if _, read := s.Key(k); read {
+				written = append(written, k)
+			}
+		}
+		assert.Equal(t, written, nilIfEmpty(schema.UnreadKeys(s, nil, nil)), "%s: nothing read keeps every key", s.At.Pointer)
+		assert.Empty(t, schema.UnreadKeys(s, domain, nil), "%s: everything read keeps nothing", s.At.Pointer)
+		assert.Empty(t, schema.UnreadKeys(s, nil, domain), "%s: everything handled keeps nothing", s.At.Pointer)
+		even := make([]string, 0, len(written))
+		var odd []string
+		for i, k := range written {
+			if i%2 == 0 {
+				even = append(even, k)
+			} else {
+				odd = append(odd, k)
+			}
+		}
+		assert.Equal(t, odd, nilIfEmpty(schema.UnreadKeys(s, even, nil)), "%s: a key read is the one not kept", s.At.Pointer)
+	}
+}
+
+// keyValues writes a value for each key of the census's domain beside a target.
+var keyValues = map[string]string{
+	"additionalItems": "{type: string}", "additionalProperties": "{type: string}", "const": "x",
+	"discriminator": "{propertyName: k}", "enum": "[x, y]", "format": "date", "items": "{type: string}",
+	"maxItems": "2", "minItems": "2", "patternProperties": "{'^a': {type: string}}",
+	"prefixItems": "[{type: string}]", "properties": "{a: {type: string}}", "required": "[a]",
+	"uniqueItems": "true", "exclusiveMaximum": "10", "exclusiveMinimum": "0", "maxLength": "9",
+	"maxProperties": "9", "maximum": "9", "minLength": "1", "minProperties": "1", "minimum": "1",
+	"multipleOf": "2", "pattern": "'^a'",
+}
+
+// keyTargets are the schemas each key is written beside, one of each kind a
+// position lowers to.
+var keyTargets = []string{
+	"type: string", "type: integer", "type: boolean", "type: object", "type: array",
+	"enum: [p, q]", "const: p", "oneOf: [{type: string}, {type: integer}]", "type: [string, integer]",
+	"allOf: [{type: object, properties: {b: {type: string}}}]",
+}
+
+// TestUnread_EveryKeyShapesOrIsKept writes each key of the census's domain but
+// type beside each target kind and holds the compiled types to differ from the
+// target's alone: a key a build read shapes the node, and one none read is
+// kept. A build saying it read a key it did not would drop it in silence.
+func TestUnread_EveryKeyShapesOrIsKept(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    S: {"
+	types := func(target, extra string) string {
+		doc, _ := schema.LowerSpec(t, head+target+extra+"}\n")
+		data, err := json.Marshal(doc.Types, json.Deterministic(true))
+		require.NoError(t, err)
+		return string(data)
+	}
+	for _, target := range keyTargets {
+		alone := types(target, "")
+		for _, k := range schema.CensusDomain() {
+			if k == "type" || strings.Contains(target, k+":") {
+				continue
+			}
+			assert.NotEqual(t, alone, types(target, ", "+k+": "+keyValues[k]), "%s beside %s changes nothing", k, target)
 		}
 	}
+}
+
+// nilIfEmpty returns keys, nil where it holds none.
+func nilIfEmpty(keys []string) []string {
+	if len(keys) == 0 {
+		return nil
+	}
+	return keys
+}
+
+// readInputs returns the documents the census's replacement is held to: the
+// component schemas of every document under testdata, of the edges readEdges
+// writes and of every core case, lowered.
+func readInputs(t *testing.T) []*ir.Document {
+	t.Helper()
+	var out []*ir.Document
+	for _, src := range readSources(t) {
+		if doc, _, loaded := schema.LowerSource(t, src); loaded {
+			out = append(out, doc)
+		}
+	}
+	return out
+}
+
+// readStatements returns the component statements of those documents.
+func readStatements(t *testing.T) []*statement.Schema {
+	t.Helper()
+	var out []*statement.Schema
+	for _, src := range readSources(t) {
+		if _, statements, loaded := schema.LowerSource(t, src); loaded {
+			for _, js := range statements {
+				out = append(out, js.Schema)
+			}
+		}
+	}
+	return out
+}
+
+// readSources returns the sources of those documents.
+func readSources(t *testing.T) []compilers.Source {
+	t.Helper()
+	out := append(testdataSources(t), readEdges()...)
 	cases := openapicases.New()
 	each, err := harness.Each(cases)
 	require.NoError(t, err)
 	core := harness.Core(cases)
 	for _, at := range each {
-		doc, writes := cases.Write(at)
-		if !writes || !*fullGrid && !core(at) {
-			continue
-		}
-		if lines, loaded := schema.ReadDisagreements(t, doc.Sources[0]); loaded {
-			add("case", lines)
+		if doc, writes := cases.Write(at); writes && (*fullGrid || core(at)) {
+			out = append(out, doc.Sources[0])
 		}
 	}
-	for _, class := range readDisagreementClasses {
-		assert.Contains(t, found, class, "a listed class no input reaches any longer")
-	}
-	for _, class := range slices.Sorted(maps.Keys(found)) {
-		assert.Contains(t, readDisagreementClasses, class, "first met at %s", found[class])
-	}
+	return out
 }
 
-// TestCensus_EdgesCompileAsTheyDid pins what the documents readEdges adds
+// TestUnread_EdgesCompileAsTheyDid pins what the documents readEdges adds
 // compile to, which the census decides and the builds' reads must keep: the
 // empty pattern no variant holds is kept on the union, and the type an enum's
 // members all are values of says nothing the Enum does not.
-func TestCensus_EdgesCompileAsTheyDid(t *testing.T) {
+func TestUnread_EdgesCompileAsTheyDid(t *testing.T) {
 	t.Parallel()
 	doc, _ := schema.LowerSpec(t, string(readEdges()[0].Data))
 	pattern := doc.Types[ids.Document{}.ForPointer(ids.Ptr("components", "schemas", "EmptyPattern"))]
@@ -106,7 +218,7 @@ components:
 	return []compilers.Source{{Path: "edges.yaml", Data: []byte(spec)}}
 }
 
-// fullGrid widens the cases TestCensus_AgreesWithWhatTheBuildsRead lowers from
+// fullGrid widens the cases the tests of what a build did not read lower from
 // the core cases to every case, as make cases does.
 var fullGrid = flag.Bool("full", false, "lower every case, not the core cases alone")
 

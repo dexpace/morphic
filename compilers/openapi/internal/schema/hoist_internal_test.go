@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -124,30 +123,6 @@ func TestFinisher_ThenRunsBothInOrder(t *testing.T) {
 	first.then(none)(&ir.Model{}, 0)
 	assert.Equal(t, []string{"first", "second", "first", "first"}, ran)
 	assert.Nil(t, none.then(none), "two nil finishers finish nothing")
-}
-
-// TestCensusedNode_ReportsAMissRatherThanDroppingIt pins the invariant check
-// on a node a census reads but does not finish. Every ID a lowering returns
-// has a node, so a miss is a compiler bug no source can provoke, and the
-// census was about to keep what that node cannot hold, which would vanish.
-func TestCensusedNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
-	t.Parallel()
-	c := service.New(4, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
-	ts := compile.NewTypes()
-
-	td, diags := censusedNode(c.Ctx, ts, "t/absent", "/components/schemas/Ghost")
-
-	assert.Nil(t, td)
-	require.Len(t, diags, 1, "a miss is announced, not swallowed")
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/components/schemas/Ghost"}, diags[0].Provenance)
-
-	id := ts.PrimID(ir.PrimString)
-	td, diags = censusedNode(c.Ctx, ts, id, "/components/schemas/User")
-	assert.Empty(t, diags, "a hit reports nothing")
-	require.NotNil(t, td)
-	assert.Equal(t, id, td.Common().ID)
 }
 
 // TestUnionVariant_StopsAtTheHopCap pins naming.MaxHops through a compile.

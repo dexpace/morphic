@@ -375,7 +375,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
 	}
-	unhomed := referenceUnhomed(c, b.Schema, compositionCensusHandled)
+	unhomed := unreadByReference(c, b.Schema, compositionCensusHandled)
 	var kept finished
 	keep := kept.on(keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer))
 	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)

@@ -52,24 +52,6 @@ func modelTakes(takes kindSet) kindSet {
 	return takes & kindObject
 }
 
-// heldAmong returns the kinds of takes whose value bounds some node of nodes
-// holds: none for a node that holds no bound (constraintsHome), an object's for
-// a Model or a MapT (modelTakes), and every one of takes for any other, a
-// Scalar's reader being given its own and a Union holding them for its variants.
-func heldAmong(nodes []ir.TypeDef, takes kindSet) kindSet {
-	var held kindSet
-	for _, td := range nodes {
-		switch {
-		case !constraintsHome(td):
-		case isKind(td, ir.KindModel), isKind(td, ir.KindMap):
-			held |= modelTakes(takes)
-		default:
-			held |= takes
-		}
-	}
-	return held
-}
-
 // carriesNumberAsText reports whether td is a Scalar over a number written as
 // its text (scalarTypeID), whose Constraints would speak of the number
 // (docs/ir/constraints.md#constraints). Every value bound written beside it
@@ -142,7 +124,7 @@ var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "mi
 // keyword, the one binding the rest (bindingCount), so the entry is the same
 // whatever their order. Each writer's kept counts are reported once, where it
 // was written (docs/compilers/openapi.md#constraints). A count no such reader
-// reads is the census's to keep (untakenBounds).
+// reads is the node's finishing to keep (keepUnread).
 func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.Voice, takes kindSet) []ir.Diagnostic {
 	binding := make([]int, len(valueCountKeywords))
 	for k, keyword := range valueCountKeywords {
@@ -347,7 +329,7 @@ func CarrierConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, 
 // the position holds them (homesAt). Every bound is read by the types the
 // position admits, those of the schemas it names among them (boundKinds),
 // so a collection bound is held only where they admit an array, and the census
-// keeps one they do not (referenceUnhomed).
+// keeps one they do not (unreadByReference).
 func referenceConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if !stated(s) {
 		return nil, nil

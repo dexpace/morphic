@@ -464,12 +464,12 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
 // verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
 // never reads, such as `type: string` beside an allOf, goes through the census
-// (censused), which asks the built node whether it has a field for it. fin
+// (keepingUnread), which keeps what the build did not read. fin
 // finishes the node built at pointer after the census.
 func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	census := func(build func(fin finisher) (ir.TypeID, []ir.Diagnostic)) (ir.TypeID, []ir.Diagnostic) {
-		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := build(fin)
 			return id, 0, diags
 		})
@@ -498,10 +498,10 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// the type set itself is what built them.
 		var census finished
 		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
-			census.onRead(variantsCensus(c, ts, s, nodeShape(ir.KindUnion), []string{"type"}, pointer)).then(fin))
+			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), []string{"type"}, pointer)).then(fin))
 		return id, append(diags, census.diags...)
 	case len(types) == 1:
-		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
 		})
 	case writesType(s):
@@ -537,7 +537,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // first, by the election d, as one writing the type its shape keywords speak
 // of (untypedKinds), its nodes marked where the kind-inference policy read the
 // kind, else to the top type. The keywords the node cannot hold are kept beside
-// it (censused), as for a schema writing that type.
+// it (keepingUnread), as for a schema writing that type.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
@@ -552,12 +552,12 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	case kindObject:
 		// The node asserts an object, as the bounds beside it read it
 		// (boundKinds): one an object does not take is kept.
-		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s), mark.then(fin))
 			return id, 0, diags
 		})
 	case kindArray:
-		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := lowerArray(c, ts, depth, s, pointer, mark.then(fin))
 			return id, 0, diags
 		})
@@ -604,7 +604,7 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	}
 	var census finished
 	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
-		mark.then(census.onRead(variantsCensus(c, ts, s, nodeShape(ir.KindUnion), nil, pointer))).then(fin))
+		mark.then(census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), nil, pointer))).then(fin))
 	return id, append(diags, census.diags...)
 }
 

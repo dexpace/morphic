@@ -42,7 +42,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 	if allNullUnion(c, s) {
 		return lowerNullOnlyUnion(c, ts, s, pointer, fin)
 	}
-	owner, diags := censused(c, ts, s, pointer, pointer, dispatch{said: branchesSay(c, s)}, fin,
+	owner, diags := keepingUnread(c, ts, s, pointer, pointer, dispatch{said: branchesSay(c, s)}, fin,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			var diags []ir.Diagnostic
 			tid := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
@@ -124,7 +124,7 @@ func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	var branches finished
-	owner, diags := censused(c, ts, s, pointer, pointer, dispatch{},
+	owner, diags := keepingUnread(c, ts, s, pointer, pointer, dispatch{},
 		branches.on(func(td ir.TypeDef) []ir.Diagnostic { return preserveNullOnlyUnion(c, td, s, pointer) }).then(fin),
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), 0, nil
@@ -1021,7 +1021,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 		diags = append(diags, unionDiags...)
 		// Each variant composes the body, reading its members and its bounds.
 		return def, objectKeys | typeReadAs(s, statement.KindObject) | boundsRead(s, body.comp.bounds, nil)
-	}, census.onRead(variantsCensus(c, ts, s, taglessShape(nil, s, distributedShape), nil, pointer)).then(fin))
+	}, census.onRead(keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), nil, pointer)).then(fin))
 	// The union read s's discriminator, so one it cannot hold says why.
 	diags = append(diags, census.diags...)
 	where := "co-declared with structural keywords"

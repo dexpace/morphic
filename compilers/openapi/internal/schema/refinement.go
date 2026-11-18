@@ -846,10 +846,11 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 
 // residueRead reports whether a key the entry e of r writes is read where the
 // position lowered, leaving no residue: a wrapper's allOf, what folds where e
-// speaks, what the principal says (said), and what the census of the value set
-// standing at the position, written by e where censused says so, reads. A union
-// that set writes is none it says, as the node it lowers to holds no union, so
-// it is kept as the union beside a value set is.
+// speaks, what the principal says (said), and a key of censusDomain the value
+// set standing at the position, written by e where censused says so, reads or
+// keeps on its node (keepUnread). A union that set writes is none it says, as
+// the node it lowers to holds no union, so it is kept as the union beside a
+// value set is.
 func residueRead(c lowering.Ctx, w *admission, r refinement, typed setType, e allOfBranch, speaks, censused bool,
 	homes boundHomes,
 ) func(string) bool {
@@ -859,7 +860,7 @@ func residueRead(c lowering.Ctx, w *admission, r refinement, typed setType, e al
 		case key == "allOf" && e.wrapper, speaks && folds(c, bs, key, homes):
 			return true
 		case censused:
-			return censusReads(key) || !unionKeyword(key) && said(w, r, typed, bs, key)
+			return keyBit(key) != 0 || !unionKeyword(key) && said(w, r, typed, bs, key)
 		default:
 			return said(w, r, typed, bs, key)
 		}
@@ -884,7 +885,7 @@ func principalTwin(w *admission, r refinement, e allOfBranch) bool {
 // holds for its voices, as the census asks of those written beside its allOf. A
 // carrier or an alias holds the value bounds the types the position admits take
 // (boundKinds), and collection bounds where it is a use of the principal, a
-// reference (keywordHome), where those types admit an array. A node the position
+// reference (referenceReads), where those types admit an array. A node the position
 // owns holds what the lowering that builds it folds of them (ownHomes).
 func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, pointer, target) {
@@ -982,8 +983,8 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed set
 		return nil
 	}
 	w := newAdmission(c)
-	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
-	return referenceUnhomed(c, s, held)
+	held := slices.DeleteFunc(slices.Clone(nodeKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
+	return unreadByReference(c, s, held)
 }
 
 // keptUnion returns the union keywords s writes beside an allOf that lowered to
@@ -1096,11 +1097,11 @@ func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	types := undecidedTypes(c, s, pointer)
 	switch len(types) {
 	case 0:
-		return censused(c, ts, s, pointer, pointer, d, fin, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return ts.PrimID(ir.PrimAny), 0, nil
 		})
 	case 1:
-		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
 		})
 	default:
