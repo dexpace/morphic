@@ -471,7 +471,7 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	census := func(build func(fin finisher) (ir.TypeID, []ir.Diagnostic)) (ir.TypeID, []ir.Diagnostic) {
-		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := build(fin)
 			return id, 0, diags
 		})
@@ -503,7 +503,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), []string{"type"}, pointer)).then(fin))
 		return id, append(diags, census.diags...)
 	case len(types) == 1:
-		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
 		})
 	case writesType(s):
@@ -554,12 +554,12 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	case kindObject:
 		// The node asserts an object, as the bounds beside it read it
 		// (boundKinds): one an object does not take is kept.
-		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s), mark.then(fin))
 			return id, 0, diags
 		})
 	case kindArray:
-		return keepingUnread(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := lowerArray(c, ts, depth, s, pointer, mark.then(fin))
 			return id, 0, diags
 		})
