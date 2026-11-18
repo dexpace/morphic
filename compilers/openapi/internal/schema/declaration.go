@@ -22,11 +22,11 @@ import (
 // reference the position resolves to — an alias over target where the keywords
 // need a node of their own, target itself where the position declares none.
 //
-// It is the one statement of that step, so every schema position keeps its
-// declaration the same way: a $ref site and an allOf branch's $ref, which
-// reached none of it until routed here. A position that skips it drops what was
-// written at it without a word, as GitHub #116 and #143 did. The alias's build
-// writes the declaration (declarationOn), then fin.
+// It is the one statement of that step, so its two callers, a $ref site
+// (refSiteRef) and an allOf branch's $ref (fillRefBranch), keep a declaration
+// the same way; a position skipping it would drop what was written at it
+// without a word (GitHub #116, #143). The alias's build writes the
+// declaration (declarationOn), then fin.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home,
 	unhomed bool, fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
