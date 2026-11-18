@@ -1141,7 +1141,8 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi:allOf/0: {"minimum": 1, "required": ["a"]}`, where both stood on the entry's node
     `…/allOf/0`. A draft entry's `dependencies` and a key no dialect defines are kept so too, where
     the entry's was dropped unreported or the principal was kept whole. Written alike on both, a
-    keyword is read once, or kept once, where it was kept on two nodes. Of two patterns the node's
+    keyword the principal's census, its bounds on a number carried as text or its content vocabulary
+    reads is read once, or kept once, where it was kept on two nodes. Of two patterns the node's
     field holds the position's, and the principal is kept whole under its entry's key. A principal
     the position keeps whole under `openapi:allOf/<n>`, for a disagreeing extension or a closure,
     holds every keyword of it, each once, and takes the reason those the node does not read share,
