@@ -4,19 +4,14 @@
 package schema
 
 import (
-	"cmp"
 	"encoding/json/jsontext"
 	"slices"
-	"strconv"
-	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
-	"github.com/dexpace/morphic/ir"
 )
 
 // maxRefinedConjuncts bounds the conjuncts one election compares, every pair of
@@ -221,23 +216,6 @@ func usesOneRef(c lowering.Ctx, s *statement.Schema, comp allOfComposition) bool
 	return refs == 1 && quiet(s)
 }
 
-// hoistUseHome hoists the home of the declaration s, written at pointer,
-// whose body lowered to ref, a use of what it names: over an object alone the
-// Model composing it, as internOwnNode builds one, so no Scalar stands over a
-// model, a position a carrier holds that a $ref naming it reaches among them
-// (usesOneRef); over anything else the alias hoistDeclarationHome builds.
-func hoistUseHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer,
-	fin finisher,
-) (ir.TypeRef, []ir.Diagnostic) {
-	js := c.Statements().Read(s)
-	if kinds, _ := lowersTo(c, js); kinds != kindObject || ref.Nullable {
-		return hoistDeclarationHome(c, ts, s, ref, pointer, fin)
-	}
-	out := ref
-	out.Target = c.IDs().ForPointer(pointer)
-	return out, internOwnNode(c, ts, js, pointer, ref, fin)
-}
-
 // bindsUseOnly reports whether every key s writes that says something of the
 // instance binds a use of the type rather than the type: one of
 // residueKeywords, or a `nullable: true` the nullable-inference policy reads
@@ -369,83 +347,6 @@ func markBeaten(w *admission, votes []refVote, electable []*conjunct, principal 
 		case contradicts && !w.within(principal.read, cj.read):
 			votes[cj.at] = refOutsideSet
 		}
-	}
-}
-
-// apartNames names what each conjunct of s, read as the election reads them,
-// states where their reads share no value at all, the null included, joint
-// being what they admit together: a value set by its member count, any other
-// conjunct by the kinds and formats it admits, one admitting every kind left
-// out, listed by what each states, so no order written orders them. It names
-// none where a conjunct admits no value by itself, which its own schema
-// reports where it is written, or fewer than two are named.
-func apartNames(s *statement.Schema, comp allOfComposition, conjuncts []conjunct, joint admitted) []string {
-	if joint.reachable() {
-		return nil
-	}
-	names := make([]string, 0, len(conjuncts))
-	for _, cj := range conjuncts {
-		if !cj.read.reachable() {
-			return nil
-		}
-		if word := readWords(cj.read); word != "" {
-			names = append(names, conjunctName(s, comp, cj)+": "+word)
-		}
-	}
-	if len(names) < 2 {
-		return nil
-	}
-	slices.SortFunc(names, func(a, b string) int {
-		_, wa, _ := strings.Cut(a, ": ")
-		_, wb, _ := strings.Cut(b, ": ")
-		return cmp.Or(strings.Compare(wa, wb), strings.Compare(a, b))
-	})
-	return names
-}
-
-// conjunctName is how a disjoint report names cj, a conjunct of comp, the
-// allOf s writes, as conjunctAtoms names one: the keywords beside the allOf by
-// the value set or the type they write, a branch by its path, a $ref written
-// beside other keys by its own.
-func conjunctName(s *statement.Schema, comp allOfComposition, cj conjunct) string {
-	switch {
-	case cj.branch != nil && splitRef(comp, cj.at):
-		return comp.branchPath(cj.branch.pointer) + "/$ref"
-	case cj.branch != nil:
-		return comp.branchPath(cj.branch.pointer)
-	case constIn(s) != nil:
-		return "const"
-	case enumWritten(s):
-		return "enum"
-	default:
-		return "type"
-	}
-}
-
-// readWords spells what read admits for a disjoint report: a value set's
-// member count, else its kinds, null aside, with the formats it is held to,
-// and nothing for a read admitting every kind and held to none.
-func readWords(read admitted) string {
-	if read.fixed {
-		if n := read.size(); n != 1 {
-			return strconv.Itoa(n) + " values"
-		}
-		return "1 value"
-	}
-	formats := make([]string, 0, len(read.forms))
-	for _, f := range read.forms {
-		formats = append(formats, f.spelled)
-	}
-	kinds := read.kinds &^ kindNull
-	switch {
-	case len(formats) == 0 && kinds == anyInstance:
-		return ""
-	case len(formats) == 0:
-		return instanceWords(kinds)
-	case kinds == anyInstance:
-		return "format " + strings.Join(formats, ", ")
-	default:
-		return instanceWords(kinds) + " of format " + strings.Join(formats, ", ")
 	}
 }
 

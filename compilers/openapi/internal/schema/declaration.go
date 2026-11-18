@@ -99,6 +99,23 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 	return out, diags
 }
 
+// hoistUseHome hoists the home of the declaration s, written at pointer,
+// whose body lowered to ref, a use of what it names: over an object alone the
+// Model composing it, as internOwnNode builds one, so no Scalar stands over a
+// model, a position a carrier holds that a $ref naming it reaches among them
+// (usesOneRef); over anything else the alias hoistDeclarationHome builds.
+func hoistUseHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
+	js := c.Statements().Read(s)
+	if kinds, _ := lowersTo(c, js); kinds != kindObject || ref.Nullable {
+		return hoistDeclarationHome(c, ts, s, ref, pointer, fin)
+	}
+	out := ref
+	out.Target = c.IDs().ForPointer(pointer)
+	return out, internOwnNode(c, ts, js, pointer, ref, fin)
+}
+
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
 // attachDeclaredAnnotations records, a bound internReferenceAlias carries, a
