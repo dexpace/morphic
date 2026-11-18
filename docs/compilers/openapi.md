@@ -4175,7 +4175,8 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806).
+  legal (#1806). A union none of whose branches admits null, beside an `allOf` whose rest admits
+  null or on an entry beside an inline rest that does, draws no warning (#2055).
 
 ### `union-beside-ref`
 
