@@ -270,12 +270,13 @@ func TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition(t *testing.T) {
 	}
 }
 
-// aloneBodies are conjuncts beside a union on an allOf entry that add what a
-// variant carries: a property set, a $ref and a `type` the null branch does not
-// say, each with the schema writing the same keywords beside the union, a
-// discriminator routing the union from beside it, which a principal standing
-// at the position would leave unread, and an allOf the union's own entry
-// composes beside it.
+// aloneBodies are conjuncts beside a union on an allOf entry that keep it from
+// standing alone: a property set, a $ref and a `type` the null branch does not
+// say, each paired with the schema writing the same keywords beside the union;
+// a discriminator beside the allOf or on another entry, paired with itself, as
+// the union with the discriminator written beside it stands alone; and an
+// allOf the union's own entry composes beside it, paired with the same allOf
+// beside the union.
 var aloneBodies = []struct {
 	name, entry, flat string
 }{
@@ -298,10 +299,10 @@ var aloneBodies = []struct {
 }
 
 // TestUnionAlone_ABodyBesideItStillDistributes holds a union written on an
-// allOf entry beside a conjunct adding what a variant carries to stay
+// allOf entry beside a conjunct that keeps it from standing alone to stay
 // distributed, one variant included (docs/compilers/openapi.md#union-beside-structure):
-// at a component and a property the position is a Union of one model composed
-// over X, as the same keywords written beside the union lower to.
+// at a component and a property both spellings of each row of aloneBodies are
+// a Union of one model composed over X.
 func TestUnionAlone_ABodyBesideItStillDistributes(t *testing.T) {
 	t.Parallel()
 	for _, siteName := range []string{"component", "property"} {
