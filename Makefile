@@ -129,8 +129,11 @@ build:
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
-# in a stack dump naming the stuck goroutine. 300s is several times the slowest
-# package's time on the gate's runner.
+# in a stack dump naming the stuck goroutine. It bounds a hang, not the suite:
+# on 2026-11-18, at #1996's db5a27723, the slowest package,
+# compilers/openapi/e2e, took 195s on the gate's runner; slower runners that day
+# took it to 287s, and once past 300s. 600s is three times its normal time, and
+# a package past 300s on a normal run means the limit is tight again.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
@@ -143,7 +146,7 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... -timeout 600s -covermode=atomic -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
 
 # The suite under the race detector, with no coverage: -race allows only
