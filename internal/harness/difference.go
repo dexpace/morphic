@@ -24,10 +24,10 @@ const (
 // holds, at its own side's number, a deletion before an insertion where
 // either would do. It prints one text for one pair, which cmp.Diff does not.
 //
-// Past the lines the pair shares at either end, a longest-common-subsequence
-// table matches the rest where it fits differenceCells, and otherwise all of
-// a is deleted and all of b inserted. Each side prints differenceLines lines
-// at most, then the count left out.
+// Past the lines shared at either end, a longest-common-subsequence table
+// matches the rest where it fits differenceCells; otherwise each side prints
+// the lines the other holds fewer of (unmatchedLines). A side prints
+// differenceLines lines at most, then the count left out.
 func lineDifference(a, b []string) string {
 	start := commonPrefix(a, b)
 	a, b = a[start:], b[start:]
@@ -41,12 +41,8 @@ func lineDifference(a, b []string) string {
 	if (len(a)+1)*(len(b)+1) <= differenceCells {
 		matchLines(w, a, b)
 	} else {
-		for i, line := range a {
-			w.print('-', i, line)
-		}
-		for j, line := range b {
-			w.print('+', j, line)
-		}
+		unmatchedLines(w, '-', a, b)
+		unmatchedLines(w, '+', b, a)
 	}
 	return w.finish()
 }
@@ -88,6 +84,23 @@ func matchLines(w *differenceWriter, a, b []string) {
 			w.print('+', j, b[j])
 			j++
 		}
+	}
+}
+
+// unmatchedLines prints, as sign's side, each line of side that other holds
+// fewer of, as multisets: a line the two share is printed on neither side,
+// though moved, where no table matches the two.
+func unmatchedLines(w *differenceWriter, sign byte, side, other []string) {
+	held := make(map[string]int, len(other))
+	for _, line := range other {
+		held[line]++
+	}
+	for i, line := range side {
+		if held[line] > 0 {
+			held[line]--
+			continue
+		}
+		w.print(sign, i, line)
 	}
 }
 

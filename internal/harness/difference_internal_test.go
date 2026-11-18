@@ -5,6 +5,7 @@ package harness
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,8 +52,8 @@ func TestLineDifference_PrintsOnlyTheLinesThatDiffer(t *testing.T) {
 
 // TestLineDifference_NeverPrintsMoreThanTheCapASide holds both forms to the
 // lines-a-side cap, and the table to its cell cap: a pair whose table would
-// pass it prints the head of each remainder, where a pair at the cap still
-// matches the line the sides share.
+// pass it prints the head of what each side holds the other does not, where a
+// pair at the cap matches the line the sides share in order.
 func TestLineDifference_NeverPrintsMoreThanTheCapASide(t *testing.T) {
 	t.Run("in the table's form", func(t *testing.T) {
 		got := lineDifference(numbered("a", 50), numbered("b", 50))
@@ -70,7 +71,8 @@ func TestLineDifference_NeverPrintsMoreThanTheCapASide(t *testing.T) {
 
 	// Each pair holds one line the sides share, second on each: a table
 	// matches it, so prints the first lines of the two sides together, where
-	// the fallback prints the first side's lines before the second's.
+	// the fallback prints the first side's lines before the second's, both
+	// without it.
 	shared := func(prefix string, n int) []string {
 		l := numbered(prefix, n)
 		l[1] = "shared"
@@ -87,13 +89,13 @@ func TestLineDifference_NeverPrintsMoreThanTheCapASide(t *testing.T) {
 		got := lineDifference(a, b)
 
 		var want strings.Builder
-		for i, l := range a[:differenceLines] {
-			fmt.Fprintf(&want, "-%d: %s\n", i+1, l)
+		for i, l := range slices.Delete(slices.Clone(a), 1, 2)[:differenceLines] {
+			fmt.Fprintf(&want, "-%d: %s\n", i+1+min(i, 1), l)
 		}
-		for i, l := range b[:differenceLines] {
-			fmt.Fprintf(&want, "+%d: %s\n", i+1, l)
+		for i, l := range slices.Delete(slices.Clone(b), 1, 2)[:differenceLines] {
+			fmt.Fprintf(&want, "+%d: %s\n", i+1+min(i, 1), l)
 		}
-		want.WriteString("-… 984 more\n+… 984 more\n")
-		assert.Equal(t, want.String(), got)
+		want.WriteString("-… 983 more\n+… 983 more\n")
+		assert.Equal(t, want.String(), got, "the line the sides share is printed on neither")
 	})
 }
