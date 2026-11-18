@@ -29,7 +29,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	var diags []ir.Diagnostic
 	read := keyBit("items") | typeReadAs(s, statement.KindArray) | collectionReads(s)
 	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		if n, tuple := listedTuple(c, s, pointer); tuple {
+		if n, tuple := listedTuple(c, s); tuple {
 			t, tupleDiags := buildListedTuple(c, ts, depth, s, common, pointer, n, st)
 			diags = append(diags, tupleDiags...)
 			return t, read | keySetOf("prefixItems", "additionalItems")
@@ -50,14 +50,14 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	return id, diags
 }
 
-// listedTuple returns how many schemas s, at pointer, writes `items` as a list
-// of where the rows of its dialect read that list as a tuple, as the drafts
-// before 2020-12 spell one, and false where they do not or it writes no list.
-// A list read so nowhere is the table's to report
-// (docs/compilers/openapi.md#tuples).
-func listedTuple(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (int, bool) {
+// listedTuple returns how many schemas s writes `items` as a list of where the
+// rows of its dialect, read where s is written (rulesOf) whatever pointer its
+// node stands at, read that list as a tuple, as the drafts before 2020-12 spell
+// one, and false where they do not or it writes no list. A list read so nowhere
+// is the table's to report (docs/compilers/openapi.md#tuples).
+func listedTuple(c lowering.Ctx, s *statement.Schema) (int, bool) {
 	n, listed := listedItems(s)
-	return n, listed && c.Rules().At(c.Position(pointer)).Takes("items", oas.List)
+	return n, listed && rulesOf(c, s).Takes("items", oas.List)
 }
 
 // listedItems returns how many schemas s writes `items` as a list of, a tuple
@@ -157,7 +157,7 @@ func ListedTuple(c lowering.Ctx, js *statement.Statement) (
 	if !placed || !read {
 		return nil, nil, false
 	}
-	n, tuple := listedTuple(there, js.Schema, at.Pointer)
+	n, tuple := listedTuple(there, js.Schema)
 	if !tuple {
 		return nil, nil, false
 	}

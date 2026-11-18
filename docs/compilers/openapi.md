@@ -4902,8 +4902,9 @@ absent `items` reads as, admits elements the entry refuses unless composition ev
 the entry is what closes the tuple. The same holds of a `List`'s `Elem`.
 
 JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
-`additionalItems` beside it. In a schema read in one of them
-([`dialect-keywords`](#dialect-keywords)) the list lowers to a `Tuple`'s `Elems`, one per entry,
+`additionalItems` beside it. In a schema read in one of them where it is written
+([`dialect-keywords`](#dialect-keywords)), as a type list's array variant is though its node stands
+at a pointer of its own ([`type-arrays`](#type-arrays)), the list lowers to a `Tuple`'s `Elems`, one per entry,
 each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
 beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. A written
 `additionalItems` leaves an `unevaluatedItems` beside the list inert, as that `items` does, and an
@@ -4938,6 +4939,7 @@ saying what a document of its version writes instead, and the lowering reads `it
 - Tests: `schema.TestLower_TupleRest`, `e2e.TestOlderDrafts_AListOfItemsIsATuple`,
   `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
   `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
+  `e2e.TestOlderDrafts_ATupleIsReadInTheDialectWhereItIsWritten`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
   `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
   `oas.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
