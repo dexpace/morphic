@@ -7632,9 +7632,9 @@ saying why.
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
   `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`, `promotion.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
-- Status: partly built: a redaction key beside an `allOf` over an
-  object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
-  where beside a `$ref` it lands on the carrier (#1220); a schema a use names
+- Status: partly built: a redaction key beside a `$ref` or an `allOf` over an
+  object lands on the decorator the use lowers to, whose `Sensitive` keeps it a type of its own,
+  where beside a `$ref` to a string it lands on the carrier (#2061); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
   ([`union-beside-structure`](#union-beside-structure)), reaches no field.
