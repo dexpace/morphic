@@ -48,14 +48,28 @@ type bodyReading struct {
 // readBody reads s, the schema at the position of a union holder writes, for
 // the union's branches to be judged against: holder's own keywords without its
 // oneOf and anyOf, as where s itself is the holder, so a union is judged by the
-// rest whichever entry writes it.
+// rest whichever entry writes it. Where holder is an entry, another inline
+// entry's union is no body either, as two unions beside the allOf judge each
+// other by neither.
 func readBody(c lowering.Ctx, s, holder *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmissionReader(c), body: s}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	for _, b := range conjunctsIn(c, s) {
+		if otherEntryUnion(b, s, holder) {
+			r.held = r.held.and(writtenLowered(&r.w, b.Schema, r.w.nullable))
+			continue
+		}
 		r.held = r.held.and(conjunctWithout(&r.w, b, holder))
 	}
 	return r
+}
+
+// otherEntryUnion reports whether b, a conjunct of s, is an inline entry
+// writing a union of its own beside holder, another entry of s, which neither
+// it nor a $ref it writes beside its keywords holds.
+func otherEntryUnion(b *statement.Statement, s, holder *statement.Schema) bool {
+	return holder != s && b.Ref == nil && b.BesideRef == nil && b.Schema != holder && declaresUnion(b.Schema) &&
+		!slices.ContainsFunc(b.Entries, func(e statement.Entry) bool { return e.Schema == holder })
 }
 
 // readOwnBody reads only what s itself writes: its own keywords, and its own

@@ -30,7 +30,10 @@ type conjunctAtom struct {
 	st      *statement.Statement
 	words   *statement.Schema
 	written *statement.Statement
-	cut     bool
+	// union is the branch set of a union read as one conjunct (unionAtoms),
+	// whose null is any branch's.
+	union []statement.Sub
+	cut   bool
 }
 
 // noValue is how a disjoint report names a conjunct admitting no value at all.
@@ -197,19 +200,19 @@ func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []
 
 // conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
 // beside it, the value set it writes there (valueSetAtom), each union s writes
-// beside it that shares no kind with the rest (unionAside), else the one it
-// passes over (passedOver), and each flattened branch: a wrapper by its own
-// `type`, an entry nested past statement.MaxFlattenDepth as cut, an inline
-// entry writing two unions as the one it elects and the other, and a $ref
-// entry writing keywords that narrow what it admits as the reference and the
-// keywords beside it, which apply to an instance alike.
+// beside it that shares no kind with the rest (unionAside) or declares no
+// shape, else the one it passes over (passedOver), and each flattened branch:
+// a wrapper by its own `type`, an entry nested past statement.MaxFlattenDepth
+// as cut, an inline entry writing two unions as the one it elects and the
+// other, and a $ref entry writing keywords that narrow what it admits as the
+// reference and the keywords beside it.
 func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
 	out := make([]conjunctAtom, 0, 4+len(comp.branches))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
 	if set, ok := valueSetAtom(c, s); ok {
 		out = append(out, set)
 	}
-	if unionAside(c, s) {
+	if unionAside(c, s) || declaresUnion(s) && !unionBranchesDeclareShape(c, s) {
 		choice := s.ChoiceKeywords()
 		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
 		out = append(out, unionAtoms(c, "anyOf", choice.AnyOf)...)
@@ -356,7 +359,7 @@ func unionAtoms(c lowering.Ctx, keyword string, branches []statement.Sub) []conj
 	if len(branches) == 0 {
 		return nil
 	}
-	atom := conjunctAtom{name: keyword}
+	atom := conjunctAtom{name: keyword, union: branches}
 	for _, b := range branches {
 		r := admissionOf(c, c.Statements().Sub(b))
 		atom.admits |= r.admits
@@ -380,10 +383,14 @@ func empty(c lowering.Ctx, a conjunctAtom) bool {
 	if a.admits != 0 {
 		return false
 	}
-	if a.st != nil {
+	switch {
+	case a.st != nil:
 		return !mayAdmitNull(c, a.st, nil)
+	case a.union != nil:
+		return !slices.ContainsFunc(a.union, func(b statement.Sub) bool { return mayAdmitNull(c, c.Statements().Sub(b), nil) })
+	default:
+		return typeNullVerdict(a.words) != nullAdmitted
 	}
-	return typeNullVerdict(a.words) != nullAdmitted
 }
 
 // diagDisjointConjuncts is the one report an allOf whose conjuncts share no

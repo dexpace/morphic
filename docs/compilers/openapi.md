@@ -3613,8 +3613,9 @@ way. The keywords beside a `$ref` entry apply to the instance as the reference d
 it admits they are a conjunct of their own, named `allOf/<n>` beside the reference's
 `allOf/<n>/$ref`: `{allOf: [{$ref: Str, type: object}]}` is reported at every version, beside the
 later-version warning 3.0 draws. A `oneOf` or `anyOf` beside the `allOf` none of whose branches
-shares a kind with the rest of the schema is a conjunct too, named by its keyword and admitting what
-any branch does ([`union-beside-structure`](#union-beside-structure)). So is the one of a `oneOf`
+shares a kind with the rest of the schema, or whose branches declare no shape and so are kept beside
+it as validation logic, is a conjunct too, named by its keyword and admitting what any branch does
+([`union-beside-structure`](#union-beside-structure)). So is the one of a `oneOf`
 and an `anyOf` written together that the position does not elect
 ([`competing-keywords`](#competing-keywords)): beside the `allOf`, named by its keyword, and on an
 entry, named `allOf/<n>/<keyword>` beside that entry, which is then its own keywords and the union
@@ -3916,9 +3917,12 @@ branches declare no shape against the position, the rest of the `allOf` and the 
 among it and neither union, with an info `openapi/validation-only-keyword`, and else as
 `degraded_lowering`, drawing that rule's info where the two are written; where the elected union is
 one of the shapes below, the node keeps both as that shape keeps a union, with that shape's
-findings alone. Wherever it is written, the union passed over is a conjunct of the rest the elected
-one's branches are read against, for a dead branch (below) and for
-[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts). Such a
+findings alone, on one entry or two alike. Wherever it is written, the union passed over is a
+conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts); one sharing no kind with the rest read
+without either union leaves no instance satisfying the two, whichever branch is taken, so the
+position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
+naming its own keywords and that union. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -4001,7 +4005,8 @@ A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoin
 the composition as one written beside the `allOf` does, so it lowers the same way, where the schema
 writes no union of its own, its `allOf` composes rather than refines
 ([`allof-refinement`](#allof-refinement)), and the union is the one branch union whose branches
-declare shape (below), or of several the one written as a `oneOf`, as
+declare shape (below), judged against the rest without any entry's union as two beside the `allOf`
+judge each other by neither, or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. An entry writing both is one such union and
 lowers as a schema writing both does (above), each variant keeping the union it passes over. Where
@@ -4050,7 +4055,9 @@ reach these shapes:
 4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
    no instance satisfies the two together and a variant would hold no value: the position lowers as
    the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
-   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union;
+   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union; the unions inline
+   entries write are read together as two beside the `allOf` are, and so are a union and the one
+   the position passes over for it (above);
 5. every branch but a null one of a union the body would distribute is dead (above), so no variant
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
@@ -4290,7 +4297,9 @@ judged as one whose branches declare shape.
   `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
   `e2e.TestUnionAlone_ABodyBesideItStillDistributes`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806).
+  legal (#1806). With no body, a `oneOf` and an `anyOf` on two entries of an `allOf` distribute the
+  `oneOf`, where one entry writing both, or the schema itself, is the `Union` keeping the `anyOf`
+  (#2011).
 
 ### `union-beside-ref`
 
@@ -4359,6 +4368,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
   `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
   `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `e2e.TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
