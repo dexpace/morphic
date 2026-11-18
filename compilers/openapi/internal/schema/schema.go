@@ -504,7 +504,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// the type set itself is what built them.
 		var census finished
 		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
-			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer)).then(fin), st)
+			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer, st)).then(fin), st)
 		return id, append(diags, census.diags...)
 	case len(types) == 1:
 		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {

@@ -89,7 +89,7 @@ func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, point
 	var kept finished
 	id, shared, diags := build(func(td ir.TypeDef, read keySet) {
 		kept.ran = true
-		kept.diags = keepUnread(c, ts, s, pointer, td, d, read)
+		kept.diags = keepUnread(c, ts, s, pointer, td, d, read, st)
 		if fin != nil {
 			fin(td, read)
 		}
@@ -106,17 +106,18 @@ func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, point
 // keepUnread keeps verbatim on td, the node the position owns, in hand, each
 // key of censusDomain s, written at pointer, writes that the build of td did
 // not read, nor a reader beside it (readElsewhere), nor d's election skipped or
-// said, and the families it skipped.
+// said, and the families it skipped, as recordUnhomedStanding keeps them where
+// the node stands for st's position.
 //
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
 func keepUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef, d dispatch,
-	read keySet,
+	read keySet, st stand,
 ) []ir.Diagnostic {
 	unread := unreadKeys(s, read|readBeside(s, td)|d.handled())
 	var diags []ir.Diagnostic
 	if len(unread) > 0 {
-		diags = recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unread, positionShape(td, s), pointer)
+		diags = recordUnhomedStanding(c, ts, td, s, unread, positionShape(td, s), pointer, st)
 	}
 	return append(diags, recordSkippedFamilies(c, td, s, d, pointer)...)
 }
@@ -133,7 +134,7 @@ func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, po
 	if len(unread) == 0 && len(d.skipped) == 0 {
 		return id, nil
 	}
-	keep := keepUnhomedOn(c, ts, s, unread, nodeShape(ir.KindPrimitive), pointer)
+	keep := keepUnhomedOn(c, ts, s, unread, nodeShape(ir.KindPrimitive), pointer, st)
 	var kept finished
 	owner, aliasDiags := internAlias(c, ts, s, pointer, ir.TypeRef{Target: id}, kept.on(func(alias ir.TypeDef) []ir.Diagnostic {
 		return append(keep(alias), recordSkippedFamilies(c, alias, s, d, pointer)...)
@@ -143,11 +144,13 @@ func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, po
 
 // keepUnhomedOn returns what keeps unhomed, the keywords s, written at pointer,
 // declares that no build read into the position's node, on that node in hand,
-// reporting what the position lowered to as shape.
+// reporting what the position lowered to as shape, as recordUnhomedStanding
+// keeps them where the node stands for st's position.
 func keepUnhomedOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
+	st stand,
 ) func(td ir.TypeDef) []ir.Diagnostic {
 	return func(td ir.TypeDef) []ir.Diagnostic {
-		return recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unhomed, shape, pointer)
+		return recordUnhomedStanding(c, ts, td, s, unhomed, shape, pointer, st)
 	}
 }
 
@@ -209,9 +212,11 @@ const distributedShape = "a union of models conjoining its body with each branch
 // position's own schema s builds the variants of: a type array's (lowerUnion)
 // and a distributed composition's (composedVariant). It keeps on the Union what
 // s writes that neither it nor a variant read, read being what they did,
-// nor its lowering accounted for, handled. A discriminator the Union holds is
+// nor its lowering accounted for, handled, as recordUnhomedStanding keeps them
+// where the Union stands for st's position. A discriminator the Union holds is
 // homed there, routing its variants. shape describes the Union.
 func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shape string, handled keySet, pointer jsontext.Pointer,
+	st stand,
 ) func(td ir.TypeDef, read keySet) []ir.Diagnostic {
 	return func(td ir.TypeDef, read keySet) []ir.Diagnostic {
 		u, isUnion := td.(*ir.Union)
@@ -227,7 +232,7 @@ func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, sh
 		if len(unread) == 0 {
 			return nil
 		}
-		return recordUnhomedAt(c, ts, &u.Unmodeled, s, unread, shape, pointer)
+		return recordUnhomedStanding(c, ts, u, s, unread, shape, pointer, st)
 	}
 }
 

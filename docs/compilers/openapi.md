@@ -2751,7 +2751,13 @@ them, writes otherwise, where one entry under the keyword holds one value. The w
 consumed keywords included, so the source stays reconstructable rather than having to be reassembled
 from two places, but for an entry writing a `$ref` beside its keywords: that is two conjuncts, and
 what is kept whole is the rest, the entry less its `$ref`, which lowers or is kept as any `$ref`
-conjunct is, while one whose `$ref` names no schema, read whole, keeps its `$ref` inside. It is kept
+conjunct is, while one whose `$ref` names no schema, read whole, keeps its `$ref` inside. The inline
+principal, whose node stands at the position, is lowered and not kept whole for this: where it and
+the keywords beside the `allOf` both keep a keyword that no field holds, written otherwise, the plain
+key `openapi:<keyword>` holds the position's, as the flat spelling's does, and the principal's are
+kept on the same node under its entry's key, `openapi:allOf/<n>`, as an object holding those
+keywords alone, under the reason it keeps them for, at the entry, with one `openapi/degraded-construct`
+info there saying so; written alike, the keyword is kept once. It is kept
 under the reason its kept keywords share where they share one, else
 `degraded_lowering`, and reported at the branch by an `openapi/validation-only-keyword` where that
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
@@ -2799,6 +2805,8 @@ every entry reads that one twice.
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`,
   `openapi/unresolved-ref`, `openapi/cyclic-ref`
 - Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
+  `e2e.TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth`,
+  `e2e.TestPrincipalApart_AParameterSchemaHoldsBoth`,
   `e2e.TestKeptEntryKeyword_EverySpellingOfAContentOrUnknownKeywordKeepsOneKeyAndReason`,
   `e2e.TestKeptEntryKeyword_AKindKeywordIsKeptUnderItsOwnKey`,
   `e2e.TestKeptEntryKeyword_APerKindBoundNoHomeTakesIsKeptUnderItsOwnKey`,

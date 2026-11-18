@@ -165,12 +165,16 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 		}
 		sc := &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
 		cons, consDiags := ConstraintsOf(c, &sc.Unmodeled, s, voices, pointer, takes)
+		var apart []string
 		if carriesNumberAsText(sc) {
-			cons, consDiags = nil, append(consDiags, keepTextBounds(c, &sc.Unmodeled, s, declaredConstraints(s), pointer)...)
+			text := declaredConstraints(s)
+			apart = st.apart(c, s, pointer, text, sc)
+			consDiags = append(consDiags, keepApart(c, st, &sc.Unmodeled, s, pointer, apart, ir.ReasonNoIRHome)...)
+			cons, consDiags = nil, append(consDiags, keepTextBounds(c, &sc.Unmodeled, s, without(text, apart), pointer)...)
 		}
 		diags = append(diags, consDiags...)
 		sc.Constraints = cons
-		return sc, scalarTypeRead(s) | shape.read | nodeBoundsRead(s, takes, sc.Constraints, sc.Unmodeled)
+		return sc, scalarTypeRead(s) | shape.read | nodeBoundsRead(s, takes, sc.Constraints, sc.Unmodeled) | keySetOf(apart...)
 	}, fin)
 	return id, diags
 }

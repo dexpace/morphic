@@ -18,6 +18,6 @@ import (
 func TestKeepUnreadAcross_NeedsAUnion(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	keep := keepUnreadAcross(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), distributedShape, 0, "/p")
+	keep := keepUnreadAcross(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), distributedShape, 0, "/p", stand{})
 	assertInternalInvariant(t, keep(&ir.Scalar{ID: "t/anon/scalar"}, 0))
 }

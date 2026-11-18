@@ -102,7 +102,7 @@ var schemaRecursion = []string{
 	"lowerTyped", "lowerUndecided", "lowerUnion",
 	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "patternProps",
 	"preserveUnmergedBranch", "recordEntryUnhomed",
-	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
+	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "recordUnhomedStanding", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
