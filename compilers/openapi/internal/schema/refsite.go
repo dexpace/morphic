@@ -47,7 +47,7 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if js == nil || !stated(js.Schema) || js.Ref != nil || LoweredToOwnNode(c, pointer, t) {
 		return nil
 	}
-	return keepsAtOutcome(c, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer)
+	return keepsAtOutcome(c, js.Schema, t, pointer).record(c, ts, p, js.Schema, pointer, nil)
 }
 
 // refTypeRef resolves a $ref position to its target's stable ID, carrying the

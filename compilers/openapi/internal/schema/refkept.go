@@ -22,11 +22,12 @@ import (
 )
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
-// census keywords it wrote, described by shape, the $ref branches of its allOf
-// its lowering left unread, what its inline branches keep (entryKeeps), the
-// null branches a collapsed union lifts that say more than their null
-// (nullBranchKeeps), and the union keywords beside the allOf it keeps as
-// validation logic, their branches declaring no shape (keptUnion).
+// census keywords it wrote, described by shape where no refinement decided it,
+// the $ref branches of its allOf its lowering left unread, what its inline
+// branches keep (entryKeeps), the null branches a collapsed union lifts that
+// say more than their null (nullBranchKeeps), and the union keywords beside the
+// allOf it keeps as validation logic, their branches declaring no shape
+// (keptUnion).
 type outcomeKeeps struct {
 	keywords   []string
 	shape      string
@@ -35,9 +36,10 @@ type outcomeKeeps struct {
 	entries    []keptEntry
 	nulls      []keptNullBranch
 	validation []string
-	// undecided marks a refinement electing no entry, which lowered by the
-	// keywords beside its allOf.
-	undecided bool
+	// refined marks a refinement deciding the position, which electing
+	// principal, nil for none, describes it (refinedShape).
+	refined   bool
+	principal *allOfBranch
 }
 
 // keptBranch is one $ref branch of an allOf a refinement keeps whole, the
@@ -66,7 +68,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		}
 		return k
 	}
-	k := outcomeKeeps{shape: refinedShape(r.comp), comp: r.comp, undecided: r.principal == nil}
+	k := outcomeKeeps{comp: r.comp, refined: true, principal: r.principal}
 	typed := refinedValueType(c, r, s, pointer)
 	homes := homesAt(c, s, target, pointer)
 	if r.principal != nil {
@@ -253,10 +255,17 @@ func unionHeld(w *admissionReader, r refinement, s *statement.Schema, key string
 	return key == "anyOf" || (within == 1 && overlaps == 0)
 }
 
-// record keeps k on p and reports it. A branch the IR cannot hold is reported by
-// the keeper, and nothing here claims it was kept.
-func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := recordUnhomedAt(c, ts, p, s, k.keywords, k.shape, pointer)
+// record keeps k on p and reports it, standing being the node the position
+// owns, nil where it owns none (refinedShape). A branch the IR cannot hold is
+// reported by the keeper, and nothing here claims it was kept.
+func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer,
+	standing ir.TypeDef,
+) []ir.Diagnostic {
+	shape := k.shape
+	if k.refined {
+		shape = refinedShape(c, k.comp, k.principal, standing)
+	}
+	diags := recordUnhomedAt(c, ts, p, s, k.keywords, shape, pointer)
 	for _, key := range k.validation {
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
@@ -268,13 +277,9 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(k.comp, b)))
 		}
 	}
-	shape := refinedShape(k.comp)
-	if k.undecided {
-		shape = undecidedShape
-	}
 	for _, e := range k.entries {
 		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, func(e keptEntry) ir.Diagnostic {
-			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.undecided))
+			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.principal == nil, shape))
 		})...)
 	}
 	dropFoldedIntoWhole(c, p)
@@ -326,8 +331,8 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 
 // keptEntryWhy words why a refinement keeps an entry whole, undecided
 // saying it elected no entry, naming the schema writing its conjuncts as comp's
-// subject does.
-func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
+// subject does and what it lowered to as shape (refinedShape).
+func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool, shape string) string {
 	if why := wholeWhy(e); why != "" {
 		return why
 	}
@@ -338,7 +343,7 @@ func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
 			"nothing there homes what " + n.this + " adds; " + n.kept + " (" +
 			strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 	}
-	return of + " lowered to a use of one of its conjuncts, which has no home for what " + n.this + " " +
+	return of + " lowered to " + shape + ", which has no home for what " + n.this + " " +
 		"adds; " + n.kept + " (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 

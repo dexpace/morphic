@@ -50,13 +50,30 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 	}
 }
 
-// refinedShape describes what a refinement lowers to, for the diagnostic
-// recordUnhomedAt reports, its conjuncts named as comp's subject names them.
-func refinedShape(comp allOfComposition) string {
-	if comp.subject() == "this schema" {
+// refinedShape describes what the position the refinement of comp decides
+// lowered to, for the reports of what it keeps and of conjuncts sharing no
+// value, principal being the branch elected and standing the node the position
+// owns, nil for none. Only a $ref principal makes it a use of a conjunct, named
+// as comp's subject names them; electing none lowers by the keywords beside
+// them (undecidedShape); an inline principal is named as written alone: the
+// reference it collapses or expands to (referenceOutcomeKeywords), the node
+// standing, else the shared primitive, as keepUnreadShared names it.
+func refinedShape(c lowering.Ctx, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef) string {
+	switch {
+	case principal == nil:
+		return undecidedShape
+	case principal.schema.Ref != nil && comp.subject() == "this schema":
 		return "a use of one of its conjuncts"
+	case principal.schema.Ref != nil:
+		return "a use of one of its allOf conjuncts"
 	}
-	return "a use of one of its allOf conjuncts"
+	if _, shape := referenceOutcomeKeywords(c, principal.schema.Schema, principal.pointer); shape != "" {
+		return shape
+	}
+	if standing != nil {
+		return nodeShape(standing.Kind())
+	}
+	return nodeShape(ir.KindPrimitive)
 }
 
 // lowerUndecided lowers s, written at pointer, which writes no kind and no

@@ -2467,8 +2467,10 @@ say the same where every relative `$ref` in them reads against one base: under a
 another URI, the same spelling may name another schema, while an absolute one names the same
 wherever it is read. A copy in another document is read apart. One saying
 more is kept under its own keyword, `openapi:<keyword>`, on a branch as beside the `allOf`, each
-reported as an info `openapi/degraded-construct` at the branch or at the position, a branch kept
-whole only where [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept, its text alone, under
+reported as an info `openapi/degraded-construct` at the branch or at the position, naming what the
+position lowered to as the same keywords written flat would, a use of one of its conjuncts only
+where its principal is a `$ref`, a branch kept whole only where
+[`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept, its text alone, under
 `openapi:$ref`, or `openapi:$ref/<i>` where it keeps several, `i` its rank by reference text, then by
 the entry as written, so no order of the entries decides, two written alike being one entry at the
 position. One a value set beats still
@@ -2623,7 +2625,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`,
   `schema.TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt`,
   `e2e.TestInlinePrincipal_AUnionStandingKeepsItsDiscriminatorsKeys`,
-  `schema.TestAllOf_AUnionAloneOnAnEntryLowersAsItsBareSpelling`
+  `schema.TestAllOf_AUnionAloneOnAnEntryLowersAsItsBareSpelling`,
+  `e2e.TestStandingShape_AReportNamesWhatAnInlinePrincipalLoweredTo`
 
 ### `allof-beside-ref`
 
@@ -3710,6 +3713,7 @@ as above.
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
   `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
   `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`,
+  `e2e.TestStandingShape_ConjunctsSharingNoValueNameWhatThePositionLoweredTo`,
   `e2e.TestCompile_AUnionConjunctSharingNoKindWithTheOtherIsReported`,
   `e2e.TestCompile_AUnionAndARestShareNullOnlyWhereBothAdmitIt`,
   `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,

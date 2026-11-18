@@ -295,7 +295,11 @@ func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.Ty
 	if !keeps.holdsAny() {
 		return nil
 	}
-	return keeps.record(c, ts, &td.Common().Unmodeled, s, pointer)
+	var standing ir.TypeDef
+	if LoweredToOwnNode(c, pointer, target) {
+		standing = td
+	}
+	return keeps.record(c, ts, &td.Common().Unmodeled, s, pointer, standing)
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
@@ -385,28 +389,35 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 	if !refines {
 		return lowerElected(c, ts, depth, s, pointer, d, fin, st)
 	}
-	reported := refinedDisjoint(c, s, r)
+	// The node the position owns is reported on by the visit building it, as
+	// its census is (keepingUnread); a node it does not own, by each visit.
+	var disjoint finished
+	fin = disjoint.on(func(td ir.TypeDef) []ir.Diagnostic { return refinedDisjoint(c, s, r, td) }).then(fin)
+	reported := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
+		if !disjoint.ran && !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id}) {
+			disjoint.diags = refinedDisjoint(c, s, r, nil)
+		}
+		return id, append(diags, disjoint.diags...)
+	}
 	if e, ok := valueSetPrincipal(r); ok {
 		resolveBeaten(c, ts, r)
-		id, diags := lowerPrincipalValueSet(c, ts, s, e, pointer, fin)
-		return id, append(diags, reported...)
+		return reported(lowerPrincipalValueSet(c, ts, s, e, pointer, fin))
 	}
 	if elected {
 		resolveBeaten(c, ts, r)
-		id, diags := lowerElected(c, ts, depth, s, pointer, d, fin, st)
-		return id, append(diags, reported...)
+		return reported(lowerElected(c, ts, depth, s, pointer, d, fin, st))
 	}
-	id, diags := lowerPrincipal(c, ts, depth, s, pointer, r, fin)
-	return id, append(diags, reported...)
+	return reported(lowerPrincipal(c, ts, depth, s, pointer, r, fin))
 }
 
 // refinedDisjoint reports the refinement r of s whose union beside the allOf
 // shares no kind with the rest (unionAside), or whose conjuncts share no value
 // and lowered to the value set elected before them or to what the keywords
 // beside the allOf say (contradictionShape), at s, as a composition reports
-// conjuncts sharing no value.
-func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Diagnostic {
-	shape := refinedShape(r.comp)
+// conjuncts sharing no value, standing being the node the position owns, nil
+// where it owns none (refinedShape).
+func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement, standing ir.TypeDef) []ir.Diagnostic {
+	shape := refinedShape(c, r.comp, r.principal, standing)
 	switch {
 	case unionAside(c, s):
 	case r.contradicts:
