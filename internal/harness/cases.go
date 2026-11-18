@@ -304,22 +304,22 @@ func Coordinates(c Cases, i int) ([]int, error) {
 func CheckCase(ctx context.Context, c Cases, at []int) (Result, bool) {
 	axes, _, err := product(c)
 	if err != nil {
-		return faulted("", OutcomeError, err.Error()), true
+		return faulted("", err.Error()), true
 	}
 	if !inProduct(axes, at) {
-		return faulted("", OutcomeError, fmt.Sprintf("harness: case %v is outside the product", at)), true
+		return faulted("", fmt.Sprintf("harness: case %v is outside the product", at)), true
 	}
 	if ctx == nil {
-		return faulted(caseName(axes, at), OutcomeError, "harness: nil context"), true
+		return faulted(caseName(axes, at), "harness: nil context"), true
 	}
 	return newShard(c, axes, at).check(ctx, at)
 }
 
-// faulted is the Result of a case a fault ended, outcome and detail saying
-// which: every case oracle declines as not reached.
-func faulted(name string, outcome Outcome, detail string) Result {
+// faulted is the Result of a case a fault ended, which detail says: every case
+// oracle declines as not reached.
+func faulted(name, detail string) Result {
 	res := judgeAmong(name, CaseOracles(), nil, notReached)
-	res.Outcome, res.Detail = outcome, detail
+	res.Outcome, res.Detail = OutcomeError, detail
 	return res
 }
 
