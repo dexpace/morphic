@@ -2288,7 +2288,8 @@ A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in wh
 is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
 one on an entry of it, which no position expands, do. So `{allOf: [{$ref: T}], $dynamicRef: '#m'}`
 and `{allOf: [{$ref: T}, {$dynamicRef: '#m'}]}` lower alike, whatever schema `#m` names: a `Model`
-over `T` where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. A union beside the `allOf` sharing no kind with the rest, as in
+over `T` where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. One naming
+no schema is the `$ref` it spells ([`references`](#references)), so it lands on none. A union beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
