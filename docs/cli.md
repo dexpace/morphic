@@ -71,9 +71,9 @@ error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/
 - the bare IR location for one an IR pass made about the document.
 
 A finding that concerns more than its own place, as a conflict between two declarations does, has
-one line all the same, at the place it sits: its message names the others, and the list of them,
-each with its role, is in the [JSON report](#json-report) and the IR document
-([provenance](ir/provenance.md#related-places)).
+one line all the same, at the place it sits: its message names the declaration it kept, and the
+list of what else it concerns, each with its role, is in the [JSON report](#json-report) and the
+IR document ([provenance](ir/provenance.md#related-places)).
 
 Each finding is written at the severity it is rated at, which is the one its stage reported unless
 a [triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text
