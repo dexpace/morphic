@@ -33,16 +33,6 @@ var keywordKinds = map[string]kindSet{
 	"minProperties":    kindObject,
 }
 
-// typeKinds returns the kinds st, one type a type array lists, admits, and every
-// kind but null for a spelling no dialect defines, as declaredInstanceTypes
-// reads one.
-func typeKinds(st statement.Kind) kindSet {
-	if kinds := kindOfType(st) &^ kindNull; kinds != 0 {
-		return kinds
-	}
-	return anyInstance
-}
-
 // boundKinds returns the kinds a reader of the bounds s writes takes: those
 // its home lowers to (docs/compilers/openapi.md#constraints), as the run reads
 // its statement once (admissionOf), its value sets, a type beside a $ref and
