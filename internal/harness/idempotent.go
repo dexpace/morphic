@@ -9,8 +9,6 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/pass"
@@ -82,7 +80,7 @@ func (p solo) twice(ctx context.Context, doc *ir.Document) (*ir.Document, string
 	}
 	if !bytes.Equal(first, second) {
 		return nil, fmt.Sprintf("pass %q changes its own output (-once +twice):\n%s",
-			p.name, cmp.Diff(string(first), string(second))), false
+			p.name, lineDifference(lines(first), lines(second))), false
 	}
 	return once, "", true
 }
@@ -103,7 +101,7 @@ func settled(ctx context.Context, alone []solo, result *ir.Document) (string, bo
 		}
 		if !bytes.Equal(want, got) {
 			return fmt.Sprintf("pass %q changes the run's result (-run +rerun):\n%s",
-				p.name, cmp.Diff(string(want), string(got))), false
+				p.name, lineDifference(lines(want), lines(got))), false
 		}
 	}
 	return "", true

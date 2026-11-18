@@ -334,8 +334,8 @@ func differingCodes(d diagnosed) []string {
 func spellingDetail(what, rule string, a, b any, diags diagnosed, mine, partner Document) string {
 	var out strings.Builder
 	out.WriteString(what + "\n" + rule + "\n")
-	out.WriteString(gocmp.Diff(indented(b), indented(a)))
-	out.WriteString(gocmp.Diff(diags.theirs, diags.mine))
+	out.WriteString(lineDifference(indented(b), indented(a)))
+	out.WriteString(lineDifference(diags.theirs, diags.mine))
 	for _, d := range []Document{mine, partner} {
 		for _, src := range d.Sources {
 			out.WriteString("--- " + src.Path + "\n" + string(src.Data) + "\n")

@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/ir"
@@ -104,7 +103,7 @@ func diffOrderInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second 
 			return detail, false
 		}
 	}
-	if d := cmp.Diff(diagnosticSet(firstDiags), diagnosticSet(secondDiags)); d != "" {
+	if d := lineDifference(diagnosticSet(firstDiags), diagnosticSet(secondDiags)); d != "" {
 		return "diagnostics depend on declaration order (-as-written +reversed):\n" + d, false
 	}
 	return "", true
@@ -136,7 +135,7 @@ func sameDocument(first, second *ir.Document) (string, bool) {
 		return "encode permuted: " + err.Error(), false
 	}
 	if !bytes.Equal(a, b) {
-		return "document depends on declaration order (-as-written +reversed):\n" + cmp.Diff(lines(a), lines(b)), false
+		return "document depends on declaration order (-as-written +reversed):\n" + lineDifference(lines(a), lines(b)), false
 	}
 	return "", true
 }
