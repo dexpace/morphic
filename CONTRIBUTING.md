@@ -103,11 +103,12 @@ Read the documents for your layer, and skip the rest until you need them.
   end-to-end test written in the compiler's own package or in one of its internal packages.
 - **A test of behaviour an open issue describes, which no change yet delivers, is pending.** It is
   written in a `<name>_pending_test.go` file under `//go:build pending`, its doc comment citing the
-  issue as `GitHub #<n>`. `make vet` compiles it, so a helper it calls cannot be renamed out from
-  under it, and no gate runs it: it fails today by design, and the change that closes the issue
-  removes the tag and the word.
+  issue as `GitHub #<n>`. `make vet` compiles it in `compilers/openapi/e2e`, the one package it
+  vets under the tag, so a helper it calls cannot be renamed out from under it, and no gate runs it:
+  it fails today by design, and the change that closes the issue removes the tag and the word.
   *Fails if missed:* `TestPendingTests_EachCitesAnIssue`, for a pending file without the tag or a
-  test of one without its citation, and `make vet`, for a pending file that no longer compiles.
+  test of one without its citation, and `make vet`, for a pending file in `compilers/openapi/e2e`
+  that no longer compiles; one in another package is compiled by nothing.
 
 ## Run the checks
 

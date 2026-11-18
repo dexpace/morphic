@@ -1672,7 +1672,7 @@ one.
   `lowering.TestTitleNames_TheZeroValueNamesByTitle`, `e2e.TestTitleNames_DisabledNamesByPosition`,
   `naming.TestAt_ATitleNamesAlikeInEitherOrder`,
   `naming.TestAt_ATitleNamesAcrossDocuments`, `naming.TestTitle_IsTheNameATitleGives`,
-  `naming.TestAt_NamesAHeaderAnEncodingNests`, `schema.TestRefinement_TwinsTheRefSpelling`,
+  `naming.TestAt_NamesAHeaderAnEncodingNests`,
   `e2e.TestGolden_HintPositions`, `e2e.TestCompile_NamesAHeaderSchemaBeneathEveryEncodingByTheHeader`
 
 ### `values`
@@ -3119,8 +3119,9 @@ nowhere to sit it would go nowhere at all: a release in which a losing branch's 
 changed would produce no change in the document, which a consumer diffing two versions reads as
 nothing having happened. The losing declaration is therefore kept verbatim, as the document wrote
 it, in `Unmodeled["openapi:conflicting-redeclaration<pointer>"]` under `degraded_lowering`, keyed by
-its own JSON Pointer so a field three branches type three incompatible ways keeps all three entries,
-and with the entry's `Provenance` locating that declaration rather than the merged property. The
+its own JSON Pointer so a field three branches type three incompatible ways keeps an entry for each
+of the two that lose, and with the entry's `Provenance` locating that declaration rather than the
+merged property. The
 source node is kept rather than the IR values the merge dropped:
 [unmodeled](../ir/unmodeled.md) defines an `Unmodeled` value as the source construct, a
 `TypeID` is a compiler-minted registry ID that `irverify`'s reference walk cannot see dangle inside
@@ -3926,8 +3927,9 @@ declare shape (below), or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. The `discriminator` standing with it is the one its branch writes, else the
 one beside the `allOf`: where both write one, nothing says which routes the union, so it is kept as
-what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword, and the
-`Model` holds the schema's own. It routes the union as one beside it does,
+what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword where
+the two are written alike and with its branch whole, under `openapi:allOf/<i>`, where they differ,
+and the `Model` holds the schema's own. It routes the union as one beside it does,
 a `mapping` entry naming no schema reported at the entry under the schema writing it, and it routes
 by name the schemas the union lists ([`discriminator-value`](#discriminator-value)). Its variants
 take their IDs from the branch's pointers, its `$ref` and inline branches conjoin as above, and the
@@ -4235,8 +4237,8 @@ each conjunct it beats kept as that rule keeps it, a set its own keywords leave 
 the keyword this election elects of it, each reported apart: the keyword passed over with an info, as
 below, and each conjunct the set beats as that rule reports it. So the
 election passes over the `allOf` only where no value set is elected, keeping it whole where
-it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, as the `$ref` beside it
-is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, or `openapi:$ref/<i>`
+where several are kept, as the `$ref` beside it is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
 an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
