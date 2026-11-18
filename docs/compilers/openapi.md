@@ -4145,8 +4145,7 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806); a union beside a `$ref` sharing no kind with its target is kept by
-  [`union-beside-ref`](#union-beside-ref) rather than as shape 5 (#2010).
+  legal (#1806).
 
 ### `union-beside-ref`
 
@@ -4693,8 +4692,6 @@ the referent.
   `schema.TestAllOf_RequiresIsTheSameInEitherComponentOrder`,
   `schema.TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce`,
   `schema.TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody`
-- Status: partly built: a `required` beside a 3.1 `$ref` stays verbatim on the alias that `$ref`
-  hoists, with every other structural keyword written there (#1067).
 
 ### `pattern-properties`
 
@@ -5769,15 +5766,14 @@ with its reason, which names the open issue it stands under. The test asks this 
 asks it of every case, an entry written before the `$ref` and a second keyword written with the
 first among them, and fails on what the records, `testdata/full` among them, do not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
-another would still pass. A dependency map with no entry is no value in that sense but the keyword
+another would still pass. It compares compiled documents with each other and never with the value
+written, so a value read wrongly in every spelling, a bound one wider than written, passes too. A dependency map with no entry is no value in that sense but the keyword
 left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions
 they land on are lowered ([`validation-only`](#validation-only)).
 
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
   `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,
   `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
-- Status: partly built: a `$dynamicRef` written beside a `$ref` at a position no property,
-  parameter, header or component holds reaches the IR in no form (#2009).
 
 ## 8. Paths and operations
 
@@ -7673,9 +7669,9 @@ saying why.
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`, `promotion.TestCarried_ReturnsOwnWhereNothingIsCarried`,
   `promotion.TestCarried_TheOwnKeyBeatsTheScopedOne`, `promotion.TestLent_ASingleSidedFactHoldsWhereAnyStatesIt`,
   `e2e.TestCarriedKeys_AnOperationReadsItsPathItemsTier`
-- Status: partly built: a redaction key beside an `allOf` over an
-  object lands on the decorator the `allOf` lowers to, whose `Sensitive` keeps it a type of its own,
-  where beside a `$ref` it lands on the carrier (#1220); a schema a use names
+- Status: partly built: a redaction key beside a `$ref` or an `allOf` over an
+  object lands on the decorator the use lowers to, whose `Sensitive` keeps it a type of its own,
+  where beside a `$ref` to a string it lands on the carrier (#2061); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); and a key inside
   a `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
   ([`union-beside-structure`](#union-beside-structure)), reaches no field.

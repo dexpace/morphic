@@ -22,6 +22,14 @@ import (
 // (docs/ir/unmodeled.md#promotion). With whole set, only those entries are
 // asked whether they hold another.
 func DropContained(p Promoter, u *ir.Unmodeled, whole ...string) {
+	dropContained(p, u, holdsWhole, whole)
+}
+
+// dropContained is DropContained asking holds whether one entry holds another,
+// of the entries whose provenance lies above the other's only: each entry
+// listed as a holder is found by where it is written (holdersAt), and an entry
+// is asked of the holders at each prefix of its own pointer.
+func dropContained(p Promoter, u *ir.Unmodeled, holds func(outer, inner ir.UnmodeledEntry) bool, whole []string) {
 	if u == nil || len(*u) < 2 {
 		return
 	}
@@ -29,18 +37,50 @@ func DropContained(p Promoter, u *ir.Unmodeled, whole ...string) {
 	if len(holders) == 0 {
 		holders = slices.Collect(maps.Keys(*u))
 	}
+	at := holdersAt(*u, holders)
 	for key, inner := range *u {
 		if namesReadKey(p.keys, key) {
 			continue
 		}
-		for _, h := range holders {
-			outer, held := (*u)[h]
-			if h != key && held && holdsWhole(outer, inner) {
-				delete(*u, key)
-				break
+		if heldBy(*u, at, key, inner, holds) {
+			delete(*u, key)
+		}
+	}
+}
+
+// entryAt is where an entry is written: its source and pointer.
+type entryAt struct {
+	source  int
+	pointer jsontext.Pointer
+}
+
+// holdersAt lists the keys of holders that u holds by where each is written.
+func holdersAt(u ir.Unmodeled, holders []string) map[entryAt][]string {
+	at := make(map[entryAt][]string, len(holders))
+	for _, h := range holders {
+		if outer, held := u[h]; held {
+			place := entryAt{outer.Provenance.Source, outer.Provenance.Pointer}
+			at[place] = append(at[place], h)
+		}
+	}
+	return at
+}
+
+// heldBy reports whether an entry of u other than key, written above inner in
+// the same source, holds it. at lists the holders by where they are written
+// (holdersAt); one u no longer holds is no holder.
+func heldBy(u ir.Unmodeled, at map[entryAt][]string, key string, inner ir.UnmodeledEntry,
+	holds func(outer, inner ir.UnmodeledEntry) bool,
+) bool {
+	pointer := string(inner.Provenance.Pointer)
+	for i := strings.LastIndexByte(pointer, '/'); i >= 0; i = strings.LastIndexByte(pointer[:i], '/') {
+		for _, h := range at[entryAt{inner.Provenance.Source, jsontext.Pointer(pointer[:i])}] {
+			if outer, held := u[h]; h != key && held && holds(outer, inner) {
+				return true
 			}
 		}
 	}
+	return false
 }
 
 // namesReadKey reports whether key names one of keys, which are sorted:

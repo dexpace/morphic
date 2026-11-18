@@ -157,11 +157,14 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
 - **Schema cases.** `go test ./internal/harness/openapicases`, in the gate, holds the core schema
   cases to the records under its `testdata/`; `make cases`, which the nightly job runs on `main`,
   holds every case, those in `testdata/full/` too. Every line of a record names an open issue: its
-  reason is a key of `Reasons` whose text opens `#<issue>: `, which `TestReasons_EachCitesAnIssue`
-  holds. When `make cases` fails, or the nightly job opens `ci: the nightly cases run finds a
-  difference on main`, each failure is a line naming the case, what was found and the command
-  writing it, `go run ./cmd/morphic-harness -cases full -at N`, which prints both spellings'
-  sources and each oracle's verdict. Then:
+  reason is a key of `Reasons` whose text opens `#<issue>: `. `TestReasons_EachCitesAnIssue` holds
+  that form; no test reads whether the issue is still open. When `make cases` fails, or the nightly
+  job opens `ci: the nightly cases run finds a difference on main`, each failure is a line naming
+  the case, what was found and the command writing it,
+  `go run ./cmd/morphic-harness -cases full -at N`, which prints the case's sources and each
+  oracle's verdict: a spelling's with both spellings' sources and their difference, a presence
+  finding's with the name of the neighbour it equals. `-at` takes an index alone, and no command
+  prints the index of a case named anywhere else, a recorded line's or a neighbour's. Then:
   1. A line whose finding is gone is a fix landed: regenerate, and commit the deletion.
   2. A new finding the cases wrote themselves, a difference besides the spelling under test, is
      the cases' to fix, with a test of the writer in `internal/harness/openapicases`.
