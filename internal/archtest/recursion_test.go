@@ -55,9 +55,9 @@ var loweringRecursions = [][]string{
 	// union whether it is distributed, so it nests once.
 	{
 		"bodyAdmitsNull", "classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches",
-		"distributesUnion", "mayAdmitNull", "nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands",
-		"nulls.ref", "nulls.schema", "nulls.usage", "nulls.variantsNull", "nulls.widenByBranch", "unionNullReading",
-		"valueNulls",
+		"distributesUnion", "mayAdmitNull", "nulls.allOf", "nulls.branchesNull", "nulls.conjunct", "nulls.keywords",
+		"nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage", "nulls.valueParts", "nulls.variantsNull",
+		"nulls.widenByBranch", "unionNullReading", "valueNulls",
 	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation

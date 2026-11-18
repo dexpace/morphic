@@ -278,7 +278,8 @@ func TestInstanceKinds_ReadsEachKindOfInstance(t *testing.T) {
 // TestAdmission_TakesItsNullFromTheNullsWalk holds the null a conjunct admits,
 // as a disjoint report reads it (empty), to the nulls walk's verdict on every
 // schema the documents under testdata write and on each spelling of a
-// `nullable` beside a `type`, at every version: the admission reads its kinds
+// `nullable` beside a `type`, at every version, read where the IR holds it, a
+// union's variants among it (mayAdmitNull): the admission reads its kinds
 // with null aside and derives null no second way. A null read past its budget
 // is undecided and set aside.
 func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
@@ -298,6 +299,7 @@ func TestAdmission_TakesItsNullFromTheNullsWalk(t *testing.T) {
 		}
 		statementsOfDocument(l, func(at jsontext.Pointer, st *statement.Statement) {
 			n := newNulls(l.Ctx)
+			n.variants = true
 			want := n.conjunct(st, nullSite{}).admits(l.Ctx)
 			if n.conjuncts.Exhausted() {
 				return

@@ -3597,11 +3597,16 @@ and an `anyOf` written together that the position does not elect
 ([`competing-keywords`](#competing-keywords)): beside the `allOf`, named by its keyword, and on an
 entry, named `allOf/<n>/<keyword>` beside that entry, which is then its own keywords and the union
 it elects. The schema is reported where those sets share no member, every
-conjunct admits some value by itself and none is cut short, and the schema admits no null as
-[`nullable`](#nullable) reads it, under the nullable-inference policy where that is on: a null every
-conjunct admits is a shared value, as
-[`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
-null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
+conjunct admits some value by itself and none is cut short, and they share no null: a null is a
+shared value only where every conjunct admits it, as
+[`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations, each read as
+[`nullable`](#nullable) reads one, under the nullable-inference policy where that is on, and wherever
+the IR holds it, so a union admits null where one of its branches does and keeps it out where each
+does. So `{allOf: [{$ref: ON}], oneOf: [{type: string}, {type: boolean}]}` over an `ON` admitting an
+object or null is reported, a null being no value the union admits; with a `{type: 'null'}` branch
+beside the two the conjuncts share the null, which
+[`union-beside-structure`](#union-beside-structure) then reports as all that satisfies the schema. A read of null that runs out of its budget shares one unless what
+it read keeps null out, which no conjunct left unread lets back in. Where only one conjunct narrows
 the instance types nothing is reported, since one conjunct contradicts nothing, unless it admits no
 value by itself and nothing else says so (below).
 
@@ -3647,8 +3652,8 @@ kind left out, listed by what each states and then by name, so no order written 
 `{allOf: [{type: number, format: int32}, {type: number, enum: [1.5]}]}` draws
 `allOf/1: 1 value, allOf/0: integer of format int32`, the format read as
 [`numeric-formats`](#numeric-formats) reads it, where JSON Schema asserts none by default. A null
-the schema admits as the nulls reading has it, a conjunct admitting no value by itself and a read
-cut short draw it nowhere, as above.
+every conjunct admits, a conjunct admitting no value by itself and a read cut short draw it nowhere,
+as above.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
@@ -3668,6 +3673,7 @@ cut short draw it nowhere, as above.
   `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
   `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`,
   `e2e.TestCompile_AUnionConjunctSharingNoKindWithTheOtherIsReported`,
+  `e2e.TestCompile_AUnionAndARestShareNullOnlyWhereBothAdmitIt`,
   `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,
   `e2e.TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema`,
   `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
@@ -4018,10 +4024,9 @@ reach these shapes:
    is read against the rest of the `allOf`, its own entry aside, and kept as an entry's keyword is,
    under `openapi:oneOf` or `openapi:anyOf` at the position
    ([`allof-inline-residue`](#allof-inline-residue)). Its entry is a conjunct sharing no kind with
-   the rest, so the schema draws that rule's warning, unless the rest admits null, which that rule
-   reads a union as admitting too: the schema then draws the warning naming the dead branches,
-   which says that no instance satisfies it, as none of the branches admits null, or none but null
-   where a null branch takes it. A dead branch beside a live one on an entry is named as admitting
+   the rest, so the schema draws that rule's warning, a null the rest admits and no branch does
+   being no value they share; where a null branch takes it, the schema draws the warning naming
+   the dead branches instead, which says that no instance but null satisfies it. A dead branch beside a live one on an entry is named as admitting
    no value the rest of the `allOf` admits, which may hold kinds beside an object that no branch
    holds.
 
@@ -4247,8 +4252,7 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806). A union none of whose branches admits null, beside an `allOf` whose rest admits
-  null or on an entry beside an inline rest that does, draws no warning (#2055).
+  legal (#1806).
 
 ### `union-beside-ref`
 

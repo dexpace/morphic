@@ -159,8 +159,9 @@ type nulls struct {
 	nullable bool
 	// variants marks a read of whether a schema admits null wherever the IR
 	// holds it, a variant included, so a union admits null where any branch
-	// does (variantsNull), not only where its null lifts onto the reference
-	// (unionNullReading); rest is a schema whose own union it leaves out.
+	// does and keeps it out where every branch does (variantsNull), not only
+	// where its null lifts onto the reference (unionNullReading); rest is a
+	// schema whose own union it leaves out.
 	variants  bool
 	rest      *statement.Schema
 	conjuncts budget.Budget
@@ -226,10 +227,17 @@ func (n *nulls) ref(js *statement.Statement, site nullSite) nullReading {
 
 // usage is s, a schema writing a $ref, read over target, what the $ref lands
 // on: s's own keywords conjoined with it, which the lenient reading widens
-// where they admit null (widenRef) or write `nullable: true` (widen).
+// where they admit null (widenRef) or write `nullable: true` (widen). A read
+// of variants takes a union's null as its branches' and no keyword's beside
+// the $ref, so it widens nothing there.
 func (n *nulls) usage(s *statement.Schema, target nullReading, site nullSite) nullReading {
-	own := n.keywords(s, site)
-	return n.widen(s, own, n.widenRef(own, foldNullReadings(own, target), site), site)
+	typed, union := n.valueParts(s)
+	own := foldNullReadings(typed, n.allOf(s, site))
+	all := foldNullReadings(own, union)
+	if !n.variants {
+		own = all
+	}
+	return n.widen(s, all, n.widenRef(own, foldNullReadings(all, target), site), site)
 }
 
 // lands reads what js's $ref lands on along the chain the bindings resolved:
@@ -351,6 +359,13 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 // each reading, the nullable keyword's declared effect on it
 // (declaredTypeVerdict); the conjuncts differ only as each is read.
 func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
+	typed, union := n.valueParts(s)
+	return foldNullReadings(foldNullReadings(typed, union), n.allOf(s, site))
+}
+
+// valueParts is what s's type, const and enum say of null, and apart what its
+// oneOf and anyOf say, as n reads a union.
+func (n *nulls) valueParts(s *statement.Schema) (typed, union nullReading) {
 	var v valueVerdicts
 	switch {
 	case !n.variants:
@@ -361,8 +376,7 @@ func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
 		v = valueSetNulls(n.c, s)
 		v.union = n.variantsNull(s)
 	}
-	own := foldNullReadings(n.typed(s, v.constant, v.enum), v.union)
-	return foldNullReadings(own, n.allOf(s, site))
+	return n.typed(s, v.constant, v.enum), v.union
 }
 
 // typed is what s's type says of null under each reading, conjoined with the

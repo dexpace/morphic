@@ -77,9 +77,10 @@ func TestCompile_ABodyBesideANullBranchAndNoLiveOneAdmitsNull(t *testing.T) {
 // TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns holds that a
 // union on an allOf entry, none of whose branches admits an object or null,
 // beside a rest admitting both, is kept on its entry as one beside an object
-// body is beside it, and draws the one warning that no instance satisfies the
-// schema: a oneOf or an anyOf no branch of which admits null refuses it
-// (docs/compilers/openapi.md#union-beside-structure). The rest admits null by
+// body is beside it, and draws the one warning that the conjuncts share no
+// value: a oneOf or an anyOf no branch of which admits null refuses it, so the
+// null the rest admits is no value they share
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts). The rest admits null by
 // `type: [object, "null"]` at 3.1.0 and by `nullable: true` at 3.0.3, in both
 // orders of the branches and of the components.
 func TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns(t *testing.T) {
@@ -101,8 +102,7 @@ func TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns(t *testing.T
 						doc, diags := compileAnnotationSpec(t, "entry-null", spec)
 						requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct,
 							pointer: "/components/schemas/P", contains: []string{
-								"none of the 2 branches of the " + keyword + " on allOf/1 admits a value the rest",
-								"allOf/1/" + keyword + "/", ": string", ": boolean",
+								"the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string or boolean)",
 								"so no instance satisfies this schema"}}})
 						m, ok := typeByName(doc, "P").(*ir.Model)
 						require.True(t, ok, "the schema is the Model the rest of its allOf gives")
@@ -122,9 +122,9 @@ func TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns(t *testing.T
 // warning of a union on an allOf entry whose only branch not dead is its null
 // one to the null the rest of the allOf admits: beside a rest admitting null,
 // null alone satisfies the schema; beside one keeping it out, nothing does,
-// which the report of conjuncts sharing no value says; and beside a rest
-// whose read is cut short on a cycle, nothing is said, as what it admits is
-// not known.
+// which the report of conjuncts sharing no value says, and says too where a
+// cycle cuts short the read of another conjunct's null, as no conjunct left
+// unread lets back in a null the object keeps out.
 func TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets(t *testing.T) {
 	t.Parallel()
 	branches := "{oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Str'}]}"
@@ -141,5 +141,7 @@ func TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets(t *testi
 			"(allOf/1/oneOf/1: string)", "so no instance but null satisfies this schema"}},
 		{code: diag.DegradedConstruct, pointer: "/components/schemas/Refuses", contains: []string{
 			"the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string)"}},
+		{code: diag.DegradedConstruct, pointer: "/components/schemas/Unknown", contains: []string{
+			"the conjuncts of this allOf share no value (allOf/0: object, allOf/2: string)"}},
 	})
 }
