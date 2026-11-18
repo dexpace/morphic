@@ -252,7 +252,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 		return refs[0]
 	}
 	if d := decisionOf(c, s); d.refines {
-		return entryAt(c, s, d.refAt)
+		return branchStatement(c, s, d.refAt)
 	}
 	if len(refs) != 1 || !allOfMayRefine(s) || declaresUnion(s) || !decoratesOnly(c, s) {
 		return nil
@@ -495,7 +495,7 @@ func DecidingSchema(c lowering.Ctx, s *statement.Schema) *statement.Schema {
 		if !d.refines || d.principalAt < 0 {
 			break
 		}
-		principal := entryAt(c, s, d.principalAt)
+		principal := branchStatement(c, s, d.principalAt)
 		s = principal.Schema
 		if principal.Ref != nil {
 			s = refBranchTarget(c, principal)

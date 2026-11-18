@@ -163,10 +163,10 @@ func branchAt(comp allOfComposition, i int) *allOfBranch {
 	return &comp.branches[i]
 }
 
-// entryAt returns the statement of the branch of s's allOf at index i, as
+// branchStatement returns the statement of the branch of s's allOf at index i, as
 // allOfBranches reads it, nil for -1: a reader of the decision with no pointer
 // builds no branch list.
-func entryAt(c lowering.Ctx, s *statement.Schema, i int) *statement.Statement {
+func branchStatement(c lowering.Ctx, s *statement.Schema, i int) *statement.Statement {
 	if i < 0 {
 		return nil
 	}

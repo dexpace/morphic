@@ -32,16 +32,16 @@ func TestRefinementOf_AnUnrefinedSchemaHoldsNothing(t *testing.T) {
 	}
 }
 
-// TestEntryAt_ReadsTheBranchAtAnIndex pins the statement a reader of the
+// TestBranchStatement_ReadsTheBranchAtAnIndex pins the statement a reader of the
 // decision with no pointer takes for an index, and none for -1.
-func TestEntryAt_ReadsTheBranchAtAnIndex(t *testing.T) {
+func TestBranchStatement_ReadsTheBranchAtAnIndex(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
     T: {allOf: [{description: d}, {$ref: '#/components/schemas/Port'}]}
 `))
 	s := StatedIn(l, componentSchema(t, l, "T"))
-	assert.Nil(t, entryAt(l.Ctx, s, -1))
-	got := entryAt(l.Ctx, s, 1)
+	assert.Nil(t, branchStatement(l.Ctx, s, -1))
+	got := branchStatement(l.Ctx, s, 1)
 	require.NotNil(t, got)
 	assert.Same(t, allOfBranches(l.Ctx, s, "").branches[1].schema, got)
 	assert.NotNil(t, got.Ref, "the entry at 1 is the $ref")
