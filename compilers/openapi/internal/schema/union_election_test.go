@@ -66,3 +66,25 @@ func TestUnion_AnEntryHoldingBothIsReadWithoutThemWhereverListed(t *testing.T) {
 		assert.Contains(t, model.Unmodeled, "openapi:anyOf", name)
 	}
 }
+
+// TestUnion_EntriesOneAllOfDeeperJudgeEachOtherByNeither pins two unions on
+// two entries nested one allOf deeper beside an object body, a oneOf of
+// strings and an anyOf of booleans: each declares shape against the body read
+// without the other, so both are kept as degraded_lowering, as on the allOf's
+// own entries.
+func TestUnion_EntriesOneAllOfDeeperJudgeEachOtherByNeither(t *testing.T) {
+	t.Parallel()
+	const unions = "{oneOf: [{type: string}]}, {anyOf: [{type: boolean}]}"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    T: {type: object, properties: {a: {type: string}}}
+    Entries: {allOf: [{$ref: '#/components/schemas/T'}, `+unions+`]}
+    Deeper: {allOf: [{$ref: '#/components/schemas/T'}, {allOf: [`+unions+`]}]}
+`))
+	for _, name := range []string{"Entries", "Deeper"} {
+		model, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s keeps both unions on a Model", name)
+		for _, key := range []string{"openapi:oneOf", "openapi:anyOf"} {
+			require.Contains(t, model.Unmodeled, key, name)
+			assert.Equal(t, ir.ReasonDegradedLowering, model.Unmodeled[key].Reason, "%s %s", name, key)
+		}
+	}
+}

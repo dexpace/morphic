@@ -358,13 +358,18 @@ func conjunctWithout(w *admissionReader, b *statement.Statement, holder *stateme
 	}
 	read := inlineConjunct(w, b.Schema)
 	for _, e := range b.Entries {
+		st := w.c.Statements().Read(e.Schema)
 		switch {
 		case e.Schema == holder:
 			read = read.and(writtenLowered(w, holder, w.nullable))
 		case e.Wrapper:
 			read = read.and(inlineConjunct(w, e.Schema))
+		case st.Ref == nil && st.BesideRef == nil && declaresUnion(e.Schema):
+			// Another entry's union is no body of holder's, as beside it
+			// (otherEntryUnion).
+			read = read.and(writtenLowered(w, e.Schema, w.nullable))
 		default:
-			read = read.and(lowered(w, w.c.Statements().Read(e.Schema)))
+			read = read.and(lowered(w, st))
 		}
 	}
 	return read

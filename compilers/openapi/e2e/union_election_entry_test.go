@@ -63,8 +63,8 @@ const bothKeywordsOneOf = "[{type: object, properties: {b: {type: string}}}, {ty
 
 // bothKeywordsSpellings are the ways to write the oneOf and the anyOf any
 // beside the body, an inline schema or a $ref: beside an allOf of the body, on
-// two entries and on one, each in either order, and beside the body's own
-// keywords where it is inline. The first is the one each other is compared to.
+// two entries and on one, each in either order and one allOf deeper, and
+// beside the body's own keywords where it is inline. The first is the one each other is compared to.
 func bothKeywordsSpellings(body, anyOf string) map[string]string {
 	return unionPairSpellings(body, bothKeywordsOneOf, anyOf)
 }
@@ -79,6 +79,8 @@ func unionPairSpellings(body, one, anyOf string) map[string]string {
 		"two entries":                  "{allOf: [" + body + ", {oneOf: " + one + "}, {anyOf: " + anyOf + "}]}",
 		"two entries, the anyOf first": "{allOf: [" + body + ", {anyOf: " + anyOf + "}, {oneOf: " + one + "}]}",
 		"two entries, before the body": "{allOf: [{anyOf: " + anyOf + "}, {oneOf: " + one + "}, " + body + "]}",
+		"two entries one allOf deeper": "{allOf: [" + body + ", {allOf: [{oneOf: " + one + "}, {anyOf: " + anyOf + "}]}]}",
+		"one entry one allOf deeper":   "{allOf: [" + body + ", {allOf: [{oneOf: " + one + ", anyOf: " + anyOf + "}]}]}",
 	}
 	if inline, ok := strings.CutPrefix(body, "{type: object, "); ok {
 		spellings["beside the body"] = "{type: object, oneOf: " + one + ", anyOf: " + anyOf + ", " + inline

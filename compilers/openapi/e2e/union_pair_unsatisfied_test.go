@@ -31,6 +31,7 @@ var unsatisfiedPairs = []struct{ name, oneOf, anyOf string }{
 		"[{required: [a]}, {}]"},
 	{"a oneOf with an object branch beside an anyOf admitting no object", "[{type: object, properties: {b: {type: string}}}, {type: string}]",
 		"[{type: string}, {type: integer}]"},
+	{"neither admits an object or a kind of the other", "[{type: string}]", "[{type: boolean}]"},
 }
 
 // TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten holds that
