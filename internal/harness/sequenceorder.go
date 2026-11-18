@@ -47,12 +47,13 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 
 // diffSequenceInvariants compares what reversing the sequences of perm must
 // leave untouched: the diagnostics, the document and the flattened shapes,
-// each in its source's coordinates. A tie is a member two reports alike but
+// in their sources' coordinates. A tie is a member two reports alike but
 // for their places decide between two declarations, the other way round in
 // each order (tiedBy), or what a moved report decided. Of a node a tie names,
-// or one at or beneath a tie site, only a property's being required is
-// compared, and its docs where a stated tie alone decided it; a type there is
-// left out whole. It declines what compareForms declines, and several files.
+// or one at or beneath a moved report's site or a tied member's fold mints
+// (rewriter.minted), only a property's being required is compared, and its
+// docs where a stated tie alone decided it. It declines as compareForms does,
+// and several files.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
@@ -202,10 +203,12 @@ type report struct {
 // tieSites is what the reports a reversal moved decided: the erased pointer of
 // each, at or beneath which nothing is compared, the erased node of each naming
 // one (ir.Provenance's Node) or of each member a report states a tie decided
-// (tiedBy), which is not compared wherever it sits, the models holding a
-// member a tie decided (settledFrom), whose reports follow it, and the tied
-// members a stated tie alone decided (statedAlone), whose docs are compared.
-type tieSites struct{ pointers, nodes, holders, stated []string }
+// (tiedBy), which is not compared wherever it sits, the erased pointer of each
+// tied member (settledFrom), at or beneath which only what its fold mints is
+// left out (rewriter.minted), the models holding a member a tie decided, whose
+// reports follow it, and the tied members a stated tie alone decided
+// (statedAlone), whose docs are compared.
+type tieSites struct{ pointers, nodes, members, holders, stated []string }
 
 // reportsOf reads diags, rebasing each pointer and node from the coordinates
 // of from, when given, to those of the source as written, where written lists
@@ -279,7 +282,8 @@ func untied(rs []report, ties tieSites, written sequences) []report {
 		node := erase(r.node, written)
 		_, tied := slices.BinarySearch(ties.nodes, node)
 		_, holds := slices.BinarySearch(ties.holders, node)
-		return r.node != "" && (tied || holds) || atSite(ties.pointers, erase(r.pointer, written))
+		at := erase(r.pointer, written)
+		return r.node != "" && (tied || holds) || atSite(ties.pointers, at) || atSite(ties.members, at)
 	})
 }
 
@@ -308,15 +312,15 @@ func renderUnpaired(left, right []report) string {
 }
 
 // settledFrom returns ties with every member doc settles from a tied one: a
-// member a moved report names, or one declared at or beneath a tie site, as a
-// fold of inline declarations reports where they are written, and a model's
-// own member whose flattening overrides a tied declaration
-// (ir.FlatProperty.Overridden), which reads what that tie decided, to a
-// fixpoint each pass of which ties one more member at least. Each tied
-// member's pointer is a tie site, as its fold mints there. IDs are erased in
-// seqs, doc's coordinates; a nil doc, as a refused compile leaves, adds none.
+// member a moved report names, one declared at or beneath where a moved report
+// sits, as a fold of inline declarations reports where they are written, or at
+// a tied member's pointer, and a model's own member whose flattening overrides
+// a tied declaration (ir.FlatProperty.Overridden), which reads what that tie
+// decided, to a fixpoint each pass of which ties one more member at least.
+// Each tied member's pointer joins ties.members. IDs are erased in seqs, doc's
+// coordinates; a nil doc, as a refused compile leaves, adds none.
 func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
-	if len(ties.nodes) == 0 && len(ties.pointers) == 0 || doc == nil {
+	if len(ties.nodes)+len(ties.pointers)+len(ties.members) == 0 || doc == nil {
 		return ties
 	}
 	tied := map[string]bool{}
@@ -326,7 +330,7 @@ func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
 	models := slices.Sorted(maps.Keys(doc.Types))
 	sites, holders := map[string]bool{}, map[string]bool{}
 	for range len(models) + 1 {
-		if !tieSettled(doc, models, seqs, ties.pointers, tied, sites, holders) {
+		if !tieSettled(doc, models, seqs, ties, tied, sites, holders) {
 			break
 		}
 	}
@@ -334,20 +338,24 @@ func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
 		return ties
 	}
 	ties.nodes = slices.Sorted(maps.Keys(tied))
-	ties.pointers = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.pointers, slices.Collect(maps.Keys(sites))))))
+	ties.members = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.members, slices.Collect(maps.Keys(sites))))))
 	ties.holders = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.holders, slices.Collect(maps.Keys(holders))))))
 	return ties
 }
 
-// tieSettled ties each own member of models declared at or beneath one of
-// seeds, the tie sites the reports name, or overriding a tied declaration, and
-// each union whose inferred discriminator reads a tied member (inferenceTied),
-// adds each tied member's pointer to sites and its model to holders, and
-// reports whether it tied any.
-func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, seeds []string, tied, sites, holders map[string]bool) bool {
+// tieSettled ties each own member of models declared at or beneath where a
+// moved report sits (ties.pointers), at a tied member's pointer (ties.members),
+// or overriding a tied declaration, and each union whose inferred
+// discriminator reads a tied member (inferenceTied), adds each tied member's
+// pointer to sites and its model to holders, and reports whether it tied any.
+// A member declared beneath a tied member's pointer is written there in either
+// order, so it is not tied for that.
+func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSites, tied, sites, holders map[string]bool) bool {
 	grew := false
 	isTied := func(d ir.PropertyDecl) bool {
-		return tied[erase(string(d.Property.ID), seqs)] || atSite(seeds, erase(string(d.Property.Provenance.Pointer), seqs))
+		at := erase(string(d.Property.Provenance.Pointer), seqs)
+		_, atMember := slices.BinarySearch(ties.members, at)
+		return tied[erase(string(d.Property.ID), seqs)] || atSite(ties.pointers, at) || atMember
 	}
 	for _, id := range models {
 		if u, isUnion := doc.Types[id].(*ir.Union); isUnion && !tied[erase(string(id), seqs)] && inferenceTied(doc, u, isTied) {

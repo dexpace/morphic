@@ -374,8 +374,9 @@ assertion shapes:
   and what `canonicalForm` in `canon.go` lists, and a tie the compiler states: a member that a
   report carrying a pair (`ir.RelatedKept`, `ir.RelatedDecided`) decides in each order, the two
   places the other way round and the two reports alike but for them, their severity and code
-  among what they share (`tiedBy` in `ties.go`), and each member settled from one, with every
-  node at or beneath where a tied member stands. Of a tied
+  among what they share (`tiedBy` in `ties.go`), and each member settled from one, with each node
+  its fold mints where it stands or at a position beneath it the fold builds a member at (`minted`
+  in `canon.go`); a node the source writes there is compared. Of a tied
   member only whether it is required is compared, and its docs where a stated tie alone decided it
   (`statedAlone`), so a dependence of a member settled from a tied one that the tie does not
   explain passes (#2099 writes one); of a member no tie decided, a report's kept place is not

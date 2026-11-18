@@ -85,7 +85,8 @@ func newRewriter(doc *ir.Document, seqs sequences, ties tieSites) (*rewriter, er
 		return nil, err
 	}
 	r := &rewriter{
-		seqs: seqs, ties: ties.pointers, nodes: map[string]bool{}, stated: map[string]bool{}, owners: map[string][]map[string]any{},
+		seqs: seqs, ties: ties.pointers, members: ties.members, nodes: map[string]bool{}, stated: map[string]bool{},
+		owners:  map[string][]map[string]any{},
 		digests: map[string]string{}, visiting: map[string]bool{},
 	}
 	for _, node := range ties.nodes {
@@ -138,13 +139,15 @@ type place struct {
 }
 
 // rewriter is the state of a document's forms: the sequences, the document's
-// encoding decoded, the tie sites and tied nodes it reads, the owners of each
+// encoding decoded, the tie sites, tied members' pointers and tied nodes it
+// reads, the owners of each
 // ID erasing changes, the digests computed so far, the IDs whose digest is
 // being computed and the innermost of them, and the first error met.
 type rewriter struct {
 	seqs      sequences
 	tree      any
 	ties      []string
+	members   []string
 	nodes     map[string]bool
 	stated    map[string]bool
 	owners    map[string][]map[string]any
@@ -403,24 +406,77 @@ func (r *rewriter) leftOut(name string, v any, p place) bool {
 }
 
 // tied returns how a tie reads o, and whether one decided it: o's pointer
-// erased where it is at or beneath a tie site, or its ID erased where a moved
-// report names it.
+// erased where it is at or beneath a tie site, o is a node a tied member's
+// fold minted (minted), or a tie names o where a tied member stands, and its
+// ID erased where a tie names it anywhere else.
 func (r *rewriter) tied(o map[string]any) (string, bool) {
-	if erased, tied := r.tiedAt(provenancePointer(o)); tied {
+	erased, atSite := r.tiedAt(provenancePointer(o))
+	id, hasID := o["id"].(string)
+	named := hasID && r.nodes[erase(id, r.seqs)]
+	switch {
+	case atSite, hasID && r.minted(id, erased), named && r.atMember(erased):
 		return erased, true
-	}
-	id, ok := o["id"].(string)
-	if ok && r.nodes[erase(id, r.seqs)] {
+	case named:
 		return erase(id, r.seqs), true
+	default:
+		return "", false
 	}
-	return "", false
+}
+
+// atMember reports whether erased, an erased pointer, is where a tied member
+// stands.
+func (r *rewriter) atMember(erased string) bool {
+	_, at := slices.BinarySearch(r.members, erased)
+	return at
 }
 
 // tiedNode reports whether a tie decided the node td, identified by id: it sits
-// at or beneath a tie site, or a moved report names it.
+// at or beneath a tie site, a tied member's fold minted it, or a tie names it.
 func (r *rewriter) tiedNode(id ir.TypeID, td ir.TypeDef) bool {
-	_, atSite := r.tiedAt(string(td.Common().Provenance.Pointer))
-	return atSite || r.nodes[erase(string(id), r.seqs)]
+	erased, atSite := r.tiedAt(string(td.Common().Provenance.Pointer))
+	return atSite || r.minted(string(id), erased) || r.nodes[erase(string(id), r.seqs)]
+}
+
+// minted reports whether the node id, at erased, an erased pointer, is one a
+// tied member's fold minted: in the composed namespace, at the member's
+// pointer or beneath it at a position the fold builds a member at
+// (docs/compilers/openapi.md#allof-redeclared-property), so which declaration
+// won decides it. A node written in the source beneath the member, alike in
+// either order, is not. The oracle reads one source, so no space is qualified.
+func (r *rewriter) minted(id, erased string) bool {
+	if parts := strings.SplitN(id, ir.IDSeparator, 3); len(parts) < 2 || parts[1] != "composed" {
+		return false
+	}
+	return slices.ContainsFunc(r.members, func(member string) bool {
+		rest, beneath := strings.CutPrefix(erased, member)
+		return beneath && mintedPosition(rest)
+	})
+}
+
+// mintedPosition reports whether rest, what follows a tied member's pointer in
+// another, is empty or names a position a fold builds a member at, a level
+// down each: items, additionalProperties, or prefixItems and an index.
+func mintedPosition(rest string) bool {
+	if rest == "" {
+		return true
+	}
+	tokens, rooted := strings.CutPrefix(rest, "/")
+	if !rooted {
+		return false
+	}
+	position := strings.Split(tokens, "/")
+	for i := 0; i < len(position); i++ {
+		switch position[i] {
+		case "items", "additionalProperties":
+		case "prefixItems":
+			if i++; i == len(position) || !decimal(position[i]) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // untie returns o without each member keyed by a tied node's ID, as a part's
@@ -499,9 +555,10 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
 	id := erase(string(p.Property.ID), r.seqs)
 	erased, atSite := r.tiedAt(string(prov.Pointer))
-	if atSite || r.nodes[id] {
+	minted := r.minted(string(p.Property.ID), erased)
+	if atSite || minted || r.nodes[id] {
 		tie := "reported tie " + id
-		if atSite {
+		if atSite || minted || r.atMember(erased) {
 			tie = "reported tie at " + erased
 		}
 		tie += " required " + strconv.FormatBool(p.Required)
