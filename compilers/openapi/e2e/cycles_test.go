@@ -283,7 +283,7 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 // error, so each gate, and fillRefBranch's two routes through a distributed
 // union, has a row whose loop runs through L, which sorts first. A loop past
 // the merge bound goes unread (#1570). A union beside structural
-// keywords reaches diagUnresolvedBranches only as case 3 of
+// keywords reaches diagUnresolvedBranches only as case 2 of
 // docs/compilers/openapi.md#union-beside-structure, which the why field checks.
 func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 	t.Parallel()
