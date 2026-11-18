@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,4 +72,28 @@ func TestUnion_APassedOverUnionSharingNoKindWithTheBodyKeepsBoth(t *testing.T) {
 			assert.Equal(t, want.reason, m.Unmodeled[key].Reason, "%s keeps %s", name, key)
 		}
 	}
+}
+
+// TestAllOf_ANullReadPastItsBudgetIsDecidedByEachConjunct holds the report of
+// conjuncts sharing no value, where the read of null passes the walk's budget,
+// to each conjunct read on its own: the keywords beside the allOf keep null
+// out by their own `type`, whatever the union of more strings than the walk
+// reads admits, so the schema is reported.
+func TestAllOf_ANullReadPastItsBudgetIsDecidedByEachConjunct(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	b.WriteString("    S: {type: string}\n    T:\n      anyOf:\n")
+	for range 300 {
+		b.WriteString("        - {$ref: '#/components/schemas/S'}\n")
+	}
+	b.WriteString("    P: {type: object, properties: {u: {type: string}}, allOf: [{$ref: '#/components/schemas/T'}]}\n")
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
+	var warned []string
+	for _, d := range diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/P") {
+		if d.Severity == ir.SeverityWarning {
+			warned = append(warned, d.Message)
+		}
+	}
+	require.Len(t, warned, 1)
+	assert.Contains(t, warned[0], "share no value (type: object, allOf/0: string)")
 }

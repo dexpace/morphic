@@ -363,6 +363,14 @@ func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
 	return foldNullReadings(foldNullReadings(typed, union), n.allOf(s, site))
 }
 
+// own is what s says of null by its own keywords, its unions among them and
+// its conjuncts aside, widened as schema widens it.
+func (n *nulls) own(s *statement.Schema) nullReading {
+	typed, union := n.valueParts(s)
+	own := foldNullReadings(typed, union)
+	return n.widenByBranch(s, n.widen(s, own, own, nullSite{}), nullSite{})
+}
+
 // valueParts is what s's type, const and enum say of null, and apart what its
 // oneOf and anyOf say, as n reads a union.
 func (n *nulls) valueParts(s *statement.Schema) (typed, union nullReading) {

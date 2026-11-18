@@ -3628,9 +3628,11 @@ the IR holds it, so a union admits null where one of its branches does and keeps
 does. So `{allOf: [{$ref: ON}], oneOf: [{type: string}, {type: boolean}]}` over an `ON` admitting an
 object or null is reported, a null being no value the union admits; with a `{type: 'null'}` branch
 beside the two the conjuncts share the null, which
-[`union-beside-structure`](#union-beside-structure) then reports as all that satisfies the schema. A read of null that runs out of its budget shares one unless what
-it read keeps null out, which no conjunct left unread lets back in. Where only one conjunct narrows
-the instance types nothing is reported, since one conjunct contradicts nothing, unless it admits no
+[`union-beside-structure`](#union-beside-structure) then reports as all that satisfies the schema.
+A read of null that runs out of its budget reads each conjunct on its own, as which ones it reached
+would follow the order they are written in: one keeping null out within its own budget decides, and
+otherwise they share it. Where only one conjunct narrows the instance
+types nothing is reported, since one conjunct contradicts nothing, unless it admits no
 value by itself and nothing else says so (below).
 
 What writes no `type` and no value set admits every kind, so a report is made only of what the

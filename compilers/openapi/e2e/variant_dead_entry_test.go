@@ -122,9 +122,9 @@ func TestCompile_AnEntryUnionBesideARestAdmittingNullIsKeptAndWarns(t *testing.T
 // warning of a union on an allOf entry whose only branch not dead is its null
 // one to the null the rest of the allOf admits: beside a rest admitting null,
 // null alone satisfies the schema; beside one keeping it out, nothing does,
-// which the report of conjuncts sharing no value says, and says too where a
-// cycle cuts short the read of another conjunct's null, as no conjunct left
-// unread lets back in a null the object keeps out.
+// which the report of conjuncts sharing no value says, and says too in either
+// order where a cycle cuts short the read of another conjunct's null, as the
+// object read on its own keeps null out.
 func TestCompile_AnEntryUnionWhoseNullBranchAloneLivesSaysWhatNullMeets(t *testing.T) {
 	t.Parallel()
 	branches := "{oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Str'}]}"

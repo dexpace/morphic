@@ -369,11 +369,29 @@ func unionAtoms(c lowering.Ctx, keyword string, branches []statement.Sub) []conj
 }
 
 // nullShared reports whether the conjuncts of the allOf s writes may share a
-// null: each may admit it wherever the IR holds it (mayAdmitNull), so one
-// keeping it out, a union none of whose branches admits it among them, leaves
-// none to share.
+// null: each may admit it wherever the IR holds it, as mayAdmitNull reads it,
+// so one keeping it out, a union none of whose branches admits it among them,
+// leaves none to share. Where the read passes the walk's budget, which
+// conjuncts it reached would follow their order, so each is read on its own:
+// one that keeps null out within its own budget decides, and otherwise they
+// share it.
 func nullShared(c lowering.Ctx, s *statement.Schema) bool {
-	return mayAdmitNull(c, c.Statements().Read(s), nil)
+	n := newNulls(c)
+	n.variants = true
+	if r := n.conjunct(c.Statements().Read(s), nullSite{}); !n.conjuncts.Exhausted() {
+		return r.admits(c)
+	}
+	keepsOut := func(read func(n *nulls) nullReading) bool {
+		n := newNulls(c)
+		n.variants = true
+		return read(&n).forbids(c) && !n.conjuncts.Exhausted()
+	}
+	if keepsOut(func(n *nulls) nullReading { return n.own(s) }) {
+		return false
+	}
+	return !slices.ContainsFunc(conjunctsIn(c, s), func(b *statement.Statement) bool {
+		return keepsOut(func(n *nulls) nullReading { return n.conjunct(b, nullSite{}) })
+	})
 }
 
 // empty reports whether a admits no value by itself, the null included as
