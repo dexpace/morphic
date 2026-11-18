@@ -3922,8 +3922,8 @@ one of the shapes below, the node keeps both as that shape keeps a union, with t
 findings alone, on one entry or two alike. Wherever it is written, the union passed over is a
 conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts); one sharing no kind with the rest read
-without either union leaves no instance satisfying the two, whichever branch is taken, so the
-position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
+without either union, a union of null alone beside a rest admitting no null among them, leaves no
+instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
 naming its own keywords and that union. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
@@ -4303,7 +4303,8 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs`,
   `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
   `e2e.TestUnionAlone_ABodyBesideItStillDistributes`,
-  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
+  `e2e.TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
   legal (#1806).
 

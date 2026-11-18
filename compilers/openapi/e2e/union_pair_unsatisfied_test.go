@@ -83,3 +83,29 @@ func infosOnce(findings any) []string {
 	}
 	return out
 }
+
+// TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs
+// holds that a union of null alone and a union of objects over an object body,
+// which admits no null, lower as the unsatisfied pairs do wherever written:
+// the Model the body gives, keeping both unions, with one warning, whichever
+// keyword writes the null (GitHub #2011).
+func TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs(t *testing.T) {
+	t.Parallel()
+	const null = "[{type: 'null'}]"
+	pairs := []struct{ name, oneOf, anyOf string }{
+		{"the anyOf", bothKeywordsOneOf, null},
+		{"the oneOf", null, bothKeywordsOneOf},
+	}
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		for _, site := range bothKeywordsSites {
+			for _, pair := range pairs {
+				for _, body := range []string{"{type: object, properties: {a: {type: string}}}", entryRef} {
+					t.Run(fmt.Sprintf("%s/%s/%s/%t", version, site.name, pair.name, body == entryRef), func(t *testing.T) {
+						t.Parallel()
+						checkUnsatisfiedPair(t, site, version, unionPairSpellings(body, pair.oneOf, pair.anyOf))
+					})
+				}
+			}
+		}
+	}
+}
