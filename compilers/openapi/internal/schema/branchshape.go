@@ -45,12 +45,18 @@ type bodyReading struct {
 	own bool
 }
 
-// readBody reads s, the schema writing a union, for its branches to be judged
-// against.
-func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
+// readBody reads s, the schema at the position of a union holder writes, for
+// the union's branches to be judged against: holder's own keywords without its
+// oneOf and anyOf, as where s itself is the holder, so a union is judged by the
+// rest whichever entry writes it.
+func readBody(c lowering.Ctx, s, holder *statement.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmissionReader(c), body: s}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	for _, b := range conjunctsIn(c, s) {
+		if b.Schema == holder && b.Ref == nil {
+			r.held = r.held.and(writtenLowered(&r.w, holder, r.w.nullable))
+			continue
+		}
 		r.held = r.held.and(lowered(&r.w, b))
 	}
 	return r
@@ -91,15 +97,16 @@ func (r *bodyReading) declared() declarationSet {
 // a reading its budget cut short says nothing, so it counts as one that does.
 func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
 	choice := s.ChoiceKeywords()
-	return setsDeclareShape(c, s, choice.OneOf, choice.AnyOf)
+	return setsDeclareShape(c, s, s, choice.OneOf, choice.AnyOf)
 }
 
-// setsDeclareShape is unionBranchesDeclareShape for the branches of sets, a
-// union on an allOf branch of s among them, judged against s as the body. The
+// setsDeclareShape is unionBranchesDeclareShape for the branches of sets,
+// written by holder, s or an allOf branch of it, judged against s as the body,
+// read without holder's unions; a nil holder reads the conjunction whole. The
 // body's own reading settles first each branch restating what s itself writes
 // (ownRestatements), and only the rest are judged against the whole reading,
 // which they would restate under too, as more declarations admit less.
-func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]statement.Sub) bool {
+func setsDeclareShape(c lowering.Ctx, s, holder *statement.Schema, sets ...[]statement.Sub) bool {
 	branches := statementsOf(c, slices.Concat(sets...))
 	if slices.ContainsFunc(branches, func(b *statement.Statement) bool { return referenceOf(c, b) != nil }) {
 		return true
@@ -108,7 +115,7 @@ func setsDeclareShape(c lowering.Ctx, s *statement.Schema, sets ...[]statement.S
 	var r *bodyReading
 	body := func() *bodyReading {
 		if r == nil {
-			r = readBody(c, s)
+			r = readBody(c, s, holder)
 		}
 		return r
 	}

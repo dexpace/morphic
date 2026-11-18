@@ -36,7 +36,7 @@ type deadBranchesOf struct {
 // union again.
 func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 	return lowering.Remembered(c, deadBranchesOf{body, holder}, func() []bool {
-		branches, _, _ := unionBranches(holder)
+		branches, _, _ := unionBranches(c, body, holder)
 		out := make([]bool, len(branches))
 		if !restAdmitsObjects(c, body, holder) {
 			return out
@@ -120,7 +120,7 @@ type deadBranchAt struct {
 
 // deadOf returns the branches of u that dead marks, in branch order.
 func deadOf(c lowering.Ctx, u unionAt, dead []bool) []deadBranchAt {
-	branches, key, _ := unionBranches(u.holder)
+	branches, key, _ := u.branches(c)
 	var out []deadBranchAt
 	for i, b := range branches {
 		if dead[i] {
@@ -170,7 +170,7 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 		names = append(names, pathFrom(pointer, d.at)+": "+word)
 	}
 	r := deadReport{listed: strings.Join(names, ", "), dead: len(found)}
-	r.branches, r.key, _ = unionBranches(u.holder)
+	r.branches, r.key, _ = u.branches(c)
 	if u.branch {
 		r.on = pathFrom(pointer, u.at)
 	}
@@ -295,7 +295,7 @@ func deadRoutesOf(c lowering.Ctx, u unionAt) []deadRoute {
 	if u.disc == nil || !slices.Contains(u.dead, true) {
 		return nil
 	}
-	branches, key, _ := unionBranches(u.holder)
+	branches, key, _ := u.branches(c)
 	x := newBranchIndex(nil)
 	named := map[string][]int{}
 	for n, b := range branches {
@@ -395,7 +395,7 @@ func routesClause(u unionAt, pronoun string) string {
 
 // hasLiveBranch reports whether some branch of u is neither dead nor null.
 func hasLiveBranch(c lowering.Ctx, u unionAt, dead []bool) bool {
-	branches, _, _ := unionBranches(u.holder)
+	branches, _, _ := u.branches(c)
 	for i, b := range branches {
 		if !dead[i] && !nullBranch(c, c.Statements().Sub(b)) {
 			return true

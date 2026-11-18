@@ -3848,13 +3848,14 @@ position distributes one union, so no two such keys meet. It draws an info
 `openapi/degraded-construct` at the branch. That is the branch's one home: it lowers at no pointer
 of its own, and the target of a `$ref` it writes is the node it is wherever it is named. A schema
 writing both a `oneOf` and an `anyOf`, beside the body or as one inline entry of its `allOf`,
-distributes its `oneOf`, as [`competing-keywords`](#competing-keywords) elects it, and each variant
-keeps the `anyOf` verbatim under `openapi:anyOf`, its provenance where it is written: as
-`validation_only` where its branches declare no shape against the position, the entry's other
-keywords and the rest of the `allOf` among it, with an info `openapi/validation-only-keyword`,
-and else as `degraded_lowering`, drawing that rule's info where the two are written; where the
-`oneOf` is one of the shapes below, the node keeps both as that shape keeps a union, with that
-shape's findings alone. Such a
+distributes the one [`competing-keywords`](#competing-keywords) elects, the one whose branches
+declare shape against the position, its `oneOf` where both do, and each variant keeps the other
+verbatim under its keyword, its provenance where it is written: as `validation_only` where its
+branches declare no shape against the position, the rest of the `allOf` and the entry's own keywords
+among it and neither union, with an info `openapi/validation-only-keyword`, and else as
+`degraded_lowering`, drawing that rule's info where the two are written; where the elected union is
+one of the shapes below, the node keeps both as that shape keeps a union, with that shape's
+findings alone. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -3934,7 +3935,7 @@ writes no union of its own, its `allOf` composes rather than refines
 declare shape (below), or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. An entry writing both is one such union and
-lowers as a schema writing both does (above), each variant keeping its `anyOf`. The `discriminator` standing with it is the one its branch writes, else the
+lowers as a schema writing both does (above), each variant keeping the union it passes over. The `discriminator` standing with it is the one its branch writes, else the
 one beside the `allOf`: where both write one, nothing says which routes the union, so it is kept as
 what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword where
 the two are written alike and with its branch whole, under `openapi:allOf/<i>`, where they differ,
@@ -4173,6 +4174,7 @@ judged as one whose branches declare shape.
   `e2e.TestElection_BothKeywordsOnOneEntryKeepWhatTheyKeepBesideTheAllOf`,
   `e2e.TestElection_AnEntryWritingBothBesideAnotherOneOfDistributesNeither`,
   `e2e.TestElection_BothKeywordsOnOneEntryOfARoutedSubtypeKeepTheAnyOfAsBeside`,
+  `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
   `e2e.TestElection_TwoAnyOfUnionsBesideABodyDistributeNeither`,
   `e2e.TestElection_TwoOneOfUnionsBesideABodyDistributeNeither`,
   `schema.TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin`,
@@ -4226,7 +4228,8 @@ target.
 Keywords conjoin, so `{const: a, enum: [a, b]}` admits `a` alone rather than being a malformed
 document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
 Three families compete for it: the value keywords `const`, `enum` and `allOf`, elected in that
-order; the two union combinators, where `oneOf` wins; and a parameter's or header's `schema` beside
+order; the two union combinators, where the one whose branches declare shape against the position
+wins, the `oneOf` where both or neither do; and a parameter's or header's `schema` beside
 its `content`, where `content` wins, since a media-type entry names both a schema and the media type
 serializing it and the IR models both ([`content-parameters`](#content-parameters)). The IR has no
 intersection combinator ([boundaries](../ir/boundaries.md#deliberate-exclusions), as for
@@ -4271,6 +4274,8 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
   `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
   `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
+  `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
 ### `discriminator`

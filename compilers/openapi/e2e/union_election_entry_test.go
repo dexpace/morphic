@@ -66,7 +66,11 @@ const bothKeywordsOneOf = "[{type: object, properties: {b: {type: string}}}, {ty
 // two entries and on one, each in either order, and beside the body's own
 // keywords where it is inline. The first is the one each other is compared to.
 func bothKeywordsSpellings(body, anyOf string) map[string]string {
-	one := bothKeywordsOneOf
+	return unionPairSpellings(body, bothKeywordsOneOf, anyOf)
+}
+
+// unionPairSpellings is bothKeywordsSpellings for the oneOf one.
+func unionPairSpellings(body, one, anyOf string) map[string]string {
 	spellings := map[string]string{
 		"one entry":                    "{allOf: [" + body + ", {oneOf: " + one + ", anyOf: " + anyOf + "}]}",
 		"one entry, the anyOf first":   "{allOf: [" + body + ", {anyOf: " + anyOf + ", oneOf: " + one + "}]}",
@@ -281,4 +285,53 @@ func TestElection_BothKeywordsOnOneEntryOfARoutedSubtypeKeepTheAnyOfAsBeside(t *
 			assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:anyOf": ir.ReasonValidationOnly}, keptOn(union))
 		})
 	}
+}
+
+// TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten holds that a oneOf
+// and an anyOf over a body lower alike beside the allOf, on one entry or on two,
+// at every version and position, where the anyOf alone declares shape: the
+// union declaring shape is elected.
+func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
+	t.Parallel()
+	objects := "[{type: object, properties: {d: {type: string}}}, {type: object, properties: {e: {type: string}}}]"
+	shapes := []struct {
+		name, oneOf, anyOf string
+		bodies             []string
+		check              func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, at jsontext.Pointer)
+	}{
+		{"the anyOf alone declares shape", "[{required: [a]}, {maxProperties: 3}]", objects,
+			[]string{"{type: object, properties: {a: {type: string}}}", entryRef},
+			func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, at jsontext.Pointer) {
+				t.Helper()
+				requireErrorsAndWarnings(t, diags, nil)
+				union := requireUnionOf(t, doc, at, 2)
+				assert.False(t, union.Exclusive, "the anyOf is elected")
+				for _, v := range union.Variants {
+					assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonValidationOnly},
+						keptOn(kindNode(t, doc, v.Type.Target)), "each variant keeps the oneOf")
+				}
+			}},
+	}
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, site := range bothKeywordsSites {
+			for _, shape := range shapes {
+				for i, body := range shape.bodies {
+					t.Run(fmt.Sprintf("%s/%s/%s/%d", version, site.name, shape.name, i), func(t *testing.T) {
+						t.Parallel()
+						doc, diags := compileSpellingsAlike(t, site, version, unionPairSpellings(body, shape.oneOf, shape.anyOf))
+						shape.check(t, doc, diags, site.at)
+					})
+				}
+			}
+		}
+	}
+}
+
+// requireUnionOf holds the node at the position at to a Union of n variants.
+func requireUnionOf(t *testing.T, doc *ir.Document, at jsontext.Pointer, n int) *ir.Union {
+	t.Helper()
+	union, ok := kindNode(t, doc, entryPositionID(at)).(*ir.Union)
+	require.True(t, ok, "the position is a Union")
+	require.Len(t, union.Variants, n)
+	return union
 }

@@ -172,7 +172,7 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 	// Of a oneOf and an anyOf written beside the body, the oneOf is elected
 	// (unionBranches), as on one entry of its allOf or two, and the other is
 	// kept on each variant (buildComposedVariant).
-	if !branchesNameReferents(c, s) {
+	if !branchesNameReferents(c, s, s) {
 		return unionUnresolvedBranch
 	}
 	return classifyConjoined(c, s, besideUnion(s, pointer), pointer)
@@ -238,8 +238,8 @@ func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
 // whole union because a half-distributed one would leave variants disagreeing
 // about whether they carry the body, with nothing in the IR saying which. A
 // branch writing its $ref beside other keywords is read by that $ref.
-func branchesNameReferents(c lowering.Ctx, s *statement.Schema) bool {
-	branches, _, _ := unionBranches(s)
+func branchesNameReferents(c lowering.Ctx, position, s *statement.Schema) bool {
+	branches, _, _ := unionBranches(c, position, s)
 	return !slices.ContainsFunc(branches, func(b statement.Sub) bool {
 		ref := referenceOf(c, c.Statements().Sub(b))
 		return ref != nil && !namesReferent(c, ref)
@@ -295,7 +295,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 // at the same severity as everywhere else, with the reason refTypeRef's report
 // gives (unresolvedWhy).
 func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	branches, key, _ := unionBranches(s)
+	branches, key, _ := unionBranches(c, s, s)
 	var diags []ir.Diagnostic
 	for i, b := range branches {
 		st := referenceOf(c, c.Statements().Sub(b))

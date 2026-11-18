@@ -957,9 +957,9 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi:anyOf`, and a discriminator mapping to a branch under `openapi:discriminator`. A union
     on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed. A
     `oneOf` and an `anyOf` written together over a body, beside its keywords or its `allOf` or on
-    one inline entry of that `allOf`, distribute the `oneOf`, each variant keeping the `anyOf` under
-    `openapi:anyOf`, where the position was a `Model` keeping both, under their keywords or with the
-    entry whole.
+    one inline entry of that `allOf`, distribute the one whose branches declare shape against the
+    position, the `oneOf` where both do, each variant keeping the other under its keyword, where the
+    position was a `Model` keeping both, under their keywords or with the entry whole.
   - **`Constraints`** ([constraints](./constraints.md#constraints),
     [`constraints`](../compilers/openapi.md#constraints)). A bound is read by the kinds its home
     lowers from: those of a value set's members, a `type` beside any `$ref` of its chain, and an

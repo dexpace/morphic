@@ -176,7 +176,7 @@ func newBranchIndex(variants []ir.Variant) *branchIndex {
 // branches and the variants' IDs, never the registry, so no lowering order
 // reaches an answer. A branch's chain is read as a value's is (follow).
 func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchIndex {
-	branches, key, _ := unionBranches(u.holder)
+	branches, key, _ := u.branches(c)
 	x := newBranchIndex(variants)
 	x.dead = u.deadRoutes
 	for n, b := range branches {

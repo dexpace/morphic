@@ -44,7 +44,7 @@ type liftedNull struct {
 // liftedNulls returns the null branches of the union unionBranches elects of
 // s, written at pointer, in source order.
 func liftedNulls(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []liftedNull {
-	branches, key, _ := unionBranches(s)
+	branches, key, _ := unionBranches(c, s, s)
 	var out []liftedNull
 	for i, b := range branches {
 		st := c.Statements().Sub(b)

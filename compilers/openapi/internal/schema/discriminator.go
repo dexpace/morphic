@@ -157,7 +157,7 @@ func routesByName(c lowering.Ctx, a, s *statement.Schema) bool {
 	if !stated(holder) {
 		return true
 	}
-	branches, _, _ := unionBranches(holder)
+	branches, _, _ := unionBranches(c, a, holder)
 	listed := lowering.Remembered(c, listedBy{a}, func() map[*statement.Schema]bool {
 		set := make(map[*statement.Schema]bool, len(branches))
 		for _, b := range branches {
@@ -254,7 +254,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 		return false
 	}
 	return lowering.Remembered(c, composedByOf{s, u.holder}, func() bool {
-		branches, _, _ := unionBranches(u.holder)
+		branches, _, _ := u.branches(c)
 		return slices.ContainsFunc(branches, func(b statement.Sub) bool {
 			st := c.Statements().Sub(b)
 			target := st.Schema
@@ -305,7 +305,7 @@ func discriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, s, holder *stat
 // the model's Discriminator already holds.
 func namedBranches(c lowering.Ctx, s *statement.Schema) []ir.TypeID {
 	scope := c.RefScope()
-	branches, _, _ := unionBranches(s)
+	branches, _, _ := unionBranches(c, s, s)
 	var named []ir.TypeID
 	for _, b := range branches {
 		if _, id, ok := componentNamed(scope, referenceOf(c, c.Statements().Sub(b))); ok {
@@ -420,7 +420,7 @@ func typesAreNamed(routes []implicitRoute, variants []ir.Variant) bool {
 // A branch written inline, or a $ref to any other position, names none.
 func implicitRoutes(c lowering.Ctx, u unionAt) []implicitRoute {
 	scope := c.RefScope()
-	branches, _, _ := unionBranches(u.holder)
+	branches, _, _ := u.branches(c)
 	routes := make([]implicitRoute, 0, len(branches))
 	for i, b := range branches {
 		st := c.Statements().Sub(b)

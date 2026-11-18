@@ -55,7 +55,7 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 	}
 	takes := boundKinds(c, s)
 	if declaresUnion(s) {
-		branches, _, _ := unionBranches(s)
+		branches, _, _ := unionBranches(c, s, s)
 		return boundHomes{value: takes, collection: slices.ContainsFunc(branches, func(b statement.Sub) bool {
 			kinds, _ := lowersTo(c, c.Statements().Sub(b))
 			return kinds == kindArray

@@ -102,7 +102,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 // name. Each variant is its branch's own lowering, as a union written alone
 // lowers it, so the node is what a component holding u would be.
 func mintUnion(c lowering.Ctx, ts *compile.Types, depth int, u unionAt) (ir.TypeID, []ir.Diagnostic) {
-	_, key, _ := unionBranches(u.holder)
+	_, key, _ := u.branches(c)
 	at := u.at + ids.Ptr(key)
 	id := c.IDs().ComposedType(at)
 	common := commonFor(c, id, at)
@@ -263,7 +263,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	requireMembers(m, compositionRequired(body.schema.ObjectKeywords().Required, body.comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
-	_, key, _ := unionBranches(body.union.holder)
+	_, key, _ := body.union.branches(c)
 	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union, key)...)
 	if !composes {
 		// A variant composing nothing over a body that is a map alone is that map.
