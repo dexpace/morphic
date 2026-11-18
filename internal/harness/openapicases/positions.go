@@ -56,6 +56,9 @@ func positions() []position {
 		{name: "patternProperty", place: func(s object) (object, object) {
 			return in(object{{"type", "object"}, {"patternProperties", object{{"^x", s}}}})
 		}, pointer: "/components/schemas/C/patternProperties/^x", span: from31},
+		{name: "contentSchema", place: func(s object) (object, object) {
+			return in(object{{"type", "string"}, {"contentMediaType", "application/json"}, {"contentSchema", s}})
+		}, pointer: "/components/schemas/C/contentSchema", span: from31},
 		{"parameter", func(s object) (object, object) {
 			param := object{{"name", "q"}, {"in", "query"}, {"schema", s}}
 			return atCasePath(object{{"get", object{{"parameters", []any{param}}, {"responses", okResponses}}}})

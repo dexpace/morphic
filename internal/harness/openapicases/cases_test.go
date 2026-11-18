@@ -229,7 +229,7 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
 		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}, {Name: "besideEntry"}}, axes[5].Values)
 	assert.Equal(t, []harness.Value{{Name: "component"}, {Name: "property"}, {Name: "items"}, {Name: "additionalProperties"},
-		{Name: "branch"}, {Name: "anyOfBranch"}, {Name: "prefixItem"}, {Name: "patternProperty"}, {Name: "parameter"}, {Name: "requestBody"}, {Name: "responseBody"},
+		{Name: "branch"}, {Name: "anyOfBranch"}, {Name: "prefixItem"}, {Name: "patternProperty"}, {Name: "contentSchema"}, {Name: "parameter"}, {Name: "requestBody"}, {Name: "responseBody"},
 		{Name: "header"}}, axes[4].Values)
 }
 
