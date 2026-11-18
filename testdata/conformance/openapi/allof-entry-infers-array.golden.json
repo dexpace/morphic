@@ -1,0 +1,541 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AllOfEntryInfersArray",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfEntryInfersArray",
+        "canonical": "all_of_entry_infers_array"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1tags/get",
+              "name": {
+                "source": "listTags",
+                "canonical": "list_tags"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1tags/get/parameters/names/query",
+                  "name": {
+                    "source": "names",
+                    "canonical": "names"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1tags/get/parameters/0/schema/allOf/0",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tags/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/tags",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1tags/get/parameters/names/query",
+                        "location": "query",
+                        "wireName": "names",
+                        "style": "form",
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tags/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/NamesBounded/allOf/0": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/NamesBounded/allOf/0",
+      "name": {
+        "hint": "names_bounded"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NamesBounded/allOf/0",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/NamesEntry/allOf/0": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/NamesEntry/allOf/0",
+      "name": {
+        "hint": "names_entry"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NamesEntry/allOf/0",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/PairEntry/allOf/0": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/PairEntry/allOf/0",
+      "name": {
+        "hint": "pair_entry"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PairEntry/allOf/0",
+        "inferred": "kind-inference"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Tagged/properties/entry/allOf/0": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Tagged/properties/entry/allOf/0",
+      "name": {
+        "hint": "entry"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tagged/properties/entry/allOf/0",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Tagged/properties/flat": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Tagged/properties/flat",
+      "name": {
+        "hint": "flat"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tagged/properties/flat",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1tags/get/parameters/0/schema/allOf/0": {
+      "kind": "list",
+      "id": "t/anon/paths/~1tags/get/parameters/0/schema/allOf/0",
+      "name": {
+        "hint": "names"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1tags/get/parameters/0/schema/allOf/0",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Names": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Names",
+      "name": {
+        "source": "Names",
+        "canonical": "names"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Names",
+        "inferred": "kind-inference"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/NamesBounded": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/NamesBounded",
+      "name": {
+        "source": "NamesBounded",
+        "canonical": "names_bounded"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NamesBounded"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/NamesBounded/allOf/0",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/NamesEntry": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/NamesEntry",
+      "name": {
+        "source": "NamesEntry",
+        "canonical": "names_entry"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NamesEntry"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/NamesEntry/allOf/0",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Pair": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/Pair",
+      "name": {
+        "source": "Pair",
+        "canonical": "pair"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pair",
+        "inferred": "kind-inference"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/PairEntry": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/PairEntry",
+      "name": {
+        "source": "PairEntry",
+        "canonical": "pair_entry"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PairEntry"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/PairEntry/allOf/0",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Tagged": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Tagged",
+      "name": {
+        "source": "Tagged",
+        "canonical": "tagged"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tagged"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Tagged/properties/flat",
+          "name": {
+            "source": "flat",
+            "canonical": "flat"
+          },
+          "wireName": "flat",
+          "type": {
+            "target": "t/anon/components/schemas/Tagged/properties/flat",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tagged/properties/flat"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tagged/properties/entry",
+          "name": {
+            "source": "entry",
+            "canonical": "entry"
+          },
+          "wireName": "entry",
+          "type": {
+            "target": "t/anon/components/schemas/Tagged/properties/entry/allOf/0",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tagged/properties/entry"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Tagged/properties/bounded",
+          "name": {
+            "source": "bounded",
+            "canonical": "bounded"
+          },
+          "wireName": "bounded",
+          "type": {
+            "target": "t/openapi/components/schemas/NamesBounded",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "maxItems": 3,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tagged/properties/bounded"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-entry-infers-array.yaml",
+      "hash": "c4931ac79cf9e7d1fa5759db4328f02e812c49fdd742db88cdda837c09f3577f"
+    }
+  ]
+}

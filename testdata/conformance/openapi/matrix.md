@@ -41,7 +41,7 @@ witnessing it.
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
   `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
-  `allof-refinement`, `codeclared-keywords`, `allof-union-branch`
+  `allof-refinement`, `codeclared-keywords`, `allof-union-branch`, `allof-entry-infers-array`
 
 ### `negation`
 

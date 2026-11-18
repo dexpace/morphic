@@ -906,6 +906,9 @@ it sees. Changes made together in one bump are listed together under it.
   says, and an `allOf` naming a `$ref` the policy reads as kinds leaving out one its other
   conjuncts declare is a use of the declared kinds, keeping the `$ref`, where it composed a model
   over a target writing `properties` alone. A model an `allOf` composes is marked where no conjunct declares its kind.
+  An `allOf` entry whose own keywords claim every kind the policy reads its position as says that kind,
+  as one writing that `type` does, so `{allOf: [{items: …}]}` is a use of the marked `List` its entry
+  builds, as `{items: …}` is that `List`, where it was the top type keeping the `items`.
   Object keywords written with no `type` beside a union are a body it distributes across where the
   kinds the position lowers to are an object alone, a closure or a catch-all beside a union of
   objects among them, and nowhere else: a `properties` beside a union naming another kind is the top

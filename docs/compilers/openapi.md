@@ -2356,7 +2356,13 @@ in the pointer of the node it lowers to.
 A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
 `{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second branch kept, in
 either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
-naming neither. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
+naming neither. Where nothing declares a kind and the kind-inference policy reads the position's
+kinds off its conjuncts' claims ([`shape-applicator`](#shape-applicator)), a conjunct whose own
+keywords claim every one of them names them, as one writing that `type` would: `{allOf: [{items:
+{type: string}}, {minItems: 1}]}` is a use of the `List` its first entry builds, marked, holding the
+bound, as `{allOf: [{type: array, items: {type: string}}, {minItems: 1}]}` is a use of its unmarked
+one, and `{items: {type: string}, allOf: [{items: {minLength: 1}}]}` lowers by the keywords beside
+the `allOf`. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
 principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
 as if no `allOf` were written. An inline principal writing a value set lowers it at the position's
 pointer, as the keywords beside the `allOf` would, so one node stands for the position whichever
@@ -2444,9 +2450,11 @@ The IR's rule that compilers leave flattening to emitters
 keeping such an `allOf` a decorator for emitters to collapse is weighed in
 [models](../ir/models.md#an-allof-no-object-satisfies).
 
-- Cases: `allof-refinement`
+- Cases: `allof-refinement`, `allof-entry-infers-array`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
 - Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+  `e2e.TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal`,
+  `e2e.TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAlikeInEitherOrder`,
   `e2e.TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling`,
@@ -4814,7 +4822,11 @@ is a claim, and only then is the node marked. So that schema is a use of the str
 entry with an info, as with the policy off, and a `$ref` whose target the policy reads as kinds
 leaving out one the declarations name is no principal ([`allof-refinement`](#allof-refinement)). An `allOf`
 composed as a model where no conjunct declares a kind, as one over two `$ref`s to schemas writing
-`properties` alone, is marked. Split over entries, keywords of both kinds part from their flat
+`properties` alone, is marked. Split over entries, a keyword infers as in its flat spelling where the
+claims of one conjunct name every kind the position lowers to: that conjunct is the principal
+([`allof-refinement`](#allof-refinement)), so `{allOf: [{items: …}]}` is a use of the marked `List`
+its entry builds, as `{items: …}` is that `List`, and a bound of another kind beside a `$ref` to it
+is placed by the `List`. Keywords of both kinds part from their flat
 spelling: `{allOf: [{properties: …}, {items: …}]}` admits an object and an array, so it is no model
 but the top type keeping each entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
 already says what a keyword does, as a union lowered alone restating the body's `type` or a body
@@ -4870,9 +4882,11 @@ holds it, a value bound where a variant whose type takes it does: a distributed 
 are consumed, and a `format` or `maxItems` beside them is kept on the union, under a report naming a
 union of models.
 
-- Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
+- Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`, `allof-entry-infers-array`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
+  `e2e.TestKindInference_AnEntryClaimNamesNoKindItDoesNotHoldAlone`,
+  `e2e.TestKindInference_ABoundBesideARefToAnInferredListIsPlacedByTheList`,
   `e2e.TestKindInference_AnUntypedPropertiesSchemaIsMarked`,
   `e2e.TestKindInference_AnInlineSchemaIsMarkedAtEachPositionOwningANode`,
   `e2e.TestKindInference_ANullTypeStillInfersTheKind`,

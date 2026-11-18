@@ -430,7 +430,8 @@ func refinableBranches(comp allOfComposition) bool {
 // read alone: its entries are conjuncts of their own.
 func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s), at: -1}
+	claims := inferredClaims(w.c, s)
+	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s) || claimsAll(w.c, s, claims), at: -1}
 	if nullIdiom(w.c, s) {
 		// The null is the reference's, which the policy widens (nulls.widenRef).
 		own.read.kinds, own.says = kindAny, false
@@ -445,7 +446,7 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]con
 			out = append(out, conjunct{branch: e, at: i, read: w.of(e.schema), schema: bs})
 		default:
 			out = append(out, conjunct{branch: e, at: i, read: inlineConjunct(w, bs), schema: bs,
-				says: saysKind(bs) || declaresUnion(bs), form: unionForm(bs)})
+				says: saysKind(bs) || declaresUnion(bs) || claimsAll(w.c, bs, claims), form: unionForm(bs)})
 		}
 	}
 	if !declaresUnion(s) {
@@ -460,6 +461,26 @@ func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]con
 	}
 	out[0].read, out[0].says, out[0].form = out[0].read.and(union), true, unionForm(s)
 	return out, false
+}
+
+// inferredClaims returns the kinds s lowers to, null aside, where the
+// kind-inference policy read them off the claims of its conjuncts, and none
+// where s or a conjunct declares a kind.
+func inferredClaims(c lowering.Ctx, s *statement.Schema) kindSet {
+	kinds, inferred := lowersTo(c, c.Statements().Read(s))
+	if !inferred {
+		return 0
+	}
+	return kinds &^ kindNull
+}
+
+// claimsAll reports whether the keywords s writes itself claim every kind of
+// claims, the kinds the position lowers to by the kind-inference policy
+// (inferredClaims): s then says what kind of value the position is, as one
+// writing that `type` would, so `{allOf: [{items: X}]}` is a use of the list
+// its entry is, as `{items: X}` is one (docs/compilers/openapi.md#shape-applicator).
+func claimsAll(c lowering.Ctx, s *statement.Schema, claims kindSet) bool {
+	return claims != 0 && claims&^claimedKinds(c, s) == 0
 }
 
 // inlineConjunct is what bs, an inline branch, admits as w reads it: its own
