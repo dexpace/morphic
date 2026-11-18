@@ -4720,9 +4720,9 @@ one for every way an object lowers — a plain object, an `allOf`
 ([`allof-required`](#allof-required)), the object variant of a multi-typed schema, a distributed
 union's variant — and reports nothing, since nothing is lost. An object writing a catch-all beside a
 name its properties do not declare is a `Model`, not a `MapT`, since a map requires no key, and
-stays one when a discriminator moves off it. A `required` beside a `$ref` is kept on the alias the
-`$ref` site hoists ([`shape-applicator`](#shape-applicator)), as any keyword is there that composes
-the referent.
+stays one when a discriminator moves off it. A `required` beside a `$ref` lands as it does beside an
+`allOf` of the `$ref` ([`ref-use-site`](#ref-use-site)): `{$ref: User, required: [id]}` is a
+`Model` over `User` whose `Requires` names `id`, at a property as at a component.
 
 - Cases: `allof-required-only`, `required-members`
 - Tests: `schema.TestModel_PlainRequiredUndeclaredPropertyLandsInRequires`,
