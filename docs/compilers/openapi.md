@@ -2423,7 +2423,8 @@ beside the `allOf` would, so one node stands for the position whichever conjunct
 value set, a `Union`, a `List`, a `Tuple` or a hoisted `Scalar`, its children and the reports on
 what it writes where they are written, so `{allOf: [{description: d}, {type: array, items: {type:
 string}}]}` is the `List` at the position, as its flat spelling is, and a node its `items` builds
-stands at `…/allOf/1/items`. The node holds the
+stands at `…/allOf/1/items`. A type list's variants, which no pointer of the source names, stand
+under the position's ([`type-arrays`](#type-arrays)). The node holds the
 bounds of the conjunction, the position's own and each other conjunct's, as the same keywords
 written beside each other give it them, and the conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
@@ -2524,6 +2525,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestEntryValueSet_TheWrapAndTheEntrySpellingsCompileAlike`,
   `e2e.TestEntryValueSet_AReferenceToThePositionReadsItsNode`,
   `e2e.TestEntryValueSet_AReferenceToAnEntryNamesTheEntryAlone`,
+  `e2e.TestInlinePrincipal_AReferenceToAVariantEntryNamesWhatTheEntryWrites`,
   `e2e.TestEntryValueSet_SeveralRefsAreKeptByTheirReferenceText`,
   `e2e.TestEntryValueSet_AnObjectValueSetIsElectedBeforeTheComposition`,
   `e2e.TestEntryValueSet_AValueSetTheTargetAlreadySaysStandsNowhere`,
@@ -3747,7 +3749,12 @@ other than `null`, in order, each lowered from the same schema as that type alon
 applies to it, and named by it: for `object` or `array` a node hoisted at `<pointer>/type/<index>`,
 and for a scalar type the shared primitive, or a `Scalar` hoisted at that pointer where the variant
 holds what the primitive cannot, a value bound, a format naming an encoding or the content
-vocabulary. The pointer holds a type's name and no schema, so nothing else is interned there. A
+vocabulary. The pointer holds a type's name and no schema, so nothing else is interned there.
+Where an `allOf` entry the position lowers from writes the list
+([`allof-refinement`](#allof-refinement)), `<pointer>` is the position's: the variants are parts of
+the position's node, built from the whole conjunction, where the same keywords written flat there
+put them. A `$ref` to the entry builds a `Union` of its own, its variants under the entry's pointer,
+built from what the entry writes alone. A
 `null` among them makes the position nullable instead ([`nullable`](#nullable)), so one type and
 `null` lower as that type alone, nullable, and a list of `null` alone as a schema of `null` alone
 does ([`null-alone`](#null-alone)). The union is exclusive unless two listed types overlap:
@@ -3801,7 +3808,8 @@ and teaching the relation the step would change what it means for every document
   `schema.TestLower_ATypeArraysVariantsSwapWithItsTypes`,
   `schema.TestLower_ATypeArraysFormatIsTheVariantsItPairsWith`,
   `schema.TestLower_ATypeArraysContentIsTheStringVariants`,
-  `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`
+  `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`,
+  `e2e.TestInlinePrincipal_AVariantEntryLowersAsItsFlatSpelling`
 - Status: built. Limits: an object bound an `allOf` entry writes beside the list reaches no
   variant and is kept on the `Union` under its keyword, where the same bound beside the list is the
   object variant's (#2062).

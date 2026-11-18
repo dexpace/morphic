@@ -267,7 +267,8 @@ func TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone(t *testing.T) {
 // TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt holds what an
 // inline principal holds beneath it to the pointer it is written at: a list's
 // element at the entry's items, the position's own items kept and no element,
-// a type list's variants and a union's at the entry's type and oneOf.
+// and a union's branch at the entry's oneOf. A type list's variant, written at
+// no pointer, stands under the position's, as its flat spelling's does.
 func TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt(t *testing.T) {
 	t.Parallel()
 	spec := admissionSpec("3.1.0", "",
@@ -286,7 +287,7 @@ func TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt(t *testing.T) {
 	tl, ok := kindNode(t, doc, componentID("Tl")).(*ir.Union)
 	require.True(t, ok, "Tl is the union of its types")
 	require.Len(t, tl.Variants, 2)
-	assert.Equal(t, ir.TypeID(at+"Tl/allOf/1/type/0"), tl.Variants[0].Type.Target)
+	assert.Equal(t, ir.TypeID(at+"Tl/type/0"), tl.Variants[0].Type.Target)
 
 	u, ok := kindNode(t, doc, componentID("U")).(*ir.Union)
 	require.True(t, ok, "U is the union")

@@ -1058,9 +1058,12 @@ it sees. Changes made together in one bump are listed together under it.
     The node an inline `allOf` entry the position lowers from builds, a `Union`, a `type` list's
     union, a `List`, a `Tuple` or a `Scalar`, stands at the position's pointer and ID, as a value
     set's node already did, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
-    carrier; its children keep their pointers. It holds the bounds written beside it, which the
-    alias, the property or the parameter held, a wrapper's once. A `$ref` to the entry's own
-    pointer names a node of the entry alone.
+    carrier; its children keep their pointers. A `type` list's variants, which no pointer of the
+    source names, stand under the position's (`<position>/type/<i>`), where they stood under the
+    entry's, so the node is the one the same keywords written flat at the position build. It holds
+    the bounds written beside it, which the alias, the property or the parameter held, a wrapper's
+    once. A `$ref` to the entry's own pointer names a node of the entry alone, a `type` list's
+    variants under the entry's pointer built from what the entry writes.
 
   - **A union alone on an inline `allOf` entry**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). A `oneOf` or

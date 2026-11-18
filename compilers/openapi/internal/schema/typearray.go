@@ -23,21 +23,21 @@ import (
 // exactly one, so overlapping variants must not exclude each other; with an
 // integer width, integer and number name the same primitive, and the two
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
-// Each variant reads what the position's folding allOf branches write, at the
-// pointers they are written at, and stands where it is written, the Union
-// where st says.
+// The Union stands where st says, each variant, which no source pointer
+// names, at <there>/type/<i>, built from what the Union reads beside s.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, list typeArray,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	types := list.types
-	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	at := st.pointer(pointer)
+	id := internNode(c, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		list.voices = st.voices(c, s, pointer)
 		var read keySet
 		collect := finisher(func(_ ir.TypeDef, variant keySet) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
-			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
+			vptr := at + ids.Ptr("type", strconv.Itoa(i))
 			vid, shared, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list, collect)
 			read |= shared
 			diags = append(diags, vDiags...)
