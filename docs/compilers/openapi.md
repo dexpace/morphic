@@ -2651,7 +2651,10 @@ another base than the position does; it writes a keyword that folds and another 
 otherwise (above); or it keeps a keyword that another conjunct, the keywords beside the `allOf` among
 them, writes otherwise, where one entry under the keyword holds one value. The whole branch is kept,
 consumed keywords included, so the source stays reconstructable rather than having to be reassembled
-from two places, under the reason its kept keywords share where they share one, else
+from two places, but for an entry writing a `$ref` beside its keywords: that is two conjuncts, and
+what is kept whole is the rest, the entry less its `$ref`, which lowers or is kept as any `$ref`
+conjunct is, while one whose `$ref` names no schema, read whole, keeps its `$ref` inside. It is kept
+under the reason its kept keywords share where they share one, else
 `degraded_lowering`, and reported at the branch by an `openapi/validation-only-keyword` where that
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
 folds is typed as any branch's is, and what its fold would keep beside it, a vendor extension or a
