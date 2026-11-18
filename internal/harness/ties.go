@@ -4,6 +4,7 @@
 package harness
 
 import (
+	"encoding/json/jsontext"
 	"slices"
 	"strconv"
 	"strings"
@@ -14,40 +15,40 @@ import (
 // decision is one thing a report carrying a pair states: the member it
 // decided, by its ID, lost what the declaration at lost says and kept what
 // the one at kept says (placeOf), each with every index of a reversed
-// sequence erased. A member a model brings is named by its first declaration
-// where its type is written at several places
+// sequence erased, and what the report says beside those places (sayingOf).
+// A member a model brings is named by its first declaration where its type is
+// written at several places
 // (docs/compilers/openapi.md#allof-redeclared-property), which the reversal
 // moves to another entry of that model's allOf, so only the erased place
 // names it in both orders.
-type decision struct{ member, lost, kept string }
+type decision struct{ member, lost, kept, says string }
 
-// fact is a decision, the report stating it, what it says beside its places
-// (its severity and code), and its two places as written, not erased, which
-// tell two entries of one allOf apart. A conflict between two declarations is
-// such a report (ir.RelatedKept, ir.RelatedDecided), said once for every model
-// composing them, so it states a fact per member it lists.
+// fact is a decision, the report stating it, and its two places as written,
+// not erased, which tell two entries of one allOf apart. A conflict between
+// two declarations is such a report (ir.RelatedKept, ir.RelatedDecided), said
+// once for every model composing them, so it states a fact per member it
+// lists.
 type fact struct {
 	decision
-	lostAt, keptAt, says string
-	report               report
+	lostAt, keptAt string
+	report         report
 }
 
 // factsOf splits rs into the facts its reports carrying a pair state and the
-// reports carrying none, in order: one naming one kept place and a member at
-// least. written erases the IDs and the places.
+// reports carrying none, in order: one naming one kept place, a member at
+// least and nothing of another role. written erases the IDs and the places.
 func factsOf(rs []report, written sequences) (facts []fact, rest []report) {
 	for _, r := range rs {
-		kept, decided := r.concerns()
-		if len(kept) != 1 || len(decided) == 0 {
+		kept, decided, known := r.concerns()
+		if !known || len(kept) != 1 || len(decided) == 0 {
 			rest = append(rest, r)
 			continue
 		}
 		lostAt, keptAt := placeOf(r.rebased.Provenance), placeOf(kept[0])
-		says := string(r.rebased.Severity) + "\x00" + r.rebased.Code
 		for _, member := range decided {
 			facts = append(facts, fact{
-				member: erase(member, written), lost: erase(lostAt, written), kept: erase(keptAt, written),
-				lostAt: lostAt, keptAt: keptAt, says: says, report: r,
+				member: erase(member.Node, written), lost: erase(lostAt, written), kept: erase(keptAt, written),
+				says: sayingOf(r.rebased, member, written), lostAt: lostAt, keptAt: keptAt, report: r,
 			})
 		}
 	}
@@ -55,41 +56,59 @@ func factsOf(rs []report, written sequences) (facts []fact, rest []report) {
 }
 
 // concerns reads what r concerns besides its place, as rebased: the places it
-// says were kept, and the nodes it says it decided.
-func (r report) concerns() (kept []ir.Provenance, decided []string) {
+// says were kept, the entries listing the nodes it says it decided, and
+// whether it names nothing of another role.
+func (r report) concerns() (kept, decided []ir.Provenance, known bool) {
+	known = true
 	for _, related := range r.rebased.Related {
 		switch related.Role {
 		case ir.RelatedKept:
 			kept = append(kept, related.Provenance)
 		case ir.RelatedDecided:
-			decided = append(decided, related.Provenance.Node)
+			decided = append(decided, related.Provenance)
 		default:
+			known = false
 		}
 	}
-	return kept, decided
+	return kept, decided, known
 }
 
 // placeOf is where p locates a declaration, as one string: its pointer, then
-// its source and the input that wrote it.
+// its source, the input that wrote it, whether it has a position, and the
+// heuristics that produced what it locates, each of which describes the place
+// and so changes sides with it in a mirrored report.
 func placeOf(p ir.Provenance) string {
-	return string(p.Pointer) + "\x00" + strconv.Itoa(p.Source) + "\x00" + strconv.Itoa(p.WrittenBy)
+	return string(p.Pointer) + "\x00" + strconv.Itoa(p.Source) + "\x00" + strconv.Itoa(p.WrittenBy) + "\x00" +
+		strconv.FormatBool(p.Position != ir.Position{}) + "\x00" + string(p.Inferred)
+}
+
+// sayingOf is what d, a report carrying a pair, says of the member member
+// lists beside its two places, as diagnosticKey reads it: its severity, its
+// code, and the entry listing the member but for its node, each index of a
+// reversed sequence, written, erased.
+func sayingOf(d ir.Diagnostic, member ir.Provenance, written sequences) string {
+	member.Node, member.Pointer = "", jsontext.Pointer(erase(string(member.Pointer), written))
+	return diagnosticKey(ir.Diagnostic{
+		Severity: d.Severity, Code: d.Code, Related: []ir.Related{{Role: ir.RelatedDecided, Provenance: member}},
+	})
 }
 
 // tiedBy returns, sorted, the members a tie decided: each one a fact of a,
 // the source as written, says lost one place and kept another, while a fact
-// of b, the source reversed, says it lost that other and kept the first. Two
-// places only an erased index tells apart, entries of one allOf, are mirrored
-// where they are as written. Nothing else of the two compiles is read: a tie
-// is what the compiler reports as one in both orders.
+// of b, the source reversed, says it lost that other and kept the first, the
+// two reports saying the same beside those places. Two places only an erased
+// index tells apart, entries of one allOf, are mirrored where they are as
+// written. Nothing else of the two compiles is read: a tie is what the
+// compiler reports as one in both orders.
 func tiedBy(a, b []fact) []string {
 	mirrored, exactly := make(map[decision]bool, len(b)), make(map[decision]bool, len(b))
 	for _, f := range b {
-		mirrored[decision{member: f.member, lost: f.kept, kept: f.lost}] = true
-		exactly[decision{member: f.member, lost: f.keptAt, kept: f.lostAt}] = true
+		mirrored[decision{member: f.member, lost: f.kept, kept: f.lost, says: f.says}] = true
+		exactly[decision{member: f.member, lost: f.keptAt, kept: f.lostAt, says: f.says}] = true
 	}
 	var tied []string
 	for _, f := range a {
-		apart := f.lost != f.kept || exactly[decision{member: f.member, lost: f.lostAt, kept: f.keptAt}]
+		apart := f.lost != f.kept || exactly[decision{member: f.member, lost: f.lostAt, kept: f.keptAt, says: f.says}]
 		if mirrored[f.decision] && apart {
 			tied = append(tied, f.member)
 		}

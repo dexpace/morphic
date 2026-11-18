@@ -34,6 +34,12 @@ func conflictAt(seqs sequences, lost string, kept []string, members ...string) r
 	return reportsOf([]ir.Diagnostic{d}, nil, seqs)[0]
 }
 
+// atSeverity is r said at sev, as reportsOf reads a report.
+func atSeverity(r report, sev ir.Severity) report {
+	r.rebased.Severity = sev
+	return r
+}
+
 // decisionsOf is the decisions facts state, in order.
 func decisionsOf(facts []fact) []decision {
 	out := make([]decision, len(facts))
@@ -45,9 +51,10 @@ func decisionsOf(facts []fact) []decision {
 
 // TestFactsOf_ReadsAFactPerMemberAReportDecided pins what states a fact: a
 // report naming one kept place and the members it decided, one fact for each,
-// its member and both places with a reversed sequence's index erased. A
-// report naming no kept place, two, no member, or an entry of a role the
-// reading does not know, states none and stays a report.
+// its member and both places with a reversed sequence's index erased, and
+// what the report says beside them. A report naming no kept place, two, no
+// member, or an entry of a role the reading does not know, beside a pair or
+// alone, states none and stays a report.
 func TestFactsOf_ReadsAFactPerMemberAReportDecided(t *testing.T) {
 	t.Parallel()
 	seqs := sequences{"/M/allOf": 2}
@@ -56,17 +63,72 @@ func TestFactsOf_ReadsAFactPerMemberAReportDecided(t *testing.T) {
 	noMember := conflictAt(seqs, "/A/p", []string{"/B/p"})
 	unknown := conflictAt(seqs, "/A/p", nil)
 	unknown.rebased.Related = []ir.Related{{Role: "other", Provenance: ir.Provenance{Pointer: "/B/p"}}}
+	beside := conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")
+	beside.rebased.Related = append(beside.rebased.Related, ir.Related{Role: "other", Provenance: ir.Provenance{Pointer: "/C/p"}})
 	pair := conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/B/p"}, "p/M/allOf/1/p", "p/N/p")
 
-	facts, rest := factsOf([]report{plain, twoKept, pair, noMember, unknown}, seqs)
+	facts, rest := factsOf([]report{plain, twoKept, pair, noMember, unknown, beside}, seqs)
 
-	assert.Equal(t, []report{plain, twoKept, noMember, unknown}, rest)
+	assert.Equal(t, []report{plain, twoKept, noMember, unknown, beside}, rest)
+	lost, kept := placeOf(ir.Provenance{Pointer: "/M/allOf/-/properties/p"}), placeOf(ir.Provenance{Pointer: "/B/p"})
+	says := sayingOf(pair.rebased, ir.Provenance{Source: ir.NoSource}, seqs)
 	assert.Equal(t, []decision{
-		{member: "p/M/allOf/-/p", lost: "/M/allOf/-/properties/p\x000\x000", kept: "/B/p\x000\x000"},
-		{member: "p/N/p", lost: "/M/allOf/-/properties/p\x000\x000", kept: "/B/p\x000\x000"},
+		{member: "p/M/allOf/-/p", lost: lost, kept: kept, says: says},
+		{member: "p/N/p", lost: lost, kept: kept, says: says},
 	}, decisionsOf(facts))
 	assert.Equal(t, "/M/allOf/0/properties/p", pointerOf(facts[0].lostAt), "the place as written tells one entry from another")
 	assert.Equal(t, pair, facts[1].report)
+}
+
+// TestSayingOf_ReadsWhatAReportSaysBesideItsPlaces pins what a tie's two
+// reports must agree in: the severity, the code and the entry listing the
+// member but for its node, a reversed sequence's index erased. The places it
+// names are not part of it, nor which member the entry lists.
+func TestSayingOf_ReadsWhatAReportSaysBesideItsPlaces(t *testing.T) {
+	t.Parallel()
+	seqs := sequences{"/M/allOf": 2}
+	base := diagnostic(ir.SeverityWarning, "x/conflict", "/A/p", "")
+	member := ir.Provenance{Source: ir.NoSource, Node: "p/M/p"}
+	want := sayingOf(base, member, seqs)
+
+	moved := diagnostic(ir.SeverityWarning, "x/conflict", "/B/p", "p/N/p")
+	moved.Related = []ir.Related{{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/A/p"}}}
+	assert.Equal(t, want, sayingOf(moved, ir.Provenance{Source: ir.NoSource, Node: "p/N/p"}, seqs), "places and the member are not read")
+	assert.Equal(t, sayingOf(base, ir.Provenance{Source: ir.NoSource, Pointer: "/M/allOf/0"}, seqs),
+		sayingOf(base, ir.Provenance{Source: ir.NoSource, Pointer: "/M/allOf/1"}, seqs), "an index of a reversed sequence is erased")
+	for name, change := range map[string]func(*ir.Diagnostic, *ir.Provenance){
+		"severity": func(d *ir.Diagnostic, _ *ir.Provenance) { d.Severity = ir.SeverityInfo },
+		"code":     func(d *ir.Diagnostic, _ *ir.Provenance) { d.Code = "x/other" },
+		"source":   func(_ *ir.Diagnostic, p *ir.Provenance) { p.Source = 0 },
+		"pointer":  func(_ *ir.Diagnostic, p *ir.Provenance) { p.Pointer = "/M" },
+		"writer":   func(_ *ir.Diagnostic, p *ir.Provenance) { p.WrittenBy = 1 },
+		"position": func(_ *ir.Diagnostic, p *ir.Provenance) { p.Position = ir.Position{Line: 1} },
+		"inferred": func(_ *ir.Diagnostic, p *ir.Provenance) { p.Inferred = "h" },
+	} {
+		d, p := base, member
+		change(&d, &p)
+		assert.NotEqual(t, want, sayingOf(d, p, seqs), name)
+	}
+}
+
+// TestPlaceOf_ReadsWhatDescribesAPlace pins what a place is, which a mirrored
+// report moves from one side to the other: the pointer, the source, the
+// writer, whether it has a position, and the heuristics behind what it
+// locates. A node is no part of it.
+func TestPlaceOf_ReadsWhatDescribesAPlace(t *testing.T) {
+	t.Parallel()
+	base := ir.Provenance{Pointer: "/A/p"}
+	assert.Equal(t, placeOf(base), placeOf(ir.Provenance{Pointer: "/A/p", Node: "p/M/p"}))
+	assert.Equal(t, "/A/p", pointerOf(placeOf(base)))
+	for name, other := range map[string]ir.Provenance{
+		"pointer":  {Pointer: "/B/p"},
+		"source":   {Pointer: "/A/p", Source: 1},
+		"writer":   {Pointer: "/A/p", WrittenBy: 1},
+		"position": {Pointer: "/A/p", Position: ir.Position{Line: 1}},
+		"inferred": {Pointer: "/A/p", Inferred: "h"},
+	} {
+		assert.NotEqual(t, placeOf(base), placeOf(other), name)
+	}
 }
 
 // TestTiedBy_TiesAMemberBothOrdersDecideTheOtherWayRound pins the one thing a
@@ -117,6 +179,14 @@ func TestTiedBy_TiesAMemberBothOrdersDecideTheOtherWayRound(t *testing.T) {
 		"two entries of one allOf, the same one lost in both orders": {
 			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/2/properties/p"}, "p/M/p")),
 			reversed: facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "p/M/p")),
+		},
+		"mirrored at another severity": {
+			written:  facts(conflictAt(seqs, "/A/p", []string{"/B/p"}, "p/M/p")),
+			reversed: facts(atSeverity(conflictAt(seqs, "/B/p", []string{"/A/p"}, "p/M/p"), ir.SeverityInfo)),
+		},
+		"two entries of one allOf mirrored as written, at another severity": {
+			written:  facts(conflictAt(seqs, "/M/allOf/0/properties/p", []string{"/M/allOf/1/properties/p"}, "p/M/p")),
+			reversed: facts(atSeverity(conflictAt(seqs, "/M/allOf/1/properties/p", []string{"/M/allOf/0/properties/p"}, "p/M/p"), ir.SeverityInfo)),
 		},
 	} {
 		assert.Equal(t, tc.want, tiedBy(tc.written, tc.reversed), name)

@@ -373,7 +373,8 @@ assertion shapes:
   `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
   and what `canonicalForm` in `canon.go` lists, and a tie the compiler states: a member that a
   report carrying a pair (`ir.RelatedKept`, `ir.RelatedDecided`) decides in each order, the two
-  places the other way round (`tiedBy` in `ties.go`), and each member settled from one, with every
+  places the other way round and the two reports alike but for them, their severity and code
+  among what they share (`tiedBy` in `ties.go`), and each member settled from one, with every
   node at or beneath where a tied member stands. Of a tied
   member only whether it is required is compared, and its docs where a stated tie alone decided it
   (`statedAlone`), so a dependence of a member settled from a tied one that the tie does not

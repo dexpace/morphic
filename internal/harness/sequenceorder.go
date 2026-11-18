@@ -46,10 +46,10 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 }
 
 // diffSequenceInvariants compares what reversing the sequences of perm must
-// leave untouched: the diagnostics, the document and each model's flattened
-// shape, each in its own source's coordinates. A tie is a member reports say
-// they decided between two declarations, in each order the other way round
-// (tiedBy), or what a report the order moves decided. Of a node a tie names,
+// leave untouched: the diagnostics, the document and the flattened shapes,
+// each in its source's coordinates. A tie is a member two reports alike but
+// for their places decide between two declarations, the other way round in
+// each order (tiedBy), or what a moved report decided. Of a node a tie names,
 // or one at or beneath a tie site, only a property's being required is
 // compared, and its docs where a stated tie alone decided it; a type there is
 // left out whole. It declines what compareForms declines, and several files.

@@ -955,6 +955,30 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"diagnostics depend on sequence order", "openapi/conflicting-redeclaration", "flattened shape depends on sequence order"},
 		},
 		{
+			// The two reports are mirrored but say the conflict at another
+			// severity, so they state no tie, and what the members take of
+			// the two declarations is compared.
+			name: "a tie's report at another severity in one order",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if !reversed {
+					return doc, diags, nil
+				}
+				out := slices.Clone(diags)
+				for i := range out {
+					if out[i].Code == "openapi/conflicting-redeclaration" {
+						out[i].Severity = ir.SeverityInfo
+					}
+				}
+				return doc, out, nil
+			},
+			found: true,
+			contains: []string{
+				"diagnostics depend on sequence order", `+"info\x00openapi/conflicting-redeclaration`,
+				"document depends on sequence order", `AB member "p"`,
+			},
+		},
+		{
 			// q folds alpha's and beta's declarations, which say the same, so
 			// no tie moves a report between them.
 			name: "a report moving between the declarations of a member declared alike",
