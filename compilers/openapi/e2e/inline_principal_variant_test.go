@@ -4,6 +4,9 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -133,6 +136,98 @@ func TestInlinePrincipal_AVariantEntryLowersAsItsFlatSpelling(t *testing.T) {
 			got, _ := compileUnrefused(t, site.write("3.1.0", twin.conjunction, "S: {type: string}"))
 			assert.Empty(t, cmp.Diff(comparableDocument(t, want), comparableDocument(t, got)),
 				"%s at the %s lowers as %s", twin.conjunction, site.name, twin.flat)
+		}
+	}
+}
+
+// whereBoundLands lists, sorted, where doc states the bound keyword names: each
+// node or carrier holding it under field, as "<id> holds", and each keeping it
+// verbatim, as "<id> keeps <reason>", the holder being the nearest object
+// above it that has an ID.
+func whereBoundLands(t *testing.T, doc *ir.Document, keyword, field string) []string {
+	t.Helper()
+	var out []string
+	var walk func(v any, holder string)
+	walk = func(v any, holder string) {
+		switch v := v.(type) {
+		case map[string]any:
+			if id, ok := v["id"].(string); ok {
+				holder = id
+			}
+			if cons, ok := v["constraints"].(map[string]any); ok && cons[field] != nil {
+				out = append(out, holder+" holds")
+			}
+			if kept, ok := v["unmodeled"].(map[string]any); ok {
+				if entry, ok := kept["openapi:"+keyword].(map[string]any); ok {
+					out = append(out, fmt.Sprintf("%s keeps %v", holder, entry["reason"]))
+				}
+			}
+			for _, x := range v {
+				walk(x, holder)
+			}
+		case []any:
+			for _, x := range v {
+				walk(x, holder)
+			}
+		}
+	}
+	walk(documentTree(t, doc), "")
+	slices.Sort(out)
+	return out
+}
+
+// unionShapedBound is a principal that lowers to a Union and a bound written
+// beside its allOf or on another entry, with where the bound lands below the
+// position's ID, on the variant taking it, or kept on the Union where none
+// does, and whether the flat spelling lands it there too.
+type unionShapedBound struct {
+	name, principal, keyword, field, value, at string
+	kept, flatAlike                            bool
+}
+
+// unionShapedBounds are a type list's array variant and the kind-inference
+// policy's taking a collection bound, as the flat spelling's do, and the
+// bounds no node of the position takes kept on the Union: one a oneOf with an
+// array branch writes beside it, as flat, and an object bound of a voice,
+// which no object variant reads (#2062).
+var unionShapedBounds = []unionShapedBound{
+	{"type list's array", "type: [string, array], items: {type: string}", "minItems", "minItems", "13", "/type/1", false, true},
+	{"inferred array", "items: {type: string}, properties: {a: {type: string}}", "minItems", "minItems", "13", "/type/1", false, true},
+	{"union's array branch", "oneOf: [{type: array, items: {type: string}}, {type: string}]", "minItems", "minItems", "13", "", true, true},
+	{"type list's object", "type: [string, object]", "minProperties", "minProps", "19", "", true, false},
+	{"inferred object", "items: {type: string}, properties: {a: {type: string}}", "minProperties", "minProps", "19", "", true, false},
+}
+
+// TestInlinePrincipal_ABoundBesideAUnionShapedPrincipalLandsOnce holds a
+// collection or object bound written beside an allOf whose entry lowers to a
+// Union, or on another entry in either order, to one home at every site: the
+// variant taking it, or the Union keeping it with a report, as the flat
+// spelling lands it where it lands alike.
+func TestInlinePrincipal_ABoundBesideAUnionShapedPrincipalLandsOnce(t *testing.T) {
+	t.Parallel()
+	for _, b := range unionShapedBounds {
+		bound := b.keyword + ": " + b.value
+		spellings := map[string]string{
+			"beside":       "{allOf: [{" + b.principal + "}], " + bound + "}",
+			"entry":        "{allOf: [{" + b.principal + "}, {" + bound + "}]}",
+			"entry first":  "{allOf: [{" + bound + "}, {" + b.principal + "}]}",
+			"flat":         "{" + b.principal + ", " + bound + "}",
+			"allOf beside": "{" + b.principal + ", allOf: [{" + bound + "}]}",
+		}
+		for name, schema := range spellings {
+			if !b.flatAlike && (name == "flat" || name == "allOf beside") {
+				continue
+			}
+			for _, site := range conjSites {
+				doc, diags := compileUnrefused(t, site.write("3.1.0", schema))
+				at := fmt.Sprintf("%s %s at the %s", b.name, name, site.name)
+				want := "t/anon" + site.pointer + b.at + " holds"
+				if b.kept {
+					want = string(entryPositionID(jsontext.Pointer(site.pointer))) + " keeps degraded_lowering"
+					assert.NotEmpty(t, degradedInfoPointers(diags), "%s: the bound kept is reported", at)
+				}
+				assert.Equal(t, []string{want}, whereBoundLands(t, doc, b.keyword, b.field), "%s: where %s lands", at, bound)
+			}
 		}
 	}
 }

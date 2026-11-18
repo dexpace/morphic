@@ -1060,10 +1060,13 @@ it sees. Changes made together in one bump are listed together under it.
     set's node already did, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
     carrier; its children keep their pointers. A `type` list's variants, which no pointer of the
     source names, stand under the position's (`<position>/type/<i>`), where they stood under the
-    entry's, so the node is the one the same keywords written flat at the position build. It holds
-    the bounds written beside it, which the alias, the property or the parameter held, a wrapper's
-    once. A `$ref` to the entry's own pointer names a node of the entry alone, a `type` list's
-    variants under the entry's pointer built from what the entry writes.
+    entry's, where the same keywords written flat at the position put them. It holds
+    the bounds, notes and kept keywords written beside it, which the alias, the property or the
+    parameter held, a wrapper's once: a `type` list's variant each bound its type takes, its array
+    variant the collection bounds, and a bound no part of the node reads, a collection bound
+    beside a `oneOf` or an object bound beside a `type` list, kept on the node under its keyword
+    with a report. A `$ref` to the entry's own pointer names a node of the entry alone, a `type`
+    list's variants under the entry's pointer built from what the entry writes.
 
   - **A union alone on an inline `allOf` entry**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). A `oneOf` or

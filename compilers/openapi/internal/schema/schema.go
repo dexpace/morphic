@@ -522,7 +522,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject, fin)
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, fin, st)
+		id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.voices(c, s, pointer), fin)
 		return id, 0, diags
 	default:
 		return scalarTypeID(c, ts, depth, s, kind, pointer, fin, st)
@@ -554,7 +554,7 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		})
 	case kindArray:
 		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			id, diags := lowerArray(c, ts, depth, s, pointer, mark.then(fin), st)
+			id, diags := lowerArray(c, ts, depth, s, pointer, st.pointer(pointer), st.voices(c, s, pointer), mark.then(fin))
 			return id, 0, diags
 		})
 	default:

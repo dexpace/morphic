@@ -2426,7 +2426,10 @@ string}}]}` is the `List` at the position, as its flat spelling is, and a node i
 stands at `…/allOf/1/items`. A type list's variants, which no pointer of the source names, stand
 under the position's ([`type-arrays`](#type-arrays)). The node holds the
 bounds of the conjunction, the position's own and each other conjunct's, as the same keywords
-written beside each other give it them, and the conjunct reads as a voice of the position, what it
+written beside each other give it them, each where the node's builder reads it and one no part of
+the node reads kept on it under its keyword, a collection bound beside a `oneOf` as the flat
+spelling keeps it, and an object bound of a `type` list's object variant as
+[`type-arrays`](#type-arrays) says. The conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
 as the same union beside the `allOf` is. A `discriminator` the conjunct writes is the node's, so
@@ -2526,6 +2529,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestEntryValueSet_AReferenceToThePositionReadsItsNode`,
   `e2e.TestEntryValueSet_AReferenceToAnEntryNamesTheEntryAlone`,
   `e2e.TestInlinePrincipal_AReferenceToAVariantEntryNamesWhatTheEntryWrites`,
+  `e2e.TestInlinePrincipal_ABoundBesideAUnionShapedPrincipalLandsOnce`,
   `e2e.TestEntryValueSet_SeveralRefsAreKeptByTheirReferenceText`,
   `e2e.TestEntryValueSet_AnObjectValueSetIsElectedBeforeTheComposition`,
   `e2e.TestEntryValueSet_AValueSetTheTargetAlreadySaysStandsNowhere`,
@@ -3767,8 +3771,11 @@ position admits that type, so `[string, integer]` with `maxLength` and `minimum`
 `string` holding the one and an `integer` holding the other, and the content vocabulary is the
 `string` variant's ([`content-vocabulary`](#content-vocabulary)). Beside an `allOf` entry of
 `[string, boolean]`, the same list's `integer` variant holds no `minimum`, which is kept on the
-union. The property or parameter carrying the union holds no value bound, each being the variant's
-it applies to, which a bound on the whole value would not say.
+union. The `array` variant takes the collection bounds. A variant reads its bounds of what the
+`allOf` beside the list, or the conjunction whose entry writes it, says too, as it reads them of the
+list's own schema, but for the `object` variant, which reads none there (Status). The property or
+parameter carrying the union holds no value bound, each being the variant's it applies to, which a
+bound on the whole value would not say.
 A `format` the table pairs with a listed type is that variant's alone: with `date` the list lowers
 to `date | integer`, and with `int32` to `string | int32`. One the table pairs with no listed type
 is every scalar variant's encoding name, since nothing says which type it describes and a format
@@ -3810,9 +3817,9 @@ and teaching the relation the step would change what it means for every document
   `schema.TestLower_ATypeArraysContentIsTheStringVariants`,
   `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`,
   `e2e.TestInlinePrincipal_AVariantEntryLowersAsItsFlatSpelling`
-- Status: built. Limits: an object bound an `allOf` entry writes beside the list reaches no
-  variant and is kept on the `Union` under its keyword, where the same bound beside the list is the
-  object variant's (#2062).
+- Status: built. Limits: an object bound an `allOf` entry writes beside the list, or the position
+  writes beside an `allOf` whose entry writes the list, reaches no variant and is kept on the
+  `Union` under its keyword, where the same bound beside the list is the object variant's (#2062).
 
 ### `union-null-variant`
 

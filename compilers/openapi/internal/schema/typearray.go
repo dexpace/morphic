@@ -69,12 +69,12 @@ type typeArray struct {
 // lowerTypeVariant lowers the variant of s's type array that st names, at
 // pointer, as lowerTyped lowers st alone, but for what applies to another listed
 // type (docs/compilers/openapi.md#type-arrays). An object variant holds no
-// discriminator, which no $ref or mapping can name it by: the union keeps
-// it. A variant reads the value bounds of the kinds of st the
-// position admits (boundKinds), so a bound is held or kept, never both. A
-// scalar one holding them, the format or the content vocabulary is a Scalar of
-// its own, else the shared primitive, which returns what it read; fin
-// finishes one built.
+// discriminator, which no $ref or mapping can name it by: the union keeps it.
+// A variant reads, of s and list's voices, the value bounds of the kinds of
+// st the position admits (boundKinds), an array one the collection bounds. A
+// scalar one holding them, the format or the content vocabulary is its own
+// Scalar, else the shared primitive, returning what it read; fin finishes one
+// built.
 func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind,
 	list typeArray, fin finisher,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
@@ -84,7 +84,7 @@ func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		id, diags := lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark.then(fin))
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, list.mark.then(fin), stand{})
+		id, diags := lowerArray(c, ts, depth, s, pointer, pointer, list.voices, list.mark.then(fin))
 		return id, 0, diags
 	default:
 		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))

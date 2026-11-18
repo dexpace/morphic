@@ -148,17 +148,9 @@ func readBeside(s *statement.Schema, td ir.TypeDef) keySet {
 
 // referenceReads returns what the alias or carrier of a position s lowered to
 // a reference reads (referenceConstraintsOf, CarrierConstraintsOf): the value
-// bounds the types it admits take, and where they admit an array the
-// collection bounds a field states, uniqueItems only where it holds it, true
-// (referenceHolds).
+// bounds the types it admits take, and where they admit an array its
+// collection bounds (boundHomes.reads).
 func referenceReads(c lowering.Ctx, s *statement.Schema) keySet {
 	takes := boundKinds(c, s)
-	out := boundsRead(s, takes, nil)
-	if takes&kindArray != 0 {
-		out |= collectionReads(s) &^ keyBit("uniqueItems")
-		if referenceHolds(s, "uniqueItems") {
-			out |= keyBit("uniqueItems")
-		}
-	}
-	return out
+	return boundHomes{value: takes, collection: takes&kindArray != 0}.reads(s)
 }
