@@ -293,9 +293,18 @@ func positionVoices(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 		if !speaks || LoweredToOwnNode(c, e.pointer, target) {
 			continue
 		}
-		out = append(out, annotation.Voice{Node: e.schema.Schema, At: e.pointer})
+		out = append(out, voiceAt(c, e.schema.Schema, e.pointer))
 	}
 	return out
+}
+
+// voiceAt returns the voice of node, written at at, which reads its
+// `dependencies` in the dialect node is written in, as a fold of it does
+// (TwinKeyword): an allOf entry naming a draft by its own `$schema` keeps the
+// draft's keyword beside a position read in 2020-12, as the same schema written
+// flat in the draft keeps it (docs/compilers/openapi.md#dialect-keywords).
+func voiceAt(c lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annotation.Voice {
+	return annotation.Voice{Node: node, At: at, Dependencies: rulesOf(c, node).Defines("dependencies")}
 }
 
 // lendingBranches returns the branches of s that fold, each at its pointer below

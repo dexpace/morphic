@@ -5665,6 +5665,7 @@ document lands on, hop by hop, as it would one a lowered keyword names.
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
   `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
+  `e2e.TestEntryDialect_ADraftsDependenciesIsKeptAsFlat`,
   `schema.TestLower_ValidationOnlyKeywords`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`,
   `annotation.TestUnevaluatedRaw_KeepsAnInertKeywordBesideWhatLeavesItInert`,

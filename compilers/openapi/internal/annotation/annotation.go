@@ -203,10 +203,14 @@ type Dialect struct {
 }
 
 // Voice is an inline allOf branch and where it is written, so what it declares
-// is read, and reported, at its own pointer.
+// is read, and reported, at its own pointer, in its own dialect.
 type Voice struct {
 	Node *statement.Schema
 	At   jsontext.Pointer
+	// Dependencies says the dialect Node is written in defines `dependencies`
+	// (Dialect.Dependencies), which a branch naming its own may, whatever the
+	// position's.
+	Dependencies bool
 	// KeptWhole says the position keeps the branch whole, an entry holding what
 	// it writes, so it writes no entry Read keeps beside it but one no other
 	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
@@ -307,7 +311,7 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 		}
 	}
 	for _, v := range st.Voices {
-		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: st.Dialect.Dependencies}, false)
+		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: v.Dependencies}, false)
 		diags = append(diags, voiceDiags...)
 		if out.XML == nil {
 			out.XML = voice.XML
