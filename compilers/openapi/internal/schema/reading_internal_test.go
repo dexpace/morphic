@@ -35,7 +35,7 @@ import (
 // it reads js afresh at each ask, spending w's budget per schema, and is cut
 // short where the budget runs out, at a $dynamicRef the bindings read as no
 // $ref and at a $ref landing on no schema.
-func (w *admission) formerWhole(js *statement.Statement) admitted {
+func (w *admissionReader) formerWhole(js *statement.Statement) admitted {
 	if !w.reads.Spend(1) || js.Truth == statement.Unwritten {
 		return admitted{kinds: kindAny}
 	}
@@ -144,7 +144,7 @@ func TestAdmissionOf_AgreesWithAReadOfItsOwn(t *testing.T) {
 		}
 		statementsOfDocument(l, func(at jsontext.Pointer, st *statement.Statement) {
 			r := admissionOf(l.Ctx, st)
-			former := newAdmission(l.Ctx)
+			former := newAdmissionReader(l.Ctx)
 			want := former.formerWhole(st)
 			if r.cut || r.reads > maxAdmissionReads || r.members > maxAdmissionMembers || former.incomplete() {
 				return

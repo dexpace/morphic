@@ -45,7 +45,7 @@ func hasUnionSiblings(c lowering.Ctx, s *statement.Schema) bool {
 }
 
 // restatableKeywords are the keywords beside a union that its branches can say
-// in full, read as admission reads what a schema admits.
+// in full, read as an admissionReader reads what a schema admits.
 var restatableKeywords = []string{"type", "format", "enum", "const", "items"}
 
 // branchesSayOf keys what branchesSay read of one schema.
@@ -56,7 +56,7 @@ type branchesSayOf struct {
 // branchesSay returns the keywords of restatableKeywords s writes beside its
 // oneOf and anyOf that every branch of both already says: a `type` naming each
 // kind a branch admits, null included, and a `format`, an `enum`, a `const` or
-// an `items` each branch is held to (admission.holds). Such a keyword adds
+// an `items` each branch is held to (admissionReader.holds). Such a keyword adds
 // nothing to the union, so the position reads as if it were not written
 // (docs/compilers/openapi.md#union-beside-structure). A read cut short says
 // none, and so does a schema writing no union, of which "every branch" would
@@ -68,7 +68,7 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		if len(branches) == 0 {
 			return nil
 		}
-		w := newAdmission(c)
+		w := newAdmissionReader(c)
 		reads := make([]admitted, len(branches))
 		for i, b := range branches {
 			reads[i] = lowered(&w, c.Statements().Sub(b))
@@ -91,10 +91,10 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 
 // branchSays reports whether a branch admitting branch, as w reads it, says all
 // that s's keyword key does. A `type` is compared with null in it, which
-// admission.holds leaves to the nulls reader: a union lowered alone lifts a null
+// admissionReader.holds leaves to the nulls reader: a union lowered alone lifts a null
 // branch onto the position, so a `type` leaving null out says more than a branch
 // admitting it. An `items` list says what no single schema does.
-func branchSays(w *admission, branch admitted, s *statement.Schema, key string) bool {
+func branchSays(w *admissionReader, branch admitted, s *statement.Schema, key string) bool {
 	switch key {
 	case "type":
 		return branch.kinds&^writtenKinds(s, w.nullable) == 0

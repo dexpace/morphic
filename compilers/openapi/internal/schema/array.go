@@ -262,7 +262,7 @@ func missingArrayItemsConjoined(c lowering.Ctx, s *statement.Schema, pointer jso
 	if len(diags) == 0 || !writesConjuncts(s) {
 		return diags
 	}
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	if w.of(c.Statements().Read(s)).items != nil {
 		return nil
 	}

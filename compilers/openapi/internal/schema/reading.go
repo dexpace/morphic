@@ -105,7 +105,7 @@ func (r *reading) within() bool {
 // past is r once its read takes in more than a cap: what an election compares
 // admits every kind and holds no value set or format, so what it merges stops
 // growing with the paths to it, as the formats a read conjoins are one per
-// schema taken in, and the election reads it as cut short (admission.of). The
+// schema taken in, and the election reads it as cut short (admissionReader.of). The
 // kinds r admits, declares and lowers to are still read over every edge, each
 // statement once, so they stay whole and cut stays false. The element schema
 // is kept, child's where r holds none, which missingArrayItemsConjoined reads
@@ -359,7 +359,7 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 // readOwn reads what st's own keywords say: what they admit, the kinds their
 // type and value sets leave, and the members those sets hold.
 func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
-	own := admission{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
+	own := admissionReader{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
 	r := &reading{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
 	r.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
 	r.firm, r.claims = r.admits, claimedKinds(w.c, st.Schema)

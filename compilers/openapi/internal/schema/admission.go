@@ -28,11 +28,11 @@ const (
 	maxAdmissionMembers = 4096
 )
 
-// admission reads what schemas admit, across each $ref along its chain and each
+// admissionReader reads what schemas admit, across each $ref along its chain and each
 // conjunct and union branch, within one budget for the whole read. It asks what
 // values a schema admits and mirrors no lowering's dispatch. A reading cut short
 // is told by incomplete, and says nothing.
-type admission struct {
+type admissionReader struct {
 	c lowering.Ctx
 	// nullable reports whether the dialect c reads its schemas in defines the
 	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
@@ -49,17 +49,17 @@ type admission struct {
 	compared func()
 }
 
-// newAdmission returns a read with the whole budget, in the dialect c reads its
+// newAdmissionReader returns a read with the whole budget, in the dialect c reads its
 // schemas in. It returns a value so the read lives on its caller's stack.
-func newAdmission(c lowering.Ctx) admission {
-	return admission{c: c, nullable: c.SchemaRules().Defines("nullable"),
+func newAdmissionReader(c lowering.Ctx) admissionReader {
+	return admissionReader{c: c, nullable: c.SchemaRules().Defines("nullable"),
 		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
 }
 
 // incomplete reports whether the read met what it cannot answer for: a cycle
 // or more than its budget, a $ref landing on no schema, or a value it cannot
 // convert.
-func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
+func (w *admissionReader) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
 
 // of is what js, a schema of any form written anywhere, admits, as the run
 // reads it once (admissionOf): what its keywords say, in the dialect of the
@@ -68,7 +68,7 @@ func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.
 // one admissionOf could not settle, is cut short here as reading it would be.
 // A $dynamicRef the read meets masks no kind: one the position expands is read
 // as what it names, and any other admits every kind.
-func (w *admission) of(js *statement.Statement) admitted {
+func (w *admissionReader) of(js *statement.Statement) admitted {
 	r := admissionOf(w.c, js)
 	w.reads.Spend(r.reads)
 	w.members.Spend(r.members)
@@ -81,9 +81,9 @@ func (w *admission) of(js *statement.Statement) admitted {
 // lowered is what js admits as the node it lowers to does: what w reads of it,
 // narrowed to the kinds the kind-inference policy read off shape keywords
 // where nothing js declares names a kind (loweredAs). An election weighs what
-// each conjunct declares, and reads admission.of; a reader asking whether a
+// each conjunct declares, and reads admissionReader.of; a reader asking whether a
 // position already says what a keyword does reads this.
-func lowered(w *admission, js *statement.Statement) admitted {
+func lowered(w *admissionReader, js *statement.Statement) admitted {
 	return loweredAs(w.c, js, w.of(js))
 }
 
@@ -115,12 +115,12 @@ func lowersTo(c lowering.Ctx, js *statement.Statement) (kindSet, bool) {
 }
 
 // writtenLowered is what s's own keywords admit as w reads them
-// (admission.written), narrowed, where it writes no type, to the kinds it
+// (admissionReader.written), narrowed, where it writes no type, to the kinds it
 // lowers to (untypedKinds): those its conjuncts declare where its keywords
 // speak of them, else those the kind-inference policy reads off them. So a
 // body beside branches each declaring an object admits what it would writing
 // `type: object`.
-func writtenLowered(w *admission, s *statement.Schema, nullable bool) admitted {
+func writtenLowered(w *admissionReader, s *statement.Schema, nullable bool) admitted {
 	read := w.written(s, nullable)
 	if writesType(s) {
 		return read
@@ -193,7 +193,7 @@ func (d *declarationSet) property(t *statement.Table, name string) *place {
 
 // declarations returns what s declares: itself, each allOf conjunct and what
 // a $ref lands on, read as of reads them and within the same budget.
-func (w *admission) declarations(s *statement.Schema) declarationSet {
+func (w *admissionReader) declarations(s *statement.Schema) declarationSet {
 	out := newDeclarationSet()
 	out.add(w.c.Statements(), s)
 	w.declare(&out, conjunctsIn(w.c, s))
@@ -201,7 +201,7 @@ func (w *admission) declarations(s *statement.Schema) declarationSet {
 }
 
 // heldAt returns what p's declarations admit together, read once.
-func (w *admission) heldAt(p *place) admitted {
+func (w *admissionReader) heldAt(p *place) admitted {
 	if p.held == nil {
 		held := lowered(w, p.decls[0])
 		for _, d := range p.decls[1:] {
@@ -214,7 +214,7 @@ func (w *admission) heldAt(p *place) admitted {
 
 // innerAt returns what p's declarations declare together, as declarations
 // reads one, read once.
-func (w *admission) innerAt(p *place) declarationSet {
+func (w *admissionReader) innerAt(p *place) declarationSet {
 	if p.inner == nil {
 		inner := newDeclarationSet()
 		w.declare(&inner, slices.Clone(p.decls))
@@ -229,7 +229,7 @@ func (w *admission) innerAt(p *place) declarationSet {
 // budget or a $ref landing nowhere, is one fewer to restate, which errs towards
 // shape. The walk keeps its own stack, so it adds no recursion cycle, and the
 // order of each list is no answer.
-func (w *admission) declare(out *declarationSet, stack []*statement.Statement) {
+func (w *admissionReader) declare(out *declarationSet, stack []*statement.Statement) {
 	for len(stack) > 0 && w.reads.Spend(1) {
 		st := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -253,7 +253,7 @@ func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
 }
 
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
-func (w *admission) union(branches []statement.Sub) admitted {
+func (w *admissionReader) union(branches []statement.Sub) admitted {
 	out := w.of(w.c.Statements().Sub(branches[0]))
 	for _, b := range branches[1:] {
 		out = out.or(w.of(w.c.Statements().Sub(b)))
@@ -276,7 +276,7 @@ func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
 // dialect defining nullable where nullable says: `type`, which a `nullable`
 // adds null to there, `format`, `enum`, `const` and `items`. A schema in c's
 // document is read in w.nullable's dialect.
-func (w *admission) written(s *statement.Schema, nullable bool) admitted {
+func (w *admissionReader) written(s *statement.Schema, nullable bool) admitted {
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
@@ -344,7 +344,7 @@ type memberSet struct {
 // so a shared enum costs its members once and not at each position naming it, but
 // spending is not: a read's verdict turns on what it spends, so a remembered set
 // must cut a read as reading it would, or lowering order would decide.
-func (w *admission) valueSet(key valueSetOf, members []*yaml.Node) admitted {
+func (w *admissionReader) valueSet(key valueSetOf, members []*yaml.Node) admitted {
 	if !w.members.Spend(len(members)) {
 		return admitted{fixed: true}
 	}
@@ -391,7 +391,7 @@ func readMembers(members []*yaml.Node) memberSet {
 
 // within reports whether every value a admits b admits, so far as what a reading
 // holds can say.
-func (w *admission) within(a, b admitted) bool {
+func (w *admissionReader) within(a, b admitted) bool {
 	if w.compared != nil {
 		w.compared()
 	}
@@ -399,7 +399,7 @@ func (w *admission) within(a, b admitted) bool {
 }
 
 // itemsWithin reports whether a's elements are all b's elements can be.
-func (w *admission) itemsWithin(a, b admitted) bool {
+func (w *admissionReader) itemsWithin(a, b admitted) bool {
 	if b.items == nil || a.items == b.items {
 		return true
 	}
@@ -410,7 +410,7 @@ func (w *admission) itemsWithin(a, b admitted) bool {
 // writes: the same schema written twice, nothing a keyword of js adds, or no value
 // at all, which is within anything. A keyword no reading compares, a $ref among
 // them, says what it cannot tell, and a null one says nothing.
-func (w *admission) restates(held admitted, from, js *statement.Statement) bool {
+func (w *admissionReader) restates(held admitted, from, js *statement.Statement) bool {
 	if !held.reachable() || w.sameText(from, js) {
 		return true
 	}
@@ -428,7 +428,7 @@ func (w *admission) restates(held admitted, from, js *statement.Statement) bool 
 // another document is read apart: its $refs resolve against that document, and
 // its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
 // placed nowhere, a nil one among them, is written alike with none.
-func (w *admission) sameText(a, b *statement.Statement) bool {
+func (w *admissionReader) sameText(a, b *statement.Statement) bool {
 	at, placed := siteOf(a.Schema)
 	bt, placedB := siteOf(b.Schema)
 	if !placed || !placedB || at.Doc != bt.Doc {
@@ -455,7 +455,7 @@ type textOf struct {
 
 // text renders js, nil where it cannot be rendered. Every position restating a
 // shared schema asks, so it is rendered once a run.
-func (w *admission) text(js *statement.Statement) ir.RawValue {
+func (w *admissionReader) text(js *statement.Statement) ir.RawValue {
 	return lowering.Remembered(w.c, textOf{js}, func() ir.RawValue {
 		raw, err := annotation.RawFromNode(js.Node)
 		if err != nil {
@@ -467,7 +467,7 @@ func (w *admission) text(js *statement.Statement) ir.RawValue {
 
 // holds reports whether what held admits says all that s's keyword key does, so
 // a position lowered to held loses nothing leaving it unread.
-func (w *admission) holds(held admitted, s *statement.Schema, key string) bool {
+func (w *admissionReader) holds(held admitted, s *statement.Schema, key string) bool {
 	switch key {
 	case "type":
 		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})

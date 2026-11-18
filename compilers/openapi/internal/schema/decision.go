@@ -292,7 +292,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if !refinableBranches(comp) {
 		return decision{}
 	}
-	w := newAdmission(c)
+	w := newAdmissionReader(c)
 	// The decision is remembered by s alone, so s is read in its own
 	// document's dialect, never in that of the reader asking first.
 	w.nullable = definesNullableAt(c, c.Statements().Read(s))
@@ -340,7 +340,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 // was elected: beaten by a $ref principal, outside the value set elected for
 // conjuncts that contradict one another, or, where value sets sharing no
 // member leave no conjunct the principal (undecided), apart.
-func markBeaten(w *admission, votes []refVote, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
+func markBeaten(w *admissionReader, votes []refVote, electable []*conjunct, principal *conjunct, contradicts, undecided bool) {
 	for _, cj := range electable {
 		switch {
 		case undecided:
@@ -361,7 +361,7 @@ func markBeaten(w *admission, votes []refVote, electable []*conjunct, principal 
 // competing keywords elect (competingSet), so it lowers alike beside the allOf
 // and on an entry; one that keyword leaves none either, as `enum: []`, is none
 // to lower: the composition reports it.
-func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjunct {
+func setElected(w *admissionReader, s *statement.Schema, conjuncts []conjunct) *conjunct {
 	var sets []*conjunct
 	for i := range conjuncts {
 		cj := &conjuncts[i]
@@ -395,7 +395,7 @@ func setElected(w *admission, s *statement.Schema, conjuncts []conjunct) *conjun
 // competingSet is what the value set s writes admits read as the election of
 // competing keywords lowers it, its `const` before its `enum`, each alone
 // (docs/compilers/openapi.md#competing-keywords).
-func competingSet(w *admission, s *statement.Schema) admitted {
+func competingSet(w *admissionReader, s *statement.Schema) admitted {
 	if constant := s.Const(); constant != nil {
 		return w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant})
 	}
@@ -503,7 +503,7 @@ func refinableBranches(comp allOfComposition) bool {
 // own keywords, as on an inline branch. A union sharing no kind with the rest
 // is left out, which the second result reports. A wrapper's own keywords are
 // read alone: its entries are conjuncts of their own.
-func (w *admission) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
+func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) ([]conjunct, bool) {
 	out := make([]conjunct, 0, 1+len(comp.branches))
 	claims := inferredClaims(w.c, s)
 	own := conjunct{read: w.written(s, w.nullable), schema: s, says: saysKind(s) || claimsAll(w.c, s, claims), at: -1}
@@ -562,7 +562,7 @@ func claimsAll(c lowering.Ctx, s *statement.Schema, claims kindSet) bool {
 // keywords and the oneOf and anyOf it writes, whose branches name the kinds it
 // admits. Its allOf is read apart, since its entries are conjuncts of their
 // own.
-func inlineConjunct(w *admission, bs *statement.Schema) admitted {
+func inlineConjunct(w *admissionReader, bs *statement.Schema) admitted {
 	read := w.written(bs, w.nullable)
 	if declaresUnion(bs) {
 		read = read.and(unionsIn(w, bs))
@@ -572,7 +572,7 @@ func inlineConjunct(w *admission, bs *statement.Schema) admitted {
 
 // unionsIn is what an instance of each oneOf and anyOf s writes admits
 // together, any of a union's branches, as w reads them.
-func unionsIn(w *admission, s *statement.Schema) admitted {
+func unionsIn(w *admissionReader, s *statement.Schema) admitted {
 	read := admitted{kinds: kindAny}
 	choice := s.ChoiceKeywords()
 	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {

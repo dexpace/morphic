@@ -85,7 +85,7 @@ func foldValue(s *statement.Schema, entry string) foldRendering {
 // (writesConjuncts), an allOf or a reference beside other keys
 // (docs/compilers/openapi.md#allof-refinement). A union beside them is one
 // more conjunct, and a $dynamicRef the position does not expand masks no kind
-// (admission.conjuncts).
+// (admissionReader.conjuncts).
 func allOfMayRefine(s *statement.Schema) bool {
 	return writesConjuncts(s)
 }

@@ -37,9 +37,9 @@ func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    A: {type: string}\n"))
 	r := refinement{held: admitted{kinds: kindString}}
 
-	whole := newAdmission(l.Ctx)
+	whole := newAdmissionReader(l.Ctx)
 	assert.True(t, unionHeld(&whole, r, StandaloneSchema(js.GetSchema()), "anyOf"), "read whole, the string branch says the union")
-	cut := newAdmission(l.Ctx)
+	cut := newAdmissionReader(l.Ctx)
 	require.True(t, cut.reads.Spend(maxAdmissionReads), "the budget holds what is spent")
 	assert.False(t, unionHeld(&cut, r, StandaloneSchema(js.GetSchema()), "anyOf"), "the integer branch's read runs past it")
 }
@@ -104,11 +104,11 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
-	first := newAdmission(l.Ctx)
+	first := newAdmissionReader(l.Ctx)
 	require.Contains(t, first.written(StatedIn(l, s), first.nullable).values, "s:a")
 
 	s.GetEnum()[0].Value = "z"
-	second := newAdmission(l.Ctx)
+	second := newAdmissionReader(l.Ctx)
 	read := second.written(StatedIn(l, s), second.nullable)
 	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
@@ -228,12 +228,12 @@ func TestAdmission_RendersASchemaOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	js, ok := l.Doc.Components.Schemas.Get("T")
 	require.True(t, ok)
-	first := newAdmission(l.Ctx)
+	first := newAdmissionReader(l.Ctx)
 	text := first.text(l.Ctx.Statements().Of(js))
 	require.NotNil(t, text)
 
 	*js.GetCore().GetRootNode() = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "other"}
-	second := newAdmission(l.Ctx)
+	second := newAdmissionReader(l.Ctx)
 	assert.Equal(t, text, second.text(l.Ctx.Statements().Of(js)), "the second ask reads what the first rendered")
 }
 
@@ -333,7 +333,7 @@ func TestKindOfValue_NamesEachValuesKind(t *testing.T) {
 func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
-	w := newAdmission(l.Ctx)
+	w := newAdmissionReader(l.Ctx)
 	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable).values)
 }
 
@@ -347,7 +347,7 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, `    S: {type: string}
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
-		w := newAdmission(l.Ctx)
+		w := newAdmissionReader(l.Ctx)
 		assert.Equal(t, want, w.written(StatedIn(l, componentSchema(t, l, "T")), w.nullable).kinds, version)
 	}
 }
@@ -358,7 +358,7 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
 func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
-	w := newAdmission(l.Ctx)
+	w := newAdmissionReader(l.Ctx)
 	read := w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable)
 	assert.True(t, w.within(read, read))
 }
@@ -371,11 +371,11 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
-	first := newAdmission(l.Ctx)
+	first := newAdmissionReader(l.Ctx)
 	first.written(StatedIn(l, s), first.nullable)
 	require.False(t, first.incomplete())
 
-	short := newAdmission(l.Ctx)
+	short := newAdmissionReader(l.Ctx)
 	short.members = budget.New(budget.AtMost(1))
 	assert.Empty(t, short.written(StatedIn(l, s), short.nullable).values, "a set past the budget is not read at all")
 	assert.True(t, short.incomplete())
@@ -389,7 +389,7 @@ func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	s := componentSchema(t, l, "E")
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
-		w := newAdmission(l.Ctx)
+		w := newAdmissionReader(l.Ctx)
 		w.written(StatedIn(l, s), w.nullable)
 		assert.True(t, w.incomplete())
 	}
@@ -412,7 +412,7 @@ func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
 		l, _ := LoweredFor(t, openapitest.ComponentSpec("    En: {type: string, enum: ["+target.String()+"]}\n"+
 			"    T: {allOf: [{$ref: '#/components/schemas/En'}, {enum: ["+narrowed.String()+"]}]}\n"))
 		s := componentSchema(t, l, "T")
-		w := newAdmission(l.Ctx)
+		w := newAdmissionReader(l.Ctx)
 		total := 0
 		w.walked = func(n int) { total += n }
 		conjuncts, _ := w.conjuncts(StatedIn(l, s), allOfBranches(l.Ctx, StatedIn(l, s), ""))
@@ -444,7 +444,7 @@ func TestElect_ComparesEachPairOnce(t *testing.T) {
 			}
 			l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {allOf: ["+strings.Join(entries, ", ")+"]}\n"))
 			s := StatedIn(l, componentSchema(t, l, "T"))
-			w := newAdmission(l.Ctx)
+			w := newAdmissionReader(l.Ctx)
 			conjuncts, _ := w.conjuncts(s, allOfBranches(l.Ctx, s, ""))
 			compared := 0
 			w.compared = func() { compared++ }

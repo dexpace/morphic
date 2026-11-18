@@ -31,12 +31,12 @@ var shapelessKeywords = slices.Concat(
 
 // bodyReading is what a union's branches are judged against: what the body's
 // own keywords and its allOf admit, its unions apart, and what it declares of
-// its properties and elements, read once a branch nests a claim. One admission
+// its properties and elements, read once a branch nests a claim. One admissionReader
 // reads all of it, so a body's branches share one budget, and each place they
 // restate is read once, so repeating a restatement reads no more of the body.
 // What each branch writes is still read within it, an enum's members included.
 type bodyReading struct {
-	w     admission
+	w     admissionReader
 	body  *statement.Schema
 	held  admitted
 	decls *declarationSet
@@ -48,7 +48,7 @@ type bodyReading struct {
 // readBody reads s, the schema writing a union, for its branches to be judged
 // against.
 func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
-	r := &bodyReading{w: newAdmission(c), body: s}
+	r := &bodyReading{w: newAdmissionReader(c), body: s}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	for _, b := range conjunctsIn(c, s) {
 		r.held = r.held.and(lowered(&r.w, b))
@@ -61,7 +61,7 @@ func readBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
 // whole as readBody reads it. It spends a budget of its own, so what it reads
 // the whole reading does not pay for.
 func readOwnBody(c lowering.Ctx, s *statement.Schema) *bodyReading {
-	r := &bodyReading{w: newAdmission(c), body: s, own: true}
+	r := &bodyReading{w: newAdmissionReader(c), body: s, own: true}
 	r.held = writtenLowered(&r.w, s, r.w.nullable)
 	return r
 }
@@ -195,7 +195,7 @@ type nested struct {
 // off a stack, so the walk adds no recursion cycle, and it visits the branch's
 // tree once: bounded by the size of a tree the load phase holds
 // (docs/compilers/openapi.md#source-budgets), while what each restates is read
-// within admission's budget. Comparing a nested schema's text renders it again
+// within the admissionReader's budget. Comparing a nested schema's text renders it again
 // at each level, so restating one d levels deep renders about d squared nodes.
 func (r *bodyReading) restates(top claim) bool {
 	claims := []claim{top}
@@ -279,7 +279,7 @@ func (r *bodyReading) declarationsAt(c claim) declarationSet {
 // for, a declaration written alike against one base says the same, and
 // declarations admitting nothing together leave nothing to say. ok is false
 // where the body declares nothing there, so n is new shape. What n restates is
-// what its declarations say together, each read as admission reads it, the
+// what its declarations say together, each read as an admissionReader reads it, the
 // keywords beside a $ref conjoining with it at every version
 // (docs/compilers/openapi.md#ref-use-site).
 func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {

@@ -67,7 +67,7 @@ var loweringRecursions = [][]string{
 	// Whether one conjunct restates another. Two lists compare by their elements,
 	// each read the same way, down what `items` nests. Each step reads a schema,
 	// which spends the budget maxAdmissionReads holds it to.
-	{"admission.holds", "admission.itemsWithin", "admission.restates"},
+	{"admissionReader.holds", "admissionReader.itemsWithin", "admissionReader.restates"},
 	// The key an enum entry is compared by when the enum repeats it. A list's or
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
