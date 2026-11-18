@@ -467,13 +467,15 @@ func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
 // discriminator written beside an allOf whose inline principal's Union holds
 // its own: it is kept verbatim, its routes resolved, and reported as kept
 // beside the discriminator the Union holds, never for want of a home, which a
-// Union has; a keyword with none is reported apart.
+// Union has; a keyword with none is reported apart, and beside a Union holding
+// none the discriminator is not said to be beside one.
 func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Tag: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: a}}], discriminator: {propertyName: b}}\n"+
 			"    Two: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: a}}], "+
-			"discriminator: {propertyName: b, mapping: {x: Nope}}, maxItems: 3}\n"))
+			"discriminator: {propertyName: b, mapping: {x: Nope}}, maxItems: 3}\n"+
+			"    None: {allOf: [{oneOf: [{type: string}, {type: integer}]}], discriminator: {propertyName: b}}\n"))
 	assert.Equal(t, map[string]string{"openapi:discriminator": `{"propertyName":"b"} [degraded_lowering]`}, keptOn(t, doc, "Tag"))
 	assert.Equal(t, "a", doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
 	said := reportsAt(diags, "/components/schemas/Tag")
@@ -487,6 +489,9 @@ func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing
 	assert.Contains(t, said[1], "holds the discriminator its inline allOf branch writes")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Two/discriminator/mapping/x"),
 		"the kept discriminator's mapping is resolved")
+	said = reportsAt(diags, "/components/schemas/None")
+	require.Len(t, said, 1)
+	assert.NotContains(t, said[0], "holds the discriminator", "a Union holding none is not said to hold its branch's")
 }
 
 // TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions pins the keywords
@@ -508,7 +513,8 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 			"    Alike: {allOf: [{type: string, format: byte, contentEncoding: base64url}], format: byte}\n"+
 			"    UnionAlike: {allOf: [{"+union+"}], anyOf: [{type: string}, {type: boolean}]}\n"+
 			"    Whole: {allOf: [{"+union+", x-k: 1}], anyOf: [{type: number}, {type: string}], x-k: 2}\n"+
-			"    Free: {allOf: [{type: string, format: byte, contentEncoding: base64url}]}\n"))
+			"    Free: {allOf: [{type: string, format: byte, contentEncoding: base64url}]}\n"+
+			"    WholeFree: {allOf: [{type: string, format: byte, contentEncoding: base64url, x-k: 1}], x-k: 2}\n"))
 	for _, tc := range []struct{ name, keyword, entry, plain, flat string }{
 		{"Format", "format", `{"format":"byte"} [no_ir_home]`, `"uuid" [degraded_lowering]`, "format is kept verbatim under Unmodeled"},
 		{"Union", "anyOf", `{"anyOf":[{"type":"string"},{"type":"boolean"}]} [degraded_lowering]`,
@@ -533,7 +539,11 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	assert.Contains(t, whole["openapi:allOf/0"], `"anyOf":[{"type":"string"},{"type":"boolean"}]`)
 	assert.True(t, strings.HasSuffix(whole["openapi:allOf/0"], " [degraded_lowering]"),
 		"the whole entry's reason reads the anyOf the build kept beside the x-k: %s", whole["openapi:allOf/0"])
+	assert.Contains(t, whole["openapi:allOf/0"], `"x-k":1`, "the position's anyOf leaves the whole entry whole")
 	assert.Equal(t, `[{"type":"number"},{"type":"string"}] [degraded_lowering]`, whole["openapi:anyOf"])
+	free := keptOn(t, doc, "WholeFree")
+	assert.Len(t, free, 2, "the whole entry holds the format the build kept, and the position's x-k: %v", free)
+	assert.Contains(t, free["openapi:allOf/0"], `"format":"byte"`)
 	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
 }
 
@@ -650,7 +660,8 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 // dialect defines, a default, readOnly, a validation-only keyword, an
 // extension. It is one writing: kept once and reported once, by the position
 // where the principal is lowered, and inside the principal's entry, named by
-// its report, where the position keeps that entry whole.
+// its report, where the position keeps that entry whole, but an extension the
+// promotion policy reads, which stays beside it and is promoted.
 func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 	t.Parallel()
 	keywords := map[string]string{
@@ -665,6 +676,7 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 			keyword + ": " + value + "}\n")
 	}
 	lines.WriteString("    Unrendered: {allOf: [{type: string, foo: 1, x-k: 1, x-q: " + unpreservableValue + "}, {x-k: 2}], foo: 1}\n")
+	lines.WriteString("    Promoted: {allOf: [{type: string, x-sensitive: true, x-k: 1}, {x-k: 2}], x-sensitive: true}\n")
 	doc, diags := parseFull(t, openapitest.ComponentSpec(lines.String()))
 	for keyword := range keywords {
 		name := strings.ToUpper(keyword[:1]) + strings.ReplaceAll(keyword[1:], "-", "")
@@ -695,6 +707,9 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 		assert.Empty(t, reportsAt(diags, "/components/schemas/Whole"+name), "Whole%s: nothing is reported of the position's", name)
 		assert.Empty(t, reportsAt(diags, "/components/schemas/Whole"+name+"/"+keyword), "Whole%s", name)
 	}
+	assert.Equal(t, "true [vendor_extension]", keptOn(t, doc, "Promoted")["openapi:x-sensitive"],
+		"an extension the promotion policy reads stays where a promotion finds it, beside the whole entry")
+	assert.True(t, doc.Types[componentID("Promoted")].Common().Sensitive, "and is promoted")
 	assert.Equal(t, "1 [out_of_scope]", keptOn(t, doc, "Unrendered")["openapi:foo"],
 		"an entry no JSON holds is not whole, so the position keeps its own")
 }
