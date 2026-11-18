@@ -330,7 +330,7 @@ func TestRead_PastTheMergeBoundEachReaderReadsNeither(t *testing.T) {
 		{"schema.declaresValidationOnly", keywordSample{"3.1.0", "{not: {type: integer}}", "type: string", ""}},
 		{"schema.bodyReading.keysRestate", keywordSample{"3.1.0", "{properties: {a: {type: string}}}",
 			"allOf: [{$ref: '#/components/schemas/L'}]", "L: {type: object, properties: {a: {type: string}}}"}},
-		{"schema.keywordHome", keywordSample{"3.1.0", "{required: [a], additionalProperties: false}",
+		{"schema.keepUnread", keywordSample{"3.1.0", "{required: [a], additionalProperties: false}",
 			"properties: {a: {type: string}}", ""}},
 		{"schema.branchesSay", keywordSample{"3.1.0", "{oneOf: [{type: string}, {type: integer}]}",
 			"type: [string, integer]", ""}},

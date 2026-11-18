@@ -27,16 +27,17 @@ import (
 func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	read := keyBit("items") | typeReadAs(s, statement.KindArray) | collectionReads(s)
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		if n, tuple := listedTuple(c, s, pointer); tuple {
 			t, tupleDiags := buildListedTuple(c, ts, depth, s, common, pointer, n)
 			diags = append(diags, tupleDiags...)
-			return t
+			return t, read | keySetOf("prefixItems", "additionalItems")
 		}
 		if prefix := prefixItems(s); len(prefix) > 0 {
 			t, tupleDiags := buildTuple(c, ts, depth, s, common, pointer, prefix)
 			diags = append(diags, tupleDiags...)
-			return t
+			return t, read | keySetOf("prefixItems", "additionalItems")
 		}
 		elem, elemDiags := Ref(c, ts, depth, c.Statements().Sub(itemsSchema(s)), pointer+ids.Ptr("items"))
 		diags = append(diags, elemDiags...)
@@ -44,7 +45,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			TypeCommon:  common,
 			Elem:        elem,
 			Constraints: collectionConstraints(c, s, pointer),
-		}
+		}, read
 	}, fin)
 	return id, diags
 }

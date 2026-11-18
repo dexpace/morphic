@@ -88,12 +88,13 @@ var loweringRecursions = [][]string{
 // the position it names, and so is the census, which resolves a kept one's.
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
-	"buildListedTuple", "buildTuple", "buildUnion", "censusOn", "censusShared", "censused",
+	"buildListedTuple", "buildTuple", "buildUnion",
 	"composeMixin", "composeModel", "composedVariant", "contentSchemaRef", "declaring.finish", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
 	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
-	"keepCensus", "keepFailedRefs",
-	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keptOn", "lower",
+	"keepFailedRefs",
+	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keepUnread", "keepUnreadAcross", "keepUnreadShared",
+	"keepingUnread", "keptOn", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
@@ -104,7 +105,7 @@ var schemaRecursion = []string{
 	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry",
-	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed", "variantsCensus",
+	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
 // loweringPackages are the directories whose sources the call graph reads,

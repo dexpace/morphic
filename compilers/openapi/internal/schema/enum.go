@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -38,7 +39,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 	s, written := site.set, site.written
 	members := enumIn(s)
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
+	build := func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
 		// member count of zero exceeds no positive budget — so the order decides
 		// nothing, but reading the empty case beside the members it lacks is
@@ -70,6 +71,10 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 			Members:    members,
 			Closed:     true,
 		}
+	}
+	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td := build(common)
+		return td, valueSetReads(site.set, td)
 	}, site.finish)
 	return id, diags
 }
@@ -340,8 +345,9 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 // that schema's type and format select, as an enum's is (enumValueType), the
 // top type where they select none, narrowed as the site types it.
 func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
-	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
-		return &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
+	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
+		return td, valueSetReads(site.set, td)
 	}, site.finish)
 }
 
@@ -362,14 +368,16 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *ya
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		val, err := value.FromNode(node)
 		if err != nil {
 			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written,
 				"unconvertible value lowered as the top type: %s", err.Error()))
-			return &ir.Any{TypeCommon: common}
+			top := &ir.Any{TypeCommon: common}
+			return top, valueSetReads(site.set, top)
 		}
-		return &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
+		td := &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
+		return td, valueSetReads(site.set, td)
 	}, site.finish)
 	return id, diags
 }
@@ -405,6 +413,89 @@ func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPri
 		return prim
 	}
 	return memberPrim
+}
+
+// valueSetReads returns what the build of td, the node the value set set writes
+// lowers to, read of set: the value set; the type where it says nothing td does
+// not (valueSetTypeRead); and the format where td's ValueType is the primitive
+// it pairs the type with, or a narrower one (valueTypeHoldsFormat).
+func valueSetReads(set *statement.Schema, td ir.TypeDef) keySet {
+	read := keySetOf("enum", "const")
+	if valueSetTypeRead(set, td) {
+		read |= keyBit("type")
+	}
+	switch n := td.(type) {
+	case *ir.Enum:
+		if valueTypeHoldsFormat(n.ValueType, set) {
+			read |= keyBit("format")
+		}
+	case *ir.Literal:
+		if valueTypeHoldsFormat(n.ValueType, set) {
+			read |= keyBit("format")
+		}
+	default:
+		// The top type and the union of literals hold no ValueType.
+	}
+	return read
+}
+
+// valueSetTypeRead reports whether the type set writes says nothing td, the
+// node its value set lowers to, does not: no member is left to type; each
+// member is a value of it, none naming an object or array (membersTyped); the
+// Literal's value is one of it (literalTyped); or td is the top type, which no
+// type contradicts. A union of literals holds none of a type naming a primitive.
+func valueSetTypeRead(set *statement.Schema, td ir.TypeDef) bool {
+	switch n := td.(type) {
+	case *ir.Enum:
+		return len(n.Members) == 0 || membersTyped(n.Members, set) && !slices.ContainsFunc(effectiveTypes(set), structural)
+	case *ir.Literal:
+		return literalTyped(n, set)
+	case *ir.Any:
+		return true
+	default:
+		return len(effectiveTypes(set)) == 0
+	}
+}
+
+// structural reports whether st names an object or an array, which no
+// primitive types.
+func structural(st statement.Kind) bool {
+	return st == statement.KindObject || st == statement.KindArray
+}
+
+// literalTyped reports whether lit holds the type s declares: its ValueType is
+// the primitive that one type, or the type and format, select, which
+// literalValueType took because the value is one of it, or a format of the
+// type, as bytes is of string, or the type is the object or array a composite
+// value already is. A type set naming no shape holds where it admits the
+// value; one naming several, or a type the value is not, reached no field.
+func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
+	types := effectiveTypes(s)
+	if len(types) == 0 {
+		return typesAdmit(kindsIn(s), lit.Value)
+	}
+	if len(types) > 1 {
+		return false
+	}
+	if lit.Value.Kind == ir.ValueObject {
+		return types[0] == statement.KindObject
+	}
+	if lit.Value.Kind == ir.ValueList {
+		return types[0] == statement.KindArray
+	}
+	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
+		return true
+	}
+	prim, known := spelling.Lookup(string(types[0]))
+	return known && narrowsOrIs(lit.ValueType, prim)
+}
+
+// membersTyped reports whether every member of an Enum is a value of the type
+// set s declares, which then says nothing the members do not. One a member is
+// no value of is a type the Enum's ValueType does not take (enumValueType).
+func membersTyped(members []ir.EnumMember, s *statement.Schema) bool {
+	types := kindsIn(s)
+	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
 }
 
 // enumMembersAre reports whether every member's value is a value of prim.

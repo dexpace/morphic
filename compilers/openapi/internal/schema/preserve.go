@@ -30,10 +30,9 @@ import (
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
 // requires, so it is called here rather than inside annotation.Read: a
 // dynamic reference, which the model names no field for, is decided by
-// recordUnexpandedDynamicRef, run after Read; a draft's `dependencies`
-// is Read's (annotation.Dialect), and `additionalItems` beside a list the
-// census's (keywordHome). td is the node the position lowered to, nil for none
-// of its own.
+// recordUnexpandedDynamicRef, run after Read; a draft's `dependencies` is
+// Read's (annotation.Dialect), and `additionalItems` beside a list the
+// tuple's, its rest. td is the node the position lowered to, nil for none.
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
 	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), unknownTaken(c, s, pointer)...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)

@@ -36,21 +36,21 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		// The one flattened list; the readers composeModel calls take it, not s.
-		td, modelDiags := composeModel(c, ts, depth, s, pointer, discriminated, common, readAllOf(c, s, pointer))
+		td, read, modelDiags := composeModel(c, ts, depth, s, pointer, discriminated, common, readAllOf(c, s, pointer))
 		diags = modelDiags
 		diags = append(diags, composeMixin(c, ts, depth, td, mixin, pointer)...)
-		return td
+		return td, read
 	}, fin)
 	return id, diags
 }
 
 // composeModel builds the Model of s, written at pointer, composing comp, its
-// flattened conjuncts.
+// flattened conjuncts, and returns what it read of s.
 func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
 	discriminated bool, common ir.TypeCommon, comp allOfComposition,
-) (ir.TypeDef, []ir.Diagnostic) {
+) (ir.TypeDef, keySet, []ir.Diagnostic) {
 	if admissionOf(c, c.Statements().Read(s)).inferred {
 		// No conjunct declares the kind: the model is one by the
 		// kind-inference policy's reading of their shape keywords.
@@ -79,7 +79,7 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	m.DiscriminatorValue = tag.value
 	diags = append(diags, tagDiags...)
 	deferSubtypeTag(c, ts, tag, common.ID, pointer)
-	return objectNode(m), diags
+	return objectNode(m), modelReads(s, m, comp.bounds), diags
 }
 
 // compositionCensusHandled names the census keywords an allOf composition
@@ -375,7 +375,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	if variant, unpacked := objectVariant(c, e.schema); unpacked {
 		id = variant
 	}
-	unhomed := referenceUnhomed(c, b.Schema, compositionCensusHandled)
+	unhomed := unreadByReference(c, b.Schema, compositionCensusHandled)
 	var kept finished
 	keep := kept.on(keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer))
 	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)

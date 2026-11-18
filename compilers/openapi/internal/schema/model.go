@@ -34,7 +34,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	takes kindSet, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer, modelTakes(takes))
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
@@ -46,9 +46,20 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
-		return objectNode(m)
+		return objectNode(m), modelReads(s, m, modelTakes(takes))
 	}, fin)
 	return id, diags
+}
+
+// modelReads returns what the build of m read of s, a Model's or a MapT's
+// schema: its members and their catch-alls, a type naming an object, the
+// discriminator m holds, and the value bounds of the kinds held m's reader took.
+func modelReads(s *statement.Schema, m *ir.Model, held kindSet) keySet {
+	read := objectKeys | typeReadAs(s, statement.KindObject) | nodeBoundsRead(s, held, m.Constraints, m.Unmodeled)
+	if m.Discriminator != nil {
+		read |= keyBit("discriminator")
+	}
+	return read
 }
 
 // objectNode is the node an object lowering yields: the MapT m is when it is a
