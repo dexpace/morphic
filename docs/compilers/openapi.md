@@ -3565,7 +3565,11 @@ it admits they are a conjunct of their own, named `allOf/<n>` beside the referen
 `allOf/<n>/$ref`: `{allOf: [{$ref: Str, type: object}]}` is reported at every version, beside the
 later-version warning 3.0 draws. A `oneOf` or `anyOf` beside the `allOf` none of whose branches
 shares a kind with the rest of the schema is a conjunct too, named by its keyword and admitting what
-any branch does ([`union-beside-structure`](#union-beside-structure)). The schema is reported where those sets share no member, every
+any branch does ([`union-beside-structure`](#union-beside-structure)). So is the one of a `oneOf`
+and an `anyOf` written together that the position does not elect
+([`competing-keywords`](#competing-keywords)): beside the `allOf`, named by its keyword, and on an
+entry, named `allOf/<n>/<keyword>` beside that entry, which is then its own keywords and the union
+it elects. The schema is reported where those sets share no member, every
 conjunct admits some value by itself and none is cut short, and the schema admits no null as
 [`nullable`](#nullable) reads it, under the nullable-inference policy where that is on: a null every
 conjunct admits is a shared value, as
@@ -3621,7 +3625,8 @@ cut short draw it nowhere, as above.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
+- Tests: `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
   `schema.TestAllOf_ValueSetsSharingNoMemberWarnOnce`, `schema.TestAllOf_ValueSetsSharingAValueDrawNoWarning`,
   `schema.TestAllOf_ValueSetsSharingNoMemberReportAlikeInEitherOrder`,
   `schema.TestAllOf_ARefAmongValueSetsSharingNoMemberIsKept`,
@@ -3855,7 +3860,9 @@ branches declare no shape against the position, the rest of the `allOf` and the 
 among it and neither union, with an info `openapi/validation-only-keyword`, and else as
 `degraded_lowering`, drawing that rule's info where the two are written; where the elected union is
 one of the shapes below, the node keeps both as that shape keeps a union, with that shape's
-findings alone. Such a
+findings alone. Wherever it is written, the union passed over is a conjunct of the rest the elected
+one's branches are read against, for a dead branch (below) and for
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts). Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,

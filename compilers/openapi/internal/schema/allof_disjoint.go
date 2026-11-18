@@ -201,11 +201,12 @@ func disjointAtoms(c lowering.Ctx, s *statement.Schema, atoms []conjunctAtom) []
 
 // conjunctAtoms returns the conjuncts of comp, in order: the `type` s writes
 // beside it, the value set it writes there (valueSetAtom), each union s writes
-// beside it that shares no kind with the rest (unionAside), and each flattened
-// branch, a wrapper by its own `type`, an entry nested past
-// statement.MaxFlattenDepth as cut, and a $ref entry writing keywords that
-// narrow what it admits as two, the reference and the keywords beside it,
-// which apply to an instance alike.
+// beside it that shares no kind with the rest (unionAside), else the one it
+// passes over (passedOver), and each flattened branch: a wrapper by its own
+// `type`, an entry nested past statement.MaxFlattenDepth as cut, an inline
+// entry writing two unions as the one it elects and the other, and a $ref
+// entry writing keywords that narrow what it admits as the reference and the
+// keywords beside it, which apply to an instance alike.
 func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) []conjunctAtom {
 	out := make([]conjunctAtom, 0, 4+len(comp.branches))
 	out = append(out, conjunctAtom{name: "type", admits: declaredInstanceTypes(s), words: s})
@@ -216,16 +217,22 @@ func conjunctAtoms(c lowering.Ctx, s *statement.Schema, comp allOfComposition) [
 		choice := s.ChoiceKeywords()
 		out = append(out, unionAtoms(c, "oneOf", choice.OneOf)...)
 		out = append(out, unionAtoms(c, "anyOf", choice.AnyOf)...)
+	} else if passed, key := passedOver(c, s, s); passed != nil {
+		out = append(out, unionAtoms(c, key, passed)...)
 	}
 	for i, e := range comp.branches {
 		name := comp.branchPath(e.pointer)
 		r := admissionOf(c, e.schema)
 		ref, _ := declaredOf(c, e.schema)
+		passed, key := passedOver(c, s, e.schema.Schema)
 		switch {
 		case e.wrapper:
 			out = append(out, conjunctAtom{name: name, admits: declaredInstanceTypes(e.schema.Schema), words: e.schema.Schema})
 		case splitRef(comp, i):
 			out = append(out, conjunctAtom{name: name + "/$ref", admits: r.admits, st: e.schema, cut: r.cut, written: ref})
+		case passed != nil && e.schema.Ref == nil:
+			out = append(out, electedAtom(c, s, e, name, ref))
+			out = append(out, unionAtoms(c, name+"/"+key, passed)...)
 		default:
 			a := conjunctAtom{name: name, admits: r.admits, st: e.schema, cut: r.cut || e.capped, written: ref}
 			if e.schema.Truth.ReadsFalse() {
@@ -334,6 +341,16 @@ func conjunctsShareNothing(c lowering.Ctx, s *statement.Schema) bool {
 		joint &= a.admits
 	}
 	return joint == 0
+}
+
+// electedAtom is the inline entry e of s's allOf, named name, writing two
+// unions, as a conjunct beside the one it passes over: its own keywords and
+// the union it elects.
+func electedAtom(c lowering.Ctx, s *statement.Schema, e allOfBranch, name string, ref *statement.Statement) conjunctAtom {
+	w := newAdmissionReader(c)
+	elected, _, _ := unionBranches(c, s, e.schema.Schema)
+	read := w.written(e.schema.Schema, w.nullable).and(w.union(elected))
+	return conjunctAtom{name: name, admits: read.kinds, st: e.schema, cut: w.incomplete() || e.capped, written: ref}
 }
 
 // unionAtoms returns the union keyword names, written beside an allOf with

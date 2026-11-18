@@ -210,6 +210,20 @@ func anyOfElected(c lowering.Ctx, position, holder *statement.Schema) bool {
 	})
 }
 
+// passedOver returns the branch set unionBranches passes over in holder at
+// position, a conjunct of the rest of that position, and its keyword: none
+// where holder writes one union.
+func passedOver(c lowering.Ctx, position, holder *statement.Schema) ([]statement.Sub, string) {
+	choice := holder.ChoiceKeywords()
+	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
+		return nil, ""
+	}
+	if _, key, _ := unionBranches(c, position, holder); key == "oneOf" {
+		return choice.AnyOf, "anyOf"
+	}
+	return choice.OneOf, "oneOf"
+}
+
 // branches is unionBranches for u's holder at its position.
 func (u unionAt) branches(c lowering.Ctx) ([]statement.Sub, string, bool) {
 	return unionBranches(c, u.schema, u.holder)

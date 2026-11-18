@@ -289,8 +289,10 @@ func TestElection_BothKeywordsOnOneEntryOfARoutedSubtypeKeepTheAnyOfAsBeside(t *
 
 // TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten holds that a oneOf
 // and an anyOf over a body lower alike beside the allOf, on one entry or on two,
-// at every version and position, where the anyOf alone declares shape: the
-// union declaring shape is elected.
+// at every version and position, where the anyOf alone declares shape, where
+// it admits objects alone beside a oneOf branch of another kind, and where it
+// shares no kind with the body: the union declaring shape is elected, and the
+// other is a conjunct of the rest wherever it is written.
 func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
 	t.Parallel()
 	objects := "[{type: object, properties: {d: {type: string}}}, {type: object, properties: {e: {type: string}}}]"
@@ -309,6 +311,25 @@ func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
 				for _, v := range union.Variants {
 					assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonValidationOnly},
 						keptOn(kindNode(t, doc, v.Type.Target)), "each variant keeps the oneOf")
+				}
+			}},
+		{"the anyOf refuses a oneOf branch", "[{type: object, properties: {b: {type: string}}}, {type: array}]",
+			"[{type: object}]", []string{"{properties: {a: {type: string}}}"},
+			func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, at jsontext.Pointer) {
+				t.Helper()
+				requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: string(at)}})
+				union := requireUnionOf(t, doc, at, 1)
+				assert.Equal(t, degradedKept("openapi:oneOf/1"), keptOn(union), "the dead branch is kept on the Union")
+			}},
+		{"the anyOf shares no kind with the body", bothKeywordsOneOf, "[{type: string}, {type: integer}]",
+			[]string{"{type: object, properties: {a: {type: string}}}", entryRef},
+			func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, at jsontext.Pointer) {
+				t.Helper()
+				requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: string(at),
+					contains: []string{"share no value", "string or integer"}}})
+				union := requireUnionOf(t, doc, at, 2)
+				for _, v := range union.Variants {
+					assert.Equal(t, degradedKept("openapi:anyOf"), keptOn(kindNode(t, doc, v.Type.Target)))
 				}
 			}},
 	}
