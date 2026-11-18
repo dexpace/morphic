@@ -469,14 +469,15 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 		return e, nil
 	}
 	// The principal's readers add to its entry's object after the position; a
-	// wrapper's holds what the wrapper alone keeps.
-	into := &principalKept{}
+	// wrapper's holds what the wrapper alone keeps, held against what the
+	// position writes even where the principal keeps it after (besideHeld).
+	into, view := &principalKept{}, besideHeld(*p, s, e.apart)
 	if e.entry.pointer == k.principal.pointer {
 		held = held.saying(keeping{})
-		into = held
+		into, view = held, *p
 	}
 	bs := e.entry.schema.Schema
-	plain, apart := heldAgainst(*p, bs, e.apart)
+	plain, apart := heldAgainst(view, k.comp, bs, e.entry.pointer, e.apart)
 	own := slices.Concat(e.own, plain)
 	e.own = slices.DeleteFunc(slices.Clone(e.residue), func(key string) bool { return !slices.Contains(own, key) })
 	i := slices.IndexFunc(k.comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })

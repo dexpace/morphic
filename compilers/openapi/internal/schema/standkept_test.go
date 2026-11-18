@@ -655,6 +655,62 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	}
 }
 
+// TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce pins a level of a
+// nested principal writing a keyword as an entry around it does, or as the
+// position does, where another level writes it otherwise: one writing, kept
+// once under the outermost key holding that value, the plain key the
+// position's, and reported once by its keeper. Levels written otherwise each
+// keep their own under their entry's key; a value no JSON holds is alike to
+// nothing.
+func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
+	t.Parallel()
+	wrap := func(inner, minimum string) string { return "{allOf: [" + inner + "], minimum: " + minimum + "}" }
+	str := func(minimum string) string { return "{type: string, minimum: " + minimum + "}" }
+	at := func(level int) string { return "/allOf/0" + strings.Repeat("/allOf/0", level-1) }
+	n := func(m string) string { return m + " [degraded_lowering]" }
+	obj := func(m string) string { return `{"minimum":` + m + `} [degraded_lowering]` }
+	cases := []struct {
+		keptCase
+		silent []int // levels that report nothing: their value is kept by another's writing
+	}{
+		{keptCase{name: "Two", schema: wrap(wrap(str("802"), "802"), "801"),
+			kept: map[string]string{"openapi:minimum": n("801"), "openapi:allOf/0": obj("802")}, atEntry: 1, atSelf: 1}, []int{2}},
+		{keptCase{name: "Skip", schema: wrap(wrap(wrap(str("5"), "6"), "5"), "1"),
+			kept:    map[string]string{"openapi:minimum": n("1"), "openapi:allOf/0": obj("5"), "openapi:allOf/0/allOf/0": obj("6")},
+			atEntry: 1, atSelf: 1}, []int{3}},
+		{keptCase{name: "All", schema: wrap(wrap(wrap(str("5"), "5"), "5"), "1"),
+			kept: map[string]string{"openapi:minimum": n("1"), "openapi:allOf/0": obj("5")}, atEntry: 1, atSelf: 1}, []int{2, 3}},
+		{keptCase{name: "TwoInner", schema: wrap(wrap(str("802"), "801"), "802"),
+			kept: map[string]string{"openapi:minimum": n("802"), "openapi:allOf/0": obj("801")}, atEntry: 1}, nil},
+		{keptCase{name: "SkipInner", schema: wrap(wrap(wrap(str("5"), "6"), "7"), "5"),
+			kept:    map[string]string{"openapi:minimum": n("5"), "openapi:allOf/0": obj("7"), "openapi:allOf/0/allOf/0": obj("6")},
+			atEntry: 1}, nil},
+		{keptCase{name: "AllInner", schema: wrap(wrap(wrap(str("5"), "6"), "6"), "5"),
+			kept: map[string]string{"openapi:minimum": n("5"), "openapi:allOf/0": obj("6")}, atEntry: 1}, []int{2}},
+		{keptCase{name: "Foo", schema: "{allOf: [{allOf: [{type: string, foo: 2}], foo: 2}], foo: 1}",
+			kept: map[string]string{"openapi:foo": "1 [out_of_scope]", "openapi:allOf/0": `{"foo":2} [out_of_scope]`}, atEntry: 1}, []int{2}},
+		{keptCase{name: "Build", schema: "{allOf: [{allOf: [{oneOf: [{type: string}, {type: integer}], anyOf: [{type: string}, {type: boolean}]}], " +
+			"anyOf: [{type: string}, {type: boolean}]}], anyOf: [{type: string}, {type: number}]}",
+			kept: map[string]string{
+				"openapi:anyOf":   `[{"type":"string"},{"type":"number"}] [degraded_lowering]`,
+				"openapi:allOf/0": `{"anyOf":[{"type":"string"},{"type":"boolean"}]} [degraded_lowering]`,
+			}, atEntry: 1, atSelf: 1}, nil},
+		{keptCase{name: "Refused", schema: "{allOf: [{allOf: [{type: string, foo: 2}], foo: 3}], foo: " + unpreservableValue + "}",
+			kept: map[string]string{"openapi:foo": "3 [out_of_scope]", "openapi:allOf/0/allOf/0": `{"foo":2} [out_of_scope]`}}, nil},
+	}
+	keptCases := make([]keptCase, 0, len(cases))
+	for _, tc := range cases {
+		keptCases = append(keptCases, tc.keptCase)
+	}
+	diags := assertKept(t, keptCases)
+	for _, tc := range cases {
+		for _, level := range tc.silent {
+			where := "/components/schemas/" + tc.name + at(level)
+			assert.Empty(t, reportsAt(diags, where), "%s: level %d keeps nothing of its own", tc.name, level)
+		}
+	}
+}
+
 // TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader pins a keyword an
 // inline principal and its position write alike that no census reads: a key no
 // dialect defines, a default, readOnly, a validation-only keyword, an

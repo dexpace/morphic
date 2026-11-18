@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"maps"
 	"slices"
 	"strings"
@@ -128,7 +129,7 @@ func keepStanding(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held
 	if held.whole {
 		return routesKept(c, ts, s, k.keys, pointer)
 	}
-	plain, apart := heldAgainst(*p, s, k.keys)
+	plain, apart := heldAgainst(*p, comp, s, pointer, k.keys)
 	diags := k.keep(p, plain)
 	if slices.Contains(plain, "discriminator") {
 		// The discriminator kept whole holds what the position read out of it.
@@ -137,17 +138,20 @@ func keepStanding(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held
 	return append(diags, keepApart(c, ts, comp, held, p, s, pointer, apart, k.reason)...)
 }
 
-// heldAgainst splits keys, keywords the inline principal s keeps, by what p,
-// the Unmodeled its position has written, holds under each one's own key:
-// plain where that key is free, apart where it holds another value than s
-// writes, and neither where it holds the same, kept once. Two values are the
-// same where they render to the same JSON, a number's spelling and an array's
-// order with them, as two entries' are (writtenKeys.note); one that cannot
-// render is plain, its keeper's to refuse as it refuses one written flat.
-func heldAgainst(p ir.Unmodeled, s *statement.Schema, keys []string) (plain, apart []string) {
+// heldAgainst splits keys, keywords s, an entry of comp written at pointer that
+// its position lowers from, keeps, by what p, the Unmodeled the position has
+// written, holds: plain where each one's own key is free, apart where it holds
+// another value, and neither where it, or the key of an entry around s
+// (aroundOf), holds the same, kept once there. Two values are the same where
+// they render to the same JSON, a number's spelling and an array's order with
+// them (writtenKeys.note); one that cannot render is plain, its keeper's to
+// refuse as written flat.
+func heldAgainst(p ir.Unmodeled, comp allOfComposition, s *statement.Schema, pointer jsontext.Pointer, keys []string,
+) (plain, apart []string) {
+	around := aroundOf(p, comp, pointer)
 	for _, key := range keys {
 		entry, taken := p[annotation.EntryKey("", key)]
-		if !taken {
+		if !taken && len(around) == 0 {
 			// The path nearly every keyword takes: nothing to render.
 			plain = append(plain, key)
 			continue
@@ -156,11 +160,74 @@ func heldAgainst(p ir.Unmodeled, s *statement.Schema, keys []string) (plain, apa
 		switch {
 		case err != nil:
 			plain = append(plain, key)
-		case !bytes.Equal(raw, entry.Value):
+		case taken && bytes.Equal(raw, entry.Value), holdsAlike(around, key, raw):
+		case !taken:
+			plain = append(plain, key)
+		default:
 			apart = append(apart, key)
 		}
 	}
 	return plain, apart
+}
+
+// aroundOf returns the members of what p holds under the key of each entry
+// around the one written at pointer: a wrapper of comp out of whose allOf it
+// is flattened, settled before it (outcomeKeeps.lowered). A keyword one of
+// them holds alike is that wrapper's writing, the outermost standing.
+func aroundOf(p ir.Unmodeled, comp allOfComposition, pointer jsontext.Pointer) []map[string]ir.RawValue {
+	var out []map[string]ir.RawValue
+	for _, b := range comp.branches {
+		if !b.wrapper || !strings.HasPrefix(string(pointer), string(b.pointer)+"/") {
+			continue
+		}
+		if entry, kept := p[comp.branchKey(b.pointer)]; kept {
+			out = append(out, keptMembers(entry.Value))
+		}
+	}
+	return out
+}
+
+// holdsAlike reports whether one of around holds key with the value raw.
+func holdsAlike(around []map[string]ir.RawValue, key string, raw ir.RawValue) bool {
+	return slices.ContainsFunc(around, func(m map[string]ir.RawValue) bool {
+		v, held := m[key]
+		return held && bytes.Equal(v, raw)
+	})
+}
+
+// keptMembers returns the members of raw, a JSON object, by name, each as
+// written; nil where raw is no object.
+func keptMembers(raw ir.RawValue) map[string]ir.RawValue {
+	var out map[string]ir.RawValue
+	if json.Unmarshal(raw, &out) != nil {
+		return nil
+	}
+	return out
+}
+
+// besideHeld returns p with the value the position s writes under each of
+// keys whose own key p does not hold yet: one a field reads, or the inline
+// principal writing it alike keeps after, holds that key all the same, so a
+// wrapper around the principal writing it otherwise is kept under its own
+// entry's key, the plain key the position's. Where none is, p itself.
+func besideHeld(p ir.Unmodeled, s *statement.Schema, keys []string) ir.Unmodeled {
+	view, copied := p, false
+	for _, key := range keys {
+		k := annotation.EntryKey("", key)
+		if _, taken := p[k]; taken || !hasKey(s, key) {
+			continue
+		}
+		raw, err := annotation.RawFromNode(keyNode(s, key))
+		if err != nil {
+			continue
+		}
+		if !copied {
+			view, copied = make(ir.Unmodeled, len(p)+len(keys)), true
+			maps.Copy(view, p)
+		}
+		view[k] = ir.UnmodeledEntry{Value: raw}
+	}
+	return view
 }
 
 // keepApart keeps on p, the Unmodeled of the node standing for the position
@@ -254,22 +321,24 @@ func takeBuilt(p *ir.Unmodeled, pointer jsontext.Pointer) ir.Unmodeled {
 // keepBuilt keeps on p, which the position has written, the entries built,
 // what the build of s, comp's inline principal written at pointer, kept: each
 // under its own key where that is free; once where the key holds the same
-// value, or the position keeps s whole, the entry holding it; and under s's
-// entry's key where the position's keyword holds another (holdApart). The
-// build reported each where it kept it, as written flat, which stays true, so
-// nothing more is said. A key no keyword of s names cannot be held otherwise.
+// value, or the position keeps s whole, the entry holding it, or an entry
+// around s holds it alike (aroundOf); and under s's entry's key where the
+// position's keyword holds another (holdApart). The build reported each where
+// kept, as written flat, which stays true. A key no keyword of s names cannot
+// be held otherwise.
 func keepBuilt(c lowering.Ctx, comp allOfComposition, held *principalKept, p *ir.Unmodeled, s *statement.Schema,
 	pointer jsontext.Pointer, built ir.Unmodeled,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	around := aroundOf(*p, comp, pointer)
 	for _, key := range slices.Sorted(maps.Keys(built)) {
 		entry := built[key]
 		cur, taken := (*p)[key]
 		keyword := strings.TrimPrefix(key, annotation.EntryKey("", ""))
 		switch {
+		case taken && (held.whole || bytes.Equal(cur.Value, entry.Value)), holdsAlike(around, keyword, entry.Value):
 		case !taken:
 			annotation.PreserveInto(p, key, entry.Value, entry.Reason, entry.Provenance)
-		case held.whole || bytes.Equal(cur.Value, entry.Value):
 		case !hasKey(s, keyword):
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 				"internal: %s, kept by the build of this allOf branch, is held with another value", key))

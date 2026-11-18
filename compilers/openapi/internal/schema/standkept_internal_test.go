@@ -58,3 +58,13 @@ func TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken(t *testing
 	assertInternalInvariant(t, diags)
 	assert.Equal(t, `1`, string(p["openapi:oneOf/0"].Value), "what the position wrote stands")
 }
+
+// TestKeptMembers_OnlyAnObjectHasMembers pins the reading of what an entry
+// around a principal's level holds under its key: an object's members, each
+// as written, a number's spelling with it, and none of anything else.
+func TestKeptMembers_OnlyAnObjectHasMembers(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, map[string]ir.RawValue{"minimum": ir.RawValue("1.0"), "foo": ir.RawValue(`[1,2]`)},
+		keptMembers(ir.RawValue(`{"foo":[1,2],"minimum":1.0}`)))
+	assert.Nil(t, keptMembers(ir.RawValue("false")))
+}

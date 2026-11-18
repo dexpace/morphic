@@ -2801,7 +2801,11 @@ keywords are written beside the principal's `allOf`, so it is not kept whole for
 either, and each level is held against the levels around it, the outermost first:
 `{allOf: [{allOf: [{type: string, minimum: 3}], minimum: 2}], minimum: 1}` keeps `1` under
 `openapi:minimum`, `2` under `openapi:allOf/0` and `3` under `openapi:allOf/0/allOf/0`, and with
-no `minimum` beside the outer `allOf`, `2` under `openapi:minimum`. Two values are the same where
+no `minimum` beside the outer `allOf`, `2` under `openapi:minimum`. A level writing a keyword as a
+level around it does is that one writing, kept once under the outermost key holding it, and the
+plain key holds what the position writes though its principal keeps it alike:
+`{allOf: [{allOf: [{type: string, minimum: 2}], minimum: 3}], minimum: 2}` keeps `2` under
+`openapi:minimum` and `3` under `openapi:allOf/0`. Two values are the same where
 they render to the same JSON, member order aside, a number's spelling and an array's order
 included: `1` and `1.0` are two values, each kept. A value no JSON holds is refused where it is
 written, as the flat spelling's is, and kept nowhere. A principal the position keeps whole
@@ -2878,6 +2882,7 @@ entries: the position lowers from them, and each of their keywords is kept once 
   `schema.TestPrincipalKept_AVoicesBuildKeepStaysThePositions`,
   `schema.TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken`,
   `schema.TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce`,
+  `schema.TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce`,
   `e2e.TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce`,
   `e2e.TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds`,
   `e2e.TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping`,
