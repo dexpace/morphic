@@ -190,17 +190,18 @@ func (d *declarationSet) property(t *statement.Table, name string) *place {
 	return at
 }
 
-// declarations returns what s declares: itself, each allOf conjunct and what
-// a $ref lands on, read as of reads them and within the same budget.
-func (w *admissionReader) declarations(s *statement.Schema) declarationSet {
+// declarationsOf returns what s declares: itself, each allOf conjunct and what
+// a $ref lands on, read as w reads them and within the same budget.
+func declarationsOf(w *admissionReader, s *statement.Schema) declarationSet {
 	out := newDeclarationSet()
 	out.add(w.c.Statements(), s)
-	w.declare(&out, conjunctsIn(w.c, s))
+	out.declare(w, conjunctsIn(w.c, s))
 	return out
 }
 
-// heldAt returns what p's declarations admit together, read once.
-func (w *admissionReader) heldAt(p *place) admitted {
+// admits returns what p's declarations admit together, as w reads them, read
+// once.
+func (p *place) admits(w *admissionReader) admitted {
 	if p.held == nil {
 		held := lowered(w, p.decls[0])
 		for _, d := range p.decls[1:] {
@@ -211,29 +212,29 @@ func (w *admissionReader) heldAt(p *place) admitted {
 	return *p.held
 }
 
-// innerAt returns what p's declarations declare together, as declarations
+// declares returns what p's declarations declare together, as declarationsOf
 // reads one, read once.
-func (w *admissionReader) innerAt(p *place) declarationSet {
+func (p *place) declares(w *admissionReader) declarationSet {
 	if p.inner == nil {
 		inner := newDeclarationSet()
-		w.declare(&inner, slices.Clone(p.decls))
+		inner.declare(w, slices.Clone(p.decls))
 		p.inner = &inner
 	}
 	return *p.inner
 }
 
-// declare adds to out what each schema on stack declares, its conjuncts
+// declare adds to d what each schema on stack declares, its conjuncts
 // (conjunctsIn) and what its $ref lands on. A union's branches are left out, since an
 // instance need match only one. A declaration the walk does not reach, past the
 // budget or a $ref landing nowhere, is one fewer to restate, which errs towards
 // shape. The walk keeps its own stack, so it adds no recursion cycle, and the
 // order of each list is no answer.
-func (w *admissionReader) declare(out *declarationSet, stack []*statement.Statement) {
+func (d *declarationSet) declare(w *admissionReader, stack []*statement.Statement) {
 	for len(stack) > 0 && w.reads.Spend(1) {
 		st := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		out.composed = append(out.composed, st)
-		out.add(w.c.Statements(), st.Schema)
+		d.composed = append(d.composed, st)
+		d.add(w.c.Statements(), st.Schema)
 		stack = append(stack, conjunctsIn(w.c, st.Schema)...)
 		if next, _ := declaredOf(w.c, st); next != nil {
 			stack = append(stack, next)

@@ -75,7 +75,7 @@ func (r *bodyReading) declared() declarationSet {
 		if r.own {
 			d.add(r.w.c.Statements(), r.body)
 		} else {
-			d = r.w.declarations(r.body)
+			d = declarationsOf(&r.w, r.body)
 		}
 		r.decls = &d
 	}
@@ -271,7 +271,7 @@ func (r *bodyReading) declarationsAt(c claim) declarationSet {
 	if c.at == nil {
 		return r.declared()
 	}
-	return r.w.innerAt(c.at)
+	return c.at.declares(&r.w)
 }
 
 // claimOf returns the claim n makes, and false for open where n says nothing
@@ -292,7 +292,7 @@ func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
 	if n.written.Truth != statement.Stated || slices.ContainsFunc(n.at.decls, alike) {
 		return claim{}, false, true
 	}
-	held := r.w.heldAt(n.at)
+	held := n.at.admits(&r.w)
 	if !held.reachable() {
 		return claim{}, false, true
 	}
@@ -308,7 +308,7 @@ func (r *bodyReading) lands(c claim) bool {
 		return false
 	}
 	at, _ := declaredOf(r.w.c, c.written)
-	return at != nil && slices.Contains(r.w.innerAt(c.at).composed, at)
+	return at != nil && slices.Contains(c.at.declares(&r.w).composed, at)
 }
 
 // shapeless reports whether s's keyword key declares no shape whatever it
