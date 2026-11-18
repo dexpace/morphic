@@ -293,7 +293,7 @@ func (r ruler) member(rule Rule) {
 // conditions hold.
 func (r ruler) syntax(rule Rule) {
 	got, ok := r.f.text(rule.Field)
-	if !ok || validFormat(rule.Format, got) || r.f.test(rule.When) != yes {
+	if !ok || ValidFormat(rule.Format, got) || r.f.test(rule.When) != yes {
 		return
 	}
 	r.fail(rule, classFormat, r.f.at.ptr.AppendToken(rule.Field),

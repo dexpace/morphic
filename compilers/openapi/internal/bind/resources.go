@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
 
 // resource is a schema resource (JSON Schema 2020-12 §8.2.1): the content of a
@@ -624,7 +625,7 @@ func fragmentName(rule DialectRule, id string, written bool) (string, bool) {
 	case !written || !ok || raw == "" || strings.Contains(raw, "#"):
 		return "", false
 	case rule.PlainFragments:
-		return raw, isPlainName(raw)
+		return raw, oas.ValidFormat(oas.PlainName, raw)
 	}
 	name := string(fragment.Pointer(id))
 	return name, name != "" && !strings.HasPrefix(name, "/") && utf8.ValidString(name)

@@ -498,7 +498,7 @@ func vocabulary(r ruler, rule Rule) {
 	base := r.f.at.ptr.AppendToken("$vocabulary")
 	for _, p := range r.w.view.MappingPairs(r.f.byKey["$vocabulary"]) {
 		ptr := base.AppendToken(p.Key)
-		if !validFormat(AbsoluteURI, p.Key) {
+		if !ValidFormat(AbsoluteURI, p.Key) {
 			r.fail(rule, classFormat, ptr, "field \"$vocabulary\" has the key "+quote(p.Key)+", which must be "+describeFormat(AbsoluteURI))
 		}
 		if v := nodeview.Deref(p.Val); v == nil || !matches(Boolean, v) {

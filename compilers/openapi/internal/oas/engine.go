@@ -585,7 +585,7 @@ func (w *walker) patterned(f frame, depth int) {
 		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
 			continue
 		}
-		if pat.Keys != FormatNone && !validFormat(pat.Keys, p.Key) {
+		if pat.Keys != FormatNone && !ValidFormat(pat.Keys, p.Key) {
 			w.report(ir.SeverityError, classFormat, f.at.ptr.AppendToken(p.Key),
 				"%s has the key %q, which must be %s in %s (%s)",
 				f.obj.Name, p.Key, describeFormat(pat.Keys), f.in(w.minor), citeFor(pat.Cites, w.minor).Section)

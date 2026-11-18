@@ -15,9 +15,6 @@ var Plural = plural
 // TemplateFault is templateFault, for the external tests.
 var TemplateFault = templateFault
 
-// ValidFormat is validFormat, for the external tests.
-var ValidFormat = validFormat
-
 // FragmentAt is fragmentAt, for the external tests.
 var FragmentAt = fragmentAt
 

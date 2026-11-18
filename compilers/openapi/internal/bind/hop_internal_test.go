@@ -7,17 +7,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
 
-// TestIsAnchorName pins the names a $anchor can declare, by JSON Schema
-// 2020-12 section 8.2.2: none empty, none opening with a digit, '-' or '.'.
-func TestIsAnchorName(t *testing.T) {
+// TestAnchorNamed_ReadsTheAnchorGrammar pins the names the binder reads a
+// $anchor by, JSON Schema 2020-12 section 8.2.2 as the rule table spells it:
+// none empty, none opening with a digit, '-' or '.'.
+func TestAnchorNamed_ReadsTheAnchorGrammar(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]bool{
 		"a": true, "_": true, "Z9-_.": true, "": false, "1a": false, "-a": false, ".a": false, "a b": false,
 		"a/b": false, "é": false,
 	} {
-		assert.Equal(t, want, isAnchorName(name), "%q", name)
+		assert.Equal(t, want, anchorNamed(DialectRule{}, "$anchor", name), "%q", name)
 	}
 }
 
@@ -34,13 +37,13 @@ func TestIsPlainName(t *testing.T) {
 		"a": true, "a:b": true, "Z9-_.:": true, "": false, "_": false, "1a": false, "-a": false, "a b": false,
 		"a/b": false, "é": false,
 	} {
-		assert.Equal(t, want, isPlainName(name), "%q", name)
+		assert.Equal(t, want, oas.ValidFormat(oas.PlainName, name), "%q", name)
 		declared, ok := fragmentName(plain, "#"+name, true)
 		assert.Equal(t, want, ok, "%q", name)
 		assert.Equal(t, want, ok && declared == name, "%q declares %q", name, declared)
-		assert.Equal(t, isAnchorName(name), anchorNamed(plain, "$anchor", name), "%q", name)
+		assert.Equal(t, oas.ValidFormat(oas.AnchorName, name), anchorNamed(plain, "$anchor", name), "%q", name)
 		assert.Equal(t, want, anchorNamed(DialectRule{PlainNames: true}, "$anchor", name), "%q", name)
-		assert.Equal(t, isAnchorName(name), anchorNamed(DialectRule{PlainNames: true}, "$dynamicAnchor", name), "%q", name)
+		assert.Equal(t, oas.ValidFormat(oas.AnchorName, name), anchorNamed(DialectRule{PlainNames: true}, "$dynamicAnchor", name), "%q", name)
 	}
 }
 

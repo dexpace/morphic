@@ -13,6 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
 
 // resolve is where ref, written at site, reached along path, lands: in the
@@ -266,7 +267,7 @@ func (b *binder) anchored(to resource, name string) (reading, Reason) {
 	switch {
 	case why == NoReason:
 		return b.readPointer(to.root.Doc, at.Pointer)
-	case why != NoAnchor || isAnchorName(name) || isPlainName(name):
+	case why != NoAnchor || oas.ValidFormat(oas.AnchorName, name) || oas.ValidFormat(oas.PlainName, name):
 		return reading{}, why
 	default:
 		return reading{}, BadPointer
@@ -330,37 +331,7 @@ func DynamicFragment(ref string) (name, why string, ok bool) {
 // identifier's name is fragmentName's.
 func anchorNamed(rule DialectRule, keyword, s string) bool {
 	if keyword == "$anchor" && rule.PlainNames {
-		return isPlainName(s)
+		return oas.ValidFormat(oas.PlainName, s)
 	}
-	return isAnchorName(s)
-}
-
-// isPlainName reports whether s is a plain name JSON Schema drafts 6, 7 and
-// 2019-09 declare an anchor by (draft-handrews-json-schema-02 §8.2.3): a
-// letter, then letters, digits, '-', '_', ':' and '.'.
-func isPlainName(s string) bool {
-	for i, c := range s {
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
-		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '_' || c == ':' || c == '.'):
-		default:
-			return false
-		}
-	}
-	return s != ""
-}
-
-// isAnchorName reports whether s is a name a $anchor can declare, by JSON
-// Schema 2020-12 section 8.2.2: a letter or '_', then letters, digits, '-',
-// '_' and '.'.
-func isAnchorName(s string) bool {
-	for i, c := range s {
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
-		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '.'):
-		default:
-			return false
-		}
-	}
-	return s != ""
+	return oas.ValidFormat(oas.AnchorName, s)
 }
