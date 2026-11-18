@@ -56,30 +56,101 @@ type canonical struct {
 	identify        func(id string) (string, bool)
 }
 
-// canonicalForm is doc as the sequence-order oracle compares it, where seqs
-// are the sequences reversed, in doc's source's coordinates, and ties what the
-// reports that moved decided. It forgives an index of a reversed sequence a
-// string names, an ID beneath one told apart by its owners' digest; the order
-// of what orderFree lists, mixins, requires and an array kept verbatim at a
-// reversed sequence's pointer; and each node a tie decided (tied), with what is
-// keyed by its ID (untie). An unmodeled member's name is relative, so an index
-// after allOf or required in it is always erased.
-func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, error) {
-	encoded, err := encodeComparable(doc, markedArray, nil)
+// formReader reads the forms of doc, whose source's coordinates seqs are in:
+// its rewriter, made at the first reading and shared by every later one, so
+// the document is encoded and indexed once, and the error making it met.
+type formReader struct {
+	doc  *ir.Document
+	seqs sequences
+	r    *rewriter
+	err  error
+}
+
+// rewriter returns f's rewriter reading ties, its digests yet to compute, as
+// a tie changes what a node's owners write.
+func (f *formReader) rewriter(ties tieSites) (*rewriter, error) {
+	if f.r == nil && f.err == nil {
+		f.r, f.err = newRewriter(f.doc, f.seqs)
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	f.r.tie(ties)
+	return f.r, nil
+}
+
+// canonicalForm is f's document as the sequence-order oracle compares it,
+// where ties are what the reports that moved decided. It forgives an index of
+// a reversed sequence a string names, an ID beneath one told apart by its
+// owners' digest; the order of what orderFree lists, mixins, requires and an
+// array kept verbatim at a reversed sequence's pointer; and each node a tie
+// decided (tied), with what is keyed by its ID (untie). An unmodeled member's
+// name is relative, so an index after allOf or required in it is always
+// erased. Its identify holds until f is read again.
+func (f *formReader) canonicalForm(ties tieSites) (canonical, error) {
+	r, err := f.rewriter(ties)
 	if err != nil {
 		return canonical{}, err
 	}
-	r := rewriter{seqs: seqs, ties: ties.pointers, nodes: map[string]bool{}, owners: map[string][]map[string]any{},
-		digests: map[string]string{}, visiting: map[string]bool{}}
+	out := jsontext.Value(r.rewrite(r.tree, place{}, 0))
+	r.fail(out.Indent(jsontext.WithIndent("  ")))
+	shape := r.shape(f.doc)
+	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
+}
+
+// newRewriter returns a rewriter of doc's forms, where seqs are the sequences
+// reversed, in doc's source's coordinates, holding doc's encoding decoded,
+// each owner of an ID in it indexed.
+func newRewriter(doc *ir.Document, seqs sequences) (*rewriter, error) {
+	encoded, err := encodeComparable(doc, markedArray, nil)
+	if err != nil {
+		return nil, err
+	}
+	r := &rewriter{seqs: seqs, owners: map[string][]map[string]any{}}
+	r.tree = r.decode(encoded)
+	r.index(r.tree, 0)
+	return r, nil
+}
+
+// tie makes r read ties, with no digest computed or being computed.
+func (r *rewriter) tie(ties tieSites) {
+	r.ties, r.nodes = ties.pointers, map[string]bool{}
 	for _, node := range ties.nodes {
 		r.nodes[node] = true
 	}
-	tree := r.decode(encoded)
-	r.index(tree, 0)
-	out := jsontext.Value(r.rewrite(tree, place{}, 0))
-	r.fail(out.Indent(jsontext.WithIndent("  ")))
-	shape := r.shape(doc)
-	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
+	r.digests, r.visiting, r.computing = map[string]string{}, map[string]bool{}, ""
+}
+
+// memberForm is what a member takes in one model: the model, as a form writes
+// it, and the member's shape there (rewriter.memberShape).
+type memberForm struct{ model, shape string }
+
+// memberForms returns, for each member of f's models whose ID, erased in
+// f.seqs, members holds, its form in each model whose flattening holds it,
+// where no tie decides anything, sorted. It fails as a form does.
+func memberForms(f *formReader, members map[string][]string) (map[string][]memberForm, error) {
+	r, err := f.rewriter(tieSites{})
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]memberForm{}
+	for id, t := range f.doc.Types {
+		if _, ok := t.(*ir.Model); !ok {
+			continue
+		}
+		for _, p := range ir.FlattenedProperties(f.doc.Types, id).Properties {
+			member := erase(string(p.Property.ID), f.seqs)
+			if _, wanted := members[member]; wanted {
+				out[member] = append(out[member], memberForm{model: r.text(string(id), 0), shape: r.memberShape(p)})
+			}
+		}
+	}
+	for _, forms := range out {
+		slices.SortFunc(forms, func(x, y memberForm) int {
+			return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.shape, y.shape))
+		})
+	}
+	return out, r.err
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -120,12 +191,13 @@ type place struct {
 	how placement
 }
 
-// rewriter is the state of one canonicalForm: the sequences, tie sites and
-// tied nodes it reads, the owners of each ID erasing changes, the digests
-// computed so far, the IDs whose digest is being computed and the innermost of
-// them, and the first error met.
+// rewriter is the state of a document's forms: the sequences, the document's
+// encoding decoded, the tie sites and tied nodes it reads, the owners of each
+// ID erasing changes, the digests computed so far, the IDs whose digest is
+// being computed and the innermost of them, and the first error met.
 type rewriter struct {
 	seqs      sequences
+	tree      any
 	ties      []string
 	nodes     map[string]bool
 	owners    map[string][]map[string]any

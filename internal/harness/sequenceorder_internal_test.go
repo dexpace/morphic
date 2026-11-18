@@ -159,6 +159,54 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want:  passed(OracleSequenceOrder),
 		},
 		{
+			// The AB models' tie reports at A as written and at B reversed, and
+			// the BA models', composing the other order, the other way round, so
+			// each declaration holds one report in either order: the documents
+			// show the two ties, in every member folding both.
+			name: "two ties whose reports trade declarations",
+			src: schemas(composes("AB1", "A", "B"), composes("AB2", "A", "B"), composes("BA1", "B", "A"), composes("BA2", "B", "A"),
+				"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/B/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// The same with the BA models' tie said for three: the members
+			// take the same shapes in either order, in models of another
+			// number.
+			name: "two ties whose reports trade declarations, one said for more models",
+			src: schemas(composes("AB1", "A", "B"), composes("AB2", "A", "B"), composes("BA1", "B", "A"), composes("BA2", "B", "A"),
+				composes("BA3", "B", "A"), "A: {type: object, properties: {p: {type: string}}}",
+				"B: {type: object, properties: {p: {type: integer}}}"),
+			kept:  []string{"the same holds at each of 3 models composing both"},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/A/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// The AB models' tie moves its report from A to B, where the BC
+			// models' sits as written before it moves to C.
+			name: "a chain of ties sharing a declaration",
+			src: schemas(composes("AB1", "A", "B"), composes("AB2", "A", "B"), composes("BC1", "B", "C"), composes("BC2", "B", "C"),
+				"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}",
+				"C: {type: object, properties: {p: {type: boolean}}}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/B/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// As written, the ABC models' fold of three reports at A and at B,
+			// and the AB models' at A again; reversed, both families report at B
+			// alike, which the compiler says once for the four models, so the
+			// two orders make three reports and two.
+			name: "two families of models over shared components",
+			src: schemas(composes("AB1", "A", "B"), composes("AB2", "A", "B"), composes("ABC1", "A", "B", "C"), composes("ABC2", "A", "B", "C"),
+				"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}",
+				"C: {type: object, properties: {p: {type: boolean}}}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/B/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
 			name: "a redeclared array keeps the declaration naming an item type",
 			src: schemas("N: {allOf: [{type: object, properties: {p: {type: array}}}, " +
 				"{type: object, properties: {p: {type: array, items: {type: string}}}}]}"),
@@ -408,11 +456,19 @@ var (
 		"{type: object, properties: {p: {type: object, properties: {y: {type: string}}}, beta: {type: string}}}]}")
 	// fixtureSwap: two models composing alpha and beta, whose p disagree, so
 	// the one report of the tie moves from one declaration to the other.
+	// Their q agree.
 	fixtureSwap = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}], "+
 		"properties: {r: {type: string}}}",
 		"AB2: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
 		"alpha: {type: object, properties: {p: {type: string}, q: {type: string}}}",
 		"beta: {type: object, properties: {p: {type: integer}, q: {type: string}}}")
+	// fixtureBeside: fixtureSwap's tie over alpha and beta, and a model
+	// composing beta and gamma, whose p agree.
+	fixtureBeside = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"AB2: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"BG: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/gamma'}]}",
+		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
+		"gamma: {type: object, properties: {p: {type: integer}}}")
 )
 
 // abID is the model every detection fixture declares.
@@ -654,8 +710,9 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"diagnostics depend on sequence order", "x/swap"},
 		},
 		{
-			// One reversed report pairs with one as written, not with two.
-			name: "two reports as written moving to one declaration",
+			// A tie's reports compare as a set: how many a compile makes
+			// follows which of them say the same, which the compiler says once.
+			name: "two reports as written at a tie's declarations and one reversed",
 			src:  fixtureSwap,
 			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				d := diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/alpha/properties/p", "")
@@ -665,8 +722,81 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 				}
 				return doc, append(slices.Clip(diags), planted...), nil
 			},
+		},
+		{
+			// The oracle's limit: a report naming no node moving between a
+			// tie's declarations is read as the tie's, whatever its code.
+			name: "a report of another code moving between a tie's declarations",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				at := "/components/schemas/alpha/properties/p"
+				if reversed {
+					at = "/components/schemas/beta/properties/p"
+				}
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityInfo, "x/other", at, "")), nil
+			},
+		},
+		{
+			// q folds alpha's and beta's declarations, which say the same, so
+			// no tie moves a report between them.
+			name: "a report moving between the declarations of a member declared alike",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				at := "/components/schemas/alpha/properties/q"
+				if reversed {
+					at = "/components/schemas/beta/properties/q"
+				}
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/swap", at, "")), nil
+			},
 			found:    true,
 			contains: []string{"diagnostics depend on sequence order", "x/swap"},
+		},
+		{
+			// q folds two declarations and differs, but no report says a tie
+			// decided it.
+			name: "a member folding two declarations differing where no report says so",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if reversed {
+					property(t, doc, "q").Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `member "q"`},
+		},
+		{
+			// A tie moves the report at the declaration that lost: AB.q differs
+			// while the report beside it sits at alpha's q in either order.
+			name: "a member differing where the report at its declarations stays put",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if reversed {
+					property(t, doc, "q").Docs.Description = "reversed"
+				}
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/stay", "/components/schemas/alpha/properties/q", "")), nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `member "q"`},
+		},
+		{
+			// BG's p folds beta's declaration, which the tie of AB and AB2
+			// reports at reversed, and gamma's, which says the same: no order
+			// reports at BG.p's declarations as written, so no tie is shown to
+			// decide it.
+			name: "a member sharing a declaration with a tie differing where its declarations hold no report",
+			src:  fixtureBeside,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				bg, ok := doc.Types["t/openapi/components/schemas/BG"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower BG to a model")
+				require.Len(t, bg.Properties, 1, "the fixture must fold BG's p into BG")
+				if reversed {
+					bg.Properties[0].Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `BG member "p"`},
 		},
 		{
 			name: "a report moving between declarations that changes more than its pointer",
@@ -737,7 +867,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
 	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ,
-		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap} {
+		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap, "beside": fixtureBeside} {
 		t.Run(name, func(t *testing.T) {
 			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true)
 
