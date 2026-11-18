@@ -5447,7 +5447,10 @@ no bound ([`string-formats`](#string-formats)).
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
   at its position, with the census's other keywords, not at the keyword. A bound beside an enum a
   promotion opens, which bounds the values it does not list, is kept verbatim as a closed one's is
-  (#2004).
+  (#2004). A `$ref` landing on no schema with a keyword beside it, or as the one entry of an `allOf`
+  with a keyword beside the `allOf`, makes the position a `Model` with no member, keeping the `$ref`
+  and each keyword a model has no home for, a `type` among them, rather than leaving the position's
+  own `type` to decide (#2091).
 
 ### `validation-only`
 
