@@ -558,6 +558,11 @@ var (
 	fixtureTrade = schemas(composesAll("AB1", "alpha", "beta"), composesAll("AB2", "alpha", "beta"),
 		composesAll("BA1", "beta", "alpha"), composesAll("BA2", "beta", "alpha"),
 		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}")
+	// fixtureAgreeing: W composing alpha, beta and gamma, where gamma agrees
+	// with alpha, so beta's p loses in either order and no other model reports.
+	fixtureAgreeing = schemas(composesAll("W", "alpha", "beta", "gamma"),
+		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
+		"gamma: {type: object, properties: {p: {type: string}}}")
 	// fixtureOutvoted: fixtureTrade's two families, and W composing beta,
 	// alpha and gamma, where gamma agrees with alpha, so beta's p loses in
 	// either order.
@@ -960,6 +965,58 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"diagnostics depend on sequence order", "openapi/conflicting-redeclaration", "flattened shape depends on sequence order"},
 		},
 		{
+			// A member is secret where any declaration says so, which no tie
+			// between two of them decides.
+			name: "a tied member secret in one order alone",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				property(t, doc, "p").Secret = reversed
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `"secret": true`, "flattened shape depends on sequence order"},
+		},
+		{
+			// A member's deprecation folds over every declaration, as its docs
+			// do, and the tie between alpha's and beta's types decides none of it.
+			name: "a tied member's deprecation in one order alone",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if reversed {
+					property(t, doc, "p").Deprecation = &ir.Deprecation{Message: "reversed"}
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `"message": "reversed"`, "flattened shape depends on sequence order"},
+		},
+		{
+			// W's p loses beta's declaration in either order, and its report
+			// keeps gamma's as written and alpha's reversed, which name one
+			// type. Naming beta's, of another type, in one order is found.
+			name: "a report naming as kept, in one order, a declaration of another type",
+			src:  fixtureAgreeing,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if !reversed {
+					return doc, diags, nil
+				}
+				out := slices.Clone(diags)
+				renamed := 0
+				for i, d := range out {
+					if len(d.Related) == 2 && strings.Contains(d.Related[1].Provenance.Node, "/W/") {
+						out[i].Related = slices.Clone(d.Related)
+						out[i].Related[0].Provenance.Pointer = "/components/schemas/beta/properties/p"
+						renamed++
+					}
+				}
+				require.Equal(t, 1, renamed, "the fixture must report W's p alone")
+				return doc, out, nil
+			},
+			found:    true,
+			contains: []string{"diagnostics depend on sequence order", `kept\x00/components/schemas/beta/properties/p`},
+			not:      []string{"document depends on sequence order"},
+		},
+		{
 			// The object AB writes for p is a node in either order, whichever
 			// declaration p takes, so what it says is compared.
 			name: "a node written where a tied member stands, differing",
@@ -1246,7 +1303,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // detection rows: each fixture, compiled by the real compiler in both orders,
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
-	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath,
+	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "Agreeing": fixtureAgreeing,
 		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap, "beside": fixtureBeside,
 		"three": fixtureThree, "trade": fixtureTrade, "far": fixtureFar, "loser": fixtureLoser,
 		"outvoted": fixtureOutvoted, "group": fixtureGroup, "brought": fixtureBrought} {

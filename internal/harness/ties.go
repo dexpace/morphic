@@ -23,15 +23,16 @@ import (
 // names it in both orders.
 type decision struct{ member, lost, kept, says string }
 
-// fact is a decision, the report stating it, and its two places as written,
-// not erased, which tell two entries of one allOf apart. A conflict between
-// two declarations is such a report (ir.RelatedKept, ir.RelatedDecided), said
-// once for every model composing them, so it states a fact per member it
-// lists.
+// fact is a decision, the report stating it, its two places as written, not
+// erased, which tell two entries of one allOf apart, and keptBy, the type of
+// the declaration at keptAt as its compile holds it (keptTypes), empty where
+// it reads none. A conflict between two declarations is such a report
+// (ir.RelatedKept, ir.RelatedDecided), said once for every model composing
+// them, so it states a fact per member it lists.
 type fact struct {
 	decision
-	lostAt, keptAt string
-	report         report
+	lostAt, keptAt, keptBy string
+	report                 report
 }
 
 // factsOf splits rs into the facts its reports carrying a pair state and the
@@ -118,25 +119,27 @@ func tiedBy(a, b []fact) []string {
 }
 
 // unpairedFacts returns the reports of a and of b stating a fact the other
-// side does not, of a member no tie decided (tied, sorted): each side's facts
-// pair one to one by the member, the place that lost and what the report says.
-// The place kept is not compared: of several declarations saying the same, a
-// report names the one written last, which follows the order, though the field
-// names one in either (docs/compilers/openapi.md#allof-redeclared-property).
-// A tied member's facts are not compared, so where a third declaration
-// disagrees, its report dropped in one order passes.
+// side does not, of a member no tie decided (tied, sorted): facts pair one to
+// one by member, lost place, what the report says, and the type of the
+// declaration kept, since of several saying the same a report names the one
+// written last (docs/compilers/openapi.md#allof-redeclared-property). Where a
+// compile reads no type there, the place kept is not compared. A tied member's
+// facts are not compared, so where a third declaration disagrees, its report
+// dropped in one order passes.
 func unpairedFacts(a, b []fact, tied []string) (left, right []report) {
 	return factsWithout(a, b, tied), factsWithout(b, a, tied)
 }
 
 // factsWithout returns, once each and in order, the reports of a stating a
 // fact of an untied member left once each fact of b takes one of a of its
-// member, lost place and what its report says beside its places.
+// member, lost place and what its report says beside its places, kept by a
+// declaration of the same type (pairing).
 func factsWithout(a, b []fact, tied []string) []report {
 	type lost struct{ member, at, says string }
-	taken := map[lost]int{}
+	open := map[lost][]string{}
 	for _, f := range b {
-		taken[lost{f.member, f.lost, f.says}]++
+		key := lost{f.member, f.lost, f.says}
+		open[key] = append(open[key], f.keptBy)
 	}
 	var out []report
 	seen := map[string]bool{}
@@ -145,8 +148,8 @@ func factsWithout(a, b []fact, tied []string) []report {
 		if _, isTied := slices.BinarySearch(tied, f.member); isTied {
 			continue
 		}
-		if taken[key] > 0 {
-			taken[key]--
+		if i := pairing(open[key], f.keptBy); i >= 0 {
+			open[key] = slices.Delete(open[key], i, i+1)
 			continue
 		}
 		if !seen[f.report.key] {
@@ -157,26 +160,49 @@ func factsWithout(a, b []fact, tied []string) []report {
 	return out
 }
 
+// pairing returns the index, in kept, the types the other side's open facts
+// were kept by, of the one a fact kept by keptBy pairs with: that type, or
+// else one where either side reads no type, or -1 for none.
+func pairing(kept []string, keptBy string) int {
+	if i := slices.Index(kept, keptBy); i >= 0 {
+		return i
+	}
+	return slices.IndexFunc(kept, func(t string) bool { return t == "" || keptBy == "" })
+}
+
+// keptTypes returns facts, each with keptBy set to the node the declaration at
+// its kept place names, as held, its compile's members, reads it. Whether it
+// admits null is not read: the field admits null where every declaration
+// folded into it does (docs/compilers/openapi.md#allof-redeclared-property),
+// whichever the report names.
+func keptTypes(facts []fact, held map[string]held) []fact {
+	out := slices.Clone(facts)
+	for i := range out {
+		out[i].keptBy = held[out[i].member].named[pointerOf(out[i].keptAt)]
+	}
+	return out
+}
+
 // held is what a document shows of one member that folds declarations: the
-// type it takes, and the type each declaration it overrides names, by that
-// declaration's pointer. A type is its target, erased, and whether it admits
-// null.
+// type it takes, the type each declaration it overrides names, by that
+// declaration's pointer, and the node each names, by the same. A type is its
+// target, erased, and whether it admits null.
 type held struct {
-	takes string
-	said  map[string]string
+	takes       string
+	said, named map[string]string
 }
 
 // heldBy maps the ID, erased in seqs, of each member of doc's models' shapes
-// that overrides a declaration to what doc shows of it; a nil doc, as a
-// refused compile leaves, shows nothing.
-func heldBy(doc *ir.Document, seqs sequences) map[string]held {
+// that overrides a declaration to what doc shows of it, each declaration's
+// pointer rebased from the coordinates of from, when given, to those of the
+// source as written; a nil doc, as a refused compile leaves, shows nothing.
+func heldBy(doc *ir.Document, seqs, from sequences) map[string]held {
 	out := map[string]held{}
 	if doc == nil {
 		return out
 	}
-	typeOf := func(p *ir.Property) string {
-		return erase(string(p.Type.Target), seqs) + " " + strconv.FormatBool(p.Type.Nullable)
-	}
+	nodeOf := func(p *ir.Property) string { return erase(string(p.Type.Target), seqs) }
+	typeOf := func(p *ir.Property) string { return nodeOf(p) + " " + strconv.FormatBool(p.Type.Nullable) }
 	for id, td := range doc.Types {
 		if _, isModel := td.(*ir.Model); !isModel {
 			continue
@@ -185,9 +211,11 @@ func heldBy(doc *ir.Document, seqs sequences) map[string]held {
 			if p.Owner != id || len(p.Overridden) == 0 {
 				continue
 			}
-			h := held{takes: typeOf(p.Property), said: make(map[string]string, len(p.Overridden))}
+			h := held{takes: typeOf(p.Property), said: make(map[string]string, len(p.Overridden)),
+				named: make(map[string]string, len(p.Overridden))}
 			for _, d := range p.Overridden {
-				h.said[string(d.Property.Provenance.Pointer)] = typeOf(d.Property)
+				at := rebase(string(d.Property.Provenance.Pointer), from)
+				h.said[at], h.named[at] = typeOf(d.Property), nodeOf(d.Property)
 			}
 			out[erase(string(p.Property.ID), seqs)] = h
 		}
@@ -198,16 +226,15 @@ func heldBy(doc *ir.Document, seqs sequences) map[string]held {
 // contradicted returns a line for each tied member (tied, sorted) that holds,
 // in each order, exactly the type of the declaration its report says lost
 // there: as written the type the declaration at lost names, and reversed the
-// one at kept, the two types differing. A tie trades one declaration's say for
-// the other's, so a member doing so took the loser's in both orders, whatever
-// its reports say. It reads the two declarations as the document as written
-// holds them, so it checks a member only where both are declarations its
-// flattening overrides, named by their own pointers.
-func contradicted(first, second *ir.Document, stated []fact, tied []string, perm permutation) []string {
+// one at kept, the two differing. A tie trades one declaration's say for the
+// other's, so such a member took the loser's in both orders. It reads the two
+// declarations as written and each compile's members (heldBy), so it checks a
+// member only where both are declarations its flattening overrides, named by
+// their own pointers.
+func contradicted(written, reversed map[string]held, stated []fact, tied []string) []string {
 	if len(tied) == 0 {
 		return nil
 	}
-	written, reversed := heldBy(first, perm.written), heldBy(second, perm.moved)
 	var out []string
 	for _, f := range stated {
 		if _, isTied := slices.BinarySearch(tied, f.member); !isTied {

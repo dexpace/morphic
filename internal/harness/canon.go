@@ -225,7 +225,7 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	o = r.untie(o)
 	own := provenancePointer(o)
 	if erased, tied := r.tied(o); tied && p.how&noIdentity == 0 {
-		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), requiredOf(o), r.docsOf(o, depth), []byte("}"))
+		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), r.foldedOf(o, depth), r.statedOf(o, depth), []byte("}"))
 	}
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
@@ -260,29 +260,40 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	return append(out, '}')
 }
 
-// requiredOf writes whether o, a tied node, is required, where it is a
-// property: a member is required where any of its declarations or its model
-// says so (docs/compilers/openapi.md#allof-redeclared-property), which no tie
-// between two of them decides, so it is compared where nothing else of the
-// member is.
-func requiredOf(o map[string]any) []byte {
+// foldedOf writes what o, a tied node, holds that its fold settles from every
+// declaration alike, where it is a property: whether it is required or secret
+// where any declaration or its model says so, and where it is visible, the
+// lifecycles every declaration admits
+// (docs/compilers/openapi.md#allof-redeclared-property). No tie between two of
+// them decides these, so they are compared where nothing else of the member is.
+func (r *rewriter) foldedOf(o map[string]any, depth int) []byte {
 	required, isProperty := o["required"].(bool)
 	if _, named := o["wireName"]; !named || !isProperty {
 		return nil
 	}
-	return []byte(`,"required":` + strconv.FormatBool(required))
+	secret, _ := o["secret"].(bool)
+	out := []byte(`,"required":` + strconv.FormatBool(required) + `,"secret":` + strconv.FormatBool(secret) + `,"visibility":`)
+	return append(out, r.rewrite(o["visibility"], place{}, depth+1)...)
 }
 
-// docsOf writes the docs of o, a tied node, where a stated tie alone decided
-// it (tieSites.stated): such a tie decides nothing of a member's docs, which
-// fold over every declaration, so they are compared.
-func (r *rewriter) docsOf(o map[string]any, depth int) []byte {
+// statedOf writes what else of o, a tied node, folds over every declaration,
+// where a stated tie alone decided it (tieSites.stated): its deprecation, docs,
+// name and XML hints. Such a tie decides none of them; two declarations giving
+// one differently draw a report of their own, which moves with the order and so
+// reaches the member as another tie.
+func (r *rewriter) statedOf(o map[string]any, depth int) []byte {
 	id, _ := o["id"].(string)
-	docs, written := o["docs"]
-	if !r.stated[erase(id, r.seqs)] || !written {
+	if !r.stated[erase(id, r.seqs)] {
 		return nil
 	}
-	return append([]byte(`,"docs":`), r.rewrite(docs, place{}, depth+1)...)
+	var out []byte
+	for _, name := range [...]string{"deprecation", "docs", "name", "xml"} {
+		if v, written := o[name]; written {
+			out = append(append(append(out, `,"`...), name...), `":`...)
+			out = append(out, r.rewrite(v, place{}, depth+1)...)
+		}
+	}
+	return out
 }
 
 // childPlace is the place of the member name of an object at p, whose
@@ -550,7 +561,11 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 
 // memberShape is what a flattened member takes: whether it is required,
 // secret and deprecated, and its declaration, rewritten without its identity,
-// so two declarations saying the same are one.
+// so two declarations saying the same are one. Of a member a tie decided, it
+// is the tie, whether the member is required, whether its declaration is
+// secret, which a Sensitive type the tie picks does not decide, and where it is
+// visible (foldedOf), and, where a stated tie alone decided it, what statedOf
+// writes.
 func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
 	id := erase(string(p.Property.ID), r.seqs)
@@ -561,13 +576,21 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 		if atSite || minted || r.atMember(erased) {
 			tie = "reported tie at " + erased
 		}
-		tie += " required " + strconv.FormatBool(p.Required)
+		visibility, err := json.Marshal(&p.Property.Visibility, json.Deterministic(true))
+		r.fail(err)
+		tie += " required " + strconv.FormatBool(p.Required) + " secret " + strconv.FormatBool(p.Property.Secret) +
+			" visibility " + string(visibility)
 		if !r.stated[id] {
 			return tie
 		}
-		docs, err := json.Marshal(&p.Property.Docs, json.Deterministic(true))
+		stated, err := json.Marshal(struct {
+			Deprecation *ir.Deprecation `json:"deprecation"`
+			Docs        ir.Docs         `json:"docs"`
+			Name        ir.Naming       `json:"name"`
+			XML         *ir.XMLHints    `json:"xml"`
+		}{p.Property.Deprecation, p.Property.Docs, p.Property.Name, p.Property.XML}, json.Deterministic(true))
 		r.fail(err)
-		return tie + " docs " + string(docs)
+		return tie + " stated " + string(stated)
 	}
 	encoded, err := json.Marshal(struct {
 		Declaration *ir.Property    `json:"declaration"`

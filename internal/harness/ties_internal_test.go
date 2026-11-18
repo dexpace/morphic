@@ -225,6 +225,58 @@ func TestUnpairedFacts_PairsAnUntiedMembersFactsByWhatLost(t *testing.T) {
 	assert.Equal(t, []report{info}, right)
 }
 
+// TestUnpairedFacts_ComparesThePlaceKeptByTheTypeItsDeclarationNames pins how
+// an untied member's kept place is compared: two facts kept by declarations
+// naming one type pair, whichever declarations they are; two naming types
+// that differ do not; and where either compile reads no type at the place,
+// the place is not compared.
+func TestUnpairedFacts_ComparesThePlaceKeptByTheTypeItsDeclarationNames(t *testing.T) {
+	t.Parallel()
+	seqs := sequences{}
+	keptBy := func(kept, by string) ([]fact, report) {
+		r := conflictAt(seqs, "/B/p", []string{kept}, "p/W/p")
+		facts, _ := factsOf([]report{r}, seqs)
+		facts[0].keptBy = by
+		return facts, r
+	}
+	string1, _ := keptBy("/A/p", "t/prim/string false")
+	string2, _ := keptBy("/C/p", "t/prim/string false")
+	integer, wrong := keptBy("/B/p", "t/prim/integer false")
+	unread, _ := keptBy("/D/p", "")
+
+	left, right := unpairedFacts(string1, string2, nil)
+	assert.Empty(t, left, "two declarations alike")
+	assert.Empty(t, right)
+	left, right = unpairedFacts(string1, integer, nil)
+	assert.Equal(t, []report{string1[0].report}, left, "a declaration of another type")
+	assert.Equal(t, []report{wrong}, right)
+	left, right = unpairedFacts(integer, unread, nil)
+	assert.Empty(t, left, "a place read as no type")
+	assert.Empty(t, right)
+}
+
+// TestKeptTypes_ReadsTheTypeTheDeclarationKeptNames pins where a fact's kept
+// type comes from: the node the declaration at its kept place names, among
+// those its member overrides, as its compile holds them, whether it admits null
+// aside, and none where its member overrides nothing there or holds no
+// declaration. The facts handed in are left as they were.
+func TestKeptTypes_ReadsTheTypeTheDeclarationKeptNames(t *testing.T) {
+	t.Parallel()
+	facts, _ := factsOf([]report{
+		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/W/p"),
+		conflictAt(nil, "/B/p", []string{"/X/p"}, "p/W/p"),
+		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/V/p"),
+	}, nil)
+	held := map[string]held{"p/W/p": {
+		takes: "t/prim/string false", said: map[string]string{"/A/p": "t/prim/string true"}, named: map[string]string{"/A/p": "t/prim/string"},
+	}}
+
+	got := keptTypes(facts, held)
+
+	assert.Equal(t, []string{"t/prim/string", "", ""}, []string{got[0].keptBy, got[1].keptBy, got[2].keptBy})
+	assert.Empty(t, facts[0].keptBy)
+}
+
 // TestHeldBy_ReadsWhatAMemberTakesAndWhatItsDeclarationsSay pins the reading
 // the winner check rests on: a member its model declares over declarations it
 // overrides, by its erased ID, with its type and each overridden one's by
@@ -234,23 +286,50 @@ func TestHeldBy_ReadsWhatAMemberTakesAndWhatItsDeclarationsSay(t *testing.T) {
 	t.Parallel()
 	first, _, perm := bothWays(t, fixtureSwap)
 
-	got := heldBy(first, perm.written)
+	got := heldBy(first, perm.written, nil)
 
+	alphaP, betaP := "/components/schemas/alpha/properties/p", "/components/schemas/beta/properties/p"
+	alphaQ, betaQ := "/components/schemas/alpha/properties/q", "/components/schemas/beta/properties/q"
+	p := held{takes: "t/prim/integer false",
+		said:  map[string]string{alphaP: "t/prim/string false", betaP: "t/prim/integer false"},
+		named: map[string]string{alphaP: "t/prim/string", betaP: "t/prim/integer"},
+	}
+	q := held{takes: "t/prim/string false",
+		said:  map[string]string{alphaQ: "t/prim/string false", betaQ: "t/prim/string false"},
+		named: map[string]string{alphaQ: "t/prim/string", betaQ: "t/prim/string"},
+	}
 	assert.Equal(t, map[string]held{
-		"p/composed/components/schemas/AB/allOf/properties/p": {takes: "t/prim/integer false", said: map[string]string{
-			"/components/schemas/alpha/properties/p": "t/prim/string false", "/components/schemas/beta/properties/p": "t/prim/integer false",
-		}},
-		"p/composed/components/schemas/AB2/allOf/properties/p": {takes: "t/prim/integer false", said: map[string]string{
-			"/components/schemas/alpha/properties/p": "t/prim/string false", "/components/schemas/beta/properties/p": "t/prim/integer false",
-		}},
-		"p/composed/components/schemas/AB/allOf/properties/q": {takes: "t/prim/string false", said: map[string]string{
-			"/components/schemas/alpha/properties/q": "t/prim/string false", "/components/schemas/beta/properties/q": "t/prim/string false",
-		}},
-		"p/composed/components/schemas/AB2/allOf/properties/q": {takes: "t/prim/string false", said: map[string]string{
-			"/components/schemas/alpha/properties/q": "t/prim/string false", "/components/schemas/beta/properties/q": "t/prim/string false",
-		}},
+		"p/composed/components/schemas/AB/allOf/properties/p":  p,
+		"p/composed/components/schemas/AB2/allOf/properties/p": p,
+		"p/composed/components/schemas/AB/allOf/properties/q":  q,
+		"p/composed/components/schemas/AB2/allOf/properties/q": q,
 	}, got)
-	assert.Empty(t, heldBy(nil, perm.written))
+	assert.Empty(t, heldBy(nil, perm.written, nil))
+}
+
+// TestHeldBy_RebasesAReversedCompilesDeclarations pins that a declaration a
+// member overrides is read at its place in the source as written, whichever
+// compile holds it: one under a reversed allOf moves to the index it is
+// written at.
+func TestHeldBy_RebasesAReversedCompilesDeclarations(t *testing.T) {
+	t.Parallel()
+	member := func(id ir.PropID, at string, target ir.TypeID) ir.Property {
+		return ir.Property{ID: id, WireName: "p", Type: ir.TypeRef{Target: target, Nullable: true},
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer(at)}}
+	}
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		"t/A": &ir.Model{ID: "t/A", Properties: []ir.Property{member("p/A/p", "/M/allOf/2/properties/p", "t/prim/integer")}},
+		"t/M": &ir.Model{ID: "t/M", Mixins: []ir.TypeRef{{Target: "t/A"}}, Properties: []ir.Property{member("p/M/p", "/M/p", "t/prim/string")}},
+	}}
+	moved := sequences{"/M/allOf": 3}
+
+	got := heldBy(doc, moved, moved)
+
+	assert.Equal(t, map[string]held{"p/M/p": {
+		takes: "t/prim/string true",
+		said:  map[string]string{"/M/allOf/0/properties/p": "t/prim/integer true"},
+		named: map[string]string{"/M/allOf/0/properties/p": "t/prim/integer"},
+	}}, got)
 }
 
 // TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost pins the winner
@@ -307,7 +386,7 @@ func TestContradicted_FindsATiedMemberTakingWhatItsReportsSayLost(t *testing.T) 
 		},
 		"a document that did not compile": {second: wrongReversed, stated: stated(alpha, beta, member), tied: tied},
 	} {
-		got := contradicted(tc.first, tc.second, tc.stated, tc.tied, perm)
+		got := contradicted(heldBy(tc.first, perm.written, nil), heldBy(tc.second, perm.moved, perm.moved), tc.stated, tc.tied)
 		if !tc.found {
 			assert.Empty(t, got, name)
 			continue

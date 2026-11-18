@@ -332,6 +332,55 @@ func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 	assert.Equal(t, diagnosticKey(want), nodeKey(named, tells))
 }
 
+// TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration
+// pins what of a tied member the forms compare beside whether it is required:
+// whether its declaration is secret and where it is visible, in the document
+// and in the shape, however the tie reaches it, and its deprecation, docs,
+// name and XML hints where a stated tie alone decided it, and not otherwise.
+func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	folded := map[string]func(*ir.Property){
+		"secret":     func(p *ir.Property) { p.Secret = true },
+		"visibility": func(p *ir.Property) { p.Visibility = ir.Visibility{None: true} },
+	}
+	stated := map[string]func(*ir.Property){
+		"deprecation": func(p *ir.Property) { p.Deprecation = &ir.Deprecation{Message: "m"} },
+		"docs":        func(p *ir.Property) { p.Docs.Description = "d" },
+		"name":        func(p *ir.Property) { p.Name = ir.Naming{Source: "n", Canonical: "n"} },
+		"xml":         func(p *ir.Property) { p.XML = &ir.XMLHints{Name: "x"} },
+	}
+	compare := func(ties tieSites, change func(*ir.Property)) (document, shape bool) {
+		changed := settledDoc()
+		change(&changed.Types["t/M"].(*ir.Model).Properties[0])
+		a, err := canonicalForm(settledDoc(), nil, ties)
+		require.NoError(t, err)
+		b, err := canonicalForm(changed, nil, ties)
+		require.NoError(t, err)
+		return !slices.Equal(a.document, b.document), !slices.Equal(a.shape, b.shape)
+	}
+	for how, ties := range map[string]tieSites{
+		"by its ID":                 {nodes: []string{"p/M/p"}},
+		"at a tie site":             {pointers: []string{"/M/allOf/properties/p"}},
+		"by its ID where it stands": {nodes: []string{"p/M/p"}, members: []string{"/M/allOf/properties/p"}},
+	} {
+		for name, change := range folded {
+			document, shape := compare(ties, change)
+			assert.True(t, document, "%s, %s", how, name)
+			assert.True(t, shape, "%s, %s", how, name)
+		}
+		for name, change := range stated {
+			document, shape := compare(ties, change)
+			assert.False(t, document, "%s, %s, no stated tie", how, name)
+			assert.False(t, shape, "%s, %s, no stated tie", how, name)
+			ties.stated = []string{"p/M/p"}
+			document, shape = compare(ties, change)
+			ties.stated = nil
+			assert.True(t, document, "%s, %s, a stated tie", how, name)
+			assert.True(t, shape, "%s, %s, a stated tie", how, name)
+		}
+	}
+}
+
 // TestCanonicalForm_ComparesWhetherATiedMemberIsRequired pins the one thing
 // of a tied member the forms compare: a member is required where any of its
 // declarations or its model says so, which no tie decides, so two documents

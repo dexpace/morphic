@@ -373,15 +373,17 @@ assertion shapes:
   `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
   and what `canonicalForm` in `canon.go` lists, and a tie the compiler states: a member that a
   report carrying a pair (`ir.RelatedKept`, `ir.RelatedDecided`) decides in each order, the two
-  places the other way round and the two reports alike but for them, their severity and code
-  among what they share (`tiedBy` in `ties.go`), and each member settled from one, with each node
-  its fold mints where it stands or at a position beneath it the fold builds a member at (`minted`
-  in `canon.go`); a node the source writes there is compared. Of a tied
-  member only whether it is required is compared, and its docs where a stated tie alone decided it
-  (`statedAlone`), so a dependence of a member settled from a tied one that the tie does not
-  explain passes (#2099 writes one); of a member no tie decided, a report's kept place is not
-  compared, since of several agreeing declarations it names the one written last. A tied member
-  taking in each order the type its report says lost is found.
+  places the other way round and the two reports alike but for them (`tiedBy` in `ties.go`), each
+  member settled from one, each node a tied member's fold mints where it stands or at a position
+  beneath it the fold builds a member at (`minted` in `canon.go`), and all at or beneath a report
+  the reversal moves that carries no pair. Of a tied member it compares what its fold settles from
+  every declaration alike: whether it is required or secret and where it is visible, and its
+  deprecation, docs, name and XML hints where a stated tie alone decided it (`statedAlone`). So a
+  dependence of a member settled from a tied one that the tie does not explain passes (#2099
+  writes one). Of a member no tie decided, a report's kept place is compared by the node its
+  declaration names, since of several agreeing declarations it names the one written last, and
+  not where the compile reads no declaration there. A tied member taking in each order the type
+  its report says lost is found; one taking the same type in both orders passes.
   Both compile at the default limits, so an order dependence among a listed collection's elements,
   in any other sequence or another order of one, or in a verdict at another limit (#1519) needs its
   own two-order diff. A targeted case still earns its place when it pins one lowering, because the

@@ -51,9 +51,9 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 // for their places decide between two declarations, the other way round in
 // each order (tiedBy), or what a moved report decided. Of a node a tie names,
 // or one at or beneath a moved report's site or a tied member's fold mints
-// (rewriter.minted), only a property's being required is compared, and its
-// docs where a stated tie alone decided it. It declines as compareForms does,
-// and several files.
+// (rewriter.minted), only what a property's fold settles from every
+// declaration alike is compared (rewriter.foldedOf, rewriter.statedOf). It
+// declines as compareForms does, and several files.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
@@ -75,7 +75,8 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 			return "", false, why
 		}
 	}
-	onlyStated, onlyRestated := unpairedFacts(stated, restated, ties.nodes)
+	written, reversed := heldBy(first, perm.written, nil), heldBy(second, perm.moved, perm.moved)
+	onlyStated, onlyRestated := unpairedFacts(keptTypes(stated, written), keptTypes(restated, reversed), ties.nodes)
 	var found []string
 	if unpaired := renderUnpaired(append(left, onlyStated...), append(right, onlyRestated...)); unpaired != "" {
 		found = append(found, "diagnostics depend on sequence order (-as-written +reversed):\n"+unpaired)
@@ -84,7 +85,7 @@ func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, seco
 		found = append(found, refused)
 	}
 	found = append(found, forms...)
-	if wrong := contradicted(first, second, stated, tied, perm); len(wrong) > 0 {
+	if wrong := contradicted(written, reversed, stated, tied); len(wrong) > 0 {
 		found = append(found, "a tie's reports name the declaration the member takes as the one that lost:\n"+strings.Join(wrong, "\n"))
 	}
 	return strings.Join(found, "\n"), len(found) == 0, ""
