@@ -3901,8 +3901,9 @@ escaped segment, and `openapi:discriminator/defaultMapping` for one written besi
 `allOf`, and `openapi:allOf/<n>/discriminator/mapping/<key>` for one on the entry writing the union.
 The name of the component a dead branch names, which OpenAPI routes by where no entry keys it and no
 other branch names it, keys nothing in the `Mapping` either. The warning naming the dead branches
-names each such tag, in byte order, so a document whose routes are all the union's own compiles with
-no error; an entry naming a schema the union does not list still routes to it, which
+names each such route, the `defaultMapping`, then each `mapping` key and then each component name,
+each in byte order, so a document whose routes are all the union's own compiles with no error; an
+entry naming a schema the union does not list still routes to it, which
 `pass/validate` reports. Where no branch lives, the discriminator routes nothing and is kept whole
 (below).
 
