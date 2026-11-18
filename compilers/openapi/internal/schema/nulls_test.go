@@ -138,18 +138,18 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 			`{oneOf: [{$ref: '#/components/schemas/N'}, {type: "null"}]}`, "    N: {type: string, nullable: true}\n",
 			ir.TypeRef{Target: componentID("N"), Nullable: true}, ir.TypeRef{Target: componentID("N"), Nullable: true},
 			"/components/schemas/N/nullable", "no nullable keyword", ""},
-		{"3.0 beside a $ref and a type, over an untyped target", "3.0.3",
+		{"3.0 beside a $ref and a type, over an untyped target, which the type decides", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: string, nullable: true}", "    Free: {}\n",
-			ir.TypeRef{Target: componentID("Free"), Nullable: true}, ir.TypeRef{Target: componentID("Free"), Nullable: true},
+			ir.TypeRef{Target: "t/prim/string", Nullable: true}, ir.TypeRef{Target: "t/prim/string", Nullable: true},
 			"", "", ""},
 		{"3.0 beside a $ref and a type, over a target excluding null", "3.0.3",
 			"{$ref: '#/components/schemas/Plain', type: string, nullable: true}", "",
 			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable",
 			"lands on excludes null", ""},
-		{"3.0 beside a $ref, a type and an allOf excluding null", "3.0.3",
+		{"3.0 beside a $ref, a type and an allOf excluding null, which compose", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: object, nullable: true, allOf: [{$ref: '#/components/schemas/Pet'}]}",
 			"    Free: {}\n",
-			inferred(componentID("Free")), ir.TypeRef{Target: componentID("Free")}, at + "/nullable", "allOf branch", ""},
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "allOf branch", ""},
 		{"3.1 in an allOf branch of the target a $ref lands on", "3.1.0", "{$ref: '#/components/schemas/N'}",
 			"    N: {allOf: [{type: string, nullable: true}]}\n",
 			inferred(componentID("N")), ir.TypeRef{Target: componentID("N")}, "/components/schemas/N/allOf/0/nullable",
@@ -212,6 +212,29 @@ func TestNullableInference_EachShapeReadsByItsVersion(t *testing.T) {
 				assert.Contains(t, diagMessage(diags, diag.InferredNullable), tc.why)
 			}
 		})
+	}
+}
+
+// TestNullableInference_OnlyABooleanStatesNull pins what a `nullable` must hold
+// to state a null: the boolean true. At 3.1 and 3.2, which define no keyword,
+// the policy reads it as it does at 3.0.3: a string the parser decodes as true,
+// a YAML 1.1 truth word quoted or plain, states none, as any other value
+// (GitHub #2007).
+func TestNullableInference_OnlyABooleanStatesNull(t *testing.T) {
+	t.Parallel()
+	stated := map[string]bool{"true": true, "True": true}
+	written := []string{`"yes"`, `"Yes"`, `"YES"`, `"on"`, `"On"`, `"y"`, `"true"`, `"True"`, `"false"`, `"x"`,
+		`"1"`, "!!str true", "1", "0", "null", "[true]", "{a: 1}", "yes", "on", "true", "True", "false"}
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, value := range written {
+			doc, diags := compileNullable(t, openapitest.HolderSpec(version, "{type: string, nullable: "+value+"}", ""), false)
+			p := holderP(t, doc)
+			assert.Equal(t, stated[value], p.Nullable, "%s nullable: %s", version, value)
+			inferred := stated[value] && version != "3.0.3"
+			assert.Equal(t, inferred, p.Inferred != "", "%s nullable: %s", version, value)
+			assert.Equal(t, inferred, openapitest.HasDiagCodeAt(diags, diag.InferredNullable,
+				"/components/schemas/Holder/properties/p/nullable"), "%s nullable: %s", version, value)
+		}
 	}
 }
 
@@ -328,7 +351,14 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
 	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
-	for _, name := range []string{"WrapModel", "WrapPlain"} {
+	// An allOf of one $ref saying nothing is the reference, and a component
+	// owns the node over it: over a model admitting null, which no Base
+	// carries, the alias whose Base is that use, null and all.
+	alias, ok := typeByName(doc, "WrapModel").(*ir.Scalar)
+	require.True(t, ok, "WrapModel is a use of NullableModel")
+	require.NotNil(t, alias.Base)
+	assert.Equal(t, ir.TypeRef{Target: componentID("NullableModel"), Nullable: true}, *alias.Base)
+	for _, name := range []string{"WrapPlain"} {
 		m, isModel := typeByName(doc, name).(*ir.Model)
 		require.True(t, isModel, "%s is a model", name)
 		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
@@ -404,16 +434,23 @@ func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	assert.Len(t, withCode(diags, diag.InferredNullable), 1)
 	doc, _ = compileNullable(t, besideType, true)
 	assert.False(t, holderP(t, doc).Nullable)
-	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:allOf/1", "and with the policy off it stays kept")
+	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:nullable", "and with the policy off it stays kept")
 
-	// The one `true` is beside a $ref, which no fold compares, so the `false`
-	// branch speaks: it must widen nothing the spelling without it leaves alone.
-	for name, branch := range map[string]string{"nullable false": "{nullable: false, description: d}", "none": "{description: d}"} {
+	// The `true` beside an entry's $ref is a conjunct of the position, as on an
+	// entry of its own: it folds beside a branch writing none, and a branch
+	// writing `false` disagrees with it, so neither folds.
+	for name, tc := range map[string]struct {
+		branch, description string
+		nullable            bool
+	}{
+		"nullable false": {"{nullable: false, description: d}", "", false},
+		"none":           {"{description: d}", "d", true},
+	} {
 		src := openapitest.HolderSpec("3.0.3",
-			"{type: string, allOf: [{$ref: '#/components/schemas/Plain', nullable: true}, "+branch+"]}", "")
+			"{type: string, allOf: [{$ref: '#/components/schemas/Plain', nullable: true}, "+tc.branch+"]}", "")
 		doc, _ = compileNullable(t, src, false)
-		assert.False(t, holderP(t, doc).Nullable, "%s: a branch writing no true widens nothing", name)
-		assert.Equal(t, "d", propertyOf(t, doc, "Holder", "p").Docs.Description, name)
+		assert.Equal(t, tc.nullable, holderP(t, doc).Nullable, name)
+		assert.Equal(t, tc.description, propertyOf(t, doc, "Holder", "p").Docs.Description, name)
 	}
 
 	for name, tc := range map[string]struct{ union, code string }{
@@ -433,12 +470,12 @@ func TestNullableInference_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	doc, _ = compileNullable(t, properties, false)
 	kept, ok := doc0Model(doc)
 	require.True(t, ok)
-	assert.Contains(t, kept.Unmodeled, "openapi:allOf/1", "a nullable that folds nothing stays with its branch")
+	assert.Contains(t, kept.Unmodeled, "openapi:nullable", "a nullable that folds nothing is kept under its own key")
 
 	off, offDiags := compileNullable(t, src, true)
 	m, ok := doc0Model(off)
 	require.True(t, ok)
-	assert.Contains(t, m.Unmodeled, "openapi:allOf/1", "with the policy off nothing reads the keyword, so it stays")
+	assert.Contains(t, m.Unmodeled, "openapi:nullable", "with the policy off nothing reads the keyword, so it stays")
 	assert.Len(t, withCode(offDiags, diag.DegradedConstruct), 1)
 }
 
@@ -1014,13 +1051,13 @@ func TestNullAlone_ReadsTheSchemasOwnKeywords(t *testing.T) {
 				"    Node: {$dynamicAnchor: node, type: string}\n    S: "+tc.schema+"\n")
 			for _, off := range []bool{false, true} {
 				l, _ := schema.LoweredWith(t, src, lowering.Policy{NullableInference: lowering.NullableInference{Disabled: off}})
-				js, ok := l.Ctx.Doc.Components.GetSchemas().Get("S")
+				js, ok := l.Doc.Components.GetSchemas().Get("S")
 				require.True(t, ok)
 				want := tc.on
 				if off {
 					want = tc.off
 				}
-				assert.Equal(t, want, schema.NullAlone(l.Ctx, js.GetSchema()), "policy off: %v", off)
+				assert.Equal(t, want, schema.NullAlone(l.Ctx, l.Ctx.Statements().Of(js).Schema), "policy off: %v", off)
 			}
 		})
 	}

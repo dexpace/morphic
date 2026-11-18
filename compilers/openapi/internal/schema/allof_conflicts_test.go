@@ -501,8 +501,10 @@ func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) 
 	assert.NotNil(t, sc.Deprecation, "so does the deprecation")
 	assert.Len(t, sc.Examples, 1, "and the examples")
 	require.NotNil(t, tok.Default)
-	require.NotNil(t, tok.Constraints)
-	require.NotNil(t, tok.Constraints.MinLength)
+	assert.Nil(t, tok.Constraints, "the field leaves its bound to the scalar it names")
+	require.NotNil(t, sc.Constraints)
+	require.NotNil(t, sc.Constraints.MinLength)
+	assert.Equal(t, int64(1), *sc.Constraints.MinLength)
 	require.NotNil(t, sc.XML)
 	assert.Empty(t, tok.Unmodeled)
 }
@@ -1535,10 +1537,10 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		return propertyOf(t, doc, "T", "f"), diags
 	}
 	for _, entry := range []string{
-		ref("NotStr"), ref("ObjOneOf"), ref("ObjAnyOf"), ref("IfObj"), ref("AliasOneOf"),
+		ref("NotStr"), ref("ObjOneOf"), ref("IfObj"), ref("AliasOneOf"),
 		"{$ref: '#/components/schemas/Empty', type: object}",
 		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
-		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
+		"{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
 		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#dyn'}",
 		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
 	} {
@@ -1561,6 +1563,23 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
 		assert.Empty(t, p.Unmodeled, entry)
 	}
+
+	// A union admitting an object and an array makes the structure no model but
+	// a use of the union, which the merge does not compare with a string.
+	p, diags := compile(ref("ObjAnyOf"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union is not compared")
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
+	assert.Contains(t, p.Unmodeled, "openapi:properties", "the structure's own keyword is kept beside the use")
+	assert.Len(t, p.Unmodeled, 2, "and so is the union the merge did not compare")
+
+	// An enum of objects is elected before the composition, as written without
+	// the allOf: a union of literals, which the merge does not compare either.
+	p, diags = compile("{enum: [{a: x}]}")
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, withCode(diags, diag.ConflictingRedecl), "a union of literals is not compared")
+	assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target)
+	assert.Len(t, p.Unmodeled, 1, "the structure is kept")
 }
 
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
@@ -1784,5 +1803,61 @@ func TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor(t *testing.T) {
 				assert.Len(t, diags, 1, "%v: and nothing else", order)
 			}
 		}
+	}
+}
+
+// TestAllOf_ANullNotOrIfIsTheKeywordLeftOut pins a `not` or an `if` the
+// parser's model holds a value for, written as no schema, against a
+// redeclaration: it is the keyword left out (docs/compilers/openapi.md#null-schema),
+// so a property redeclared as an integer and as a structure writing nothing of
+// its instance type but such a keyword, in either order, takes the integer and
+// draws no conflict, as the same structure writing none does (GitHub #2036).
+func TestAllOf_ANullNotOrIfIsTheKeywordLeftOut(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, p string }{
+		{"a not beside the structure", "{properties: {x: {type: string}}, not: null}"},
+		{"a not in its allOf", "{allOf: [{properties: {x: {type: string}}, not: null}]}"},
+		{"an if beside the structure", "{properties: {x: {type: string}}, if: null}"},
+		{"an if in its allOf", "{allOf: [{properties: {x: {type: string}}, if: null}]}"},
+	} {
+		for _, order := range [][2]string{{"A", "B"}, {"B", "A"}} {
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {p: {type: integer}}}
+    B: {type: object, properties: {p: `+tc.p+`}}
+    Plain: {type: object, properties: {p: {properties: {x: {type: string}}}}}
+    M: {allOf: [{$ref: '#/components/schemas/`+order[0]+`'}, {$ref: '#/components/schemas/`+order[1]+`'}]}
+    N: {allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Plain'}]}
+`))
+			assert.Empty(t, findingsOf(diags, diag.ConflictingRedecl), "%s, %s first", tc.name, order[0])
+			for _, name := range []string{"M", "N"} {
+				m, ok := typeByName(doc, name).(*ir.Model)
+				require.True(t, ok, name)
+				require.Len(t, m.Properties, 1, name)
+				assert.Equal(t, ir.TypeID("t/prim/integer"), m.Properties[0].Type.Target, "%s: %s, %s first", name, tc.name, order[0])
+			}
+		}
+	}
+}
+
+// TestAllOf_ADistributedVariantIsReadWithItsUnion pins what the source of a
+// variant a union beside `type: object` distributes admits: its branch and the
+// object beside it together, so the variant built from an array branch admits
+// no array, and a redeclaration as a nullable list is not read as narrower than
+// it, which would drop the list's null. The two stay unrelated, in either
+// order, as they were before the source was read.
+func TestAllOf_ADistributedVariantIsReadWithItsUnion(t *testing.T) {
+	t.Parallel()
+	schemas := []string{
+		"    Common: {type: object, properties: {r: {type: object, anyOf: [{type: object}, {items: {}, type: array}, {type: string}]}}}\n",
+		"    Coll: {allOf: [{$ref: '#/components/schemas/Common'}, {properties: {r: {type: array, items: {}, nullable: true}}}]}\n",
+	}
+	for _, order := range [][]string{schemas, {schemas[1], schemas[0]}} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", order[0]+order[1]))
+		m, ok := typeByName(doc, "Coll").(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, m.Properties, 1)
+		assert.True(t, m.Properties[0].Type.Nullable, "the list's null stands")
+		assert.Empty(t, findingsOf(diags, diag.ConflictingRedecl))
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Coll/allOf/0"), "that the merge does not compare")
 	}
 }

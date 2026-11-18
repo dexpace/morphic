@@ -1,0 +1,286 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package harness_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/harness"
+)
+
+// record is a record of three lines under a comment, a blank line among them.
+const record = "# found by the spelling oracle\n" +
+	"a/x\tkept record\tkept-key\n" +
+	"\n" +
+	"b/x\tkind\tdecorated-object\n" +
+	"c/x\tbase\tunclassified\n"
+
+// reasons are the reasons record's lines may give.
+func reasons() map[string]string {
+	return map[string]string{"kept-key": "#1989", "decorated-object": "#1874"}
+}
+
+func readRecord(t *testing.T) harness.Recorded {
+	t.Helper()
+	r, err := harness.ReadRecorded([]byte(record))
+	require.NoError(t, err)
+	return r
+}
+
+// TestRecorded_EachDisagreementLandsInItsOwnReturn holds Judge's four
+// returns apart: a finding the record does not list, one it lists with
+// another What, a line no finding names, and a line whose reason is no key.
+func TestRecorded_EachDisagreementLandsInItsOwnReturn(t *testing.T) {
+	found := []harness.Finding{{"d/x", "new"}, {"b/x", "kind,base"}, {"c/x", "base"}}
+
+	unlisted, changed, stale, unreasoned := readRecord(t).Judge(found, reasons())
+
+	assert.Equal(t, []string{"d/x\tnew"}, unlisted)
+	assert.Equal(t, []string{`b/x: listed "kind", found "kind,base"`}, changed)
+	assert.Equal(t, []string{"a/x\tkept record"}, stale)
+	assert.Equal(t, []string{"c/x\tunclassified"}, unreasoned)
+}
+
+// TestRecorded_AStaleLineFails pins that a fix leaves no line behind it: a
+// line whose finding is gone is reported, and the rest agree.
+func TestRecorded_AStaleLineFails(t *testing.T) {
+	found := []harness.Finding{{"b/x", "kind"}, {"c/x", "base"}}
+
+	unlisted, changed, stale, _ := readRecord(t).Judge(found, reasons())
+
+	assert.Empty(t, unlisted)
+	assert.Empty(t, changed)
+	assert.Equal(t, []string{"a/x\tkept record"}, stale)
+}
+
+// TestRecorded_WriteKeepsEachReason pins Write against ReadRecorded: what it
+// writes reads back, each line found again keeps its own reason, a new line
+// is unclassified, and a line not found is gone.
+func TestRecorded_WriteKeepsEachReason(t *testing.T) {
+	found := []harness.Finding{{"c/x", "base"}, {"b/x", "kind"}, {"a/x", "kept record"}, {"e/x", "new"}}
+
+	out := readRecord(t).Write("found by the spelling oracle\n\nrewritten by -update", found)
+
+	assert.Equal(t, "# found by the spelling oracle\n#\n# rewritten by -update\n"+
+		"a/x\tkept record\tkept-key\n"+
+		"b/x\tkind\tdecorated-object\n"+
+		"c/x\tbase\tunclassified\n"+
+		"e/x\tnew\tunclassified\n", string(out))
+	back, err := harness.ReadRecorded(out)
+	require.NoError(t, err)
+	unlisted, changed, stale, unreasoned := back.Judge(found, reasons())
+	assert.Empty(t, unlisted)
+	assert.Empty(t, changed)
+	assert.Empty(t, stale)
+	assert.Equal(t, []string{"c/x\tunclassified", "e/x\tunclassified"}, unreasoned)
+}
+
+// TestRecorded_WriteOfAWhatNoLineHolds pins Write's limit: a What that is
+// empty or holds a tab writes a line ReadRecorded refuses.
+func TestRecorded_WriteOfAWhatNoLineHolds(t *testing.T) {
+	for _, what := range []string{"", "kind\tbase"} {
+		_, err := harness.ReadRecorded(harness.Recorded{}.Write("", []harness.Finding{{Name: "a/x", What: what}}))
+		require.Error(t, err, "%q", what)
+		assert.Contains(t, err.Error(), "want name, what and reason", "%q", what)
+	}
+}
+
+func TestReadRecorded_RefusesWhatNoRecordHolds(t *testing.T) {
+	for _, tc := range []struct{ name, data, want string }{
+		{"two fields", "a/x\tkind\n", "record line 1: want name, what and reason"},
+		{"four fields", "# c\na/x\tkind\tr\tmore\n", "record line 2: want name, what and reason"},
+		{"an empty field", "a/x\t\tr\n", "record line 1: want name, what and reason"},
+		{"a name listed twice", "a/x\tkind\tr\nb/x\tk\tr\na/x\tbase\tr\n", `record line 3: "a/x" is listed twice`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := harness.ReadRecorded([]byte(tc.data))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}
+
+func TestRecorded_ExplainsAFindingAtItsCoreName(t *testing.T) {
+	r := readRecord(t)
+	assert.True(t, r.Explains(harness.Finding{Name: "b/y", What: "kind"}, "b/x"))
+	assert.False(t, r.Explains(harness.Finding{Name: "b/y", What: "base"}, "b/x"), "another What")
+	assert.False(t, r.Explains(harness.Finding{Name: "b/y", What: "kind"}, "b/y"), "no line at that name")
+}
+
+// caseResults are a run's results: one case each oracle passes, one the
+// spelling and presence oracles find something in, one a panic ended, and one
+// a panic ended after the spelling oracle found what the record lists.
+func caseResults() []harness.Result {
+	return []harness.Result{
+		{Spec: "a/x", Like: "a/x", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeOK},
+		}},
+		{Spec: "b/y", Like: "b/x", Outcome: harness.OutcomeSpellingDependent, Detail: "kind\nthe diff", Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeSpellingDependent, Detail: "kind\nthe diff"},
+			{Oracle: harness.OraclePresence, Outcome: harness.OutcomeNotCarried, Detail: "changes nothing"},
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineNoInstance},
+		}},
+		{Spec: "c/x", Like: "c/x", Outcome: harness.OutcomePanic, Detail: "boom", Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineNotReached},
+		}},
+		{Spec: "a/y", Like: "a/x", Outcome: harness.OutcomePanic, Detail: "presence exploded", Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeSpellingDependent, Detail: "kept record"},
+			{Oracle: harness.OraclePresence, Declined: harness.DeclineNotReached},
+		}},
+	}
+}
+
+func TestFindings_AreTheFirstLineOfWhatAnOracleFound(t *testing.T) {
+	results := caseResults()
+	assert.Equal(t, []harness.Finding{{Name: "b/y", What: "kind"}, {Name: "a/y", What: "kept record"}},
+		harness.Findings(results, harness.OracleSpelling))
+	assert.Equal(t, []harness.Finding{{Name: "b/y", What: "changes nothing"}},
+		harness.Findings(results, harness.OraclePresence))
+	assert.Empty(t, harness.Findings(results, harness.OracleInstance))
+}
+
+// TestUnexplained_KeepsWhatNoRecordExplains pins what a run reports: a fault,
+// whole even where the record explains what an oracle found before it, and a
+// finding no record lists at its case's core name, with the verdicts the
+// record explains taken out.
+func TestUnexplained_KeepsWhatNoRecordExplains(t *testing.T) {
+	results := caseResults()
+	records := map[harness.Oracle]harness.Recorded{harness.OracleSpelling: readRecord(t)}
+
+	got := harness.Unexplained(results, records)
+
+	require.Len(t, got, 3)
+	assert.Equal(t, harness.Result{
+		Spec: "b/y", Like: "b/x", Outcome: harness.OutcomeNotCarried, Detail: "changes nothing",
+		Verdicts: []harness.Verdict{{Oracle: harness.OraclePresence, Outcome: harness.OutcomeNotCarried, Detail: "changes nothing"}},
+	}, got[0])
+	assert.Equal(t, results[2], got[1])
+	assert.Equal(t, results[3], got[2])
+	assert.Contains(t, harness.Report(got), "presence exploded", "the report names the fault beside the finding")
+
+	bare := harness.Unexplained(results, nil)
+	require.Len(t, bare, 3, "with no record, every finding stands")
+	assert.Equal(t, harness.OutcomeSpellingDependent, bare[0].Outcome)
+	assert.Equal(t, results[1].Verdicts[:2], bare[0].Verdicts)
+}
+
+// TestResult_FaultedTellsAFaultFromAFinding holds Faulted to each outcome a
+// result takes: a fault is an outcome no verdict of the result found.
+func TestResult_FaultedTellsAFaultFromAFinding(t *testing.T) {
+	results := caseResults()
+	for i, want := range []bool{false, false, true, true} {
+		assert.Equal(t, want, results[i].Faulted(), results[i].Spec)
+	}
+	panicked := harness.Result{Outcome: harness.OutcomePanic, Verdicts: []harness.Verdict{
+		{Oracle: harness.OracleNoPanic, Outcome: harness.OutcomePanic, Detail: "boom"},
+	}}
+	assert.False(t, panicked.Faulted(), "a spec's panic is the no-panic oracle's finding")
+	assert.True(t, harness.Result{Outcome: harness.OutcomeError}.Faulted())
+}
+
+// TestFindings_ListTheDeclinesARecordHolds pins the declines a record lists as
+// it lists a finding: any case oracle's error diagnostic and the instance
+// oracle's unjudged instance, as "declined: <reason>", and no other decline.
+// Unexplained keeps one its record does not list as a finding of
+// OutcomeDeclined.
+func TestFindings_ListTheDeclinesARecordHolds(t *testing.T) {
+	results := []harness.Result{
+		{Spec: "g/p", Like: "g/p", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineNoPartner},
+			{Oracle: harness.OraclePresence, Declined: harness.DeclineErrorDiagnostic},
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineErrorDiagnostic},
+		}},
+		{Spec: "g/q", Like: "g/q", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineNotJudged},
+		}},
+		{Spec: "g/r", Like: "g/r", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineRelocationCollides},
+			{Oracle: harness.OraclePresence, Declined: harness.DeclineNoConstruct},
+			{Oracle: harness.OracleInstance, Declined: harness.DeclineNoInstance},
+		}},
+		{Spec: "g/s", Like: "g/s", Outcome: harness.OutcomeOK, Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Declined: harness.DeclineErrorDiagnostic},
+		}},
+	}
+	refused := harness.Finding{Name: "g/p", What: "declined: error diagnostic"}
+	assert.Equal(t, []harness.Finding{refused, {Name: "g/q", What: "declined: not judged"}},
+		harness.Findings(results, harness.OracleInstance))
+	assert.Equal(t, []harness.Finding{refused}, harness.Findings(results, harness.OraclePresence))
+	assert.Equal(t, []harness.Finding{{Name: "g/s", What: "declined: error diagnostic"}},
+		harness.Findings(results, harness.OracleSpelling))
+
+	record, err := harness.ReadRecorded([]byte("g/p\tdeclined: error diagnostic\tremote\n"))
+	require.NoError(t, err)
+	got := harness.Unexplained(results, map[harness.Oracle]harness.Recorded{
+		harness.OraclePresence: record, harness.OracleInstance: record,
+	})
+	unjudged := harness.Verdict{Oracle: harness.OracleInstance, Outcome: harness.OutcomeDeclined, Detail: "declined: not judged"}
+	uncompiled := harness.Verdict{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeDeclined, Detail: "declined: error diagnostic"}
+	assert.Equal(t, []harness.Result{
+		{Spec: "g/q", Like: "g/q", Outcome: harness.OutcomeDeclined, Detail: "declined: not judged", Verdicts: []harness.Verdict{unjudged}},
+		{Spec: "g/s", Like: "g/s", Outcome: harness.OutcomeDeclined, Detail: "declined: error diagnostic", Verdicts: []harness.Verdict{uncompiled}},
+	}, got)
+	assert.False(t, got[0].Faulted())
+	assert.Equal(t, "g/q declined declined: not judged\ng/s declined declined: error diagnostic\n", harness.Report(got))
+
+	got = harness.Unexplained(results, map[harness.Oracle]harness.Recorded{harness.OracleInstance: record})
+	require.Len(t, got, 3, "the presence oracle's decline stands where its record does not list it")
+	assert.Equal(t, "g/p", got[0].Spec)
+	assert.Equal(t, harness.OraclePresence, got[0].Verdicts[0].Oracle)
+}
+
+// spelt is the result of a case whose spelling found what, projecting to like
+// and naming parts.
+func spelt(spec, like, what string, parts ...string) harness.Result {
+	return harness.Result{Spec: spec, Like: like, Parts: parts, Outcome: harness.OutcomeSpellingDependent,
+		Detail: what + "\nthe diff", Verdicts: []harness.Verdict{
+			{Oracle: harness.OracleSpelling, Outcome: harness.OutcomeSpellingDependent, Detail: what + "\nthe diff"},
+		}}
+}
+
+// TestUnexplained_ATwoKeywordFindingIsNewWhereNeitherPartDiffers pins how a
+// spelling found at a case writing two keywords is read: explained where every
+// place it differs at is one a spelling of either part differs at in the same
+// run, and left to report at a place neither does, a part outside the run
+// adding none. A presence finding is read against the record alone, and a
+// line at a case's own name explains what it lists.
+func TestUnexplained_ATwoKeywordFindingIsNewWhereNeitherPartDiffers(t *testing.T) {
+	carriesNothing := harness.Verdict{Oracle: harness.OraclePresence, Outcome: harness.OutcomeNotCarried,
+		Detail: "changes nothing"}
+	alone := spelt("none/s", "none/none", "types.unmodeled")
+	alone.Verdicts = append(alone.Verdicts, carriesNothing)
+	both := spelt("k/s", "k/none", "types.kind", "k/none", "none/s")
+	both.Verdicts = append(both.Verdicts, carriesNothing)
+	results := []harness.Result{
+		spelt("k/none", "k/none", "types.kind"),
+		alone,
+		spelt("k/t", "k/none", "types.kind,types.unmodeled", "k/none", "none/s"),
+		spelt("k/u", "k/none", "types.kind,types.base", "k/none", "none/s"),
+		both,
+		spelt("k/v", "k/none", "types.kind", "k/none", "gone/x"),
+		spelt("q/v", "q/none", "types.kind", "gone/x"),
+		spelt("own/s", "own/none", "listed"),
+	}
+	lines := "k/none\ttypes.kind\tr\nnone/s\ttypes.unmodeled\tr\nown/s\tlisted\tr\n"
+	spelling, err := harness.ReadRecorded([]byte(lines))
+	require.NoError(t, err)
+	presence, err := harness.ReadRecorded([]byte("none/s\tchanges nothing\tr\n"))
+	require.NoError(t, err)
+
+	got := harness.Unexplained(results, map[harness.Oracle]harness.Recorded{
+		harness.OracleSpelling: spelling, harness.OraclePresence: presence})
+
+	left := map[string]harness.Oracle{}
+	for _, r := range got {
+		require.Len(t, r.Verdicts, 1, r.Spec)
+		left[r.Spec] = r.Verdicts[0].Oracle
+	}
+	assert.Equal(t, map[string]harness.Oracle{
+		"k/u": harness.OracleSpelling, "k/s": harness.OraclePresence, "q/v": harness.OracleSpelling,
+	}, left)
+	assert.Equal(t, []string{"k/none", "none/s"}, got[0].Parts, "a result left keeps the parts it names")
+}

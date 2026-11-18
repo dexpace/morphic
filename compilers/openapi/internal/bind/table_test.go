@@ -91,6 +91,18 @@ func TestBind_ReadsEachHop(t *testing.T) {
 			"  extras:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/extras/M/schema", bind.Raw},
 		{"a components/mediaTypes entry's schema, which the load phase models", "    A: {$ref: '#/components/mediaTypes/M/schema'}\n" +
 			"  mediaTypes:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/mediaTypes/M/schema", bind.Schema},
+		{"a header's schema beneath a nested encoding, which no model holds",
+			"    A: {$ref: '#/components/requestBodies/B/content/m~1x/encoding/f/encoding/g/headers/H/schema'}\n" +
+				"  requestBodies:\n    B: {content: {m/x: {encoding: {f: {encoding: {g: {headers: {H: {schema: {}}}}}}}}}}\n",
+			bind.NoReason, "/components/requestBodies/B/content/m~1x/encoding/f/encoding/g/headers/H/schema", bind.Raw},
+		{"a header's schema beneath an encoding, which the model holds",
+			"    A: {$ref: '#/components/requestBodies/B/content/m~1x/encoding/f/headers/H/schema'}\n" +
+				"  requestBodies:\n    B: {content: {m/x: {encoding: {f: {headers: {H: {schema: {}}}}}}}}\n",
+			bind.NoReason, "/components/requestBodies/B/content/m~1x/encoding/f/headers/H/schema", bind.Schema},
+		{"a nested encoding, an object no schema reference may name",
+			"    A: {$ref: '#/components/requestBodies/B/content/m~1x/encoding/f/encoding/g'}\n" +
+				"  requestBodies:\n    B: {content: {m/x: {encoding: {f: {encoding: {g: {}}}}}}}\n",
+			bind.NotSchema, "", bind.NoRole},
 		{"raw YAML that is no schema", "    A: {$ref: '#/x-lib/n'}\nx-lib: {n: 5}\n", bind.NotSchema, "", bind.NoRole},
 		{"a component the YAML writes as no schema, which the parser builds one at", "    A: {$ref: '#/components/schemas/B'}\n    B: 5\n",
 			bind.NoReason, "/components/schemas/B", bind.Schema},
@@ -230,6 +242,14 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 			"/x-lib/S", "", bind.RawDefinition},
 		{"no definition of a schema under an extension", "x-lib:\n  S: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}\n" +
 			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S/properties/p", "", bind.RawDefinition},
+		{"a definition of a schema beneath an Encoding Object", "components:\n  requestBodies:\n    B: {content: {m/x: {encoding: " +
+			"{f: {headers: {H: {schema: {properties: {p: {$ref: '#/$defs/n'}}, $defs: {n: {}}}}}}}}}}\n",
+			"/components/requestBodies/B/content/m~1x/encoding/f/headers/H/schema/properties/p",
+			"/components/requestBodies/B/content/m~1x/encoding/f/headers/H/schema/$defs/n", 0},
+		{"no definition of a schema beneath an Encoding Object another nests", "components:\n  requestBodies:\n" +
+			"    B: {content: {m/x: {encoding: {f: {encoding: {g: {headers: {H: {schema: {properties: {p: {$ref: '#/$defs/n'}}, " +
+			"$defs: {n: {}}}}}}}}}}}}\n",
+			"/components/requestBodies/B/content/m~1x/encoding/f/encoding/g/headers/H/schema/properties/p", "", bind.RawDefinition},
 		{"a raw schema's own before its raw ancestor's", "x-lib:\n  $defs: {n: {}}\n  S: {$ref: '#/$defs/n', $defs: {n: {}}}\n" +
 			"components:\n  schemas:\n    U: {$ref: '#/x-lib/S'}\n", "/x-lib/S", "", bind.OwnDefinition},
 		{"raw YAML at the root", "$defs:\n  A: {type: string}\ncomponents:\n  schemas:\n    H: {properties: {p: {$ref: '#/$defs/A'}}}\n",

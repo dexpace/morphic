@@ -349,9 +349,9 @@ func permutations(n int) [][]int {
 
 // TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt pins a value bound on an
 // inline branch of a composition whose schema declares a type the bound does
-// not apply to: the composed Model reads none of it, so the branch is kept
-// whole, reported, as the same bound beside the allOf is kept, and one the type
-// takes folds onto the Model.
+// not apply to: the composed Model reads none of it, so the bound is kept under
+// its own key, reported at its branch, as the same bound beside the allOf is
+// kept, and one the type takes folds onto the Model.
 func TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
@@ -360,7 +360,7 @@ func TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt(t *testing.T) {
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok, "got %T", typeByName(doc, "M"))
 	assert.Equal(t, &ir.Constraints{MinProps: new(int64(1))}, m.Constraints)
-	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(m.Unmodeled))
+	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(m.Unmodeled))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 		"/components/schemas/M/allOf/0"), "minLength")
 	assert.Len(t, diags, 1, "%+v", diags)

@@ -16,10 +16,11 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -219,7 +220,7 @@ func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
 func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	got, diags := reg.Declared(c, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
 
 	assert.Empty(t, diags)
@@ -235,7 +236,7 @@ func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 func TestRegistry_DeclaredEveryEntryNilIsNil(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	got, diags := reg.Declared(c, []*soa.Server{nil, nil}, "")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
@@ -249,7 +250,7 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 		sequencedmap.NewElem("keep", &soa.ServerVariable{}),
 	)
 	reg := servers.NewRegistry()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	got, diags := reg.Declared(c, []*soa.Server{{URL: "https://x", Variables: vars}}, "")
 	assert.Empty(t, diags)
 	require.Len(t, got, 1)
@@ -350,13 +351,13 @@ paths: {}
 // registered and reports nothing, without lowering the declaration again.
 func TestRegistry_DeclaredSecondReachLowersNothing(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, `openapi: 3.1.0
+	c := servicetest.Context(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
     servers: [{url: https://a.example, x-n: .nan}]
     get: {responses: {"200": {description: ok}}}
-`, lowering.Policy{Grouping: lowering.GroupByTags})
+`, service.Policy{Grouping: service.GroupByTags})
 	item, ok := c.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 	list := item.GetObject().GetServers()
@@ -376,7 +377,7 @@ paths:
 func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	got, diags := reg.Root(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}))
+	got, diags := reg.Root(servicetest.Context(t, openapitest.EmptySpec, service.Policy{}))
 	require.Empty(t, diags)
 	require.Equal(t, []ir.ServerID{"server/default"}, got)
 	first := reg.Servers()
@@ -389,7 +390,7 @@ func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 // writing nothing into the caller's map.
 func TestRegistry_ReopenRegistersBesideWhatItHolds(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	first := servers.NewRegistry()
 	_, diags := first.Root(c)
 	require.Empty(t, diags)
@@ -459,7 +460,7 @@ paths:
 		s, ok := doc.Servers[id]
 		require.True(t, ok, id)
 		assert.Equal(t, want.name, s.Name, id)
-		assert.Equal(t, want.marked, s.Provenance.Inferred == lowering.ExtensionPromotionHeuristic, id)
+		assert.Equal(t, want.marked, s.Provenance.Inferred == promotion.ExtensionPromotionHeuristic, id)
 		assert.Contains(t, s.Unmodeled, "openapi:x-fern-server-name", "%s keeps the key it read", id)
 	}
 }

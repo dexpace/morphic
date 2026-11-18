@@ -15,11 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 )
 
 // TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary holds the
@@ -44,9 +43,9 @@ func TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo(t *testing.T) {
 		}
 		s := openapitest.SchemaFromYAML(t.Context(), t, keyword+": "+literal+"\n").GetSchema()
 		kinds := keywordKinds[keyword]
-		read, _, _ := annotation.Constraints(s, boundsFor(kinds), false, "/p", provenance.Doc{})
+		read, _, _ := annotation.Constraints(StandaloneSchema(s), boundsFor(kinds), false, "/p", provenance.Doc{})
 		assert.NotNil(t, read, keyword)
-		unread, _, _ := annotation.Constraints(s, boundsFor(anyInstance&^kinds), false, "/p", provenance.Doc{})
+		unread, _, _ := annotation.Constraints(StandaloneSchema(s), boundsFor(anyInstance&^kinds), false, "/p", provenance.Doc{})
 		assert.Nil(t, unread, keyword)
 	}
 }
@@ -67,7 +66,7 @@ func TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares(t *testing.T) {
 		"type: [number, array, boolean]\n": kindNumber | kindArray | kindBoolean,
 	} {
 		s := openapitest.SchemaFromYAML(t.Context(), t, body).GetSchema()
-		assert.Equal(t, want, declaredInstanceTypes(s), body)
+		assert.Equal(t, want, declaredInstanceTypes(StandaloneSchema(s)), body)
 	}
 }
 
@@ -96,12 +95,13 @@ func TestTaken_AKeywordTheTableDoesNotListAppliesToEveryKind(t *testing.T) {
 func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 	t.Parallel()
 	const obj = "{$ref: '#/components/schemas/Obj'}"
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Obj: {type: object}\n"))
 	for _, tc := range []struct {
 		name, body string
 		want       bool
 	}{
 		{"no bound anywhere", "allOf: [" + obj + ", {properties: {a: {}}}]\n", false},
-		{"a bound beside a branch's own $ref", "allOf: [{$ref: '#/components/schemas/Obj', minLength: 1}]\n", false},
+		{"a bound beside a branch's own $ref, the rest of that branch", "allOf: [{$ref: '#/components/schemas/Obj', minLength: 1}]\n", true},
 		{"a value bound on the schema", "allOf: [" + obj + "]\nminLength: 1\n", true},
 		{"a collection bound on the schema", "allOf: [" + obj + "]\nmaxItems: 2\n", true},
 		{"a value bound on the first branch", "allOf: [{minimum: 1}, " + obj + "]\n", true},
@@ -112,41 +112,37 @@ func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := openapitest.SchemaFromYAML(t.Context(), t, tc.body).GetSchema()
-			assert.Equal(t, tc.want, writesBound(nil, s))
+			assert.Equal(t, tc.want, writesBound(l.Ctx, StandaloneSchema(s)))
 		})
 	}
 }
 
-// TestBoundTypes_ReadsNoSiblingPastItsBudget pins the cost of a position's read
-// (namedTypes), by its steps, on shapes wider or deeper than maxBoundTypeReads.
-// Each runs out of budget, so no schema, null branch, boolean, unresolved $ref
-// or dynamic hop is read without a step, and none passes the bound
-// maxBoundTypeReads states, as a sibling read past the budget would. Each branch
-// test and pointer build is followed by a step, so the bound holds them too.
-func TestBoundTypes_ReadsNoSiblingPastItsBudget(t *testing.T) {
+// TestBoundKinds_ReadsEachShapeWhole pins the kinds a bound beside each of
+// budgetShapes is read by, each a thousand wide or long or 300 deep: a read of any size is
+// decided, a null branch adds no kind, a chain of dynamic references is read
+// to the schema it expands to, and a read meeting a cycle of $refs or a $ref
+// landing on no schema leaves the position's own type to decide.
+func TestBoundKinds_ReadsEachShapeWhole(t *testing.T) {
 	t.Parallel()
-	const bound = 2*maxBoundTypeReads + 3
-	spec := openapitest.ComponentSpecVer("3.1.0", budgetShapes(4*maxBoundTypeReads))
-	for _, name := range []string{"AllOf", "AnyOf", "Nulls", "Trues", "Dangling", "Mixed", "D0", "Deep", "All"} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			c := loweringtest.Context(t, spec, lowering.Policy{})
-			pointer := jsontext.Pointer("/components/schemas/" + name)
-			s := heldAt(c, pointer).GetSchema()
-			require.NotNil(t, s)
-			r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-			assert.Equal(t, anyInstance, r.names(c, s, pointer))
-			assert.True(t, r.steps.Exhausted())
-			assert.LessOrEqual(t, r.steps.Spent(), bound)
-		})
+	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", budgetShapes(1000)), service.Policy{})
+	for name, want := range map[string]kindSet{
+		"AllOf": kindString, "AnyOf": kindString, "Nulls": kindString, "Trues": anyInstance, "D0": kindString,
+		"Deep": kindString, "Dangling": anyInstance, "Mixed": anyInstance, "All": anyInstance,
+	} {
+		r := admissionOf(c.Ctx, heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name)))
+		cut := name == "Dangling" || name == "Mixed" || name == "All"
+		assert.Equal(t, cut, r.cut, name)
+		if !cut {
+			assert.Equal(t, want, r.kinds, name)
+		}
 	}
 }
 
-// budgetShapes declares the shapes TestBoundTypes_ReadsNoSiblingPastItsBudget
-// reads, each n wide or n deep: entries and branches of each kind, null
-// branches of each spelling, a chain of dynamic references, an inline allOf in
-// an anyOf in an allOf whose levels each write a union too, and all of them at
-// one position beside a $ref and a union of its own.
+// budgetShapes declares the shapes TestBoundKinds_ReadsEachShapeWhole reads,
+// each n wide or long, or deep to n levels or 300, which the load reads: entries and branches of each kind, null branches of
+// each spelling, a chain of dynamic references, an inline allOf in an anyOf in
+// an allOf whose levels each write a union too, and all of them at one
+// position beside a $ref and a union of its own.
 func budgetShapes(n int) string {
 	kinds := []string{"{$ref: '#/components/schemas/Str'}", "{type: string}", "{description: d}", "true",
 		"{$ref: '#/components/schemas/Nowhere'}", "{$ref: '#/components/schemas/Cyc'}"}
@@ -158,7 +154,7 @@ func budgetShapes(n int) string {
 		fmt.Fprintf(&chain, "    D%d: {$dynamicAnchor: d%d, $dynamicRef: '#d%d'}\n", i, i, i+1)
 	}
 	deep := "{type: string}"
-	for i := range maxBoundTypeReads + 44 {
+	for i := range min(n, 300) {
 		if i%2 == 0 {
 			deep = "{allOf: [" + deep + "], anyOf: [{type: string}]}"
 		} else {
@@ -177,34 +173,20 @@ func budgetShapes(n int) string {
 		"{$ref: '#/components/schemas/D0'}], $ref: '#/components/schemas/Str', anyOf: [{$ref: '#/components/schemas/Nulls'}]}\n"
 }
 
-// TestBoundTypes_ADynamicCycleEndsOnTheBudget pins the read of dynamic
-// references whose expansions close a cycle: each hop is one schema read at one
-// step, so the budget ends the cycle, as it ends one of $refs, and no hop walks
-// the chain of expansions again.
-func TestBoundTypes_ADynamicCycleEndsOnTheBudget(t *testing.T) {
+// TestBoundKinds_ACycleLeavesTheOwnTypeToDecide pins the fallback of a read cut
+// by a cycle of conjunct edges, of dynamic references or of $refs, and by a
+// $ref landing on no schema: a bound beside it is read by the position's own
+// type, every bound where it writes none.
+func TestBoundKinds_ACycleLeavesTheOwnTypeToDecide(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
-		"    A: {$dynamicAnchor: a, $dynamicRef: '#b'}\n    B: {$dynamicAnchor: b, $dynamicRef: '#a'}\n"), lowering.Policy{})
-	const pointer = jsontext.Pointer("/components/schemas/A")
-	s := heldAt(c, pointer).GetSchema()
-	require.NotNil(t, s)
-	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
-	assert.Equal(t, maxBoundTypeReads+1, r.steps.Spent())
-}
-
-// TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing pins the read of a
-// $ref whose chain ends on no schema: it admits every kind at the step a read
-// of a schema spends, so a bound beside it is read as beside a schema writing
-// no type.
-func TestBoundTypes_AReferenceLandingOnNoSchemaExcludesNothing(t *testing.T) {
-	t.Parallel()
-	c := loweringtest.Context(t, openapitest.ComponentSpecVer("3.1.0",
-		"    Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}]}\n"), lowering.Policy{})
-	const pointer = jsontext.Pointer("/components/schemas/Dangling")
-	s := heldAt(c, pointer).GetSchema()
-	require.NotNil(t, s)
-	r := boundTypes{steps: budget.New(budget.AtMost(maxBoundTypeReads))}
-	assert.Equal(t, anyInstance, r.schema(c, s, pointer))
-	assert.Equal(t, 2, r.steps.Spent())
+	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$dynamicAnchor: a, $dynamicRef: '#b', minimum: 1}
+    B: {$dynamicAnchor: b, $dynamicRef: '#a'}
+    R: {allOf: [{$ref: '#/components/schemas/R'}], type: integer, minLength: 1}
+    Dangling: {allOf: [{$ref: '#/components/schemas/Nowhere'}], minLength: 1}
+`), service.Policy{})
+	for name, want := range map[string]kindSet{"A": anyInstance, "R": kindInteger, "Dangling": anyInstance} {
+		st := heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name))
+		require.True(t, admissionOf(c.Ctx, st).cut, name)
+		assert.Equal(t, want, boundKinds(c.Ctx, st.Schema), name)
+	}
 }

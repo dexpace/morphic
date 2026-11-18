@@ -180,7 +180,8 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              other, never emitters/engine.
     internal/  Layer 1 — that compiler's own packages, each with its own allowlist rather than
              the compiler's. The ordering among them is real and enforced, from diag (reaches
-             only ir and barrier) up to operation, document and detect. None may reach the
+             only ir and barrier) up to operation, document and detect: each sits in one of
+             five layers, which `layers` in `internal/archtest` names. None may reach the
              compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
@@ -227,6 +228,11 @@ under `compilers/` and `emitters/` the same test requires one. `TestImportGraph_
 fails on an entry that no production file the rule audits imports, so a change that drops a
 package's last import of something drops the entry with it, and on an entry naming no directory,
 unless `unbuilt` says why it is ruled before its package exists, as `emitters` is.
+
+A package under `compilers/openapi/internal` takes a row in `layers`, the layer its imports and its
+role say, because `TestLayers_EveryCompilerPackageHasOne` fails without one;
+`TestLayers_NoPackageImportsAboveItsLayer` reads the packages' real imports, not the `rules`
+entries, and fails on one of a layer above the package's own or of a library its layer may not reach.
 
 Caps also guard shape rather than the graph. No type under `compilers/` may carry more than 20
 methods (`internal/archtest`), and no function may exceed 70 lines or a cognitive complexity of 20
@@ -291,6 +297,33 @@ These all exist already — extend them rather than building a parallel mechanis
   structural-invariant checker (stable IDs, no dangling refs, neutral naming, routable `Unmodeled`,
   in-range provenance); its findings are `Violation` values — *our* bugs — deliberately a channel
   separate from `ir.Diagnostic`, which reports problems in the source spec.
+- **Case oracles**: `internal/harness/openapicases` writes the OpenAPI compiler's schema cases, one
+  document per case, as products of axes its `Axes` names: version, target schema, construct (each
+  keyword of the rule table at two values), a second construct (`none` at the core, outside it a
+  keyword written in one unit with the first), position and spelling, and the JSON Schema Test
+  Suite's groups written as defaults. `internal/harness`'s case
+  oracles judge each case, the first two against a neighbour: spelling (a use spelt another way
+  lowers alike, up to decorators), presence (a keyword changes what compiles, and again when its
+  value changes, unless it says why nothing carries it) and instance (the suite's valid instances
+  are admitted, except that an instance of another kind than a node the compiler marked
+  `kind-inference` is excused: that policy, on by default, narrows a schema naming no kind to one,
+  and the suite's groups compile under it). The gate checks the core cases, each axis value whose
+  `Like` is empty, in `go test ./internal/harness/openapicases`; `make cases` checks every case, as
+  the nightly job does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by
+  index. A case is written to compile: an oracle declining one for an error diagnostic, the spelling oracle where
+  neither side compiled, has made a finding its record must list. The same tests also compile each
+  core case, and at each version outside the core the first case writing each other axis value,
+  and name the error; a document refused only where two such values meet is the nightly run's to
+  find. A finding that stands is a line of that package's
+  `testdata/spelling.txt`, `presence.txt` or `instances.txt`: case name, what was found, and a
+  reason that `Reasons` maps to the open issue it stands under, which
+  `TestReasons_EachCitesAnIssue` holds. `-update` writes a new finding as `unclassified`, which
+  fails until it is given a reason, and deletes the lines a fix leaves naming no finding, which
+  fail as stale until it does. A case outside the core is explained by the line of the core case
+  it projects to, with the same finding, or by a line of `testdata/full` at its own name; a
+  spelling at a case writing two keywords is new only where it differs at a place neither case
+  writing one of them alone differs at. `make cases` holds every case to those files, and
+  `go test ./internal/harness/openapicases -full -update` rewrites `testdata/full`.
 - **Architecture test**: `internal/archtest`, per the layering section above. It also holds each
   production package's uses of the parser library's reference-resolution API, which it derives
   from the library's sources, to `resolutionBaseline`. The baseline only shrinks: removing a use
@@ -300,7 +333,8 @@ These all exist already — extend them rather than building a parallel mechanis
   The calls each production package makes into one it does not import, which only a function, an
   interface or a type argument handed to it can make, are held to `callShapeBaseline`, pair by
   pair. A count rises only for a call of a kind the table keeps, a traversal callback or a designed
-  seam among them, and only with the table's edit (#1478).
+  seam among them, and only with the table's edit (#1478). It holds the OpenAPI compiler's packages
+  to five layers too (`layers_test.go`), each package importing its own layer and those below.
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
   `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
   analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
@@ -337,11 +371,12 @@ assertion shapes:
   members, and the diagnostics without their message text or line and column. It permutes mappings
   alone. The sequence-order oracle beside it reverses each `allOf` and `required` sequence that
   `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
-  and what `canonicalForm` in `canon.go` lists. Both compile at the default limits, so an order
-  dependence among a listed collection's elements, in any other sequence or another order of one,
-  or in a verdict at another limit (#1519) needs its own two-order diff. A targeted case still
-  earns its place when it pins one lowering, because the oracles prove order-independence only for
-  the constructs their inputs happen to contain.
+  and what `canonicalForm` in `canon.go` lists, and a report naming no node that moves among the
+  declarations of a tie the documents show (`tieClasses` in `tieclass.go`), whatever its code.
+  Both compile at the default limits, so an order dependence among a listed collection's elements,
+  in any other sequence or another order of one, or in a verdict at another limit (#1519) needs its
+  own two-order diff. A targeted case still earns its place when it pins one lowering, because the
+  oracles prove order-independence only for the constructs their inputs happen to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
     leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant
@@ -450,10 +485,10 @@ make gate
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
 `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI are the same commands; CI splits them across two jobs that run
-side by side. The race detector is outside it: a nightly job runs `make race` on `main`, and opens an
-issue when it fails. Read the `Makefile` for the step list rather than restating it here;
-`make coverage`, `make race`, `make fuzz`, `make bench` and the rest are individually runnable while
-iterating.
+side by side. The race detector and every schema case are outside it: a nightly job runs
+`make race`, then `make cases`, on `main`, and opens an issue when either fails. Read the `Makefile`
+for the step list rather than restating it here; `make coverage`, `make race`, `make cases`,
+`make fuzz`, `make bench` and the rest are individually runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
@@ -471,7 +506,9 @@ context-switch between repos.
   or invent content for files that aren't there.
 - CI is one `gate` workflow (`.github/workflows/gate.yml`) of two jobs that run side by side, on PR
   and on push to `main`, and a third, the race detector, that runs nightly or by hand and never
-  beside them. Keep it that way — add a check as a step of one of the two jobs rather than a new job
+  beside them. After the race run, whether or not it passed, that job runs `make cases`, and each
+  run's failure is reported under an issue title of its own. Keep it that way — add a check as a
+  step of one of the two jobs rather than a new job
   or workflow; both reference repos converge on one bundled gate over granular per-check pipelines,
   and two jobs is as far as a pull request's run splits. The gate builds, vets and lints for the
   host alone; Windows and wasm are not targets it checks.

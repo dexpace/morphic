@@ -27,8 +27,6 @@ import (
 const (
 	compilerAPI = "the OpenAPI compiler's Go API: a caller building Options starts from the default " +
 		"rather than transcribing it, and the CLI sets options as text"
-	embedderAPI = "the engine's API for a driver compiling a spec held wholly in memory, as an editor " +
-		"integration would (docs/architecture.md); no binary of the module does"
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); the one that ships, " +
 		"const-unions, replaces and removes types and edits nothing else"
 	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
@@ -44,45 +42,44 @@ var apiRoots = map[string]string{
 	"compilers/openapi.DefaultStreamingMediaTypes": compilerAPI,
 	"compilers/openapi.DefaultBinaryMediaTypes":    compilerAPI,
 	"compilers/openapi.DefaultExtensionPromotions": compilerAPI,
-	"engine.Engine.RunSources":                     embedderAPI,
-	"ir.Editor.Type":                               transformAPI,
-	"ir.Editor.UpdateType":                         transformAPI,
-	"ir.Editor.Service":                            transformAPI,
-	"ir.Editor.UpdateService":                      transformAPI,
-	"ir.Editor.RemoveService":                      transformAPI,
-	"ir.Editor.Group":                              transformAPI,
-	"ir.Editor.UpdateGroup":                        transformAPI,
-	"ir.Editor.RemoveGroup":                        transformAPI,
-	"ir.Editor.Operation":                          transformAPI,
-	"ir.Editor.UpdateOperation":                    transformAPI,
-	"ir.Editor.RemoveOperation":                    transformAPI,
-	"ir.Editor.Server":                             transformAPI,
-	"ir.Editor.UpdateServer":                       transformAPI,
-	"ir.Editor.Channel":                            transformAPI,
-	"ir.Editor.UpdateChannel":                      transformAPI,
-	"ir.Editor.Message":                            transformAPI,
-	"ir.Editor.UpdateMessage":                      transformAPI,
-	"ir.Editor.AuthScheme":                         transformAPI,
-	"ir.Editor.UpdateAuthScheme":                   transformAPI,
-	"ir.Editor.UpdateDocument":                     transformAPI,
-	"ir.ExposedProps":                              relationAPI,
-	"ir/irfacts.Index.Subtypes":                    factAPI,
-	"ir/irfacts.Index.Usage":                       factAPI,
-	"ir/irfacts.Index.Recursive":                   factAPI,
-	"ir/irfacts.Index.Component":                   factAPI,
-	"ir/irfacts.Index.Correlation":                 factAPI,
-	"ir/irfacts.Index.Correlated":                  factAPI,
+	"ir.Editor.Type":               transformAPI,
+	"ir.Editor.UpdateType":         transformAPI,
+	"ir.Editor.Service":            transformAPI,
+	"ir.Editor.UpdateService":      transformAPI,
+	"ir.Editor.RemoveService":      transformAPI,
+	"ir.Editor.Group":              transformAPI,
+	"ir.Editor.UpdateGroup":        transformAPI,
+	"ir.Editor.RemoveGroup":        transformAPI,
+	"ir.Editor.Operation":          transformAPI,
+	"ir.Editor.UpdateOperation":    transformAPI,
+	"ir.Editor.RemoveOperation":    transformAPI,
+	"ir.Editor.Server":             transformAPI,
+	"ir.Editor.UpdateServer":       transformAPI,
+	"ir.Editor.Channel":            transformAPI,
+	"ir.Editor.UpdateChannel":      transformAPI,
+	"ir.Editor.Message":            transformAPI,
+	"ir.Editor.UpdateMessage":      transformAPI,
+	"ir.Editor.AuthScheme":         transformAPI,
+	"ir.Editor.UpdateAuthScheme":   transformAPI,
+	"ir.Editor.UpdateDocument":     transformAPI,
+	"ir.ExposedProps":              relationAPI,
+	"ir/irfacts.Index.Subtypes":    factAPI,
+	"ir/irfacts.Index.Usage":       factAPI,
+	"ir/irfacts.Index.Recursive":   factAPI,
+	"ir/irfacts.Index.Component":   factAPI,
+	"ir/irfacts.Index.Correlation": factAPI,
+	"ir/irfacts.Index.Correlated":  factAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with
 // what they serve, so the reachability check spares what only tests reach in
 // it. An entry sparing nothing fails, so the list cannot outlive its reasons.
 var testSupport = map[string]string{
-	"ir/irtest":                                        "the golden and fixture helpers the IR's tests share",
-	"compilers/openapi/internal/openapitest":           "the scaffolding the compiler's test packages share",
-	"compilers/openapi/internal/lowering/loweringtest": "the lowering context the compiler's tests lower under",
-	"compilers/openapi/internal/ynode":                 "the YAML node builders the compiler's internal tests share",
-	"internal/ctxtest":                                 "the context decorators the tests of cancellation share",
+	"ir/irtest":                                      "the golden and fixture helpers the IR's tests share",
+	"compilers/openapi/internal/openapitest":         "the scaffolding the compiler's test packages share",
+	"compilers/openapi/internal/service/servicetest": "the lowering context the compiler's tests lower under",
+	"compilers/openapi/internal/ynode":               "the YAML node builders the compiler's internal tests share",
+	"internal/ctxtest":                               "the context decorators the tests of cancellation share",
 	"internal/decls": "the type-checked reads of declarations the tests pinning hand-written lists " +
 		"and the uses of a name share; the census binary reads one load of it",
 	"internal/exectest": "the child command every test that starts a process builds",

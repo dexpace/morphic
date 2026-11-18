@@ -20,10 +20,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -423,7 +423,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	var acc compile.Diags
 	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
 	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
@@ -872,7 +872,7 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `
-	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags})
+	c := servicetest.Context(t, spec, service.Policy{Grouping: service.GroupByTags})
 	declared, _ := auth.LowerSecuritySchemes(c)
 
 	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
@@ -960,7 +960,7 @@ components:
 }
 
 // TestOperation_ALongTagListFoldsAsAShortOne pins the fold of a list longer
-// than lowering.FirstOccurrences compares pair by pair, through an operation.
+// than service.FirstOccurrences compares pair by pair, through an operation.
 func TestOperation_ALongTagListFoldsAsAShortOne(t *testing.T) {
 	t.Parallel()
 	written := make([]string, 0, 17)

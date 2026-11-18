@@ -15,9 +15,14 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
@@ -27,138 +32,138 @@ import (
 // The vocabulary is declared once, beneath both walks, and named here rather
 // than restated: two declarations of one strategy set can drift, and a strategy
 // only the public half knew would fall through to the default unreported.
-type GroupingStrategy = lowering.GroupingStrategy
+type GroupingStrategy = service.GroupingStrategy
 
 // Grouping strategies.
 const (
 	// GroupByTags groups operations by their first OpenAPI tag (default).
-	GroupByTags = lowering.GroupByTags
+	GroupByTags = service.GroupByTags
 	// GroupByPathPrefix groups operations by the first path segment.
-	GroupByPathPrefix = lowering.GroupByPathPrefix
+	GroupByPathPrefix = service.GroupByPathPrefix
 	// GroupByExtension groups operations by the group path a vendor extension
 	// states, nesting a group for each segment, and an operation stating none by
 	// GroupingExtension.Fallback.
-	GroupByExtension = lowering.GroupByExtension
+	GroupByExtension = service.GroupByExtension
 )
 
 // GroupingExtension is what GroupByExtension reads: which extension states an
 // operation's group path, what a list there means, and how an operation stating
 // none is grouped. It is named here for the reason GroupingStrategy is.
-type GroupingExtension = lowering.GroupingExtension
+type GroupingExtension = service.GroupingExtension
 
 // ExtensionLists is what a list value of a grouping extension means.
-type ExtensionLists = lowering.ExtensionLists
+type ExtensionLists = service.ExtensionLists
 
 // The readings of a list value.
 const (
 	// ListsAreSegments reads a list as one path, each entry adding its segments.
-	ListsAreSegments = lowering.ListsAreSegments
+	ListsAreSegments = service.ListsAreSegments
 	// ListsAreGroups reads a list as several paths, filing the operation under
 	// the first and making a group for each of the rest.
-	ListsAreGroups = lowering.ListsAreGroups
+	ListsAreGroups = service.ListsAreGroups
 )
 
 // DefaultGroupingExtension returns the extension GroupByExtension reads where
 // the caller names none. It is exported so a caller can start from it.
-func DefaultGroupingExtension() GroupingExtension { return lowering.DefaultGroupingExtension() }
+func DefaultGroupingExtension() GroupingExtension { return service.DefaultGroupingExtension() }
 
 // StreamingInference is the media-type streaming policy: which media types imply
 // that a body is a sequence of frames when the document declares nothing that
 // says so. It is another injectable-policy seam (architecture principle 6), and it is
 // named here rather than restated for the reason GroupingStrategy is.
-type StreamingInference = lowering.StreamingInference
+type StreamingInference = service.StreamingInference
 
 // DefaultStreamingMediaTypes returns the media types and suffixes StreamingInference
 // classifies as streams when the caller names none. It is exported so a caller
 // extending the list can start from it rather than transcribe it.
-func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
+func DefaultStreamingMediaTypes() []string { return service.DefaultStreamingMediaTypes() }
 
 // BinaryInference is the binary media-type policy: which media types mean a body or
 // part is a file when its schema says nothing more than that it is a string. It
 // is another injectable-policy seam (architecture principle 6), named here for
 // the reason GroupingStrategy is.
-type BinaryInference = lowering.BinaryInference
+type BinaryInference = service.BinaryInference
 
 // DefaultBinaryMediaTypes returns the media types BinaryInference classifies as
 // binary when the caller names none, for the reason DefaultStreamingMediaTypes
 // is exported.
-func DefaultBinaryMediaTypes() []string { return lowering.DefaultBinaryMediaTypes() }
+func DefaultBinaryMediaTypes() []string { return service.DefaultBinaryMediaTypes() }
 
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
 // are read into which typed IR field. It is another injectable-policy seam
 // (architecture principle 6), and is named here rather than restated for the
 // reason GroupingStrategy is.
-type ExtensionPromotions = lowering.ExtensionPromotions
+type ExtensionPromotions = promotion.ExtensionPromotions
 
 // ExtensionTarget names one typed IR field a promoted extension fills.
-type ExtensionTarget = lowering.ExtensionTarget
+type ExtensionTarget = promotion.ExtensionTarget
 
 // ExtensionSource is one place a policy reads a fact from: an extension key,
 // and the member of its object value where it holds several facts.
-type ExtensionSource = lowering.ExtensionSource
+type ExtensionSource = promotion.ExtensionSource
 
 // The typed fields promotion can fill today.
 const (
 	// TargetDeprecation states that what a key sits on is deprecated.
-	TargetDeprecation = lowering.TargetDeprecation
+	TargetDeprecation = promotion.TargetDeprecation
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
-	TargetDeprecationMessage = lowering.TargetDeprecationMessage
+	TargetDeprecationMessage = promotion.TargetDeprecationMessage
 	// TargetDeprecationSince fills ir.Deprecation.Since.
-	TargetDeprecationSince = lowering.TargetDeprecationSince
+	TargetDeprecationSince = promotion.TargetDeprecationSince
 	// TargetDeprecationRemovalVersion fills ir.Deprecation.RemovalVersion.
-	TargetDeprecationRemovalVersion = lowering.TargetDeprecationRemovalVersion
+	TargetDeprecationRemovalVersion = promotion.TargetDeprecationRemovalVersion
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
-	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
+	TargetDeprecationRemovalDate = promotion.TargetDeprecationRemovalDate
 	// TargetDeprecationReplacedBy fills ir.Deprecation.ReplacedBy.
-	TargetDeprecationReplacedBy = lowering.TargetDeprecationReplacedBy
+	TargetDeprecationReplacedBy = promotion.TargetDeprecationReplacedBy
 	// TargetEnumOpen clears ir.Enum.Closed, or ir.Union.Closed on the union a
 	// mixed enum lowers to.
-	TargetEnumOpen = lowering.TargetEnumOpen
+	TargetEnumOpen = promotion.TargetEnumOpen
 	// TargetUnionOpen clears ir.Union.Closed on a union a oneOf or anyOf lowers
 	// to.
-	TargetUnionOpen = lowering.TargetUnionOpen
+	TargetUnionOpen = promotion.TargetUnionOpen
 	// TargetStability fills ir.Operation.Stability.
-	TargetStability = lowering.TargetStability
+	TargetStability = promotion.TargetStability
 	// TargetRedaction asks for a value to be redacted.
-	TargetRedaction = lowering.TargetRedaction
+	TargetRedaction = promotion.TargetRedaction
 	// TargetAllowReserved sets ir.HTTPParamBinding.AllowReserved on a parameter
 	// writing no allowReserved.
-	TargetAllowReserved = lowering.TargetAllowReserved
+	TargetAllowReserved = promotion.TargetAllowReserved
 	// TargetServerName names an ir.Server the document names in no other way.
-	TargetServerName = lowering.TargetServerName
+	TargetServerName = promotion.TargetServerName
 	// TargetTokenEndpointAuthMethods fills
 	// ir.OAuthFlow.TokenEndpointAuthMethods.
-	TargetTokenEndpointAuthMethods = lowering.TargetTokenEndpointAuthMethods
+	TargetTokenEndpointAuthMethods = promotion.TargetTokenEndpointAuthMethods
 	// TargetPaginationCursor fills the InputCursor of a cursor ir.Pagination.
-	TargetPaginationCursor = lowering.TargetPaginationCursor
+	TargetPaginationCursor = promotion.TargetPaginationCursor
 	// TargetPaginationOffset fills the InputCursor of an offset ir.Pagination.
-	TargetPaginationOffset = lowering.TargetPaginationOffset
+	TargetPaginationOffset = promotion.TargetPaginationOffset
 	// TargetPaginationPage fills the InputCursor of a page ir.Pagination.
-	TargetPaginationPage = lowering.TargetPaginationPage
+	TargetPaginationPage = promotion.TargetPaginationPage
 	// TargetPaginationLimit fills ir.Pagination.InputLimit.
-	TargetPaginationLimit = lowering.TargetPaginationLimit
+	TargetPaginationLimit = promotion.TargetPaginationLimit
 	// TargetPaginationItems fills ir.Pagination.Items.
-	TargetPaginationItems = lowering.TargetPaginationItems
+	TargetPaginationItems = promotion.TargetPaginationItems
 	// TargetPaginationNextCursor fills ir.Pagination.NextCursor.
-	TargetPaginationNextCursor = lowering.TargetPaginationNextCursor
+	TargetPaginationNextCursor = promotion.TargetPaginationNextCursor
 	// TargetPaginationHasMore fills ir.Pagination.HasMore, and the stop
 	// ir.PageStopNoMore beside it.
-	TargetPaginationHasMore = lowering.TargetPaginationHasMore
+	TargetPaginationHasMore = promotion.TargetPaginationHasMore
 	// TargetPaginationNextLink fills ir.Pagination.NextLink.
-	TargetPaginationNextLink = lowering.TargetPaginationNextLink
+	TargetPaginationNextLink = promotion.TargetPaginationNextLink
 	// TargetPaginationTotalCount fills ir.Pagination.TotalCount.
-	TargetPaginationTotalCount = lowering.TargetPaginationTotalCount
+	TargetPaginationTotalCount = promotion.TargetPaginationTotalCount
 	// TargetPaginationTotalPages fills ir.Pagination.TotalPages.
-	TargetPaginationTotalPages = lowering.TargetPaginationTotalPages
+	TargetPaginationTotalPages = promotion.TargetPaginationTotalPages
 	// TargetStreamTerminator fills ir.StreamDetail.Terminator, from a key on a
 	// streaming content of a success response or on the operation.
-	TargetStreamTerminator = lowering.TargetStreamTerminator
+	TargetStreamTerminator = promotion.TargetStreamTerminator
 	// TargetStreamCondition fills ir.StreamDetail.Condition, from a key on the
 	// operation naming an input of its request.
-	TargetStreamCondition = lowering.TargetStreamCondition
+	TargetStreamCondition = promotion.TargetStreamCondition
 	// TargetParamChoices fills ir.Operation.ParamChoices, from a key on the
 	// operation naming alternatives among its parameters.
-	TargetParamChoices = lowering.TargetParamChoices
+	TargetParamChoices = promotion.TargetParamChoices
 )
 
 // NullableInference is the nullable-inference policy: whether a null a schema
@@ -184,49 +189,59 @@ type DiscriminatorInference = lowering.DiscriminatorInference
 // and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
+// KindInference is the kind-inference policy: whether a schema naming no kind
+// lowers as one writing the type its shape keywords speak of. It is another
+// injectable-policy seam (architecture principle 6), named here for the reason
+// GroupingStrategy is.
+type KindInference = lowering.KindInference
+
+// KindInferenceHeuristic is the name a type node's Provenance.Inferred carries
+// where the kind-inference policy read its kind off its shape keywords.
+const KindInferenceHeuristic = lowering.KindInferenceHeuristic
+
 // IdempotencyInference is the idempotency policy: whether an operation
 // declaring an `Idempotency-Key` header parameter, and no idempotency, takes it
 // as its idempotency token. It is another injectable-policy seam (architecture
 // principle 6), named here for the reason GroupingStrategy is.
-type IdempotencyInference = lowering.IdempotencyInference
+type IdempotencyInference = convention.IdempotencyInference
 
 // IdempotencyInferenceHeuristic is the name an operation's Provenance.Inferred
 // carries where the idempotency policy read its token.
-const IdempotencyInferenceHeuristic = lowering.IdempotencyInferenceHeuristic
+const IdempotencyInferenceHeuristic = convention.IdempotencyInferenceHeuristic
 
 // SecretInference is the secret policy: whether a parameter, a header or a
 // property whose name says it holds a credential, and whose value is text, is
 // redacted where the document asks for no redaction. It is another
 // injectable-policy seam (architecture principle 6), named here for the reason
 // GroupingStrategy is.
-type SecretInference = lowering.SecretInference
+type SecretInference = convention.SecretInference
 
 // SecretInferenceHeuristic is the name a parameter's, a header's or a
 // property's Provenance.Inferred carries where the secret policy set its
 // Secret.
-const SecretInferenceHeuristic = lowering.SecretInferenceHeuristic
+const SecretInferenceHeuristic = convention.SecretInferenceHeuristic
 
 // HTTPDateInference is the HTTP-date policy: whether a response header whose
 // field an RFC defines as an HTTP-date, and whose schema declares a date-time
 // with no encoding, is written and read as an HTTP-date. It is another
 // injectable-policy seam (architecture principle 6), named here for the reason
 // GroupingStrategy is.
-type HTTPDateInference = lowering.HTTPDateInference
+type HTTPDateInference = convention.HTTPDateInference
 
 // HTTPDateInferenceHeuristic is the name a header's Provenance.Inferred
 // carries where the HTTP-date policy set its Encoding.
-const HTTPDateInferenceHeuristic = lowering.HTTPDateInferenceHeuristic
+const HTTPDateInferenceHeuristic = convention.HTTPDateInferenceHeuristic
 
 // ReplacementInference is the replacement policy: whether a deprecation whose
 // message names what to use instead, in a form the document's entities
 // resolve, names it in ReplacedBy too. It is another injectable-policy seam
 // (architecture principle 6), named here for the reason GroupingStrategy is.
-type ReplacementInference = lowering.ReplacementInference
+type ReplacementInference = replacement.Inference
 
 // ReplacementInferenceHeuristic is the name a deprecated node's
 // Provenance.Inferred carries where the replacement policy read its
 // replacements out of the message.
-const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
+const ReplacementInferenceHeuristic = replacement.InferenceHeuristic
 
 // TitleNames is the title-names policy: whether a schema's title names the
 // anonymous node built from it, in place of the hint its position composes.
@@ -239,17 +254,17 @@ type TitleNames = lowering.TitleNames
 // its success responses' members. It is another injectable-policy seam
 // (architecture principle 6), and is named here rather than restated for the
 // reason GroupingStrategy is.
-type PaginationInference = lowering.PaginationInference
+type PaginationInference = pagination.Inference
 
 // PaginationInferenceHeuristic is the name an operation's Provenance.Inferred
 // carries where the pagination-inference policy filled its Pagination.
-const PaginationInferenceHeuristic = lowering.PaginationInferenceHeuristic
+const PaginationInferenceHeuristic = pagination.InferenceHeuristic
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
 func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
-	return lowering.DefaultExtensionPromotions()
+	return promotion.DefaultExtensionPromotions()
 }
 
 // Options configures the OpenAPI compiler. It is the concrete type this
@@ -294,6 +309,11 @@ type Options struct {
 	// off the strings it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
+	// KindInference selects whether a schema naming no kind lowers as one
+	// writing the type its shape keywords speak of, the node marked as
+	// inferred. The zero value is on; a caller who wants such a schema read as
+	// the top type, its keywords kept, disables it.
+	KindInference KindInference `json:"kindInference"`
 	// IdempotencyInference selects whether an operation declaring an
 	// `Idempotency-Key` header parameter, and no idempotency, takes it as its
 	// idempotency token, marked as inferred. The zero value is on; a caller who
@@ -599,17 +619,18 @@ const (
 // for the title-names policy's, which leaves none.
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
-		string(NullableInferenceHeuristic):           &o.NullableInference.Disabled,
-		string(DiscriminatorInferenceHeuristic):      &o.DiscriminatorInference.Disabled,
-		string(IdempotencyInferenceHeuristic):        &o.IdempotencyInference.Disabled,
-		string(SecretInferenceHeuristic):             &o.SecretInference.Disabled,
-		string(HTTPDateInferenceHeuristic):           &o.HTTPDateInference.Disabled,
-		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
-		string(PaginationInferenceHeuristic):         &o.PaginationInference.Disabled,
-		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
-		string(lowering.StreamingInferenceHeuristic): &o.StreamingInference.Disabled,
-		string(lowering.BinaryInferenceHeuristic):    &o.BinaryInference.Disabled,
-		"title-names": &o.TitleNames.Disabled,
+		string(NullableInferenceHeuristic):            &o.NullableInference.Disabled,
+		string(DiscriminatorInferenceHeuristic):       &o.DiscriminatorInference.Disabled,
+		string(KindInferenceHeuristic):                &o.KindInference.Disabled,
+		string(IdempotencyInferenceHeuristic):         &o.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):              &o.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):            &o.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):         &o.ReplacementInference.Disabled,
+		string(PaginationInferenceHeuristic):          &o.PaginationInference.Disabled,
+		string(promotion.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
+		string(service.StreamingInferenceHeuristic):   &o.StreamingInference.Disabled,
+		string(service.BinaryInferenceHeuristic):      &o.BinaryInference.Disabled,
+		"title-names":                                 &o.TitleNames.Disabled,
 	}
 }
 
@@ -745,7 +766,7 @@ func (d *optionDecode) finish() (Options, error) {
 	}
 	if err := d.opts.Promotions.Check(); err != nil {
 		return Options{}, fmt.Errorf("openapi: options %q, %q and %q: %w",
-			lowering.ExtensionPromotionHeuristic, optPromotionTargets, optPromotionPrefixes, err)
+			promotion.ExtensionPromotionHeuristic, optPromotionTargets, optPromotionPrefixes, err)
 	}
 	if d.overlayPath == "" {
 		if d.laxSet {
@@ -795,7 +816,7 @@ func decodePromotionTargets(out *map[ExtensionTarget][]ExtensionSource, value st
 	}
 	if len(targets) == 0 {
 		return fmt.Errorf("openapi: option %q: want a target, got none; %q turns promotion off",
-			optPromotionTargets, lowering.ExtensionPromotionHeuristic)
+			optPromotionTargets, promotion.ExtensionPromotionHeuristic)
 	}
 	*out = targets
 	return nil

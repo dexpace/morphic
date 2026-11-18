@@ -6,8 +6,10 @@ be an object the compiler keeps that losslessly, as an anonymous `Model` whose `
 which carries the description ([models](../../ir/models.md#composition-entries)); where it cannot,
 the position is a use of `Status` as the 3.1 spelling is
 ([models](../../ir/models.md#an-allof-no-object-satisfies)). 3.1's spelling of the same use,
-`{$ref: Status, description: …}`, hoists an anonymous `Scalar` alias over `Status` wherever no
-property or parameter holds the annotations
+`{$ref: Status, description: …}`, is the same conjunction and lowers as that `allOf` does
+([`ref-use-site`](../../compilers/openapi.md#ref-use-site)), to the same `Model` at a property or
+parameter too; where no `Model` stands it hoists an anonymous `Scalar` alias over `Status` wherever
+no property or parameter holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
 annotation alone on a non-carrier position, `items: {type: string, example: x}`. None of these nodes
 says anything about a value that its `Base` does not. Lowered as written, each would be a type of
@@ -46,7 +48,11 @@ for does:
 - **`Docs` and `Deprecation`**, each field from the first that sets it, a `Description` and its
   `Refs` counting as one since each span indexes its own description
   ([references in prose](../../ir/annotations.md#references-in-prose)): the carrier's own, then each
-  decorator's along the chain; a carrier is deprecated where any of them is. At a property,
+  decorator's along the chain; a carrier is deprecated where any of them is. A carrier that takes
+  a decorator's `Deprecation` lists that decorator's `Provenance.Inferred` names in its plan too,
+  joined as `ir.JoinInferred` joins them, so a consumer of the plan learns the deprecation was
+  inferred without walking to the decorator; the `Unmodeled` entry stays on the decorator, where
+  the plan reads it by reason. At a property,
   parameter or header the annotations of the type `Alias` names come last, merged as
   [annotations](../../ir/annotations.md#what-a-reference-carries-down) merges a `$ref` target's onto
   the carrier naming it; a union variant takes none of that type's, as the compiler gives a variant

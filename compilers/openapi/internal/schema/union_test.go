@@ -333,11 +333,10 @@ func TestUnion_VariantHints(t *testing.T) {
 // cannot write keywords beside a $ref, so a document annotates a union branch by
 // wrapping it, and the wrapped branch names its variant for the $ref as 3.1's
 // `{$ref: X, description: …}` does, as does one narrowing the $ref by a value
-// set. A branch saying anything else about a value is a type of its own and keeps
-// the positional hint.
-// Each row also holds the branch's own node to the hint an outside $ref to the
-// branch derives: positional, or its target's name where the branch is itself a
-// $ref.
+// set or a bound (GitHub #2000). A branch declaring a member, or using two
+// targets, is a type of its own and keeps the positional hint. Each row also
+// holds the branch's own node to the hint an outside $ref to the branch
+// derives, its position's.
 func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 	t.Parallel()
 	const pet = "'#/components/schemas/Pet'"
@@ -364,11 +363,10 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "pet",
 		},
 		{
-			name:     "3.1 writes the description beside the ref itself",
-			version:  "3.1.0",
-			branch:   "{$ref: " + pet + ", description: a pet}",
-			want:     "pet",
-			wantNode: "pet",
+			name:    "3.1 writes the description beside the ref itself",
+			version: "3.1.0",
+			branch:  "{$ref: " + pet + ", description: a pet}",
+			want:    "pet",
 		},
 		{
 			name:   "a type beside the wrapped ref",
@@ -401,7 +399,7 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 		},
 		{
 			name:   "an empty schema before the wrapped ref",
-			branch: "{allOf: [{}, {$ref: " + pet + "}]}",
+			branch: "{allOf: [{}, {$ref: " + pet + "}], description: d}",
 			want:   "pet",
 		},
 		{
@@ -423,10 +421,10 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "variant_1",
 		},
 		{
-			name:    "a ref with an allOf written beside it",
+			name:    "a ref with an allOf of another written beside it, a use of two",
 			version: "3.1.0",
 			branch:  "{$ref: '#/components/schemas/User', allOf: [{$ref: " + pet + "}]}",
-			want:    "user", wantNode: "user",
+			want:    "variant_1",
 		},
 		{
 			name:   "a property beside the wrapped ref",
@@ -434,9 +432,9 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "variant_1",
 		},
 		{
-			name:   "a constraint beside the wrapped ref",
+			name:   "a constraint beside the wrapped ref, which declares no member",
 			branch: "{allOf: [{$ref: " + pet + "}], minProperties: 1}",
-			want:   "variant_1",
+			want:   "pet",
 		},
 		{
 			name:   "a required name beside the wrapped ref",
@@ -449,9 +447,9 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			want:   "variant_1",
 		},
 		{
-			name:         "a wrapped ref that names nothing",
+			name:         "a wrapped ref that names nothing, named as the bare $ref is",
 			branch:       "{allOf: [{$ref: '#/components/schemas/Ghost'}], description: a ghost}",
-			want:         "variant_1",
+			want:         "ghost",
 			wantDangling: true,
 		},
 	} {
@@ -640,31 +638,34 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Flag/oneOf"), raw.Provenance.Pointer)
 }
 
+// TestLower_AllOfWithOneOfKeepsBoth pins an allOf composing an object beside a
+// oneOf none of whose branches can be an object: no instance satisfies the two
+// together, so no union is distributed into models no value fills. The
+// composition stands, the oneOf is kept beside it with one info, and the
+// schema draws the warning of conjuncts sharing no value.
 func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 	t.Parallel()
-	// allOf co-declared with oneOf must not drop the allOf composition.
-	spec := openapitest.ComponentSpec(`    Base:
+	for _, branches := range []string{"[{type: string}, {type: integer}]", "[{type: array, items: {type: string}}]"} {
+		spec := openapitest.ComponentSpec(`    Base:
       type: object
       properties:
         id: {type: string}
     Combo:
       allOf:
         - {$ref: "#/components/schemas/Base"}
-      oneOf:
-        - {type: string}
-        - {type: integer}
-`)
-	doc, diags := schema.LowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := doc.Types[componentID("Combo")].(*ir.Union)
-	require.True(t, ok, "the oneOf is the value, the composition distributed across it")
-	require.Len(t, u.Variants, 2)
-	for i, prim := range []ir.TypeID{"t/prim/string", "t/prim/integer"} {
-		m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
-		require.True(t, ok, "variant %d is a composed model", i)
-		require.NotNil(t, m.Base, "the allOf $ref becomes Base")
-		assert.Equal(t, componentID("Base"), m.Base.Target)
-		assert.Equal(t, []ir.TypeRef{{Target: prim}}, m.Mixins, "the branch is carried as written")
+      oneOf: ` + branches + "\n")
+		doc, diags := schema.LowerSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("Combo")].(*ir.Model)
+		require.True(t, ok, "%s: got %T", branches, doc.Types[componentID("Combo")])
+		require.NotNil(t, m.Base, branches)
+		assert.Equal(t, componentID("Base"), m.Base.Target, branches)
+		assert.Equal(t, []string{"openapi:oneOf"}, unmodeledKeys(m.Unmodeled), branches)
+		assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:oneOf"].Reason, branches)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+			"/components/schemas/Combo"), "share no value", branches)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+			"/components/schemas/Combo"), "shares a kind", branches)
 	}
 }
 
@@ -733,7 +734,8 @@ func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
 // object variant holds no discriminator (GitHub #853): no type can be its
 // subtype, so the census keeps the discriminator on the union, whatever it
 // routes to and whether or not a union is written beside it. A subtype keeps
-// the union as its Base and the tag the discriminator gives it.
+// the tag the discriminator gives it, and composes the union's object variant
+// as its Base: the union admits a string, which no model composes.
 func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 	t.Parallel()
 	const pet, holder = "/components/schemas/Pet", "/components/schemas/Holder/properties/pet"
@@ -779,7 +781,9 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 					sub, ok := typeByName(doc, name).(*ir.Model)
 					require.True(t, ok, "%s is a model", name)
 					require.NotNil(t, sub.Base, name)
-					assert.Equal(t, c.union, sub.Base.Target, "%s composes the union", name)
+					assert.Equal(t, ir.TypeID("t/anon"+string(c.at)+"/type/0"), sub.Base.Target,
+						"%s composes the union's object variant", name)
+					assert.Equal(t, c.variant, doc.Types[sub.Base.Target].Kind(), name)
 					assert.Equal(t, tag, sub.DiscriminatorValue, name)
 				}
 			}
@@ -853,7 +857,7 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
       properties: {x: {type: string}}
       required: [x]
       additionalProperties: {type: integer}
-      oneOf: [{type: string}, {type: integer}]
+      oneOf: [{type: object, properties: {s: {type: string}}}, {type: integer}]
     B:
       patternProperties: {'^x-': {type: string}}
       anyOf: [{type: string}, {type: integer}]
@@ -866,8 +870,9 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	// A's body is a model, so its union is distributed across it; the others'
-	// is none, so each keeps its union verbatim.
+	// A's body is a model, so its union is distributed across it, a branch
+	// admitting an object among them; the others' is none, so each keeps its
+	// union verbatim.
 	assert.Equal(t, readDistributed, unionReading(doc, "A"))
 	for _, name := range []string{"B", "C", "D"} {
 		td := typeByName(doc, name)
@@ -984,4 +989,26 @@ func nullCollapseSpec(hostFirst bool) string {
 		return openapitest.ComponentSpec(host + outside)
 	}
 	return openapitest.ComponentSpec(outside + host)
+}
+
+// TestDistributedUnion_AVariantOverAnInferredBranchOfAnInferredBodyIsMarked
+// pins the marker on the variants a union distributes an untyped property set
+// into: one over a branch declaring an object is a model by that branch, and
+// one over a branch that is an object only as the kind-inference policy reads
+// its `properties` is a model by that reading, so it names the policy.
+func TestDistributedUnion_AVariantOverAnInferredBranchOfAnInferredBodyIsMarked(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Body:
+      properties: {x: {type: string}}
+      oneOf: [{type: object, properties: {o: {type: string}}}, {properties: {u: {type: string}}}]
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "Body").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 2)
+	for i, marked := range []bool{false, true} {
+		v := doc.Types[u.Variants[i].Type.Target]
+		require.NotNil(t, v, "variant %d", i)
+		assert.Equal(t, marked, v.Common().Provenance.Inferred == "kind-inference", "variant %d", i)
+	}
 }

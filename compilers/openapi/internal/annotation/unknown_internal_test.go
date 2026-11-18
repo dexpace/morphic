@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,7 +31,7 @@ func TestUnknownKeywordsIn_KeepsWhatTheModelDoesNotName(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nx-ray: kept\nnotAKeyword: 7\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", sourced(3))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(3))
 
 	require.Len(t, got, 1, "the x-* is the extension reader's, not the census's; got %v", got)
 	entry := got["openapi:notAKeyword"]
@@ -52,7 +54,7 @@ func TestUndefinedKeywordsIn_KeepsWhatTheCallerNames(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nnullable: false\n")
 
 	var got ir.Unmodeled
-	diags := UndefinedKeywordsIn(&got, s, []string{"nullable"}, "/components/schemas/A", sourced(2))
+	diags := UndefinedKeywordsIn(&got, standaloneSchema(s), []string{"nullable"}, "/components/schemas/A", sourced(2))
 
 	require.Len(t, got, 1)
 	entry := got["openapi:nullable"]
@@ -65,7 +67,7 @@ func TestUndefinedKeywordsIn_KeepsWhatTheCallerNames(t *testing.T) {
 	assert.Contains(t, diags[0].Message, `"nullable" is not defined by the dialect`)
 
 	var none ir.Unmodeled
-	assert.Empty(t, UndefinedKeywordsIn(&none, s, nil, "/components/schemas/A", sourced(2)))
+	assert.Empty(t, UndefinedKeywordsIn(&none, standaloneSchema(s), nil, "/components/schemas/A", sourced(2)))
 	assert.Empty(t, none)
 }
 
@@ -87,7 +89,7 @@ func TestUnknownKeywordsIn_DecidedKeywordsAreLeftAlone(t *testing.T) {
 	s := schemaFromYAML(t, body.String())
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/components/schemas/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/components/schemas/A", sourced(0))
 
 	assert.Empty(t, got, "each is decided about elsewhere, so the census keeps none of them")
 	assert.Empty(t, diags)
@@ -108,7 +110,7 @@ func TestUnknownKeywordsIn_AlreadyRecordedKeyIsLeftAlone(t *testing.T) {
 	}
 	got := ir.Unmodeled{"openapi:dependentRequired": already}
 
-	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
 
 	assert.Equal(t, ir.Unmodeled{"openapi:dependentRequired": already}, got)
 	assert.Empty(t, diags, "a keyword another reader already announced is not announced twice")
@@ -122,12 +124,33 @@ func TestUnknownKeywordsIn_UnpreservableValueIsReportedNotKept(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nnotAKeyword: .nan\n")
 
 	var got ir.Unmodeled
-	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+	diags := UnknownKeywordsIn(&got, standaloneSchema(s), "/A", sourced(0))
 
 	assert.Empty(t, got)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, "openapi/unpreservable-construct", diags[0].Code)
+}
+
+// TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable pins where the
+// census takes its keys: the parser's model, which expands a whole `<<` chain,
+// and not the statement's keys, which stop at nodeview.MergeDepthLimit. A
+// keyword merged in from past the bound is reported unreachable at its
+// pointer beneath the schema, never passed over (docs/compilers/openapi.md#unknown-keys).
+func TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable(t *testing.T) {
+	t.Parallel()
+	s := standaloneSchema(schemaFromYAML(t, pastMergeBound("{notAKeyword: 7, type: string}")))
+	_, listed := s.Key("notAKeyword")
+	require.False(t, listed, "the statement's keys stop at the bound")
+
+	var got ir.Unmodeled
+	diags := UnknownKeywordsIn(&got, s, "/A", sourced(0))
+
+	assert.Empty(t, got, "no node of it is reached")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownKeyUnreachable, diags[0].Code)
+	assert.Equal(t, ir.Provenance{Pointer: "/A/notAKeyword"}, diags[0].Provenance)
+	assert.True(t, WritesUnknownKeyword(s), "and a position writing one holds a node for its report")
 }
 
 // TestUnknownKeysUnder_KeysBeneathTheScopeAndSorted pins the OpenAPI-object
@@ -516,12 +539,16 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAML(t, tc.schema)
-			assert.Equal(t, tc.want, WritesUnknownKeyword(s))
+			assert.Equal(t, tc.want, WritesUnknownKeyword(standaloneSchema(s)))
+			assert.Equal(t, tc.want, slices.ContainsFunc(standaloneSchema(s).Keys, func(k statement.Key) bool {
+				return UnknownKeyword(standaloneSchema(s), k.Name)
+			}), "a keyword of it answers alike")
 			var kept ir.Unmodeled
-			UnknownKeywordsIn(&kept, s, "/s", sourced(0))
+			UnknownKeywordsIn(&kept, standaloneSchema(s), "/s", sourced(0))
 			assert.Equal(t, tc.want, len(kept) > 0)
 		})
 	}
+	assert.False(t, WritesUnknownKeyword(nil), "a position with no schema object writes none")
 }
 
 // TestWritesKeywordLeftOut_TellsANullThatStatesNothing pins what a reader
@@ -535,6 +562,27 @@ func TestWritesKeywordLeftOut_TellsANullThatStatesNothing(t *testing.T) {
 		"description": true, "dependentRequired": true,
 		"const": false, "x-e": false, "k": false, "title": false, "absent": false,
 	} {
-		assert.Equal(t, want, WritesKeywordLeftOut(s, key), key)
+		assert.Equal(t, want, WritesKeywordLeftOut(standaloneSchema(s), key), key)
 	}
+}
+
+// TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry pins the three
+// keywords whose map with no entry is the keyword left out, and what is not
+// one: a map with an entry, another keyword written empty, one written as a
+// list, and `dependencies` where the rows define none, which is an unknown
+// keyword and kept whatever it holds.
+func TestWritesEmptyDependencyMap_TellsAnEmptyMapFromAnEntry(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "{dependentSchemas: {}, dependentRequired: {}, dependencies: {}, definitions: {}, "+
+		"properties: {}, title: t}\n")
+	for key, want := range map[string]bool{
+		"dependentSchemas": true, "dependentRequired": true, "dependencies": false,
+		"definitions": false, "properties": false, "title": false, "absent": false,
+	} {
+		assert.Equal(t, want, WritesEmptyDependencyMap(standaloneSchema(s), key), key)
+		assert.Equal(t, want, WritesKeywordLeftOut(standaloneSchema(s), key), key)
+	}
+	filled := schemaFromYAML(t, "{dependentSchemas: {a: {required: [b]}}, dependentRequired: [a]}\n")
+	assert.False(t, WritesEmptyDependencyMap(standaloneSchema(filled), "dependentSchemas"))
+	assert.False(t, WritesEmptyDependencyMap(standaloneSchema(filled), "dependentRequired"), "a list is no map")
 }

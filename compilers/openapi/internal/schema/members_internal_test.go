@@ -28,7 +28,7 @@ func settledUnder(t *testing.T, schemas string, limit budget.Limit) (*ir.Documen
 	t.Helper()
 	l, diags := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas))
 	membersOf(l.Ctx).reads = budget.New(limit)
-	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 	return doc, append(diags, l.Diags.List()...), membersOf(l.Ctx).reads.Spent()
 }
@@ -325,7 +325,7 @@ func TestMembers_TheSettlementAsksItsContextBeforeEachModel(t *testing.T) {
 	t.Parallel()
 	finish := func(models, left int) (asked, settledAtRefusal, settled int) {
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", hierarchy(models+1, false, false)))
-		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+		l.Diags.AppendAll(LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 		rec := membersOf(l.Ctx)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 		ctx.OnRefuse = func() { settledAtRefusal = len(rec.settled) }

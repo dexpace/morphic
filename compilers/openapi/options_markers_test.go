@@ -11,7 +11,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
 // TestSwitchOptions_EveryNameIsAMarker holds each option that switches a
@@ -24,10 +25,11 @@ func TestSwitchOptions_EveryNameIsAMarker(t *testing.T) {
 	markers := map[string]bool{}
 	for _, h := range []string{
 		string(openapi.NullableInferenceHeuristic), string(openapi.DiscriminatorInferenceHeuristic),
+		string(openapi.KindInferenceHeuristic),
 		string(openapi.IdempotencyInferenceHeuristic), string(openapi.SecretInferenceHeuristic),
 		string(openapi.HTTPDateInferenceHeuristic), string(openapi.ReplacementInferenceHeuristic),
-		string(openapi.PaginationInferenceHeuristic), string(lowering.ExtensionPromotionHeuristic),
-		string(lowering.StreamingInferenceHeuristic), string(lowering.BinaryInferenceHeuristic),
+		string(openapi.PaginationInferenceHeuristic), string(promotion.ExtensionPromotionHeuristic),
+		string(service.StreamingInferenceHeuristic), string(service.BinaryInferenceHeuristic),
 	} {
 		markers[h] = true
 	}

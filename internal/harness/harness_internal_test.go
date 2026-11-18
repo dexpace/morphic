@@ -159,11 +159,9 @@ func TestDeterministic_MarshalFirstError(t *testing.T) {
 }
 
 func TestDeterministic_RecompileError(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, errors.New("recompile boom")
-	}
+	})
 
 	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc(), nil)
 	assert.False(t, ok)
@@ -171,11 +169,11 @@ func TestDeterministic_RecompileError(t *testing.T) {
 }
 
 func TestDeterministic_MarshalSecondError(t *testing.T) {
-	origC, origR := compile, reserializeJSON
-	t.Cleanup(func() { compile, reserializeJSON = origC, origR })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	origR := reserializeJSON
+	t.Cleanup(func() { reserializeJSON = origR })
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return soundDoc(), nil, nil
-	}
+	})
 	reserializeJSON = func(any, ...json.Options) ([]byte, error) { return nil, errors.New("reencode boom") }
 
 	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc(), nil)
@@ -184,12 +182,10 @@ func TestDeterministic_MarshalSecondError(t *testing.T) {
 }
 
 func TestDeterministic_MismatchIsReported(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		// Recompiling yields a document different from the one passed in.
 		return &ir.Document{Name: "Different"}, nil, nil
-	}
+	})
 
 	detail, ok := deterministic(context.Background(), "s", []byte("x"), soundDoc(), nil)
 	assert.False(t, ok)
@@ -203,11 +199,9 @@ func TestDeterministic_MismatchIsReported(t *testing.T) {
 // outcome — leaving cancellation and a caller's bad options as the live
 // producers of a Go error here.
 func TestCheck_CompilerErrorIsAnErrorOutcome(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, errors.New("compile boom")
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeError, r.Outcome)
@@ -215,11 +209,9 @@ func TestCheck_CompilerErrorIsAnErrorOutcome(t *testing.T) {
 }
 
 func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		panic("compiler exploded")
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomePanic, r.Outcome)
@@ -230,12 +222,10 @@ func TestCheck_CompilerPanicIsCaptured(t *testing.T) {
 // shape is reported on one line, as barrier.Catch renders it, so a sweep's
 // report keeps one line per spec.
 func TestCheck_APanicsDetailIsOneBoundedLine(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
 	huge := strings.Repeat("the oracle exploded here\n", 1<<10)
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		panic(huge)
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 
@@ -324,14 +314,12 @@ func TestSpecFiles_ARecognitionThatPanicsIsAnError(t *testing.T) {
 }
 
 func TestCheck_ViolationsOutcome(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		// A registry key that disagrees with the node ID is a structural violation.
 		return &ir.Document{Types: ir.TypeRegistry{
 			ir.TypeID("t/x/Key"): &ir.Any{ID: "t/x/Other"},
 		}}, nil, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeViolations, r.Outcome)
@@ -358,11 +346,9 @@ func TestCheck_ViolationsComeBeforeTheSpecsErrors(t *testing.T) {
 		{"no document and no error", nil, nil, OutcomeViolations, "ir/nil-document"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			orig := compile
-			t.Cleanup(func() { compile = orig })
-			compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+			swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 				return tc.doc, tc.diags, nil
-			}
+			})
 
 			r := Check(context.Background(), "spec", []byte("x"))
 
@@ -412,11 +398,11 @@ func TestCheck_AStageBreakingAnInvariantIsAViolation(t *testing.T) {
 // so what it pins does not depend on which documents Verify lets through to
 // that oracle.
 func TestCheck_RoundtripOutcome(t *testing.T) {
-	origCompile, origRoundTrip := compile, roundTrip
-	t.Cleanup(func() { compile, roundTrip = origCompile, origRoundTrip })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	origRoundTrip := roundTrip
+	t.Cleanup(func() { roundTrip = origRoundTrip })
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return soundDoc(), nil, nil
-	}
+	})
 	roundTrip = func(*ir.Document) (string, bool) { return "forced round-trip failure", false }
 
 	r := Check(context.Background(), "spec", []byte("x"))
@@ -430,11 +416,9 @@ func TestCheck_RoundtripOutcome(t *testing.T) {
 // serialization mismatch rather than the compiler bug it is. Verify now names it
 // first.
 func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return badExtDoc(), nil, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeViolations, r.Outcome)
@@ -447,11 +431,9 @@ func TestCheck_InvalidRawValueIsAViolationNotARoundTrip(t *testing.T) {
 // diagnostic messages. Verify now reports each ill-formed ID as
 // ir/invalid-utf8 before Check ever reaches roundTrip.
 func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return dupKeyDoc(), nil, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeViolations, r.Outcome)
@@ -472,11 +454,9 @@ func TestCheck_InvalidUTF8IsAViolationNotARoundTrip(t *testing.T) {
 // ir/cyclic-structure, and runs first, so Check reports the cause rather than
 // its consequence (GitHub #573).
 func TestCheck_CyclicStructureIsAViolationNotARoundTrip(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return cyclicDoc(), nil, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeViolations, r.Outcome)
@@ -489,16 +469,14 @@ func TestCheck_CyclicStructureIsAViolationNotARoundTrip(t *testing.T) {
 }
 
 func TestCheck_NondeterministicOutcome(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
 	var n int
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		n++
 		if n == 1 {
 			return soundDoc(), nil, nil
 		}
 		return &ir.Document{Name: "SecondCompile"}, nil, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 	assert.Equal(t, OutcomeNondeterministic, r.Outcome)
@@ -636,4 +614,51 @@ func TestCheck_RunsTheSweepsPasses(t *testing.T) {
 
 	assert.Equal(t, OutcomeErrorDiag, r.Outcome, r.Detail)
 	assert.Equal(t, "stub/reported: every document", r.Detail)
+}
+
+// splitRoot and splitLeaf are a spec split across two files: the root names a
+// schema the leaf declares.
+const (
+	splitRoot = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    A: {type: object, properties: {p: {$ref: 'leaf.yaml#/components/schemas/Leaf'}}}\n"
+	splitLeaf = "openapi: 3.1.0\ninfo: {title: l, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    Leaf: {type: string}\n"
+)
+
+// TestCompileSources_TheSourcesCountPicksWhatTheRunReads pins both reads of the
+// seam: two sources are every document the run reads, so the leaf, which no
+// file holds, resolves; the root alone reads its reference from disk, where
+// there is none.
+func TestCompileSources_TheSourcesCountPicksWhatTheRunReads(t *testing.T) {
+	root := compilers.Source{Path: "root.yaml", Data: []byte(splitRoot)}
+	leaf := compilers.Source{Path: "leaf.yaml", Data: []byte(splitLeaf)}
+
+	doc, diags, err := compileSources(t.Context(), []compilers.Source{root, leaf}, nil, passes())
+	require.NoError(t, err)
+	first, failed := ir.FirstError(diags)
+	assert.False(t, failed, "the leaf is held in memory: %+v", first)
+	assert.Len(t, doc.Sources, 2, "the run read the leaf")
+
+	_, diags, err = compileSources(t.Context(), []compilers.Source{root}, nil, passes())
+	require.NoError(t, err)
+	first, failed = ir.FirstError(diags)
+	require.True(t, failed, "the root alone reads leaf.yaml from disk, where no file is")
+	assert.Equal(t, "openapi/unresolved-ref", first.Code)
+}
+
+// TestCompileSources_TheOptionsReachTheCompiler pins that both reads hand the
+// compiler the options: a setting it does not know fails the run.
+func TestCompileSources_TheOptionsReachTheCompiler(t *testing.T) {
+	root := compilers.Source{Path: "root.yaml", Data: []byte(splitRoot)}
+	leaf := compilers.Source{Path: "leaf.yaml", Data: []byte(splitLeaf)}
+	for name, sources := range map[string][]compilers.Source{
+		"one source":  {root},
+		"two sources": {root, leaf},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, _, err := compileSources(t.Context(), sources, map[string]string{"no-such-setting": "x"}, passes())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "no-such-setting")
+		})
+	}
 }

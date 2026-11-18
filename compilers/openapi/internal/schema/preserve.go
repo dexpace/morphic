@@ -5,12 +5,12 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,16 +30,23 @@ import (
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
 // requires, so it is called here rather than inside annotation.Read: a
 // dynamic reference, which the model names no field for, is decided by
-// recordUnexpandedDynamicRef, run after Read; a draft's `dependencies`
-// is Read's (annotation.Dialect), and `additionalItems` beside a list the
-// census's (keywordHome). td is the node the position lowered to, nil for none
-// of its own.
-func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
+// recordUnexpandedDynamicRef, run after Read; a draft's `dependencies` is
+// Read's (annotation.Dialect), and `additionalItems` beside a list the
+// tuple's, its rest. td is the node the position lowered to, nil for none.
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), unknownTaken(c, s, pointer)...)
+	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)
+}
+
+// unknownTaken returns the keys s, written at pointer, writes that the schema
+// model names no field for and a reader other than PreserveUnknownKeywords
+// reads, by the dialect it is read in.
+func unknownTaken(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []string {
 	var taken []string
 	if _, listed := listedItems(s); listed {
 		taken = append(taken, "additionalItems")
 	}
-	rules := lowering.SchemaRulesAt(c, pointer)
+	rules := c.Rules().At(c.Position(pointer))
 	if rules.Takes("definitions", oas.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")
@@ -49,25 +56,41 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 		// where no $dynamicRef stands beside it, and the anchor it reads, which
 		// the binder consumes as a $dynamicAnchor.
 		taken = append(taken, "$recursiveAnchor")
-		if annotation.RawPropertyNode(s, "$dynamicRef") == nil {
+		if !hasKey(s, "$dynamicRef") {
 			taken = append(taken, "$recursiveRef")
 		}
 	}
-	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), taken...)
-	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)
+	return taken
+}
+
+// writesUnknown reports whether key, a key s writes at pointer, is one
+// PreserveUnknownKeywords keeps there.
+func writesUnknown(c lowering.Ctx, s *statement.Schema, key string, pointer jsontext.Pointer) bool {
+	if slices.Contains(undefinedKeywords(c, s), key) {
+		return true
+	}
+	return annotation.UnknownKeyword(s, key) && !slices.Contains(unknownTaken(c, s, pointer), key)
 }
 
 // undefinedKeywords returns the keywords s writes that the schema model names
 // but nothing reads, because the dialect s is read in does not define them:
-// `nullable` while the nullable-inference policy is off, in a schema whose
-// dialect defines no such keyword, as 3.1's and 3.2's do not. Where it is
-// defined, as in a 3.0 schema, one beside its $ref included, it is read by its
-// declared effect (docs/compilers/openapi.md#nullable), and the policy reads it
-// everywhere.
-func undefinedKeywords(c lowering.Ctx, s *oas3.Schema) []string {
-	if c.NullableInference.Honours() || c.SchemaRules().Defines("nullable") ||
-		annotation.RawPropertyNode(s, "nullable") == nil {
+// `nullable`, in a schema whose dialect defines no such keyword, as 3.1's and
+// 3.2's do not, unless the nullable-inference policy reads this one
+// (nullableRead). Where the dialect defines it, as in a 3.0 schema, one beside
+// its $ref included, it is read by its declared effect
+// (docs/compilers/openapi.md#nullable).
+func undefinedKeywords(c lowering.Ctx, s *statement.Schema) []string {
+	if !hasKey(s, "nullable") || nullableRead(c, s) {
 		return nil
 	}
 	return []string{"nullable"}
+}
+
+// nullableRead reports whether the `nullable` s writes is read: by the dialect
+// that defines the keyword, or, where none does, by the nullable-inference
+// policy, which reads a boolean true and no other value. A keyword neither
+// reads is one the dialect does not define, kept as such
+// (docs/compilers/openapi.md#nullable).
+func nullableRead(c lowering.Ctx, s *statement.Schema) bool {
+	return c.SchemaRules().Defines("nullable") || c.NullableInference.Honours() && nullableTrue(s)
 }

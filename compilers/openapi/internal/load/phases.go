@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -110,8 +111,8 @@ type loading struct {
 	self      sourceDocument
 	reader    *external
 	bound     bound
-	// named is the rows each schema resource root naming its dialect governs.
-	named Dialects
+	// named is the rows each schema of the documents is read with.
+	named dialect.Table
 	// sites places a finding at a reference site, or a position of the
 	// bindings, in whichever document writes it.
 	sites places

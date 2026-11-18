@@ -60,8 +60,5 @@ components:
 // target: what the position's $ref came to stand for.
 func assertAliases(t *testing.T, doc *ir.Document, name string, target ir.TypeID, msg string) {
 	t.Helper()
-	alias, ok := doc.Types[componentID(name)].(*ir.Scalar)
-	require.True(t, ok, "%s lowers to an alias over what its $ref names", name)
-	require.NotNil(t, alias.Base, "the alias names what it stands for")
-	assert.Equal(t, target, alias.Base.Target, msg)
+	assert.Equal(t, target, useTarget(t, doc, name), msg)
 }

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -16,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -32,12 +32,12 @@ type dynamicRef struct {
 // 2020-12 reads one in a schema whose dialect lacks it, else a $recursiveRef
 // where the rows of the dialect s is read in define it, as 2019-09's do
 // (docs/compilers/openapi.md#dynamic-ref).
-func dynamicRefOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
-	if n := annotation.RawPropertyNode(s, "$dynamicRef"); n != nil {
+func dynamicRefOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dynamicRef, bool) {
+	if n := keyNode(s, "$dynamicRef"); n != nil {
 		return dynamicRef{keyword: "$dynamicRef", node: n}, true
 	}
-	n := annotation.RawPropertyNode(s, "$recursiveRef")
-	if n == nil || !lowering.SchemaRulesAt(c, pointer).Defines("$recursiveRef") {
+	n := keyNode(s, "$recursiveRef")
+	if n == nil || !c.Rules().At(c.Position(pointer)).Defines("$recursiveRef") {
 		return dynamicRef{}, false
 	}
 	return dynamicRef{keyword: "$recursiveRef", node: n}, true
@@ -45,9 +45,10 @@ func dynamicRefOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dyn
 
 // dynamicTarget is the position the dynamic reference s writes at pointer
 // names, as dynamicExpansion reads it but for the check that its expansions
-// close no cycle, which walks their whole chain. A reader spending a step on
-// each schema it reads, as boundTypes does, ends such a cycle on its budget.
-func dynamicTarget(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (bind.Position, bool) {
+// close no cycle, which walks their whole chain. A reader following it as a
+// conjunct edge, as admissionOf does, cuts such a cycle as it cuts one of
+// $refs.
+func dynamicTarget(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (bind.Position, bool) {
 	ref, _, ok := expandableRef(c, s, pointer)
 	if !ok {
 		return bind.Position{}, false
@@ -67,7 +68,7 @@ func dynamicTarget(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (bi
 // a $ref to that position resolves to (resolvesAt). One closing a cycle of
 // expansions is irreducible (dynamicChainVerdict). One naming no
 // $dynamicAnchor is a reference site (typed.Bindings.RefKeyword).
-func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (at bind.Position, why string, ok bool) {
+func dynamicExpansion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (at bind.Position, why string, ok bool) {
 	ref, why, ok := expandableRef(c, s, pointer)
 	if !ok {
 		return bind.Position{}, why, false
@@ -85,7 +86,7 @@ func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) 
 // expandableRef returns the dynamic reference s, read at pointer, writes, or
 // why none can expand: none is written, it is co-declared with what an
 // expansion cannot carry, or its value is no string.
-func expandableRef(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (dynamicRef, string, bool) {
+func expandableRef(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dynamicRef, string, bool) {
 	ref, ok := dynamicRefOf(c, s, pointer)
 	switch {
 	case !ok:
@@ -194,8 +195,8 @@ func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
 // It counts narrowingKeywords as well as shapeKeywords, for the reason the
 // former record: an expansion takes the target whole, so a keyword it cannot
 // carry is lost whether or not it declares a shape by itself.
-func dynamicRefSiblings(s *oas3.Schema) bool {
-	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
+func dynamicRefSiblings(s *statement.Schema) bool {
+	if refWritten(s) || declaresUnion(s) {
 		return true
 	}
 	return writesSiblingKeyword(s)
@@ -282,8 +283,8 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 	if e, ok := c.Bindings().Table().Entry(at); ok {
 		return e.Chain.End, e.Chain.Status == bind.Resolved
 	}
-	s := annotation.At(c.Bindings().At(at)).Node
-	if s == nil {
+	s := annotation.At(c.Statements().At(at)).Node
+	if !stated(s) {
 		return bind.Position{}, false
 	}
 	ref, _, ok := expandableRef(c, s, at.Pointer)
@@ -299,11 +300,11 @@ func dynamicHop(c lowering.Ctx, at bind.Position) (bind.Position, bool) {
 // survives the position lowering without it (the irreducible half of
 // docs/compilers/openapi.md#dynamic-ref). An expanded one is already the
 // position's type and must not also be preserved — that would tell a consumer
-// the compiler ignored it — and one making its position a reference site
+// the compiler ignored it — and one s is a reference site under
 // (typed.Bindings.RefKeyword) is the $ref it spells, resolved as one.
-func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	ref, written := dynamicRefOf(c, s, pointer)
-	if !written || c.Bindings().RefKeyword(heldAt(c, pointer)) == ref.keyword {
+	if !written || s.Ref != nil && s.Ref.Keyword == ref.keyword {
 		return nil
 	}
 	_, why, expanded := dynamicExpansion(c, s, pointer)
@@ -320,7 +321,7 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema,
 
 // dynamicExpanded reports the expansion of the dynamic reference s writes at
 // pointer to target, at the keyword it is written as.
-func dynamicExpanded(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeID) ir.Diagnostic {
+func dynamicExpanded(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeID) ir.Diagnostic {
 	ref, _ := dynamicRefOf(c, s, pointer)
 	what := "the one matching $dynamicAnchor in this document"
 	if ref.keyword == "$recursiveRef" {
@@ -336,6 +337,6 @@ func dynamicExpanded(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer, t
 // context to read the dialect by takes a $recursiveRef 2020-12 does not define
 // as dynamic too, which each errs safely on: it keeps a composition it would
 // refine, or a node it would leave the alias to.
-func declaresDynamicRef(s *oas3.Schema) bool {
-	return annotation.RawPropertyNode(s, "$dynamicRef") != nil || annotation.RawPropertyNode(s, "$recursiveRef") != nil
+func declaresDynamicRef(s *statement.Schema) bool {
+	return hasKey(s, "$dynamicRef") || hasKey(s, "$recursiveRef")
 }

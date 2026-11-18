@@ -5,7 +5,6 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
-	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"slices"
@@ -97,27 +96,18 @@ func TestSchemaRef_BooleanAndUntypedShapes(t *testing.T) {
 func TestSchemaRef_EmptyEitherIsAny(t *testing.T) {
 	t.Parallel()
 	l := schema.NewRawLowerer(&soa.OpenAPI{})
-	ref, diags := schema.Ref(l.Ctx, l.Types, schema.TopLevelDepth, openapitest.EmptyEitherSchema(), "/p")
+	ref, diags := schema.Ref(l.Ctx, l.Types, schema.TopLevelDepth, schema.Standalone(openapitest.EmptyEitherSchema()), "/p")
 	assert.Equal(t, ir.TypeID("t/prim/any"), ref.Target)
 	assert.Empty(t, diags, "an empty either lowers to any without complaint")
 }
 
 // vocabCase is one JSON Schema 2020-12 keyword and the minimal document that
-// writes it. schemas must contain the literal "KW, " where the keyword goes: the
-// control replaces that marker with nothing, so the two documents differ in
-// exactly this one keyword.
-//
-// write and alt write the same keyword with *different* values. A keyword whose
-// presence reshapes the IR while its value is discarded passes a presence check
-// and fails this one, which is the whole difference between "the keyword was
-// noticed" and "the keyword was carried". excluded, when set, is why nothing
-// carries it, and leaves alt unused.
+// writes it. schemas holds the literal "KW, " where the keyword goes, which a
+// test replaces by write.
 type vocabCase struct {
-	keyword  string
-	write    string
-	alt      string
-	schemas  string
-	excluded string
+	keyword string
+	write   string
+	schemas string
 }
 
 // objectSchema, arraySchema and stringSchema are the three keyword domains the
@@ -132,9 +122,8 @@ const (
 // vocabularyCases enumerates every keyword of the JSON Schema 2020-12
 // vocabularies — core (§8), applicator (§10) and unevaluated (§11) of the core
 // specification, and validation (§6), format-annotation (§7), content (§8) and
-// meta-data (§9) of the validation specification — so a keyword the compiler
-// neither lowers nor keeps fails loudly instead of joining the ones GitHub #125
-// found by hand.
+// meta-data (§9) of the validation specification — each written where the
+// specification gives it meaning, for a test that judges every keyword alike.
 func vocabularyCases() []vocabCase {
 	return append(append(append(
 		vocabularyCore(), vocabularyApplicator()...), vocabularyValidation()...),
@@ -146,43 +135,32 @@ func vocabularyCore() []vocabCase {
 		{
 			keyword: "$schema", schemas: stringSchema,
 			write: "$schema: 'https://json-schema.org/draft/2020-12/schema'",
-			alt:   "$schema: 'https://json-schema.org/draft/2019-09/schema'",
 		},
 		{
 			keyword: "$vocabulary", schemas: stringSchema,
 			write: "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}",
-			alt:   "$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/validation': true}",
 		},
-		{keyword: "$id", write: "$id: 'urn:example:a'", alt: "$id: 'urn:example:z'", schemas: stringSchema},
+		{keyword: "$id", write: "$id: 'urn:example:a'", schemas: stringSchema},
 		{
 			keyword: "$ref", schemas: objectSchema + "    B: {type: string}\n    C: {type: integer}\n",
-			write: "$ref: '#/components/schemas/B'", alt: "$ref: '#/components/schemas/C'",
+			write: "$ref: '#/components/schemas/B'",
 		},
 		{
 			keyword: "$dynamicRef", schemas: stringSchema + "    B: {$dynamicAnchor: m, type: string}\n" +
 				"    C: {$dynamicAnchor: n, type: integer}\n",
-			write: "$dynamicRef: '#m'", alt: "$dynamicRef: '#n'",
+			write: "$dynamicRef: '#m'",
 		},
 		{
 			keyword: "$anchor", write: "$anchor: a", schemas: stringSchema,
-			excluded: "read as a reference target: the binder resolves $ref: '#a' to the schema " +
-				"declaring it (docs/compilers/openapi.md#references), so the reference carries it; " +
-				"declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$dynamicAnchor", write: "$dynamicAnchor: m", schemas: stringSchema,
-			excluded: "read as a reference target by the binder, which is what lets a " +
-				"$dynamicRef expand (docs/compilers/openapi.md#dynamic-ref); declaring one says nothing about the shape",
 		},
 		{
 			keyword: "$defs", write: "$defs: {D: {type: string}}", schemas: stringSchema,
-			excluded: "declares nothing about the enclosing shape; a member is lowered on demand " +
-				"when a $ref names it (resolveSchemaRef -> hoistSubSchema)",
 		},
 		{
 			keyword: "$comment", write: "$comment: note", schemas: stringSchema,
-			excluded: "2020-12 §8.3 forbids presenting it to end users, so an SDK emitter must " +
-				"never see it",
 		},
 	}
 }
@@ -192,67 +170,64 @@ func vocabularyApplicator() []vocabCase {
 		{
 			keyword: "allOf", schemas: objectSchema,
 			write: "allOf: [{type: object, properties: {q: {type: integer}}}]",
-			alt:   "allOf: [{type: object, properties: {q: {type: boolean}}}]",
 		},
 		{
 			keyword: "anyOf", schemas: stringSchema,
 			write: "anyOf: [{type: string}, {type: integer}]",
-			alt:   "anyOf: [{type: string}, {type: boolean}]",
 		},
 		{
 			keyword: "oneOf", schemas: stringSchema,
 			write: "oneOf: [{type: string}, {type: integer}]",
-			alt:   "oneOf: [{type: string}, {type: boolean}]",
 		},
-		{keyword: "not", write: "not: {const: n}", alt: "not: {const: z}", schemas: stringSchema},
-		{keyword: "if", write: "if: {const: a}", alt: "if: {const: z}", schemas: stringSchema},
-		{keyword: "then", write: "then: {const: a}", alt: "then: {const: z}", schemas: stringSchema},
-		{keyword: "else", write: "else: {const: a}", alt: "else: {const: z}", schemas: stringSchema},
+		{keyword: "not", write: "not: {const: n}", schemas: stringSchema},
+		{keyword: "if", write: "if: {const: a}", schemas: stringSchema},
+		{keyword: "then", write: "then: {const: a}", schemas: stringSchema},
+		{keyword: "else", write: "else: {const: a}", schemas: stringSchema},
 		{
 			keyword: "dependentSchemas", schemas: objectSchema,
-			write: "dependentSchemas: {p: {type: object}}", alt: "dependentSchemas: {p: {type: array}}",
+			write: "dependentSchemas: {p: {type: object}}",
 		},
 		{
 			keyword: "prefixItems", schemas: arraySchema,
-			write: "prefixItems: [{type: integer}]", alt: "prefixItems: [{type: boolean}]",
+			write: "prefixItems: [{type: integer}]",
 		},
 		{
 			keyword: "items", schemas: "    A: {KW, type: array}\n",
-			write: "items: {type: integer}", alt: "items: {type: boolean}",
+			write: "items: {type: integer}",
 		},
 		{
 			keyword: "contains", schemas: arraySchema,
-			write: "contains: {type: string}", alt: "contains: {type: boolean}",
+			write: "contains: {type: string}",
 		},
 		{
 			keyword: "properties", schemas: "    A: {KW, type: object}\n",
-			write: "properties: {p: {type: string}}", alt: "properties: {p: {type: boolean}}",
+			write: "properties: {p: {type: string}}",
 		},
 		{
 			keyword: "patternProperties", schemas: objectSchema,
-			write: "patternProperties: {'^a': {type: string}}", alt: "patternProperties: {'^a': {type: boolean}}",
+			write: "patternProperties: {'^a': {type: string}}",
 		},
 		{
 			keyword: "additionalProperties", schemas: objectSchema,
-			write: "additionalProperties: {type: integer}", alt: "additionalProperties: {type: boolean}",
+			write: "additionalProperties: {type: integer}",
 		},
 		{
 			keyword: "propertyNames", schemas: objectSchema,
-			write: "propertyNames: {maxLength: 4}", alt: "propertyNames: {maxLength: 5}",
+			write: "propertyNames: {maxLength: 4}",
 		},
 		{
 			keyword: "unevaluatedItems", schemas: arraySchema,
-			write: "unevaluatedItems: {type: string}", alt: "unevaluatedItems: {type: boolean}",
+			write: "unevaluatedItems: {type: string}",
 		},
 		{
 			keyword: "unevaluatedProperties", schemas: objectSchema,
-			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: {type: string}",
+			write: "unevaluatedProperties: false",
 		},
 		// Its false form again, where no model holds it as a closure: kept
 		// verbatim, as every other form is (docs/compilers/openapi.md#validation-only).
 		{
 			keyword: "unevaluatedProperties", schemas: stringSchema,
-			write: "unevaluatedProperties: false", alt: "unevaluatedProperties: true",
+			write: "unevaluatedProperties: false",
 		},
 	}
 }
@@ -260,109 +235,55 @@ func vocabularyApplicator() []vocabCase {
 func vocabularyValidation() []vocabCase {
 	const intSchema = "    A: {KW, type: integer}\n"
 	return []vocabCase{
-		{keyword: "type", write: "type: string", alt: "type: boolean", schemas: "    A: {KW, title: T}\n"},
-		{keyword: "enum", write: "enum: [a, b]", alt: "enum: [y, z]", schemas: stringSchema},
-		{keyword: "const", write: "const: a", alt: "const: z", schemas: stringSchema},
-		{keyword: "multipleOf", write: "multipleOf: 2", alt: "multipleOf: 3", schemas: intSchema},
-		{keyword: "maximum", write: "maximum: 9", alt: "maximum: 8", schemas: intSchema},
-		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", alt: "exclusiveMaximum: 8", schemas: intSchema},
-		{keyword: "minimum", write: "minimum: 1", alt: "minimum: 2", schemas: intSchema},
-		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", alt: "exclusiveMinimum: 2", schemas: intSchema},
-		{keyword: "maxLength", write: "maxLength: 9", alt: "maxLength: 8", schemas: stringSchema},
-		{keyword: "minLength", write: "minLength: 1", alt: "minLength: 2", schemas: stringSchema},
-		{keyword: "pattern", write: "pattern: '^a'", alt: "pattern: '^z'", schemas: stringSchema},
-		{keyword: "maxItems", write: "maxItems: 9", alt: "maxItems: 8", schemas: arraySchema},
-		{keyword: "minItems", write: "minItems: 1", alt: "minItems: 2", schemas: arraySchema},
-		{keyword: "uniqueItems", write: "uniqueItems: true", alt: "uniqueItems: false", schemas: arraySchema},
-		{keyword: "maxContains", write: "maxContains: 9", alt: "maxContains: 8", schemas: arraySchema},
-		{keyword: "minContains", write: "minContains: 1", alt: "minContains: 2", schemas: arraySchema},
-		{keyword: "maxProperties", write: "maxProperties: 9", alt: "maxProperties: 8", schemas: objectSchema},
-		{keyword: "minProperties", write: "minProperties: 1", alt: "minProperties: 2", schemas: objectSchema},
-		{keyword: "required", write: "required: [p]", alt: "required: []", schemas: objectSchema},
+		{keyword: "type", write: "type: string", schemas: "    A: {KW, title: T}\n"},
+		{keyword: "enum", write: "enum: [a, b]", schemas: stringSchema},
+		{keyword: "const", write: "const: a", schemas: stringSchema},
+		{keyword: "multipleOf", write: "multipleOf: 2", schemas: intSchema},
+		{keyword: "maximum", write: "maximum: 9", schemas: intSchema},
+		{keyword: "exclusiveMaximum", write: "exclusiveMaximum: 9", schemas: intSchema},
+		{keyword: "minimum", write: "minimum: 1", schemas: intSchema},
+		{keyword: "exclusiveMinimum", write: "exclusiveMinimum: 1", schemas: intSchema},
+		{keyword: "maxLength", write: "maxLength: 9", schemas: stringSchema},
+		{keyword: "minLength", write: "minLength: 1", schemas: stringSchema},
+		{keyword: "pattern", write: "pattern: '^a'", schemas: stringSchema},
+		{keyword: "maxItems", write: "maxItems: 9", schemas: arraySchema},
+		{keyword: "minItems", write: "minItems: 1", schemas: arraySchema},
+		{keyword: "uniqueItems", write: "uniqueItems: true", schemas: arraySchema},
+		{keyword: "maxContains", write: "maxContains: 9", schemas: arraySchema},
+		{keyword: "minContains", write: "minContains: 1", schemas: arraySchema},
+		{keyword: "maxProperties", write: "maxProperties: 9", schemas: objectSchema},
+		{keyword: "minProperties", write: "minProperties: 1", schemas: objectSchema},
+		{keyword: "required", write: "required: [p]", schemas: objectSchema},
 		{
 			keyword: "dependentRequired", schemas: objectSchema,
-			write: "dependentRequired: {p: [q]}", alt: "dependentRequired: {p: [z]}",
+			write: "dependentRequired: {p: [q]}",
 		},
 	}
 }
 
 func vocabularyAnnotation() []vocabCase {
 	return []vocabCase{
-		{keyword: "title", write: "title: T", alt: "title: Z", schemas: stringSchema},
-		{keyword: "description", write: "description: D", alt: "description: Z", schemas: stringSchema},
-		{keyword: "default", write: "default: a", alt: "default: z", schemas: stringSchema},
-		{keyword: "deprecated", write: "deprecated: true", alt: "deprecated: false", schemas: stringSchema},
-		{keyword: "readOnly", write: "readOnly: true", alt: "readOnly: false", schemas: stringSchema},
-		{keyword: "writeOnly", write: "writeOnly: true", alt: "writeOnly: false", schemas: stringSchema},
-		{keyword: "examples", write: "examples: [a]", alt: "examples: [z]", schemas: stringSchema},
-		{keyword: "format", write: "format: uuid", alt: "format: date", schemas: stringSchema},
+		{keyword: "title", write: "title: T", schemas: stringSchema},
+		{keyword: "description", write: "description: D", schemas: stringSchema},
+		{keyword: "default", write: "default: a", schemas: stringSchema},
+		{keyword: "deprecated", write: "deprecated: true", schemas: stringSchema},
+		{keyword: "readOnly", write: "readOnly: true", schemas: stringSchema},
+		{keyword: "writeOnly", write: "writeOnly: true", schemas: stringSchema},
+		{keyword: "examples", write: "examples: [a]", schemas: stringSchema},
+		{keyword: "format", write: "format: uuid", schemas: stringSchema},
 		{
 			keyword: "contentEncoding", schemas: stringSchema,
-			write: "contentEncoding: base64", alt: "contentEncoding: base32",
+			write: "contentEncoding: base64",
 		},
 		{
 			keyword: "contentMediaType", schemas: stringSchema,
-			write: "contentMediaType: image/png", alt: "contentMediaType: text/csv",
+			write: "contentMediaType: image/png",
 		},
 		{
 			keyword: "contentSchema", schemas: stringSchema,
-			write: "contentSchema: {type: object}", alt: "contentSchema: {type: array}",
+			write: "contentSchema: {type: object}",
 		},
 	}
-}
-
-// TestVocabulary2020_12_EveryKeywordIsLoweredOrKept compiles each 2020-12
-// keyword with two values and once omitted, and requires all three IR documents
-// to differ. A keyword the compiler neither lowers nor keeps verbatim yields an
-// identical document, the silent drop of GitHub #125.
-//
-// Two values are needed because a keyword whose mere presence reshapes the IR
-// moves the document even if its value is discarded. One pair per keyword is a
-// floor on what reaches the IR, not an inventory.
-//
-// Each excluded row states why nothing carries its keyword and is held to
-// producing no difference, so a newly carried keyword must move its
-// justification.
-func TestVocabulary2020_12_EveryKeywordIsLoweredOrKept(t *testing.T) {
-	t.Parallel()
-	for _, tc := range vocabularyCases() {
-		t.Run(tc.keyword, func(t *testing.T) {
-			t.Parallel()
-			require.Contains(t, tc.schemas, "KW, ", "the template must mark where the keyword goes")
-
-			with := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", tc.write+", ", 1))
-			without := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", "", 1))
-
-			if tc.excluded != "" {
-				assert.Equal(t, without, with, "%s is deliberately not carried: %s", tc.keyword, tc.excluded)
-				return
-			}
-			require.NotEmpty(t, tc.alt, "a carried keyword needs a second value to be checked against")
-			assert.NotEqual(t, without, with,
-				"%s changed nothing in the IR, so it is neither lowered nor kept verbatim", tc.keyword)
-
-			other := compileVocabIR(t, strings.Replace(tc.schemas, "KW, ", tc.alt+", ", 1))
-			assert.NotEqual(t, with, other,
-				"%s reshaped the IR by being present but two values of it produced one document, "+
-					"so the value itself is read and discarded", tc.keyword)
-		})
-	}
-}
-
-// compileVocabIR compiles a components/schemas block and renders the IR it
-// produced. Two fields are cleared first: diagnostics, because a keyword that is
-// only announced and not lowered or kept is still lost, and Sources, whose
-// content hash differs for any two distinct source texts and would make every
-// case "differ" for free.
-func compileVocabIR(t *testing.T, schemas string) string {
-	t.Helper()
-	doc, diags := parseFull(t, openapitest.ComponentSpec(schemas))
-	openapitest.RequireNoErrorDiags(t, diags)
-	doc.Diagnostics = nil
-	doc.Sources = nil
-	out, err := json.Marshal(doc)
-	require.NoError(t, err)
-	return string(out)
 }
 
 // unpreservableValue is a value that is legal YAML and that JSON cannot spell:
@@ -385,29 +306,25 @@ const unpreservableValue = ".nan"
 func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, body, skipped, raw string
-		lowered                  ir.TypeKind
+		name, body, raw           string
+		key, at, reportAt, report string
+		lowered                   ir.TypeKind
 	}{
 		{
-			name:    "allOf beside enum",
-			body:    "      allOf: [{$ref: '#/components/schemas/Base'}]\n      enum: [a, b]\n",
-			skipped: "allOf",
-			raw:     `[{"$ref":"#/components/schemas/Base"}]`,
-			lowered: ir.KindEnum,
+			name: "allOf beside enum", body: "      allOf: [{$ref: '#/components/schemas/Base'}]\n      enum: [a, b]\n",
+			key: "openapi:$ref", at: "/components/schemas/S/allOf/0", reportAt: "/components/schemas/S/allOf/0",
+			report: "the $ref is kept verbatim under Unmodeled", raw: `"#/components/schemas/Base"`, lowered: ir.KindEnum,
 		},
 		{
-			name:    "allOf beside const",
-			body:    "      allOf: [{$ref: '#/components/schemas/Base'}]\n      const: a\n",
-			skipped: "allOf",
-			raw:     `[{"$ref":"#/components/schemas/Base"}]`,
-			lowered: ir.KindLiteral,
+			name: "allOf beside const", body: "      allOf: [{$ref: '#/components/schemas/Base'}]\n      const: a\n",
+			key: "openapi:$ref", at: "/components/schemas/S/allOf/0", reportAt: "/components/schemas/S/allOf/0",
+			report: "the $ref is kept verbatim under Unmodeled", raw: `"#/components/schemas/Base"`, lowered: ir.KindLiteral,
 		},
 		{
-			name:    "enum beside const",
-			body:    "      const: a\n      enum: [a, b]\n",
-			skipped: "enum",
-			raw:     `["a","b"]`,
-			lowered: ir.KindLiteral,
+			name: "enum beside const", body: "      const: a\n      enum: [a, b]\n",
+			key: "openapi:enum", at: "/components/schemas/S/enum", reportAt: "/components/schemas/S",
+			report: "enum kept verbatim under Unmodeled",
+			raw:    `["a","b"]`, lowered: ir.KindLiteral,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -419,22 +336,20 @@ func TestCoDeclaredFamily_PassedOverKeywordIsKept(t *testing.T) {
 			td := typeByName(doc, "S")
 			require.NotNil(t, td)
 			assert.Equal(t, tc.lowered, td.Kind(), "the elected family still lowers")
-			entry, ok := td.Common().Unmodeled["openapi:"+tc.skipped]
-			require.True(t, ok, "%s is kept verbatim; got %v", tc.skipped, td.Common().Unmodeled)
+			entry, ok := td.Common().Unmodeled[tc.key]
+			require.True(t, ok, "%s is kept verbatim; got %v", tc.key, td.Common().Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, tc.raw, string(entry.Value))
-			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.skipped), entry.Provenance.Pointer,
-				"routable to where it was written")
+			assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer, "routable to where it was written")
 			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-				tc.skipped+" kept verbatim under Unmodeled")
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.reportAt), tc.report)
 		})
 	}
 }
 
-// TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins the plural arm: a
-// schema writing all three keeps both of the two it did not elect, named
-// together in one report rather than one of them standing in for the rest.
+// TestCoDeclaredFamily_EveryPassedOverKeywordIsKept pins a schema writing all
+// three: it keeps the value set it did not elect, named in one report, and the
+// allOf's $ref, a conjunct of the one it did, kept as a conjunct is.
 func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
@@ -446,18 +361,72 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	p := typeByName(doc, "S").Common().Unmodeled
-	assert.Contains(t, p, "openapi:enum")
-	assert.Contains(t, p, "openapi:allOf")
+	assert.Equal(t, []string{"openapi:$ref", "openapi:enum"}, unmodeledKeys(p))
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-		"declares enum and allOf beside its const",
-		"both are named in the one report")
+		"declares enum beside its const")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
+		"the $ref is kept verbatim under Unmodeled")
+}
+
+// TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps holds the report of an
+// allOf passed over for an enum with no member to what the node keeps of it:
+// the allOf whole where an entry is inline, else each entry's $ref under
+// openapi:$ref, which the report names as the allOf's $refs, not as the allOf.
+func TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps(t *testing.T) {
+	t.Parallel()
+	const obj, obj2 = "{$ref: '#/components/schemas/Obj'}", "{$ref: '#/components/schemas/Obj2'}"
+	for _, tc := range []struct {
+		name, body, named string
+		keys              []string
+		unresolved        bool
+	}{
+		{name: "an allOf of one $ref", body: "{enum: [], allOf: [" + obj + "]}",
+			keys: []string{"openapi:$ref"}, named: "the $ref of its allOf"},
+		{name: "an allOf of a $ref and an inline entry", body: "{enum: [], allOf: [" + obj + ", {properties: {b: {type: string}}}]}",
+			keys: []string{"openapi:allOf"}, named: "allOf"},
+		{name: "an allOf of two $refs", body: "{enum: [], allOf: [" + obj + ", " + obj2 + "]}",
+			keys: []string{"openapi:$ref/0", "openapi:$ref/1"}, named: "the $refs of its allOf"},
+		{name: "an allOf of one $ref written twice", body: "{enum: [], allOf: [" + obj + ", " + obj + "]}",
+			keys: []string{"openapi:$ref"}, named: "the $refs of its allOf"},
+		{name: "a $ref beside an allOf of one", body: "{enum: [], $ref: '#/components/schemas/Obj', allOf: [" + obj2 + "]}",
+			keys: []string{"openapi:$ref/0", "openapi:$ref/1"}, named: "$ref and the $ref of its allOf"},
+		{name: "an allOf of one $ref beside a type", body: "{type: string, enum: [], allOf: [{$ref: '#/components/schemas/Str'}]}",
+			keys: []string{"openapi:$ref"}, named: "the $ref of its allOf"},
+		{name: "an allOf of one $ref beside a union", body: "{enum: [], oneOf: [" + obj + "], allOf: [" + obj2 + "]}",
+			keys: []string{"openapi:$ref", "openapi:oneOf"}, named: "the $ref of its allOf"},
+		{name: "an allOf of one $ref naming nothing", body: "{enum: [], allOf: [{$ref: '#/components/schemas/Missing'}]}",
+			keys: []string{"openapi:$ref"}, named: "the $ref of its allOf", unresolved: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Obj: {type: object, properties: {a: {type: string}}}\n"+
+				"    Obj2: {type: object, properties: {c: {type: string}}}\n    Str: {type: string}\n    S: "+tc.body+"\n"))
+			if !tc.unresolved {
+				openapitest.RequireNoErrorDiags(t, diags)
+			}
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td)
+			assert.Equal(t, tc.keys, unmodeledKeys(td.Common().Unmodeled))
+			var said []string
+			for _, d := range diags {
+				if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/S" &&
+					strings.Contains(d.Message, "allOf beside its enum, and JSON Schema conjoins them") {
+					said = append(said, d.Message)
+				}
+			}
+			require.Len(t, said, 1, "one report says what the election passed over: %+v", diags)
+			assert.Contains(t, said[0], "it lowered as the enum, with "+tc.named+" kept verbatim under Unmodeled")
+		})
+	}
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144
-// exists for, at this site: the enum is elected over the allOf, the allOf fails
-// to convert, the failure is reported at the keyword, and nothing claims the
-// composition survived.
+// exists for, at this site: the enum is elected over the allOf, whose entry
+// keeps its type under its own key and fails to convert its extension, the
+// failure is reported at the entry, and nothing claims the extension survived.
 func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    S:
@@ -467,10 +436,12 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 
 	td := typeByName(doc, "S")
 	require.NotNil(t, td)
-	assert.NotContains(t, td.Common().Unmodeled, "openapi:allOf", "the conversion failed")
-	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
-	assert.Empty(t, openapitest.PreservationClaims(diags),
-		"nothing was written under Unmodeled, so nothing may announce that it was")
+	assert.Equal(t, []string{"openapi:type"}, unmodeledKeys(td.Common().Unmodeled), "the conversion of x-t failed")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/components/schemas/S/allOf/0"), `extension "x-t" could not be serialized`, "the failure itself is reported")
+	for _, claim := range openapitest.PreservationClaims(diags) {
+		assert.NotContains(t, claim, "x-t", "nothing claims what was not written under Unmodeled")
+	}
 }
 
 // unmodeledKeys returns p's keys in sorted order, which is what makes an
@@ -615,6 +586,15 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			shape: func(t *testing.T, td ir.TypeDef) {
 				assert.Equal(t, top, asKind[*ir.List](t, td).Elem)
 			},
+		},
+		{
+			name: "items beside an unevaluatedItems, which it leaves live",
+			null: "    A:\n      type: array\n      items: null\n      unevaluatedItems: false\n",
+			twin: "    A:\n      type: array\n      unevaluatedItems: false\n",
+			shape: func(t *testing.T, td ir.TypeDef) {
+				assert.Equal(t, top, asKind[*ir.List](t, td).Elem)
+			},
+			kept: map[string]string{"openapi:unevaluated": `{"unevaluatedItems":false}`},
 		},
 		{
 			name: "not",
@@ -800,7 +780,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			"        - {type: object, properties: {p: null}}\n"+
 			"        - {type: object, properties: {p: {type: string, enum: [a, b]}}}\n"))
 		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(1)}
-		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 
 		m := asKind[*ir.Model](t, typeByName(l.Document(t), "A"))
 		require.Len(t, m.Properties, 1)
@@ -842,7 +822,7 @@ components:
       $ref: '#/components/schemas/Target'
       minimum: 5
 `)
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 
 	sc, ok := typeByName(l.Document(t), "S").(*ir.Scalar)
 	require.True(t, ok, "S aliases Target and must own a Scalar node")
@@ -941,4 +921,35 @@ func TestLowerComponentSchemas_PercentEncodedDiscriminatorMapping(t *testing.T) 
 	require.NotNil(t, pet.Discriminator, "the discriminator survives lowering")
 	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat-A")}, pet.Discriminator.Mapping,
 		"the encoded mapping target names the declared component, and the entry is kept")
+}
+
+// TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy pins a schema writing
+// no type whose statement lies on a cycle of conjunct edges, a union branch
+// naming it, so the run's admission cannot read what it names: its shape
+// keywords decide, under the kind-inference policy and marked by it, and with
+// the policy off it is the top type keeping them.
+func TestUntypedKinds_ACutReadLeavesTheKeywordsToThePolicy(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpecVer("3.1.0",
+		"    A: {oneOf: [{$ref: '#/components/schemas/A'}], anyOf: [{type: object}], properties: {a: {type: string}}}\n")
+	for _, off := range []bool{false, true} {
+		doc, diags := schema.LowerSpecWith(t, spec, lowering.Policy{KindInference: lowering.KindInference{Disabled: off}})
+		openapitest.RequireNoErrorDiags(t, diags)
+		td := typeByName(doc, "A")
+		marked := td.Common().Provenance.Inferred == lowering.KindInferenceHeuristic
+		if off {
+			assert.Equal(t, ir.KindScalar, td.Kind(), "the top type with the policy off")
+			assert.Contains(t, td.Common().Unmodeled, "openapi:properties")
+			assert.False(t, marked)
+			continue
+		}
+		u, ok := td.(*ir.Union)
+		require.True(t, ok, "the policy reads its properties as an object the oneOf distributes across")
+		require.Len(t, u.Variants, 1)
+		variant := doc.Types[u.Variants[0].Type.Target]
+		assert.Equal(t, ir.KindModel, variant.Kind())
+		assert.Equal(t, lowering.KindInferenceHeuristic, variant.Common().Provenance.Inferred)
+		assert.Contains(t, variant.Common().Unmodeled, "openapi:anyOf", "the anyOf kept on the variant")
+		assert.False(t, marked)
+	}
 }

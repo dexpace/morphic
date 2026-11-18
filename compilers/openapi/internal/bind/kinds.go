@@ -37,8 +37,7 @@ const (
 	KindResponse
 	// KindMediaType is a Media Type Object.
 	KindMediaType
-	// KindEncoding is an Encoding Object, whose 3.2 fields nesting another the
-	// model does not read, so what they hold is raw YAML to it.
+	// KindEncoding is an Encoding Object, a media type's or one another nests.
 	KindEncoding
 )
 
@@ -88,17 +87,18 @@ func (t *Table) Kinds(p Position) []Kind {
 // Reading is how the grammar reads one position (Table.ReadingAt), so that a
 // walk beneath it reads each position below without spelling out its pointer.
 // The zero Reading reads raw YAML.
-type Reading struct{ s state }
+type Reading struct{ p place }
 
 // ReadingAt returns how the grammar reads p, as Kinds reads the last position
-// on the way to it. A pointer past the tokens Kinds reads, or a nil table,
-// reads raw YAML.
+// on the way to it: as a reference object written there reads what it names,
+// afresh (place). A pointer past the tokens Kinds reads, or a nil table, reads
+// raw YAML.
 func (t *Table) ReadingAt(p Position) Reading {
 	if t == nil {
 		return Reading{}
 	}
 	var r Reading
-	if !statesTo(t.roots, p, func(s state) { r = Reading{s: s} }) {
+	if !statesTo(t.roots, p, func(s state) { r = Reading{p: place{state: s}} }) {
 		return Reading{}
 	}
 	return r
@@ -107,17 +107,18 @@ func (t *Table) ReadingAt(p Position) Reading {
 // Below returns how the grammar reads the position token names directly
 // beneath r's. Unlike Kinds, it does not read a position as a reference landing
 // there reads it: beneath raw YAML, such as an extension's value, everything
-// is raw YAML.
-func (r Reading) Below(token string) Reading { return Reading{s: step(r.s, token)} }
+// is raw YAML, as it is to the model beneath a field whose content no model
+// holds, which a copy keeps verbatim, schemas included.
+func (r Reading) Below(token string) Reading { return Reading{p: r.p.below(token)} }
 
-// Schema reports whether r reads a Schema Object.
-func (r Reading) Schema() bool { return r.s == sSchema }
+// Schema reports whether r reads a Schema Object the model holds.
+func (r Reading) Schema() bool { return r.p.role() == Schema }
 
-// Referable reports whether r reads an object a reference object can stand
-// for, so a $ref written there names an object of that kind.
+// Referable reports whether r reads an object the model holds that a reference
+// object can stand for, so a $ref written there names an object of that kind.
 func (r Reading) Referable() bool {
-	_, ok := refKinds[r.s]
-	return ok
+	_, ok := refKinds[r.p.state]
+	return ok && r.p.held()
 }
 
 // statesTo hands visit how the grammar reads each position on the way to p,

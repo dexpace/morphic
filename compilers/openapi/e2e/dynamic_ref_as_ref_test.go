@@ -23,12 +23,27 @@ const dynHead = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\nco
 // dynPet is the schema the reference twins below name by pointer and by anchor.
 const dynPet = "    Pet: {$anchor: pet, type: object, properties: {name: {type: string}}}\n"
 
-// dynScalar returns the scalar the component named name lowers to.
-func dynScalar(t *testing.T, doc *ir.Document, name string) *ir.Scalar {
+// dynUse is what the node a component owns over what its reference names
+// holds: the Model over an object, declaring no member, or the Scalar alias.
+type dynUse struct {
+	Base        *ir.TypeRef
+	Constraints *ir.Constraints
+	Unmodeled   ir.Unmodeled
+}
+
+// dynScalar returns the use the component named name lowers to.
+func dynScalar(t *testing.T, doc *ir.Document, name string) dynUse {
 	t.Helper()
-	sc, ok := doc.Types[componentID(name)].(*ir.Scalar)
-	require.True(t, ok, "%s lowers to a scalar, not %T", name, doc.Types[componentID(name)])
-	return sc
+	switch n := doc.Types[componentID(name)].(type) {
+	case *ir.Scalar:
+		return dynUse{Base: n.Base, Constraints: n.Constraints, Unmodeled: n.Unmodeled}
+	case *ir.Model:
+		require.Empty(t, n.Properties, "%s declares no member of its own", name)
+		return dynUse{Base: n.Base, Constraints: n.Constraints, Unmodeled: n.Unmodeled}
+	default:
+		require.Failf(t, "no use", "%s lowers to %T, no use of what it names", name, n)
+		return dynUse{}
+	}
 }
 
 // dynBaseChainTerminates walks the base chain of the scalar named from and
@@ -253,8 +268,9 @@ func TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference(t *testing.T) {
 
 // TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling pins that a
 // reference that reads as a $ref, beside a keyword that shapes the type, lowers
-// as its $ref twin does: an alias over its target keeping the sibling, and
-// nothing of the reference kept, since it resolved.
+// as its $ref twin does: the conjunction of the two, a model over the object
+// it names whose type the target already says, and nothing of the reference
+// kept, since it resolved.
 func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileText(t, "spec.yaml", dynHead+dynPet+
@@ -263,12 +279,15 @@ func TestCompile_AStaticDynamicRefBesideAShapeKeepsItsSibling(t *testing.T) {
 		"    C: {$ref: '#pet', description: d, type: object}\n", openapi.Options{})
 	require.NotNil(t, doc)
 	require.Empty(t, byCode(diags, "openapi/dynamic-ref-expanded"))
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C"),
-		"%+v", diags)
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C"), "%+v", diags)
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/C/$dynamicRef"), "%+v", diags)
 	assert.Equal(t, jsonOf(t, twin), jsonOf(t, doc))
 	assert.Equal(t, twinDiags, diags)
-	assert.Contains(t, jsonOf(t, doc), `"openapi:type"`)
+	c, ok := doc.Types[componentID("C")].(*ir.Model)
+	require.True(t, ok, "got %T", doc.Types[componentID("C")])
+	require.NotNil(t, c.Base)
+	assert.Equal(t, componentID("Pet"), c.Base.Target)
+	assert.Empty(t, c.Unmodeled)
 }
 
 // TestCompile_AReferenceToAStaticDynamicRefEndsWhereItEnds pins that a $ref

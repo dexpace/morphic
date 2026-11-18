@@ -37,8 +37,7 @@ func CheckFormat(ctx context.Context, root *yaml.Node, declared string, opts Opt
 	}
 	// Placing a finding costs a pointer per node, and most documents break
 	// neither rule, so a first walk only looks, and stops at the first break.
-	look := nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: lookForBreak}.Run(ctx, nodeview.DocumentRoot(root))
-	if !look.Stopped && !look.Cut {
+	if !BreaksFormat(ctx, root, opts.Budget.Cap()) {
 		return nil
 	}
 	out := nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: f.visit}.Run(ctx, nodeview.DocumentRoot(root))
@@ -50,6 +49,18 @@ func CheckFormat(ctx context.Context, root *yaml.Node, declared string, opts Opt
 			"the OpenAPI %s check of the document's keys stopped at its work budget; what lies past it is unchecked", minor))
 	}
 	return f.diags
+}
+
+// BreaksFormat reports whether some mapping of the tree root breaks a rule
+// CheckFormat holds it to, a key that is no scalar or a `<<` naming no
+// mapping, in a walk of at most nodes nodes, which it stops at the first: one
+// its bound or ctx cuts short says it may. CheckFormat then spells a pointer
+// for every node of the tree, so the load phase asks it of a document whose
+// pointers it would total by what a compile names
+// (docs/compilers/openapi.md#source-budgets).
+func BreaksFormat(ctx context.Context, root *yaml.Node, nodes int) bool {
+	look := nodeview.Walk{Nodes: nodes, Visit: lookForBreak}.Run(ctx, nodeview.DocumentRoot(root))
+	return look.Stopped || look.Cut
 }
 
 // formatCheck is one CheckFormat in progress: the pointer each node to visit is

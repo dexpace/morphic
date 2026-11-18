@@ -13,8 +13,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -55,6 +56,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"overlay-lax":             "true",
 			"nullable-inference":      "false",
 			"discriminator-inference": "false",
+			"kind-inference":          "false",
 			"pagination-inference":    "false",
 			"idempotency-inference":   "false",
 			"secret-inference":        "false",
@@ -91,6 +93,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableInference.Disabled, "nullable-inference=false turns the policy off")
 	assert.True(t, opts.DiscriminatorInference.Disabled, "discriminator-inference=false turns the policy off")
+	assert.True(t, opts.KindInference.Disabled, "kind-inference=false turns the policy off")
 	assert.True(t, opts.PaginationInference.Disabled, "pagination-inference=false turns the policy off")
 	assert.True(t, opts.IdempotencyInference.Disabled, "idempotency-inference=false turns the policy off")
 	assert.True(t, opts.SecretInference.Disabled, "secret-inference=false turns the policy off")
@@ -191,11 +194,11 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
 				`discriminator-inference, extension-promotion, grouping, grouping-aliases, grouping-fallback, ` +
-				`grouping-key, grouping-lists, http-date-inference, idempotency-inference, locate, max-alias-surplus, ` +
-				`max-enum-members, max-external-documents, max-reference-expansion, max-source-bytes, ` +
-				`max-source-nodes, nullable-inference, overlay, overlay-lax, pagination-inference, promotion-prefixes, ` +
-				`promotion-targets, replacement-inference, secret-inference, streaming-inference, streaming-media, ` +
-				`title-names)`},
+				`grouping-key, grouping-lists, http-date-inference, idempotency-inference, kind-inference, locate, ` +
+				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
+				`max-source-bytes, max-source-nodes, nullable-inference, overlay, overlay-lax, pagination-inference, ` +
+				`promotion-prefixes, promotion-targets, replacement-inference, secret-inference, ` +
+				`streaming-inference, streaming-media, title-names)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -288,6 +291,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "binary-inference": want a boolean, got "maybe"`},
 		{"non-boolean discriminator inference", map[string]string{"discriminator-inference": "maybe"},
 			`option "discriminator-inference": want a boolean, got "maybe"`},
+		{"non-boolean kind inference", map[string]string{"kind-inference": "maybe"},
+			`option "kind-inference": want a boolean, got "maybe"`},
 		{"non-boolean pagination inference", map[string]string{"pagination-inference": "maybe"},
 			`option "pagination-inference": want a boolean, got "maybe"`},
 		{"non-boolean idempotency inference", map[string]string{"idempotency-inference": "maybe"},
@@ -496,7 +501,7 @@ func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
 // extension to the one a compile reads when Options names none.
 func TestDefaultGroupingExtension_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultGroupingExtension(), openapi.DefaultGroupingExtension())
+	assert.Equal(t, service.DefaultGroupingExtension(), openapi.DefaultGroupingExtension())
 }
 
 // TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies pins the exported
@@ -504,21 +509,21 @@ func TestDefaultGroupingExtension_IsWhatTheLoweringApplies(t *testing.T) {
 // extending it starts from what a compile really uses.
 func TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultStreamingMediaTypes(), openapi.DefaultStreamingMediaTypes())
+	assert.Equal(t, service.DefaultStreamingMediaTypes(), openapi.DefaultStreamingMediaTypes())
 }
 
 // TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies pins the exported list
 // to the one a compile classifies by when Options names none.
 func TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultBinaryMediaTypes(), openapi.DefaultBinaryMediaTypes())
+	assert.Equal(t, service.DefaultBinaryMediaTypes(), openapi.DefaultBinaryMediaTypes())
 }
 
 // TestDefaultExtensionPromotions_IsWhatTheLoweringApplies pins the exported
 // mapping to the one a compile promotes by when Options names none.
 func TestDefaultExtensionPromotions_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, lowering.DefaultExtensionPromotions(), openapi.DefaultExtensionPromotions())
+	assert.Equal(t, promotion.DefaultExtensionPromotions(), openapi.DefaultExtensionPromotions())
 }
 
 // TestCompile_RefusesAPromotionPolicyItCannotRead pins the check where a Go

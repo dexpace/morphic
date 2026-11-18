@@ -301,7 +301,7 @@ func (s Spec) booleanHeld(k Kind, m Minor) bool {
 // scalar checks a scalar value: that it is not empty where the grammar refuses
 // that, that it is one the field enumerates, and that it has its syntax. The
 // empty string is judged as any text is, so a format it breaks, as an absolute
-// URI's, refuses it, and one admitting it says so in validFormat.
+// URI's, refuses it, and one admitting it says so in ValidFormat.
 func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	if node.Kind != yaml.ScalarNode {
 		return
@@ -313,7 +313,7 @@ func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointe
 			f.obj.Name, fld.Name, f.in(w.minor), section)
 	case len(fld.Values) > 0:
 		w.enumerated(f, fld, node.Value, ptr)
-	case fld.Format != FormatNone && !validFormat(fld.Format, node.Value):
+	case fld.Format != FormatNone && !ValidFormat(fld.Format, node.Value):
 		w.report(ir.SeverityError, classFormat, ptr, "%s field %q must be %s in %s (%s)",
 			f.obj.Name, fld.Name, describeFormat(fld.Format), f.in(w.minor), section)
 	}
@@ -403,25 +403,60 @@ func (w *walker) entries(f frame, fld Field, shape Shape, node *yaml.Node, ptr j
 // rawRepeats warns of each key a mapping written in a value the table reads as
 // no object writes more than once, at its later copy, as repeated warns of one
 // an object writes: the lowering reads such a value at the copy the model
-// reads. It spends the walk's own budget, one unit a mapping or list.
+// reads. It spends the walk's own budget, one unit a mapping or list. ptr is
+// where the value is, and the one pointer the walk spells unless it places a
+// finding below (rawPointer): the pointer bound counts such a value by its
+// root alone (docs/compilers/openapi.md#source-budgets).
 func rawRepeats(w *walker, val *yaml.Node, ptr jsontext.Pointer, depth int) {
 	node := nodeview.Deref(val)
 	if node == nil || node.Kind != yaml.MappingNode && node.Kind != yaml.SequenceNode {
 		return
 	}
-	if !w.spend(depth, ptr) {
+	ok, stops := w.charge(depth)
+	if stops {
+		reportStop(w, rawPointer(ptr, w.raw))
+	}
+	if !ok {
 		return
 	}
 	if node.Kind == yaml.SequenceNode {
 		for i, item := range node.Content {
-			rawRepeats(w, item, itemPointer(ptr, i), depth+1)
+			w.raw = append(w.raw, rawStep{index: i, item: true})
+			rawRepeats(w, item, ptr, depth+1)
+			w.raw = w.raw[:len(w.raw)-1]
 		}
 		return
 	}
-	w.repeated(node, ptr, "a mapping")
-	for _, p := range w.view.MappingPairs(node) {
-		rawRepeats(w, p.Val, ptr.AppendToken(p.Key), depth+1)
+	if len(nodeview.RepeatedKeys(node)) > 0 {
+		w.repeated(node, rawPointer(ptr, w.raw), "a mapping")
 	}
+	for _, p := range w.view.MappingPairs(node) {
+		w.raw = append(w.raw, rawStep{key: p.Key})
+		rawRepeats(w, p.Val, ptr, depth+1)
+		w.raw = w.raw[:len(w.raw)-1]
+	}
+}
+
+// rawStep names a node of a value the table reads as no object, under the
+// node holding it: a mapping's key, or with item a list's index.
+type rawStep struct {
+	key   string
+	index int
+	item  bool
+}
+
+// rawPointer spells where steps lead from ptr, a raw value's root. A walk of
+// one keeps its steps (walker.raw) in place of a pointer a node, which costs
+// the bytes of every key above a node at each.
+func rawPointer(ptr jsontext.Pointer, steps []rawStep) jsontext.Pointer {
+	for _, s := range steps {
+		if s.item {
+			ptr = itemPointer(ptr, s.index)
+			continue
+		}
+		ptr = ptr.AppendToken(s.key)
+	}
+	return ptr
 }
 
 // keyFinding is one finding about a key of a map (keyFindings).
@@ -450,7 +485,7 @@ func keyFindings(obj Object, fld Field, pairs []nodeview.Pair, minor Minor) []ke
 		sev, class = ir.SeverityError, classFormat
 	}
 	for _, p := range pairs {
-		if !validFormat(fld.Keys, p.Key) {
+		if !ValidFormat(fld.Keys, p.Key) {
 			found = append(found, keyFinding{sev: sev, class: class, key: p.Key,
 				message: fmt.Sprintf("%s field %q has the key %q, which must be %s in OpenAPI %s (%s)", obj.Name,
 					fld.Name, p.Key, describeFormat(fld.Keys), minor, citeFor(fld.Cites, minor).Section)})

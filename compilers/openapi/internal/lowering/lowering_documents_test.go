@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -49,26 +49,28 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
 		Data: []byte(splitRoot)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return lowering.New(0, doc, lowering.Policy{}), doc
+	return service.New(0, doc, service.Policy{}).Ctx, doc
 }
 
-// extDoc returns the bindings' number for ext.yaml: where A's $ref lands.
+// extDoc returns the bindings' number for ext.yaml.
 func extDoc(t *testing.T, c lowering.Ctx) bind.DocID {
 	t.Helper()
-	a, ok := c.Doc.Components.Schemas.Get("A")
-	require.True(t, ok)
-	e, ok := c.Bindings().Entry(a)
-	require.True(t, ok)
-	require.NotEqual(t, bind.Source, e.Hop.Target.Doc, "sanity: A lands in ext.yaml")
-	return e.Hop.Target.Doc
+	table := c.Bindings().Table()
+	for id := range bind.DocID(table.Documents()) {
+		if filepath.Base(table.Document(id).Name) == "ext.yaml" {
+			return id
+		}
+	}
+	require.FailNow(t, "the bindings read no ext.yaml")
+	return bind.Source
 }
 
 // TestInDocument_PlacesWhatAnotherDocumentDeclares pins the context a lowering
 // of another document's content runs in: its references read in that
 // document's scope, each Provenance naming its Document.Sources entry, and its
 // IDs qualified by its label. The source's own number returns to the source's
-// coordinates, as InScope does in any scope, and a context given no document
-// holding that one cannot place it.
+// coordinates, and a context given no document holding that one cannot place
+// it.
 func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	t.Parallel()
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
@@ -91,29 +93,26 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.Equal(t, ids.Document{}, back.IDs())
 	assert.Equal(t, ir.Provenance{Pointer: "/X"}, back.Place().At("/X"))
 	assert.False(t, back.RefScope().Foreign)
-	assert.Equal(t, ids.Document{}, there.InScope(there.RefScope().InSource()).IDs(),
-		"the source's scope is read at the source's coordinates")
-	kept := there.InScope(there.RefScope())
-	assert.True(t, kept.RefScope().Foreign)
-	assert.Equal(t, ir.Provenance{Pointer: "/X"}, kept.Place().At("/X"),
-		"InScope reads at the source's coordinates, in whichever scope")
+	assert.Empty(t, back.RefScope().Holder)
+	assert.Equal(t, there.Position("/X").Pointer, back.Position("/X").Pointer)
+	assert.Equal(t, bind.Source, back.Position("/X").Doc)
+	assert.Equal(t, id, there.Position("/X").Doc)
 
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, &none, lowering.Policy{})
-	same, ok := lowering.InDocument(unread, id)
+	unread := service.New(0, &none, service.Policy{})
+	same, ok := lowering.InDocument(unread.Ctx, id)
 	assert.False(t, ok, "a document the compile did not list")
 	assert.Equal(t, ids.Document{}, same.IDs(), "and the context is left as it was")
 }
 
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
 // context reads a schema with: that of the document its scope reads, through
-// InDocument and InScope alike, and back to the source's. SchemaRulesIn answers
-// for a document of the bindings' table, and a context that did not list the
-// document answers with the source's.
+// InDocument, and back to the source's. Rules().In answers for a document of
+// the bindings' table, and with the source's for one the compile did not read.
 func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	t.Parallel()
-	c, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
+	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
 	id := extDoc(t, c)
 	assert.False(t, c.SchemaRules().Defines("nullable"), "the 3.1 source")
 
@@ -124,47 +123,45 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	require.True(t, ok)
 	assert.False(t, back.SchemaRules().Defines("nullable"))
 
-	assert.True(t, lowering.SchemaRulesIn(c, id).Defines("nullable"))
-	assert.False(t, lowering.SchemaRulesIn(c, bind.Source).Defines("nullable"))
+	assert.True(t, c.Rules().In(id).Defines("nullable"))
+	assert.False(t, c.Rules().In(bind.Source).Defines("nullable"))
 
-	none := *doc
-	none.Others = load.Others{}
-	unread := lowering.New(0, &none, lowering.Policy{})
-	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
+	unread := bind.DocID(c.Bindings().Table().Documents())
+	assert.False(t, c.Rules().In(unread).Defines("nullable"), "a document the compile did not read")
 }
 
-// TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames pins whose rows a
+// TestRules_OfReadsTheDialectTheSchemaHoldingItNames pins whose rows a
 // schema is read with by its node: those of the dialect the root holding it
 // names, here a document of schemas naming draft 4 at its root, and else the
 // source's.
-func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
+func TestRules_OfReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
-	a, ok := c.Doc.Components.Schemas.Get("A")
+	c, doc := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
+	a, ok := doc.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
 	x := c.Bindings().End(a)
 	require.NotNil(t, x)
-	assert.True(t, lowering.SchemaRulesOf(c, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
-	assert.True(t, lowering.SchemaRulesOf(c, a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+	assert.True(t, c.Rules().Of(x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
+	assert.True(t, c.Rules().Of(a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
 		"the source's own schema reads its document's")
 }
 
-// TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect pins that a reading by
+// TestRules_OfReadsANodeInItsOwnDocumentsDialect pins that a reading by
 // node answers in the dialect of the document holding the schema, not of the
 // one whose content the context reads: ext.yaml's X, a 3.0 document's, reads
 // 3.0's rows from the source's context, and the source's A reads the source's
 // from ext.yaml's, as a $ref followed either way finds them.
-func TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
+func TestRules_OfReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 	t.Parallel()
-	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: integer}\nP: {name: p, in: query}\n")
+	c, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: integer}\nP: {name: p, in: query}\n")
 	there, ok := lowering.InDocument(c, extDoc(t, c))
 	require.True(t, ok)
-	a, ok := c.Doc.Components.Schemas.Get("A")
+	a, ok := doc.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
 	x := c.Bindings().End(a)
 	require.NotNil(t, x)
 	boolean := func(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return lowering.SchemaRulesOf(c, js.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
+		return c.Rules().Of(js.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
 	}
 	assert.True(t, boolean(c, x), "ext.yaml's X, from the source")
 	assert.True(t, boolean(there, x), "ext.yaml's X, from ext.yaml")
@@ -172,36 +169,21 @@ func TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 	assert.False(t, boolean(c, a), "the source's A, from the source")
 }
 
-// TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs pins whose rows a schema
+// TestRules_AtReadsTheDialectOfWhereASchemaIs pins whose rows a schema
 // is read with by where it is: those of the dialect the root at or above it
 // names, here a document of schemas naming draft 4 at its root, read in that
-// document's context; the context's own where none is, as for the source's A;
-// and the context's where it places no position, as InScope reads another
-// document's content at the source's.
-func TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs(t *testing.T) {
+// document's context; and the context's own where none is, as for the
+// source's A.
+func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
 	there, ok := lowering.InDocument(c, extDoc(t, c))
 	require.True(t, ok)
 	boolean := func(c lowering.Ctx, at jsontext.Pointer) bool {
-		return lowering.SchemaRulesAt(c, at).Takes("exclusiveMinimum", oas.Boolean)
+		return c.Rules().At(c.Position(at)).Takes("exclusiveMinimum", oas.Boolean)
 	}
 	assert.True(t, boolean(there, "/X"), "ext.yaml's root names draft 4")
 	assert.False(t, boolean(c, "/components/schemas/A"), "the source's own schema reads its document's")
-	assert.False(t, boolean(there.InScope(there.RefScope()), "/X"), "no position, the scope's document's rows")
-}
-
-// TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question
-// the schema readers ask of every schema they read across the bindings: the
-// source's rows come without a lookup, where one by its name would parse it as
-// a URL on each miss. It runs alone, since the allocation counts are the
-// process's.
-func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
-	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
-	var defines bool
-	allocs := testing.AllocsPerRun(100, func() { defines = lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") })
-	assert.Zero(t, allocs)
-	assert.False(t, defines, "the 3.1 source defines no nullable")
 }
 
 // TestNew_ReadsTheSourcesRowsFromTheLoad pins where a context over a loaded
@@ -211,31 +193,20 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 // allocation counts are the process's.
 func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
+	if c.SchemaRules() != doc.Rows.Schema {
 		t.Error("the context read rows of its own, not the load phase's")
 	}
 	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
 	built := testing.AllocsPerRun(10, func() {
-		_ = lowering.New(0, doc, lowering.Policy{})
+		_ = service.New(0, doc, service.Policy{})
 	})
 	assert.Less(t, built, table, "building the context built a rule table")
-}
-
-// TestOtherIDs_NamesEachDocumentReadBesideTheSource pins how the IDs of what
-// a document a reference read beside the source declares are qualified: by
-// its label, in Sources order.
-func TestOtherIDs_NamesEachDocumentReadBesideTheSource(t *testing.T) {
-	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-
-	assert.Equal(t, []ids.Document{ids.In("ext.yaml")}, lowering.OtherIDs(c))
 }
 
 // TestNameAt_NamesAPositionInTheContextsDocument pins that one pointer in two
 // documents is two positions: ext.yaml's /P/schema is a parameter's schema,
 // named by the parameter's name, while the source's /P/schema is no schema the
-// grammar reads, named from its pointer. ext.yaml's content read in its scope
-// at the source's coordinates (InScope) names the source's.
+// grammar reads, named from its pointer.
 func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query, schema: {type: string}}\n")
@@ -244,7 +215,6 @@ func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 
 	assert.Equal(t, "p", lowering.NameAt(there, "/P/schema"))
 	assert.Equal(t, "schema", lowering.NameAt(c, "/P/schema"))
-	assert.Equal(t, "schema", lowering.NameAt(there.InScope(there.RefScope()), "/P/schema"))
 }
 
 // TestNameThrough_NamesWhereAReferenceLands pins that the name a $ref suggests
@@ -255,95 +225,6 @@ func TestNameThrough_NamesWhereAReferenceLands(t *testing.T) {
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	assert.Equal(t, "X", lowering.NameThrough(c, "/components/schemas/A"))
 	assert.Empty(t, lowering.NameThrough(c, "/paths/~1a/get"), "nothing is referenced there")
-}
-
-// TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference
-// object's declaration is lowered: in the document that declares it, at the
-// position the bindings' table places its end, a key written twice read as its
-// last copy, as the model reads one.
-func TestDeclared_LowersAReferencedObjectWhereItIsDeclared(t *testing.T) {
-	t.Parallel()
-	for name, tc := range map[string]struct {
-		ext, name string
-	}{
-		"declared once":       {"X: {type: string}\nP: {name: p, in: query}\n", "p"},
-		"a key written twice": {"X: {type: string}\nP: {name: p, in: query}\nP: {name: q, in: query}\n", "q"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			c, _ := loadSplit(t, tc.ext)
-			a, ok := c.Doc.Paths.Get("/a")
-			require.True(t, ok)
-			ref := a.GetObject().Get().GetParameters()[0]
-
-			p, there, at := lowering.Declared[soa.Parameter](c, ref, "/paths/~1a/get/parameters/0")
-
-			require.NotNil(t, p)
-			assert.Equal(t, tc.name, p.GetName())
-			assert.Equal(t, ids.In("ext.yaml"), there.IDs())
-			assert.Equal(t, "/P", string(at))
-			assert.True(t, there.RefScope().Foreign, "read in ext.yaml's scope")
-		})
-	}
-}
-
-// TestDeclared_LowersNothingInADocumentTheContextDidNotList pins a reference
-// object whose chain ends in a document the context's compile did not list:
-// it lowers nothing, rather than read the declaration in the use site's
-// document.
-func TestDeclared_LowersNothingInADocumentTheContextDidNotList(t *testing.T) {
-	t.Parallel()
-	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	none := *doc
-	none.Others = load.Others{}
-	unread := lowering.New(0, &none, lowering.Policy{})
-	a, ok := c.Doc.Paths.Get("/a")
-	require.True(t, ok)
-	ref := a.GetObject().Get().GetParameters()[0]
-
-	p, at, ptr := lowering.Declared[soa.Parameter](unread, ref, "/paths/~1a/get/parameters/0")
-
-	assert.Nil(t, p)
-	assert.Equal(t, unread.IDs(), at.IDs())
-	assert.Equal(t, "/paths/~1a/get/parameters/0", string(ptr))
-}
-
-// TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference pins that a
-// reference object's end is the one the bindings' table reads for the
-// position the wrapper was read at, in the document writing it (GitHub #751),
-// whichever context asks: ext.yaml writes nothing at the pointer the source's
-// reference is written at, and that pointer is no key.
-func TestDeclared_ReadsTheEndOfTheDocumentWritingTheReference(t *testing.T) {
-	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	a, ok := c.Doc.Paths.Get("/a")
-	require.True(t, ok)
-	ref := a.GetObject().Get().GetParameters()[0]
-	inExt, ok := lowering.InDocument(c, extDoc(t, c))
-	require.True(t, ok)
-
-	_, there, at := lowering.Declared[soa.Parameter](inExt, ref, "/paths/~1a/get/parameters/0")
-
-	assert.Equal(t, "/P", string(at), "the source's reference ends at ext.yaml's P")
-	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
-}
-
-// TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing pins Declared
-// for a reference with no end: ext.yaml declares no P, so nothing is lowered,
-// and the use site is kept in the source's coordinates, where the load phase
-// reported it.
-func TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing(t *testing.T) {
-	t.Parallel()
-	c, _ := loadSplit(t, "X: {type: string}\n")
-	a, ok := c.Doc.Paths.Get("/a")
-	require.True(t, ok)
-	ref := a.GetObject().Get().GetParameters()[0]
-
-	p, there, at := lowering.Declared[soa.Parameter](c, ref, "/paths/~1a/get/parameters/0")
-
-	assert.Nil(t, p)
-	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at))
-	assert.Equal(t, ids.Document{}, there.IDs())
 }
 
 // TestNameTitle_IsTheNameATitleGivesInTheContextsDocument pins that the title

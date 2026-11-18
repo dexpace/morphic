@@ -4,6 +4,10 @@
 package e2e_test
 
 import (
+	"encoding/json/v2"
+	"maps"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,4 +89,37 @@ func TestConformance_APropertyNamingAnAliasReadsItsDescription(t *testing.T) {
 	}
 	require.Len(t, naming, 1)
 	assert.Equal(t, "A meeting under another name.", naming[0].Docs.Description)
+}
+
+// assertKeptRefUnrenderable holds kept-ref-unrenderable to
+// docs/compilers/openapi.md#allof-refinement: the $refs a value set narrows
+// are each kept under openapi:$ref/<rank>, ranked by reference then by entry
+// as written, entries written alike one key at the position, and an entry
+// that cannot render, ranked by where it is written, alike to none. The
+// document is refused for the length, and what it keeps is the same.
+func assertKeptRefUnrenderable(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	type kept struct{ key, ref, at string }
+	for name, want := range map[string][]kept{
+		"Distinct": {{"openapi:$ref/0", "#/components/schemas/A", "/components/schemas/Distinct/allOf/1"},
+			{"openapi:$ref/1", "#/components/schemas/B", "/components/schemas/Distinct/allOf/0"}},
+		"Alike": {{"openapi:$ref/0", "#/components/schemas/A", "/components/schemas/Alike/allOf/1"},
+			{"openapi:$ref/1", "#/components/schemas/A", "/components/schemas/Alike/allOf/0"}},
+		"Twice": {{"openapi:$ref/0", "#/components/schemas/A", "/components/schemas/Twice/allOf/0"},
+			{"openapi:$ref/1", "#/components/schemas/A", "/components/schemas/Twice/allOf/1"}},
+		"Same": {{"openapi:$ref", "#/components/schemas/A", "/components/schemas/Same"}},
+	} {
+		enum, ok := typeByName(doc, name).(*ir.Enum)
+		require.True(t, ok, "%s lowers as its value set", name)
+		var got []kept
+		for _, key := range slices.Sorted(maps.Keys(enum.Unmodeled)) {
+			if !strings.HasPrefix(key, "openapi:$ref") {
+				continue
+			}
+			entry := unmodeledEntry(t, enum.Unmodeled, key)
+			var ref string
+			require.NoError(t, json.Unmarshal(entry.Value, &ref), name)
+			got = append(got, kept{key, ref, string(entry.Provenance.Pointer)})
+		}
+		assert.Equal(t, want, got, name)
+	}
 }

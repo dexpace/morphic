@@ -380,7 +380,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/Frame": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Frame",
       "name": {
         "source": "Frame",
@@ -396,10 +396,13 @@
       "base": {
         "target": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/HeaderContentItem": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/HeaderContentItem",
       "name": {
         "source": "HeaderContentItem",
@@ -415,10 +418,13 @@
       "base": {
         "target": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/HeaderItem": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/HeaderItem",
       "name": {
         "source": "HeaderItem",
@@ -434,10 +440,13 @@
       "base": {
         "target": "t/anon/components/responses/Listed/headers//schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/NestedItem": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/NestedItem",
       "name": {
         "source": "NestedItem",
@@ -453,7 +462,10 @@
       "base": {
         "target": "t/anon/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",

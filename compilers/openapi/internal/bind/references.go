@@ -100,7 +100,7 @@ func (o *objects) readRef(id DocID, ref string) (objectHop, objectKey) {
 	case reason != NoReason:
 		h.Reason = reason
 	default:
-		h.Status, h.Target, h.Role = Resolved, r.at, roleOf(r.state)
+		h.Status, h.Target, h.Role = Resolved, r.at, r.role()
 	}
 	n := nodeview.Deref(r.node)
 	_, refs := o.b.docs.refOf(r.at.Doc, n)

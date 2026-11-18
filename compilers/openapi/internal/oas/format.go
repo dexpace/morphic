@@ -11,11 +11,12 @@ import (
 	"unicode"
 )
 
-// validFormat reports whether s has the syntax. The checks refuse what no
-// reading of the grammar admits and nothing finer: a URI is judged by the
-// standard library's parser, which takes the braces real documents write in a
-// path.
-func validFormat(format Format, s string) bool {
+// ValidFormat reports whether s has the syntax format names. The binder reads
+// an anchor's name through it, so a declaration is checked and resolved by one
+// grammar. The checks refuse what no reading of the grammar admits and nothing
+// finer: a URI is judged by the standard library's parser, which takes the
+// braces real documents write in a path.
+func ValidFormat(format Format, s string) bool {
 	switch format {
 	case URI:
 		return validURI(s) != nil
@@ -129,9 +130,9 @@ func validURI(s string) *url.URL {
 	return u
 }
 
-// validAnchorName reports whether s is a name a $anchor may declare. The binder
-// reads a $ref's plain-name fragment by the same grammar (bind.isAnchorName),
-// a test of the load phase holding the two together.
+// validAnchorName reports whether s is a name a $anchor may declare, by JSON
+// Schema 2020-12 section 8.2.2: a letter or '_', then letters, digits, '-',
+// '_' and '.'. The binder reads a $ref's plain-name fragment through it.
 func validAnchorName(s string) bool {
 	for i, c := range s {
 		switch {
@@ -144,9 +145,10 @@ func validAnchorName(s string) bool {
 	return s != ""
 }
 
-// validPlainName reports whether s is a plain name drafts 6, 7 and 2019-09
-// declare an anchor by. The binder reads a declaration in such a draft by the
-// same grammar (bind.isPlainName).
+// validPlainName reports whether s is a plain name JSON Schema drafts 6, 7 and
+// 2019-09 declare an anchor by (draft-handrews-json-schema-02 §8.2.3): a
+// letter, then letters, digits, '-', '_', ':' and '.'. The binder reads a
+// declaration in such a draft through it.
 func validPlainName(s string) bool {
 	for i, c := range s {
 		switch {

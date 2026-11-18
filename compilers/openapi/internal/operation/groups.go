@@ -15,7 +15,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,7 +26,7 @@ import (
 // Parent and Kind are recorded as declared (OpenAPI 3.2's tag hierarchy and tag
 // role, both dropped until GitHub #613). Reading a role out of Kind is grouping
 // policy rather than a property of the document, so it is not interpreted here.
-func lowerTagDefs(c lowering.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
+func lowerTagDefs(c service.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
 	tags := c.Doc.GetTags()
 	if len(tags) == 0 {
 		return nil, nil
@@ -52,7 +53,7 @@ func lowerTagDefs(c lowering.Ctx) ([]ir.TagDef, []ir.Diagnostic) {
 // tagKeys returns what the tag t, written at ptr, writes that its TagDef has
 // no field for: its x-* and undeclared keys unscoped, and its externalDocs
 // object's under externalDocs (docs/ir/unmodeled.md#carriers).
-func tagKeys(c lowering.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+func tagKeys(c service.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
 	kept, diags := annotation.ExtensionsFrom(t.GetExtensions(), c.Place(), ptr)
 	diags = append(diags, annotation.UnknownKeysIn(&kept, t, c.Place(), ptr)...)
 	ed, edPtr := t.GetExternalDocs(), ptr+ids.Ptr("externalDocs")
@@ -66,7 +67,7 @@ func tagKeys(c lowering.Ctx, t *soa.Tag, ptr jsontext.Pointer) (ir.Unmodeled, []
 // tag's first declaration and the tier they state, recorded in its Inferred,
 // and reports a tier stated on a tag that forms no group, and a deprecation
 // stated on any, which fill nothing (docs/compilers/openapi.md#tag-groups).
-func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
+func tagGroups(p promotion.Promoter, groups []ir.OperationGroup, defs []ir.TagDef) []ir.Diagnostic {
 	first := map[ir.GroupID]int{}
 	for i := range slices.Backward(defs) {
 		first[ids.TagGroup(defs[i].Name)] = i
@@ -89,13 +90,13 @@ func tagGroups(p lowering.Promoter, groups []ir.OperationGroup, defs []ir.TagDef
 		}
 		formed[defs[i].Name] = true
 		g.Unmodeled = annotation.MergeUnmodeled(g.Unmodeled, vendorExtensions(defs[i].Unmodeled))
-		diags = append(diags, lowering.GroupStability(p, g.Unmodeled, &g.Stability, &g.Inferred)...)
+		diags = append(diags, promotion.GroupStability(p, g.Unmodeled, &g.Stability, &g.Inferred)...)
 	}
 	for _, def := range defs {
 		if !formed[def.Name] {
-			diags = append(diags, lowering.UnformedTier(p, def.Name, def.Unmodeled)...)
+			diags = append(diags, promotion.UnformedTier(p, def.Name, def.Unmodeled)...)
 		}
-		diags = append(diags, lowering.UnheldDeprecation(p, def.Name, formed[def.Name], def.Unmodeled)...)
+		diags = append(diags, promotion.UnheldDeprecation(p, def.Name, formed[def.Name], def.Unmodeled)...)
 	}
 	return diags
 }
@@ -142,8 +143,8 @@ type filing struct {
 // states, or by GroupingExtension.Fallback where it states none, and names a
 // remount for each other path it or its aliases state, whichever strategy files
 // it (docs/compilers/openapi.md#extension-groups).
-func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
-	if c.Grouping != lowering.GroupByExtension {
+func (g *serviceGroups) filingFor(c service.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
+	if c.Grouping != service.GroupByExtension {
 		return g.filingBy(c.Grouping, src, path)
 	}
 	paths, aliases, diags := extensionPaths(c, src, decl)
@@ -151,7 +152,7 @@ func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsont
 	if len(paths) == 0 {
 		filed = g.filingBy(c.GroupingExtension.Fallback, src, path)
 	} else {
-		filed = filing{levels: extensionLevels(paths[0]), inferred: lowering.GroupExtensionHeuristic}
+		filed = filing{levels: extensionLevels(paths[0]), inferred: service.GroupExtensionHeuristic}
 		paths = paths[1:]
 	}
 	for _, p := range slices.Concat(paths, aliases) {
@@ -168,11 +169,11 @@ func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsont
 // beside a tag of that name: the IDs differ, the emitter resolves name
 // collisions by ID (docs/emitters/refine/naming.md), and the names pass reports
 // this one.
-func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Operation, path string) filing {
-	if strategy == lowering.GroupByPathPrefix {
+func (g *serviceGroups) filingBy(strategy service.GroupingStrategy, src *soa.Operation, path string) filing {
+	if strategy == service.GroupByPathPrefix {
 		seg := firstPathSegment(pathOnly(path))
 		levels := []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
-		return filing{levels: levels, inferred: lowering.GroupPathPrefixHeuristic}
+		return filing{levels: levels, inferred: service.GroupPathPrefixHeuristic}
 	}
 	for _, tag := range src.GetTags() {
 		if g.tags.navigational(tag) {
@@ -187,7 +188,7 @@ func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Op
 // none. A value stating no path is reported at its key, as the document means
 // something else by it, and read as if the key were absent. A value that does
 // not serialize is absent here, as applyOperationAnnotations reports it.
-func extensionPaths(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) (paths, aliases [][]string, diags []ir.Diagnostic) {
+func extensionPaths(c service.Ctx, src *soa.Operation, decl jsontext.Pointer) (paths, aliases [][]string, diags []ir.Diagnostic) {
 	ext := c.GroupingExtension
 	written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values(ext.Keys(c.Grouping)))
 	if entry, ok := written["openapi:"+ext.Key]; ok {
@@ -196,7 +197,7 @@ func extensionPaths(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) (
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
 				"extension %q names no group path of at most %d segments, none empty, written as text whose dots "+
 					"separate them or as a list of such text, so the operation is grouped as if it were absent",
-				ext.Key, lowering.MaxGroupPathDepth))
+				ext.Key, service.MaxGroupPathDepth))
 		}
 	}
 	if entry, ok := written["openapi:"+ext.Aliases]; ok {

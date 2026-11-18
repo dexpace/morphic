@@ -1,0 +1,531 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package schema_test
+
+import (
+	"regexp"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/ir"
+)
+
+// TestUnhomedApplicator_KeptOnAListAndAnnounced pins the arm of the home
+// question that a list answers: items and prefixItems have a home on it, and
+// anything else written beside them does not, so `properties` on an array is
+// kept verbatim and reported rather than silently dropped.
+func TestUnhomedApplicator_KeptOnAListAndAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Odd:
+      type: array
+      items: {type: string}
+      properties: {p: {type: string}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	td := typeByName(doc, "Odd")
+	require.NotNil(t, td, "the array still lowers")
+	assert.Contains(t, td.Common().Unmodeled, "openapi:properties",
+		"a list has no home for properties, so it is kept")
+	assert.True(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"and the position says which keywords it could not carry")
+}
+
+// TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead pins
+// docs/compilers/openapi.md#shape-applicator for `format: set`: no specification
+// gives a format on an array a meaning, so it is kept verbatim, as any format a
+// List has no pairing for, and never read as uniqueItems.
+func TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Tags:
+      type: array
+      format: set
+      items: {type: string}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	l, ok := typeByName(doc, "Tags").(*ir.List)
+	require.True(t, ok, "it is a list")
+	assert.Contains(t, l.Unmodeled, "openapi:format", "the format has no home on a list, so it is kept")
+	assert.True(t, l.Constraints == nil || !l.Constraints.UniqueItems, "and nothing reads it as uniqueItems")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Tags"))
+}
+
+// TestUnhomedApplicator_ObjectCarriesNoItemKeyword pins the other arm of the
+// home question. A model has a home for the property applicators and for
+// nothing else, so `items` written on an object is kept verbatim rather than
+// read as though the object were an array.
+func TestUnhomedApplicator_ObjectCarriesNoItemKeyword(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Odd:
+      type: object
+      properties: {p: {type: string}}
+      items: {type: string}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "Odd").(*ir.Model)
+	require.True(t, ok, "it is still a model")
+	assert.Contains(t, m.Unmodeled, "openapi:items", "a model has no home for items")
+	assert.Len(t, m.Properties, 1, "and the applicators it does have a home for still land")
+}
+
+// TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced pins the pairing
+// GitHub #144 exists for, at this site: when the only unhomed keyword fails to
+// convert, the position must say nothing about keeping it. A diagnostic naming a
+// keyword that was never written is worse than silence — it sends a reader
+// looking in Unmodeled for something that is not there.
+func TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Odd:
+      type: object
+      properties: {p: {type: string}}
+      items: {type: string, x-t: `+unpreservableValue+`}
+`))
+
+	m, ok := typeByName(doc, "Odd").(*ir.Model)
+	require.True(t, ok)
+	assert.NotContains(t, m.Unmodeled, "openapi:items", "the conversion failed, so nothing was kept")
+	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the failure itself is reported")
+	assert.Empty(t, openapitest.PreservationClaims(diags),
+		"nothing was written under Unmodeled, so nothing may announce that it was")
+}
+
+// TestUnhomedApplicator_FormatWithNoTypeIsKept pins the one keyword the home
+// question answers from the declaration rather than from the node kind.
+//
+// `format` is homed by a declared type: scalarTypeID pairs the two to select a
+// primitive or hoist a Scalar carrying the encoding. Written with no type beside
+// it there is no pairing to make, so nothing reads it — and it is kept verbatim
+// rather than dropped, which is the whole of the rule
+// docs/compilers/openapi.md#shape-applicator for this keyword.
+func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Odd: {format: date-time}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	td := typeByName(doc, "Odd")
+	require.NotNil(t, td, "the position still lowers to something")
+	assert.Contains(t, td.Common().Unmodeled, "openapi:format",
+		"a format with no type to pair with reaches no field, so it is kept")
+	assert.True(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "and the position says so")
+}
+
+// TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
+// the winning lowering never reads (GitHub #268). lower() elects one keyword
+// family per position, and what the elected form has no field for must be kept:
+// a Model has no type token, a Literal no Constraints and no type or format its
+// value does not fit. Only the built node shows it, which the census asks.
+//
+// The kept set is asserted whole, so a census that keeps too much fails as
+// loudly as one that keeps too little; the `type: object` row matters because a
+// Model restates it and nothing may be recorded.
+func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body string
+		kind       ir.TypeKind
+		kept       []string
+	}{
+		// The conjuncts share only null, so no report names them and the allOf
+		// composes, as one sharing no value does.
+		{"non-object type beside allOf", "{allOf: [{type: object, nullable: true, required: [a]}], type: string, nullable: true}",
+			ir.KindModel, []string{"openapi:type"}},
+		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
+			ir.KindModel, nil},
+		// The value fits the type and format, so the literal's ValueType holds both.
+		{"format beside const", "{const: 5, type: integer, format: int32}",
+			ir.KindLiteral, nil},
+		{"contradictory type beside const", "{const: 5, type: string}",
+			ir.KindLiteral, []string{"openapi:type"}},
+		// The literal's ValueType holds the type its value fits; no bound reaches
+		// a field.
+		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
+			ir.KindLiteral, []string{"openapi:maxLength"}},
+		// A collection bound is homed by the Constraints of a List or a Tuple and
+		// by nothing else, so an object keeps it here and the tuple, its control,
+		// keeps nothing.
+		{"collection bound on an object", "{type: object, properties: {f: {type: string}}, minItems: 3}",
+			ir.KindModel, []string{"openapi:minItems"}},
+		{"collection bound beside prefixItems", "{type: array, prefixItems: [{type: string}], maxItems: 2}",
+			ir.KindTuple, nil},
+		// A Scalar rather than the shared Primitive the type alone would reach:
+		// the entry needs a node this pointer owns, so the census hoists the alias
+		// that carries it.
+		{"unique items on a string", "{type: string, uniqueItems: true}",
+			ir.KindScalar, []string{"openapi:uniqueItems"}},
+		// The control: a node that does carry them keeps nothing.
+		{"collection bounds on an array", "{type: array, items: {type: string}, minItems: 3, maxItems: 9, uniqueItems: true}",
+			ir.KindList, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td, "the position still lowers")
+			assert.Equal(t, tc.kind, td.Kind(), "and lowers to the form the election picked")
+			assert.Equal(t, tc.kept, unmodeledKeys(td.Common().Unmodeled))
+
+			want := 1
+			if len(tc.kept) == 0 {
+				want = 0
+			}
+			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/S"), want,
+				"a position keeps nothing quietly and reports everything it keeps: %+v", diags)
+		})
+	}
+}
+
+// TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept is the other half of the
+// value-constraint census: a bound is kept only where the node has no field it
+// reached, never where it did. The two rows are the two node kinds that read
+// annotation.Constraints, so a census asking the kind rather than the field
+// would double-record both.
+func TestUnhomedKeywords_BoundsThatLandedAreNotAlsoKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, body, unhomed string }{
+		{"scalar", "{type: string, format: email, minLength: 3, required: [a]}", "openapi:required"},
+		{"model", "{type: object, properties: {a: {type: string}}, minProperties: 1, items: {type: string}}", "openapi:items"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, keywordCensusSpec("    S: "+tc.body+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td)
+			assert.Equal(t, []string{tc.unhomed}, unmodeledKeys(td.Common().Unmodeled),
+				"the bound reached the node's Constraints, so only the homeless keyword is kept")
+		})
+	}
+}
+
+// TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead pins
+// the reason the census asks what filled a Constraints field rather than which
+// kinds have one. An ir.List has the field, but lowerArray fills it from
+// collectionConstraints — collection bounds only — so a string bound written on
+// an array reaches nothing however full the field looks.
+func TestUnhomedKeywords_ArrayBoundsKeepWhatCollectionConstraintsDoesNotRead(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
+		"    S: {type: array, items: {type: string}, minItems: 1, minLength: 3}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	l, ok := typeByName(doc, "S").(*ir.List)
+	require.True(t, ok)
+	require.NotNil(t, l.Constraints)
+	assert.Equal(t, int64(1), *l.Constraints.MinItems, "the collection bound lowers as it always did")
+	assert.Equal(t, []string{"openapi:minLength"}, unmodeledKeys(l.Unmodeled),
+		"and only the bound collectionConstraints does not read is kept")
+}
+
+// TestUnplacedDiscriminator_IsKeptAtEveryUnionSite pins that a discriminator
+// beside a oneOf/anyOf whose lowering has no model or union to hold it is kept
+// verbatim on the node or carrier that owns the position, with an info
+// diagnostic, instead of vanishing.
+func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, unplacedSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, validated(t, doc))
+
+	for _, name := range []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU"} {
+		node := typeByName(doc, name)
+		require.NotNil(t, node, name)
+		assertKeptDiscriminator(t, node.Common().Unmodeled, name)
+		assert.True(t, namesDiscriminatorAt(diags, "/components/schemas/"+name), name)
+	}
+	assert.True(t, namesDiscriminatorAt(diags, "/components/schemas/Holder/properties/n"))
+	// The null-only property hoists a node of its own.
+	assertKeptDiscriminator(t, doc.Types["t/anon/components/schemas/Holder/properties/n"].Common().Unmodeled, "n")
+	// Beside a $ref to an object a union distributes as beside an allOf of it,
+	// its variants routed by the discriminator (#2010).
+	for _, id := range []ir.TypeID{componentID("RefSite"), "t/anon/components/schemas/Holder/properties/r"} {
+		u, ok := doc.Types[id].(*ir.Union)
+		require.True(t, ok, "%s distributes", id)
+		require.NotNil(t, u.Discriminator, id)
+		assert.NotContains(t, u.Unmodeled, "openapi:discriminator", id)
+	}
+	assert.Equal(t, 6, strings.Count(marshalForTest(t, doc), `"openapi:discriminator"`),
+		"one entry per position kept, none duplicated")
+}
+
+// TestHomelessDiscriminator_IsKeptBesideEveryOtherNode pins that a
+// discriminator is a census keyword: wherever the position lowered to a node
+// that does not route by it, the census keeps it verbatim and says so, as it
+// keeps any keyword the node has no field for. Each was dropped in silence.
+// Beside a $ref to an object the discriminator is the composition's, so a
+// Model over the target holds it, at a component, a property and a parameter
+// alike, and on an entry it is kept with the entry, as on any inline entry.
+func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, homelessSpec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, validated(t, doc))
+
+	owners := map[string]ir.Unmodeled{}
+	for _, name := range []string{"Str", "En", "Mixed", "Arr", "Bare"} {
+		owners["/components/schemas/"+name] = typeByName(doc, name).Common().Unmodeled
+	}
+	for _, at := range []string{"Items/items", "Holder/properties/q"} {
+		owners["/components/schemas/"+at] = doc.Types[ir.TypeID("t/anon/components/schemas/"+at)].Common().Unmodeled
+	}
+	for pointer, unmodeled := range owners {
+		assertKeptDiscriminator(t, unmodeled, pointer)
+		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+			return d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
+				string(d.Provenance.Pointer) == pointer && strings.Contains(d.Message, "which has no home for discriminator")
+		}), "%s reports what it kept", pointer)
+	}
+
+	holder, ok := typeByName(doc, "Holder").(*ir.Model)
+	require.True(t, ok)
+	op := doc.Services[0].Groups[0].Operations[0]
+	require.Len(t, op.Params, 1)
+	for _, id := range []ir.TypeID{componentID("RefD"), holder.Properties[0].Type.Target, op.Params[0].Type.Target} {
+		m, isModel := doc.Types[id].(*ir.Model)
+		require.True(t, isModel, "%s is the model over the object", id)
+		require.NotNil(t, m.Discriminator, id)
+		assert.Equal(t, "kind", m.Discriminator.PropertyName, id)
+		require.NotNil(t, m.Base, id)
+		assert.Equal(t, componentID("Cat"), m.Base.Target, id)
+	}
+	// A discriminator an entry writes beside its $ref is kept on the
+	// composition under its own key, as on an entry of its own.
+	sub, ok := typeByName(doc, "Sub").(*ir.Model)
+	require.True(t, ok)
+	assertKeptDiscriminator(t, sub.Unmodeled, "/components/schemas/Sub/allOf/0")
+
+	marshaled := marshalForTest(t, doc)
+	assert.Equal(t, len(owners)+1, strings.Count(marshaled, `"openapi:discriminator"`)+
+		strings.Count(marshaled, `"openapi:schema/discriminator"`), "one entry per position, none duplicated")
+}
+
+// TestHeldDiscriminator_IsNotKeptTwice pins the census's control: a union or a
+// model that routes by its discriminator holds it, so nothing is kept verbatim
+// and nothing is reported. A model needs no type to hold one: properties alone
+// make it. A discriminator alone types nothing, so it makes none
+// (TestHomelessDiscriminator_IsKeptBesideEveryOtherNode).
+func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec(cat + dog +
+		"    U: {oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}], discriminator: {propertyName: kind}}\n" +
+		"    Base: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
+		"    Untyped: {properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
+	doc, diags := parseFull(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, validated(t, doc))
+
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok)
+	assert.NotNil(t, u.Discriminator)
+	for _, name := range []string{"Base", "Untyped"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, name)
+		assert.NotNil(t, m.Discriminator, name)
+	}
+	assert.NotContains(t, marshalForTest(t, doc), "openapi:discriminator")
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "%+v", diags)
+}
+
+// TestKeptDiscriminator_ResolvesItsValuesAtEverySite pins that a
+// discriminator the census keeps verbatim still has its values read as the
+// references they are (docs/compilers/openapi.md#discriminator), at every site
+// that keeps one: a $defs member only a value reaches is lowered, and a value
+// naming nothing is reported, once at each site, in either declaration order.
+// The sites are homelessSpec's and unplacedSpec's, and three more: a type array
+// listing no object, one listing an object, and a collapsed union.
+func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
+	t.Parallel()
+	const routed = "$defs: {Sub: {type: object, properties: {m: {type: string}}}}, " +
+		"discriminator: {propertyName: kind, mapping: {s: '#/$defs/Sub', g: '#/$defs/Ghost'}}"
+	// A block mapping takes each key on a line of its own, at the indent of the
+	// one it replaces; a flow mapping takes them in line.
+	block := regexp.MustCompile(`(?m)^ +discriminator: \{propertyName: kind\}$`)
+	withValues := func(spec string) string {
+		spec = block.ReplaceAllStringFunc(spec, func(line string) string {
+			indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
+			return indent + strings.ReplaceAll(routed, ", discriminator", "\n"+indent+"discriminator")
+		})
+		return strings.ReplaceAll(spec, "discriminator: {propertyName: kind}", routed)
+	}
+	const more = "    Multi: {type: [string, integer], discriminator: {propertyName: kind}}\n" +
+		"    Obj: {type: [object, string], discriminator: {propertyName: kind}}\n" +
+		"    Collapsed: {oneOf: [{type: 'null'}, {$ref: '#/components/schemas/Cat'}], discriminator: {propertyName: kind}}\n"
+	for _, c := range []struct {
+		name, spec string
+		sites      []string
+	}{
+		// Beside a $ref to an object the discriminator is the model's, which holds
+		// it (TestHomelessDiscriminator_IsKeptBesideEveryOtherNode), so the
+		// specs' $ref sites are no site here.
+		{"beside no union", withoutRefSites(homelessSpec) + more, []string{"Str", "En", "Mixed", "Arr",
+			"Bare", "Items/items", "Holder/properties/q", "Multi", "Obj", "Collapsed"}},
+		{"beside a union", withoutRefSites(unplacedSpec), []string{"NullOnly", "NullBoth", "EnumU", "ConstU", "ScalarU",
+			"Holder/properties/n"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			spec := withValues(c.spec)
+			// Cat, which the $ref sites name, declared first and then last.
+			const catFirst = "    Cat: {type: object, properties: {kind: {type: string}}}\n"
+			require.Contains(t, spec, "  schemas:\n"+catFirst)
+			last := strings.Replace(spec, catFirst, "", 1) + catFirst
+			for _, src := range []string{spec, last} {
+				doc, diags := parseFull(t, src)
+				var unresolved []string
+				for _, d := range withCode(diags, diag.UnresolvedRef) {
+					unresolved = append(unresolved, string(d.Provenance.Pointer))
+				}
+				slices.Sort(unresolved)
+				var want []string
+				for _, site := range c.sites {
+					if !strings.HasPrefix(site, "/") {
+						site = "/components/schemas/" + site
+					}
+					want = append(want, site+"/discriminator/mapping/g")
+					_, ok := doc.Types[ir.TypeID("t/anon"+site+"/$defs/Sub")]
+					assert.True(t, ok, "%s's $defs member, which only its discriminator reaches, is lowered", site)
+				}
+				slices.Sort(want)
+				assert.Equal(t, want, unresolved, "a value naming nothing is reported once at each site")
+				assert.Empty(t, validated(t, doc), "no node holds a route")
+			}
+		})
+	}
+}
+
+// TestKeptDiscriminator_ReadsNoValueOfOneTheModelCannotHold pins a
+// discriminator written as no object, which validation reports and every
+// reader takes for the field left out: nothing is kept, and no value is
+// resolved, there being none to read.
+func TestKeptDiscriminator_ReadsNoValueOfOneTheModelCannotHold(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    N: {type: string, discriminator: 5}\n"))
+	assert.Equal(t, []string{
+		"error openapi/validation/validation-type-mismatch /components/schemas/N/discriminator: Schema Object field " +
+			`"discriminator" must be an object in OpenAPI 3.1 (Schema Object)`,
+	}, reported(diags))
+	assert.NotContains(t, typeByName(doc, "N").Common().Unmodeled, "openapi:discriminator")
+}
+
+// unplacedSpec declares a discriminator beside a oneOf/anyOf at each position
+// whose lowering has no model to hold it: a null-only union as a component, a
+// property and beside a second combinator, a union beside a const, an enum and
+// a scalar, and a union beside a $ref as a component and as a property.
+const unplacedSpec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Cat: {type: object, properties: {kind: {type: string}}}
+    Dog: {type: object, properties: {kind: {type: string}}}
+    NullOnly:
+      oneOf: [{type: 'null'}]
+      discriminator: {propertyName: kind}
+    NullBoth:
+      oneOf: [{type: 'null'}, {type: 'null'}]
+      anyOf: [{type: 'null'}]
+      discriminator: {propertyName: kind}
+    EnumU:
+      enum: [a, b]
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: string}]
+      discriminator: {propertyName: kind}
+    ConstU:
+      const: a
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: string}]
+      discriminator: {propertyName: kind}
+    ScalarU:
+      type: string
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: string}]
+      discriminator: {propertyName: kind}
+    RefSite:
+      $ref: '#/components/schemas/Cat'
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
+      discriminator: {propertyName: kind}
+    Holder:
+      type: object
+      properties:
+        n:
+          anyOf: [{type: 'null'}, {type: 'null'}]
+          discriminator: {propertyName: kind}
+        r:
+          $ref: '#/components/schemas/Cat'
+          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
+          discriminator: {propertyName: kind}
+`
+
+// homelessSpec declares a discriminator beside no union at all, at each kind
+// of position whose node has no field for it: a scalar, an enum, an array, a
+// bare schema, a $ref as a component, a property, a parameter and an allOf
+// branch, an array's items, and a mixed-type enum, whose Union has the field
+// but routes nothing by it.
+const homelessSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    get:
+      parameters:
+        - name: q
+          in: query
+          schema: {$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}
+      responses:
+        "204": {description: none}
+components:
+  schemas:
+    Cat: {type: object, properties: {kind: {type: string}}}
+    Str: {type: string, discriminator: {propertyName: kind}}
+    En: {enum: [a, b], discriminator: {propertyName: kind}}
+    Mixed: {enum: [1, a], discriminator: {propertyName: kind}}
+    Arr: {type: array, items: {type: string}, discriminator: {propertyName: kind}}
+    Bare: {discriminator: {propertyName: kind}}
+    RefD: {$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}
+    Items: {type: array, items: {type: string, discriminator: {propertyName: kind}}}
+    Sub: {allOf: [{$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}]}
+    Holder:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/Cat', discriminator: {propertyName: kind}}
+        q: {type: string, discriminator: {propertyName: kind}}
+`
+
+// refSites matches what homelessSpec and unplacedSpec write of a discriminator
+// beside a $ref: a parameter's, RefD, Sub, the property p, and the blocks of
+// RefSite and of the property r.
+var refSites = regexp.MustCompile(`(?m)^      parameters:\n(?:        .*\n)+|^    (?:RefD|Sub): .*\n|^        p: .*\n|` +
+	"^    RefSite:\n(?:      .*\n){3}|^        r:\n(?:          .*\n){3}")
+
+// withoutRefSites returns spec, homelessSpec or unplacedSpec, without the
+// schemas writing a discriminator beside a $ref (refSites).
+func withoutRefSites(spec string) string {
+	return refSites.ReplaceAllString(spec, "")
+}
+
+// assertKeptDiscriminator requires unmodeled to keep a discriminator verbatim
+// as a degraded lowering, whole.
+func assertKeptDiscriminator(t *testing.T, unmodeled ir.Unmodeled, where string) {
+	t.Helper()
+	entry, ok := unmodeled["openapi:discriminator"]
+	require.True(t, ok, "%s keeps its discriminator", where)
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, where)
+	assert.JSONEq(t, `{"propertyName":"kind"}`, string(entry.Value), where)
+}
+
+// namesDiscriminatorAt reports whether an info degraded-construct diagnostic at
+// pointer mentions a discriminator. A site also reports its union, so the count
+// at a pointer is not one.
+func namesDiscriminatorAt(diags []ir.Diagnostic, pointer string) bool {
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityInfo &&
+			string(d.Provenance.Pointer) == pointer && strings.Contains(d.Message, "discriminator")
+	})
+}

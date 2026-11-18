@@ -6,7 +6,7 @@ package pagination
 import (
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,8 +26,8 @@ type position struct {
 // value says.
 type marker struct {
 	pg      *pager
-	target  lowering.ExtensionTarget
-	src     lowering.ExtensionSource
+	target  promotion.ExtensionTarget
+	src     promotion.ExtensionSource
 	diags   []ir.Diagnostic
 	written bool
 }
@@ -35,7 +35,7 @@ type marker struct {
 // marks returns the provenance of the node keeping unmodeled when src marks
 // it.
 func (m *marker) marks(unmodeled ir.Unmodeled, keeper *ir.Provenance) (*ir.Provenance, bool) {
-	st, diags := lowering.PageStatementOf(m.pg.p, m.target, m.src, unmodeled, nil)
+	st, diags := promotion.PageStatementOf(m.pg.p, m.target, m.src, unmodeled, nil)
 	m.diags = append(m.diags, diags...)
 	m.written = m.written || st.Written
 	return keeper, st.Stated
@@ -57,7 +57,7 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 
 // markedInput resolves where src marks a value of op's request: a parameter, or
 // a member of its body.
-func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
+func (pg *pager) markedInput(op *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
 	m := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
 	var read []*ir.Provenance
@@ -66,7 +66,7 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 		p := &op.Params[i]
 		// A mark is a valued fact: the parameter's own key, else the nearest object
 		// it carries writing one.
-		own := lowering.Carried(pg.p, p.Unmodeled, lowering.CarrierScopes(mediaTypes[p.ID])...)
+		own := promotion.Carried(pg.p, p.Unmodeled, promotion.CarrierScopes(mediaTypes[p.ID])...)
 		if keeper, ok := m.marksUse(own, &p.Provenance, p.Type.Target); ok {
 			found, read = append(found, &ir.InputPath{Param: &p.ID}), append(read, keeper)
 		}
@@ -92,7 +92,7 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 // body of the success responses (pageBody), or one of their headers, which
 // must all mark the same one. A member is held by every response declaring a
 // page body, and a header by every response, as an expression's value is.
-func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
+func (pg *pager) markedOutput(op *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
 	m := &marker{pg: pg, target: target, src: src}
 	r := resolved[*ir.PropPath]{at: op.Provenance}
 	var lacking, bodiedLacking bool // a response marks nothing, one declaring a body among them
@@ -135,7 +135,7 @@ func (m *marker) inResponse(body *ir.Payload, headers []ir.Header) (*position, s
 		if h.Encoding != nil {
 			mediaType = h.Encoding.MediaType
 		}
-		own := lowering.Carried(m.pg.p, h.Unmodeled, lowering.CarrierScopes(mediaType)...)
+		own := promotion.Carried(m.pg.p, h.Unmodeled, promotion.CarrierScopes(mediaType)...)
 		keeper, ok := m.marksUse(own, &h.Provenance, h.Type.Target)
 		switch {
 		case !ok:

@@ -8,6 +8,7 @@
 #   make            the whole gate, one check at a time
 #   make coverage   the suite once, at exactly 100% coverage
 #   make race       the suite under the race detector, as the nightly job runs it
+#   make cases      every schema case through the case oracles, as the nightly job runs it
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -78,7 +79,7 @@ FUZZTIME ?= 5s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
-	fuzz bench bench-smoke print-lint-version print-go-version
+	cases fuzz bench bench-smoke print-lint-version print-go-version
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
@@ -90,10 +91,12 @@ fmt:
 		exit 1; \
 	fi
 
-# go vet's own analyzers, then the repository's: internal/lintrules, through
+# go vet's own analyzers, once more over the tests held behind the pending tag
+# so they keep compiling, then the repository's: internal/lintrules, through
 # cmd/morphic-vet. scripts/vet-rules.sh says how.
 vet:
 	$(GO) vet ./...
+	$(GO) vet -tags pending ./compilers/openapi/e2e/
 	./scripts/vet-rules.sh
 
 lint: check-lint-version
@@ -126,8 +129,11 @@ build:
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
-# in a stack dump naming the stuck goroutine. 300s is several times the slowest
-# package's time on the gate's runner.
+# in a stack dump naming the stuck goroutine. It bounds a hang, not the suite:
+# on 2026-11-18, on the branch of #1996, the slowest package,
+# compilers/openapi/e2e, took 195s on the gate's runner; slower runners that day
+# took it to 287s, and once past 300s. 600s is three times its normal time, and
+# a package past 300s on a normal run means the limit is tight again.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
@@ -140,7 +146,7 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... -timeout 600s -covermode=atomic -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
 
 # The suite under the race detector, with no coverage: -race allows only
@@ -161,6 +167,14 @@ race:
 		exit 1; \
 	fi
 	$(GO) test ./... $(RACE_FLAGS)
+
+# Every case of each schema-case product, second keywords among them, where the
+# gate's coverage run checks the core ones alone (go test
+# ./internal/harness/openapicases). It fails on a finding no record explains, or
+# a line of testdata/full naming none, one test log line each; -full -update
+# rewrites testdata/full.
+cases:
+	$(GO) test ./internal/harness/openapicases -run 'TestFull_' -full -count=1 -timeout 15m
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)

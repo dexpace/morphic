@@ -70,12 +70,10 @@ func TestVerdict_ConstructorsRefuseWhatNoVerdictHolds(t *testing.T) {
 // is held to every later oracle, and what each finds is reported beside the
 // error, which stays the result's outcome.
 func TestCheck_AnErrorDiagnosticStopsNoOracle(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
 	errorDiag := []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/broken", "the spec is wrong",
 		ir.Provenance{Source: ir.NoSource})}
 	compiles := 0
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		compiles++
 		doc := soundDoc()
 		doc.Diagnostics = errorDiag
@@ -83,7 +81,7 @@ func TestCheck_AnErrorDiagnosticStopsNoOracle(t *testing.T) {
 			doc.Name = "SecondCompile"
 		}
 		return doc, errorDiag, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("x"))
 
@@ -97,12 +95,10 @@ func TestCheck_AnErrorDiagnosticStopsNoOracle(t *testing.T) {
 // and no document, leaves each oracle: those holding a document decline, and
 // determinism and order-invariance compare the refusal's findings.
 func TestCheck_ARefusalDeclinesWhatHoldsADocument(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/refused", "no",
 			ir.Provenance{Source: ir.NoSource})}, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
 
@@ -123,16 +119,14 @@ func TestCheck_ARefusalDeclinesWhatHoldsADocument(t *testing.T) {
 // refuses, is the rewrite's failure, which a sweep counts, rather than two
 // refusals that compare alike.
 func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
 	const src = "a:\n  b: 1\n  c: 2\n" // indented otherwise than the encoder indents
-	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		if string(data) == src {
 			return soundDoc(), nil, nil
 		}
 		return nil, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/refused", "no",
 			ir.Provenance{Source: ir.NoSource})}, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte(src))
 
@@ -147,7 +141,7 @@ func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
 // fault before the oracles leaves every one but no-panic not reached, and
 // each result still holds one verdict per oracle.
 func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
-	notReached := func(os ...Oracle) []Verdict {
+	unreached := func(os ...Oracle) []Verdict {
 		vs := make([]Verdict, 0, len(os))
 		for _, o := range os {
 			vs = append(vs, declined(o, DeclineNotReached))
@@ -155,16 +149,14 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		return vs
 	}
 	t.Run("a panic in the determinism oracle's recompile", func(t *testing.T) {
-		orig := compile
-		t.Cleanup(func() { compile = orig })
 		compiles := 0
-		compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 			compiles++
 			if compiles > 1 {
 				panic("recompile exploded")
 			}
 			return soundDoc(), nil, nil
-		}
+		})
 
 		r := Check(context.Background(), "spec", []byte("x"))
 
@@ -173,19 +165,17 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		assert.Equal(t, r.Verdicts[0].Detail, r.Detail)
 		assert.Equal(t, []Verdict{passed(OracleInvariants), passed(OracleNoErrorDiagnostic), passed(OracleRoundTrip)},
 			r.Verdicts[1:4])
-		assert.Equal(t, notReached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), r.Verdicts[4:])
+		assert.Equal(t, unreached(OracleDeterminism, OracleIdempotence, OracleOrder, OracleSequenceOrder), r.Verdicts[4:])
 	})
 	t.Run("a Go error from the first compile", func(t *testing.T) {
-		orig := compile
-		t.Cleanup(func() { compile = orig })
-		compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 			return nil, nil, errors.New("compile boom")
-		}
+		})
 
 		r := Check(context.Background(), "spec", []byte("x"))
 
 		assert.Equal(t, OutcomeError, r.Outcome)
-		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, notReached(Oracles()[1:]...)...), r.Verdicts)
+		assert.Equal(t, append([]Verdict{passed(OracleNoPanic)}, unreached(Oracles()[1:]...)...), r.Verdicts)
 	})
 	t.Run("a stage the verified run refuses", func(t *testing.T) {
 		withPasses(t, faulting{first: func(own *ir.Document) *ir.Document {
@@ -198,13 +188,13 @@ func TestCheck_AFaultEndingTheRunLeavesTheRestNotReached(t *testing.T) {
 		require.Len(t, r.Verdicts, len(Oracles()))
 		assert.Equal(t, passed(OracleNoPanic), r.Verdicts[0])
 		assert.Equal(t, OutcomeViolations, r.Verdicts[1].Outcome, "the engine's refusal is the invariants oracle's")
-		assert.Equal(t, notReached(Oracles()[2:]...), r.Verdicts[2:], "the engine returns no document to ask of")
+		assert.Equal(t, unreached(Oracles()[2:]...), r.Verdicts[2:], "the engine returns no document to ask of")
 	})
 	t.Run("a caller's mistake", func(t *testing.T) {
 		r := Check(context.Background(), "", []byte(testspec.Minimal))
 
 		assert.Equal(t, OutcomeError, r.Outcome)
-		assert.Equal(t, notReached(Oracles()...), r.Verdicts, "nothing ran, so not even no-panic asked")
+		assert.Equal(t, unreached(Oracles()...), r.Verdicts, "nothing ran, so not even no-panic asked")
 	})
 }
 
@@ -224,11 +214,9 @@ func TestDeterministic_ComparesARefusalsFindings(t *testing.T) {
 		{"other findings", "stub/other", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			orig := compile
-			t.Cleanup(func() { compile = orig })
-			compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+			swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 				return nil, refusal(tc.recompile), nil
-			}
+			})
 
 			detail, ok := deterministic(context.Background(), "s", []byte("x"), nil, refusal("stub/refused"))
 

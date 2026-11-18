@@ -64,14 +64,33 @@ type Walk interface {
 	// $id naming another URI, a $ref spelled alike names another schema. The
 	// fold asks it only of text writing one (annotation.WritesReference).
 	Alike(a, b ir.Provenance) bool
-	// Untyped reports whether the schema written at a node's provenance states
-	// no instance type, so the structure it lowered to admits every value of
-	// another: `properties` alone constrains objects and admits a string
-	// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A node it cannot
-	// place, or whose source writes what that read does not follow but which
-	// could refuse a value of some instance type, reads as stating one.
-	Untyped(at ir.Provenance) bool
+	// Admits reports whether the schema written at a node's provenance admits
+	// every instance of kind, so the structure it lowered to admits each value
+	// of another type of that kind: `properties` alone constrains objects and
+	// admits a string (docs/compilers/openapi.md#allof-redeclared-property),
+	// while a bound or a value set beside it refuses some integers, so it
+	// admits integers but not every one. It is exact where the read follows all
+	// the source writes; one it cannot place, or one writing what the read does
+	// not follow but which could refuse a value of some kind, is not, and
+	// decides nothing.
+	Admits(at ir.Provenance, kind Instance) (admits, exact bool)
 }
+
+// Instance is a kind of JSON instance, which every value of a type a
+// structure is judged against is (Walk.Admits).
+type Instance uint8
+
+// The kinds of JSON instance. An integer is a number with no fraction, which
+// a schema may admit apart from the others.
+const (
+	InstanceString Instance = iota + 1
+	InstanceInteger
+	InstanceNumber
+	InstanceBoolean
+	InstanceArray
+	InstanceObject
+	InstanceNull
+)
 
 // resolve looks the type id names up in the registry.
 func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {
@@ -175,18 +194,7 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 	f.foldAnnotations()
 	f.foldUnmodeled()
 	merged, diags := f.finish()
-	diags = append(diags, g.keepUnjudged(&merged, past)...)
-	for i := range diags {
-		diags[i].Provenance = g.Doc.At(diags[i].Provenance.Pointer)
-	}
-	return merged, diags
-}
-
-// pointerOnly is a Provenance holding pointer and naming no document until fold
-// places it. Every site of a fold reports at one, and fold places them all
-// through Merger.Doc, so none is placed apart from the model's document.
-func pointerOnly(pointer jsontext.Pointer) ir.Provenance {
-	return ir.Provenance{Pointer: pointer}
+	return merged, append(diags, g.keepUnjudged(&merged, past)...)
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -204,7 +212,7 @@ func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) []ir.Diag
 	if len(past) == 0 {
 		return nil
 	}
-	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, pointerOnly(past[0].reportAt()),
+	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, g.Doc.At(past[0].reportAt()),
 		"field %q is declared %d times, past the %d declarations one fold judges; the %d after them are "+
 			"unjudged, and each the model declares is kept verbatim under Unmodeled",
 		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))}
@@ -261,6 +269,9 @@ type note struct {
 	msg  string
 	// detail is what a disagreement is over, and empty on any other note.
 	detail string
+	// at is where the note sits: where the declaration is reported
+	// (declaration.reportAt), or, for a disagreement, where it is written.
+	at ir.Provenance
 }
 
 // newFolding judges every pair of decls once, picks the winner (widestCone) or
@@ -357,37 +368,47 @@ func (f *folding) drop(i int) {
 // them, which may loosen what the spec intended. It says "declarations", not
 // "allOf branches", because a declaration can sit beside allOf rather than
 // inside a branch. A keyword a position writes on its node and its property is
-// met twice, and said once.
+// met twice, and said once. It sits where decls[i] is written, not at the
+// entry bringing it, so every model composing the two says it alike
+// (ReportOnce).
 func (f *folding) disagree(i, kept int, detail string) {
 	f.lost[i] = true
 	if slices.ContainsFunc(f.notes[i], func(n note) bool { return n.detail == detail }) {
 		return
 	}
-	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, msg: fmt.Sprintf(
-		"declarations of field %q disagree: %s; kept what the declaration at %s says over the one at %s, "+
-			"which %s", f.merged.WireName, detail, f.at(kept), f.at(i), f.decls[i].keptAs())})
+	at, named := f.place(i)
+	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, at: at,
+		msg: fmt.Sprintf("declarations of field %q disagree: %s; kept what the declaration at %s says over the one "+
+			"at %s, which %s", f.merged.WireName, detail, f.at(kept), named, f.decls[i].keptAs())})
 }
 
-// at is where decls[i] was written, as a report the fold makes names it: its
-// pointer, followed by its document's name where that is not the document the
-// report is in, as a declaration an entry brings may be written in another. A
-// member an entry brings settled names its first declaration, which need not
-// say what the member does, so the report names the one place its type is
-// written, or, where that is the member's own and no schema is written there
-// (unwritten), the entry bringing it.
+// at is how a report the fold makes names where decls[i] was written (place).
 func (f *folding) at(i int) string {
+	_, named := f.place(i)
+	return named
+}
+
+// place is where decls[i] was written, in its own document, and how a report
+// the fold makes names it: its pointer, followed by its document's name where
+// that is not the document the report is in, as a declaration an entry brings
+// may be written in another. A member an entry brings settled names its first
+// declaration, which need not say what the member does, so the report names
+// the one place its type is written, or, where that is the member's own and no
+// schema is written there (unwritten), the entry bringing it.
+func (f *folding) place(i int) (ir.Provenance, string) {
 	d := f.decls[i]
 	p := d.prop.Provenance
 	if d.via != nil && len(d.typeAt) == 1 {
 		p = d.typeAt[0]
 	}
 	if p.Pointer == d.prop.Provenance.Pointer && f.unwritten(d) {
-		return string(d.via.at)
+		return f.g.Doc.At(d.via.at), string(d.via.at)
 	}
 	if p.Source == f.g.Doc.Source || p.Source < 0 || p.Source >= len(f.g.Sources) {
-		return string(p.Pointer)
+		return f.g.Doc.At(p.Pointer), string(p.Pointer)
 	}
-	return string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
+	return ir.Provenance{Source: p.Source, Pointer: p.Pointer, WrittenBy: p.WrittenBy},
+		string(p.Pointer) + " in " + f.g.Sources[p.Source].Path
 }
 
 // unwritten reports whether d is a member an entry brings that its model's
@@ -405,15 +426,57 @@ func (f *folding) unwritten(d declaration) bool {
 	return at == settledAt(m, wire, false) || at == settledAt(m, wire, true)
 }
 
-// foldConstraints meets the constraints the cone writes on the property.
+// foldConstraints meets the constraints the cone writes on the property. Where
+// the fold composes the field's model, which holds no bound, the bounds of each
+// declaration's own node meet there too (ownBounds): its property leaves them to
+// that node, which the composed model does not stand for.
 func (f *folding) foldConstraints() {
 	sets := make([]*ir.Constraints, len(f.decls))
 	for i, d := range f.decls {
-		if f.cone[i] {
+		switch {
+		case !f.cone[i]:
+		case len(f.conjuncts) > 0:
+			sets[i] = metOrNil(d.prop.Constraints, f.ownBounds(i))
+		default:
 			sets[i] = d.prop.Constraints
 		}
 	}
 	f.merged.Constraints = meetConstraints(sets, f.disagree)
+}
+
+// ownBounds returns the value bounds held by the node decls[i]'s type names
+// where that node is hoisted at the declaration, its position's own, and nil
+// otherwise: a property owning its node leaves those bounds to it
+// (docs/compilers/openapi.md#constraints). A List's or a Tuple's are read by
+// no property, which never held them.
+func (f *folding) ownBounds(i int) *ir.Constraints {
+	d := f.decls[i]
+	td, ok := f.g.resolve(d.prop.Type.Target)
+	if !ok || !hoistedAt(td, d.sites()) {
+		return nil
+	}
+	switch n := td.(type) {
+	case *ir.Model:
+		return n.Constraints
+	case *ir.MapT:
+		return n.Constraints
+	case *ir.Scalar:
+		return n.Constraints
+	case *ir.Union:
+		return n.Constraints
+	default:
+		return nil
+	}
+}
+
+// metOrNil returns a copy of a and b met (Constraints), writing to neither, or
+// nil where both are.
+func metOrNil(a, b *ir.Constraints) *ir.Constraints {
+	if a == nil && b == nil {
+		return nil
+	}
+	var met ir.Constraints
+	return Constraints(Constraints(&met, a), b)
 }
 
 // foldValues settles the default and the examples from the cone. A value the
@@ -564,7 +627,7 @@ func sameDeprecation(a, b *ir.Deprecation) bool {
 
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
 // settles its docs: neither is bound to a shape. A promotion marks the
-// declaration it read (lowering.Promoter.Deprecation), so the field takes the
+// declaration it read (promotion.Promoter.Deprecation), so the field takes the
 // marker of the declaration whose deprecation it keeps, whichever declaration
 // that is.
 func (f *folding) foldAnnotations() {
@@ -614,7 +677,8 @@ func lastWritten[T any](f *folding, detail string, of func(i int, p *ir.Property
 
 // note records a diagnostic for decls[i], reported when the fold finishes.
 func (f *folding) note(i int, sev ir.Severity, code, format string, args ...any) {
-	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)})
+	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...),
+		at: f.g.Doc.At(f.decls[i].reportAt())})
 }
 
 // foldUnmodeled unions every declaration's Unmodeled into the field's. The keys
@@ -671,13 +735,13 @@ func sameEntry(walk Walk, a, b ir.UnmodeledEntry) bool {
 }
 
 // finish returns the field and, declaration by declaration, what the fold
-// noted there (declaration.reportAt), keeping each declaration the model
-// declares that it lost something of verbatim (keepLosingDeclaration).
+// noted there (note.at), keeping each declaration the model declares that it
+// lost something of verbatim (keepLosingDeclaration).
 func (f *folding) finish() (ir.Property, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	for i, d := range f.decls {
 		for _, n := range f.notes[i] {
-			diags = append(diags, diag.Newf(n.sev, n.code, pointerOnly(d.reportAt()), "%s", n.msg))
+			diags = append(diags, diag.Newf(n.sev, n.code, n.at, "%s", n.msg))
 		}
 		if f.lost[i] && d.via == nil {
 			diags = append(diags, f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)...)

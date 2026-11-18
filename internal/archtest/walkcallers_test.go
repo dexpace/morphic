@@ -79,12 +79,15 @@ var walkCallers = map[string]walkCaller{
 	"ir/irfacts.seedGroups":         {answer: "Index.Partial says the facts read from operations answer for part"},
 	"ir/irfacts.Partial":            {answer: "returns the stop, for the callers above and for Validate's group check"},
 
-	"ir/irtest.SpacesUsed":        {answer: "returns the stop beside the spaces", readers: []string{"ir/irtest.SpacesUsed"}},
-	"ir/irtest.AllocatingVisits":  {answer: "lists a stopped walk as a path"},
-	"internal/census.add":         {answer: "reads the stop"},
+	"ir/irtest.SpacesUsed":       {answer: "returns the stop beside the spaces", readers: []string{"ir/irtest.SpacesUsed"}},
+	"ir/irtest.AllocatingVisits": {answer: "lists a stopped walk as a path"},
+	"internal/census.add":        {answer: "reads the stop"},
+	"internal/harness.carriers": {
+		answer: "a carrier a stopped walk did not reach declines its case as not judged, so no instance is admitted unread",
+	},
 	"engine/report.keptAtOrBelow": {answer: "reads the stop"},
 
-	"compilers/openapi/internal/lowering.UnreadExtensions": {
+	"compilers/openapi/internal/promotion.UnreadExtensions": {
 		answer: "its visitor prunes at every Unmodeled, so it stops only where a visitor shown everything does, and validate reports",
 	},
 }

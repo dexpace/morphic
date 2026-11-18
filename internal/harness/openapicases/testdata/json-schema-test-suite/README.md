@@ -1,0 +1,52 @@
+# Vendored JSON Schema Test Suite
+
+A copy of part of the
+[JSON Schema Test Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite), kept with its
+`LICENSE` (MIT). `SuiteGroups` in `suite.go` reads it, embedded, as the groups that apply at JSON
+Schema 2020-12. `Groups` writes each valid instance of each such group as the default of a use of
+the group's schema, which the instance oracle holds to the type the use compiles to. The binding
+oracle in `compilers/openapi/internal/canary/oracle_test.go` compiles each such group's schema that
+writes a `$ref`, and compares what the compiler binds it to with what the parser library resolves
+it to.
+
+## Revision
+
+The files are byte-identical to upstream `main` at `38dea932b02986f496345bf007108277777630bf`
+(committed 2026-11-11). That is checked by hashing each vendored file with `git hash-object` and
+comparing it with the blob SHA upstream's tree at that commit lists for the same path.
+
+## Selection
+
+The files are `validation/tests/<name>.json` for each top-level test file holding a group that
+applies at 2020-12, kept at upstream's paths. The files holding none are left out, as are
+`optional/` and `proposals/`. A group's `tags` are not read: they say whether it expects `format`
+to assert, and a valid instance of a group expecting an assertion is valid where `format` only
+annotates.
+
+A group applies at a release by its `compatibility` expression, which `compatible` reads by the
+algorithm upstream's `validation/README.md` gives: the terms, joined by commas, are read in order,
+each deciding alone, `N` for a release at or past `N`, `<=N` for one at or before it and `=N` for
+`N` alone, and the first term whose `N` is at or past the release is the last one read. A group
+writing no expression applies at every release. Releases are numbered as the suite numbers them: a
+draft by its number, 2019-09 as `2019` and 2020-12 as `2020`.
+
+A group is named `<file>/<description>`, with `#<n>` after the nth occurrence of a description its
+file repeats, so a refresh renames a group only where upstream renames its description.
+
+## Refreshing
+
+1. Copy `LICENSE` and the selected files from upstream's new commit over these, keeping the paths,
+   and update the revision above.
+2. Run `go test ./internal/harness/openapicases -run TestSuiteGroups` to read them.
+3. Run the oracles that read the groups with `-update`:
+
+   ```bash
+   go test ./compilers/openapi/internal/canary -run TestBindingOracle_AgreesWithTheLibrary -update
+   go test ./internal/harness/openapicases -run 'TestCore_(ValidInstancesAreAdmitted|SpellingsHoldTheRecord)' -update
+   ```
+
+   They rewrite `compilers/openapi/internal/canary/testdata/binding_disagreements.txt` and
+   `internal/harness/openapicases/testdata/instances.txt` and `spelling.txt`, keeping the reason
+   of each line still found and marking a new one `unclassified`.
+4. Give each `unclassified` line a reason its test's reason map names, and run the tests again
+   without `-update`.

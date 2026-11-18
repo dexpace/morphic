@@ -13,7 +13,9 @@ package e2e_test // external test package — exercises only the public API
 import (
 	"cmp"
 	"encoding/json/jsontext"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -311,10 +313,9 @@ const decoratedComponents = `    OldObject: {type: object, deprecated: true, x-d
 // allOf. Over a target admitting no object that is a refinement, whose carriers
 // read the target as the $ref's do. Over an object it is a decorator, which an
 // emitter folds onto the carrier (docs/emitters/refine/decorators.md), so the
-// $ref's carrier holds what that fold reads off the nodes: a live target lends no
-// member, as the fold finds no Deprecation to take Dated's date from. A
-// decorator's member key and `deprecated: false` still part from the $ref
-// (GitHub #1220, #1258).
+// $ref, the same conjunction, lowers to the same decorator, which holds the
+// deprecation, its mark and the kept member key in both spellings (GitHub
+// #1220, #1258, #2024).
 func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -337,17 +338,38 @@ func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 				wrapped := compileClean(t, useSiteSpec("{allOf: ["+ref+"}], "+tc.annotation+"}")+decoratedComponents,
 					openapi.Options{})
 
-				refined := useSitesOf(t, wrapped)
-				for carrier, got := range useSitesOf(t, beside) {
-					want := refined[carrier].deprecation
-					if object {
-						want = foldedDeprecation(t, wrapped)
+				// The two spellings are one conjunction: each carrier and the node it
+				// names hold the same deprecation, mark and kept entry, a decorator
+				// over an object holding them in both (docs/ir/unmodeled.md#promotion).
+				assert.Equal(t, useSitesOf(t, wrapped), useSitesOf(t, beside))
+				for spelling, doc := range map[string]*ir.Document{"beside": beside, "wrapped": wrapped} {
+					if !object {
+						continue
 					}
-					assert.Equal(t, want, got.deprecation, carrier)
+					op, ok := opByName(doc, "x")
+					require.True(t, ok)
+					param, ok := openapitest.ParamBySource(op, "use")
+					require.True(t, ok)
+					decorator := doc.Types[param.Type.Target].Common()
+					assert.Equal(t, foldedDeprecation(t, wrapped), foldedDeprecation(t, doc), spelling)
+					assert.Equal(t, decoratorOf(t, wrapped), string(decorator.Provenance.Inferred)+" "+
+						strings.Join(slices.Sorted(maps.Keys(decorator.Unmodeled)), ","), spelling)
 				}
 			})
 		}
 	}
+}
+
+// decoratorOf is the mark and the kept keys of the node the parameter of doc
+// names, its decorator over an object.
+func decoratorOf(t *testing.T, doc *ir.Document) string {
+	t.Helper()
+	op, ok := opByName(doc, "x")
+	require.True(t, ok)
+	param, ok := openapitest.ParamBySource(op, "use")
+	require.True(t, ok)
+	decorator := doc.Types[param.Type.Target].Common()
+	return string(decorator.Provenance.Inferred) + " " + strings.Join(slices.Sorted(maps.Keys(decorator.Unmodeled)), ",")
 }
 
 // foldedDeprecation is the fold of docs/emitters/refine/decorators.md over the

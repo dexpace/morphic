@@ -1,8 +1,12 @@
 # Constraints and validation
 
-`LowerConstraints` reads `Constraints` on properties, scalars, lists and unions
-([constraints](../../ir/constraints.md)), a union's bounds checking a value of the kind each applies
-to whichever variant holds it ([unions](../../ir/unions.md#bounds-beside-a-union)), and *builds the
+`LowerConstraints` reads `Constraints` on properties, parameters, scalars, models, maps, lists,
+tuples and unions ([constraints](../../ir/constraints.md)), a union's bounds checking a value of the
+kind each applies to whichever variant holds it ([unions](../../ir/unions.md#bounds-beside-a-union)).
+A value is held to the bounds of its carrier and of every node along the reference the carrier
+names, each written once: a carrier holds a bound only where its use owns no node, so a field over a
+model or a map finds its counts on that node
+([annotations](../../ir/annotations.md#one-structural-home-per-declaration)). It *builds the
 structure* of a per-type `Validate()` method — which checks apply to which fields — as typed AST.
 That method is the one validator: no field carries validation metadata, a `validate:"…"` struct tag
 or a registration, since nothing generated reads one and a reflection validator following it is a

@@ -18,6 +18,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,7 +29,7 @@ import (
 // (the response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema, or under the components/mediaTypes entry an
 // entry written as a $ref names (declaredMedia).
-func lowerPayload(c lowering.Ctx, w walk, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
+func lowerPayload(c service.Ctx, w walk, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
 	}
@@ -56,11 +58,11 @@ func lowerPayload(c lowering.Ctx, w walk, content *sequencedmap.Map[string, *soa
 // $ref the entry is written as, use, ends on. entryCtx and entryPtr are where
 // the entry itself is written.
 type mediaDecl struct {
-	ctx      lowering.Ctx
+	ctx      service.Ctx
 	media    *soa.MediaType
 	pointer  jsontext.Pointer
 	use      *resolve.ReferencedMediaType
-	entryCtx lowering.Ctx
+	entryCtx service.Ctx
 	entryPtr jsontext.Pointer
 }
 
@@ -72,7 +74,7 @@ type mediaDecl struct {
 //
 // One declaration lowers at its own pointer however many entries name it, so
 // it interns one type (GitHub #856).
-func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer) (mediaDecl, bool) {
+func declaredMedia(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer) (mediaDecl, bool) {
 	use, isUse := c.MediaTypeUse(media)
 	if !isUse {
 		return mediaDecl{ctx: c, media: media, pointer: mediaPtr, entryCtx: c, entryPtr: mediaPtr}, true
@@ -80,7 +82,7 @@ func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Point
 	if use == nil {
 		return mediaDecl{}, false
 	}
-	obj, dc, decl := lowering.Declared[soa.MediaType](c, use, mediaPtr)
+	obj, dc, decl := service.Declared[soa.MediaType](c, use, mediaPtr)
 	if obj == nil {
 		return mediaDecl{}, false
 	}
@@ -111,7 +113,7 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 // extensions, as d declares them, under mt, the key it is written under.
 func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) {
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
-	mediaType, diags := schema.Ref(c, w.types, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+	mediaType, diags := schema.Ref(c.Ctx, w.types, schema.TopLevelDepth, d.ctx.Statements().Of(media.GetSchema()), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{
 		MediaType: mt,
 		Type:      mediaType,
@@ -150,7 +152,7 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	if d.use != nil {
 		// What the entry's chain writes beside each $ref rides on the Content the
 		// use lowers to, its summary and description folded into Docs above.
-		beside, besideDiags := lowering.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, true)
+		beside, besideDiags := service.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, true)
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, beside)
 		diags = append(diags, besideDiags...)
 	}
@@ -162,7 +164,7 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 // for any of them to name (docs/compilers/openapi.md#multipart-encoding): a
 // file body under a form media type, and any body under a media type that is
 // neither multipart nor form, where OpenAPI gives the field no effect.
-func keepBodyEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
+func keepBodyEncodings(c service.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, mt string) (ir.Unmodeled, []ir.Diagnostic) {
 	why := unkeyedFileEntry
 	if !isFormContent(mt) {
 		why = unkeyedOtherEntry
@@ -187,13 +189,13 @@ func fileBodyType(ts *compile.Types, file *ir.FileInfo, declared ir.TypeRef) ir.
 // isFormContent reports whether a media type is multipart or url-encoded form
 // content, whose parts carry per-property encoding.
 func isFormContent(mt string) bool {
-	return isMultipart(mt) || lowering.NormalizeMediaType(mt) == "application/x-www-form-urlencoded"
+	return isMultipart(mt) || service.NormalizeMediaType(mt) == "application/x-www-form-urlencoded"
 }
 
 // isMultipart reports whether a media type is a multipart one, whose parts can
 // carry raw bytes, as a url-encoded body's cannot.
 func isMultipart(mt string) bool {
-	return strings.HasPrefix(lowering.NormalizeMediaType(mt), "multipart/")
+	return strings.HasPrefix(service.NormalizeMediaType(mt), "multipart/")
 }
 
 // schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,
@@ -212,4 +214,18 @@ func schemaOf(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oa
 		}
 	}
 	return s
+}
+
+// statementOf is schemaOf read as a statement: the schema whose object
+// schemaOf returns (statement.Parsed), and nil where it returns nil.
+func statementOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) *statement.Schema {
+	if schemaOf(c.Bindings(), js) == nil {
+		return nil
+	}
+	if c.Bindings().RefSite(js) {
+		if end := c.Bindings().End(js); end != nil {
+			return c.Statements().Of(end).Schema
+		}
+	}
+	return c.Statements().Of(js).Schema
 }

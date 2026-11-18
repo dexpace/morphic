@@ -8,24 +8,27 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
 // IfThenElseRaw combines the present if/then/else arms into one raw JSON
 // object, and names the arms it combines.
-func IfThenElseRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
+func IfThenElseRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 	return combine(s, "if", "then", "else")
 }
 
 // ContainsRaw combines contains/minContains/maxContains into one raw JSON
 // object, and names the keywords it combines.
-func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
-	if s.GetContains() == nil && s.GetMinContains() == nil && s.GetMaxContains() == nil {
+func ContainsRaw(s *statement.Schema) (ir.RawValue, []string, error) {
+	if s == nil || s.Array == nil {
+		return nil, nil, nil
+	}
+	if a := s.Array; a.Contains == (statement.Sub{}) && a.MinContains == nil && a.MaxContains == nil {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")
@@ -33,7 +36,7 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 
 // ExamplesRaw combines example and examples into one raw JSON object, and names
 // the keywords it combines: Set.Examples holds the two as one list.
-func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
+func ExamplesRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 	return combine(s, "example", "examples")
 }
 
@@ -43,8 +46,8 @@ func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 // apply to (JSON Schema 2020-12 §11.3). It reads the adjacent keyword alone, so
 // an applicator kept verbatim that evaluates a member leaves the closure typed
 // (GitHub #1904).
-func ClosesAfterComposition(s *oas3.Schema) bool {
-	return IsFalseSchema(s.GetUnevaluatedProperties()) && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
+func ClosesAfterComposition(s *statement.Schema) bool {
+	return s.ObjectKeywords().UnevaluatedProperties.Truth().ReadsFalse() && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
 }
 
 // unevaluatedRaw renders the entry holding kept, each inert keyword beside the
@@ -52,7 +55,7 @@ func ClosesAfterComposition(s *oas3.Schema) bool {
 // and names its unevaluated keywords alone, which are what its provenance is
 // asked about: the keyword beside an inert one is context the entry holds
 // whoever wrote it.
-func unevaluatedRaw(s *oas3.Schema, kept []keptUnevaluated) (ir.RawValue, []string, error) {
+func unevaluatedRaw(s *statement.Schema, kept []keptUnevaluated) (ir.RawValue, []string, error) {
 	if len(kept) == 0 {
 		return nil, nil, nil
 	}
@@ -74,17 +77,17 @@ type keptUnevaluated struct {
 // unevaluatedKept returns the unevaluated keywords s writes that an entry
 // keeps, in keyword order. closure says the node took `unevaluatedProperties:
 // false` as its openness, so that form is left out, and dialect says where s's
-// dialect reads the elements past a prefix. It asks the model first, so a
-// schema writing neither, nearly every one, costs no read of its node.
-func unevaluatedKept(s *oas3.Schema, closure bool, dialect Dialect) []keptUnevaluated {
+// dialect reads the elements past a prefix. It asks the typed values first,
+// so a schema writing neither, nearly every one, costs no read of its node.
+func unevaluatedKept(s *statement.Schema, closure bool, dialect Dialect) []keptUnevaluated {
 	var out []keptUnevaluated
 	keep := func(keyword string) {
 		out = append(out, keptUnevaluated{keyword: keyword, inertBy: inertBeside(s, keyword, dialect)})
 	}
-	if up := s.GetUnevaluatedProperties(); Written(up) && (!closure || !IsFalseSchema(up)) {
+	if up := s.ObjectKeywords().UnevaluatedProperties.Truth(); up != statement.Unwritten && (!closure || !up.ReadsFalse()) {
 		keep("unevaluatedProperties")
 	}
-	if Written(s.GetUnevaluatedItems()) {
+	if s.ArrayKeywords().UnevaluatedItems.Truth() != statement.Unwritten {
 		keep("unevaluatedItems")
 	}
 	return out
@@ -111,20 +114,20 @@ func unevaluatedMembers(kept []keptUnevaluated) []string {
 // `items` schema (§10.3.1.2), or, where dialect reads an `items` list as a
 // tuple, the additionalItems written beside it (2019-09 §9.3.1.2). An `items`
 // list any other dialect reads is no schema, and evaluates nothing.
-func inertBeside(s *oas3.Schema, keyword string, dialect Dialect) string {
+func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 	if keyword == "unevaluatedProperties" {
-		if Written(s.GetAdditionalProperties()) {
+		if s.ObjectKeywords().AdditionalProperties.Truth() != statement.Unwritten {
 			return "additionalProperties"
 		}
 		return ""
 	}
-	if items := RawPropertyNode(s, "items"); items != nil && items.Kind == yaml.SequenceNode {
-		if dialect.ListedTuple && RawPropertyNode(s, "additionalItems") != nil {
+	if items := keyNode(s, "items"); items != nil && items.Kind == yaml.SequenceNode {
+		if dialect.ListedTuple && keyNode(s, "additionalItems") != nil {
 			return "additionalItems"
 		}
 		return ""
 	}
-	if Written(s.GetItems()) {
+	if s.ArrayKeywords().Items.Truth() != statement.Unwritten {
 		return "items"
 	}
 	return ""
@@ -162,7 +165,7 @@ func unevaluatedNote(kept []keptUnevaluated) string {
 // are what its provenance is asked about (GitHub #534). They are named beside a
 // conversion error as well, because the report that stands in for an entry that
 // could not be kept is attributed as the entry would have been.
-func combine(s *oas3.Schema, keys ...string) (ir.RawValue, []string, error) {
+func combine(s *statement.Schema, keys ...string) (ir.RawValue, []string, error) {
 	members, written, err := presentMembers(s, keys...)
 	if err != nil || len(members) == 0 {
 		return nil, written, err
@@ -180,12 +183,12 @@ func combine(s *oas3.Schema, keys ...string) (ir.RawValue, []string, error) {
 // member would restate GitHub #144 in miniature. The error names the first such
 // member, and the keywords present are returned in full even then, since the
 // report of the failure is attributed by all of them.
-func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, []string, error) {
+func presentMembers(s *statement.Schema, keys ...string) ([]rawMember, []string, error) {
 	var members []rawMember
 	var present []string
 	var failed error
 	for _, k := range keys {
-		node := RawPropertyNode(s, k)
+		node := keyNode(s, k)
 		if node == nil {
 			continue
 		}
@@ -241,7 +244,7 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // (schema.foldEntry), and closure is unevaluatedKept's.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -272,27 +275,31 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), note)...)
 	}
 
-	if Written(s.GetNot()) {
+	if s.LogicKeywords().Not.Truth() != statement.Unwritten {
 		keepKeyword("not")
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
 	if ite != nil || iteErr != nil {
 		keep("openapi:if-then-else", ite, iteErr, validationOnlyMessage("if/then/else"), iteKeys...)
 	}
-	if ds := s.GetDependentSchemas(); ds != nil && ds.Len() > 0 {
+	// An empty dependency map is the keyword left out, and keeps nothing
+	// (docs/compilers/openapi.md#validation-only).
+	if s != nil && s.Logic != nil && len(s.Logic.DependentSchemas) > 0 {
 		keepKeyword("dependentSchemas")
 	}
 	// dependentRequired has no oas3.Schema field to gate on
 	// (docs/parser-library.md#unmodeled-keywords), which is why it was once
 	// silently dropped where its sibling dependentSchemas was kept. Its raw node
 	// is the only reading, and an absent one keeps nothing.
-	keepKeyword("dependentRequired")
-	if dialect.Dependencies {
+	if !WritesEmptyDependencyMap(s, "dependentRequired") {
+		keepKeyword("dependentRequired")
+	}
+	if dialect.Dependencies && !WritesEmptyDependencyMap(s, "dependencies") {
 		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
 		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")
 	}
-	if Written(s.GetPropertyNames()) {
+	if s.ObjectKeywords().PropertyNames.Truth() != statement.Unwritten {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)

@@ -622,6 +622,12 @@ func TestContentVocabulary_KeptWhereNoEncodingHolds(t *testing.T) {
 			schemas: "    A: {type: integer, format: unixtime, contentEncoding: base64}\n",
 			key:     "openapi:contentEncoding", wantJSON: `"base64"`, at: componentID("A"),
 		},
+		{
+			name: "a union of one type's branches has no Encoding",
+			schemas: "    A: {type: string, contentMediaType: application/zip, " +
+				"oneOf: [{type: string, format: uuid}, {type: string, format: email}]}\n",
+			key: "openapi:contentMediaType", wantJSON: `"application/zip"`, at: componentID("A"),
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

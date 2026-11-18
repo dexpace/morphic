@@ -3,7 +3,8 @@ openapi: 3.1.0
 # keyword no effect. The nullable-inference policy reads `nullable: true` as
 # admitting null all the same, and marks each reference whose null only that
 # reading admits. `declared` admits null by its type array, so its reference is
-# not marked, and `nullable: false` reads as nothing.
+# not marked, and `nullable: false`, which the policy does not read, is kept as
+# an unknown keyword.
 info: {title: NullableKeyword31, version: "1.0.0"}
 paths: {}
 components:

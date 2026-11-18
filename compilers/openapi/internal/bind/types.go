@@ -72,8 +72,9 @@ const (
 	// parser's model holds.
 	Schema
 	// Raw is YAML the model keeps as written, or a node of another document: an
-	// extension, a key no object defines, a literal such as an example. A
-	// reference reads it as a schema.
+	// extension, a key no object defines, a literal such as an example, or a
+	// schema beneath a field whose content no model holds (unheld). A reference
+	// reads it as a schema.
 	Raw
 	// Object is any other object or value of the grammar, which no schema
 	// reference may name.

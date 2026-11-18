@@ -60,7 +60,7 @@
   ],
   "types": {
     "t/anon/components/schemas/Combo/oneOf/0": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Combo/oneOf/0",
       "name": {
         "hint": "a"
@@ -75,7 +75,10 @@
       "base": {
         "target": "t/openapi/components/schemas/A",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/InlineHost/oneOf/0": {
       "kind": "scalar",
@@ -96,6 +99,52 @@
         "target": "t/prim/integer",
         "nullable": false
       }
+    },
+    "t/anon/components/schemas/MixedKinds/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/MixedKinds/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedKinds/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MixedKinds/oneOf/1/properties/i",
+          "name": {
+            "source": "i",
+            "canonical": "i"
+          },
+          "wireName": "i",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MixedKinds/oneOf/1/properties/i"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/composed/components/schemas/Combo/oneOf/0": {
       "kind": "model",
@@ -252,7 +301,7 @@
         }
       ],
       "base": {
-        "target": "t/prim/string",
+        "target": "t/anon/components/schemas/MixedKinds/oneOf/1",
         "nullable": false
       },
       "abstract": false,
@@ -581,6 +630,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf/2": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MixedKinds/oneOf/2"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MixedKinds"
@@ -708,6 +769,15 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the body beside this oneOf admits objects alone, and 1 of its branches admits no object (oneOf/2: string), so no instance satisfies it: it is no variant of the union, kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedKinds"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/composition-lowering",
       "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
@@ -730,7 +800,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "1486e94170f16b4d73de46cf2421584dc29e33c8753d8ecd8a3d0dcb27e3f491"
+      "hash": "74f9229d817d9aeca9e11a16236748bf447e1d7967c77d961bbf0de85b768100"
     }
   ]
 }

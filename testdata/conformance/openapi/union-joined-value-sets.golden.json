@@ -1,0 +1,811 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "JoinedValueSets",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "JoinedValueSets",
+        "canonical": "joined_value_sets"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Many/allOf/0": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Many/allOf/0",
+      "name": {
+        "hint": "many"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_2"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/2",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_3"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/3",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_4"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/4",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_5"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/5",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_6"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/6",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_7"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/7",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_8"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/8",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_9"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Many/allOf/0/oneOf/9",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/0": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/0"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/0/s:v1",
+          "name": {
+            "source": "v1",
+            "canonical": "v_1"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v1"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/1"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/1/s:v2",
+          "name": {
+            "source": "v2",
+            "canonical": "v_2"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v2"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/2": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/2",
+      "name": {
+        "hint": "variant_2"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/2"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/2/s:v3",
+          "name": {
+            "source": "v3",
+            "canonical": "v_3"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v3"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/3": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/3",
+      "name": {
+        "hint": "variant_3"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/3"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/3/s:v4",
+          "name": {
+            "source": "v4",
+            "canonical": "v_4"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v4"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/4": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/4",
+      "name": {
+        "hint": "variant_4"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/4"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/4/s:v5",
+          "name": {
+            "source": "v5",
+            "canonical": "v_5"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v5"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/5": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/5",
+      "name": {
+        "hint": "variant_5"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/5"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/5/s:v6",
+          "name": {
+            "source": "v6",
+            "canonical": "v_6"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v6"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/6": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/6",
+      "name": {
+        "hint": "variant_6"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/6"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/6/s:v7",
+          "name": {
+            "source": "v7",
+            "canonical": "v_7"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v7"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/7": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/7",
+      "name": {
+        "hint": "variant_7"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/7"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/7/s:v8",
+          "name": {
+            "source": "v8",
+            "canonical": "v_8"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v8"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/8": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/8",
+      "name": {
+        "hint": "variant_8"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/8"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/8/s:v9",
+          "name": {
+            "source": "v9",
+            "canonical": "v_9"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v9"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Many/allOf/0/oneOf/9": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Many/allOf/0/oneOf/9",
+      "name": {
+        "hint": "variant_9"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/0/oneOf/9"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Many/allOf/0/oneOf/9/s:v10",
+          "name": {
+            "source": "v10",
+            "canonical": "v_10"
+          },
+          "value": {
+            "kind": "string",
+            "str": "v10"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Shared/allOf/0": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Shared/allOf/0",
+      "name": {
+        "hint": "shared"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared/allOf/0"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Shared/allOf/0/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Shared/allOf/0/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Shared/allOf/0/anyOf/0": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Shared/allOf/0/anyOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared/allOf/0/anyOf/0"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/0/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/0/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Shared/allOf/0/anyOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Shared/allOf/0/anyOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared/allOf/0/anyOf/1"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/1/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Shared/allOf/0/anyOf/1/s:c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "value": {
+            "kind": "string",
+            "str": "c"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Many": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Many",
+      "name": {
+        "source": "Many",
+        "canonical": "many"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:enum": {
+          "reason": "degraded_lowering",
+          "value": [
+            "v3",
+            "zz"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Many/allOf/1/enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Many/allOf/0",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Nested": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Nested",
+      "name": {
+        "source": "Nested",
+        "canonical": "nested"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                "s1",
+                "s2",
+                "s3",
+                "s4",
+                "s5"
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "enum": [
+                    "p",
+                    "q"
+                  ]
+                },
+                {
+                  "enum": [
+                    "s1"
+                  ]
+                }
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Nested/allOf/0/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Nested"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Nested/s:s1",
+          "name": {
+            "source": "s1",
+            "canonical": "s_1"
+          },
+          "value": {
+            "kind": "string",
+            "str": "s1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/Nested/s:p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "value": {
+            "kind": "string",
+            "str": "p"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Shared": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Shared",
+      "name": {
+        "source": "Shared",
+        "canonical": "shared"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:enum": {
+          "reason": "degraded_lowering",
+          "value": [
+            "b",
+            "x"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Shared/allOf/1/enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Shared/allOf/0",
+        "nullable": false
+      }
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for enum written on this inline branch; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for enum written on this inline branch; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Many/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for anyOf written on this inline branch; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Nested/allOf/0"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "union-joined-value-sets.yaml",
+      "hash": "e401435bbdd9c190991401afeb6397c66802dd8baa29dd2f11c3c88d9955a473"
+    }
+  ]
+}

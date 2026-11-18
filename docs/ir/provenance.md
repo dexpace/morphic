@@ -40,8 +40,12 @@ and `OAuthFlow` have none either, and record a promotion in an `Inferred` of the
 read a body or a part as a file, and `ContentStream` the one that read a content as a stream
 ([payloads](./payloads.md)): a marker on the operation's own `Provenance`, which a guessed stream
 also takes as the summary's, could not say which of its contents or parts the guess made a file or
-a stream. The IR declares no set of markers ([promotion](./unmodeled.md#promotion)), so a compiler
-names its own; the OpenAPI compiler's tell a promoted fact from an inferred one by name
+a stream. A type node's own `Inferred` names the heuristic that chose its kind where no keyword
+declared one, as the OpenAPI compiler's kind-inference policy does for a schema whose shape keywords
+alone speak of its kind, and for a model composing conjuncts none of which declares it
+([`shape-applicator`](../compilers/openapi.md#shape-applicator)). The IR
+declares no set of markers ([promotion](./unmodeled.md#promotion)), so a compiler names its own; the
+OpenAPI compiler's tell a promoted fact from an inferred one by name
 ([`policies`](../compilers/openapi.md#policies)).
 
 **`Source` is where, `WrittenBy` is who.** An overlay patches a document in place, so what it

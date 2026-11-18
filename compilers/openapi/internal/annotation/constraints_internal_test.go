@@ -50,7 +50,7 @@ func TestCountIsExact(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			s := schemaFromYAMLUnvalidated(t, "minItems: "+tc.literal)
-			assert.Equal(t, tc.exact, CountIsExact(s, "minItems", &tc.count))
+			assert.Equal(t, tc.exact, CountIsExact(standaloneSchema(s), "minItems", &tc.count))
 		})
 	}
 }
@@ -59,8 +59,8 @@ func TestCountIsExact(t *testing.T) {
 // keyword not written: no count from the model, and no node to hold it to.
 func TestCountIsExact_NeedsBothReadings(t *testing.T) {
 	t.Parallel()
-	assert.False(t, CountIsExact(schemaFromYAMLUnvalidated(t, "minItems: 3"), "minItems", nil))
-	assert.False(t, CountIsExact(&oas3.Schema{}, "minItems", new(int64(3))))
+	assert.False(t, CountIsExact(standaloneSchema(schemaFromYAMLUnvalidated(t, "minItems: 3")), "minItems", nil))
+	assert.False(t, CountIsExact(standaloneSchema(&oas3.Schema{}), "minItems", new(int64(3))))
 }
 
 func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
@@ -68,7 +68,7 @@ func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
 	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: new(5.0)}}
 	c := &ir.Constraints{}
 	residue := boundResidue{pointer: "/p"}
-	diags := applyExclusive(c, s, minBound, &residue, false)
+	diags := applyExclusive(c, standaloneSchema(s), minBound, &residue, false)
 	// The numeric arm is taken (2020-12 dialect, numeric value) but there is no raw
 	// node to read the exact literal from, so nothing is set and no diagnostic.
 	assert.Nil(t, diags)
@@ -103,7 +103,7 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 	s := schemaFromYAML(t, "type: string\nminimum: 1\nmaximum: 9\nmultipleOf: 3\n"+
 		"minLength: 2\nmaxLength: 8\npattern: '^a'\nminProperties: 1\nmaxProperties: 4\n")
 
-	got, _, diags := Constraints(s, AllBounds, false, "/p", sourced(0))
+	got, _, diags := Constraints(standaloneSchema(s), AllBounds, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -123,7 +123,7 @@ func TestConstraints_ReadsEveryScalarKeyword(t *testing.T) {
 // wrote.
 func TestConstraints_NothingDeclaredIsNilNotEmpty(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: string\n"), AllBounds, false, "/p", sourced(0))
+	got, _, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: string\n")), AllBounds, false, "/p", sourced(0))
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 
@@ -139,7 +139,7 @@ func TestConstraints_KeepsTheExactLiteral(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: number\nminimum: 9007199254740993\nmaximum: 0.30000000000000004\n")
 
-	got, _, diags := Constraints(s, AllBounds, false, "/p", sourced(0))
+	got, _, diags := Constraints(standaloneSchema(s), AllBounds, false, "/p", sourced(0))
 
 	require.Empty(t, diags)
 	require.NotNil(t, got)
@@ -156,7 +156,7 @@ func TestNumericBounds_AMalformedLiteralIsDropped(t *testing.T) {
 	for _, keyword := range []string{"minimum", "maximum", "multipleOf"} {
 		t.Run(keyword, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n"), AllBounds, false, "/p", sourced(0))
+			got, _, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\n"+keyword+": .inf\n")), AllBounds, false, "/p", sourced(0))
 
 			assert.Empty(t, diags)
 			assert.Nil(t, got, "the bound is dropped rather than half-read")
@@ -183,6 +183,11 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 			wantExclMin: new(ir.BigVal("1")), wantExclMax: new(ir.BigVal("9")),
 		},
 		{
+			name: "3.0 flag the model reads from a string, as it reads yes", exclusiveBoolean: true,
+			body:        "minimum: 5\nexclusiveMinimum: yes\n",
+			wantExclMin: new(ir.BigVal("5")),
+		},
+		{
 			name: "3.0 false leaves the bound inclusive", exclusiveBoolean: true,
 			body:    "minimum: 1\nexclusiveMinimum: false\n",
 			wantMin: new(ir.BigVal("1")),
@@ -196,7 +201,7 @@ func TestApplyExclusive_BothDialects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
+			got, _, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\n"+tc.body)), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
 
 			require.Empty(t, diags)
 			require.NotNil(t, got)
@@ -231,7 +236,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
+			got, _, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\n"+tc.body)), AllBounds, tc.exclusiveBoolean, "/p", sourced(0))
 
 			assert.Empty(t, diags)
 			require.NotNil(t, got, "the sibling minimum is still read")
@@ -247,7 +252,7 @@ func TestApplyExclusive_TheWrongFormForTheDialectIsDropped(t *testing.T) {
 // reports it (docs/compilers/openapi.md#constraints).
 func TestApplyExclusive_AMalformedNumericBoundIsDropped(t *testing.T) {
 	t.Parallel()
-	got, _, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n"), AllBounds, false, "/p", sourced(0))
+	got, _, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\nexclusiveMaximum: .inf\n")), AllBounds, false, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Nil(t, got)
@@ -318,7 +323,7 @@ func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, false, "/p", sourced(3))
+			got, kept, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\n"+tc.body)), AllBounds, false, "/p", sourced(3))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -337,8 +342,8 @@ func TestConstraints_CoDeclaredBoundsBothReachAField(t *testing.T) {
 // round or fail; ir.NewBigVal keeps the text, and both keywords keep their own.
 func TestConstraints_ABoundNoFloatHoldsIsCarriedVerbatim(t *testing.T) {
 	t.Parallel()
-	got, kept, diags := Constraints(schemaFromYAMLUnvalidated(t,
-		"type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\nmaximum: 1e-1000001\nexclusiveMaximum: 5\n"),
+	got, kept, diags := Constraints(standaloneSchema(schemaFromYAMLUnvalidated(t,
+		"type: number\nminimum: 1.0e2000000\nexclusiveMinimum: 5\nmaximum: 1e-1000001\nexclusiveMaximum: 5\n")),
 		AllBounds, false, "/p", sourced(0))
 
 	require.NotNil(t, got)
@@ -366,7 +371,7 @@ func TestConstraints_OneKeywordPerSideKeepsNothing(t *testing.T) {
 	} {
 		t.Run(body, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+body), AllBounds, false, "/p", sourced(0))
+			got, kept, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\n"+body)), AllBounds, false, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			assert.Empty(t, diags)
@@ -410,7 +415,7 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, kept, diags := Constraints(schemaFromYAML(t, "type: number\n"+tc.body), AllBounds, true, "/p", sourced(0))
+			got, kept, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\n"+tc.body)), AllBounds, true, "/p", sourced(0))
 
 			require.NotNil(t, got)
 			if diff := cmp.Diff(tc.want, *got); diff != "" {
@@ -432,8 +437,8 @@ func TestApplyExclusiveFlag_ThreeZeroModifierMovesTheBound(t *testing.T) {
 // residue on each must keep both entries.
 func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) {
 	t.Parallel()
-	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n"), AllBounds, true, "/p", sourced(3))
+	got, kept, diags := Constraints(standaloneSchema(schemaFromYAML(t,
+		"type: number\nexclusiveMinimum: true\nexclusiveMaximum: true\n")), AllBounds, true, "/p", sourced(3))
 
 	assert.Nil(t, got, "a modifier that bounds nothing leaves no constraint behind")
 	require.Len(t, kept, 2, "each side keeps its own modifier; got %v", kept)
@@ -467,7 +472,7 @@ func TestApplyExclusiveFlag_AModifierWithNoBoundIsKeptAndReported(t *testing.T) 
 // rewrote just that keyword is who the kept entry names.
 func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 	t.Parallel()
-	_, kept, diags := Constraints(schemaFromYAML(t, "type: number\nexclusiveMinimum: true\n"),
+	_, kept, diags := Constraints(standaloneSchema(schemaFromYAML(t, "type: number\nexclusiveMinimum: true\n")),
 		AllBounds, true, "/p", overlaid("/p/exclusiveMinimum"))
 
 	entry, ok := kept["openapi:exclusiveMinimum"]
@@ -485,8 +490,8 @@ func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 // to report (docs/compilers/openapi.md#constraints), so nothing is said here.
 func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 	t.Parallel()
-	got, kept, diags := Constraints(schemaFromYAML(t,
-		"type: number\nminimum: .inf\nexclusiveMinimum: true\n"), AllBounds, true, "/p", sourced(3))
+	got, kept, diags := Constraints(standaloneSchema(schemaFromYAML(t,
+		"type: number\nminimum: .inf\nexclusiveMinimum: true\n")), AllBounds, true, "/p", sourced(3))
 
 	assert.Nil(t, got, "an unreadable bound leaves no constraint behind")
 	assert.Empty(t, kept, "the modifier modifies a bound that was written; it is no orphan")
@@ -499,6 +504,6 @@ func TestApplyExclusiveFlag_AnUnreadableBoundIsNotAMissingOne(t *testing.T) {
 func TestExactCount_StatesOnlyAnExactCount(t *testing.T) {
 	t.Parallel()
 	exact := new(int64(3))
-	assert.Same(t, exact, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 3"), "minLength", exact))
-	assert.Nil(t, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 99999999999999999999"), "minLength", new(int64(0))))
+	assert.Same(t, exact, ExactCount(standaloneSchema(schemaFromYAMLUnvalidated(t, "minLength: 3")), "minLength", exact))
+	assert.Nil(t, ExactCount(standaloneSchema(schemaFromYAMLUnvalidated(t, "minLength: 99999999999999999999")), "minLength", new(int64(0))))
 }

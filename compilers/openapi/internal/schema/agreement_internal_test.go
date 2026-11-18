@@ -51,8 +51,8 @@ func TestAgreement_ReadsABoundInTheDialectOfItsSchemas(t *testing.T) {
 	for version, met := range map[string]*ir.Constraints{"3.0.3": nil, "3.1.0": {ExclusiveMin: new(ir.BigVal("6"))}} {
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, "    A: {type: string}\n"))
 		a := newAgreement(l.Ctx)
-		a.write(conjunct("{exclusiveMinimum: 5}"))
-		a.write(conjunct("{exclusiveMinimum: 6}"))
+		a.write(StandaloneSchema(conjunct("{exclusiveMinimum: 5}")))
+		a.write(StandaloneSchema(conjunct("{exclusiveMinimum: 6}")))
 		assert.Equal(t, met, a.bounds["exclusiveMinimum"].met, version)
 		assert.False(t, a.apart("exclusiveMinimum"), version)
 	}

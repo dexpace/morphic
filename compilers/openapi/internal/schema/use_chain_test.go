@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -392,4 +393,32 @@ components:
 	}
 	assert.Nil(t, propertyOf(t, doc, "H", "k").Default)
 	assert.NotNil(t, propertyOf(t, doc, "H", "g").Default)
+}
+
+// TestUseOf_AReferenceTheTableDidNotReadLendsNothing pins a use of a chain of
+// three aliases whose middle one, and a property beside it, write a $ref
+// merged in past nodeview.MergeDepthLimit, which the parser's model holds and
+// the table never read: each lands nowhere and lends nothing past it, so a
+// property naming the chain takes its first hop's words and the other none,
+// its own lying past the bound too, and each such $ref is reported
+// unresolved.
+func TestUseOf_AReferenceTheTableDidNotReadLendsNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n"+
+		"x-deep: &deep "+openapitest.NestedMerges(nodeview.MergeDepthLimit,
+		"{$ref: '#/components/schemas/C', description: deep}")+"\n"+
+		"components:\n  schemas:\n"+
+		"    A: {$ref: '#/components/schemas/B', description: a}\n"+
+		"    B: {<<: *deep}\n"+
+		"    C: {type: string, description: c, deprecated: true}\n"+
+		"    Holder: {type: object, properties: {p: {$ref: '#/components/schemas/A'}, q: {<<: *deep}}}\n")
+	p := propertyOf(t, doc, "Holder", "p")
+	assert.Equal(t, componentID("A"), p.Type.Target)
+	assert.Equal(t, "a", p.Docs.Description, "the first hop's words")
+	assert.Nil(t, p.Deprecation, "nothing past the unread $ref is lent")
+	q := propertyOf(t, doc, "Holder", "q")
+	assert.Equal(t, ir.TypeID("t/prim/any"), q.Type.Target)
+	assert.Empty(t, q.Docs.Description, "its words lie past the merge bound, which are not read")
+	assert.Nil(t, q.Deprecation)
+	assert.Len(t, withCode(diags, diag.UnresolvedRef), 2, "B's and q's")
 }

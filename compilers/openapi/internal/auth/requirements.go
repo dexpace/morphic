@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,7 +30,7 @@ import (
 // does one under a local tag, with none (#1368). A list of entries naming no
 // option (namesAnOption) yields none, beside the loader's report, and collapses
 // to nil, since [] would read as public.
-func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
+func (r *Registry) Requirements(c service.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
 	}
@@ -62,7 +63,7 @@ func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement,
 // A key names a securitySchemes entry of the source, matched exactly, so a typo
 // is reported and never guessed at, unless the table reads it as a reference
 // (scheme).
-func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, pointer jsontext.Pointer,
+func (r *Registry) requirement(c service.Ctx, req *soa.SecurityRequirement, pointer jsontext.Pointer,
 ) (ir.AuthRequirement, []ir.Diagnostic) {
 	var uses []ir.SchemeUse
 	var diags []ir.Diagnostic
@@ -82,7 +83,7 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 // as a URI and it names no entry of the source, the table reads it as a
 // reference, against the document writing it (bind.Config.KeysByURI); any other
 // key is the name of an entry of the source.
-func (r *Registry) scheme(c lowering.Ctx, key string, pointer jsontext.Pointer) (ir.AuthID, []ir.Diagnostic) {
+func (r *Registry) scheme(c service.Ctx, key string, pointer jsontext.Pointer) (ir.AuthID, []ir.Diagnostic) {
 	if t := c.Bindings().Table(); t != nil {
 		if ref, isRef := t.Reference(c.Position(pointer.AppendToken(key)), bind.RefSecurityScheme); isRef {
 			return r.referenced(c, key, ref, pointer)
@@ -96,7 +97,7 @@ func (r *Registry) scheme(c lowering.Ctx, key string, pointer jsontext.Pointer) 
 // mechanism, saying why where the key is a reference that lands nowhere.
 // "Unresolved", not "undeclared": the name may be declared as a $ref resolving
 // to nothing, or as an entry naming no mechanism (#294).
-func (r *Registry) named(c lowering.Ctx, key, name string, pointer jsontext.Pointer, why string,
+func (r *Registry) named(c service.Ctx, key, name string, pointer jsontext.Pointer, why string,
 ) (ir.AuthID, []ir.Diagnostic) {
 	id := ids.Auth(name)
 	if _, declared := r.byID[id]; declared {
@@ -111,7 +112,7 @@ func (r *Registry) named(c lowering.Ctx, key, name string, pointer jsontext.Poin
 // that entry's, and any other Security Scheme Object lowered once where it is
 // declared (landed). One landing on none is minted from the key and the
 // document writing it, so one key in two documents is two schemes.
-func (r *Registry) referenced(c lowering.Ctx, key string, ref bind.Reference, pointer jsontext.Pointer,
+func (r *Registry) referenced(c service.Ctx, key string, ref bind.Reference, pointer jsontext.Pointer,
 ) (ir.AuthID, []ir.Diagnostic) {
 	if ref.Chain.Status != bind.Resolved {
 		if name, ok := sourceEntry(c, key); ok {
@@ -130,7 +131,7 @@ func (r *Registry) referenced(c lowering.Ctx, key string, ref bind.Reference, po
 // sourceEntry returns the name of the entry of the source's securitySchemes
 // key names, read as a reference against the document c reads, declared or
 // not, so a URI and the name it spells are one scheme.
-func sourceEntry(c lowering.Ctx, key string) (string, bool) {
+func sourceEntry(c service.Ctx, key string) (string, bool) {
 	pointer, ok := c.RefScope().InternalPointer(key)
 	if !ok {
 		return "", false
@@ -154,8 +155,8 @@ func whyNot(ref bind.Reference) string {
 // first decides nothing. One naming no mechanism, or that nothing could be
 // built for, is minted in the space ir reserves for that kind, at its position
 // in its document, as a key naming nothing is (ids.Document.UnresolvedAuth).
-func (r *Registry) landed(c lowering.Ctx, end bind.Position) (ir.AuthID, []ir.Diagnostic) {
-	dc, read := lowering.InDocument(c, end.Doc)
+func (r *Registry) landed(c service.Ctx, end bind.Position) (ir.AuthID, []ir.Diagnostic) {
+	dc, read := service.InDocument(c, end.Doc)
 	id := dc.IDs().Auth(end.Pointer)
 	if _, lowered := r.byID[id]; lowered {
 		return id, nil
@@ -182,16 +183,16 @@ func (r *Registry) landed(c lowering.Ctx, end bind.Position) (ir.AuthID, []ir.Di
 // landingName returns the name of the Security Scheme Object at end: the key it
 // is declared under, and at a document's root, which no key names, the
 // document's name, as a schema there is named (lowering.NameOfDocument).
-func landingName(c lowering.Ctx, end bind.Position) string {
+func landingName(c service.Ctx, end bind.Position) string {
 	if end.Pointer == "" {
-		return lowering.NameOfDocument(c, end.Doc)
+		return lowering.NameOfDocument(c.Ctx, end.Doc)
 	}
 	return end.Pointer.LastToken()
 }
 
 // unresolvedDiag reports, at pointer, the requirement key key naming no scheme
 // with a mechanism, with clauses saying more.
-func unresolvedDiag(c lowering.Ctx, pointer jsontext.Pointer, key, clauses string) ir.Diagnostic {
+func unresolvedDiag(c service.Ctx, pointer jsontext.Pointer, key, clauses string) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
 		"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism%s",
 		key, clauses)
@@ -201,8 +202,8 @@ func unresolvedDiag(c lowering.Ctx, pointer jsontext.Pointer, key, clauses strin
 // writes under key, each kept once, at its first occurrence, beside a warning at
 // each repeat: the scopes a scheme is required to hold are a set. Scopes compare
 // as the text written, and one scheme's list folds apart from another's.
-func requiredScopes(c lowering.Ctx, written []string, key string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
-	scopes, repeats := lowering.FirstOccurrences(written)
+func requiredScopes(c service.Ctx, written []string, key string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	scopes, repeats := service.FirstOccurrences(written)
 	diags := make([]ir.Diagnostic, 0, len(repeats))
 	for _, r := range repeats {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, pointer+ids.Ptr(key, strconv.Itoa(r.At)),

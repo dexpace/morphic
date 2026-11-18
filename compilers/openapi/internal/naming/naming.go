@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // MaxHops bounds how many $refs one name follows through composition
@@ -63,10 +64,28 @@ func (n *Namer) At(p bind.Position) string {
 // other depend on which was asked first.
 func (n *Namer) at(p bind.Position, hops int) string {
 	hint, branch, _ := n.walk(p)
-	if branch {
+	if branch && !n.conjoined(p) {
 		hint = n.branch(p, hint, hops)
 	}
 	return hint
+}
+
+// conjoined reports whether the schema at p writes a key beside its reference
+// that it reads (statement.ReadBeside), which makes it the conjunction of the
+// two, a node of the position's own, named by its position as any other
+// (docs/compilers/openapi.md#naming); a reference alone is named after what it
+// names.
+func (n *Namer) conjoined(p bind.Position) bool {
+	if n.table == nil {
+		return false
+	}
+	e, ok := n.table.Entry(p)
+	if !ok {
+		return false
+	}
+	return slices.ContainsFunc(n.view(p.Doc).MappingPairs(n.node(p.Doc, p.Pointer)), func(kv nodeview.Pair) bool {
+		return statement.ReadBeside(kv.Key, kv.Val, e.Keyword)
+	})
 }
 
 // walk names p from its owner down the structure to it (steps), reading the

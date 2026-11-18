@@ -78,7 +78,7 @@
       }
     },
     "t/anon/components/schemas/Pet/properties/keepers/items": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/anon/components/schemas/Pet/properties/keepers/items",
       "name": {
         "hint": "keeper"
@@ -95,10 +95,36 @@
       "base": {
         "target": "t/openapi/components/schemas/Person",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Pet/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Pet/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The pet's owner."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet/properties/owner"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Person",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Owner": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Owner",
       "name": {
         "source": "Owner",
@@ -116,7 +142,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Person",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Person": {
       "kind": "model",
@@ -190,7 +219,7 @@
           },
           "wireName": "owner",
           "type": {
-            "target": "t/openapi/components/schemas/Person",
+            "target": "t/anon/components/schemas/Pet/properties/owner",
             "nullable": true,
             "inferred": "nullable-inference"
           },
@@ -209,9 +238,7 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {
-            "description": "The pet's owner."
-          },
+          "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Pet/properties/owner"

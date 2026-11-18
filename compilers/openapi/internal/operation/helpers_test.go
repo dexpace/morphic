@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"iter"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -13,11 +14,12 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -62,22 +64,22 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 // than routing one through the compiler's public options, because grouping is
 // the only thing these tests vary and the projection in between is the
 // compiler's business, not theirs.
-func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
+func serviceWithGrouping(t *testing.T, src string, grouping service.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
-	return serviceUnder(t, src, lowering.Policy{Grouping: grouping})
+	return serviceUnder(t, src, service.Policy{Grouping: grouping})
 }
 
 // serviceByExtension is serviceWithGrouping under GroupByExtension, reading
 // ext. It takes ext as it is, with no default filled in: that is the
 // compiler's options' business.
-func serviceByExtension(t *testing.T, src string, ext lowering.GroupingExtension) (ir.Service, []ir.Diagnostic) {
+func serviceByExtension(t *testing.T, src string, ext service.GroupingExtension) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
-	return serviceUnder(t, src, lowering.Policy{Grouping: lowering.GroupByExtension, GroupingExtension: ext})
+	return serviceUnder(t, src, service.Policy{Grouping: service.GroupByExtension, GroupingExtension: ext})
 }
 
 // serviceUnder runs the service walk under policy, with every diagnostic
 // after the load deduplicated as the compiler does.
-func serviceUnder(t *testing.T, src string, policy lowering.Policy) (ir.Service, []ir.Diagnostic) {
+func serviceUnder(t *testing.T, src string, policy service.Policy) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	var acc compile.Diags
 	svc, loadDiags := walkService(t, src, policy, acc.AppendAll)
@@ -91,7 +93,7 @@ func serviceUnder(t *testing.T, src string, policy lowering.Policy) (ir.Service,
 func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	var reported []ir.Diagnostic
-	svc, _ := walkService(t, src, lowering.Policy{Grouping: lowering.GroupByTags}, func(diags []ir.Diagnostic) {
+	svc, _ := walkService(t, src, service.Policy{Grouping: service.GroupByTags}, func(diags []ir.Diagnostic) {
 		reported = append(reported, diags...)
 	})
 	return svc, reported
@@ -101,15 +103,15 @@ func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 // walk itself under policy and the link resolution after it, handing report
 // each phase's diagnostics in turn.
 // It returns the service and the load's diagnostics.
-func walkService(t *testing.T, src string, policy lowering.Policy, report func([]ir.Diagnostic)) (ir.Service, []ir.Diagnostic) {
+func walkService(t *testing.T, src string, policy service.Policy, report func([]ir.Diagnostic)) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 
 	types := compile.NewTypes()
-	c := lowering.New(0, loadedDoc, policy)
-	report(schema.LowerComponentSchemas(t.Context(), c, types))
+	c := service.New(0, loadedDoc, policy)
+	report(schema.LowerComponentSchemas(t.Context(), c.Ctx, types, componentStatements(c)))
 
 	declared, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
@@ -174,3 +176,15 @@ paths:
               examples:
                 empty: {summary: no value here}
 `
+
+// componentStatements yields each component schema of c's document under its
+// name, as run hands them to schema.LowerComponentSchemas.
+func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+	return func(yield func(string, *statement.Statement) bool) {
+		for name, js := range c.Doc.Components.GetSchemas().All() {
+			if !yield(name, c.Statements().Of(js)) {
+				return
+			}
+		}
+	}
+}

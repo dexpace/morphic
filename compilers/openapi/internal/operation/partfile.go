@@ -8,10 +8,10 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,7 +37,7 @@ func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
 // as a file (docs/compilers/openapi.md#multipart-encoding): every declaration
 // of it must read so (readDeclaration), as fileFor judges it. Only a multipart
 // part can carry raw bytes.
-func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
+func readPartFile(c service.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
 	if !multipart || len(part.schemas) == 0 {
 		return partFile{}
 	}
@@ -49,7 +49,7 @@ func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipar
 // it leaves its media type to say, one where the entry names only binary media
 // types (partContentFile), or, naming none, as the media type its encoding
 // defaults to (untypedPartFile).
-func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile {
+func fileFor(c service.Ctx, least fileReading, contentTypes []string) partFile {
 	switch {
 	case least == readsBinary:
 		return partFile{file: true}
@@ -64,10 +64,10 @@ func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile 
 
 // untypedPartFile judges a part read as least whose encoding names no media
 // type: one writing no type is judged as naming the contentType the Encoding
-// Object's rows default that case to (lowering.EncodingRules), which from
+// Object's rows default that case to (service.EncodingRules), which from
 // OpenAPI 3.1 is application/octet-stream, and any other is no file.
-func untypedPartFile(c lowering.Ctx, least fileReading) partFile {
-	contentType, ok := lowering.EncodingRules(c).ContentType(oas.DefaultUntyped)
+func untypedPartFile(c service.Ctx, least fileReading) partFile {
+	contentType, ok := service.EncodingRules(c).ContentType(oas.DefaultUntyped)
 	if least != readsUntyped || !ok {
 		return partFile{}
 	}
@@ -78,7 +78,7 @@ func untypedPartFile(c lowering.Ctx, least fileReading) partFile {
 // through its elements (readElements), else as a body's schema is (readFile)
 // but for an array branch of a union it writes, read through its elements too
 // (readPartBranch).
-func readDeclaration(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+func readDeclaration(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 	if s := schemaOf(c.Bindings(), js); isArraySchema(s) {
 		return readElements(c, js, s)
 	}
@@ -88,7 +88,7 @@ func readDeclaration(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fi
 // readPartBranch reads branch, one of a union a part's declaration writes, as a
 // body's union branch is read (readBranch), but an array through its elements
 // (readElements), as the part repeats where the branch holds.
-func readPartBranch(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+func readPartBranch(c service.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 	if s := schemaOf(c.Bindings(), branch); isArraySchema(s) {
 		return readElements(c, branch, s)
 	}
@@ -106,34 +106,37 @@ func isArraySchema(s *oas3.Schema) bool {
 // rest of false admitting none. An array writing no rest reads as other, as
 // one admitting no element does: what its elements past its prefix are is
 // left unsaid, not said to be anything.
-func readElements(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
-	elems, rest, tuple := schema.ListedTuple(c, js)
+func readElements(c service.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
+	elems, rest, tuple := schema.ListedTuple(c.Ctx, c.Statements().Of(js))
 	if !tuple {
-		elems, rest = slices.Clone(s.GetPrefixItems()), s.GetItems()
+		rest = c.Statements().Of(s.GetItems())
+		for _, e := range s.GetPrefixItems() {
+			elems = append(elems, c.Statements().Of(e))
+		}
 	}
-	if !annotation.Written(rest) {
+	if rest.Truth == statement.Unwritten {
 		return readsOther
 	}
-	if !annotation.IsFalseSchema(rest) {
+	if !rest.Truth.ReadsFalse() {
 		elems = append(elems, rest)
 	}
 	if len(elems) == 0 {
 		return readsOther
 	}
-	return leastOf(c, elems, readFile)
+	return leastOf(c, elems, func(c service.Ctx, e *statement.Statement) fileReading { return readFile(c, statement.ParsedAt(e)) })
 }
 
 // partContentFile reads a part whose schema leaves its media type to say, and
 // whose encoding entry names contentTypes, as a file where every type named is
 // binary: application/octet-stream as declared, any other the binary policy
 // names marked as its reading.
-func partContentFile(c lowering.Ctx, contentTypes []string) partFile {
+func partContentFile(c service.Ctx, contentTypes []string) partFile {
 	out := partFile{file: true}
 	for _, ct := range contentTypes {
 		switch {
-		case lowering.NormalizeMediaType(ct) == octetStream:
+		case service.NormalizeMediaType(ct) == octetStream:
 		case c.MediaTypeBinary(ct):
-			out.inferred = lowering.BinaryInferenceHeuristic
+			out.inferred = service.BinaryInferenceHeuristic
 		default:
 			return partFile{}
 		}

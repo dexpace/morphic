@@ -177,6 +177,9 @@ type walker struct {
 	rows     SchemaRules
 	rootRows func(jsontext.Pointer) (SchemaRules, bool)
 	later    func(Pending)
+	// raw is the steps from the root of the raw value being read down to the
+	// node read (rawRepeats).
+	raw []rawStep
 	reporter
 }
 
@@ -266,20 +269,36 @@ func (f frame) in(m Minor) string {
 // first time the depth or the budget runs out it says so, an error as any
 // crossed budget is, and stops reading.
 func (w *walker) spend(depth int, ptr jsontext.Pointer) bool {
+	ok, stops := w.charge(depth)
+	if stops {
+		reportStop(w, ptr)
+	}
+	return ok
+}
+
+// charge charges one unit of work at depth and reports whether the walk may
+// go on, and whether this charge is the one the depth or the budget runs out
+// at, which its caller reports (reportStop): a walk that spells no pointer a
+// node asks it, and spells the one it stops at.
+func (w *walker) charge(depth int) (ok, stops bool) {
 	if w.stopped {
-		return false
+		return false, false
 	}
 	if w.ctx.Err() != nil {
 		w.stopped = true
-		return false
+		return false, false
 	}
 	if depth <= MaxDepth && w.work.Spend(1) {
-		return true
+		return true, false
 	}
 	w.stopped = true
+	return false, true
+}
+
+// reportStop reports that w's check stopped at ptr.
+func reportStop(w *walker, ptr jsontext.Pointer) {
 	w.diags = append(w.diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, w.locate(ptr),
 		"the OpenAPI %s check stopped at this depth or work budget; what lies below is unchecked", w.minor))
-	return false
 }
 
 // object checks the mapping s holds as an object of its kind, and what lies
@@ -566,7 +585,7 @@ func (w *walker) patterned(f frame, depth int) {
 		if f.defines(p.Key) || (f.obj.Extensible && strings.HasPrefix(p.Key, "x-")) {
 			continue
 		}
-		if pat.Keys != FormatNone && !validFormat(pat.Keys, p.Key) {
+		if pat.Keys != FormatNone && !ValidFormat(pat.Keys, p.Key) {
 			w.report(ir.SeverityError, classFormat, f.at.ptr.AppendToken(p.Key),
 				"%s has the key %q, which must be %s in %s (%s)",
 				f.obj.Name, p.Key, describeFormat(pat.Keys), f.in(w.minor), citeFor(pat.Cites, w.minor).Section)

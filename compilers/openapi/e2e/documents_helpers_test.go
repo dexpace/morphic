@@ -93,12 +93,30 @@ func compileWithReader(t *testing.T, path, src string, opts openapi.Options, rd 
 	return doc, diags
 }
 
-// aliasTarget is the type the component schema name is an alias of.
-func aliasTarget(t *testing.T, doc *ir.Document, name string) ir.TypeID {
+// useTarget is the type the component schema name is a use of, as the node a
+// component owns over it names it: the Base of the Model over an object, or of
+// the Scalar alias over anything else.
+func useTarget(t *testing.T, doc *ir.Document, name string) ir.TypeID {
 	t.Helper()
-	alias, ok := typeByName(doc, name).(*ir.Scalar)
-	require.True(t, ok, "%s is an alias of the type it names", name)
-	return alias.Base.Target
+	return useOf(t, typeByName(doc, name), name)
+}
+
+// useOf is the type td, the node a position owns over what its $ref names, is
+// a use of: the Base of the Model over an object or of the Scalar alias.
+func useOf(t *testing.T, td ir.TypeDef, name string) ir.TypeID {
+	t.Helper()
+	switch n := td.(type) {
+	case *ir.Model:
+		require.NotNil(t, n.Base, "%s composes the object it names", name)
+		require.Empty(t, n.Properties, "%s declares no member of its own", name)
+		return n.Base.Target
+	case *ir.Scalar:
+		require.NotNil(t, n.Base, "%s is an alias of the type it names", name)
+		return n.Base.Target
+	default:
+		require.Failf(t, "no use", "%s is %T, no use of the type it names", name, n)
+		return ""
+	}
 }
 
 // sourcePaths lists the path of each Document.Sources entry, in order.

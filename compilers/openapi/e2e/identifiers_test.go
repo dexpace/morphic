@@ -52,9 +52,7 @@ func TestCompile_WhatAnotherDocumentDeclaresAnswersAReference(t *testing.T) {
 		assertNoErrorDiags(t, diags)
 
 		other := ids.In("other.yaml")
-		byIDAlias, ok := typeByName(doc, "ById").(*ir.Scalar)
-		require.True(t, ok)
-		assert.Equal(t, other.ForPointer("/Pet"), byIDAlias.Base.Target)
+		assert.Equal(t, other.ForPointer("/Pet"), useTarget(t, doc, "ById"))
 		model, ok := doc.Types[other.ForPointer("/Pet")].(*ir.Model)
 		require.True(t, ok)
 		for _, wire := range []string{"a", "b"} {

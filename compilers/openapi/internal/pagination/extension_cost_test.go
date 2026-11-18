@@ -10,16 +10,14 @@ import (
 	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 )
 
@@ -82,12 +80,12 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{Disabled: true}}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: pagePolicy()})
+	p := promotion.New(pagePolicy())
 	fewest := math.Inf(1)
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_, diags := pagination.Promote(c, whole.New(doc), nil)
+		_, diags := pagination.Promote(p, whole.New(doc), nil)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0

@@ -6,12 +6,12 @@ package schema
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,22 +20,19 @@ import (
 // the declaration's annotations, secrecy among them. Annotations present at a
 // $ref use-site override the target's (docs/compilers/openapi.md#ref-use-site).
 //
-// The property holds the value constraints where its schema lowered to no node
-// of its own, and restates those its node holds, so a reader of the property
-// finds them either way. Beside a node keeping them verbatim, such as an Enum
-// or a Literal, it holds none, and it restates no collection bound
-// (CarrierConstraintsOf).
-func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
-	ref := js.GetSchema()
-	if ref == nil {
+// The property holds the constraints where its schema lowered to no node of
+// its own, and none where it did: the node holds them, or keeps them verbatim
+// where its kind takes none, so each is written once (CarrierConstraintsOf).
+func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *statement.Statement, pointer jsontext.Pointer) []ir.Diagnostic {
+	if js.Truth != statement.Stated {
 		return nil
 	}
-	use := UseOf(c, ts, js, p.Type, pointer)
-	def, diags := use.Default(c, ref, pointer)
+	use := UseOf(c, js, p.Type, pointer)
+	def, diags := use.Default(c, js.Schema, pointer)
 	p.Default = def
-	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, use.Voices, pointer)...)
-	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, use, pointer)...)
+	diags = append(diags, fillPropertyVisibility(c, p, use.Site(js.Schema).Chain(), pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, p, js.Schema, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, p, js.Schema, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
@@ -48,7 +45,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 // the caller that knows the position being filled. It is the same finding under
 // the same code as the allOf spelling, so a consumer filtering on
 // diag.DisjointVisibility sees both.
-func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	visibility, disjoint := annotation.EffectiveVisibility(chain)
 	p.Visibility = visibility
 	if !disjoint {
@@ -69,8 +66,8 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema
 // here under use-site precedence would publish the wider of the two as the whole
 // truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := CarrierConstraintsOf(c, ts, &p.Unmodeled, ref, voices, p.Type, pointer)
+func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *statement.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := CarrierConstraintsOf(c, &p.Unmodeled, ref, voices, p.Type, pointer)
 	p.Constraints = cons
 	return diags
 }
@@ -87,8 +84,8 @@ func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 //
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
-func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
-	if LoweredToOwnNode(c, ts, pointer, p.Type) {
+func fillPropertyAnnotations(c lowering.Ctx, p *ir.Property, ref *statement.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
+	if LoweredToOwnNode(c, pointer, p.Type) {
 		return nil
 	}
 	a, diags := annotation.Read(use.SiteAt(c, ref, pointer), pointer, c.Place())
@@ -116,7 +113,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 // which attachDeclaredAnnotations keeps on a node. It is one call so that a
 // property, a header and a parameter cannot differ in what they keep, and it runs
 // last, as PreserveUnknownKeywords requires.
-func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	// nil node: only a schema with no node of its own comes here, so nothing here
 	// can be carrying an Encoding.
 	diags := recordUnplacedContent(c, p, s, nil, pointer)
@@ -133,7 +130,7 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 // a header or a parameter means after the object around the schema: that object
 // decides what is deprecated, and so what a member can fill. A key both write is
 // one entry, the object's, so the schema's is not read (GitHub #396).
-func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
+func PromoteUse(c lowering.Ctx, from promotion.Referent, unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
 	diags := c.Promoter().Deprecation(unmodeled, from, dep, prov)
 	return append(diags, c.Promoter().Redaction(unmodeled, from, redact, prov)...)
 }
@@ -142,24 +139,22 @@ func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, 
 // lend it, js written at pointer and lowered to t (Use.lentKeys). A position
 // owning a node lends its carrier none, as it lends no keyword: the node takes
 // them (attachDeclaredAnnotations).
-func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) lowering.Referent {
-	s := annotation.SchemaOf(js)
-	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
-		return lowering.Referent{}
+func KeysLentTo(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) promotion.Referent {
+	if js.Truth != statement.Stated || LoweredToOwnNode(c, pointer, t) {
+		return promotion.Referent{}
 	}
-	return UseOf(c, ts, js, t, pointer).lentKeys(c)
+	return readUse(c, js, t, pointer).lentKeys(c)
 }
 
-// LoweredToOwnNode reports whether the declaration at pointer, in c's
-// document, lowered to a type node of its own — the node
+// LoweredToOwnNode reports whether t, what the declaration at pointer in c's
+// document lowered to, is a type node of its own — the node
 // attachDeclaredAnnotations then fills, leaving its carrier nothing to hold.
 //
-// It asks whether the node interned at pointer is the one the declaration
-// lowered to, not merely whether a node is interned there. A $ref naming an
-// inline position hoists that position's home for its own use, in either
-// declaration order, and a carrier reading the registry alone would keep its
-// schema's annotations only when it happened to lower first.
-func LoweredToOwnNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, t ir.TypeRef) bool {
-	id, owned := ts.Lookup(c.IDs().Coordinate(pointer))
-	return owned && id == t.Target
+// A position's node, whatever its kind, takes the ID its pointer names
+// (internNode), so t names it exactly when t names that ID. Nothing asks the
+// registry what is interned there: a $ref naming an inline position hoists that
+// position's home for its own use, and an answer read off the registry would
+// turn on which lowering reached the position first (GitHub #1991).
+func LoweredToOwnNode(c lowering.Ctx, pointer jsontext.Pointer, t ir.TypeRef) bool {
+	return t.Target == c.IDs().ForPointer(pointer)
 }

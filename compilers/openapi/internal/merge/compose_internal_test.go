@@ -255,6 +255,61 @@ func TestFold_AComposedFieldKeepsEveryDeclarationsDetail(t *testing.T) {
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(0)))
 }
 
+// TestFold_AComposedFieldHoldsTheBoundsOfEachDeclarationsOwnNode pins the
+// bounds of a field the fold composes: a declaration owning its node leaves its
+// bounds there, its property holding none, so the field takes those of each node
+// hoisted at a declaration (ownBounds), met with those a property holds. A
+// component's bounds stay its own, which the composition reaches through its
+// reference, and the composed model holds none.
+func TestFold_AComposedFieldHoldsTheBoundsOfEachDeclarationsOwnNode(t *testing.T) {
+	t.Parallel()
+	reg := composeRegistry()
+	reg["t/in0"].(*ir.Model).Constraints = &ir.Constraints{MinProps: new(int64(1)), MaxProps: new(int64(9))}
+	reg["t/in1"].(*ir.Model).Constraints = &ir.Constraints{MaxProps: new(int64(5))}
+	reg["t/A"].(*ir.Model).Constraints = &ir.Constraints{MinProps: new(int64(3))}
+	g, recorded := stubMerger(reg)
+	decls := declsOf("t/in0", "t/in1", "t/A")
+	decls[2].prop.Constraints = &ir.Constraints{MaxProps: new(int64(7))}
+
+	got := g.fold(decls)
+
+	assert.Equal(t, &ir.Constraints{MinProps: new(int64(1)), MaxProps: new(int64(5))}, got.Constraints)
+	composed, ok := reg[got.Type.Target].(*ir.Model)
+	require.True(t, ok, "the field's type is the composition")
+	assert.Nil(t, composed.Constraints)
+	assert.Empty(t, *recorded)
+}
+
+// TestOwnBounds_ReadsTheNodeADeclarationOwns pins which bounds a declaration's
+// own node gives a composed field: a Model's, a MapT's, a Scalar's or a Union's
+// hoisted at the declaration, and none of a List, which no property held, of a
+// node written elsewhere, or of a type the registry lacks.
+func TestOwnBounds_ReadsTheNodeADeclarationOwns(t *testing.T) {
+	t.Parallel()
+	bound := &ir.Constraints{MinProps: new(int64(1))}
+	length := &ir.Constraints{MinLength: new(int64(1))}
+	common := func(id ir.TypeID) ir.TypeCommon {
+		return ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(0))}
+	}
+	str := ir.TypeRef{Target: "t/str"}
+	reg := map[ir.TypeID]ir.TypeDef{
+		"t/model":  &ir.Model{TypeCommon: common("t/model"), Constraints: bound},
+		"t/map":    &ir.MapT{TypeCommon: common("t/map"), Value: str, Constraints: bound},
+		"t/scalar": &ir.Scalar{TypeCommon: common("t/scalar"), Base: &str, Constraints: length},
+		"t/union":  &ir.Union{TypeCommon: common("t/union"), Variants: []ir.Variant{{Type: str}}, Constraints: length},
+		"t/list":   &ir.List{TypeCommon: common("t/list"), Elem: str, Constraints: &ir.Constraints{MinItems: new(int64(1))}},
+		"t/named":  &ir.Model{ID: "t/named", Provenance: ptrAt("/components/schemas/N"), Constraints: bound},
+	}
+	g, _ := stubMerger(reg)
+	for target, want := range map[ir.TypeID]*ir.Constraints{
+		"t/model": bound, "t/map": bound, "t/scalar": length, "t/union": length,
+		"t/list": nil, "t/named": nil, "t/missing": nil,
+	} {
+		f := &folding{g: &g.Merger, decls: declsOf(target)}
+		assert.Equal(t, want, f.ownBounds(0), target)
+	}
+}
+
 // TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet pins which node a field
 // takes where both could stand. Two aliases of one model each say more than the
 // model, so they compose as any two aliases do, and the composition holds both
@@ -344,7 +399,8 @@ func TestFold_ComposesOnlyTheDeclarationsItJudges(t *testing.T) {
 }
 
 // TestSelectBase_ChoosesAsTheRuleSays pins the rule both readers take: the only
-// $ref, else the first discriminated one, else none.
+// $ref, else the first discriminated one in the order the caller ranks them,
+// else none.
 func TestSelectBase_ChoosesAsTheRuleSays(t *testing.T) {
 	t.Parallel()
 	never := func(int) bool { return false }
@@ -360,7 +416,7 @@ func TestSelectBase_ChoosesAsTheRuleSays(t *testing.T) {
 		{"the only ref, undiscriminated", []int{3}, never, 3, true},
 		{"several, none discriminated", []int{1, 2}, never, 0, false},
 		{"several, one discriminated", []int{1, 2}, only(2), 2, true},
-		{"several discriminated, the first wins", []int{4, 2}, func(int) bool { return true }, 4, true},
+		{"several discriminated, the first as ranked wins", []int{4, 2}, func(int) bool { return true }, 4, true},
 	} {
 		got, ok := SelectBase(tc.refs, tc.discriminated)
 		assert.Equal(t, tc.ok, ok, tc.name)

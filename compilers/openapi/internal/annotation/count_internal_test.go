@@ -15,11 +15,11 @@ import (
 // of it, and to none where the literal reads as no number.
 func TestExactCount_TakesTheCountFromItsLiteral(t *testing.T) {
 	t.Parallel()
-	got := ExactCount(schemaFromYAMLUnvalidated(t, "minLength: 010"), "minLength", new(int64(8)))
+	got := ExactCount(standaloneSchema(schemaFromYAMLUnvalidated(t, "minLength: 010")), "minLength", new(int64(8)))
 	require.NotNil(t, got)
 	assert.Equal(t, int64(10), *got, "010 is ten, whatever the model read")
 
-	assert.Nil(t, ExactCount(schemaFromYAMLUnvalidated(t, "minLength: .inf"), "minLength", new(int64(0))),
+	assert.Nil(t, ExactCount(standaloneSchema(schemaFromYAMLUnvalidated(t, "minLength: .inf")), "minLength", new(int64(0))),
 		"an infinity, which reads as no number, states no count")
 }
 
@@ -33,7 +33,7 @@ func TestExactCount_AFractionCostsNoMoreForAWiderExponent(t *testing.T) {
 		s := schemaFromYAMLUnvalidated(t, "minItems: 1e-"+exp)
 		count := new(int64(0))
 		return testing.AllocsPerRun(3, func() {
-			assert.Nil(t, ExactCount(s, "minItems", count))
+			assert.Nil(t, ExactCount(standaloneSchema(s), "minItems", count))
 		})
 	}
 

@@ -38,24 +38,21 @@ var modelStates = map[reflect.Type]state{
 	reflect.TypeFor[oas3core.Schema]():            sSchema,
 }
 
-// The containers of each kind, keyed by what they hold.
-var (
-	mapsOf = map[state]state{
-		sSchema: sSchemaMap, sPathItem: sPathItemMap, sOperation: sOperationMap, sParameter: sParameterMap,
-		sHeader: sHeaderMap, sRequestBody: sRequestBodyMap, sResponse: sResponseMap, sMediaType: sMediaTypeMap,
-		sEncoding: sEncodingMap, sCallback: sCallbackMap, sExample: sExampleMap, sLink: sLinkMap,
-		sSecurityScheme: sSecuritySchemeMap, sRaw: sRawEntries,
-	}
-	listsOf = map[state]state{sSchema: sSchemaList, sParameter: sParameterList, sEncoding: sEncodingList, sRaw: sRawEntries}
-)
+// lags is each field the rule table defines that the parser's model names no
+// member for, by the state of the object defining it.
+var lags = map[state][]string{
+	sComponents: {"mediaTypes"}, sMediaType: {"description"}, sResponse: {"summary"},
+	sEncoding: {"encoding", "prefixEncoding", "itemEncoding"},
+	sSchema:   {"$vocabulary", "dependentRequired"},
+}
 
-// TestGrammar_FieldsAreTheModels holds the grammar to the parser's model: each
-// object state defines exactly the fields its object of the model does, and
-// each leads where the model's field does: to a schema, a map or list of them,
-// an object of a kind and its containers, raw YAML or a list or map of it. A
-// field holding neither a schema nor raw YAML may be read as a value or an
-// object alike. A $ref, which the binding reads itself, is compared on neither
-// side.
+// TestGrammar_FieldsAreTheModels holds the grammar to the parser's model, less
+// where the model lags the rule table (lags): each object state defines the
+// fields its object of the model does, each leading where the model's does: to
+// a schema, a map or list of them, an object of a kind and its containers, or
+// raw YAML or a list or map of it. A value and any other object are alike. A
+// $ref, which the binding reads itself, is compared on neither side. No field
+// of lags is one the model names, so a release adding one fails here.
 func TestGrammar_FieldsAreTheModels(t *testing.T) {
 	t.Parallel()
 	for model, s := range modelStates {
@@ -73,6 +70,10 @@ func TestGrammar_FieldsAreTheModels(t *testing.T) {
 		}
 		got := maps.Clone(fields[s])
 		delete(got, "$ref")
+		for _, lag := range lags[s] {
+			assert.NotContains(t, want, lag, "%s.%s is a field the model names", model.Name(), lag)
+			delete(got, lag)
+		}
 		if s == sPathItem {
 			for key, ks := range got {
 				if ks == sOperation {
@@ -149,9 +150,9 @@ func modelState(t *testing.T, ft reflect.Type) state {
 	case strings.HasPrefix(name, "sequencedmap.Map["):
 		m, ok := reflect.TypeAssert[interface{ GetValueType() reflect.Type }](reflect.New(ft))
 		assert.True(t, ok, name)
-		return containerOf(mapsOf, modelState(t, m.GetValueType()))
+		return modelContainer(mapsOf, modelState(t, m.GetValueType()))
 	case ft.Kind() == reflect.Slice:
-		return containerOf(listsOf, modelState(t, ft.Elem()))
+		return modelContainer(listsOf, modelState(t, ft.Elem()))
 	case ft == reflect.TypeFor[yaml.Node]():
 		return sRaw
 	default:
@@ -159,11 +160,73 @@ func modelState(t *testing.T, ft reflect.Type) state {
 	}
 }
 
-// containerOf is the container of kind of what holds, or a value for a
-// container of values.
-func containerOf(of map[state]state, holds state) state {
-	if s, ok := of[holds]; ok {
+// modelContainer is the container state in gives for holds, the state of what
+// the container holds, or a value for a container of values.
+func modelContainer(in map[state]state, holds state) state {
+	if s, ok := in[holds]; ok {
 		return s
 	}
 	return sValue
+}
+
+// loadModels holds the fields of lags the load phase models in the parser's
+// place, so the model holds what they lead to: components/mediaTypes
+// (docs/parser-library.md#media-type-references).
+var loadModels = map[state][]string{sComponents: {"mediaTypes"}}
+
+// TestGrammar_PlacesWhatNoModelHoldsAsUnheld holds unheld to lags: each field
+// it names is one the parser's model lacks and the grammar places, and each
+// lag leading to a schema, a schema container or an object is unheld or one
+// the load phase models, so no schema the grammar places beneath one is read
+// as one the model holds.
+func TestGrammar_PlacesWhatNoModelHoldsAsUnheld(t *testing.T) {
+	t.Parallel()
+	for s, names := range unheld {
+		for name := range names {
+			assert.Contains(t, lags[s], name, "unheld %d.%s", s, name)
+			assert.Contains(t, fields[s], name, "unheld %d.%s is placed", s, name)
+		}
+	}
+	for s, names := range lags {
+		for _, name := range names {
+			if !modelled(fields[s][name]) {
+				continue
+			}
+			assert.NotEqual(t, unheld[s][name], slices.Contains(loadModels[s], name),
+				"lag %d.%s is unheld or modelled by the load phase", s, name)
+		}
+	}
+}
+
+// TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw pins place: a schema beneath
+// a field whose content no model holds, at any depth past it, is raw YAML to
+// the model, and so is nothing the grammar places as another object, which
+// keeps its role but is held by no model; a read starting afresh, as one past
+// a reference does, reads a schema below the same tokens as the model's.
+func TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw(t *testing.T) {
+	t.Parallel()
+	const encoding = "paths/~1a/post/requestBody/content/m~1x/encoding/f/"
+	tests := []struct {
+		pointer string
+		role    Role
+		held    bool
+	}{
+		{encoding + "encoding/g/headers/H/schema/items", Raw, false},
+		{encoding + "prefixEncoding/0/headers/H/schema", Raw, false},
+		{encoding + "itemEncoding/encoding/g/headers/H/schema", Raw, false},
+		{encoding + "encoding/g/headers/H", Object, false},
+		{encoding + "encoding", Object, false},
+		{encoding + "headers/H/schema/properties/encoding", Schema, true},
+		{encoding + "x-ext/encoding/g/headers/H/schema", Raw, false},
+		{"components/schemas/A/properties/encoding/properties/encoding", Schema, true},
+		{encoding + "headers/H", Object, true},
+	}
+	for _, tc := range tests {
+		p := place{state: sDocument}.along(strings.Split(tc.pointer, "/"))
+		assert.Equal(t, tc.role, p.role(), tc.pointer)
+		assert.Equal(t, tc.held, p.held(), tc.pointer)
+	}
+	past := place{state: sDocument}.along(strings.Split(encoding+"encoding/g/headers/H", "/"))
+	fresh := place{state: past.state}.along([]string{"schema"})
+	assert.Equal(t, Schema, fresh.role(), "a read past a reference to the header reads its schema afresh")
 }

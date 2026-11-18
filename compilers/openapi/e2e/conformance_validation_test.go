@@ -154,8 +154,6 @@ func assertReferenceObjectChains(t *testing.T, doc *ir.Document, diags []ir.Diag
 	require.True(t, ok, "the header inside the raw response lowers")
 	assert.Equal(t, ir.TypeID("t/prim/integer"), h.Type.Target)
 	assert.Equal(t, bodyAt("/paths/~1drafts/put"), requestType(t, doc, "replaceOrder"), "the field beside the $ref")
-	page, ok := doc.Types[componentID("PageSize")].(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/anon/components/parameters/Page/schema"), page.Base.Target, "the schema Page declares")
+	assert.Equal(t, ir.TypeID("t/anon/components/parameters/Page/schema"), useTarget(t, doc, "PageSize"), "the schema Page declares")
 	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/parameters/Alias/schema"), "no second node")
 }

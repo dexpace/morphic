@@ -560,7 +560,8 @@ pairs merged in come first, in the order their sources are written, an earlier s
 two share and none overriding a key the mapping writes itself; the mapping's own pairs follow. A
 source that writes a key twice gives its first copy, where the mapping itself gives its last
 ([`duplicate-key`](#duplicate-key)). A `<<` naming anything but a mapping or a list of mappings
-merges nothing, and nothing reports it.
+merges nothing, and nothing reports it. A key merges when it is a scalar `<<` the YAML reader tags
+`!!merge`, so a quoted `"<<"` and an alias standing for `<<` name an ordinary key.
 
 ```yaml
 x-base: &base {k: {type: string}, z: {type: string}}
@@ -575,12 +576,17 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/merge-keys`
 - Code:
+  - `nodeview.IsMergeKey` writes that predicate out, so the tree readers need no parser library.
   - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
   - `nodeview.View.mergeSource` reads each source's pairs as a merge reads them.
   - `nodeview.Child` looks one key up through the merges by the same order and copies.
   - `oas.CheckFormat` reports a `<<` naming no mapping.
   - `nodeview.MergesNothing` finds a `<<` naming no mapping wherever a mapping's merges reach.
   - `auth.namesAnOption` reads a requirement merging nothing as no option, not the empty one.
+  - `statement.listedOnly` reads a schema whose merges run past `nodeview.MergeDepthLimit` from its
+    keys alone, where the decoder's model holds what the merges beyond it bring.
+  - `statement.dropOutranked` leaves out such a schema's key whose value the decoder read from an
+    earlier source past the bound.
 
 ### `non-scalar-key`
 
@@ -745,6 +751,8 @@ parameters:
 - Code:
   - `oas.Shape.Admits` reads only a scalar tagged `!!bool` as a boolean, so the table reports such a
     string.
+  - `statement.Exclusive` holds the arm the model read, which the node's tag does not give for such
+    a string.
 
 ### `unmodeled-keywords`
 
@@ -789,8 +797,9 @@ components:
 - Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
-  - `annotation.IsNoSchema` tells such a value from `false` by its node.
-  - `annotation.IsFalseSchema` excludes it, so no reader takes one for `false`.
+  - `statement.truthOf` reads such a value as `Unwritten` by its node.
+  - `statement.Truth.ReadsFalse` excludes it, so no reader takes one for `false`.
+  - `statement.Schema.Held` tells a position holding one from a position holding nothing.
 
 ### `failure-beneath-itself`
 
@@ -813,8 +822,8 @@ components:
 - Code:
   - `bind/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends` of
     them one below another, once `Build` has built the landings.
-  - `schema.unmended` tells one left past that bound, which the lowering reports and lowers as the
-    top type.
+  - `statement.Truth` holds one left past that bound as `Unread`, which the lowering reports and
+    lowers as the top type.
 
 ### `null-type-is-empty`
 

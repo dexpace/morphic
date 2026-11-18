@@ -106,17 +106,30 @@ type keptAt struct {
 	key   string
 	value string // the entry's JSON, "" where the row does not say
 	msg   string // a substring of its report, "" for "no home for .*key"
+	// entry is the path of the inline allOf entry writing key, "" for a
+	// keyword written beside the allOf.
+	entry string
 }
 
-// pointer returns where the entry and its report sit, beneath the site at.
-func (k keptAt) pointer(at string) string { return at + "/" + k.key }
-
-// reportAt returns where the report of the entry sits.
-func (k keptAt) reportAt(at string) string {
-	if strings.HasPrefix(k.key, "allOf/") {
-		return k.pointer(at)
+// pointer returns where the entry sits, beneath the site at.
+func (k keptAt) pointer(at string) string {
+	if k.entry != "" {
+		return at + "/" + k.entry + "/" + k.key
 	}
-	return at
+	return at + "/" + k.key
+}
+
+// reportAt returns where the report of the entry sits: at the schema object
+// writing it.
+func (k keptAt) reportAt(at string) string {
+	switch {
+	case k.entry != "":
+		return at + "/" + k.entry
+	case strings.HasPrefix(k.key, "allOf/"):
+		return k.pointer(at)
+	default:
+		return at
+	}
 }
 
 // namedRow is one schema written at S and at p, with what each position holds
@@ -143,7 +156,7 @@ type namedRow struct {
 func keywordsOf(kept []keptAt) []string {
 	var out []string
 	for _, k := range kept {
-		if !strings.HasPrefix(k.key, "allOf/") {
+		if k.entry == "" && !strings.HasPrefix(k.key, "allOf/") {
 			out = append(out, k.key)
 		}
 	}
@@ -215,8 +228,8 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2,
 		},
 		{
-			name: "row 2: a $ref site", schema: "{$ref: '#/components/schemas/Arr', minLength: 1}",
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"an alias over its $ref target"},
+			name: "row 2: a $ref site, the conjunction row 1 writes", schema: "{$ref: '#/components/schemas/Arr', minLength: 1}",
+			kept: []keptAt{{key: "minLength"}}, base: componentID("Arr"), diags: 2, msgs: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 4: a collapsed nullable union", schema: "{anyOf: [" + refTo("Arr") + ", {enum: [null]}], minLength: 1}",
@@ -255,10 +268,9 @@ func TestConstraints_ABoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			kept: []keptAt{{key: "minimum"}}, base: componentID("NilAlias"),
 		},
 		{
-			name:   "row 13: a type beside a $ref that contradicts it",
-			schema: "{$ref: '#/components/schemas/Arr', type: string, minLength: 1}",
-			kept:   []keptAt{{key: "type", value: `"string"`}, {key: "minLength", value: "1"}},
-			msgs:   []string{"type, minLength"},
+			name:    "row 13: a type beside a $ref that contradicts it, which shares no value with it",
+			schema:  "{$ref: '#/components/schemas/Arr', type: string, minLength: 1}",
+			keptOnS: []string{"$ref", "type", "minLength"},
 		},
 		{
 			name:   "row 14: an allOf beside a oneOf",
@@ -322,21 +334,29 @@ func TestConstraints_ABoundANamedTypeTakesIsRead(t *testing.T) {
 }
 
 // TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead pins row 18: the
-// position's own type is read too, so the bound that type cannot take is kept
-// beside one it can, whatever the named schema declares.
+// position's own type is read too, so the list it declares holds the bound it
+// takes and keeps the one it cannot, and a named schema admitting every kind,
+// which says nothing of the kind, is kept beside it, at S and at p alike.
 func TestConstraints_ATypeBesideANamedSchemaStillNarrowsTheRead(t *testing.T) {
 	t.Parallel()
-	assertNamedRow(t, namedRow{
-		name: "row 18", schema: "{type: array, allOf: [" + refTo("Open") + "], minLength: 1, maxItems: 2}",
-		held: &ir.Constraints{MaxItems: new(int64(2))}, base: componentID("Open"),
-		kept: []keptAt{{key: "type"}, {key: "minLength"}}, msgs: []string{"type, minLength"},
-	})
+	doc, diags := parseFull(t, namedSpec("3.1.0", "{type: array, allOf: ["+refTo("Open")+"], minLength: 1, maxItems: 2}", "", false))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
+		list, ok := doc.Types[id].(*ir.List)
+		require.True(t, ok, "%s: got %T", at, doc.Types[id])
+		assert.Equal(t, &ir.Constraints{MaxItems: new(int64(2))}, list.Constraints, at)
+		assert.ElementsMatch(t, []string{"openapi:$ref", "openapi:minLength"}, unmodeledKeys(list.Unmodeled), at)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at+"/allOf/0"),
+			"admits every kind", at)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+			"no home for minLength", at)
+	}
 }
 
 // TestConstraints_AUnionIsReadByWhatItsBranchesAdmit pins a bound beside a union
 // that does not collapse: a type is admitted if any branch admits it, so a
 // bound no branch takes is held by neither the union nor the property, and one
-// a branch takes is held by both.
+// a branch takes is held by the union alone.
 func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 	t.Parallel()
 	const union = "t/anon/components/schemas/Holder/properties/p"
@@ -371,7 +391,7 @@ func TestConstraints_AUnionIsReadByWhatItsBranchesAdmit(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		want := &ir.Constraints{MinLength: new(int64(1))}
 		p := propertyOf(t, doc, "Holder", "p")
-		assert.Equal(t, want, p.Constraints)
+		assert.Nil(t, p.Constraints)
 		for _, id := range []ir.TypeID{p.Type.Target, componentID("S")} {
 			u, ok := doc.Types[id].(*ir.Union)
 			require.True(t, ok, "%s: got %T", id, doc.Types[id])
@@ -389,15 +409,15 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 	for _, tc := range []namedRow{
 		{
 			name: "row 22: a $ref to a string", schema: "{$ref: '#/components/schemas/Str', minItems: 1}",
-			kept: []keptAt{{key: "minItems", value: "1"}}, msgs: []string{"an alias over its $ref target"},
+			kept: []keptAt{{key: "minItems", value: "1"}}, msgs: []string{"a use of one of its conjuncts"},
 		},
 		{
 			name: "row 23: a refinement of a string", schema: "{allOf: [" + refTo("Str") + "], minItems: 1, uniqueItems: true}",
 			kept: []keptAt{{key: "minItems"}, {key: "uniqueItems"}}, msgs: []string{"minItems, uniqueItems"},
 		},
 		{
-			name: "a $ref to an object", schema: "{$ref: '#/components/schemas/Obj', minItems: 1}",
-			kept: []keptAt{{key: "minItems", value: "1"}},
+			name: "a $ref to an object, the model over it", schema: "{$ref: '#/components/schemas/Obj', minItems: 1}",
+			keptOnS: []string{"minItems"},
 		},
 		{
 			name: "a $ref to a tuple", schema: "{$ref: '#/components/schemas/Tup', minItems: 1}",
@@ -406,7 +426,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 		},
 		{
 			name: "row 24: a branch of a string", schema: "{allOf: [" + refTo("Str") + ", {maxItems: 2}]}",
-			kept: []keptAt{{key: "allOf/1", value: `{"maxItems":2}`, msg: "(maxItems)"}},
+			kept: []keptAt{{key: "maxItems", entry: "allOf/1", value: "2"}},
 		},
 		{
 			name: "row 25: a $ref to an array", schema: "{$ref: '#/components/schemas/Arr', minItems: 1}",
@@ -416,10 +436,7 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 			name:   "row 26: a branch of an array",
 			schema: "{allOf: [" + refTo("Arr") + ", {items: {type: string}, minLength: 1, maxItems: 4}]}",
 			held:   &ir.Constraints{MaxItems: new(int64(4))},
-			kept: []keptAt{{
-				key: "allOf/1", msg: "(minLength)",
-				value: `{"items":{"type":"string"},"maxItems":4,"minLength":1}`,
-			}},
+			kept:   []keptAt{{key: "minLength", entry: "allOf/1", value: "1"}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -430,8 +447,8 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 }
 
 // TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames pins a bound
-// written on an inline allOf branch beside a branch naming a type: the branch
-// is kept whole where the type cannot take its bound, in either branch order.
+// written on an inline allOf branch beside a branch naming a type: the bound is
+// kept under its own key where the type cannot take it, in either branch order.
 func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][]string{{refTo("Arr"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Arr")}} {
@@ -440,7 +457,7 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", base: componentID("Arr"),
-				kept: []keptAt{{key: fmt.Sprintf("allOf/%d", at), value: `{"minLength":1}`, msg: "(minLength)"}},
+				kept: []keptAt{{key: "minLength", entry: fmt.Sprintf("allOf/%d", at), value: "1"}},
 			})
 		})
 	}
@@ -457,7 +474,7 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			t.Parallel()
 			assertNamedRow(t, namedRow{
 				schema: "{allOf: [" + strings.Join(order, ", ") + "]}", held: &ir.Constraints{MinLength: new(int64(2))},
-				kept: []keptAt{{key: fmt.Sprintf("allOf/%d", at), value: `{"minimum":3}`, msg: "(minimum)"}},
+				kept: []keptAt{{key: "minimum", entry: fmt.Sprintf("allOf/%d", at), value: "3"}},
 			})
 		})
 	}
@@ -473,14 +490,12 @@ func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 			require.NotNil(t, s.Base)
 			assert.Equal(t, componentID("Obj"), s.Base.Target)
 			assert.Nil(t, s.Constraints)
-			key := fmt.Sprintf("openapi:allOf/%d", at)
-			entry, ok := s.Unmodeled[key]
+			entry, ok := s.Unmodeled["openapi:minLength"]
 			require.True(t, ok, "got %v", unmodeledKeys(s.Unmodeled))
-			assert.JSONEq(t, `{"minLength":1}`, string(entry.Value))
+			assert.JSONEq(t, `1`, string(entry.Value))
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 				fmt.Sprintf("/components/schemas/S/allOf/%d", at))
-			assert.Contains(t, msg, "inline allOf branch is merged in place")
-			assert.Contains(t, msg, "(minLength)")
+			assert.Contains(t, msg, "no home for minLength written on this inline branch")
 		})
 	}
 }
@@ -511,11 +526,11 @@ func TestAllOf_ACompositionReadsBoundsByTheTypesItComposes(t *testing.T) {
 		assert.Contains(t, msg, "minLength, minimum")
 		assert.Contains(t, msg, `a node of kind "model"`)
 	})
-	t.Run("row 32: the node a property owns reads the same", func(t *testing.T) {
+	t.Run("row 32: the node a property owns reads the same, and the property none", func(t *testing.T) {
 		t.Parallel()
 		p := propertyOf(t, doc, "Holder", "p")
 		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Holder/properties/p"), p.Type.Target)
-		assert.Equal(t, want, p.Constraints)
+		assert.Nil(t, p.Constraints)
 		assert.Empty(t, p.Unmodeled)
 		node, ok := doc.Types[p.Type.Target].(*ir.Model)
 		require.True(t, ok, "got %T", doc.Types[p.Type.Target])
@@ -550,7 +565,9 @@ func TestAllOf_AnEmptyConjunctionKeepsEveryBound(t *testing.T) {
 }
 
 // distributedSpec writes a union beside an allOf and the bounds the variants
-// and the union are read for.
+// and the union are read for, the allOf naming an object at D, and at E a
+// schema declaring no type beside a union admitting a string, which no model
+// is and which no union distributes over.
 const distributedSpec = `openapi: 3.1.0
 info: {title: t, version: "1"}
 paths: {}
@@ -564,11 +581,22 @@ components:
       minLength: 1
       minProperties: 2
     Obj: {type: object, properties: {k: {type: string}}}
+    E:
+      allOf: [{$ref: '#/components/schemas/Open'}]
+      oneOf:
+        - {properties: {a: {type: string}}, required: [a]}
+        - {type: string}
+      minLength: 1
+      minProperties: 2
+    Open: {description: declares no type}
 `
 
 // TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes pins a bound beside
-// a union distributed over an allOf: each variant holds the bounds an object
-// takes, and the union keeps the one no branch takes, once, with its report.
+// a union distributed over an allOf naming an object: each variant, a model,
+// holds the bounds an object takes, and the union keeps the one no variant
+// takes, once, with its report. Beside a schema admitting every kind, which
+// says nothing of the kind, a union admitting a string is the Union its flat
+// spelling is, holding both bounds and keeping the $ref.
 func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, distributedSpec)
@@ -576,7 +604,8 @@ func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 
 	t.Run("row 34: each variant holds minProperties", func(t *testing.T) {
 		t.Parallel()
-		for _, id := range []ir.TypeID{"t/composed/components/schemas/D/oneOf/0", "t/composed/components/schemas/D/oneOf/1"} {
+		for _, branch := range []string{"0", "1"} {
+			id := ir.TypeID("t/composed/components/schemas/D/oneOf/" + branch)
 			v, ok := doc.Types[id].(*ir.Model)
 			require.True(t, ok, "%s: got %T", id, doc.Types[id])
 			assert.Equal(t, &ir.Constraints{MinProps: new(int64(2))}, v.Constraints, id)
@@ -593,6 +622,14 @@ func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 		assert.NotContains(t, msg, "minProperties")
 		assert.NotContains(t, marshalForTest(t, doc), `"openapi:minProperties"`)
 	})
+	t.Run("the union beside a schema admitting every kind holds both", func(t *testing.T) {
+		t.Parallel()
+		e, ok := typeByName(doc, "E").(*ir.Union)
+		require.True(t, ok, "got %T", typeByName(doc, "E"))
+		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1)), MinProps: new(int64(2))}, e.Constraints)
+		assert.Equal(t, []string{"openapi:$ref"}, unmodeledKeys(e.Unmodeled))
+		assert.EqualValues(t, "/components/schemas/E/allOf/0", e.Unmodeled["openapi:$ref"].Provenance.Pointer)
+	})
 }
 
 // budgetSpec writes a position naming a schema of n branches none of which
@@ -607,41 +644,26 @@ func budgetSpec(n int) string {
 	return openapitest.ComponentSpec(b.String())
 }
 
-// TestConstraints_AReadPastItsBudgetReadsEveryBoundInEitherOrder pins that a
-// read of the named schemas that spends more than its budget answers nothing,
-// so no verdict turns on the order an allOf lists its entries in: past 256
-// schemas read, both properties hold the bound, and short of it both keep it.
-func TestConstraints_AReadPastItsBudgetReadsEveryBoundInEitherOrder(t *testing.T) {
+// TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder pins that the read
+// of the named schemas is decided whatever it takes in, so no verdict turns on
+// how far it reads or on the order an allOf lists its entries in: either side
+// of 256 schemas read, both properties keep a string bound beside an array.
+func TestConstraints_AReadOfAnySizeKeepsTheBoundInEitherOrder(t *testing.T) {
 	t.Parallel()
-	t.Run("row 36: 256 reads", func(t *testing.T) {
-		t.Parallel()
-		doc, diags := parseFull(t, budgetSpec(254))
-		openapitest.RequireNoErrorDiags(t, diags)
-		for _, wire := range []string{"wideFirst", "arrFirst"} {
-			p := propertyOf(t, doc, "H", wire)
-			assert.Nil(t, p.Constraints, wire)
-			node, ok := doc.Types[p.Type.Target].(*ir.Model)
-			require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
-			assert.Contains(t, node.Unmodeled, "openapi:minLength", wire)
-		}
-	})
-	t.Run("row 37: 257 reads", func(t *testing.T) {
-		t.Parallel()
-		doc, diags := parseFull(t, budgetSpec(255))
-		openapitest.RequireNoErrorDiags(t, diags)
-		first, last := propertyOf(t, doc, "H", "wideFirst"), propertyOf(t, doc, "H", "arrFirst")
-		assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, first.Constraints)
-		assert.Equal(t, first.Constraints, last.Constraints)
-		assert.Empty(t, first.Unmodeled)
-		assert.Empty(t, last.Unmodeled)
-		for _, p := range []ir.Property{first, last} {
-			node := doc.Types[p.Type.Target]
-			require.NotNil(t, node, p.ID)
-			assert.NotContains(t, node.Common().Unmodeled, "openapi:minLength", p.ID)
-		}
-		assert.Equal(t, doc.Types[first.Type.Target].Kind(), doc.Types[last.Type.Target].Kind())
-		assert.Equal(t, first.Type.Nullable, last.Type.Nullable)
-	})
+	for _, n := range []int{254, 255} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, budgetSpec(n))
+			openapitest.RequireNoErrorDiags(t, diags)
+			for _, wire := range []string{"wideFirst", "arrFirst"} {
+				p := propertyOf(t, doc, "H", wire)
+				assert.Nil(t, p.Constraints, wire)
+				node, ok := doc.Types[p.Type.Target].(*ir.Model)
+				require.True(t, ok, "%s: got %T", wire, doc.Types[p.Type.Target])
+				assert.Contains(t, node.Unmodeled, "openapi:minLength", wire)
+			}
+		})
+	}
 }
 
 // recursiveSpec writes a $recursiveRef and a $dynamicRef each beside a bound its
@@ -727,8 +749,9 @@ func TestConstraints_ABoundIsReadTheSameInEitherDeclarationOrder(t *testing.T) {
 // TestConstraints_AReferenceLandingOnAPropertyReadsItsNode pins a $ref naming a
 // property's own schema, a union's or an enum's with a bound beside it: the
 // bound is on the node the property owns, in the Union's Constraints or the
-// Enum's Unmodeled, which the landing reaches through its reference and reads
-// no copy of, whichever of the two is declared first (GitHub #1924).
+// Enum's Unmodeled, which the property and the landing both reach through
+// their references, neither holding a copy, whichever of the two is declared
+// first (GitHub #1924, #1988).
 func TestConstraints_AReferenceLandingOnAPropertyReadsItsNode(t *testing.T) {
 	t.Parallel()
 	const holder = "    H: {type: object, properties: {u: {oneOf: [{type: string}, {type: integer}], minLength: 1}, " +
@@ -746,7 +769,7 @@ func TestConstraints_AReferenceLandingOnAPropertyReadsItsNode(t *testing.T) {
 		u, ok := doc.Types["t/anon/components/schemas/H/properties/u"].(*ir.Union)
 		require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/H/properties/u"])
 		assert.Equal(t, want, u.Constraints)
-		assert.Equal(t, want, propertyOf(t, doc, "H", "u").Constraints)
+		assert.Nil(t, propertyOf(t, doc, "H", "u").Constraints)
 		e, ok := doc.Types["t/anon/components/schemas/H/properties/e"].(*ir.Enum)
 		require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/H/properties/e"])
 		assert.Contains(t, e.Unmodeled, "openapi:minLength")
@@ -793,45 +816,47 @@ func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 	}
 }
 
-// TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget pins a bound written
-// beside the $ref of a composed branch: it is that branch's, read by what its
-// reference names, so the alias the branch owns keeps one the target cannot
-// take, with a report at the branch, and holds one it can.
-func TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget(t *testing.T) {
+// TestAllOf_ABoundBesideABranchsOwnRefIsThePositions pins a bound written
+// beside the $ref of an allOf entry: a conjunct of the position, as the same
+// bound on an entry of its own is, read by what the position lowers to. One
+// its node takes is held there; one it cannot take keeps the entry, with a
+// report at it; and no node stands at the entry.
+func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, schema, branch, keyword string
-		held                          *ir.Constraints
+		name, schema, kept string
+		held               *ir.Constraints
 	}{
-		{name: "a value bound beside an array", branch: "allOf/0", keyword: "minLength",
-			schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}, " + refTo("Open") + "]}"},
-		{name: "a collection bound beside a string", branch: "allOf/1", keyword: "minItems",
-			schema: "{allOf: [" + refTo("Open") + ", {$ref: '#/components/schemas/Str', minItems: 2}]}"},
-		{name: "a value bound the target takes", branch: "allOf/0", held: &ir.Constraints{MinLength: new(int64(1))},
-			schema: "{allOf: [{$ref: '#/components/schemas/Str', minLength: 1}, " + refTo("Open") + "]}"},
+		{name: "a value bound beside an array", schema: "{allOf: [{$ref: '#/components/schemas/Arr', minLength: 1}]}",
+			kept: "minLength"},
+		{name: "a collection bound beside a string", schema: "{allOf: [{$ref: '#/components/schemas/Str', minItems: 2}]}",
+			kept: "minItems"},
+		{name: "a value bound the target takes", held: &ir.Constraints{MinLength: new(int64(1))},
+			schema: "{allOf: [{$ref: '#/components/schemas/Str', minLength: 1}]}"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, namedSpec("3.1.0", tc.schema, "", false))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			_, composed := typeByName(doc, "S").(*ir.Model)
-			require.True(t, composed, "got %T", typeByName(doc, "S"))
-			at := namedS + "/" + tc.branch
-			alias, ok := doc.Types["t/anon"+ir.TypeID(at)].(*ir.Scalar)
-			require.True(t, ok, "got %T", doc.Types["t/anon"+ir.TypeID(at)])
-			assert.Equal(t, tc.held, alias.Constraints)
+			at := namedS + "/allOf/0"
+			assert.NotContains(t, doc.Types, "t/anon"+ir.TypeID(at), "no node at the entry")
+			s, ok := doc.Types[componentID("S")].(*ir.Scalar)
+			require.True(t, ok, "got %T", doc.Types[componentID("S")])
+			assert.Equal(t, tc.held, s.Constraints)
 			if tc.held != nil {
-				assert.Empty(t, alias.Unmodeled)
+				assert.Empty(t, s.Unmodeled)
 				assert.Empty(t, diags)
 				return
 			}
-			entry, kept := alias.Unmodeled["openapi:"+tc.keyword]
-			require.True(t, kept, "got %v", unmodeledKeys(alias.Unmodeled))
-			assert.Equal(t, at+"/"+tc.keyword, string(entry.Provenance.Pointer))
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
-			assert.Contains(t, msg, "an alias over its $ref target")
-			assert.Contains(t, msg, "no home for "+tc.keyword)
+			// The bound the entry writes beside its $ref is kept on its own, as
+			// an inline entry's is, at the keyword, and reported at the entry.
+			assert.Equal(t, []string{"openapi:" + tc.kept}, unmodeledKeys(s.Unmodeled))
+			assert.Equal(t, ir.ReasonDegradedLowering, s.Unmodeled["openapi:"+tc.kept].Reason)
+			assert.Equal(t, at+"/"+tc.kept, string(s.Unmodeled["openapi:"+tc.kept].Provenance.Pointer))
+			reports := diagsAtPointer(diags, diag.DegradedConstruct, at)
+			require.Len(t, reports, 1)
+			assert.Equal(t, ir.SeverityInfo, reports[0].Severity)
 		})
 	}
 }
@@ -845,7 +870,7 @@ func TestAllOf_ABoundBesideABranchsOwnRefIsReadByItsTarget(t *testing.T) {
 func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, schema, key, value, reportAt string }{
-		{name: "a bound on a branch", key: "allOf/1", value: `{"minimum":1}`, reportAt: "/allOf/1",
+		{name: "a bound on a branch", key: "minimum", value: "1", reportAt: "/allOf/1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}, {minimum: 1}], minLength: 2}"},
 		{name: "a bound beside the allOf", key: "minimum", value: "1",
 			schema: "{type: [string, integer], allOf: [{type: [string, boolean]}], minimum: 1, minLength: 2}"},
@@ -878,68 +903,62 @@ func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 
 // TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough pins a schema a
 // position names that writes a dynamic reference of its own: the bound is read
-// by what that reference expands to, an array here, so it is kept, and one the
-// expansion takes is held.
+// by what that reference expands to, so beside a $ref or an allOf of it it is
+// kept where that is an array and held where it is a string.
 func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 	t.Parallel()
 	const extra = `    DL: {$dynamicRef: '#list'}
     DS: {$dynamicRef: '#node'}
     List: {$dynamicAnchor: list, type: array, items: {type: string}}
 `
-	t.Run("beside a $ref", func(t *testing.T) {
-		t.Parallel()
-		assertNamedRow(t, namedRow{
+	for _, row := range []namedRow{
+		{
 			name: "beside a $ref", schema: "{$ref: '#/components/schemas/DL', minLength: 1}", extra: extra,
-			kept: []keptAt{{key: "minLength"}}, msgs: []string{"an alias over its $ref target"},
-		})
-	})
-	for _, tc := range []struct {
-		name, target string
-		held         *ir.Constraints
-	}{
-		{name: "beside an allOf naming an array", target: "DL"},
-		{name: "beside an allOf naming a string", target: "DS", held: &ir.Constraints{MinLength: new(int64(1))}},
+			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its conjuncts"},
+		},
+		{
+			name: "beside a $ref naming a string", schema: "{$ref: '#/components/schemas/DS', minLength: 1}", extra: extra,
+			held: &ir.Constraints{MinLength: new(int64(1))},
+		},
+		{
+			name: "beside an allOf naming DL", schema: "{allOf: [" + refTo("DL") + "], minLength: 1}", extra: extra,
+			kept: []keptAt{{key: "minLength"}}, msgs: []string{"a use of one of its allOf conjuncts"},
+		},
+		{
+			name: "beside an allOf naming DS", schema: "{allOf: [" + refTo("DS") + "], minLength: 1}", extra: extra,
+			held: &ir.Constraints{MinLength: new(int64(1))},
+		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
+		t.Run(row.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, namedSpec("3.1.0", "{allOf: ["+refTo(tc.target)+"], minLength: 1}", extra, false))
-			openapitest.RequireNoErrorDiags(t, diags)
-			for at, id := range map[string]ir.TypeID{namedS: componentID("S"), namedP: "t/anon" + namedP} {
-				m, ok := doc.Types[id].(*ir.Model)
-				require.True(t, ok, "%s: got %T", at, doc.Types[id])
-				assert.Equal(t, tc.held, m.Constraints, at)
-				if tc.held != nil {
-					assert.Empty(t, m.Unmodeled, at)
-					continue
-				}
-				assert.Contains(t, m.Unmodeled, "openapi:minLength", at)
-				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
-					"no home for minLength", at)
-			}
+			assertNamedRow(t, row)
 		})
 	}
 }
 
 // TestConstraints_AnInlineBranchIsReadAtItsOwnPointer pins that an inline
-// branch is read where it is written: its dynamic reference expands in its own
+// branch is read where it is written: its dynamic reference resolves in its own
 // schema resource, so one under an identifier of its own names no anchor of the
-// document's, which makes it the $ref it spells, resolving nowhere, and
-// excludes nothing, while one beside it expands to the array.
+// document's, which makes it the $ref it spells, resolving nowhere, so the
+// position stays a model holding the property count, while one in the
+// document's resource names the array's anchor, which no entry expands, so it
+// masks no kind and the top type the position lowers to holds the count.
 func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, branch string
 		held         *ir.Constraints
+		model        bool
 		errs         []string
 	}{
-		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}"},
+		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}", held: &ir.Constraints{MinProps: new(int64(1))}},
 		{name: "in a resource of its own", branch: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
-			held: &ir.Constraints{MinLength: new(int64(1))},
+			held: &ir.Constraints{MinProps: new(int64(1))}, model: true,
 			errs: []string{"openapi/unresolved-ref at /components/schemas/S/allOf/0"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.branch+"], minLength: 1}\n"+
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.branch+"], minProperties: 1}\n"+
 				"    List: {$dynamicAnchor: list, type: array, items: {type: string}}\n"))
 			var errs []string
 			for _, d := range diags {
@@ -948,11 +967,11 @@ func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tc.errs, errs, "%+v", diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
-			require.True(t, ok, "got %T", typeByName(doc, "S"))
-			assert.Equal(t, tc.held, m.Constraints)
-			_, kept := m.Unmodeled["openapi:minLength"]
-			assert.Equal(t, tc.held == nil, kept, "got %v", unmodeledKeys(m.Unmodeled))
+			td := typeByName(doc, "S")
+			assert.Equal(t, tc.model, td.Kind() == ir.KindModel, "got %T", td)
+			assert.Equal(t, tc.held, heldBounds(td))
+			_, kept := td.Common().Unmodeled["openapi:minProperties"]
+			assert.Equal(t, tc.held == nil, kept, "got %v", unmodeledKeys(td.Common().Unmodeled))
 		})
 	}
 }

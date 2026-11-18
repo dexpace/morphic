@@ -20,9 +20,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -166,7 +166,8 @@ components:
 // coordinates, and reports each such $ref, and a discriminator mapping naming
 // the same target, unresolved where the source writes it, though the pointer
 // it spells is a source component's. Such a mapping tags no subtype, which
-// takes its own name.
+// takes its own name, and a union beside a body is not distributed over such
+// a branch, which the bindings land but the lowering does not resolve.
 func TestRef_IntoADocumentTheCompileDoesNotListIsUnresolved(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -186,6 +187,10 @@ components:
       properties: {kind: {type: string}}
       discriminator: {propertyName: kind, mapping: {x: './ext.yaml#/components/schemas/Sub'}}
     Sub: {allOf: [{$ref: '#/components/schemas/Base'}]}
+    Mixed:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: './ext.yaml#/components/schemas/Sub'}, {type: object}]
 `)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.Empty(t, diags)
@@ -193,8 +198,8 @@ components:
 	unlisted := *loaded
 	unlisted.Others = load.Others{}
 
-	l := schema.LowererOver(lowering.New(0, &unlisted, lowering.Policy{Grouping: lowering.GroupByTags}))
-	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
+	l := schema.LowererOver(service.New(0, &unlisted, service.Policy{Grouping: service.GroupByTags}))
+	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas()))
 	doc := l.Document(t)
 
 	unresolved := func(pointer jsontext.Pointer, message string) ir.Diagnostic {
@@ -208,6 +213,8 @@ components:
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
 		unresolved("/components/schemas/Base/discriminator/mapping/x",
 			`discriminator mapping "x" references unresolved schema "./ext.yaml#/components/schemas/Sub"`),
+		unresolved("/components/schemas/Mixed/oneOf/0",
+			`union branch $ref "./ext.yaml#/components/schemas/Sub" is unresolved; the branch is kept verbatim`),
 	}, withCode(l.Diags.List(), "openapi/unresolved-ref")))
 	sub, ok := doc.Types[ids.Document{}.NamedType("/components/schemas/Sub")].(*ir.Model)
 	require.True(t, ok)
@@ -331,16 +338,16 @@ func TestSchema_EmptyStringRefMirrorBranches(t *testing.T) {
 	assert.Contains(t, []string{u.Variants[0].Name.Hint, u.Variants[1].Name.Hint}, "variant_0")
 }
 
-// TestSchema_ARefThroughAnEmptyRefLendsNothing pins a use site whose $ref lands
-// on a schema writing an empty $ref beside its annotations. That $ref names the
-// document's root, which holds no schema, so the schema lowers to an alias over
-// the top type and the chain ends on no schema: the use site takes no
-// description, default or discriminator from it, as from one whose $ref names
-// nothing.
-func TestSchema_ARefThroughAnEmptyRefLendsNothing(t *testing.T) {
+// TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf pins a schema
+// writing an empty $ref beside its keywords, which names the document's root
+// and so no schema: the $ref is one conjunct and the keywords another, as in
+// the allOf spelling of the same schema, so a use of it, and a composition
+// naming it, read what its keywords say alike in both spellings.
+func TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    Empty: {$ref: '', description: from-empty, default: e}
-    Base: {$ref: '', type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}
+	read := func(empty, base string) (*ir.Property, *ir.Model) {
+		doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    Empty: `+empty+`
+    Base: `+base+`
     Sub:
       type: object
       allOf: [{$ref: '#/components/schemas/Base'}]
@@ -348,17 +355,22 @@ func TestSchema_ARefThroughAnEmptyRefLendsNothing(t *testing.T) {
       type: object
       properties:
         p: {$ref: '#/components/schemas/Empty'}
-`)
-	doc, _ := schema.LowerSpec(t, spec)
-	require.NotNil(t, doc)
-	owner, ok := typeByName(doc, "Owner").(*ir.Model)
-	require.True(t, ok)
-	require.Len(t, owner.Properties, 1)
-	assert.Empty(t, owner.Properties[0].Docs.Description, "no description comes through the empty $ref")
-	assert.Nil(t, owner.Properties[0].Default, "nor a default")
-	sub, ok := typeByName(doc, "Sub").(*ir.Model)
-	require.True(t, ok)
-	assert.Empty(t, sub.DiscriminatorValue, "nor a discriminator Base's alias does not hold")
+`))
+		require.NotNil(t, doc)
+		owner, ok := typeByName(doc, "Owner").(*ir.Model)
+		require.True(t, ok)
+		require.Len(t, owner.Properties, 1)
+		sub, ok := typeByName(doc, "Sub").(*ir.Model)
+		require.True(t, ok)
+		return &owner.Properties[0], sub
+	}
+	const base = "type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}"
+	p, sub := read("{$ref: '', description: from-empty, default: e}", "{$ref: '', "+base+"}")
+	wp, wsub := read("{allOf: [{$ref: ''}], description: from-empty, default: e}", "{allOf: [{$ref: ''}], "+base+"}")
+	assert.Equal(t, "from-empty", p.Docs.Description, "the keywords beside the $ref say what the schema is")
+	assert.Equal(t, wp.Docs, p.Docs)
+	assert.Equal(t, wp.Default, p.Default)
+	assert.Equal(t, wsub.DiscriminatorValue, sub.DiscriminatorValue)
 }
 
 // TestComponentConstraints_RefSiblingKeepsThem pins the constraint counterpart
@@ -466,10 +478,9 @@ components:
         inner: {$ref: '#/components/schemas/Base'}
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
-	inner, ok := doc.Types["t/anon/components/schemas/Holder/properties/inner"].(*ir.Scalar)
-	require.True(t, ok, "a bare $ref sub-schema aliases rather than copying its target")
-	require.NotNil(t, inner.Base)
-	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"), inner.Base.Target)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Base"),
+		useTargetOf(t, doc.Types["t/anon/components/schemas/Holder/properties/inner"]),
+		"a bare $ref sub-schema is a use of its target rather than a copy of it")
 
 	_, isModel := doc.Types[ir.TypeID("t/openapi/components/schemas/Base")].(*ir.Model)
 	assert.True(t, isModel, "the structure lives at the component it was declared at")
@@ -729,112 +740,6 @@ func TestComponentBody_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 	}
 }
 
-// TestRefSiteKeywords_KeptAtEveryPosition covers the census the $ref path never
-// ran (GitHub #283). A keyword beside a `$ref` is conjoined with it, and the
-// alias over the target has no property set, member set, value or encoding to
-// hold it, so each must be kept verbatim.
-//
-// Every row runs at a component (annotation.HomeOwnNode, kept on the alias it
-// hoists) and at a property (annotation.HomeCarrier, kept on itself), which
-// take different paths.
-//
-// allOf is here for another reason (GitHub #406): a $ref site elects no
-// composition family, so only refSiteUnhomedKeywords carries it to the alias.
-func TestRefSiteKeywords_KeptAtEveryPosition(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct{ keyword, sibling, target, raw string }{
-		{"format", "format: email", "BaseStr", `"email"`},
-		{"enum", "enum: [a, b]", "BaseStr", `["a","b"]`},
-		{"const", "const: a", "BaseStr", `"a"`},
-		{"required", "required: [a]", "BaseObj", `["a"]`},
-		{"additionalProperties", "additionalProperties: false", "BaseObj", `false`},
-		{"allOf", "allOf: [{type: string}]", "BaseObj", `[{"type":"string"}]`},
-	} {
-		t.Run(tc.keyword, func(t *testing.T) {
-			t.Parallel()
-			site := "{$ref: '#/components/schemas/" + tc.target + "', " + tc.sibling + "}"
-			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
-				"    Alias: "+site+"\n"+
-					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
-			openapitest.RequireNoErrorDiags(t, diags)
-			key := "openapi:" + tc.keyword
-
-			alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
-			require.True(t, ok, "the component position hoists an alias to hold what it wrote")
-			require.NotNil(t, alias.Base)
-			assert.Equal(t, componentID(tc.target), alias.Base.Target, "and still aliases the target")
-			assertKeptVerbatim(t, alias.Unmodeled, key, tc.raw)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Alias"),
-				"no home for "+tc.keyword)
-
-			holder, ok := typeByName(doc, "Holder").(*ir.Model)
-			require.True(t, ok)
-			p, ok := openapitest.PropsByWire(holder.Properties)["p"]
-			require.True(t, ok)
-			assert.Equal(t, componentID(tc.target), p.Type.Target,
-				"the carrier still resolves straight to the target; only the loss is now recorded")
-			assertKeptVerbatim(t, p.Unmodeled, key, tc.raw)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-					"/components/schemas/Holder/properties/p"),
-				"no home for "+tc.keyword)
-		})
-	}
-}
-
-// TestRefSiteKeywords_UnionKeptAtEveryPosition covers oneOf/anyOf co-declared
-// beside a $ref at the same level (GitHub #406). Under JSON Schema 2020-12 —
-// and so OpenAPI 3.1 — `$ref` conjoins with its siblings, so the union
-// narrows the referenced schema; the union family's one keeper,
-// preserveUnionSiblings, was reached only through the structural-body path
-// (lowerBesideUnmodeledUnion), so a $ref-peeling declaration reached it not
-// at all. Both ref-site positions reach that keeper, a carrier through its body
-// (preserveUnionSiblingsAt), instead of a second one.
-//
-// Both positions are checked, as TestRefSiteKeywords_KeptAtEveryPosition
-// checks the rest of the census: a component hoists an alias to hold the
-// union, a property keeps it on itself.
-func TestRefSiteKeywords_UnionKeptAtEveryPosition(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct{ keyword, sibling string }{
-		{"oneOf", "oneOf: [{type: string}, {type: integer}]"},
-		{"anyOf", "anyOf: [{type: string}, {type: integer}]"},
-	} {
-		t.Run(tc.keyword, func(t *testing.T) {
-			t.Parallel()
-			site := "{$ref: '#/components/schemas/BaseObj', " + tc.sibling + "}"
-			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
-				"    Alias: "+site+"\n"+
-					"    Holder: {type: object, properties: {p: "+site+"}}\n"))
-			openapitest.RequireNoErrorDiags(t, diags)
-			key := "openapi:" + tc.keyword
-			raw := `[{"type":"string"},{"type":"integer"}]`
-
-			alias, ok := typeByName(doc, "Alias").(*ir.Scalar)
-			require.True(t, ok, "the component position hoists an alias to hold the union its $ref cannot")
-			require.NotNil(t, alias.Base)
-			assert.Equal(t, componentID("BaseObj"), alias.Base.Target, "and still aliases the target")
-			assertKeptVerbatim(t, alias.Unmodeled, key, raw)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Alias"),
-				"union branches kept verbatim")
-
-			holder, ok := typeByName(doc, "Holder").(*ir.Model)
-			require.True(t, ok)
-			p, ok := openapitest.PropsByWire(holder.Properties)["p"]
-			require.True(t, ok)
-			assert.Equal(t, componentID("BaseObj"), p.Type.Target,
-				"the carrier still resolves straight to the target; only the loss is now recorded")
-			assertKeptVerbatim(t, p.Unmodeled, key, raw)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-					"/components/schemas/Holder/properties/p"),
-				"union branches kept verbatim")
-		})
-	}
-}
-
 // TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched is the control the
 // census has to leave alone. A bound and a description written at the identical
 // position always did reach a field — the alias's Constraints and the property's
@@ -866,70 +771,42 @@ func TestRefSiteKeywords_SiblingsWithATypedHomeAreUntouched(t *testing.T) {
 	assert.Empty(t, unmodeledKeys(p.Unmodeled))
 }
 
-// TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold runs the same
-// census at the third $ref site: an allOf branch spelled as a reference, which
-// homes its siblings on an alias exactly as a component does.
-//
-// `required` is the branch keyword this composition does read — requireMembers
-// lands every branch's list on the composed model — so it must not be kept, or
-// one keyword would be read twice.
-func TestRefSiteKeywords_AllOfBranchKeepsWhatTheAliasCannotHold(t *testing.T) {
+// TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts pins what an
+// allOf entry writes beside its $ref: a conjunct of the position, as the same
+// keywords on an entry of their own are, never an alias's at the entry. The
+// $ref is the Base itself; `required` is read by the composition, a format no
+// model holds keeps the entry, and a union or an allOf no object satisfies
+// draws the warning that the conjuncts share no value.
+func TestRefSiteKeywords_AnEntrysKeywordsBesideItsRefAreConjuncts(t *testing.T) {
 	t.Parallel()
-	doc, diags := schema.LowerSpec(t, keywordCensusSpec(
-		"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', format: email, required: [a]}]}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-
-	m, ok := typeByName(doc, "S").(*ir.Model)
-	require.True(t, ok)
-	require.NotNil(t, m.Base, "the branch still composes")
-	branch, ok := doc.Types[m.Base.Target].(*ir.Scalar)
-	require.True(t, ok, "through an alias hoisted at the branch position")
-	assert.Equal(t, []string{"openapi:format"}, unmodeledKeys(branch.Unmodeled),
-		"required is read by the composition, so only the format is kept")
-	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
-		"no home for format")
-}
-
-// TestRefSiteKeywords_AllOfBranchKeepsUnion covers the same #406 gap at the
-// third $ref site: an allOf branch spelled as a $ref that co-declares
-// oneOf/anyOf, or a nested allOf, beside it. fillAllOf's branch census never
-// named oneOf/anyOf/allOf, so a branch's own $ref beside one composed
-// straight to the target with the sibling read by nothing (no alias, no
-// Unmodeled, no diagnostic) — the same mechanism as the component and
-// carrier positions.
-//
-// allOf reuses refSiteUnhomedKeywords, the same list the component and
-// carrier sites use; oneOf/anyOf reuse preserveUnionSiblings, the same
-// keeper. Neither gets a keeper of its own for the branch position.
-func TestRefSiteKeywords_AllOfBranchKeepsUnion(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct{ keyword, sibling, raw, wantMsg string }{
-		{"oneOf", "oneOf: [{type: string}, {type: integer}]",
-			`[{"type":"string"},{"type":"integer"}]`,
-			"there is nothing at this position to distribute the union's composition across"},
-		{"anyOf", "anyOf: [{type: string}, {type: integer}]",
-			`[{"type":"string"},{"type":"integer"}]`,
-			"there is nothing at this position to distribute the union's composition across"},
-		{"allOf", "allOf: [{type: string}]", `[{"type":"string"}]`, "no home for allOf"},
+	for _, tc := range []struct {
+		name, sibling, kept, at string
+		requires                []string
+		disjoint                bool
+	}{
+		{"format and required", "format: email, required: [a]", "openapi:format", "allOf/0/format", []string{"a"}, false},
+		{"oneOf", "oneOf: [{type: string}, {type: integer}]", "openapi:oneOf", "allOf/0/oneOf", nil, true},
+		{"anyOf", "anyOf: [{type: string}, {type: integer}]", "openapi:anyOf", "allOf/0/anyOf", nil, true},
+		{"allOf", "allOf: [{type: string}]", "openapi:type", "allOf/0/allOf/0/type", nil, true},
 	} {
-		t.Run(tc.keyword, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := schema.LowerSpec(t, keywordCensusSpec(
 				"    S: {allOf: [{$ref: '#/components/schemas/BaseObj', "+tc.sibling+"}]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-
 			m, ok := typeByName(doc, "S").(*ir.Model)
 			require.True(t, ok)
-			require.NotNil(t, m.Base, "the branch still composes")
-			branch, ok := doc.Types[m.Base.Target].(*ir.Scalar)
-			require.True(t, ok, "the branch position hoists an alias over its target, exactly as a component or carrier would")
-			require.NotNil(t, branch.Base)
-			assert.Equal(t, componentID("BaseObj"), branch.Base.Target)
-			assertKeptVerbatim(t, branch.Unmodeled, "openapi:"+tc.keyword, tc.raw)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
-				tc.wantMsg)
+			require.NotNil(t, m.Base, "the entry still composes")
+			assert.Equal(t, componentID("BaseObj"), m.Base.Target, "its $ref is the Base itself")
+			assert.Equal(t, tc.requires, m.Requires)
+			// Each keyword the entry writes beside its $ref is kept on its own,
+			// as an inline entry's is, at the keyword.
+			assert.Equal(t, []string{tc.kept}, unmodeledKeys(m.Unmodeled))
+			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled[tc.kept].Reason)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S/"+tc.at), m.Unmodeled[tc.kept].Provenance.Pointer)
+			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/S/allOf/0"), "no node at the entry")
+			assert.Equal(t, tc.disjoint, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S") &&
+				openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning) == 1)
 		})
 	}
 }
@@ -1069,12 +946,31 @@ func sortedDiagStrings(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// assertKeptVerbatim asserts p holds key as a degraded-lowering entry whose raw
-// payload is raw.
-func assertKeptVerbatim(t *testing.T, p ir.Unmodeled, key, raw string) {
-	t.Helper()
-	entry, ok := p[key]
-	require.True(t, ok, "%q is kept verbatim; kept instead: %v", key, unmodeledKeys(p))
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, raw, string(entry.Value))
+// TestRef_ToANullOrTrueValueIsHoisted pins a $ref landing on a property written
+// as no schema or as `true`, which the parser's model holds a value for: the
+// reference resolves, and the node hoisted where it lands is the top type,
+// whether a component or a union's branch names it
+// (docs/compilers/openapi.md#null-schema).
+func TestRef_ToANullOrTrueValueIsHoisted(t *testing.T) {
+	t.Parallel()
+	doc, diags := lowerSpecOnly(t, openapitest.ComponentSpecVer("3.1.0", `    H: {type: object, properties: {q: null, t: true}}
+    N: {$ref: '#/components/schemas/H/properties/q'}
+    A: {$ref: '#/components/schemas/H/properties/t'}
+    U: {oneOf: [{$ref: '#/components/schemas/H/properties/q'}, {type: string}]}
+`))
+	assert.Empty(t, withCode(diags, "openapi/unresolved-ref"))
+	top := ir.TypeRef{Target: "t/prim/any"}
+	for name, at := range map[string]string{"N": "H/properties/q", "A": "H/properties/t"} {
+		alias, ok := typeByName(doc, name).(*ir.Scalar)
+		require.True(t, ok, name)
+		require.NotNil(t, alias.Base, name)
+		assert.Equal(t, ids.Document{}.AnonType(jsontext.Pointer("/components/schemas/"+at)), alias.Base.Target, name)
+		hoisted, ok := doc.Types[alias.Base.Target].(*ir.Scalar)
+		require.True(t, ok, "%s: the node hoisted at %s", name, at)
+		assert.Equal(t, &top, hoisted.Base, name)
+	}
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok, "a branch naming the null value resolves")
+	require.Len(t, u.Variants, 2)
+	assert.Equal(t, ids.Document{}.AnonType("/components/schemas/H/properties/q"), u.Variants[0].Type.Target)
 }

@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -41,7 +41,7 @@ func TestSubtypeTagReading_ReportsWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			reading := subtypeTagReading{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}),
+			reading := subtypeTagReading{c: servicetest.Context(t, openapitest.EmptySpec, service.Policy{}).Ctx,
 				id: "t/s", pointer: "/components/schemas/S", property: "kind", name: "S"}
 			diags := reading.Settle(t.Context(), reg)
 			require.Len(t, diags, 1)
@@ -86,10 +86,10 @@ func routesAllocs(t *testing.T, width int) float64 {
 		fmt.Fprintf(&spec, "    S%d: {allOf: [{$ref: '#/components/schemas/Pet'}]}\n", i)
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", spec.String()))
-	schemaNamed := func(name string) *oas3.Schema {
-		js, ok := l.Ctx.Doc.Components.Schemas.Get(name)
+	schemaNamed := func(name string) *statement.Schema {
+		js, ok := l.Doc.Components.Schemas.Get(name)
 		require.True(t, ok, name)
-		return js.GetSchema()
+		return l.Ctx.Statements().Of(js).Schema
 	}
 	pet, last := schemaNamed("Pet"), schemaNamed(fmt.Sprintf("S%d", width-1))
 	require.True(t, routesByName(l.Ctx, pet, last), "a listed subtype is routed by name")

@@ -39,51 +39,8 @@ func (n *Namer) owner(p bind.Position, tokens []string, kinds []bind.Kind) (int,
 	if hint, ok := n.ownerOf(p.Doc, tokens, kinds, root-1); ok {
 		return root, hint
 	}
-	if start, hint, ok := nestedEncodingHeader(tokens, kinds, root); ok {
-		return start, hint
-	}
 	return pointerOwner(tokens)
 }
-
-// nestedEncodingHeader returns the hint of the header of a nested Encoding
-// Object whose schema holds the structure rooted at tokens[:root], and how many
-// tokens lead to that schema. OpenAPI 3.2 nests one under another's encoding,
-// prefixEncoding or itemEncoding, which the model does not read, so the grammar
-// reads the way past an Encoding Object (bind.KindEncoding) as raw YAML, and
-// this reads it as those fields spell it: the header is named by its key, as
-// one the model reads is (ownerOf). ok is false where the raw YAML above the
-// root is no such way.
-func nestedEncodingHeader(tokens []string, kinds []bind.Kind, root int) (int, string, bool) {
-	i := root - 1
-	for i > 0 && kinds[i] == bind.KindRaw {
-		i--
-	}
-	if kinds[i] != bind.KindEncoding {
-		return 0, "", false
-	}
-	for i < root && nestedEncodingFields[tokens[i]] > 0 {
-		i += nestedEncodingFields[tokens[i]]
-	}
-	if i+2 >= len(tokens) || tokens[i] != "headers" {
-		return 0, "", false
-	}
-	key := tokens[i+1]
-	switch {
-	case tokens[i+2] == "schema" && i+3 <= root:
-		return i + 3, key, true
-	case tokens[i+2] == "content" && i+5 <= root && tokens[i+4] == "schema":
-		return i + 5, key, true
-	case tokens[i+2] == "content" && i+5 <= root && tokens[i+4] == "itemSchema":
-		return i + 5, compile.SubHint(key, "item"), true
-	default:
-		return 0, "", false
-	}
-}
-
-// nestedEncodingFields are the fields an Encoding Object nests another under,
-// each by the tokens it takes to reach that one: a name or an index past the
-// field, or the field alone.
-var nestedEncodingFields = map[string]int{"encoding": 2, "prefixEncoding": 2, "itemEncoding": 1}
 
 // structureRoot returns the index in kinds of the schema whose structure
 // holds the last position: the innermost schema on the way, which holds what

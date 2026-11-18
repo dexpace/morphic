@@ -450,8 +450,6 @@ func TestCollectionBound_BesideAReferenceReachesTheAlias(t *testing.T) {
 			"t/anon/components/schemas/S/additionalProperties", "/components/schemas/S/additionalProperties"},
 		{"union branch", "{oneOf: [" + boundedRef + ", {type: string}]}",
 			"t/anon/components/schemas/S/oneOf/0", "/components/schemas/S/oneOf/0"},
-		{"allOf branch", "{allOf: [" + boundedRef + "], properties: {f: {type: string}}}",
-			"t/anon/components/schemas/S/allOf/0", "/components/schemas/S/allOf/0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -595,23 +593,24 @@ func TestCollectionBound_OnABranchMeetsInEveryOrder(t *testing.T) {
 }
 
 // TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch pins the bounds a
-// branch keeps: one ir.Constraints cannot state keeps its branch whole, and one
-// where the position has no collection to bound stays with its branch as it
-// stays beside the type, so the carrier holds none of it.
+// branch keeps under their own keys, reported at the branch: one ir.Constraints
+// cannot state, and one where the position has no collection to bound, as it
+// is kept beside the type, so the carrier holds none of it.
 func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Tags'}"
+	const noHome = " written on this inline branch"
 	for name, tc := range map[string]struct {
-		written, branch, report string
-		held                    *ir.Constraints
+		written, branch, key, report string
+		held                         *ir.Constraints
 	}{
-		"uniqueItems false": {"{allOf: [" + ref + ", {minItems: 1, uniqueItems: false}]}", "allOf/1",
-			"the branch (uniqueItems)", &ir.Constraints{MinItems: new(int64(1))}},
-		"a count past int64": {"{allOf: [" + ref + ", {minItems: 99999999999999999999}]}", "allOf/1",
-			"the branch (minItems)", nil},
-		"a string": {"{type: string, allOf: [{minItems: 1}]}", "allOf/0", "the branch (minItems)", nil},
-		"an object": {"{allOf: [{properties: {a: {type: string}}}, {minItems: 1}]}", "allOf/1",
-			"the branch (minItems)", nil},
+		"uniqueItems false": {"{allOf: [" + ref + ", {minItems: 1, uniqueItems: false}]}", "allOf/1", "uniqueItems",
+			"no home for uniqueItems" + noHome, &ir.Constraints{MinItems: new(int64(1))}},
+		"a count past int64": {"{allOf: [" + ref + ", {minItems: 99999999999999999999}]}", "allOf/1", "minItems",
+			"past what a 64-bit integer holds", nil},
+		"a string": {"{type: string, allOf: [{minItems: 1}]}", "allOf/0", "minItems", "no home for minItems" + noHome, nil},
+		"an object": {"{allOf: [{properties: {a: {type: string}}}, {minItems: 1}]}", "allOf/1", "minItems",
+			"no home for minItems" + noHome, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -625,10 +624,10 @@ func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
 				assert.Nil(t, m.Constraints)
 				kept = m.Unmodeled
 			}
-			assert.Equal(t, []string{"openapi:" + tc.branch}, unmodeledKeys(kept))
-			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-				"/components/schemas/Holder/properties/f/"+tc.branch)
-			assert.Contains(t, msg, tc.report)
+			assert.Equal(t, []string{"openapi:" + tc.key}, unmodeledKeys(kept))
+			at := "/components/schemas/Holder/properties/f/" + tc.branch
+			assert.Equal(t, jsontext.Pointer(at+"/"+tc.key), kept["openapi:"+tc.key].Provenance.Pointer)
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), tc.report)
 		})
 	}
 }
@@ -1131,21 +1130,19 @@ func TestConstraints_ACountAVariantKeepsIsKeptOnce(t *testing.T) {
 // TestConstraints_AModifierBoundingNothingIsReportedOnce pins the census to what
 // the reader of a node's bounds kept: a 3.0 exclusive modifier with no bound
 // beside it, on a node whose Constraints it leaves empty, is kept and warned of
-// by that reader, and not kept again and reported as having no home. A type
-// that takes no numeric bound reads none: the census keeps it, with its info and
-// no warning (TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus).
+// by that reader, and not kept again and reported as having no home. A schema
+// that is an object by its properties takes no numeric bound and reads none:
+// the census keeps it, with its info and no warning, as it keeps one beside any
+// type that takes none (TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus).
 func TestConstraints_AModifierBoundingNothingIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
 		"    M: {properties: {a: {type: string}}, exclusiveMinimum: true}\n"+
 			"    S: {type: number, format: x-f, exclusiveMinimum: true}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, name := range []string{"M", "S"} {
+	for name, severity := range map[string]ir.Severity{"M": ir.SeverityInfo, "S": ir.SeverityWarning} {
 		assert.Equal(t, []string{"openapi:exclusiveMinimum"}, unmodeledKeys(typeByName(doc, name).Common().Unmodeled), name)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name), name)
+		assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, severity, "/components/schemas/"+name), name)
 	}
-	require.Len(t, diags, 2, "%+v", diags)
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityWarning, d.Severity, "the reader's warning alone")
-	}
+	require.Len(t, diags, 2, "one report each: %+v", diags)
 }

@@ -264,12 +264,13 @@ func TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt(t *testing.T
 	assert.Equal(t, diag.UnpreservableConstruct, got[0].Code)
 }
 
-// TestNullBranch_BesideABodyIsNotLifted pins a null branch, in every spelling,
-// in a union written beside structure: the union is kept verbatim beside the
-// body it intersects with, and its null branch lifts nothing onto the
-// reference, which says only what the body says of null
-// (docs/compilers/openapi.md#union-beside-structure, shape 2).
-func TestNullBranch_BesideABodyIsNotLifted(t *testing.T) {
+// TestNullBranch_BesideABodyIsLiftedPastTheDistribution pins a null branch,
+// in every spelling, in a union written beside structure: the union
+// distributes across the body past it, as no variant, and the reference
+// admits null where the body admits it too, so a body writing `type: object`
+// leaves it non-nullable and one writing no type leaves the branch's null to
+// decide (docs/compilers/openapi.md#union-beside-structure, GitHub #1856).
+func TestNullBranch_BesideABodyIsLiftedPastTheDistribution(t *testing.T) {
 	t.Parallel()
 	for _, sp := range nullBranchSpellings {
 		t.Run(sp.version+" "+sp.branch, func(t *testing.T) {
@@ -282,14 +283,13 @@ func TestNullBranch_BesideABodyIsNotLifted(t *testing.T) {
         untyped: {properties: {p: {type: string}}, oneOf: [`+sp.branch+`, {$ref: '#/components/schemas/X'}]}
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
-			for _, wire := range []string{"typed", "untyped"} {
+			for wire, nullable := range map[string]bool{"typed": false, "untyped": true} {
 				ref := propertyOf(t, doc, "Holder", wire).Type
-				assert.False(t, ref.Nullable, "%s: the null branch lifts nothing", wire)
-				m, ok := doc.Types[ref.Target].(*ir.Model)
-				require.True(t, ok, "%s lowers to its body, got %T", wire, doc.Types[ref.Target])
-				assert.Contains(t, m.Unmodeled, "openapi:oneOf", "%s keeps its union verbatim", wire)
-				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-					"/components/schemas/Holder/properties/"+wire), "a branch admits null alone", wire)
+				assert.Equal(t, nullable, ref.Nullable, "%s: the null as the body admits it", wire)
+				u, ok := doc.Types[ref.Target].(*ir.Union)
+				require.True(t, ok, "%s distributes, got %T", wire, doc.Types[ref.Target])
+				require.Len(t, u.Variants, 1, "%s: the null branch is no variant", wire)
+				assert.NotContains(t, u.Unmodeled, "openapi:oneOf", wire)
 			}
 		})
 	}
@@ -342,7 +342,7 @@ components:
 	}{{limit: 3}, {limit: 2, refused: true}} {
 		l, _ := schema.LoweredFor(t, spec)
 		l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
-		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+		diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 		doc := l.Document(t)
 		u, isUnion := typeByName(doc, "H").(*ir.Union)
 		assert.Equal(t, tc.refused, isUnion, "limit %d: a union only where the branch is past the budget", tc.limit)

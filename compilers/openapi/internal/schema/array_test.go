@@ -220,7 +220,7 @@ func TestLower_MissingArrayItems(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			l, loadDiags := schema.LoweredFor(t, openapitest.ComponentSpecVer(tc.version, tc.schemas))
-			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 			openapitest.RequireNoErrorDiags(t, raw)
 			var invalid []string
 			for _, d := range loadDiags {
@@ -251,7 +251,7 @@ func TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.0.3", schemas))
-			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
+			raw := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
 			require.Len(t, missingItemsAt(t, raw), 1, "the declaration lowers the property once")
 			_, finished := l.Types.Finish(t.Context())
 			raw = append(raw, finished...)

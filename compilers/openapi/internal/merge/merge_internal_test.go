@@ -62,8 +62,8 @@ func judge(g *stubbed) typeJudge {
 	return typeJudge{resolve: g.resolve, sites: atRoot(g.walk)}
 }
 
-// untypedAt is Walk.Untyped for a registry whose nodes written under /untyped
-// state no instance type.
+// untypedAt reports whether a node of a registry is written under /untyped,
+// whose sources state no instance type and so admit every kind.
 func untypedAt(p ir.Provenance) bool { return strings.HasPrefix(string(p.Pointer), "/untyped/") }
 
 // stubbed is a Merger over a plain map and a stub walk, which records what its
@@ -92,7 +92,7 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*stubbed, *[]ir.Diagnostic) {
 // stubWalk is the walk a test folds under. Mint registers a node in reg under
 // composedAt's ID and counts it in minted, Interned answers for the schemas
 // interned lists, Alike reads every two sites against one base unless apart
-// says they are read apart, and Untyped is untypedAt.
+// says they are read apart, and Admits answers untypedAt, exactly.
 type stubWalk struct {
 	reg      map[ir.TypeID]ir.TypeDef
 	interned []jsontext.Pointer
@@ -122,8 +122,10 @@ func (w *stubWalk) Interned(pointer jsontext.Pointer) bool {
 // Alike is Walk.Alike.
 func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
 
-// Untyped is Walk.Untyped.
-func (w *stubWalk) Untyped(at ir.Provenance) bool { return untypedAt(at) }
+// Admits is Walk.Admits: every kind, exactly, under /untyped.
+func (w *stubWalk) Admits(at ir.Provenance, _ Instance) (admits, exact bool) {
+	return untypedAt(at), true
+}
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
 // declaration at pointer names.

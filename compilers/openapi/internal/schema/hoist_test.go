@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -82,10 +83,8 @@ func TestEscapedComponentName_DecodesInDiscriminatorValueAndHints(t *testing.T) 
 	assert.Equal(t, compile.NamingHint("Fish-Tank").Hint, choice.Variants[1].Name.Hint,
 		"and one naming a $ref with a percent escape takes its decoded name")
 
-	alias, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Mixed/allOf/0")].(*ir.Scalar)
-	require.True(t, ok, "a $ref branch with a sibling hoists an alias")
-	assert.Equal(t, compile.NamingHint("Cat/Dog").Hint, alias.Name.Hint,
-		"the alias a sibling-carrying branch hoists takes the same decoded hint")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Mixed/allOf/0"),
+		"what an entry writes beside its $ref is the position's, so the entry hoists no node")
 
 	def, ok := doc.Types[ir.TypeID("t/anon/components/schemas/Host/$defs/a~1b")]
 	require.True(t, ok, "a $ref into $defs hoists the definition it names")
@@ -418,15 +417,17 @@ func TestPureRefPosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 
 // TestAlias_CarriesTheBoundsWrittenBesideIt pins that an alias a position
 // hoists to own what it wrote keeps the value constraints written beside it:
-// beside an applicator its lowered node has no home for. The alias owns the
-// pointer, so hoistDeclarationHome hoists nothing else that could carry them.
+// beside an applicator its lowered node has no home for, as an untyped one
+// with the kind-inference policy off. The alias owns the pointer, so
+// hoistDeclarationHome hoists nothing else that could carry them.
 func TestAlias_CarriesTheBoundsWrittenBesideIt(t *testing.T) {
 	t.Parallel()
 	one, two := ir.BigVal("1"), ir.BigVal("2")
 	six := int64(6)
 	want := ir.Constraints{Min: &two, ExclusiveMin: &one, MinLength: &six}
-	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(
-		"    A: {items: {type: string}, minimum: 2, exclusiveMinimum: 1, minLength: 6}\n"))
+	doc, diags := schema.LowerSpecWith(t, openapitest.ComponentSpec(
+		"    A: {items: {type: string}, minimum: 2, exclusiveMinimum: 1, minLength: 6}\n"),
+		lowering.Policy{KindInference: lowering.KindInference{Disabled: true}})
 	openapitest.RequireNoErrorDiags(t, diags)
 	sc, ok := typeByName(doc, "A").(*ir.Scalar)
 	require.True(t, ok, "the position hoists an alias of its own")

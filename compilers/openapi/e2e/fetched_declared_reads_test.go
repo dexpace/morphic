@@ -112,10 +112,7 @@ func TestCompile_AFilesDeclarationAnswersTheURLItNamesBeforeAnyRequest(t *testin
 		assert.Empty(t, rootErrors(diags), "%s: %v", name, lines(diags))
 		assert.Zero(t, hits.Load(), "%s: no request", name)
 		for ref, want := range map[string]ir.TypeID{"A": "t/anon@local.yaml/Z", "B": "t/anon@local.yaml/Z", "C": "t/anon@local.yaml/Y"} {
-			sc, ok := doc.Types[componentID(ref)].(*ir.Scalar)
-			require.True(t, ok, "%s: %s", name, ref)
-			require.NotNil(t, sc.Base, "%s: %s", name, ref)
-			assert.Equal(t, want, sc.Base.Target, "%s: %s", name, ref)
+			assert.Equal(t, want, useTarget(t, doc, ref), "%s: %s", name, ref)
 		}
 	}
 }

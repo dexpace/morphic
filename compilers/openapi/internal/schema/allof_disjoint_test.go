@@ -29,6 +29,7 @@ const disjointComponents = `    List: {type: array, items: {type: string}}
     Composed: {allOf: [{$ref: '#/components/schemas/List'}]}
     TypedComposed: {type: string, allOf: [{description: d}]}
     U: {oneOf: [{type: string}, {type: integer}]}
+    NullComposed: {type: "null", allOf: [{description: d}]}
     Yes: true
 `
 
@@ -64,6 +65,11 @@ func disjointReports(diags []ir.Diagnostic) []ir.Diagnostic {
 // the code in the document: an inline branch's own report is an info there.
 func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 	t.Parallel()
+	// own counts the warnings an entry draws of itself, apart from the report.
+	own := map[string]int{
+		"an entry the enum beats that cannot be kept":   1,
+		"an entry the const beats beside a family kept": 1,
+	}
 	for _, tc := range []struct {
 		name, s, want string
 	}{
@@ -71,6 +77,8 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{type: object, allOf: [` + refList + `]}`, "type: object, allOf/0: array"},
 		{"two $refs",
 			`{allOf: [` + refStr + `, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
+		{"an allOf beside a $ref, which joins its conjunction",
+			`{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "$ref: string, allOf/0: object"},
 		{"an inline branch against a $ref",
 			`{allOf: [` + refObj + `, {type: string}]}`, "allOf/0: object, allOf/1: string"},
 		{"an integer against a string",
@@ -107,29 +115,42 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{allOf: [{$ref: '#/components/schemas/NullStr'}, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
 		{"an entry stating nothing goes unnamed",
 			`{allOf: [` + refStr + `, {description: d}, ` + refObj + `]}`, "allOf/0: string, allOf/2: object"},
-		{"two nullable types beside a false entry",
-			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, false]}`, "allOf/0: string, allOf/1: object"},
 		{"two nullable types beside an enum",
-			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, {enum: [a]}]}`, "allOf/0: string, allOf/1: object"},
+			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, {enum: [a]}]}`,
+			"allOf/0: string, allOf/1: object, allOf/2: string"},
+		{"a union of a string and an integer", `{allOf: [{$ref: '#/components/schemas/U'}, {type: object}]}`,
+			"allOf/0: string or integer, allOf/1: object"},
+		{"a keyword beside a $ref", `{allOf: [{$ref: '#/components/schemas/Props', type: string}, {type: object}]}`,
+			"allOf/0: string, allOf/1: object"},
+		{"a keyword beside a $ref it contradicts", `{allOf: [{$ref: '#/components/schemas/Str', type: object}]}`,
+			"allOf/0/$ref: string, allOf/0: object"},
+		{"a null beside an enum", `{allOf: [{type: "null"}, {enum: [a]}]}`, "allOf/0: null, allOf/1: string"},
+		{"a null beside a const", `{allOf: [{type: "null"}, {const: 1}]}`, "allOf/0: null, allOf/1: integer"},
+		{"a type of null beside entries stating nothing",
+			`{allOf: [{$ref: '#/components/schemas/NullComposed'}, ` + refObj + `]}`, "allOf/0: null, allOf/1: object"},
 		{"a distributed union with an inline branch",
 			`{allOf: [` + refObj + `, {type: string}], oneOf: [` + refObj + `, ` + refList + `]}`,
 			"allOf/0: object, allOf/1: string"},
 		{"a distributed union",
 			`{allOf: [` + refStr + `, ` + refObj + `], oneOf: [` + refObj + `, ` + refList + `]}`,
 			"allOf/0: string, allOf/1: object"},
+		{"a union beside sharing no kind with a composition", `{allOf: [` + refObj + `], oneOf: [{type: string}, {type: integer}]}`,
+			"oneOf: string or integer, allOf/0: object"},
+		{"a union beside sharing no kind with a refinement", `{allOf: [` + refStr + `], anyOf: [{type: integer}, {type: boolean}]}`,
+			"anyOf: integer or boolean, allOf/0: string"},
 		{"an allOf an enum passes over", `{enum: [a], allOf: [` + refStr + `, ` + refObj + `]}`,
-			"allOf/0: string, allOf/1: object"},
+			"enum: string, allOf/0: string, allOf/1: object"},
 		{"an allOf a const passes over", `{type: string, const: a, allOf: [{type: integer}]}`,
-			"type: string, allOf/0: integer"},
+			"type: string, const: string, allOf/0: integer"},
 		{"an allOf an enum passes over beside a union",
 			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
-			"allOf/0: string, allOf/1: object"},
-		{"an allOf passed over that cannot be kept",
+			"enum: string, allOf/0: string, allOf/1: object"},
+		{"an entry the enum beats that cannot be kept",
 			`{enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
-			"allOf/0: string, allOf/1: integer"},
-		{"an allOf passed over beside a family kept",
+			"enum: string, allOf/0: string, allOf/1: integer"},
+		{"an entry the const beats beside a family kept",
 			`{const: a, enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
-			"allOf/0: string, allOf/1: integer"},
+			"enum: string, allOf/0: string, allOf/1: integer"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -139,7 +160,7 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			require.Len(t, reports, 1, "one report, wherever the conjuncts are written: %+v", doc.Diagnostics)
 			assert.Equal(t, "/components/schemas/S", string(reports[0].Provenance.Pointer))
 			assert.Contains(t, reports[0].Message, "share no value ("+tc.want+")")
-			assert.Equal(t, 1, openapitest.CountDiagsAt(doc.Diagnostics, diag.DegradedConstruct, ir.SeverityWarning),
+			assert.Equal(t, 1+own[tc.name], openapitest.CountDiagsAt(doc.Diagnostics, diag.DegradedConstruct, ir.SeverityWarning),
 				"no other degraded-construct warning in the document: %+v", doc.Diagnostics)
 		})
 	}
@@ -163,10 +184,11 @@ func TestAllOf_DisjointReportNamesWhatThePositionLoweredAs(t *testing.T) {
 }
 
 // TestAllOf_DisjointReportStaysSilent holds the readings that must not report:
-// a conjunct writing no type states nothing, and neither does a boolean, an
-// unresolved $ref or a keyword beside a $ref; a null both sides admit is a value
-// they share; a lone conjunct narrowing the instance types contradicts nothing;
-// and an allOf beside a $ref, which does not compose, is not read.
+// a conjunct writing no type states nothing, and neither does a `true` or an
+// unresolved $ref; a conjunct admitting nothing, a `false` among them, is its
+// own to report; a null both sides admit is a value they share; a lone
+// conjunct narrowing the instance types contradicts nothing; and an allOf
+// beside a $ref, which does not compose, is not read.
 func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -185,28 +207,22 @@ func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 		{"a null with a nullable object",
 			`{allOf: [{type: "null"}, {$ref: '#/components/schemas/NullObj'}]}`, "", ""},
 		{"a type set holding the other's type", `{allOf: [{type: [string, object]}, ` + refObj + `]}`, "", ""},
-		{"a union stating no type", `{allOf: [{$ref: '#/components/schemas/U'}, {type: object}]}`, "", ""},
 		{"a true and a false entry", `{allOf: [true, false, ` + refObj + `]}`, "", diag.FalseSchema},
 		{"a schema composing itself", `{allOf: [{$ref: '#/components/schemas/Cy'}, ` + refObj + `]}`,
 			"    Cy: {allOf: [{$ref: '#/components/schemas/Cy'}, {$ref: '#/components/schemas/Cy'}]}\n", ""},
-		{"a type of null beside entries stating nothing",
-			`{allOf: [{$ref: '#/components/schemas/NullComposed'}, ` + refObj + `]}`,
-			"    NullComposed: {type: \"null\", allOf: [{description: d}]}\n", ""},
 		{"an unresolved $ref", `{allOf: [{$ref: '#/components/schemas/Ghost'}, ` + refObj + `]}`, "", ""},
 		{"a $ref landing on a boolean", `{allOf: [{$ref: '#/components/schemas/Yes'}, ` + refObj + `]}`, "", ""},
-		{"a keyword beside a $ref, unread from 3.1 on too",
-			`{allOf: [{$ref: '#/components/schemas/Props', type: string}, {type: object}]}`, "", ""},
 		{"a type no dialect defines", `{type: widget, allOf: [` + refObj + `]}`, "", ""},
-		{"an allOf beside a $ref", `{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "", ""},
 		{"a null read past its budget",
 			`{allOf: [` + strings.Repeat(`{$ref: '#/components/schemas/Props'}, `, 130) +
 				`{$ref: '#/components/schemas/NullStr'}, {$ref: '#/components/schemas/NullObj'}]}`, "", ""},
 		{"a null beside a false entry", `{allOf: [{type: "null"}, false]}`, "", diag.FalseSchema},
+		{"a null beside every other type", `{allOf: [{type: "null"}, {type: [string, number, boolean, array, object]}]}`, "", ""},
+		{"two nullable types beside a false entry",
+			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, false]}`, "", diag.FalseSchema},
 		{"a type of null beside a false entry", `{type: "null", allOf: [false]}`, "", diag.FalseSchema},
 		{"a null beside a $ref landing on false", `{allOf: [{type: "null"}, {$ref: '#/components/schemas/No'}]}`,
 			"    No: false\n", diag.FalseSchema},
-		{"a null beside an enum", `{allOf: [{type: "null"}, {enum: [a]}]}`, "", ""},
-		{"a null beside a const", `{allOf: [{type: "null"}, {const: 1}]}`, "", ""},
 		{"a distributed union composing nothing",
 			`{properties: {a: {type: string}}, oneOf: [` + refObj + `, ` + refList + `]}`, "", ""},
 	} {
@@ -223,16 +239,22 @@ func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 	}
 }
 
-// TestAllOf_KeywordBesideARefStatesNothing holds a keyword beside a $ref entry
-// out of the reading where it decides the result: OpenAPI 3.0 ignores it, so an
-// untyped target and an object still share every object.
-func TestAllOf_KeywordBesideARefStatesNothing(t *testing.T) {
+// TestAllOf_AKeywordBesideARefIsReadAtEveryVersion holds a keyword beside a
+// $ref entry in the reading at 3.0 as at 3.1, since the lowering applies it at
+// both (docs/compilers/openapi.md#ref-use-site): an untyped target narrowed to
+// a string beside an object shares no value. At 3.0 the keyword is also a later
+// version's construct, which load reports.
+func TestAllOf_AKeywordBesideARefIsReadAtEveryVersion(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Props: {properties: {a: {type: string}}}
+	for _, version := range []string{"3.0.3", "3.1.0"} {
+		doc, _ := parseFull(t, openapitest.ComponentSpecVer(version, `    Props: {properties: {a: {type: string}}}
     S: {allOf: [{$ref: '#/components/schemas/Props', type: string}, {type: object}]}
 `))
-
-	assert.Empty(t, disjointReports(doc.Diagnostics))
+		reports := disjointReports(doc.Diagnostics)
+		require.Len(t, reports, 1, version)
+		assert.Contains(t, reports[0].Message, "share no value (allOf/0: string, allOf/1: object)", version)
+		assert.Equal(t, version == "3.0.3", openapitest.HasDiag(doc.Diagnostics, diag.LaterVersionConstruct), version)
+	}
 }
 
 // TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport holds a schema composing
@@ -252,8 +274,8 @@ func TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport(t *testing.T) {
 
 // TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo holds an inline branch
 // the schema's report covers to its residue alone: an info that names what is
-// kept, with the branch still in Unmodeled, since the warning is the schema's.
-// The residue is the type and the bound the object beside the branch cannot take.
+// kept, each keyword under its own key, since the warning is the schema's. The
+// residue is the type and the bound the object beside the branch cannot take.
 func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refObj+`, {type: string, maxLength: 3}]}`, ""))
@@ -266,14 +288,14 @@ func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 	}
 	require.Len(t, atBranch, 1, "%+v", doc.Diagnostics)
 	assert.Equal(t, ir.SeverityInfo, atBranch[0].Severity)
-	assert.Contains(t, atBranch[0].Message, "the branch (type, maxLength) is kept verbatim under Unmodeled")
+	assert.Contains(t, atBranch[0].Message, "no home for type, maxLength written on this inline branch")
 
 	s, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)
-	require.Contains(t, s.Unmodeled, "openapi:allOf/1", "and the branch is still kept")
-	assert.JSONEq(t, `{"maxLength":3,"type":"string"}`, string(s.Unmodeled["openapi:allOf/1"].Value),
-		"with its maxLength, which the object beside it cannot take")
-	assert.Len(t, disjointReports(doc.Diagnostics), 1)
+	assert.Equal(t, []string{"openapi:maxLength", "openapi:type"}, unmodeledKeys(s.Unmodeled))
+	assert.JSONEq(t, `3`, string(s.Unmodeled["openapi:maxLength"].Value),
+		"the maxLength the object beside it cannot take")
+	assert.JSONEq(t, `"string"`, string(s.Unmodeled["openapi:type"].Value))
 }
 
 // TestAllOf_DisjointConjunctsFollowTheNullableReading holds the report to the

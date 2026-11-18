@@ -6,10 +6,6 @@ package resolve
 import (
 	"encoding/json/jsontext"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
@@ -32,49 +28,4 @@ func (s Scope) ComponentRef(pointer jsontext.Pointer) (ir.TypeID, ids.ComponentS
 	default:
 		return "", ids.UndeclaredComponent
 	}
-}
-
-// NamesReferent reports whether the $ref at js names a schema this
-// compilation can point a TypeRef at, answering what resolveSchemaRef answers
-// without promising anything on the way, since deciding how to lower a schema
-// must not queue nodes as a side effect of asking. resolveSchemaRef reads the
-// registry no more than it does, so the two answer alike in any order.
-func (s Scope) NamesReferent(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	at, ok := s.Target(js)
-	if !ok {
-		return false
-	}
-	if at.Doc == bind.Source {
-		if _, state := s.ComponentRef(at.Pointer); state.ByName() {
-			return state == ids.NamedComponent
-		}
-	}
-	return Hoistable(s.Bindings.Declared(js))
-}
-
-// Hoistable reports whether decl, the schema a $ref lands on, can be hoisted
-// where it is written: one with a body, or a boolean one (GitHub #861).
-// The schema lowering's resolvePointer and NamesReferent both ask it, so they
-// cannot part.
-func Hoistable(decl *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return decl != nil && (decl.IsBool() || annotation.At(decl).Node != nil)
-}
-
-// TargetSchema returns the schema the chain of references from js ends on
-// when js is a reference site (typed.Bindings.RefSite), so use-site
-// annotations can fall back to the referent, and nil otherwise or where the
-// chain ends on none.
-func (s Scope) TargetSchema(js *oas3.JSONSchema[oas3.Referenceable]) *oas3.Schema {
-	target, _ := s.TargetAt(js)
-	return target
-}
-
-// TargetAt is TargetSchema with the position the schema is read at, for a reader
-// keeping what it reads of a target per target rather than per use.
-func (s Scope) TargetAt(js *oas3.JSONSchema[oas3.Referenceable]) (*oas3.Schema, bind.Position) {
-	if !s.Bindings.RefSite(js) {
-		return nil, bind.Position{}
-	}
-	entry, _ := s.Bindings.Entry(js)
-	return s.Bindings.End(js).GetSchema(), entry.Chain.End
 }

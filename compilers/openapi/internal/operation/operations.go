@@ -15,8 +15,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,7 +32,7 @@ import (
 // both loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document from them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c service.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
 	reg := servers.NewRegistry()
 	schemes := auth.RegistryOf(c, declared)
 	svc := ir.Service{
@@ -168,7 +169,7 @@ func (o opContext) keyFields() (uriTemplate, webhookName string) {
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (docs/ir/operations.md,
 // docs/ir/http-binding.md).
-func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c service.Ctx, w walk, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -235,8 +236,8 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 // writes, each kept once, at its first occurrence, beside a warning at each
 // repeat: a tag names a group the operation is a member of, which it joins once
 // however often the list names it. Tags compare as the text written.
-func operationTags(c lowering.Ctx, written []string, decl jsontext.Pointer) ([]string, []ir.Diagnostic) {
-	tags, repeats := lowering.FirstOccurrences(written)
+func operationTags(c service.Ctx, written []string, decl jsontext.Pointer) ([]string, []ir.Diagnostic) {
+	tags, repeats := service.FirstOccurrences(written)
 	diags := make([]ir.Diagnostic, 0, len(repeats))
 	for _, r := range repeats {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, decl+ids.Ptr("tags", strconv.Itoa(r.At)),
@@ -253,7 +254,7 @@ func operationTags(c lowering.Ctx, written []string, decl jsontext.Pointer) ([]s
 // The Responses Object contributes extensions but no census: its keys are the
 // status codes the document chooses, so an undeclared key there reads as one
 // more response.
-func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
+func applyOperationAnnotations(c service.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
 	ext, diags := annotation.ExtensionsAt(c.Place(),
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
@@ -292,19 +293,19 @@ func fillOperationDocs(d *ir.Docs, src *soa.Operation) {
 // once its path item's are on it beside its own, since that is what it reads:
 // a deprecation where op or its path item states one, and the tier op states,
 // else its path item's (docs/compilers/openapi.md#extension-promotion).
-func promoteOperation(p lowering.Promoter, op *ir.Operation) []ir.Diagnostic {
-	own := lowering.Carried(p, op.Unmodeled, pathItemScope)
-	diags := p.Deprecation(own, p.Lent(lowering.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
+func promoteOperation(p promotion.Promoter, op *ir.Operation) []ir.Diagnostic {
+	own := promotion.Carried(p, op.Unmodeled, pathItemScope)
+	diags := p.Deprecation(own, p.Lent(promotion.Referent{}, op.Unmodeled, pathItemScope), &op.Deprecation,
 		&op.Provenance)
-	diags = append(diags, lowering.Stability(p, own, &op.Stability, &op.Provenance)...)
+	diags = append(diags, promotion.Stability(p, own, &op.Stability, &op.Provenance)...)
 	// What the path item states behind the operation's own key is read for its
 	// misfits alone, reported once at the path item's key.
-	for _, layer := range lowering.Shadowed(p, op.Unmodeled, pathItemScope) {
+	for _, layer := range promotion.Shadowed(p, op.Unmodeled, pathItemScope) {
 		var dep *ir.Deprecation
 		var tier ir.Stability
 		var prov ir.Provenance
-		diags = append(diags, p.Deprecation(layer, lowering.Referent{}, &dep, &prov)...)
-		diags = append(diags, lowering.Stability(p, layer, &tier, &prov)...)
+		diags = append(diags, p.Deprecation(layer, promotion.Referent{}, &dep, &prov)...)
+		diags = append(diags, promotion.Stability(p, layer, &tier, &prov)...)
 	}
 	return diags
 }

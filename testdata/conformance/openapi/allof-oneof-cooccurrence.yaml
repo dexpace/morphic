@@ -27,7 +27,8 @@ components:
         - {$ref: '#/components/schemas/B'}
       minProperties: 2
     # An inline branch is hoisted at its own pointer and conjoined as a $ref
-    # branch is, carried as written though it admits no object
+    # branch is, but only where an object satisfies it: no instance of the body
+    # is a string, so that branch is no variant, and the union keeps it verbatim
     # (docs/compilers/openapi.md#union-beside-structure).
     MixedKinds:
       type: object
@@ -35,6 +36,7 @@ components:
         kind: {type: string}
       oneOf:
         - {$ref: '#/components/schemas/A'}
+        - {type: object, properties: {i: {type: string}}}
         - {type: string}
     # The same conjunction over a body that is not a model. It reduces to the
     # shared string primitive, so the position hoists an alias for the kept union

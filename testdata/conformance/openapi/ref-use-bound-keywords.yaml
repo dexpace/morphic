@@ -1,0 +1,35 @@
+# A use whose keywords beside its one $ref to an object only bind the use is
+# that reference wherever a carrier holds it, in either spelling: the property,
+# parameter or header names the object and holds the keyword, and no node
+# stands at the position. A component writing the same keywords owns the Model
+# over the object, which keeps them.
+openapi: 3.1.0
+info: {title: RefUseBoundKeywords, version: "1.0.0"}
+paths:
+  /meetings:
+    get:
+      operationId: listMeetings
+      parameters:
+        - name: filter
+          in: query
+          schema: {$ref: '#/components/schemas/Filter', default: {open: true}}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Page:
+              schema: {allOf: [{$ref: '#/components/schemas/Filter'}], nullable: true}
+components:
+  schemas:
+    Filter:
+      type: object
+      properties:
+        open: {type: boolean}
+    Meeting:
+      type: object
+      properties:
+        owner: {$ref: '#/components/schemas/Filter', readOnly: true}
+        draft: {$ref: '#/components/schemas/Filter', default: {open: false}}
+        parent: {$ref: '#/components/schemas/Filter', nullable: true}
+        audit: {allOf: [{$ref: '#/components/schemas/Filter'}], readOnly: true}
+    ReadOnlyFilter: {$ref: '#/components/schemas/Filter', readOnly: true}

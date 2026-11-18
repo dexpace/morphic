@@ -8,13 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,51 +22,52 @@ import (
 // alone (NullAlone), so it would lower on its own to the Enum with no member
 // behind a nullable reference that the reference's bit says. A $ref branch
 // names a node the source declares, and stays the variant naming it.
-func nullBranch(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return inlineBranch(c.Bindings(), js) && NullAlone(c, js.GetSchema())
+func nullBranch(c lowering.Ctx, js *statement.Statement) bool {
+	return inlineBranch(js) && NullAlone(c, js.Schema)
 }
 
 // inlineBranch reports whether js is a schema written in place: no boolean,
 // and no reference site (typed.Bindings.RefSite).
-func inlineBranch(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	return js != nil && js.IsSchema() && !refs.RefSite(js)
+func inlineBranch(js *statement.Statement) bool {
+	return js != nil && stated(js.Schema) && js.Ref == nil
 }
 
 // liftedNull is a null branch (nullBranch) of a union, where it is written,
 // and the Unmodeled key that keeps it, `openapi:<combinator>/<index>`: its path
 // from the schema writing the union, as an allOf branch's is.
 type liftedNull struct {
-	schema *oas3.Schema
+	schema *statement.Schema
 	at     jsontext.Pointer
 	key    string
 }
 
 // liftedNulls returns the null branches of the union unionBranches elects of
 // s, written at pointer, in source order.
-func liftedNulls(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []liftedNull {
+func liftedNulls(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []liftedNull {
 	branches, key, _ := unionBranches(s)
 	var out []liftedNull
 	for i, b := range branches {
-		if !nullBranch(c, b) {
+		st := c.Statements().Sub(b)
+		if !nullBranch(c, st) {
 			continue
 		}
 		index := strconv.Itoa(i)
-		out = append(out, liftedNull{schema: b.GetSchema(), at: pointer + ids.Ptr(key, index), key: "openapi:" + key + "/" + index})
+		out = append(out, liftedNull{schema: st.Schema, at: pointer + ids.Ptr(key, index), key: "openapi:" + key + "/" + index})
 	}
 	return out
 }
 
-// saysTheNull reports whether key, written on the null branch at, says only
+// saysTheNull reports whether key, written on the null branch b, says only
 // the null the reference to its union holds: a type, an enum or a const, and a
 // nullable where it is read, by the dialect defining it or by the
 // nullable-inference policy (docs/compilers/openapi.md#nullable). A nullable
 // neither reads is a keyword its dialect does not define, kept as one is.
-func saysTheNull(c lowering.Ctx, at jsontext.Pointer, key string) bool {
+func saysTheNull(c lowering.Ctx, b liftedNull, key string) bool {
 	switch key {
 	case "type", "enum", "const":
 		return true
 	case "nullable":
-		return c.NullableInference.Honours() || lowering.SchemaRulesAt(c, at).Defines(key)
+		return c.Rules().At(c.Position(b.at)).Defines(key) || c.NullableInference.Honours() && nullableTrue(b.schema)
 	default:
 		return false
 	}
@@ -86,13 +85,13 @@ type keptNullBranch struct {
 // an extension or any other keyword, but a `null` written for one, which is
 // that keyword left out (annotation.WritesKeywordLeftOut). A branch is no
 // variant, so nothing else keeps what it says.
-func nullBranchKeeps(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []keptNullBranch {
+func nullBranchKeeps(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []keptNullBranch {
 	var out []keptNullBranch
 	for _, b := range liftedNulls(c, s, pointer) {
 		var written []string
-		for _, key := range rawMappingKeys(b.schema.GetRootNode()) {
-			if !saysTheNull(c, b.at, key) && !annotation.WritesKeywordLeftOut(b.schema, key) {
-				written = append(written, key)
+		for _, k := range b.schema.Keys {
+			if !saysTheNull(c, b, k.Name) && !annotation.WritesKeywordLeftOut(b.schema, k.Name) {
+				written = append(written, k.Name)
 			}
 		}
 		if len(written) > 0 {
@@ -109,7 +108,7 @@ func nullBranchKeeps(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) [
 func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range kept {
-		stored, keptDiags := annotation.PreserveNodeInto(p, b.key, b.schema.GetRootNode(), ir.ReasonNoIRHome, c.Place().At(b.at))
+		stored, keptDiags := annotation.PreserveNodeInto(p, b.key, b.schema.Node, ir.ReasonNoIRHome, c.Place().At(b.at))
 		diags = append(diags, keptDiags...)
 		if stored {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.at,
@@ -125,14 +124,14 @@ func recordNullBranches(c lowering.Ctx, p *ir.Unmodeled, kept []keptNullBranch) 
 // where it is a variant: a null the nullable-inference policy reads in
 // (nulls.findings), and an enum entry repeating an earlier one (enumRepeats),
 // which the document writes whichever path takes the branch.
-func liftedNullFindings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func liftedNullFindings(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	lifted := liftedNulls(c, s, pointer)
 	diags := make([]ir.Diagnostic, 0, len(lifted))
 	for _, b := range lifted {
 		n := newNulls(c)
 		n.schema(b.schema, siteAt(b.at))
 		diags = append(diags, n.findings(c)...)
-		diags = append(diags, enumRepeats(c, readEnum(b.schema.GetEnum()), b.at)...)
+		diags = append(diags, enumRepeats(c, readEnum(b.schema.Enum()), b.at)...)
 	}
 	return diags
 }

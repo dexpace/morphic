@@ -283,7 +283,7 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 // error, so each gate, and fillRefBranch's two routes through a distributed
 // union, has a row whose loop runs through L, which sorts first. A loop past
 // the merge bound goes unread (#1570). A union beside structural
-// keywords reaches diagUnresolvedBranches only as case 3 of
+// keywords reaches diagUnresolvedBranches only as case 2 of
 // docs/compilers/openapi.md#union-beside-structure, which the why field checks.
 func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 	t.Parallel()
@@ -541,8 +541,8 @@ components:
 // TestCompile_NonUTF8FragmentReachesNoIdentifier is the compiler-level half of
 // the GitHub #520 fix. A fragment that decodes to bytes that are not UTF-8 must
 // never reach a PropID, since no document key can spell them and the IR cannot
-// encode one that does: the multipart body's part, which no property of the
-// body's type holds, keys nothing, and its entry is kept whole.
+// encode one that does: the multipart body's part, the property written beside
+// the $ref, keys the body's own property, whose pointer is the body's.
 func TestCompile_NonUTF8FragmentReachesNoIdentifier(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
@@ -587,8 +587,9 @@ components:
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
 	content := op.Request.Contents[0]
-	assert.Empty(t, content.Encoding, "the body's type holds no property, so no key is derived for one")
-	assert.Contains(t, content.Unmodeled, "openapi:encoding/file", "the part's entry is kept whole instead")
+	// The property beside the $ref is the body's own, a conjunct of it, so the
+	// part names it, by a key its UTF-8 pointer derives.
+	assert.Len(t, content.Encoding, 1, "the body's type holds the part's property")
 }
 
 var componentOnlyCycles = []struct{ name, data string }{

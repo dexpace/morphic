@@ -69,7 +69,7 @@ func TestPreserveSchemaKeyword_KeysAndLocatesTheEntryAtTheKeyword(t *testing.T) 
 	s := schemaFromYAML(t, "type: string\nformat: password\n")
 	var p ir.Unmodeled
 
-	kept, diags := PreserveSchemaKeyword(&p, s, "format", ir.ReasonNoIRHome, "/S", overlaid("/S/format"))
+	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", overlaid("/S/format"))
 
 	assert.True(t, kept)
 	assert.Empty(t, diags)
@@ -88,11 +88,11 @@ func TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 	s := schemaFromYAML(t, "type: number\ndefault: .nan\n")
 	var p ir.Unmodeled
 
-	kept, diags := PreserveSchemaKeyword(&p, s, "format", ir.ReasonNoIRHome, "/S", sourced(0))
+	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "format", ir.ReasonNoIRHome, "/S", sourced(0))
 	assert.False(t, kept)
 	assert.Empty(t, diags, "an absent keyword is no construct")
 
-	kept, diags = PreserveSchemaKeyword(&p, s, "default", ir.ReasonNoIRHome, "/S", overlaid("/S/default"))
+	kept, diags = PreserveSchemaKeyword(&p, standaloneSchema(s), "default", ir.ReasonNoIRHome, "/S", overlaid("/S/default"))
 	assert.False(t, kept)
 	assert.Nil(t, p, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
@@ -109,11 +109,11 @@ func TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nnullable: true\n")
 	var p ir.Unmodeled
-	kept, diags := PreserveSchemaKeyword(&p, s, "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
+	kept, diags := PreserveSchemaKeyword(&p, standaloneSchema(s), "nullable", ir.ReasonDegradedLowering, "/S", sourced(0))
 	require.True(t, kept)
 	require.Empty(t, diags)
 
-	census := UndefinedKeywordsIn(&p, s, []string{"nullable"}, "/S", sourced(0))
+	census := UndefinedKeywordsIn(&p, standaloneSchema(s), []string{"nullable"}, "/S", sourced(0))
 
 	assert.Empty(t, census, "the census announces nothing it did not keep")
 	require.Len(t, p, 1, "and keeps no second entry")
@@ -130,7 +130,7 @@ func TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement(t *test
 	s := schemaFromYAML(t, "type: string\nnot: {const: x}\n")
 	var p ir.Unmodeled
 
-	diags := PreserveValidationOnlyKeyword(&p, s, "not", "/S", overlaid("/S/not"))
+	diags := PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "not", "/S", overlaid("/S/not"))
 
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "not"): {
 		Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"const":"x"}`),
@@ -149,9 +149,9 @@ func TestPreserveValidationOnlyKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testin
 	s := schemaFromYAML(t, "type: object\ndependentRequired: {a: [.nan]}\n")
 	var p ir.Unmodeled
 
-	assert.Empty(t, PreserveValidationOnlyKeyword(&p, s, "not", "/S", sourced(0)), "an absent keyword is no construct")
+	assert.Empty(t, PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "not", "/S", sourced(0)), "an absent keyword is no construct")
 
-	diags := PreserveValidationOnlyKeyword(&p, s, "dependentRequired", "/S", overlaid("/S/dependentRequired"))
+	diags := PreserveValidationOnlyKeyword(&p, standaloneSchema(s), "dependentRequired", "/S", overlaid("/S/dependentRequired"))
 	assert.Nil(t, p, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
@@ -206,19 +206,54 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 	}, MergeUnmodeled(dst, src))
 }
 
-// TestUnderlayUnmodeled_ANearerEntryStands pins what a voice may add: an entry the
-// site does not hold, never one it does, so a keyword several write stays the
-// nearest's, its provenance with it.
-func TestUnderlayUnmodeled_ANearerEntryStands(t *testing.T) {
+// TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite pins what a voice may add: an
+// entry the site does not hold. One the site's own schema holds stays the
+// site's, its provenance with it; one another voice wrote takes the site's
+// provenance, so no order of the voices names a writer.
+func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 	t.Parallel()
+	site := ir.Provenance{Pointer: "/site"}
 	near := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/near"}}
 	far := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/far"}}
+	atSite := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: site}
 
-	got := underlayUnmodeled(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far})
-	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got)
+	own := underlay{own: map[string]bool{"x-a": true}}
+	got := own.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far}, false, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got, "the site's own entry stands")
 
-	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayUnmodeled(nil, ir.Unmodeled{"x-b": far}))
-	assert.Nil(t, underlayUnmodeled(nil, nil), "nothing to add allocates nothing")
+	var u underlay
+	got = u.add(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far}, false, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": atSite}, got, "an entry two voices write is the site's")
+
+	assert.Equal(t, ir.Unmodeled{"x-b": far}, u.add(nil, ir.Unmodeled{"x-b": far}, false, site))
+	assert.Nil(t, u.add(nil, nil, false, site), "nothing to add allocates nothing")
+}
+
+// TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne pins that a voice kept whole,
+// whose branch holds what it folds, counts as no writer: it fills a key alone,
+// gives it up to a voice kept apart in either order, and leaves one two voices
+// kept apart write at the site.
+func TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne(t *testing.T) {
+	t.Parallel()
+	site := ir.Provenance{Pointer: "/site"}
+	whole := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/allOf/1/x-a"}}
+	apart := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/allOf/2/x-a"}}
+	atSite := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: site}
+
+	var first underlay
+	got := first.add(nil, ir.Unmodeled{"x-a": whole}, true, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": whole}, got, "a voice kept whole fills a key alone")
+	got = first.add(got, ir.Unmodeled{"x-a": whole}, true, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": whole}, got, "a second voice kept whole writes nothing")
+	got = first.add(got, ir.Unmodeled{"x-a": apart}, false, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": apart}, got, "a voice kept apart takes the key")
+	got = first.add(got, ir.Unmodeled{"x-a": apart}, false, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": atSite}, got, "two voices kept apart leave it at the site")
+
+	var last underlay
+	got = last.add(nil, ir.Unmodeled{"x-a": apart}, false, site)
+	got = last.add(got, ir.Unmodeled{"x-a": whole}, true, site)
+	assert.Equal(t, ir.Unmodeled{"x-a": apart}, got, "a voice kept whole after it writes nothing")
 }
 
 // TestCopyEntriesInto_KeepsWhatTheCarrierHolds pins that a copied entry never

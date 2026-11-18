@@ -264,6 +264,26 @@ func TestNamedWithin_ADocumentThatMayNameADialectIsNotWithin(t *testing.T) {
 	}
 }
 
+// TestNamedWithin_ADocumentBreakingTheFormatRulesIsNotWithin holds the second
+// weighing of a source past the pointer bound to documents whose keys the
+// Format section admits: the check of a document writing a key that is no
+// scalar, or a `<<` naming no mapping, spells a pointer for every node, a
+// value kept raw among them, so such a document keeps the first total.
+func TestNamedWithin_ADocumentBreakingTheFormatRulesIsNotWithin(t *testing.T) {
+	t.Parallel()
+	const plain = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"
+	for text, within := range map[string]bool{
+		plain + "x-e: {a: {b: 1}}\n":      true,
+		plain + "x-e: {a: {? [b] : 1}}\n": false,
+		plain + "x-e: {a: {<<: 5}}\n":     false,
+	} {
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(text), &root))
+
+		assert.Equal(t, within, namedWithin(t.Context(), defaultIndex(t.Context(), &root)), "%s", text)
+	}
+}
+
 // TestUnreportedRepeats_KeepsARepeatNoReachedCheckReported holds the repeats of
 // another document to those no reached object's check reported under the same
 // code at the same place: that check's wording stands, and every other repeat

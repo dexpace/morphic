@@ -310,13 +310,13 @@ written in. Only the lowering knows what it followed, so the alternatives were a
 reading of the source that guesses — which dropped entries and gave others two
 homes — or threading a return value through every lowering.
 
-*Later:* another shared record changes answers. `Ctx`'s expansion budget charges each
-`$ref` that `lowering.Declared` resolves what the declarations its chain names weigh, and
-each `additionalOperations` entry what it copies of its path item. Once the run's budget
-is crossed, no copy of `Ctx` lowers another such `$ref` or entry, and the compiler refuses
-the document rather than assemble one from whichever copies came first
-(GitHub #1430, #1470). Of what copies of `Ctx` share, it is the one that changes what
-another lowering reads.
+*Later:* another shared record changes answers. `service.Ctx`'s expansion budget charges
+each `$ref` that `service.Declared` resolves what the declarations its chain names weigh,
+and each `additionalOperations` entry what it copies of its path item. Once the run's
+budget is crossed, no copy of `service.Ctx` lowers another such `$ref` or entry, and the
+compiler refuses the document rather than assemble one from whichever copies came first
+(GitHub #1430, #1470). Of what copies of `service.Ctx` share, it is the one that changes
+what another lowering reads.
 
 *Later:* a memo `Ctx` holds reads the registry rather than the documents. The
 discriminator-inference policy's settlements share one store of what they read of the registry's

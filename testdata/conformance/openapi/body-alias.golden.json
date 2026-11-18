@@ -333,7 +333,7 @@
       }
     },
     "t/openapi/components/schemas/Dogs": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Dogs",
       "name": {
         "source": "Dogs",
@@ -349,7 +349,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Pets",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Page": {
       "kind": "model",
@@ -426,7 +429,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/Pets": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/Pets",
       "name": {
         "source": "Pets",
@@ -442,7 +445,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Page",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",

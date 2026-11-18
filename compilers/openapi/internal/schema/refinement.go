@@ -5,262 +5,13 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"slices"
-	"strings"
-
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
-
-// maxRefinedConjuncts bounds the conjuncts one election compares, every pair of
-// them: an allOf past it stays a composition, which loses nothing.
-const maxRefinedConjuncts = 64
-
-// objectKeywords are the keywords only a Model holds, so a conjunct writing one
-// composes as an object whatever else it says.
-var objectKeywords = []string{
-	"properties", "patternProperties", "additionalProperties", "required", "discriminator",
-}
-
-// refinement is an allOf no conjunct can make an object: one use of the conjunct
-// that decides it, its principal, rather than a composition
-// (docs/compilers/openapi.md#allof-refinement).
-type refinement struct {
-	comp allOfComposition
-	// principal is the branch the position is a use of, nil where the keywords
-	// written beside the allOf decide it or nothing does.
-	principal *allOfBranch
-	// ref is the one $ref branch, principal or not, nil where none is written.
-	ref *allOfBranch
-	// joint is what the conjuncts admit together.
-	joint admitted
-	// held is what the position lowers to admits, which decides what a keyword
-	// left unread loses.
-	held admitted
-}
-
-// principalIs reports whether e is the branch the position lowers from.
-func (r refinement) principalIs(e allOfBranch) bool {
-	return r.principal != nil && r.principal.pointer == e.pointer
-}
-
-// conjunct is one conjunct's reading, for the election.
-type conjunct struct {
-	// branch is nil for the keywords written beside the allOf.
-	branch *allOfBranch
-	read   admitted
-	// says marks an inline conjunct writing what kind of value this is.
-	says bool
-}
-
-// refinementAt keys a position's decision: where a schema is read from says where
-// its branches are, so one schema read from two pointers is two answers.
-type refinementAt struct {
-	schema  *oas3.Schema
-	pointer jsontext.Pointer
-}
-
-// decision is what a position's readers share: a refinement, where it is one.
-type decision struct {
-	r       refinement
-	refines bool
-}
-
-// refinementOf decides whether s, written at pointer, refines rather than
-// composes (docs/compilers/openapi.md#allof-refinement). It reads the source and
-// the bindings, never the registry, so a decision turns on no lowering order, and
-// each position's many readers share one reading.
-func refinementOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	if !allOfMayRefine(s) {
-		return refinement{}, false
-	}
-	d := lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
-	return d.r, d.refines
-}
-
-// decide reads the decision refinementOf remembers.
-func decide(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) decision {
-	if annotation.DeclaresAny(s, objectKeywords) {
-		return decision{}
-	}
-	comp := allOfBranches(c.Bindings(), s, pointer)
-	if !refinableBranches(c, comp) {
-		return decision{}
-	}
-	w := newAdmission(c)
-	conjuncts := w.conjuncts(s, comp)
-	joint := conjuncts[0].read
-	for _, cj := range conjuncts[1:] {
-		joint = joint.and(cj.read)
-	}
-	ref := refBranchOf(c, conjuncts)
-	says := slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.says })
-	if disjoint(joint, conjuncts) || (joint.kinds&kindObject != 0 && (ref != nil || says)) {
-		return decision{}
-	}
-	principal := w.elect(conjuncts, ref)
-	r := refinement{comp: comp, principal: principal.branch, joint: joint, held: principal.read}
-	if ref != nil {
-		r.ref = ref.branch
-	}
-	return decision{r: r, refines: !w.incomplete()}
-}
-
-// refinableBranches reports whether every branch of comp can be read as a
-// conjunct of a refinement. A second $ref stays composing: dropping a reference
-// for another would drop a branch the source wrote
-// (docs/ir/models.md#composition-entries). A union on a branch is a conjunct
-// admitting what its branches do (inlineConjunct).
-func refinableBranches(c lowering.Ctx, comp allOfComposition) bool {
-	if len(comp.branches) > maxRefinedConjuncts {
-		return false
-	}
-	named := 0
-	for _, e := range comp.branches {
-		bs := e.schema.GetSchema()
-		if e.capped || annotation.IsFalseSchema(e.schema) ||
-			declaresDynamicRef(bs) && !c.Bindings().RefSite(e.schema) || annotation.DeclaresAny(bs, objectKeywords) {
-			return false
-		}
-		if c.Bindings().RefSite(e.schema) {
-			named++
-		}
-	}
-	return named <= 1
-}
-
-// conjuncts reads s's own keywords, a union among them as on an inline branch,
-// then each branch of comp but a `true`, which says nothing. A wrapper's own
-// keywords are read alone: its entries are conjuncts of their own.
-func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct {
-	out := make([]conjunct, 0, 1+len(comp.branches))
-	out = append(out, conjunct{read: inlineConjunct(w, s), says: saysKind(s) || declaresUnion(s)})
-	for i := range comp.branches {
-		e := &comp.branches[i]
-		bs := e.schema.GetSchema()
-		switch {
-		case bs == nil:
-		case w.c.Bindings().RefSite(e.schema):
-			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
-		default:
-			out = append(out, conjunct{branch: e, read: inlineConjunct(w, bs), says: saysKind(bs) || declaresUnion(bs)})
-		}
-	}
-	return out
-}
-
-// inlineConjunct is what bs, an inline branch or the schema writing the allOf,
-// admits as w reads it: its own keywords and the oneOf and anyOf it writes,
-// whose branches name the kinds it admits. Its allOf is read apart, since its
-// entries are conjuncts of their own.
-func inlineConjunct(w *admission, bs *oas3.Schema) admitted {
-	read := w.written(bs, w.nullable)
-	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{bs.GetOneOf(), bs.GetAnyOf()} {
-		if len(branches) > 0 {
-			read = read.and(w.union(branches))
-		}
-	}
-	return read
-}
-
-// saysKind reports whether s writes what kind of value it admits.
-func saysKind(s *oas3.Schema) bool {
-	return writesType(s) || enumWritten(s) || s.GetConst() != nil
-}
-
-// refBranchOf returns the conjunct holding the one $ref branch, if any.
-func refBranchOf(c lowering.Ctx, conjuncts []conjunct) *conjunct {
-	for i := range conjuncts {
-		if b := conjuncts[i].branch; b != nil && c.Bindings().RefSite(b.schema) {
-			return &conjuncts[i]
-		}
-	}
-	return nil
-}
-
-// disjoint reports whether the conjuncts share no value. A null they all admit
-// is no value a type is left to describe, unless a conjunct admits nothing else.
-// Such an allOf stays a composition, and
-// docs/compilers/openapi.md#allof-refinement says which report each
-// contradiction gets.
-func disjoint(joint admitted, conjuncts []conjunct) bool {
-	if !joint.reachable() {
-		return true
-	}
-	return joint.kinds == kindNull &&
-		!slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.read.kinds == kindNull })
-}
-
-// elect picks the conjunct the position lowers from, a function of the whole set
-// but for a tie, which goes to the first and leaves the other kept and reported:
-// the inline value set within every other, since it fixes the values and what it
-// narrows cannot; else the $ref, since replacing it drops what its target says;
-// else, of those naming a kind, the conjunct within the most others, the keywords
-// beside the allOf first. A `format` or `items` naming no kind only qualifies one,
-// so it never decides, and where nothing names a kind no branch does.
-func (w *admission) elect(conjuncts []conjunct, ref *conjunct) *conjunct {
-	for i := range conjuncts {
-		if w.narrowsAll(conjuncts, i, ref) {
-			return &conjuncts[i]
-		}
-	}
-	if ref != nil {
-		return ref
-	}
-	best, most := 0, 0
-	for i := range conjuncts {
-		if !conjuncts[i].says {
-			continue
-		}
-		if n := w.conesOver(conjuncts, i); n > most {
-			best, most = i, n
-		}
-	}
-	return &conjuncts[best]
-}
-
-// narrowsAll reports whether conjunct i is a value set within every other
-// conjunct and more than a restatement of what a $ref fixes, which a $ref's own is
-// not. The keywords beside the allOf are one where they write an enum or a const
-// (allOfDecides). No set is compared with itself, which answers nothing and walks
-// the whole set.
-func (w *admission) narrowsAll(conjuncts []conjunct, i int, ref *conjunct) bool {
-	cj := &conjuncts[i]
-	if !cj.read.fixed || cj == ref || (ref != nil && w.setWithin(ref.read, cj.read)) {
-		return false
-	}
-	for j := range conjuncts {
-		if o := &conjuncts[j]; j != i && (!cj.read.kindsWithin(o.read) || !w.setWithin(cj.read, o.read)) {
-			return false
-		}
-	}
-	return true
-}
-
-// setWithin is a.valuesWithin(b), telling walked how many members it looked up.
-func (w *admission) setWithin(a, b admitted) bool {
-	within, walked := a.walkWithin(b)
-	if w.walked != nil {
-		w.walked(walked)
-	}
-	return within
-}
-
-// conesOver counts the conjuncts conjunct i lies within.
-func (w *admission) conesOver(conjuncts []conjunct, i int) int {
-	n := 0
-	for j := range conjuncts {
-		if w.within(conjuncts[i].read, conjuncts[j].read) {
-			n++
-		}
-	}
-	return n
-}
 
 // lowerPrincipal lowers the branch r uses, at the pointer it is written at, so
 // nothing is minted and each node stands at a pointer naming its schema. A $ref
@@ -269,281 +20,130 @@ func (w *admission) conesOver(conjuncts []conjunct, i int) int {
 // what it writes to the position, as a voice. Either takes a frame of its own, so
 // a refinement counts two against maxSchemaDepth, a limit no real schema nears. A
 // $ref the principal beat is still resolved: nothing else may lower what it names.
-func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) (ir.TypeID, []ir.Diagnostic) {
+func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement, fin finisher) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
-	if c.Bindings().RefSite(e.schema) {
-		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
-		return ref.Target, diags
-	}
 	resolveBeaten(c, ts, r)
-	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
+	home := annotation.HomeCarrier
+	if e.schema.Ref != nil {
+		home = annotation.HomeOwnNode
+	}
+	ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, home, fin)
 	return ref.Target, diags
 }
 
-// resolveBeaten resolves the $ref of r, whose principal is an inline branch or
-// the keywords beside the allOf: nothing else may lower what a $ref they beat
-// names.
+// resolveBeaten resolves each $ref of r but its principal: nothing else may
+// lower what a $ref the principal beat names.
 func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
-	if r.ref != nil {
-		resolveSchemaRef(c, ts, r.ref.schema)
+	for _, e := range r.comp.branches {
+		if e.schema.Ref != nil && !r.principalIs(e) {
+			resolveSchemaRef(c, ts, e.schema)
+		}
 	}
 }
 
 // refinedShape describes what a refinement lowers to, for the diagnostic
-// recordUnhomedAt reports.
-const refinedShape = "a use of one of its allOf conjuncts"
-
-// outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
-// census keywords it wrote, described by shape, the allOf branches its lowering
-// left unread, the null branches a collapsed union lifts that say more than
-// their null (nullBranchKeeps), and the union keywords beside the allOf it
-// keeps as validation logic, their branches declaring no shape (keptUnion).
-type outcomeKeeps struct {
-	keywords   []string
-	shape      string
-	comp       allOfComposition
-	branches   []keptBranch
-	nulls      []keptNullBranch
-	validation []string
+// recordUnhomedAt reports, its conjuncts named as comp's subject names them.
+func refinedShape(comp allOfComposition) string {
+	if comp.subject() == "this schema" {
+		return "a use of one of its conjuncts"
+	}
+	return "a use of one of its allOf conjuncts"
 }
 
-// keptBranch is one allOf branch a refinement keeps whole, the keywords nothing
-// consumed, none for a $ref the position lost, and why what it writes did not
-// fold where that is the reason (unfoldedWhy).
-type keptBranch struct {
-	entry    allOfBranch
-	residue  []string
-	unfolded string
-}
-
-// holdsAny reports whether k keeps anything.
-func (k outcomeKeeps) holdsAny() bool {
-	return len(k.keywords) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0
-}
-
-// keepsAtOutcome returns what the position s is written at keeps, having lowered
-// to target: a refinement's census and the branches it left, or the census of
-// any other outcome lowering to a reference (referenceOutcomeKeywords).
-func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
-	r, refined := refinementOf(c, s, pointer)
-	if !refined {
-		keywords, shape := referenceOutcomeKeywords(c, s, pointer)
-		k := outcomeKeeps{keywords: keywords, shape: shape}
-		if shape == collapsedShape {
-			k.nulls = nullBranchKeeps(c, s, pointer)
-		}
-		return k
-	}
-	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
-	typed := valueSetNode(c, ts, r, pointer)
-	if r.principal != nil {
-		degraded, validation := keptUnion(c, r, s)
-		k.keywords, k.validation = append(refinedUnhomed(c, r, s, typed), degraded...), validation
-	}
-	homes := homesAt(c, ts, s, target, pointer)
-	voices := voicingOf(c, s)
-	w := newAdmission(c)
-	for i, e := range r.comp.branches {
-		// A principal keeps what it writes where it lowered: a $ref on its alias, an
-		// inline branch on the node it owns, a type array's census included.
-		if r.principalIs(e) && (c.Bindings().RefSite(e.schema) || LoweredToOwnNode(c, ts, e.pointer, target)) {
-			continue
-		}
-		bs := e.schema.GetSchema()
-		switch {
-		case c.Bindings().RefSite(e.schema):
-			k.branches = append(k.branches, keptBranch{entry: e})
-		case bs != nil:
-			residue := unmergedBranchKeys(bs, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, homes)) || said(&w, r, typed, bs, key)
-			})
-			if len(residue) > 0 {
-				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
-					unfolded: unfoldedWhy(c, voices.speaks[i], voices.rebased[i], bs, residue)})
-			}
-		}
-	}
-	return k
-}
-
-// homesAt returns which bounds the position s is written at, lowered to target,
-// holds for its voices, as the census asks of those written beside its allOf. A
-// carrier or an alias holds the value bounds the types the position admits take
-// (positionTypes), and collection bounds where it is a use of the principal, a
-// reference (keywordHome), where those types admit an array. A node the position
-// owns holds what its kind does, of the value bounds those take, and the Union a
-// type list lowers to the bounds its variants do, each the bounds of its own type
-// (lowerTypeVariant).
-func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
-	if !LoweredToOwnNode(c, ts, pointer, target) {
-		r, refined := refinementOf(c, s, pointer)
-		takes := positionTypes(c, s, pointer)
-		return boundHomes{value: takes, collection: refined && r.principal != nil && takes&kindArray != 0}
-	}
-	// A node still building holds nothing yet.
-	var homes boundHomes
-	if td, ok := ts.Node(target.Target); ok {
-		nodes := withVariants(ts, td)
-		if slices.ContainsFunc(nodes, constraintsHome) {
-			homes.value = positionTypes(c, s, pointer)
-		}
-		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
-	}
-	return homes
-}
-
-// withVariants returns td, a node a position owns, and, where it is a Union,
-// the registered nodes of its variants: what may hold the bounds the position
-// writes, as a oneOf's or an anyOf's Union does itself and the variants of a
-// type list's or a distributed union's do (lowerTypeVariant, composedVariant).
-func withVariants(ts *compile.Types, td ir.TypeDef) []ir.TypeDef {
-	u, isUnion := td.(*ir.Union)
-	if !isUnion {
-		return []ir.TypeDef{td}
-	}
-	return append(variantNodes(ts, u), u)
-}
-
-// variantNodes returns the registered nodes of u's variants.
-func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
-	nodes := make([]ir.TypeDef, 0, len(u.Variants))
-	for _, v := range u.Variants {
-		if td, ok := ts.Node(v.Type.Target); ok {
-			nodes = append(nodes, td)
-		}
-	}
-	return nodes
-}
-
-// refinedUnhomed returns the census keywords s writes beside an allOf that
-// lowered to its principal, but for those the principal already says, where a
-// $ref site reads no target and keeps them all (GitHub #1067). typed is the value
-// set the principal lowered to, if any (valueSetNode).
-func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeDef) []string {
-	w := newAdmission(c)
-	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
-	return referenceUnhomed(c, s, r.comp.pointer, held)
-}
-
-// keptUnion returns the union keywords s writes beside an allOf that lowered to
-// its principal r, a keyword beside a refinement, that the position keeps: none
-// the principal says (unionHeld), as validation logic those whose branches
-// declare no shape, as the same union beside any body is, and every other one
-// degraded (docs/compilers/openapi.md#allof-refinement).
-func keptUnion(c lowering.Ctx, r refinement, s *oas3.Schema) (degraded, validation []string) {
-	if !declaresUnion(s) {
-		return nil, nil
-	}
-	shapeless := !unionBranchesDeclareShape(c, s)
-	w := newAdmission(c)
-	for _, key := range []string{"oneOf", "anyOf"} {
-		switch {
-		case annotation.RawPropertyNode(s, key) == nil || unionHeld(&w, r, s, key):
-		case shapeless:
-			validation = append(validation, key)
-		default:
-			degraded = append(degraded, key)
-		}
-	}
-	return degraded, validation
-}
-
-// said reports whether the principal of r already says what s's keyword key
-// does: what it admits holds it, a union one of whose branches it restates
-// (unionHeld), or it is a format the value set it lowered to, typed, holds in
-// its ValueType (typeValueSet), that format's primitive or a narrower one. A
-// type that ValueType holds, its values hold too.
-func said(w *admission, r refinement, typed ir.TypeDef, s *oas3.Schema, key string) bool {
-	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) {
-		return true
-	}
-	return typed != nil && key == "format" && formatHome(typed, s)
-}
-
-// unionHeld reports whether every value r holds satisfies s's oneOf or anyOf,
-// the keyword key names: a branch says nothing r's principal does not
-// (admission.restates), and for a oneOf one alone, sharing no kind with any
-// other, so that exactly one admits each of its values. A branch is compared
-// keyword by keyword, as what it admits leaves its bounds and annotations unread,
-// and one writing what no reading compares says more. A read cut short says no.
-func unionHeld(w *admission, r refinement, s *oas3.Schema, key string) bool {
-	var branches []*oas3.JSONSchema[oas3.Referenceable]
-	switch key {
-	case "oneOf":
-		branches = s.GetOneOf()
-	case "anyOf":
-		branches = s.GetAnyOf()
+// lowerUndecided lowers s, written at pointer, which writes no kind and no
+// shape keyword, by the types its allOf, refining electing no entry, admits
+// (undecidedTypes), as a type list naming them lowers, and to the top type
+// where it admits none of a primitive's kinds alone. fin finishes the node
+// standing at pointer after its census.
+func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
+	fin finisher,
+) (ir.TypeID, []ir.Diagnostic) {
+	types := undecidedTypes(c, s, pointer)
+	switch len(types) {
+	case 0:
+		return keepingUnread(c, ts, s, pointer, d, fin, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return ts.PrimID(ir.PrimAny), 0, nil
+		})
+	case 1:
+		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
+		})
 	default:
-		return false
-	}
-	var principal *oas3.JSONSchema[oas3.Referenceable]
-	if r.principal != nil {
-		principal = r.principal.schema
-	}
-	within, overlaps := 0, 0
-	for _, b := range branches {
-		switch {
-		case w.restates(r.held, principal, b):
-			within++
-		case r.held.kinds&w.whole(b).kinds != 0:
-			overlaps++
-		}
-	}
-	if w.incomplete() || within == 0 {
-		return false
-	}
-	return key == "anyOf" || (within == 1 && overlaps == 0)
-}
-
-// recordOn keeps k on the node owner names.
-func (k outcomeKeeps) recordOn(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	td, ok, diags := registeredNode(c, ts, owner, pointer)
-	if !ok {
-		return diags
-	}
-	return append(diags, k.record(c, ts, &td.Common().Unmodeled, s, pointer)...)
-}
-
-// record keeps k on p and reports it. A branch the IR cannot hold is reported by
-// the keeper, and nothing here claims it was kept.
-func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := recordUnhomedAt(c, ts, p, s, k.keywords, k.shape, pointer)
-	for _, key := range k.validation {
-		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
-	}
-	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
-	for _, b := range k.branches {
-		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
-			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))
-		diags = append(diags, keptDiags...)
-		if kept {
-			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))
-		}
-	}
-	return diags
-}
-
-// keptWhy words why a refinement keeps a branch.
-func keptWhy(b keptBranch) string {
-	switch {
-	case len(b.residue) == 0:
-		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
-			"kept verbatim under Unmodeled; what its target says of the position still reaches it"
-	case b.unfolded != "":
-		return b.unfolded
-	default:
-		return "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
-			"adds; the branch (" + strings.Join(b.residue, ", ") + ") is kept verbatim under Unmodeled"
+		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin)
 	}
 }
 
-// recordPrincipalResidue keeps what binds a use on a node r's principal owns,
-// where no carrier reads it: lowered with no home of its own, the branch keeps it
-// as any declaration owning a node does.
-func recordPrincipalResidue(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
-	r, refined := refinementOf(c, s, pointer)
-	if !refined || r.principal == nil {
+// primitiveKinds are the kinds a primitive holds.
+const primitiveKinds = kindString | kindNumber | kindBoolean
+
+// undecidedTypes returns the types s, written at pointer, lowers by where its
+// allOf refines electing no entry: the kinds its conjuncts admit together, null
+// aside (lowersTo), and where they state value sets of the members those share
+// (sharedKinds), in one order whatever the order written. It returns none
+// where those are none, as for sets sharing no member, or hold an object or an
+// array, whose shape no entry was elected to give, every kind among them, or
+// the kind-inference policy read them, as it reads only those: the position is
+// then the top type.
+func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.Kind {
+	r, refines := refinementOf(c, s, pointer)
+	if !refines || r.principal != nil {
 		return nil
 	}
-	return recordDeclarationResidue(c, ts, r.principal.schema.GetSchema(), r.principal.pointer, home)
+	kinds, inferred := lowersTo(c, c.Statements().Read(s))
+	kinds &= sharedKinds(r.joint) &^ kindNull
+	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
+		return nil
+	}
+	var out []statement.Kind
+	if kinds&kindString != 0 {
+		out = append(out, statement.KindString)
+	}
+	switch kinds & kindNumber {
+	case 0:
+	case kindInteger:
+		out = append(out, statement.KindInteger)
+	default:
+		out = append(out, statement.KindNumber)
+	}
+	if kinds&kindBoolean != 0 {
+		out = append(out, statement.KindBoolean)
+	}
+	return out
+}
+
+// sharedKinds returns the kinds of what joint, what the conjuncts of a
+// refinement admit together as its election reads them, holds: where they
+// state value sets, the kinds of the members every set shares, as an instance
+// meets each set only as a member of it; else its kinds.
+func sharedKinds(joint admitted) kindSet {
+	if !joint.fixed {
+		return joint.kinds
+	}
+	var out kindSet
+	for _, kind := range joint.members {
+		out |= kind
+	}
+	return out
+}
+
+// undecidedShape describes what a refinement electing no entry lowers to, for
+// the report of what an entry of it keeps.
+const undecidedShape = "what the keywords beside it say, as no entry of it is the one it lowers from " +
+	"(where they name no kind, the primitive kinds its entries admit together, else the top type)"
+
+// principalResidue returns the finisher keeping what binds a use on the node
+// the principal of s, written at pointer, builds, where no carrier reads it,
+// its report into into: a principal lowers with no home of its own
+// (lowerPrincipal), so the branch keeps it as any declaration owning a node
+// does. It is nil where s has no principal, or home is a carrier, which keeps
+// it.
+func principalResidue(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, home annotation.Home, into *[]ir.Diagnostic) finisher {
+	r, refined := refinementOf(c, s, pointer)
+	if home != annotation.HomeOwnNode || !refined || r.principal == nil || !stated(r.principal.schema.Schema) {
+		return nil
+	}
+	principal := r.principal
+	return func(td ir.TypeDef, _ keySet) {
+		*into = recordResidue(c, td.Common(), principal.schema.Schema, principal.pointer)
+	}
 }

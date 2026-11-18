@@ -1010,7 +1010,7 @@ func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.
 	m, ok := doc.Types["t/openapi/components/schemas/H"].(*ir.Model)
 	require.True(t, ok)
 	props := openapitest.PropsByWire(m.Properties)
-	assert.Contains(t, props["there"].Unmodeled, "openapi:allOf/1", "the copy in another document is kept")
+	assert.Contains(t, props["there"].Unmodeled, "openapi:items", "the copy in another document is kept")
 	assert.Empty(t, props["here"].Unmodeled, "the copy in the source restates its target")
 }
 
@@ -1045,9 +1045,10 @@ func TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart(t *testing.T
 }
 
 // TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt pins the report
-// on a member a $ref entry brings from another document: it sits at the entry,
-// and names the declaration that lost by its pointer and its document, since
-// the pointer alone names the source's own Base, which agrees.
+// on a member a $ref entry brings from another document: it sits where the
+// declaration that lost is written, in that document, and names it by its
+// pointer and its document, since the pointer alone names the source's own
+// Base, which agrees.
 func TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -1060,13 +1061,15 @@ func TestExternalContent_AMemberAnotherDocumentBringsIsNamedWithIt(t *testing.T)
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 
-	_, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
 		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 
 	require.NoError(t, err)
-	found := diagsAtPointer(diags, "/components/schemas/R/allOf/0")
+	found := diagsAtPointer(diags, "/components/schemas/Base/properties/p")
 	require.Len(t, found, 1, "%+v", diags)
 	assert.Equal(t, "openapi/conflicting-redeclaration", found[0].Code)
+	require.Less(t, found[0].Provenance.Source, len(doc.Sources))
+	assert.Equal(t, "other.yaml", filepath.Base(doc.Sources[found[0].Provenance.Source].Path))
 	assert.Regexp(t, `over the one at /components/schemas/Base/properties/p in \S*other\.yaml,`, found[0].Message)
 }
 

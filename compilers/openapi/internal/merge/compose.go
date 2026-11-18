@@ -88,10 +88,10 @@ func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 }
 
 // SelectBase returns which entry of a composition becomes Model.Base, given
-// refs, the entries written as a $ref: the only one, or else the first, in
-// declaration order, whose target takes part in a discriminator hierarchy, and
-// false where none does, which leaves them all Mixins
-// (docs/compilers/openapi.md#allof-classification).
+// refs, the entries written as a $ref in the order the caller ranks them: the
+// only one, or else the first of those whose target takes part in a
+// discriminator hierarchy, and false where none does, which leaves them all
+// Mixins (docs/compilers/openapi.md#allof-classification).
 func SelectBase(refs []int, takesPart func(i int) bool) (int, bool) {
 	if len(refs) == 1 {
 		return refs[0], true

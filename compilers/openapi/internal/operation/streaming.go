@@ -11,7 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -59,12 +59,12 @@ func listBehind(reg ir.TypeRegistry, id ir.TypeID) (*ir.List, bool) {
 // media type, the guess marked. Every content is read here, an error's and the
 // default's too, and applyStreaming reads the answer back rather than asking the
 // policy again, so the operation and its contents never disagree.
-func contentStream(c lowering.Ctx, mediaType string, item *ir.TypeRef) *ir.ContentStream {
+func contentStream(c service.Ctx, mediaType string, item *ir.TypeRef) *ir.ContentStream {
 	switch {
 	case item != nil:
 		return &ir.ContentStream{}
 	case c.MediaTypeStreams(mediaType):
-		return &ir.ContentStream{Inferred: lowering.StreamingInferenceHeuristic}
+		return &ir.ContentStream{Inferred: service.StreamingInferenceHeuristic}
 	default:
 		return nil
 	}
@@ -79,7 +79,7 @@ func contentStream(c lowering.Ctx, mediaType string, item *ir.TypeRef) *ir.Conte
 // answer per direction no matter how many places a payload was assembled from,
 // and it is the only writer of the three streaming fields. What each direction
 // streams is settled later (streamElement); that it streams needs no other node.
-func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
+func applyStreaming(c service.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
 	request := streamCandidates(ts, op.Request)
 	response := responseCandidates(ts, op.Responses)
 	if len(request) == 0 && len(response) == 0 {
@@ -98,7 +98,7 @@ func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr
 // electStream returns the detail of a direction with candidates, nil for one
 // with none, and queues the election of its element. pointer and direction name
 // the direction in the report a disagreement draws.
-func electStream(c lowering.Ctx, ts *compile.Types, candidates []streamCandidate, pointer jsontext.Pointer, direction string) *ir.StreamDetail {
+func electStream(c service.Ctx, ts *compile.Types, candidates []streamCandidate, pointer jsontext.Pointer, direction string) *ir.StreamDetail {
 	if len(candidates) == 0 {
 		return nil
 	}
@@ -118,7 +118,7 @@ func electStream(c lowering.Ctx, ts *compile.Types, candidates []streamCandidate
 // reads all an ir.TypeRef states, so which copy Events holds follows no map order.
 // c is the context the operation lowered in.
 type streamElement struct {
-	c          lowering.Ctx
+	c          service.Ctx
 	detail     *ir.StreamDetail
 	candidates []streamCandidate
 	pointer    jsontext.Pointer
@@ -204,7 +204,7 @@ func streamingMode(request, response bool) ir.StreamingMode {
 // It names the disagreement rather than counting media types: contents that
 // agree keep their element, and one media type appearing on two responses is
 // not several media types.
-func unelectedElementDiag(c lowering.Ctx, pointer jsontext.Pointer, direction string) ir.Diagnostic {
+func unelectedElementDiag(c service.Ctx, pointer jsontext.Pointer, direction string) ir.Diagnostic {
 	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"the %s streams more than one element type, so it is left unnamed rather than electing one", direction)
 }

@@ -106,7 +106,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -188,7 +189,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p"
+        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1181,7 +1183,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/AliasMeetsFirst"
+        "pointer": "/components/schemas/AliasMeetsFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1230,7 +1233,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/AliasMeetsLast"
+        "pointer": "/components/schemas/AliasMeetsLast",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1279,7 +1283,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/AliasedListMeetsFirst"
+        "pointer": "/components/schemas/AliasedListMeetsFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1326,7 +1331,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/AliasedListMeetsLast"
+        "pointer": "/components/schemas/AliasedListMeetsLast",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1373,7 +1379,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ArrayBesideUntypedFirst"
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1420,7 +1427,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ArrayBesideUntypedLast"
+        "pointer": "/components/schemas/ArrayBesideUntypedLast",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1702,7 +1710,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/EnumNarrowFirst"
+        "pointer": "/components/schemas/EnumNarrowFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1749,7 +1758,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/EnumValueTypeNarrowFirst"
+        "pointer": "/components/schemas/EnumValueTypeNarrowFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1796,7 +1806,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/EnumValueTypeWideFirst"
+        "pointer": "/components/schemas/EnumValueTypeWideFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1843,7 +1854,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/EnumValueTypesMeet"
+        "pointer": "/components/schemas/EnumValueTypesMeet",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1890,7 +1902,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/EnumWideFirst"
+        "pointer": "/components/schemas/EnumWideFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -1937,7 +1950,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/EnumsMeet"
+        "pointer": "/components/schemas/EnumsMeet",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -2517,7 +2531,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ListNarrowFirst"
+        "pointer": "/components/schemas/ListNarrowFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -2564,7 +2579,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/ListWideFirst"
+        "pointer": "/components/schemas/ListWideFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -3081,7 +3097,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/StringBesideUntypedFirst"
+        "pointer": "/components/schemas/StringBesideUntypedFirst",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -3128,7 +3145,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/StringBesideUntypedLast"
+        "pointer": "/components/schemas/StringBesideUntypedLast",
+        "inferred": "kind-inference"
       },
       "properties": [
         {
@@ -3457,7 +3475,8 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedObject"
+        "pointer": "/components/schemas/UntypedObject",
+        "inferred": "kind-inference"
       },
       "properties": [
         {

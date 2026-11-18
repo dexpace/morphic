@@ -64,18 +64,18 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent, Remembered and Settled each call the function they
-		// are handed before they return: immediate callbacks. operation's are a
-		// union's file reading and the store of what parts read of unions.
+		// Remembered and Settled each call the function they are handed before
+		// they return: immediate callbacks. operation's are a union's file reading
+		// and the store of what parts read of unions.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    20,
+		"compilers/openapi/internal/schema":    22,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
-		// Alike three times, Untyped twice, Mint once and Interned once.
+		// Alike three times, Admits once, Mint once and Interned once.
 		// merge.Source, a lazy render of a declaration nobody may keep. And the
 		// predicate SelectBase calls before it returns, an immediate callback.
-		"compilers/openapi/internal/schema": 9,
+		"compilers/openapi/internal/schema": 8,
 	},
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
@@ -89,10 +89,16 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/oas": {
 		// oas.Options' Locate, Seen, Skip, Judged, Referenced, RootRows and Later,
 		// which #1488 keeps under #1477's rule: the checker places its own
-		// findings to drop the repeat an alias makes, a policy, and the others
-		// observe or steer the walk, RootRows answering the rows of each schema
-		// it enters and Later taking each it leaves unread: traversal callbacks.
-		"compilers/openapi/internal/load": 28,
+		// findings, and the nodes their messages name, to drop the repeat an
+		// alias makes, a policy, and the others observe or steer the walk,
+		// RootRows answering the rows of each schema it enters and Later taking
+		// each it leaves unread: traversal callbacks.
+		"compilers/openapi/internal/load": 29,
+	},
+	"compilers/openapi/internal/promotion": {
+		// Promoter.Referent calls the function it is handed before it returns: an
+		// immediate callback.
+		"compilers/openapi/internal/schema": 1,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read
@@ -107,20 +113,38 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine":        1,
 		"engine/reader": 2,
 	},
+	"compilers/openapi/internal/schema": {
+		// LowerComponentSchemas ranges over the statements of the component
+		// schemas the run hands it, read as it asks for each: a traversal
+		// callback.
+		"compilers/openapi": 1,
+	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate
 		// callback.
 		"engine/cache":  1,
 		"engine/output": 1,
 	},
+	"internal/harness": {
+		// A format's Cases, which the harness asks for its axes, and for the
+		// document at a case where it checks the case, where a shard compiles a
+		// neighbour and where a spelling's finding quotes its partner; the
+		// Relocate a case's Equal hands the spelling oracle, called on each
+		// string and member name of an encoding and on each report's pointer
+		// and node; and the pick CheckCases is handed: designed seams. The
+		// OpenAPI cases are two products, each answering every call on Cases.
+		"cmd/morphic-harness":           1,
+		"internal/harness/openapicases": 12,
+	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
-		"compilers/openapi/internal/lowering": 1,
-		"engine/report":                       1,
-		"internal/census":                     1,
-		"ir/irfacts":                          4,
-		"ir/irverify":                         2,
-		"pass":                                18,
+		"compilers/openapi/internal/promotion": 1,
+		"engine/report":                        1,
+		"internal/census":                      1,
+		"internal/harness":                     1,
+		"ir/irfacts":                           4,
+		"ir/irverify":                          2,
+		"pass":                                 18,
 	},
 }
 

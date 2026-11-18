@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,8 +66,9 @@ func assertAllOfInlineMerge(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // assertAllOfNestedInline pins the flattening of
 // docs/compilers/openapi.md#allof-classification: a nested spelling classifies
 // as the flat one does and keeps each property's own pointer. A wrapper writing
-// nothing else is kept nowhere; one that also writes a keyword is kept whole,
-// with one diagnostic.
+// nothing else is kept nowhere, and one that also writes a closure reading
+// every member the conjunction declares closes the model and is kept nowhere
+// either.
 func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[componentID("M")].(*ir.Model)
 	require.True(t, ok)
@@ -108,7 +110,8 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	require.Len(t, described.Mixins, 2, "the wrapper's refs compose despite its description")
 	assert.Equal(t, componentID("A"), described.Mixins[0].Target)
 	assert.Equal(t, componentID("B"), described.Mixins[1].Target)
-	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+	assert.Equal(t, ir.AdditionalClosed, described.Additional, "the wrapper's closure, reading no member, closes the model")
+	assert.Empty(t, described.Unmodeled, "nothing of the wrapper is kept")
 	assert.Equal(t, "grouped", described.Docs.Description, "and what it says of the position lands there")
 
 	for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
@@ -122,9 +125,6 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	}
 
 	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/Described/allOf/0" {
-			continue // the one kept wrapper
-		}
 		assert.NotEqual(t, diag.DegradedConstruct, d.Code, "flattening is exact: %+v", d)
 	}
 }
@@ -218,14 +218,17 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 
 	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Union)
 	require.True(t, ok, "an inline branch distributes the body as a $ref branch does")
-	require.Len(t, mixed.Variants, 2)
-	for i, branch := range []ir.TypeID{componentID("A"), "t/prim/string"} {
+	require.Len(t, mixed.Variants, 2, "no instance of the body is a string")
+	bases := []ir.TypeID{componentID("A"), "t/anon/components/schemas/MixedKinds/oneOf/1"}
+	for i, base := range bases {
 		v, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d composes as a model", i)
 		require.Len(t, v.Properties, 1, "the body rides on every variant")
 		require.NotNil(t, v.Base)
-		assert.Equal(t, branch, v.Base.Target, "the branch is carried as written")
+		assert.Equal(t, base, v.Base.Target, "an object branch is the variant's base")
 	}
+	require.Contains(t, mixed.Unmodeled, "openapi:oneOf/2", "the union keeps the string branch")
+	assert.JSONEq(t, `{"type":"string"}`, string(mixed.Unmodeled["openapi:oneOf/2"].Value))
 
 	bounded, ok := doc.Types[componentID("BoundedKinds")].(*ir.Scalar)
 	require.True(t, ok, "a body that is not a model reduces to a shared primitive and hoists an alias")
@@ -239,10 +242,9 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	outsider, ok := doc.Types[componentID("Outsider")].(*ir.Model)
 	require.True(t, ok)
 	require.Len(t, outsider.Properties, 1)
-	branchNode, ok := doc.Types[outsider.Properties[0].Type.Target].(*ir.Scalar)
-	require.True(t, ok, "the branch pointer hoists an alias of what the branch references")
-	require.NotNil(t, branchNode.Base)
-	assert.Equal(t, componentID("A"), branchNode.Base.Target,
+	// The branch pointer owns the node a $ref to it needs: over the object A, the
+	// Model composing it.
+	assert.Equal(t, componentID("A"), useOf(t, doc.Types[outsider.Properties[0].Type.Target], "the branch"),
 		"the reference gets the branch schema, never the variant composed for that branch")
 
 	assertInlineBranchHint(t, doc)
@@ -298,22 +300,22 @@ func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Dia
 		"a null both conjuncts admit is a value they share")
 
 	ownType, ok := doc.Types[componentID("OwnType")].(*ir.Model)
-	require.True(t, ok)
-	require.NotNil(t, ownType.Base, "the lowering is unchanged: the sole $ref is the Base")
-	assert.Equal(t, componentID("List"), ownType.Base.Target)
+	require.True(t, ok, "the conjuncts share no value, so the allOf composes")
+	assert.Nil(t, ownType.Base, "a model composes no list")
+	assert.Contains(t, ownType.Unmodeled, "openapi:$ref", "the $ref to the list is kept")
 
 	twoRefs, ok := doc.Types[componentID("TwoRefs")].(*ir.Model)
 	require.True(t, ok)
-	assert.Nil(t, twoRefs.Base)
-	require.Len(t, twoRefs.Mixins, 2, "both conjuncts still compose")
-	assert.Equal(t, componentID("Str"), twoRefs.Mixins[0].Target)
-	assert.Equal(t, componentID("Obj"), twoRefs.Mixins[1].Target)
+	require.NotNil(t, twoRefs.Base, "the one $ref to an object is the Base")
+	assert.Equal(t, componentID("Obj"), twoRefs.Base.Target)
+	assert.Empty(t, twoRefs.Mixins)
+	assert.Contains(t, twoRefs.Unmodeled, "openapi:$ref", "the $ref to the string is kept")
 
 	inline, ok := doc.Types[componentID("Inline")].(*ir.Model)
 	require.True(t, ok)
 	require.NotNil(t, inline.Base, "the sole $ref is the Base")
 	assert.Equal(t, componentID("Obj"), inline.Base.Target)
-	assert.Contains(t, inline.Unmodeled, "openapi:allOf/1", "and the inline branch is still kept")
+	assert.Contains(t, inline.Unmodeled, "openapi:type", "and the inline branch's type is still kept, under its own key")
 }
 
 // assertAllOfPositionConstraints pins GitHub #407: a value constraint written
@@ -386,12 +388,14 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	mode := props["mode"]
 	narrowed, ok := doc.Types[mode.Type.Target].(*ir.Enum)
 	require.True(t, ok, "the enum is the value set")
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Zone/properties/mode"), narrowed.ID, "standing at the property")
 	assert.Len(t, narrowed.Members, 1)
-	assert.Equal(t, "What to do", mode.Docs.Description, "and the $ref it narrows still speaks")
-	unmodeledEntry(t, mode.Unmodeled, "openapi:allOf/0")
+	assert.Equal(t, "What to do", narrowed.Docs.Description, "and the $ref it narrows still speaks")
+	assert.Empty(t, mode.Unmodeled, "the node the property owns keeps the $ref")
+	unmodeledEntry(t, narrowed.Unmodeled, "openapi:$ref")
 
 	assert.Equal(t, componentID("Port"), props["width"].Type.Target, "a $ref beats a narrower inline type")
-	unmodeledEntry(t, props["width"].Unmodeled, "openapi:allOf/1")
+	unmodeledEntry(t, props["width"].Unmodeled, "openapi:format")
 
 	scan := props["scan"]
 	assert.Equal(t, "A scan", scan.Docs.Description)
@@ -560,7 +564,9 @@ func assertTypeArrayDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Dia
 		sub, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s composes as a Model", name)
 		require.NotNil(t, sub.Base, name)
-		assert.Equal(t, componentID("Pet"), sub.Base.Target, "%s composes the union", name)
+		assert.Equal(t, variant.ID, sub.Base.Target, "%s composes the union's object variant", name)
+		assert.Empty(t, sub.Unmodeled, "%s keeps nothing", name)
+		assert.Contains(t, ir.ExposedProps(doc, sub.ID), variant.Properties[0].ID, "%s inherits the variant's member", name)
 		assert.Equal(t, value, sub.DiscriminatorValue)
 	}
 }
@@ -943,7 +949,8 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // the one that writes only `required`: one Model with the union kept under
 // validation_only, reported as that and not as a degradation. Branches saying
 // more than a model body distribute it, and more than one that is no model
-// degrade (docs/compilers/openapi.md#union-beside-structure).
+// degrade, but where each says its type, as a bare `items` says an array under
+// the kind-inference policy (docs/compilers/openapi.md#union-beside-structure).
 func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
@@ -966,16 +973,22 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	_, tagged := doc.Types[componentID("RenderTagged")].(*ir.Union)
 	assert.True(t, tagged, "RenderTagged distributes its body across its branches")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/RenderTagged"))
-	sizes, ok := doc.Types[componentID("RenderSizes")]
-	require.True(t, ok, "RenderSizes lowers")
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, sizes.Common().Unmodeled, "openapi:oneOf").Reason)
+	sizes, ok := doc.Types[componentID("RenderSizes")].(*ir.Union)
+	require.True(t, ok, "RenderSizes is the union its branches restate")
+	for _, v := range sizes.Variants {
+		_, isList := doc.Types[v.Type.Target].(*ir.List)
+		assert.True(t, isList, "each branch is the list its items imply")
+	}
+	formats, ok := doc.Types[componentID("RenderFormats")]
+	require.True(t, ok, "RenderFormats lowers")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, formats.Common().Unmodeled, "openapi:oneOf").Reason)
 	var degraded []string
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct {
 			degraded = append(degraded, string(d.Provenance.Pointer))
 		}
 	}
-	assert.ElementsMatch(t, []string{"/components/schemas/RenderSizes"}, degraded)
+	assert.ElementsMatch(t, []string{"/components/schemas/RenderFormats"}, degraded)
 }
 
 // assertUnionRestatedType pins a union beside keywords its branches all say,
@@ -1018,7 +1031,7 @@ func assertUnionRestatedType(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 
 // assertUnionInlineBranches pins a union beside a model body distributed
 // across inline branches, each conjoined by the node at its own pointer, which
-// an outside $ref finds too, and a bare null branch declining it
+// an outside $ref finds too, and past a bare null branch, which is no variant
 // (docs/compilers/openapi.md#union-beside-structure).
 func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
@@ -1040,14 +1053,13 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
 	}
 
-	region, ok := doc.Types[componentID("Region")].(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Placement/oneOf/0"), region.Base.Target,
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Placement/oneOf/0"), useTarget(t, doc, "Region"),
 		"the reference gets the branch schema, never the variant composed for it")
 
-	maybe, ok := doc.Types[componentID("MaybePlacement")].(*ir.Model)
-	require.True(t, ok, "a bare null branch keeps the body")
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, maybe.Unmodeled, "openapi:oneOf").Reason)
+	maybe, ok := doc.Types[componentID("MaybePlacement")].(*ir.Union)
+	require.True(t, ok, "the union distributes past a bare null branch")
+	require.Len(t, maybe.Variants, 1, "the null branch is no variant")
+	assert.Empty(t, maybe.Unmodeled)
 }
 
 // assertAllOfUnionBranch pins a union written as an allOf branch, distributed
@@ -1081,8 +1093,8 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	request, ok := doc.Types[componentID("AppRequest")].(*ir.Union)
 	require.True(t, ok)
 	for _, v := range request.Variants {
-		assert.Contains(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:allOf/1",
-			"the union that only narrows stays with its branch on every variant")
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:anyOf").Reason,
+			"the union that only narrows is kept on every variant as validation logic")
 	}
 
 	upload := openapitest.FirstOp(t, doc.Services[0]).Request.Contents[0]
@@ -1118,4 +1130,37 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		assert.True(t, u.WireTagged, name)
 		assert.Equal(t, []string{"Bank", "Card"}, slices.Sorted(maps.Keys(u.Discriminator.Mapping)), name)
 	}
+}
+
+// assertAllOfValueSetBesideEntry holds allof-value-set-beside-entry to
+// docs/compilers/openapi.md#competing-keywords: where no value set is elected
+// before the composition, the allOf an inline entry is written on is passed
+// over and kept whole, each beside the value set the position lowers as, and a
+// $ref written beside them with it. The sets share a member, so the document
+// is no refusal of an empty intersection.
+func assertAllOfValueSetBesideEntry(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	entry := `[{"enum":[{"a":1},{"c":3}]}]`
+	for name, want := range map[string]map[string]string{
+		"Beside":      {"openapi:allOf": entry},
+		"BesideTyped": {"openapi:allOf": `[{"enum":[{"a":1},{"c":3}],"type":"object"}]`, "openapi:type": `"object"`},
+		"BesideTwo":   {"openapi:allOf": `[{"enum":[{"a":1},{"c":3}]},{"required":["a"]}]`},
+		"BesideRef":   {"openapi:allOf": entry, "openapi:$ref": `"#/components/schemas/Target"`},
+	} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s lowers as the union of the literals its enum lists", name)
+		assert.Len(t, union.Variants, 2, name)
+		assert.ElementsMatch(t, slices.Collect(maps.Keys(want)), slices.Collect(maps.Keys(union.Unmodeled)), "%s keeps what it passed over", name)
+		for key, value := range want {
+			assertKeptRaw(t, union.Unmodeled, key, value)
+		}
+		reported := 0
+		for _, d := range diags {
+			if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
+				strings.Contains(d.Message, "beside its enum") {
+				reported++
+			}
+		}
+		assert.Equal(t, 1, reported, "%s: the election reports what it passed over once", name)
+	}
+	assertNoErrorDiags(t, diags)
 }

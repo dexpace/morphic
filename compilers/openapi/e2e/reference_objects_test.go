@@ -743,9 +743,7 @@ components:
     S: {$ref: '#/paths/~1a/get/parameters/0/schema'}
 `)
 	assert.Empty(t, diags)
-	s, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/S")].(*ir.Scalar)
-	require.True(t, ok)
-	assert.Equal(t, ids.In("ext.yaml").AnonType("/x-params/q/schema"), s.Base.Target)
+	assert.Equal(t, ids.In("ext.yaml").AnonType("/x-params/q/schema"), useTarget(t, doc, "S"))
 }
 
 // TestReferenceObjects_AURLWithASpaceNamesTheDocumentItsEscapeDoes pins GitHub

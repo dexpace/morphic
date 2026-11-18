@@ -607,32 +607,8 @@ morphic/
 │   │   │                   #           lowerings below in order.
 │   │   ├── e2e/            #             Its end-to-end tests: test files only, compiling through
 │   │   │                   #             that face, so they cover no package.
-│   │   └── internal/       #             Its own packages, each below that face:
-│   │       ├── diag/       #             diagnostic codes and the constructor
-│   │       ├── ids/        #             pointer construction; pointer → TypeID
-│   │       ├── fragment/   #             a $ref fragment read as a pointer
-│   │       ├── spelling/   #             the primitive kinds OpenAPI spells
-│   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
-│   │       ├── value/      #             scalar and BigVal lowering
-│   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
-│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting, pointer bytes)
-│   │       ├── bind/       #             every $ref bound where it lands, loops found
-│   │       ├── annotation/ #             what a schema says about itself, not its shape
-│   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
-│   │       ├── overlay/    #             an Overlay applied, and the positions it answers for
-│   │       ├── resolve/    #             what a $ref names; reference-or-inline entries
-│   │       ├── load/       #             parse, validate, resolve
-│   │       ├── detect/     #             a source recognized from its bytes, on load's parse
-│   │       ├── merge/      #             allOf property reconciliation
-│   │       ├── naming/     #             each node's name, from its coordinate alone
-│   │       ├── lowering/   #             the context every lowering reads
-│   │       ├── schema/     #             the schema walk, composition, preservation
-│   │       ├── auth/       #             security schemes and requirements
-│   │       ├── operation/  #             path items, webhooks, callbacks, params, content
-│   │       ├── servers/    #             the servers a document declares, one registry
-│   │       ├── document/   #             info, and what the document keeps verbatim
-│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes,
-│   │                       #             and lowering/loweringtest/, a context over a loaded document
+│   │   └── internal/       #             Its own packages, each below that face and in one of
+│   │                       #             five layers (below): `git ls-files` lists them.
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
@@ -690,6 +666,7 @@ Dependency rules, enforced by an architecture test as in oagen:
 - A compiler's own `internal/` packages each carry their own allowlist rather than inheriting the
   compiler's. That is what keeps the ordering among them real: `diag` reaches only `ir` and
   `barrier`, and no lowering package may reach the compiler that calls it.
+- The OpenAPI compiler's own packages also sit in five layers, described below.
 - `emitters/*` imports `ir`, `ir/irfacts` and the contract package `emitters` — never a compiler.
   The rule is in place before the first emitter package: `emitters` is ruled now, and each package
   beneath it carries an entry of its own, as a compiler's packages do.
@@ -713,6 +690,28 @@ stream or replaces a file atomically, `engine/report` renders the findings and `
 `engine/triage` rates the findings by a caller's rules (§4), and `engine/cache` keeps what a run
 compiled (§2.6). The CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or
 SIGHUP, and turns the run into an exit code.
+
+The OpenAPI compiler's `internal/` packages sit in five layers, ordered by what a package knows of
+the source, least first, and a package may import its own layer and those below it. **Inference**
+reads the built document and no tree: its finding codes, its IDs, and what is read off it under a
+policy. **Document** reads bytes, trees, pointers, budgets and overlays, and reaches the YAML
+library alone. **Grammar** holds a format's objects as data, where references stand and which rows
+read a position, and reaches the YAML library and the parser library's reference grammar. **Schema**
+reads JSON Schema, and may use the parser library whole. **Service** reads OpenAPI's own objects and
+the load that models them, and reaches any library. Only the service layer is OpenAPI's own, so the
+others are what a second format's compiler would reuse, and a layer moves to `compilers/compile`
+when one compiles against it, not before (`micro-compiler-design.md` §3). The order is by knowledge
+of the source, not by when a package runs: `diag` and `ids` are in the lowest layer because they are
+what the built document is written in. A package's allowlist says what it imports; `layers` in
+`internal/archtest` says which layer it is in, one row each, and
+`TestLayers_NoPackageImportsAboveItsLayer` holds the packages' real imports to it. A package with
+no row, or a row naming no package, fails `TestLayers_EveryCompilerPackageHasOne`.
+
+In `internal/schema` a position is lowered from three readings, each made once a run: what its
+schema writes (`statement.Table`), what that admits (`admissionOf`), and which conjunct of its
+`allOf` decides it (`decisionOf`). The build of its node then says which keywords it read, of those
+whose home the node's kind decides (`keySet`), and the node keeps the rest verbatim under
+`Unmodeled` (`keepUnread`).
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
@@ -837,8 +836,9 @@ something a caller asks for with `none`, never a default.
   to its holder; it compares each model's flattened shape too, and a report that moves with the
   order marks a tie it does not compare. Both compile at the default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
-  above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), the method-per-type cap, that no function is
+  above, among them the five layers of the OpenAPI compiler's packages, plus the rules the graph
+  cannot express — which lowerings are mutually recursive (so a set that grows is noticed rather
+  than measured), the method-per-type cap, that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
   come, and how many calls each package makes into one it does not import, through a function, an
   interface or a type argument handed to it, held to a baseline that rises only for a call of a kind

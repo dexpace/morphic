@@ -11,7 +11,7 @@ import (
 	"unicode"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
@@ -20,13 +20,14 @@ import (
 // deprecated operation, parameter and model member names as its replacement,
 // where its own keys name none (message), and reports each message naming one
 // that it cannot settle. It runs after Resolve, as an inference reads after
-// every promotion (docs/compilers/openapi.md#policies). c is the source's
-// context, and w the document, which is whole.
-func Infer(c lowering.Ctx, w *whole.Document) []ir.Diagnostic {
-	if !c.ReplacementInference.Honours() {
+// every promotion (docs/compilers/openapi.md#policies), and reads nothing
+// while policy is off. p is the run's promoter, and w the document, which is
+// whole.
+func Infer(policy Inference, p promotion.Promoter, w *whole.Document) []ir.Diagnostic {
+	if !policy.Honours() {
 		return nil
 	}
-	r := resolver{c: c, p: c.Promoter(), w: w}
+	r := resolver{p: p, w: w}
 	diags := r.inferService()
 	for _, id := range slices.Sorted(maps.Keys(w.Types)) {
 		if m, ok := w.Types[id].(*ir.Model); ok && m != nil {
@@ -99,7 +100,7 @@ type scope struct {
 // marked where they fill it. The rule is
 // docs/compilers/openapi.md#replacement-inference.
 func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
-	if n.dep == nil || r.p.Writes(n.own, lowering.TargetDeprecationReplacedBy) {
+	if n.dep == nil || r.p.Writes(n.own, promotion.TargetDeprecationReplacedBy) {
 		return nil
 	}
 	names := introducedNames(n.dep.Message, s.named(n.dep.Message))
@@ -135,7 +136,7 @@ func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
 			"no replacement is inferred: %s", why)}
 	}
 	n.dep.ReplacedBy = refs
-	n.prov.Inferred = ir.JoinInferred(n.prov.Inferred, lowering.ReplacementInferenceHeuristic)
+	n.prov.Inferred = ir.JoinInferred(n.prov.Inferred, InferenceHeuristic)
 	return nil
 }
 

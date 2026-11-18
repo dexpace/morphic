@@ -44,7 +44,7 @@ func (d definitions) definition(site Position, path []*yaml.Node, pointer jsonte
 	r reading, reason Reason,
 ) (reading, Reason) {
 	switch {
-	case reason == NoReason && answers(r):
+	case reason == NoReason && answers(r.role(), r.node):
 		return r, NoReason
 	case reason == MergeBound:
 		return reading{}, MergeBound
@@ -69,10 +69,10 @@ func (d definitions) ancestorDefinition(site Position, path []*yaml.Node, pointe
 		return reading{}, NoDefinition
 	}
 	tokens := slices.Collect(site.Pointer.Tokens())
-	states := make([]state, len(tokens)+1)
-	states[0] = sDocument
+	places := make([]place, len(tokens)+1)
+	places[0] = place{state: sDocument}
 	for i, t := range tokens {
-		states[i+1] = step(states[i], t)
+		places[i+1] = places[i].below(t)
 	}
 	rest := slices.Collect(pointer.Tokens())
 	why := NoDefinition
@@ -80,17 +80,17 @@ func (d definitions) ancestorDefinition(site Position, path []*yaml.Node, pointe
 		if !d.work.spend(1) {
 			break
 		}
-		if !modelled(states[i]) {
+		if !places[i].held() {
 			if why == NoDefinition && d.holds(site.Doc, path[i], rest) {
 				why = RawDefinition
 			}
 			continue
 		}
-		if !modelled(step(states[i], "$defs")) {
+		if !places[i].below("$defs").held() {
 			continue
 		}
 		n, past := d.below(site.Doc, path[i], rest)
-		if r := (reading{node: n, state: stateOf(states[i], rest)}); n != nil && answers(r) {
+		if r := (reading{node: n, place: places[i].along(rest)}); n != nil && answers(r.role(), n) {
 			r.at = Position{Doc: site.Doc, Pointer: jsontext.Pointer(prefix(site.Pointer, i)) + pointer}
 			return r, NoReason
 		}
@@ -124,15 +124,15 @@ func (d definitions) holds(id DocID, n *yaml.Node, tokens []string) bool {
 	return schemaShaped(held)
 }
 
-// answers reports whether a definition read at r answers its pointer: a
+// answers reports whether n, a node a pointer reads, answers it at role: a
 // schema of the model, which the parser builds whatever the YAML there holds,
 // or raw YAML shaped as one.
-func answers(r reading) bool {
-	switch roleOf(r.state) {
+func answers(role Role, n *yaml.Node) bool {
+	switch role {
 	case Schema:
-		return r.node != nil
+		return n != nil
 	case Raw:
-		return schemaShaped(r.node)
+		return schemaShaped(n)
 	default:
 		return false
 	}

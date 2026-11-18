@@ -4,8 +4,8 @@
 package operation
 
 import (
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,7 +23,7 @@ func (k partKeys) settleCatchAlls(reg ir.TypeRegistry, node func(ir.TypeID) (ir.
 		unions:    partUnionsOf(k.c),
 		node:      node,
 		multipart: isMultipart(k.mediaType),
-		rules:     lowering.EncodingRules(k.c),
+		rules:     service.EncodingRules(k.c),
 		encodedBy: readContentEncoding(k.c, k.catchAllValues),
 	}
 	for _, h := range holders {

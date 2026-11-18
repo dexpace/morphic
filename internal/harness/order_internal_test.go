@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -289,19 +290,17 @@ components:
 // (the test below).
 func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	const src = "a: 1\nb: 2\n"
-	orig := compile
-	t.Cleanup(func() { compile = orig })
 
 	baseline, why := reencodeMappings([]byte(src))
 	require.Empty(t, why)
 
 	onlyPermutedFails := func(fail func() (*ir.Document, []ir.Diagnostic, error)) {
-		compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		swapCompile(t, func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 			if bytes.Equal(data, baseline) {
 				return &ir.Document{}, nil, nil
 			}
 			return fail()
-		}
+		})
 	}
 
 	onlyPermutedFails(func() (*ir.Document, []ir.Diagnostic, error) {
@@ -310,12 +309,12 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	got := orderInvariant(context.Background(), "spec", []byte(src), true)
 	assert.Equal(t, found(OracleOrder, "recompile permuted: boom"), got)
 
-	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		if bytes.Equal(data, baseline) {
 			return nil, nil, errors.New("baseline boom")
 		}
 		return &ir.Document{}, nil, nil
-	}
+	})
 	got = orderInvariant(context.Background(), "spec", []byte(src), true)
 	assert.Equal(t, found(OracleOrder, "compile re-encoded: baseline boom"), got)
 }
@@ -325,11 +324,9 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 // oracle has no baseline to ask its question of, so it declines rather than
 // reporting the permutation.
 func TestOrderInvariant_AReencodingNoCompilerTakesIsDeclined(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-	compile = func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(context.Context, string, []byte, []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, fmt.Errorf("no compiler takes it: %w", errUnrecognized)
-	}
+	})
 
 	got := orderInvariant(context.Background(), "spec", []byte("a: 1\nb: 2\n"), true)
 
@@ -366,14 +363,12 @@ func TestOrderInvariant_RefusalsCompareTheirFindings(t *testing.T) {
 			declined(OracleOrder, DeclineReencodingRefused)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			orig := compile
-			t.Cleanup(func() { compile = orig })
-			compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+			swapCompile(t, func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 				if bytes.Equal(data, baseline) {
 					return tc.asWritten, tc.writtenDiags, nil
 				}
 				return tc.permuted, tc.permDia, nil
-			}
+			})
 
 			got := orderInvariant(context.Background(), "spec", []byte(src), tc.compiled)
 
@@ -1044,11 +1039,8 @@ func TestReencodeMappings_AStreamOfNoDocuments(t *testing.T) {
 // a different registry for the permuted bytes, which is what a lowering that
 // depends on declaration order does.
 func TestCheck_OrderDependentOutcome(t *testing.T) {
-	orig := compile
-	t.Cleanup(func() { compile = orig })
-
 	const src = "a: 1\nb: 2\n"
-	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	swapCompile(t, func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
 		id := ir.TypeID("t/x/AsWritten")
 		if string(data) != src {
 			id = "t/x/Reversed"
@@ -1067,7 +1059,7 @@ func TestCheck_OrderDependentOutcome(t *testing.T) {
 			Services:  services,
 			Types:     ir.TypeRegistry{m.ID: m},
 		}, nil, nil
-	}
+	})
 
 	r := Check(context.Background(), "spec", []byte(src))
 	assert.Equal(t, OutcomeOrderDependent, r.Outcome, "detail: %s", r.Detail)
@@ -1085,13 +1077,40 @@ func TestMaxReverseDepth_ReachesEveryAdmittedDocument(t *testing.T) {
 	require.NoError(t, err)
 	bound, err := pkg.IntConst("MaxNesting")
 	require.NoError(t, err)
-	admitted := int(bound)
+	deepest := int(bound)
 	nested := func(n int) []byte {
 		return []byte(strings.Repeat("{k: ", n) + "1" + strings.Repeat("}", n) + "\n")
 	}
 
-	_, why := reverseMappings(nested(admitted))
+	_, why := reverseMappings(nested(deepest))
 	assert.Empty(t, why, "a document at the compiler's bound is permuted")
-	_, why = reverseMappings(nested(admitted + 1))
+	_, why = reverseMappings(nested(deepest + 1))
 	assert.Equal(t, DeclineTooDeep, why, "one past it is the compiler's to refuse, and the rewrite's")
+}
+
+// TestEncodeComparable_MoreJoinsOrderFree pins the join more goes through: a
+// marshaler in it reaches a TypeRef in a Property orderFree sorts, and the
+// properties are still sorted. Handed in opts instead, the second
+// json.WithMarshalers replaces orderFree, which is why it is a parameter.
+func TestEncodeComparable_MoreJoinsOrderFree(t *testing.T) {
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{ID: "t/x/A", Properties: []ir.Property{
+		{ID: "p/x/b", Type: ir.TypeRef{Target: "t/x/old"}}, {ID: "p/x/a"},
+	}}}}
+	renamed := json.MarshalToFunc(func(enc *jsontext.Encoder, r ir.TypeRef) error {
+		if r.Target != "t/x/old" {
+			return errors.ErrUnsupported
+		}
+		return enc.WriteToken(jsontext.String("renamed"))
+	})
+
+	joined, err := encodeComparable(doc, sortedArray, renamed)
+	require.NoError(t, err)
+	assert.Contains(t, string(joined), `"type":"renamed"`, "more reaches an element orderFree writes")
+	assert.Less(t, bytes.Index(joined, []byte("p/x/a")), bytes.Index(joined, []byte("p/x/b")), "orderFree still sorts")
+
+	replaced, err := encodeComparable(doc, sortedArray, nil, json.WithMarshalers(renamed))
+	require.NoError(t, err)
+	assert.Contains(t, string(replaced), `"type":"renamed"`)
+	assert.Greater(t, bytes.Index(replaced, []byte("p/x/a")), bytes.Index(replaced, []byte("p/x/b")),
+		"a second json.WithMarshalers replaces orderFree")
 }

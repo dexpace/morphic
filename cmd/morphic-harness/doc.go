@@ -3,12 +3,11 @@
 
 // Command morphic-harness sweeps API specs through Morphic's bug-catching
 // oracles (harness.Check), each spec run as `morphic compile --verify` runs it,
-// and writes to stdout a line per finding and what each oracle asked and
-// declined (harness.Summary). It is tooling, not part of the compile pipeline.
-//
-// Each argument is a spec file or directory, walked recursively for the files a
-// registered compiler claims (harness.SpecFiles), skipping dot-directories and
-// *.golden.* IR snapshots. Exit code is 0 if every spec passes, 1 if any spec
-// fails an oracle, and 2 on a usage or filesystem error, making it usable as a
-// CI or script gate.
+// and writes a line per finding and what each oracle asked and declined
+// (harness.Summary). Each argument is a spec file or a directory, walked for
+// the files a registered compiler claims (harness.SpecFiles). With -cases, it
+// checks the schema cases instead (harness.CheckCases), reporting what the
+// records leave unexplained; with -at N, the case at index N, its sources and
+// verdicts. It exits 0 when nothing is reported, 1 when anything is (with -at,
+// any finding), and 2 on a usage or filesystem error.
 package main

@@ -94,17 +94,16 @@ func declaredIn(doc *soa.OpenAPI, opened map[string]*yaml.Node, self sourceDocum
 	return doc.GetOpenAPI()
 }
 
-// indexWalk tells bd where each schema, discriminator and reference-or-inline
-// wrapper of items was read: at base, where the walk starts, followed by the
-// item's location. It notes in faults where it meets each content entry the
+// indexWalk tells bd where each schema and reference-or-inline wrapper of
+// items was read: at base, where the walk starts, followed by the item's
+// location. It notes in faults where it meets each content entry the
 // parser faulted building a reference from.
 func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.Position, faults mediaFaults) {
 	for item := range items {
 		at := bind.Position{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{
-			Schema:        func(js *schemaRef) error { bd.Schema(js, at); return nil },
-			Discriminator: func(d *oasDiscriminator) error { bd.Discriminator(d, at); return nil },
+			Schema: func(js *schemaRef) error { bd.Schema(js, at); return nil },
 			Any: func(model any) error {
 				if kind, ok := refKindOf(model); ok {
 					bd.Object(model, kind, at)

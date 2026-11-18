@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"go/types"
 	"io/fs"
+	"iter"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -38,14 +39,6 @@ var loweringRecursions = [][]string{
 	// records this as the reason schema, compose and resolve cannot be separated
 	// into packages.
 	schemaRecursion,
-	// The instance types a bound beside a named schema is read by. An allOf's
-	// entries, a union's branches and what a $ref or a dynamic reference lands
-	// on are schemas read the same way, and one may name its own schema.
-	// Bounded by the budget maxBoundTypeReads, which a cycle exhausts.
-	{
-		"boundTypes.at", "boundTypes.branch", "boundTypes.conjuncts", "boundTypes.entry", "boundTypes.names",
-		"boundTypes.ref", "boundTypes.schema", "boundTypes.unions",
-	},
 	// The nullability predicate. JSON Schema conjoins keywords, so whether a
 	// schema admits null is decided by its allOf conjuncts as much as by its own
 	// type set, and a conjunct or a $ref lands on a schema asked the same
@@ -55,10 +48,16 @@ var loweringRecursions = [][]string{
 	// bounded by an explicit budget (maxNullConjuncts), which is what stops a
 	// self-referential allOf rather than anything in this shape. A $ref's hops
 	// are walked in a loop its chain's length bounds, and a loop of $refs has no
-	// end to walk to.
+	// end to walk to. A union's null branch counts only where the union is
+	// distributed, and a branch no instance of an object body satisfies is one
+	// that admits no null, so the walk and that classification ask each other.
+	// The branch is read so only where its admission read is whole, and each
+	// read it starts is of a statement that read took in, so the nesting is
+	// bounded by maxAdmissionReads.
 	{
+		"classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches", "distributesUnion",
 		"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage",
-		"nulls.widenByBranch",
+		"nulls.widenByBranch", "unionNullReading", "valueNulls",
 	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
@@ -68,20 +67,11 @@ var loweringRecursions = [][]string{
 	// Whether one conjunct restates another. Two lists compare by their elements,
 	// each read the same way, down what `items` nests. Each step reads a schema,
 	// which spends the budget maxAdmissionReads holds it to.
-	{"admission.holds", "admission.itemsWithin", "admission.restates"},
+	{"admissionReader.holds", "admissionReader.itemsWithin", "admissionReader.restates"},
 	// The key an enum entry is compared by when the enum repeats it. A list's or
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
-	// What a schema admits. A union's branches and an allOf's conjuncts, and what
-	// a $ref lands on, are schemas read the same way, and one may name its own
-	// schema. Bounded by the budget maxAdmissionReads, which a cycle exhausts.
-	{"admission.union", "admission.whole"},
-	// The instance types a schema states. Like nullability it is a predicate over
-	// allOf conjuncts and what a $ref lands on, not a lowering, and it is bounded
-	// the same way, by a budget of its own (maxConjunctTypeReads), which is what
-	// stops a self-referential allOf.
-	{"conjunctTypes.branch", "conjunctTypes.schema"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
@@ -99,17 +89,20 @@ var loweringRecursions = [][]string{
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
 	"buildListedTuple", "buildTuple", "buildUnion",
-	"composedVariant", "contentSchemaRef", "discriminatorDefault",
-	"discriminatorMapping", "fillAdditional", "fillAllOf",
-	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "lower",
+	"composeMixin", "composeModel", "composedVariant", "contentSchemaRef", "declaring.finish", "discriminatorDefault",
+	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
+	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
+	"keepFailedRefs",
+	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keepUnread", "keepUnreadAcross", "keepUnreadShared",
+	"keepingUnread", "keptOn", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel", "lowerNullOnlyUnion",
-	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
-	"lowerTyped", "lowerUnion",
-	"lowerUntyped", "mintUnion", "outcomeKeeps.record", "outcomeKeeps.recordOn", "patternProps",
-	"preserveUnhomedKeywords", "preserveVariantsUnhomed",
-	"recordUnhomedAt", "recordUnhomedKeywords", "refSiteRef", "refTypeRef",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerPrincipalValueSet", "lowerSchemaBody", "lowerSubtypeUnion", "lowerTypeVariant",
+	"lowerTyped", "lowerUndecided", "lowerUnion",
+	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "patternProps",
+	"preserveUnmergedBranch", "recordEntryUnhomed",
+	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
@@ -123,15 +116,10 @@ var schemaRecursion = []string{
 var loweringPackages = []string{
 	"compilers/openapi",
 	"compilers/openapi/internal/auth",
-	"compilers/openapi/internal/convention",
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
-	"compilers/openapi/internal/pagination",
-	"compilers/openapi/internal/paramchoice",
-	"compilers/openapi/internal/replacement",
 	"compilers/openapi/internal/schema",
 	"compilers/openapi/internal/servers",
-	"compilers/openapi/internal/stream",
 }
 
 // TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are
@@ -148,14 +136,7 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 	calls := loweringCallGraph(t)
 	require.NotEmpty(t, calls, "no lowerings found; the load or the package path changed")
 
-	var cycles [][]string
-	for _, c := range stronglyConnected(calls) {
-		if len(c) == 1 && !calls[c[0]][c[0]] {
-			continue
-		}
-		slices.Sort(c)
-		cycles = append(cycles, c)
-	}
+	cycles := cyclesOf(calls)
 	// Ties are broken by first member because there is more than one pair now,
 	// and the sort is not stable: length alone would leave the two pairs in
 	// whichever order the sort happened to land them.
@@ -168,9 +149,24 @@ func TestLoweringRecursion_IsOnlyTheKnownCycles(t *testing.T) {
 		"the lowering call graph's recursion changed; anything joining one of these sets can no longer be moved alone")
 }
 
-// typedPkg is one type-checked package of the lowering: its production files
-// and what the checker resolved in them.
+// cyclesOf returns graph's recursions, each sorted: every strongly connected
+// set of more than one function, and every function that calls itself.
+func cyclesOf(graph map[string]map[string]bool) [][]string {
+	var cycles [][]string
+	for _, c := range stronglyConnected(graph) {
+		if len(c) == 1 && !graph[c[0]][c[0]] {
+			continue
+		}
+		slices.Sort(c)
+		cycles = append(cycles, c)
+	}
+	return cycles
+}
+
+// typedPkg is one type-checked package of the lowering: its path, its
+// production files and what the checker resolved in them.
 type typedPkg struct {
+	path  string
 	files []*ast.File
 	info  *types.Info
 }
@@ -185,9 +181,16 @@ type typedPkg struct {
 // refuses the import that would let the callee's package call back.
 func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	t.Helper()
-	patterns := make([]string, len(loweringPackages))
-	for i, pkg := range loweringPackages {
-		patterns[i] = "./" + pkg
+	return callGraphOf(t, typedPackages(t, loweringPackages))
+}
+
+// typedPackages type-checks dirs, repo-relative, and fails unless every one
+// loads clean, since a pin over a package it did not load reads nothing there.
+func typedPackages(t *testing.T, dirs []string) []typedPkg {
+	t.Helper()
+	patterns := make([]string, len(dirs))
+	for i, dir := range dirs {
+		patterns[i] = "./" + dir
 	}
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
@@ -196,14 +199,14 @@ func loweringCallGraph(t *testing.T) map[string]map[string]bool {
 	}
 	loaded, err := packages.Load(cfg, patterns...)
 	require.NoError(t, err)
-	require.Len(t, loaded, len(patterns), "a lowering package did not load; the pin no longer reads it")
+	require.Len(t, loaded, len(patterns), "a package did not load; the pin no longer reads it")
 
 	pkgs := make([]typedPkg, 0, len(loaded))
 	for _, p := range loaded {
 		require.Empty(t, p.Errors, "type-check %s", p.PkgPath)
-		pkgs = append(pkgs, typedPkg{files: p.Syntax, info: p.TypesInfo})
+		pkgs = append(pkgs, typedPkg{path: p.PkgPath, files: p.Syntax, info: p.TypesInfo})
 	}
-	return callGraphOf(t, pkgs)
+	return pkgs
 }
 
 // graphNode is one function of the graph: the body its edges are read from,
@@ -215,7 +218,9 @@ type graphNode struct {
 
 // callGraphOf builds the graph over pkgs, one namespace across all of them.
 // Go allows one name in two packages; the graph would keep one and drop the
-// other's edges, so a collision is refused rather than resolved.
+// other's edges, so a collision is refused rather than resolved. A recursion
+// closed through a variable a function literal is bound to has no node to
+// close on, so it is refused too.
 func callGraphOf(t *testing.T, pkgs []typedPkg) map[string]map[string]bool {
 	t.Helper()
 	names := map[*types.Func]string{}
@@ -227,6 +232,9 @@ func callGraphOf(t *testing.T, pkgs []typedPkg) map[string]map[string]bool {
 			name := nodeName(fn)
 			_, taken := nodes[name]
 			require.False(t, taken, "two lowerings are named %q; the call graph cannot tell them apart", name)
+			require.Empty(t, literalRecursion(fd.Body, p.info),
+				"%s recurses through a function literal's variable, which the call graph cannot name; "+
+					"declare the recursion as a function", name)
 			names[fn] = name
 			nodes[name] = graphNode{body: fd.Body, info: p.info}
 		}
@@ -258,6 +266,94 @@ func calleesIn(body *ast.BlockStmt, info *types.Info, names map[*types.Func]stri
 		}
 	}
 	return out
+}
+
+// literalRecursion returns, in source order, each variable body binds a
+// function literal to that the literal reaches again through the variables the
+// bound literals use. Such a cycle closes on no declaration; one closed through
+// a declaration is the graph's, since a literal's body belongs to what holds
+// it. A literal held in a field is not followed (#2008).
+func literalRecursion(body *ast.BlockStmt, info *types.Info) []string {
+	var order []*types.Var
+	uses := map[*types.Var]map[*types.Var]bool{}
+	for v, lit := range boundLiterals(body, info) {
+		if uses[v] == nil {
+			order = append(order, v)
+			uses[v] = map[*types.Var]bool{}
+		}
+		for n := range ast.Preorder(lit.Body) {
+			if id, isIdent := n.(*ast.Ident); isIdent {
+				if w, isVar := info.Uses[id].(*types.Var); isVar {
+					uses[v][w] = true
+				}
+			}
+		}
+	}
+
+	var out []string
+	for _, v := range order {
+		if reachesItself(uses, v) {
+			out = append(out, v.Name())
+		}
+	}
+	return out
+}
+
+// reachesItself reports whether v is among the variables it reaches in uses.
+// Each variable is expanded once, so the walk ends on a cycle.
+func reachesItself(uses map[*types.Var]map[*types.Var]bool, v *types.Var) bool {
+	seen := map[*types.Var]bool{}
+	next := slices.Collect(maps.Keys(uses[v]))
+	for len(next) > 0 {
+		w := next[len(next)-1]
+		next = next[:len(next)-1]
+		if w == v {
+			return true
+		}
+		if !seen[w] {
+			seen[w] = true
+			next = slices.AppendSeq(next, maps.Keys(uses[w]))
+		}
+	}
+	return false
+}
+
+// boundLiterals yields, in source order, each function literal body assigns or
+// declares to a variable, with that variable.
+func boundLiterals(body *ast.BlockStmt, info *types.Info) iter.Seq2[*types.Var, *ast.FuncLit] {
+	return func(yield func(*types.Var, *ast.FuncLit) bool) {
+		for n := range ast.Preorder(body) {
+			names, values := binding(n)
+			if len(names) != len(values) {
+				continue
+			}
+			for i, value := range values {
+				lit, isLit := value.(*ast.FuncLit)
+				v, isVar := info.ObjectOf(names[i]).(*types.Var)
+				if isLit && isVar && !yield(v, lit) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// binding returns the names n binds and the values it binds them to: an
+// assignment's or a var declaration's. A left side that is no bare name, such
+// as a field, is nil.
+func binding(n ast.Node) ([]*ast.Ident, []ast.Expr) {
+	switch s := n.(type) {
+	case *ast.AssignStmt:
+		names := make([]*ast.Ident, len(s.Lhs))
+		for i, e := range s.Lhs {
+			names[i], _ = e.(*ast.Ident)
+		}
+		return names, s.Rhs
+	case *ast.ValueSpec:
+		return s.Names, s.Values
+	default:
+		return nil, nil
+	}
 }
 
 // funcDecls returns the functions in files that have a body.
@@ -296,13 +392,58 @@ func nodeName(fn *types.Func) string {
 // plantedGraph type-checks src, which imports nothing, and returns its graph.
 func plantedGraph(t *testing.T, src string) map[string]map[string]bool {
 	t.Helper()
+	return callGraphOf(t, []typedPkg{plantedPkg(t, src)})
+}
+
+// plantedPkg type-checks src, which imports nothing.
+func plantedPkg(t *testing.T, src string) typedPkg {
+	t.Helper()
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "planted.go", src, 0)
 	require.NoError(t, err)
 	info := &types.Info{Defs: map[*ast.Ident]types.Object{}, Uses: map[*ast.Ident]types.Object{}}
 	_, err = (&types.Config{}).Check("p", fset, []*ast.File{f}, info)
 	require.NoError(t, err)
-	return callGraphOf(t, []typedPkg{{files: []*ast.File{f}, info: info}})
+	return typedPkg{files: []*ast.File{f}, info: info}
+}
+
+// TestLiteralRecursion_FindsACycleThroughBoundVariables plants the recursions
+// callGraphOf refuses because no node of its graph can close them, and the
+// shapes that are the graph's own or no recursion at all (#2008).
+func TestLiteralRecursion_FindsACycleThroughBoundVariables(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		src  string
+		want []string
+	}{
+		{"a literal calling its own variable", `package p
+func a() { var rec func(); rec = func() { rec() }; rec() }`, []string{"rec"}},
+		{"two literals calling each other", `package p
+func a() { var ping, pong func(); ping = func() { pong() }; pong = func() { ping() }; ping() }`,
+			[]string{"ping", "pong"}},
+		{"a declared literal calling one assigned later", `package p
+func a() { var pong func(); var ping = func() { pong() }; pong = func() { ping() }; ping() }`,
+			[]string{"ping", "pong"}},
+		{"a literal reaching itself through one it holds", `package p
+func a() { var out func(); out = func() { in := func() { out() }; in() }; out() }`,
+			[]string{"out", "in"}},
+		{"a literal calling the declaration holding it is the graph's", `package p
+func a() { f := func() { a() }; f() }`, nil},
+		{"a literal calling an earlier value of its variable", `package p
+func a() { f := func() {}; prev := f; f = func() { prev() }; f() }`, nil},
+		{"a literal held in a field is not followed", `package p
+func a() { var s struct{ f func() }; s.f = func() { s.f() }; s.f() }`, nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := plantedPkg(t, tc.src)
+			decls := funcDecls(p.files)
+			require.Len(t, decls, 1)
+			assert.Equal(t, tc.want, literalRecursion(decls[0].Body, p.info))
+		})
+	}
 }
 
 // TestLoweringCallGraph_FollowsWhatTheTypeCheckerResolves plants sources whose
@@ -456,8 +597,8 @@ func visited(index map[string]int, n string) bool {
 }
 
 // TestLoweringCallGraph_RecordsAHandoffAsAnEdge holds the graph to the fix for
-// GitHub #210. Reading call position alone described these three functions as
-// depending on nothing, while each decides by a function it hands on by name.
+// GitHub #210. Reading call position alone misses the edge from each of these
+// two functions to one it decides by and hands on by name.
 //
 // It asserts the edges rather than the cycles because none of them closes one
 // today: a dependency the graph cannot see is unheld whether or not it currently
@@ -469,7 +610,6 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	handoffs := map[string]string{
 		"enumNullVerdict":  "isNullValue",
 		"setsDeclareShape": "branchDeclaresShape",
-		"unreadBounds":     "constraintsHome",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)
@@ -546,6 +686,44 @@ func TestLoweringCallGraph_ResolvesAMethodOnAValue(t *testing.T) {
 // changed for — one level up, in the input rather than the graph.
 func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 	t.Parallel()
+	derived := packagesTaking(t, "lowering.Ctx", "service.Ctx")
+	require.NotEmpty(t, derived, "no package declares a lowering; the walk or the context type moved")
+	listed := slices.Sorted(slices.Values(loweringPackages))
+
+	assert.Equal(t, derived, listed,
+		"the packages this pin reads must be the packages that lower; a listed one that no longer "+
+			"lowers is dead, and an unlisted one is a recursion the pin cannot see")
+}
+
+// TestWholeDocumentReaders_DoNotRecurse holds the packages that read the
+// finished document, and take it rather than the context, to what the pin
+// above holds the lowerings: no recursion it does not name, and it names none
+// of theirs. Each package is graphed alone, so a name two of them declare, as
+// each policy's Honours is, stays apart; that loses no cycle, since Go refuses
+// the import that would let a callee's package call back. The packages are
+// derived, as the lowerings' are, by the type they take.
+func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
+	t.Parallel()
+	var readers []string
+	for _, dir := range packagesTaking(t, "*whole.Document") {
+		if !slices.Contains(loweringPackages, dir) {
+			readers = append(readers, dir)
+		}
+	}
+	require.Contains(t, readers, "compilers/openapi/internal/pagination",
+		"the derivation misses a known reader; the walk or the document type moved")
+
+	for _, p := range typedPackages(t, readers) {
+		assert.Empty(t, cyclesOf(callGraphOf(t, []typedPkg{p})),
+			"%s recurses; recursion needs an explicit depth bound, and a pin as the lowerings' have", p.path)
+	}
+}
+
+// packagesTaking returns, sorted and repo-relative, the directories under
+// compilers whose production files declare a function with a parameter
+// spelled as one of typs, such as "lowering.Ctx".
+func packagesTaking(t *testing.T, typs ...string) []string {
+	t.Helper()
 	root := irtest.RepoRoot(t)
 	found := map[string]bool{}
 	err := filepath.WalkDir(filepath.Join(root, "compilers"), func(p string, d fs.DirEntry, err error) error {
@@ -556,7 +734,7 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 		if parseErr != nil {
 			return parseErr
 		}
-		if !declaresLowering(f) {
+		if !declaresParam(f, typs) {
 			return nil
 		}
 		rel, relErr := filepath.Rel(root, filepath.Dir(p))
@@ -567,30 +745,21 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
-	require.NotEmpty(t, found, "no package declares a lowering; the walk or the context type moved")
-
-	derived := slices.Sorted(maps.Keys(found))
-	listed := slices.Sorted(slices.Values(loweringPackages))
-
-	assert.Equal(t, derived, listed,
-		"the packages this pin reads must be the packages that lower; a listed one that no longer "+
-			"lowers is dead, and an unlisted one is a recursion the pin cannot see")
+	return slices.Sorted(maps.Keys(found))
 }
 
-// declaresLowering reports whether f declares a function taking the lowering
-// context by value, which is what every lowering in this compiler is.
-func declaresLowering(f *ast.File) bool {
+// declaresParam reports whether f declares a function with a parameter
+// spelled as one of typs: "lowering.Ctx" and "service.Ctx" are the schema
+// and the service lowerings' contexts taken by value, which is what every
+// lowering in this compiler is.
+func declaresParam(f *ast.File, typs []string) bool {
 	for _, d := range f.Decls {
 		fn, isFunc := d.(*ast.FuncDecl)
 		if !isFunc || fn.Type.Params == nil {
 			continue
 		}
 		for _, p := range fn.Type.Params.List {
-			sel, isSel := p.Type.(*ast.SelectorExpr)
-			if !isSel || sel.Sel.Name != "Ctx" {
-				continue
-			}
-			if pkg, isIdent := sel.X.(*ast.Ident); isIdent && pkg.Name == "lowering" {
+			if slices.Contains(typs, types.ExprString(p.Type)) {
 				return true
 			}
 		}

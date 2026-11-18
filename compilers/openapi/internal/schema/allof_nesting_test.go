@@ -69,6 +69,10 @@ func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	residue, _ := compileView(t, byName["a residue"])
 	assert.Positive(t, residue.Kept, "the residue is kept")
 
+	closure, _ := compileView(t, byName["a closure"])
+	assert.Equal(t, ir.AdditionalClosed, closure.Additional, "the wrapper declaring no member closes the model")
+	assert.Zero(t, closure.Kept, "and nothing of it is kept")
+
 	subtype, _ := compileView(t, byName["a discriminated base inside a wrapper"])
 	assert.Equal(t, "dog", subtype.DiscValue)
 	assert.Equal(t, componentID("Pet"), ir.TypeID(subtype.Base), "the discriminated ref is the base")
@@ -306,19 +310,23 @@ func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
 
 // TestAllOf_NestedWrapperWithResidueKeptVerbatim pins that a wrapper writing
 // a keyword the merge does not consume is still flattened: its entries and
-// properties compose as the flat spelling's do, the whole wrapper is kept under
-// its key, and the diagnostic names the extra keyword and not allOf.
+// properties compose as the flat spelling's do, and what it writes is kept as
+// any entry's is, each keyword under its own key at the wrapper, or the whole
+// wrapper under its key for an unevaluated keyword, reported once at the
+// wrapper naming the extra keyword and not allOf, as the validation-only
+// keyword the unevaluated one is.
 func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
 		sibling string
 		residue string
+		whole   bool
 	}{
-		{"discriminator", "discriminator: {propertyName: kind}", "discriminator"},
-		{"oneOf", "oneOf: [{type: string}]", "oneOf"},
-		{"additionalProperties false", "additionalProperties: false", "additionalProperties"},
-		{"type set with null", `type: [object, "null"]`, "type"},
+		{"discriminator", "discriminator: {propertyName: kind}", "discriminator", false},
+		{"oneOf", "oneOf: [{type: string}]", "oneOf", false},
+		{"unevaluatedProperties false", "unevaluatedProperties: false", "unevaluatedProperties", true},
+		{"type set with null", `type: [object, "null"]`, "type", false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -338,22 +346,32 @@ func TestAllOf_NestedWrapperWithResidueKeptVerbatim(t *testing.T) {
 				assert.Empty(t, model.Mixins)
 				_, hasW := openapitest.PropsByWire(model.Properties)["w"]
 				assert.True(t, hasW, "the wrapper's properties still merge")
+				code := diag.DegradedConstruct
+				if tc.whole {
+					code = diag.ValidationOnlyKeyword
+				}
+				var infos []ir.Diagnostic
+				for _, d := range doc.Diagnostics {
+					if d.Code == code && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
+						infos = append(infos, d)
+					}
+				}
+				require.Len(t, infos, 1, "exactly one %s at the wrapper", code)
+				assert.NotContains(t, infos[0].Message, "(allOf")
+				if !tc.whole {
+					entry, ok := model.Unmodeled["openapi:"+tc.residue]
+					require.True(t, ok, "the keyword is kept under its own key; got %+v", model.Unmodeled)
+					assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0/"+tc.residue), entry.Provenance.Pointer)
+					assert.NotContains(t, model.Unmodeled, "openapi:allOf/0")
+					assert.Contains(t, infos[0].Message, "no home for "+tc.residue+" written on this inline branch")
+					continue
+				}
 				entry, ok := model.Unmodeled["openapi:allOf/0"]
 				require.True(t, ok, "the wrapper is kept verbatim; got %+v", model.Unmodeled)
 				assert.Equal(t, jsontext.Pointer("/components/schemas/M/allOf/0"), entry.Provenance.Pointer)
 				assert.Contains(t, string(entry.Value), `"allOf"`, "the whole wrapper is kept")
-				var infos int
-				for _, d := range doc.Diagnostics {
-					if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/M/allOf/0" {
-						infos++
-					}
-				}
-				assert.Equal(t, 1, infos, "exactly one degraded-construct at the wrapper")
-				msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
-					ir.SeverityInfo, "/components/schemas/M/allOf/0")
-				assert.Contains(t, msg, "("+tc.residue+")")
-				assert.Contains(t, msg, "nested allOf compose")
-				assert.NotContains(t, msg, "(allOf")
+				assert.Contains(t, infos[0].Message, "("+tc.residue+")")
+				assert.Contains(t, infos[0].Message, "nested allOf compose")
 			}
 		})
 	}
@@ -447,18 +465,18 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 		model, ok := typeByName(doc, "M").(*ir.Model)
 		require.True(t, ok, "M should be a model")
 		require.Len(t, model.Unmodeled, 3, "got %+v", model.Unmodeled)
-		for key, want := range map[string]string{
-			"openapi:allOf/0":         `"additionalProperties":false`,
-			"openapi:allOf/1/allOf/0": `"patternProperties":`,
-			"openapi:allOf/1/allOf/1": `"unevaluatedProperties":false`,
+		for key, want := range map[string][2]string{
+			"openapi:allOf/0":         {`"additionalProperties":false`, diag.DegradedConstruct},
+			"openapi:allOf/1/allOf/0": {`"patternProperties":`, diag.DegradedConstruct},
+			"openapi:allOf/1/allOf/1": {`"unevaluatedProperties":false`, diag.ValidationOnlyKeyword},
 		} {
 			entry, ok := model.Unmodeled[key]
 			require.True(t, ok, "missing %s in %+v", key, model.Unmodeled)
-			assert.Contains(t, string(entry.Value), want)
+			assert.Contains(t, string(entry.Value), want[0])
 			assert.Equal(t, "/components/schemas/M/"+strings.TrimPrefix(key, "openapi:"),
 				string(entry.Provenance.Pointer))
 			assert.Contains(t,
-				openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo,
+				openapitest.DiagMessageAt(t, doc.Diagnostics, want[1], ir.SeverityInfo,
 					"/components/schemas/M/"+strings.TrimPrefix(key, "openapi:")), "inline allOf branch")
 		}
 	}
@@ -500,7 +518,7 @@ func compileView(t *testing.T, m string) (composedView, []string) {
 // equivalencePairs are (nested, flat) spellings of one composition M. Each
 // nested spelling must lower as its flat one does
 // (docs/compilers/openapi.md#allof-classification), at any depth up to
-// MaxAllOfFlattenDepth.
+// statement.MaxFlattenDepth.
 var equivalencePairs = []struct {
 	name   string
 	nested string
@@ -600,6 +618,16 @@ var equivalencePairs = []struct {
       allOf: [{$ref: '#/components/schemas/A'}, false]
 `},
 	{"a residue", `    M:
+      allOf:
+        - unevaluatedProperties: false
+          allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+`, `    M:
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
+        - unevaluatedProperties: false
+`},
+	{"a closure", `    M:
       allOf:
         - additionalProperties: false
           allOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]

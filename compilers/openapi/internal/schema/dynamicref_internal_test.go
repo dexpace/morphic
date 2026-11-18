@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -159,7 +160,7 @@ func TestResolvesAt_AnswersAsResolvePointerDoes(t *testing.T) {
 			there, read := lowering.InDocument(l.Ctx, at.Doc)
 			want := false
 			if read {
-				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Bindings().At(at))
+				_, want = resolvePointer(there, l.Types, at.Pointer, l.Ctx.Statements().At(at))
 			}
 			assert.Equal(t, want, resolvesAt(l.Ctx, at), "%s: %v", name, at)
 			asked++
@@ -195,17 +196,16 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 		return js
 	}
 	branch := func(name string) allOfBranch {
-		s := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).GetSchema()
-		return allOfBranches(nil, s, "").branches[0]
+		s := l.Ctx.Statements().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).Schema
+		return allOfBranches(l.Ctx, s, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
 		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
 	}
-	w := newAdmission(l.Ctx)
 	fields := modelFields{c: l.Ctx}
 
-	assert.True(t, w.sameText(at("Plain"), at("Twin")))
-	assert.False(t, w.sameText(at("Plain"), at("Deep")))
+	assert.True(t, sameText(l.Ctx, l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Twin"))))
+	assert.False(t, sameText(l.Ctx, l.Ctx.Statements().Of(at("Plain")), l.Ctx.Statements().Of(at("Deep"))))
 	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
 	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))
@@ -232,11 +232,11 @@ func TestResolvesAt_ResolvesNothingInADocumentTheCompileDidNotRead(t *testing.T)
 		Data: []byte(openapitest.ComponentSpec("    A: {$ref: './ext.yaml#/X'}\n"))}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	read := LowererOver(lowering.New(0, doc, lowering.Policy{}))
+	read := LowererOver(service.New(0, doc, service.Policy{}))
 	e, ok := read.Ctx.Bindings().Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
 	require.True(t, ok)
 	require.True(t, resolvesAt(read.Ctx, e.Hop.Target), "sanity: the document the compile read resolves")
 	none := *doc
 	none.Others = load.Others{}
-	assert.False(t, resolvesAt(LowererOver(lowering.New(0, &none, lowering.Policy{})).Ctx, e.Hop.Target))
+	assert.False(t, resolvesAt(LowererOver(service.New(0, &none, service.Policy{})).Ctx, e.Hop.Target))
 }

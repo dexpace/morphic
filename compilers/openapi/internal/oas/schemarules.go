@@ -192,7 +192,7 @@ func (r SchemaRules) Formatted(name string, f Format) bool {
 // NamesDialect reports whether a `$schema` or jsonSchemaDialect value names a
 // dialect at all: an absolute URI, as each must be. One that names none,
 // which validation reports, chooses nothing, as though it were not written.
-func NamesDialect(dialect string) bool { return validFormat(AbsoluteURI, dialect) }
+func NamesDialect(dialect string) bool { return ValidFormat(AbsoluteURI, dialect) }
 
 // Defines reports whether the Schema Object defines the field name: a keyword
 // of its dialect, or a field OpenAPI adds to it at the minor.

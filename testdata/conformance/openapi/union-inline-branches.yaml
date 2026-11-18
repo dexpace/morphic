@@ -28,8 +28,8 @@ components:
     # An outside reference to a branch pointer finds the branch node, never the
     # variant composed for it.
     Region: {$ref: '#/components/schemas/Placement/oneOf/0'}
-    # A bare null branch declines distribution: the union is kept beside the
-    # body.
+    # A bare null branch is no variant: the union distributes past it, and the
+    # body's `type: object` admits no null, so the reference admits none.
     MaybePlacement:
       type: object
       properties:

@@ -56,8 +56,7 @@ func bindingsOf(t *testing.T, text string) (*typed.Bindings, *soa.OpenAPI, []typ
 	for item := range soa.Walk(t.Context(), doc) {
 		at := bind.Position{Pointer: typed.PointerOf(item.Location)}
 		require.NoError(t, item.Match(soa.Matcher{
-			Schema:        func(js *oas3.JSONSchema[oas3.Referenceable]) error { bd.Schema(js, at); return nil },
-			Discriminator: func(d *oas3.Discriminator) error { bd.Discriminator(d, at); return nil },
+			Schema: func(js *oas3.JSONSchema[oas3.Referenceable]) error { bd.Schema(js, at); return nil },
 		}))
 	}
 	built := bd.Build(t.Context())
@@ -138,21 +137,19 @@ components:
 }
 
 // TestBindings_AnswerAMappingValueByItsDiscriminator pins Mapping: a value of
-// a discriminator the bindings met, and nothing for one they did not.
+// the discriminator read at a position, and nothing where the table read none.
 func TestBindings_AnswerAMappingValueByItsDiscriminator(t *testing.T) {
 	t.Parallel()
-	b, doc, _ := bindings(t)
-	d := component(t, doc, "D").GetSchema().GetDiscriminator()
-	m, ok := b.Mapping(d, "#/x-lib/S")
+	b, _, _ := bindings(t)
+	m, ok := b.Mapping(bind.Position{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/S")
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Pointer: "/x-lib/S"}, m.Hop.Target)
-	_, ok = b.Mapping(&oas3.Discriminator{}, "#/x-lib/S")
-	assert.False(t, ok)
-	_, ok = b.Mapping(nil, "#/x-lib/S")
-	assert.False(t, ok)
-	built := b.At(bind.Position{Pointer: "/x-lib/S"}).GetSchema().GetDiscriminator()
-	_, ok = b.Mapping(built, "#/x-lib/S")
-	assert.False(t, ok, "a discriminator of a built schema is known, though it maps nothing")
+	_, ok = b.Mapping(bind.Position{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/T")
+	assert.False(t, ok, "a value the mapping does not write")
+	_, ok = b.Mapping(bind.Position{}, "#/x-lib/S")
+	assert.False(t, ok, "the position of a schema the bindings do not know")
+	_, ok = b.Mapping(bind.Position{Pointer: "/x-lib/S/discriminator"}, "#/x-lib/S")
+	assert.False(t, ok, "a discriminator that maps nothing")
 }
 
 // TestBuilder_BuildsEachLandingOnce pins Build: a schema for each landing, in
@@ -187,7 +184,7 @@ func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	assert.Nil(t, b.End(js))
 	assert.Nil(t, b.At(bind.Position{}))
 	assert.Nil(t, b.Table())
-	_, ok = b.Mapping(&oas3.Discriminator{}, "#/x")
+	_, ok = b.Mapping(bind.Position{Pointer: "/components/schemas/D/discriminator"}, "#/x")
 	assert.False(t, ok)
 	_, _, ok = b.ObjectSite(&soa.ReferencedParameter{})
 	assert.False(t, ok)

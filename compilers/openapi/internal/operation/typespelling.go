@@ -17,8 +17,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,9 +31,9 @@ import (
 // content entry written as a $ref declares its schema where the chain ends
 // (declaredMedia), in that document's context. carries is the scopes the
 // carrier keeps what the spelling's objects write under, nearest first
-// (lowering.CarrierScopes).
+// (promotion.CarrierScopes).
 type typeSpelling struct {
-	ctx       lowering.Ctx
+	ctx       service.Ctx
 	js        *oas3.JSONSchema[oas3.Referenceable]
 	pointer   jsontext.Pointer
 	mediaType string
@@ -57,7 +58,7 @@ func (s typeSpelling) schemaScope() string { return s.carries[len(s.carries)-1] 
 // Property.Encoding.MediaType), where `schema` would push the media type into
 // Unmodeled. The specification gives no precedence. The election is
 // unconditional, even where the entry names no schema (GitHub #320).
-func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenceable],
+func electTypeSpelling(c service.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
@@ -77,7 +78,7 @@ func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenc
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
 		return elected, diags
 	}
-	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema"), carries: lowering.CarrierScopes("")}
+	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema"), carries: promotion.CarrierScopes("")}
 	if js == nil {
 		// Neither spelling states a type — a header carrying only a description,
 		// or a `content` map naming no usable entry — so there is no winner, and
@@ -93,11 +94,11 @@ func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenc
 // schema, examples and residue as it declares them (declaredMedia). One
 // written as a $ref that resolves to nothing states no type, as one naming no
 // schema does, but still names its media type.
-func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer,
+func contentSpelling(c service.Ctx, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer,
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	elected := typeSpelling{ctx: c, pointer: mediaPtr + ids.Ptr("schema"), mediaType: mt,
-		carries: lowering.CarrierScopes(mt)}
+		carries: promotion.CarrierScopes(mt)}
 	d, found := declaredMedia(c, media, mediaPtr)
 	if !found {
 		return elected, nil
@@ -107,7 +108,7 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 	if d.use != nil {
 		// The carrier has no docs for what the entry's chain writes beside its
 		// $ref, so its summary and description are kept with its other keys.
-		beside, besideDiags := lowering.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, false)
+		beside, besideDiags := service.Beside[soa.MediaType](d.entryCtx, d.use, d.entryPtr, false)
 		residue = annotation.MergeUnmodeled(residue, annotation.Under(scope, beside))
 		diags = append(diags, besideDiags...)
 	}
@@ -125,7 +126,7 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 // not the info announcing a conjunction JSON Schema allows, because OpenAPI
 // forbids this one; it matches passedOverEntries'. It is not an error: the
 // document lowers as well as an election can make it.
-func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
+func passedOverSpelling(c service.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,
 		nodeview.Child(root, passed), ir.ReasonDegradedLowering, c.Place().At(pointer))
@@ -167,7 +168,7 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 //
 // The reason and severity are passedOverSpelling's. An entry interns no node, and
 // --explain does not read Unmodeled (GitHub #693), so only the warning names it.
-func passedOverEntries(c lowering.Ctx, written []nodeview.Pair, elected string, at jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+func passedOverEntries(c service.Ctx, written []nodeview.Pair, elected string, at jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
 	passed := slices.DeleteFunc(slices.SortedFunc(slices.Values(written), byKey),
 		func(entry nodeview.Pair) bool { return entry.Key == elected })
 	var entries ir.Unmodeled

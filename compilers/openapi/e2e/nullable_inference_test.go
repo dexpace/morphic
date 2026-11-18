@@ -71,7 +71,12 @@ func assertNullableKeyword31(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"/components/schemas/Holder/properties/shaped/items/nullable",
 		"/components/schemas/Name/nullable",
 	}, openapitest.PointersOf(diags, diag.InferredNullable))
-	assert.Empty(t, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads the keyword, so none is unknown")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Holder/properties/notNullable/nullable"},
+		openapitest.PointersOf(diags, diag.UnknownSchemaKeyword), "the policy reads only a true, so a false is unknown")
+	notNullable := props["notNullable"]
+	require.Contains(t, notNullable.Unmodeled, "openapi:nullable")
+	assert.Equal(t, ir.ReasonOutOfScope, notNullable.Unmodeled["openapi:nullable"].Reason)
+	assert.JSONEq(t, "false", string(notNullable.Unmodeled["openapi:nullable"].Value))
 }
 
 // assertNullableKeyword30 pins each 3.0 shape the declared reading gives no
@@ -116,8 +121,11 @@ func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.True(t, ok)
 	owner, ok := propByWire(pet, "owner")
 	require.True(t, ok)
-	assert.Equal(t, inferred(componentID("Person")), owner.Type)
-	assert.Equal(t, "The pet's owner.", owner.Docs.Description, "the use site's description wins")
+	// The keywords beside the $ref are a conjunct of the use, so owner names
+	// the decorator over Person they make, which holds the description.
+	decorator := ir.TypeID("t/anon/components/schemas/Pet/properties/owner")
+	assert.Equal(t, inferred(decorator), owner.Type)
+	assert.Equal(t, "The pet's owner.", doc.Types[decorator].Common().Docs.Description, "the use site's description wins")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
 
 	alias := doc.Types[componentID("Owner")]
@@ -178,7 +186,10 @@ func TestSchemaRefSiblings_ApplyAsIn31(t *testing.T) {
 func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Holder/properties/p"
-	maybe := ir.TypeRef{Target: componentID("Maybe"), Nullable: true}
+	// The keywords beside the $ref are a conjunct of the use, so p names the
+	// model over Maybe they make, as the allOf of the two does.
+	model := ir.TypeID("t/anon" + at)
+	maybe := ir.TypeRef{Target: model, Nullable: true}
 	for _, tc := range []struct {
 		name, version, p, rest string
 		off                    bool
@@ -190,7 +201,7 @@ func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
 		{"3.0 on", "3.0.3", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
 			"    Maybe: {type: object, nullable: true}\n", false, maybe, nil},
 		{"3.1 off", "3.1.0", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
-			"    Maybe: {type: [object, \"null\"]}\n", true, ir.TypeRef{Target: componentID("Maybe")},
+			"    Maybe: {type: [object, \"null\"]}\n", true, ir.TypeRef{Target: model},
 			[]jsontext.Pointer{at + "/nullable"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -306,10 +317,11 @@ func TestNullableInference_AKeywordIsReportedOnceAtItself(t *testing.T) {
 
 // TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine pins the policy
 // off: a `nullable` in a 3.1 schema is a keyword that dialect does not define,
-// kept verbatim where any unknown keyword is and reported as one. A 3.0
+// kept verbatim where any unknown keyword is and reported as one. With the
+// policy on it keeps only the one the policy does not read, a `false`. A 3.0
 // schema's nullable, one beside its $ref included, is read by its declared
-// effect instead, and the policy on reads every one, so neither keeps anything.
-// The one beside a 3.0 $ref is still a later minor's construct.
+// effect instead, so it keeps nothing. The one beside a 3.0 $ref is still a
+// later minor's construct.
 func TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T) {
 	t.Parallel()
 	const rest = "    N: {type: string, nullable: false}\n"
@@ -323,7 +335,7 @@ func TestNullableInference_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T
 			"/components/schemas/N/nullable",
 		}},
 		{"3.0 off", "3.0.3", true, nil},
-		{"3.1 on", "3.1.0", false, nil},
+		{"3.1 on", "3.1.0", false, []jsontext.Pointer{"/components/schemas/N/nullable"}},
 		{"3.0 on", "3.0.3", false, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

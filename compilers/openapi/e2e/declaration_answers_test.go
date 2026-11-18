@@ -43,6 +43,11 @@ func describedBy(t *testing.T, doc *ir.Document, id ir.TypeID) string {
 		switch td := doc.Types[id].(type) {
 		case *ir.Scalar:
 			id = td.Base.Target
+		case *ir.Model:
+			if td.Base == nil || len(td.Properties) > 0 {
+				return td.Docs.Description
+			}
+			id = td.Base.Target // a use of an object, as an alias is of anything else
 		default:
 			require.NotNil(t, td, "%s", id)
 			return td.Common().Docs.Description
@@ -81,8 +86,8 @@ func TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource(t *test
 			doc, diags := compileTrusted(t, src, rec)
 
 			assertNoErrorDiags(t, diags)
-			assert.Equal(t, "real", describedBy(t, doc, aliasTarget(t, doc, "Pet")), "the host the URL names answers it")
-			assert.Equal(t, "from the other host", describedBy(t, doc, aliasTarget(t, doc, "H")),
+			assert.Equal(t, "real", describedBy(t, doc, useTarget(t, doc, "Pet")), "the host the URL names answers it")
+			assert.Equal(t, "from the other host", describedBy(t, doc, useTarget(t, doc, "H")),
 				"the document's own declaration answers its own reference")
 			assert.Equal(t, []string{"/pet.yaml"}, remote.requests())
 			assert.Equal(t, []string{"/hijack.yaml"}, hijack.requests())
@@ -112,8 +117,8 @@ func TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead(t *testing.T) {
 			doc, diags := compileWithReader(t, filepath.Join(dir, "spec.yaml"), src, openapi.Options{AllowExternalRefs: allow}, rec)
 
 			assertNoErrorDiags(t, diags)
-			want := aliasTarget(t, doc, "L")
-			assert.Equal(t, want, aliasTarget(t, doc, "P"), "a file declares what it writes")
+			want := useTarget(t, doc, "L")
+			assert.Equal(t, want, useTarget(t, doc, "P"), "a file declares what it writes")
 			assert.Equal(t, "LOCAL", describedBy(t, doc, want))
 			assert.Empty(t, remote.requests(), "the URL is never requested")
 			for _, loc := range rec.locations() {
@@ -161,9 +166,9 @@ func TestCompile_AFetchedDocumentReadsAURLAFileDeclares(t *testing.T) {
 				assert.Contains(t, string(d.Provenance.Pointer), "/", "%+v", d)
 				assert.Contains(t, d.Message, "404", "the reason is the host's refusal")
 			}
-			assert.Equal(t, "FILE-SECRET", describedBy(t, doc, aliasTarget(t, doc, "L")))
+			assert.Equal(t, "FILE-SECRET", describedBy(t, doc, useTarget(t, doc, "L")))
 			for _, k := range []string{"A", "B"} {
-				assert.Equal(t, ir.TypeID("t/prim/any"), typeTarget(t, doc, aliasTarget(t, doc, k)),
+				assert.Equal(t, ir.TypeID("t/prim/any"), typeTarget(t, doc, useTarget(t, doc, k)),
 					"%s lands on nothing of local.yaml: %s", k, jsonOf(t, doc))
 			}
 			assert.Equal(t, []string{"/secret.yaml"}, remote.requests(), "one request, for the one URL")
@@ -172,7 +177,7 @@ func TestCompile_AFetchedDocumentReadsAURLAFileDeclares(t *testing.T) {
 			doc, diags = compileWithReader(t, filepath.Join(dir, "spec.yaml"), with, openapi.Options{AllowExternalRefs: true}, rec)
 
 			require.Len(t, unresolvedRefs(diags), 2, "%+v", diags)
-			assert.Equal(t, aliasTarget(t, doc, "L"), aliasTarget(t, doc, "S"), "the source's own reference lands on the file")
+			assert.Equal(t, useTarget(t, doc, "L"), useTarget(t, doc, "S"), "the source's own reference lands on the file")
 			assert.Equal(t, []string{"/secret.yaml", "/secret.yaml"}, remote.requests(), "S adds no request: the second compile asks once")
 		})
 	}
@@ -223,7 +228,7 @@ func TestCompile_AFileDeclaringAURLIsNotRequestedWhereReadsAreAllowed(t *testing
 	doc, diags := compileWithReader(t, filepath.Join(dir, "spec.yaml"), src, openapi.Options{AllowExternalRefs: true}, rec)
 
 	assertNoErrorDiags(t, diags)
-	assert.Equal(t, aliasTarget(t, doc, "A"), aliasTarget(t, doc, "B"))
+	assert.Equal(t, useTarget(t, doc, "A"), useTarget(t, doc, "B"))
 	assert.Equal(t, []string{filepath.Join(dir, "local.yaml")}, rec.locations())
 	assert.Empty(t, remote.requests())
 }

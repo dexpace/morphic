@@ -16,9 +16,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -31,7 +33,7 @@ import (
 // ID is rooted at mount, the operation's mount pointer, not at the declaration
 // it was copied from; a repeat of one name and location keeps an ID of its own
 // (paramLedger).
-func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameters(c service.Ctx, w walk, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
 	}
@@ -44,7 +46,7 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 		if sp.in != nil {
 			pc = *sp.in
 		}
-		p, dc, pptr := lowering.Declared[soa.Parameter](pc, sp.ref, sp.pointer)
+		p, dc, pptr := service.Declared[soa.Parameter](pc, sp.ref, sp.pointer)
 		if p == nil {
 			continue
 		}
@@ -55,7 +57,7 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 		// this use of the parameter, over what its declaration says (GitHub #610).
 		param.Docs = resolve.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
 		// What the chain writes beside its $ref rides on the parameter it lowers to.
-		beside, besideDiags := lowering.Beside[soa.Parameter](pc, sp.ref, sp.pointer, true)
+		beside, besideDiags := service.Beside[soa.Parameter](pc, sp.ref, sp.pointer, true)
 		param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, beside)
 		diags = append(diags, besideDiags...)
 		logical = append(logical, param)
@@ -67,7 +69,7 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 // lowerParameter lowers one resolved parameter into its logical Parameter and
 // HTTP binding, both naming the parameter by id. Path parameters are always
 // required regardless of the declared flag (OpenAPI requires it).
-func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
+func lowerParameter(c service.Ctx, w walk, id ir.ParamID, p *soa.Parameter, pptr jsontext.Pointer) (ir.Parameter, ir.HTTPParamBinding, []ir.Diagnostic) {
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		ID:         id,
@@ -92,14 +94,14 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 		// The media type serializes the value, so no style is stated for it.
 		binding.Style = ""
 	}
-	diags = append(diags, fillParamDetail(c, w.types, &param, p, pptr, elected)...)
+	diags = append(diags, fillParamDetail(c, &param, p, pptr, elected)...)
 	if p.AllowReserved != nil {
 		return param, binding, diags
 	}
 	// Read once the keys are kept, and only where the parameter decides nothing:
 	// its own key, else the nearest object it carries stating one.
-	reserved, promoted := lowering.AllowReserved(c.Promoter(),
-		lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...), &param.Provenance)
+	reserved, promoted := promotion.AllowReserved(c.Promoter(),
+		promotion.Carried(c.Promoter(), param.Unmodeled, elected.carries...), &param.Provenance)
 	binding.AllowReserved = reserved
 	return param, binding, append(diags, promoted...)
 }
@@ -109,17 +111,17 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (docs/compilers/openapi.md#ref-use-site).
-func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
+func fillParamType(c service.Ctx, w walk, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, w, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
-	paramType, typeDiags := schema.CarriedRef(elected.ctx, w.types, schema.TopLevelDepth, elected.js, elected.pointer)
+	paramType, typeDiags := schema.CarriedRef(elected.ctx.Ctx, w.types, schema.TopLevelDepth, c.Statements().Of(elected.js), elected.pointer)
 	diags = append(diags, typeDiags...)
 	param.Type = paramType
 	binding.ContentType = elected.mediaType
 	var written ir.Unmodeled
 	diags = append(diags, fillParamSchema(elected.ctx, w.types, param, &written, elected.js, elected.pointer)...)
 	// What the schema keeps whole it keeps once, its inner keys not again.
-	lowering.DropContained(c.Promoter(), &written)
+	promotion.DropContained(c.Promoter(), &written)
 	param.Unmodeled = annotation.MergeUnmodeled(annotation.Under(elected.schemaScope(), written), elected.unmodeled)
 	return elected, diags
 }
@@ -136,7 +138,7 @@ func fillParamType(c lowering.Ctx, w walk, param *ir.Parameter, binding *ir.HTTP
 // use-site-only, as fillPropertyConstraints keeps them: bounds conjoin rather
 // than override, so copying the referent's down would publish the wider bound
 // as the whole truth (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, written *ir.Unmodeled,
+func fillParamSchema(c service.Ctx, ts *compile.Types, param *ir.Parameter, written *ir.Unmodeled,
 	js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
@@ -149,18 +151,18 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, wri
 	// schema.UseOf reads the end of a $ref chain, since one hop would take the
 	// default and description off an intermediate reference instead of the
 	// schema that declares them.
-	use := schema.UseOf(c, ts, js, param.Type, pointer)
-	def, diags := use.Default(c, s, pointer)
+	use := schema.UseOf(c.Ctx, c.Statements().Of(js), param.Type, pointer)
+	def, diags := use.Default(c.Ctx, c.Statements().Of(js).Schema, pointer)
 	param.Default = def
 
-	cons, consDiags := schema.CarrierConstraintsOf(c, ts, written, s, use.Voices, param.Type, pointer)
+	cons, consDiags := schema.CarrierConstraintsOf(c.Ctx, written, c.Statements().Of(js).Schema, use.Voices, param.Type, pointer)
 	param.Constraints = cons
 	diags = append(diags, consDiags...)
-	diags = append(diags, fillParamSchemaAnnotations(c, ts, param, written, s, use, pointer)...)
+	diags = append(diags, fillParamSchemaAnnotations(c, param, written, c.Statements().Of(js).Schema, use, pointer)...)
 	// A parameter is the third annotation.HomeCarrier, so the keywords beside a
 	// $ref that the alias it resolves to cannot hold are kept here, exactly as a
 	// property and a header keep them (schema.FillPropertyDetail).
-	return append(diags, schema.PreserveRefSiteKeywords(c, ts, written, js, param.Type, pointer)...)
+	return append(diags, schema.PreserveRefSiteKeywords(c.Ctx, ts, written, c.Statements().Of(js), param.Type, pointer)...)
 }
 
 // fillParamSchemaAnnotations records what a parameter's schema declares on the
@@ -174,25 +176,25 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, wri
 // back to (docs/compilers/openapi.md#ref-use-site); examples, xml and the
 // visibility keywords stay with the position, which they describe, and its
 // voices. What has no field of the parameter goes to written.
-func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, written *ir.Unmodeled,
-	s *oas3.Schema, use schema.Use, pointer jsontext.Pointer,
+func fillParamSchemaAnnotations(c service.Ctx, param *ir.Parameter, written *ir.Unmodeled,
+	s *statement.Schema, use schema.Use, pointer jsontext.Pointer,
 ) []ir.Diagnostic {
 	// Visibility is kept before the own-node guard, not after it. The guard exists
 	// so an annotation with a home on the node is not also copied to the carrier,
-	// but readOnly/writeOnly have no home on either: recordDeclarationResidue
-	// skips this position because a parameter is an annotation.HomeCarrier, and
-	// ir.Parameter has no Visibility field. Keeping them after the guard would
-	// drop them for exactly the parameters whose schema owns a node — an object,
-	// an enum, an array.
+	// but readOnly/writeOnly have no home on either: the residue a declaration
+	// keeps on its node skips this position because a parameter is an
+	// annotation.HomeCarrier, and ir.Parameter has no Visibility field. Keeping
+	// them after the guard would drop them for exactly the parameters whose
+	// schema owns a node — an object, an enum, an array.
 	var diags []ir.Diagnostic
-	for _, v := range slices.Backward(use.Written()) {
+	for _, v := range schema.ResidueWriters(use.Written()) {
 		diags = append(diags, preserveParamVisibility(c, written, v.Node, v.At)...)
 	}
 	diags = append(diags, preserveParamVisibility(c, written, s, pointer)...)
-	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
+	if schema.LoweredToOwnNode(c.Ctx, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.Place())
+	a, readDiags := annotation.Read(use.SiteAt(c.Ctx, s, pointer), pointer, c.Place())
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
@@ -212,7 +214,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	*written = annotation.MergeUnmodeled(*written, a.Unmodeled)
 	// Last, as it keeps only the keywords no reader above it kept, and everything
 	// annotation.Read recorded is already in written by this line.
-	return append(diags, schema.PreserveCarriedKeywords(c, written, s, pointer)...)
+	return append(diags, schema.PreserveCarriedKeywords(c.Ctx, written, s, pointer)...)
 }
 
 // preserveParamXML keeps a parameter schema's xml hints instead of dropping
@@ -221,7 +223,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 // application/xml, the media type OpenAPI §4.8.26 conditions xml on, and the
 // binding records that content type. ReasonNoIRHome, since the IR can close the
 // gap by adding the field (GitHub #124).
-func preserveParamXML(c lowering.Ctx, written *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func preserveParamXML(c service.Ctx, written *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
 	kept, diags := annotation.PreserveSchemaKeyword(written, s, "xml", ir.ReasonNoIRHome, pointer, c.Place())
 	if kept {
@@ -242,7 +244,7 @@ func preserveParamXML(c lowering.Ctx, written *ir.Unmodeled, s *oas3.Schema, poi
 // The list is asked of the schema package rather than restated here, so a
 // keyword added there is preserved here too instead of being dropped at this one
 // carrier.
-func preserveParamVisibility(c lowering.Ctx, written *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func preserveParamVisibility(c service.Ctx, written *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range schema.ResidueKeywords() {
 		if paramHoldsResidue(keyword) {
@@ -277,7 +279,7 @@ func paramHoldsResidue(keyword string) bool {
 // been preserved: a promotion reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
-func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
+func fillParamDetail(c service.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
@@ -295,25 +297,25 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 	// Redaction and deprecation hold where the parameter or an object it carries
 	// states them, as they hold where its schema's $ref target does; a value is
 	// read at the nearest key writing one, and a misfit reported at each.
-	lent := c.Promoter().Lent(schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
+	lent := c.Promoter().Lent(schema.KeysLentTo(c.Ctx, c.Statements().Of(elected.js), param.Type, elected.pointer), param.Unmodeled,
 		elected.carries...)
-	carried := lowering.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
-	diags = append(diags, schema.PromoteUse(c, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
+	carried := promotion.Carried(c.Promoter(), param.Unmodeled, elected.carries...)
+	diags = append(diags, schema.PromoteUse(c.Ctx, lent, carried, &param.Deprecation, &param.Secret, &param.Provenance)...)
 	return append(diags, promoteShadowed(c, param.Unmodeled, elected.carries...)...)
 }
 
 // promoteShadowed reads, for its findings alone, the deprecation and redaction
-// each statement Carried passes over beneath scopes states (lowering.Shadowed),
+// each statement Carried passes over beneath scopes states (promotion.Shadowed),
 // so a misfit behind a nearer statement of its key is reported once, at its own
 // key, as the nearest statement's is by schema.PromoteUse.
-func promoteShadowed(c lowering.Ctx, own ir.Unmodeled, scopes ...string) []ir.Diagnostic {
-	layers := lowering.Shadowed(c.Promoter(), own, scopes...)
+func promoteShadowed(c service.Ctx, own ir.Unmodeled, scopes ...string) []ir.Diagnostic {
+	layers := promotion.Shadowed(c.Promoter(), own, scopes...)
 	diags := make([]ir.Diagnostic, 0, len(layers))
 	for _, layer := range layers {
 		var dep *ir.Deprecation
 		var redact bool
 		var prov ir.Provenance
-		diags = append(diags, schema.PromoteUse(c, lowering.Referent{}, layer, &dep, &redact, &prov)...)
+		diags = append(diags, schema.PromoteUse(c.Ctx, promotion.Referent{}, layer, &dep, &redact, &prov)...)
 	}
 	return diags
 }
@@ -381,7 +383,7 @@ type sourcedParam struct {
 	// in is the context a path-item entry is lowered in, its layer's (see
 	// itemParams), whose document its pointer is in, or nil for an
 	// operation's own entry, which is lowered in the operation's.
-	in *lowering.Ctx
+	in *service.Ctx
 }
 
 // mergeParameters merges a mount's path-item parameters with an operation's own
@@ -415,7 +417,7 @@ func mergeParameters(b *typed.Bindings, pathParams []sourcedParam, opParams []*s
 // all-false, which is what the operation side passes: operation parameters are
 // never shadowed, and are lowered in the operation's own context (a nil in).
 func appendSourced(b *typed.Bindings, dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
-	shadowed map[ids.ParamSlot]bool, in *lowering.Ctx,
+	shadowed map[ids.ParamSlot]bool, in *service.Ctx,
 ) []sourcedParam {
 	for i, p := range params {
 		if key, ok := paramKey(b, p); ok && shadowed[key] {

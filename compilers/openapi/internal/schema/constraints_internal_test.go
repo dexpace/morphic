@@ -12,26 +12,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestConstraintsOf_NonSchemaInputs covers annotation.SchemaOf's nil and
-// boolean early return, plus a well-formed reference besides: none of the three
-// leaves a body with constraint keywords on it, so ConstraintsOf reports none
-// either way.
+// TestConstraintsOf_NonSchemaInputs covers a nil and a boolean schema, plus a
+// well-formed reference besides: none of the three leaves a body with
+// constraint keywords on it, so ConstraintsOf reports none either way.
 func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	for _, js := range []*oas3.Schema{
-		annotation.SchemaOf(nil),
-		annotation.SchemaOf(oas3.NewJSONSchemaFromBool(true)),
-		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
+	for _, s := range []*statement.Schema{
+		nil,
+		Standalone(oas3.NewJSONSchemaFromBool(true)).Schema,
+		Standalone(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")).Schema,
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.Ctx, &kept, js, nil, "/p", anyInstance)
+		cons, diags := ConstraintsOf(l.Ctx, &kept, s, nil, "/p", anyInstance)
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
@@ -44,30 +42,31 @@ func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(l.Ctx, compile.NewTypes(), &kept, nil, nil, ir.TypeRef{}, "/p")
+	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, nil, ir.TypeRef{}, "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)
 }
 
 // TestReferenceHolds_NoCollectionBoundIsHeld pins the switch's default, which
-// keywordHome's arm never reaches: a keyword that is no collection bound.
+// no reader of a reference's collection bounds reaches: a keyword that is no
+// collection bound.
 func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
 	t.Parallel()
-	assert.False(t, referenceHolds(&oas3.Schema{}, "pattern"))
+	assert.False(t, referenceHolds(StandaloneSchema(&oas3.Schema{}), "pattern"))
 }
 
 // TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
-// empty: annotation.At reads it as a declaration, since IsReference is false
-// for it, and SchemaOf returns its body like any other, so ConstraintsOf meets
-// a body that carries only Ref and finds no constraint keywords. The parser
-// never emits this shape, so it is built by hand.
+// empty: annotation.At reads it as a declaration, since its reference's text is
+// empty, so ConstraintsOf meets a body that carries only Ref and finds no
+// constraint keywords. The parser never emits this shape, so it is built by
+// hand.
 func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), nil, "/p", anyInstance)
+	cons, diags := ConstraintsOf(l.Ctx, &kept, Standalone(js).Schema, nil, "/p", anyInstance)
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)

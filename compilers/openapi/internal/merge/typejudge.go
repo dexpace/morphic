@@ -97,7 +97,7 @@ type declarationSites struct {
 	written [2][]ir.Provenance
 	// walk is Merger.Walk, whose Alike says two nodes held alike keeping a
 	// reference are one type only where they read it against one base, and
-	// whose Untyped says whether a node's source states no instance type.
+	// whose Admits says whether a node's source admits a kind of instance.
 	walk Walk
 }
 
@@ -344,9 +344,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 		}
 		return relOverlap
 	case aok && isStructural(bu):
-		return j.againstOtherInstance(bt, bSites, depth).flipped()
+		return j.againstOtherInstance(bt, bSites, depth, primInstance(ak.prim)).flipped()
 	case bok && isStructural(au):
-		return j.againstOtherInstance(at, aSites, depth)
+		return j.againstOtherInstance(at, aSites, depth, primInstance(bk.prim))
 	case aok:
 		return j.againstKind(j.view(bt, ""), a, j.view(at, ""), ak).flipped()
 	case bok:
@@ -354,23 +354,24 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
 	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
-		return acrossInstances(j.againstOtherInstance(at, aSites, depth), j.againstOtherInstance(bt, bSites, depth))
+		return acrossInstances(j.againstOtherInstance(at, aSites, depth, nodeInstance(bu)),
+			j.againstOtherInstance(bt, bSites, depth, nodeInstance(au)))
 	default:
 		return relUnrelated
 	}
 }
 
 // againstOtherInstance is the verdict on td, a structure through any aliases,
-// against a type of another instance type, from td's side. Where td's source
-// and each alias's state no instance type (Walk.Untyped), td admits every
-// value of another, so the other type is narrower: `properties` alone
-// constrains objects and admits a string. A node saying more than that, such as
-// examples, overlaps instead, as topAt reads an alias of `{}`, since a type
-// replacing it would lose it. Any other structure is disjoint from the other
-// type.
-func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, depth int) relation {
+// against a type whose values are of the kind other, from td's side. Where
+// td's source and each alias's admit every instance of that kind, exactly
+// (Walk.Admits), td admits every value of the other type, so that one is
+// narrower: `properties` alone constrains objects and admits a string. A node
+// saying more than that, such as examples, overlaps instead, as topAt reads an
+// alias of `{}`, since a type replacing it would lose it. Any other structure
+// is disjoint from the other type.
+func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, depth int, other Instance) relation {
 	chain, end := j.aliasChain(td)
-	if !isStructural(end) || !j.sites.walk.Untyped(end.Common().Provenance) {
+	if !isStructural(end) || !sourceAdmits(j.sites.walk, end.Common().Provenance, other) {
 		return relDisjoint
 	}
 	// A $ref carries the docs, deprecation and redaction of what it reaches
@@ -380,7 +381,7 @@ func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, de
 	carried := depth == 0 && !hoistedAt(td, sites)
 	saysNothing := structureSaysNothing(end, carried && len(chain) == 0)
 	for k, s := range chain {
-		if !j.sites.walk.Untyped(s.Provenance) {
+		if !sourceAdmits(j.sites.walk, s.Provenance, other) {
 			return relDisjoint
 		}
 		saysNothing = saysNothing && aliasSaysNothing(s, carried && k == 0)
@@ -389,6 +390,56 @@ func (j typeJudge) againstOtherInstance(td ir.TypeDef, sites []ir.Provenance, de
 		return relOverlap
 	}
 	return relBNarrower
+}
+
+// sourceAdmits reports whether the source written at at admits every instance
+// of kind, by a read of walk's that follows all it writes (Walk.Admits): one
+// that does not decides nothing, and the structure stays disjoint from the
+// other type.
+func sourceAdmits(walk Walk, at ir.Provenance, kind Instance) bool {
+	admits, exact := walk.Admits(at, kind)
+	return admits && exact
+}
+
+// primInstance returns the kind of JSON instance a value of p is: a boolean, an
+// integer, a number, or a string, which every other primitive is written as.
+func primInstance(p ir.PrimKind) Instance {
+	switch {
+	case p == ir.PrimBool:
+		return InstanceBoolean
+	case p == ir.PrimInteger || p.StrictlyWithin(ir.PrimInteger):
+		return InstanceInteger
+	case p == ir.PrimNumber || p.StrictlyWithin(ir.PrimNumber):
+		return InstanceNumber
+	default:
+		return InstanceString
+	}
+}
+
+// nodeInstance returns the kind of JSON instance td's values are, td being a
+// literal or a structure (saysItsValues): an object for a model or a map, an
+// array for a list or a tuple, and a literal's value's own.
+func nodeInstance(td ir.TypeDef) Instance {
+	kind := instanceKind(td)
+	lit, isLit := td.(*ir.Literal)
+	switch {
+	case kind == ir.KindModel:
+		return InstanceObject
+	case kind == ir.KindList:
+		return InstanceArray
+	case !isLit:
+		return 0
+	case lit.Value.Kind == ir.ValueBool:
+		return InstanceBoolean
+	case lit.Value.Kind == ir.ValueNull:
+		return InstanceNull
+	case lit.Value.Kind == ir.ValueNumber && strings.ContainsAny(string(lit.Value.Num), ".eE"):
+		return InstanceNumber
+	case lit.Value.Kind == ir.ValueNumber:
+		return InstanceInteger
+	default:
+		return InstanceString
+	}
 }
 
 // structureSaysNothing reports whether td holds nothing in its TypeCommon but

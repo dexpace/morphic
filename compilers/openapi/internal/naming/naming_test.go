@@ -642,9 +642,9 @@ var titleRows = func() []struct{ name, pointer, want string } {
 		{"two titles allOf branches write", keyed + "/properties/conjuncts", "conjuncts"},
 		{"one title allOf branches agree on", keyed + "/properties/agreeing", "one"},
 		{"a schema's own title before its branches'", keyed + "/properties/overruled", "own"},
-		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "referenced"},
-		{"a title beside a $dynamicRef in an allOf", keyed + "/properties/dynamic", "dynamic"},
-		{"a title an allOf branch nests", keyed + "/properties/nested", "nested"},
+		{"a title beside a $ref in an allOf", keyed + "/properties/referenced", "beside_a_ref"},
+		{"a title beside a $dynamicRef in an allOf", keyed + "/properties/dynamic", "beside_a_dynamic_ref"},
+		{"a title an allOf branch nests", keyed + "/properties/nested", "deep"},
 		{"a title under an allOf written as a mapping", keyed + "/properties/mapped", "mapped"},
 		{"a title a branch's allOf writes is its siblings' too", "/components/schemas/Conjoined/anyOf/0", "variant_0"},
 		{"a $defs entry keeps its key", keyed + "/$defs/Local", "Local"},
@@ -680,7 +680,14 @@ func TestAt_NamesNoSchemaByItsTitleWhereTitlesNameNothing(t *testing.T) {
 	differs := 0
 	for _, tc := range titleRows {
 		p := at(tc.pointer)
-		assert.Equal(t, written.At(p), off.At(p), tc.name)
+		if tc.pointer == "/components/schemas/Lookup/oneOf/8" {
+			// A title beside a $ref makes the branch a node of its own, named by
+			// its position, where the $ref alone is named after its target.
+			assert.Equal(t, "variant_8", off.At(p), tc.name)
+			assert.Equal(t, "Pet", written.At(p), tc.name)
+		} else {
+			assert.Equal(t, written.At(p), off.At(p), tc.name)
+		}
 		title, titled := off.Title(p)
 		assert.False(t, titled, tc.name)
 		assert.Empty(t, title, tc.name)
@@ -767,10 +774,10 @@ components:
 
 // TestAt_NamesAHeaderAnEncodingNests pins that a schema under a header of an
 // Encoding Object another nests, through 3.2's encoding, prefixEncoding or
-// itemEncoding, which the model does not read, is named by the header's key,
-// its content's and its itemSchema included, as one the model reads is, and
-// that raw YAML above the root that spells no such header, or spells one
-// beside no Encoding Object or above the root, is named from its pointer.
+// itemEncoding, is named by the header's key, its content's and its
+// itemSchema included, as one beneath a media type's Encoding Object is, and
+// that raw YAML beneath one, or a header no Encoding Object holds, is named
+// from its pointer.
 func TestAt_NamesAHeaderAnEncodingNests(t *testing.T) {
 	t.Parallel()
 	const body = "/components/requestBodies/E/content/multipart~1form-data"
@@ -784,8 +791,6 @@ func TestAt_NamesAHeaderAnEncodingNests(t *testing.T) {
 		body + "/encoding/m/encoding/g/x-kept/H/schema/items",
 		body + "/encoding/m/encoding/g/headers/X-G/examples/a/value",
 		"/components/schemas/S/headers/X-H/schema/items",
-		body + "/encoding/n/encoding/g",
-		body + "/encoding/p/encoding/g/headers/X-P/content/application~1json",
 	}
 	var spec strings.Builder
 	spec.WriteString("openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n")
@@ -814,19 +819,13 @@ func TestAt_NamesAHeaderAnEncodingNests(t *testing.T) {
                 g:
                   x-kept: {H: {schema: {type: array, items: {type: object}}}}
                   headers: {X-G: {schema: {type: object}, examples: {a: {value: {type: object}}}}}
-            n: {encoding: {g: {headers: {X-N: {schema: {type: object}}}}}}
-            p: {encoding: {g: {headers: {X-P: {content: {application/json: {schema: {type: object}}}}}}}}
 `)
 	read := naming.New(table(t, spec.String(), nil), true)
 	for i, want := range []string{
 		compile.SubHint("X-A", "item"), compile.SubHint("X-B", "item"), compile.SubHint("X-C", "item"), "X-D",
 		compile.SubHint("X-E", "item"), compile.SubHint("X-F", "item"),
-		compile.SubHint("schema", "item"), "value", compile.SubHint("schema", "item"), "g", "application/json",
+		compile.SubHint("schema", "item"), "value", compile.SubHint("schema", "item"),
 	} {
 		assert.Equal(t, want, read.At(at(refs[i])), refs[i])
 	}
-	assert.Equal(t, "schema", read.At(at(body+"/encoding/n/encoding/g/headers/X-N/schema")),
-		"a header beneath a structure an Encoding Object read as a schema roots is no owner of it")
-	assert.Equal(t, "schema", read.At(at(body+"/encoding/p/encoding/g/headers/X-P/content/application~1json/schema")),
-		"nor is one whose media type a reference reads as a schema")
 }

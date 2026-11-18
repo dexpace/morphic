@@ -18,7 +18,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -277,7 +277,9 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 				kept = append(kept, key)
 			}
 			assert.ElementsMatch(t, tc.kept, kept)
-			assert.Len(t, withCode(diags, diag.DegradedConstruct), len(tc.kept))
+			// A branch holding validation logic alone is reported as that.
+			reports := append(withCode(diags, diag.DegradedConstruct), withCode(diags, diag.ValidationOnlyKeyword)...)
+			assert.Len(t, reports, len(tc.kept))
 		})
 	}
 	// A disagreeing branch folds nothing, not only the keyword it disagrees on.
@@ -293,32 +295,38 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 // they meet as a redeclared field's do, each taking what they say together, in
 // either order. A writer stating no value, as a 3.0 exclusive modifier with no
 // bound beside it or one of false, parts none (GitHub #1494): both fold, and the
-// modifier that bounds nothing is kept and warned of at its own branch. Base
-// declares no type, so it excludes no bound from the node the branches fold into.
+// modifier that bounds nothing is kept and warned of at its own branch. A count
+// folds into the model a Base declaring no type composes, and a numeric bound
+// into the scalar a refinement of a number lowers to, the node of a kind that
+// takes it.
 func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
+	const (
+		untyped = "{description: declares no type}"
+		number  = "{type: number}"
+	)
 	for name, tc := range map[string]struct {
-		version, a, b string
-		want          *ir.Constraints
+		version, base, a, b string
+		want                *ir.Constraints
 	}{
-		"a count": {"3.1.0", "{maxProperties: 9}", "{maxProperties: 4}", &ir.Constraints{MaxProps: new(int64(4))}},
-		"a step":  {"3.1.0", "{multipleOf: 4}", "{multipleOf: 6}", &ir.Constraints{MultipleOf: new(ir.BigVal("12"))}},
-		"a bound and its exclusive form": {"3.1.0", "{minimum: 1}", "{exclusiveMinimum: 2}",
+		"a count": {"3.1.0", untyped, "{maxProperties: 9}", "{maxProperties: 4}", &ir.Constraints{MaxProps: new(int64(4))}},
+		"a step":  {"3.1.0", number, "{multipleOf: 4}", "{multipleOf: 6}", &ir.Constraints{MultipleOf: new(ir.BigVal("12"))}},
+		"a bound and its exclusive form": {"3.1.0", number, "{minimum: 1}", "{exclusiveMinimum: 2}",
 			&ir.Constraints{Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("2"))}},
-		"a 3.0 modifier": {"3.0.3", "{minimum: 5, exclusiveMinimum: true}", "{minimum: 3}",
+		"a 3.0 modifier": {"3.0.3", number, "{minimum: 5, exclusiveMinimum: true}", "{minimum: 3}",
 			&ir.Constraints{Min: new(ir.BigVal("3")), ExclusiveMin: new(ir.BigVal("5"))}},
-		"a 3.0 modifier beside one of false": {"3.0.3", "{minimum: 3, exclusiveMinimum: true}", "{exclusiveMinimum: false}",
+		"a 3.0 modifier beside one of false": {"3.0.3", number, "{minimum: 3, exclusiveMinimum: true}", "{exclusiveMinimum: false}",
 			&ir.Constraints{ExclusiveMin: new(ir.BigVal("3"))}},
 	} {
 		for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer(tc.version,
-				"    Base: {description: declares no type}\n    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"]}\n"))
+				"    Base: "+tc.base+"\n    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
-			require.True(t, ok, name)
-			assert.Equal(t, tc.want, m.Constraints, "%s: %v", name, order)
-			assert.Empty(t, m.Unmodeled, "%s: %v", name, order)
+			node := typeByName(doc, "S")
+			require.NotNil(t, node, name)
+			assert.Equal(t, tc.want, heldBounds(node), "%s: %v", name, order)
+			assert.Empty(t, node.Common().Unmodeled, "%s: %v", name, order)
 		}
 	}
 
@@ -330,34 +338,65 @@ func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
 
 	for i, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
-			"    Base: {description: declares no type}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
-		m, ok := typeByName(doc, "S").(*ir.Model)
+			"    Base: "+number+"\n    S: {allOf: ["+ref+", "+order+"]}\n"))
+		sc, ok := typeByName(doc, "S").(*ir.Scalar)
 		require.True(t, ok)
 		at := fmt.Sprintf("/components/schemas/S/allOf/%d", i+1)
-		assert.Equal(t, []string{"openapi:exclusiveMinimum"}, slices.Collect(maps.Keys(m.Unmodeled)), order)
-		assert.Equal(t, jsontext.Pointer(at+"/exclusiveMinimum"), m.Unmodeled["openapi:exclusiveMinimum"].Provenance.Pointer, order)
+		assert.Equal(t, []string{"openapi:exclusiveMinimum"}, slices.Collect(maps.Keys(sc.Unmodeled)), order)
+		assert.Equal(t, jsontext.Pointer(at+"/exclusiveMinimum"), sc.Unmodeled["openapi:exclusiveMinimum"].Provenance.Pointer, order)
 		require.Len(t, diags, 1, order)
 		assert.Equal(t, ir.SeverityWarning, diags[0].Severity, order)
 		assert.Equal(t, jsontext.Pointer(at), diags[0].Provenance.Pointer, order)
-		assert.Nil(t, m.Constraints, order)
+		assert.Nil(t, sc.Constraints, order)
+	}
+}
+
+// TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch pins a value bound
+// written beside a Base declaring an object: the allOf lowers to a model, which
+// takes property counts alone, so it holds the count written beside the allOf
+// and keeps the string bound there under its keyword, and the numeric bound each
+// inline branch writes under its own, each with one info at its branch, in
+// either order of the branches (docs/compilers/openapi.md#constraints).
+func TestVoices_ABoundTheComposedModelCannotTakeKeepsItsBranch(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
+	for _, order := range [][2]string{{"{multipleOf: 4}", "{maximum: 9}"}, {"{maximum: 9}", "{multipleOf: 4}"}} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, description: an object}\n"+
+			"    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"], minLength: 2, maxProperties: 3}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok, "%v", order)
+		assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "%v", order)
+		assert.ElementsMatch(t, []string{"openapi:multipleOf", "openapi:maximum", "openapi:minLength"},
+			slices.Collect(maps.Keys(m.Unmodeled)), "%v", order)
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+			"no home for minLength", "%v", order)
+		for i, branch := range order {
+			at := fmt.Sprintf("/components/schemas/S/allOf/%d", i+1)
+			keyword := strings.Trim(strings.Split(branch, ":")[0], "{")
+			assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled["openapi:"+keyword].Reason, "%v", order)
+			assert.Equal(t, jsontext.Pointer(at+"/"+keyword), m.Unmodeled["openapi:"+keyword].Provenance.Pointer, "%v", order)
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+				"no home for "+keyword+" written on this inline branch", "%v", order)
+		}
 	}
 }
 
 // TestVoices_ARefusedBoundPartsNoWriter pins a bound beside one the rule table
 // refuses, in either order (GitHub #1494): the refused value states nothing, so
 // both branches fold, the stated bound reaches the node, and the refusal is
-// reported once, at the keyword, as it is beside the allOf. Base declares no
-// type, so it excludes no bound.
+// reported once, at the keyword, as it is beside the allOf. Base is a number,
+// so the node the branches fold into, a scalar over it, takes the bound.
 func TestVoices_ARefusedBoundPartsNoWriter(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Base'}"
 	for i, order := range []string{"{exclusiveMinimum: 5}, {exclusiveMinimum: true}", "{exclusiveMinimum: true}, {exclusiveMinimum: 5}"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-			"    Base: {description: declares no type}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
-		m, ok := typeByName(doc, "S").(*ir.Model)
+			"    Base: {type: number}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
+		sc, ok := typeByName(doc, "S").(*ir.Scalar)
 		require.True(t, ok)
-		assert.Equal(t, &ir.Constraints{ExclusiveMin: new(ir.BigVal("5"))}, m.Constraints, order)
-		assert.Empty(t, m.Unmodeled, order)
+		assert.Equal(t, &ir.Constraints{ExclusiveMin: new(ir.BigVal("5"))}, sc.Constraints, order)
+		assert.Empty(t, sc.Unmodeled, order)
 		require.Len(t, diags, 1, order)
 		assert.Equal(t, diag.ExclusiveBoundForm, diags[0].Code, order)
 		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/S/allOf/%d/exclusiveMinimum", 2-i)),
@@ -424,11 +463,11 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	_, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Str: {type: string}\n    T: {allOf: [{$ref: '#/components/schemas/Str'}, {format: uuid}, {description: d}]}\n"))
 	got := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
-	assert.Contains(t, got, "has no home for what this inline branch adds", "nothing was disagreed on")
+	assert.Contains(t, got, "has no home for format written on this inline branch", "nothing was disagreed on")
 
 	_, diags = compileNullable(t, openapitest.ComponentSpec(
 		"    Str: {type: string}\n    T: {allOf: [{$ref: '#/components/schemas/Str'}, {nullable: true}]}\n"), true)
-	got = openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
+	got = openapitest.DiagMessageAt(t, diags, diag.UnknownSchemaKeyword, ir.SeverityInfo, "/components/schemas/T/allOf/1/nullable")
 	assert.NotContains(t, got, disagreed, "a keyword the policy keeps from folding was disagreed on by nothing")
 
 	_, diags = parseFull(t, openapitest.ComponentSpec("    Obj: {type: object}\n"+
@@ -437,7 +476,7 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	assert.NotContains(t, got, disagreed, "a branch that folds keeps what it declares of a shape, disagreed on by nothing")
 
 	deep := "{description: deep, allOf: [{type: object}]}"
-	for range schema.MaxAllOfFlattenDepth {
+	for range statement.MaxFlattenDepth {
 		deep = "{allOf: [" + deep + "]}"
 	}
 	_, diags = parseFull(t, openapitest.ComponentSpec("    T: {description: top, allOf: ["+deep+"]}\n"))
@@ -535,8 +574,12 @@ func TestVoices_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 				common := typeByName(doc, "S").Common()
 				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the branch is kept whole")
 				assert.NotContains(t, common.Unmodeled, "openapi:unevaluated", "the position keeps none of it")
-				assert.False(t, openapitest.HasDiagCodeAt(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/"+tc.at),
-					"nothing folds to be reported; got %v", diags)
+				at := make([]ir.Diagnostic, 0, 1)
+				for _, code := range []string{diag.ValidationOnlyKeyword, diag.DegradedConstruct} {
+					at = append(at, diagsAtPointer(diags, code, "/components/schemas/S/"+tc.at)...)
+				}
+				require.Len(t, at, 1, "the branch's one report: nothing folds to be reported; got %v", diags)
+				assert.Contains(t, at[0].Message, "the branch (", "the report is the branch's")
 				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
 					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
 				}
@@ -604,18 +647,37 @@ func TestVoices_APromotedExtensionReadsFromABranch(t *testing.T) {
 	assert.Equal(t, "gone", f.Deprecation.Message)
 }
 
-// TestVoices_ARefBranchIsNoVoice pins that what a $ref branch writes beside its
-// $ref stays on the alias it hoists: it neither folds to the position nor
-// disagrees with a branch that does.
-func TestVoices_ARefBranchIsNoVoice(t *testing.T) {
+// TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice pins that what an allOf
+// entry writes beside its $ref is a conjunct of the position, as an inline
+// entry is: it folds where it agrees with every other conjunct, and where it
+// disagrees neither folds and each entry is kept whole. The $ref is the Base
+// itself in both, with no node hoisted at the entry.
+func TestVoices_AnEntrysKeywordsBesideItsRefAreAVoice(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: beside}, {title: mine, description: other}]}"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
-	require.True(t, ok)
-	assert.Equal(t, "other", m.Docs.Description)
-	assert.Equal(t, "mine", m.Docs.Summary)
-	assert.Empty(t, m.Unmodeled)
-	require.NotNil(t, m.Base)
-	assert.Equal(t, "beside", doc.Types[m.Base.Target].Common().Docs.Description)
+	for _, tc := range []struct {
+		name, beside string
+		kept         []string
+		description  string
+	}{
+		{"agreeing", "same", nil, "same"},
+		{"disagreeing", "beside", []string{"openapi:allOf/0", "openapi:allOf/1"}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			other := "same"
+			if tc.kept != nil {
+				other = "other"
+			}
+			doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base', description: "+tc.beside+
+				"}, {title: mine, description: "+other+"}]}"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			require.NotNil(t, m.Base)
+			assert.Equal(t, componentID("Base"), m.Base.Target, "the $ref is the Base itself")
+			assert.Equal(t, tc.description, m.Docs.Description)
+			assert.Equal(t, tc.kept, slices.Sorted(maps.Keys(m.Unmodeled)))
+			assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/S/allOf/0"), "no node at the entry")
+		})
+	}
 }

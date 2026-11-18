@@ -178,16 +178,12 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/Base"
-            }
-          ],
+          "value": "#/components/schemas/Base",
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/BesideAllOf/allOf"
+            "pointer": "/components/schemas/BesideAllOf/allOf/0"
           }
         }
       },
@@ -425,7 +421,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with the $ref of its allOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BesideAllOf"

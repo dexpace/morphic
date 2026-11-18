@@ -1853,7 +1853,7 @@
       }
     },
     "t/openapi/components/schemas/AtLeastTwoMembers": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/AtLeastTwoMembers",
       "name": {
         "source": "AtLeastTwoMembers",
@@ -1873,7 +1873,10 @@
       "constraints": {
         "uniqueItems": false,
         "minProps": 2
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/BareAndModel": {
       "kind": "model",
@@ -2675,7 +2678,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/MeetingAlias": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/MeetingAlias",
       "name": {
         "source": "MeetingAlias",
@@ -2693,7 +2696,10 @@
       "base": {
         "target": "t/openapi/components/schemas/Meeting",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/ModelThenMap": {
       "kind": "model",

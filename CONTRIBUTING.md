@@ -68,8 +68,8 @@ Read the documents for your layer, and skip the rest until you need them.
 - **A helper is written once.** One that several test files of a package share sits in one of
   them or, when it is new, in the package's `helpers_test.go`, or `helpers_internal_test.go` inside
   the package. One that several packages share is in `compilers/openapi/internal/openapitest`,
-  `compilers/openapi/internal/lowering/loweringtest` or `ir/irtest`, as
-  `openapitest.SchemaFromYAML`, `loweringtest.Context` and `irtest.RepoRoot` are, when it builds or
+  `compilers/openapi/internal/service/servicetest` or `ir/irtest`, as
+  `openapitest.SchemaFromYAML`, `servicetest.Context` and `irtest.RepoRoot` are, when it builds or
   reads what those packages serve, a spec and its diagnostics, a lowering context or the IR. One
   that belongs there but cannot live there, as `parseFull`, which compiles through `openapi.New`,
   is written in each package that needs it, and each copy says why. A helper outside what any of
@@ -80,8 +80,8 @@ Read the documents for your layer, and skip the rest until you need them.
 - **Code only tests call is test code.** A production function no binary reaches, itself or
   through what calls it, is deleted or moved into the tests it serves: into the test file that
   calls it, or into the package's `export_test.go` when an external test does, as `compile`'s
-  `Types.Len` is. One kept for a caller the module does not have yet, such as `engine`'s
-  `RunSources` for a driver holding a spec in memory, is named with that caller in
+  `Types.Len` is. One kept for a caller the module does not have yet, such as `ir`'s
+  `ExposedProps` for the emitters to come, is named with that caller in
   `internal/archtest`'s `apiRoots`, and a package whose production files exist for tests, such as
   `openapitest`, in its `testSupport`.
   *Fails if missed:* `TestReachability_OnlyTestsReachNoFunction`, which also fails on an `apiRoots`
@@ -101,6 +101,14 @@ Read the documents for your layer, and skip the rest until you need them.
   that construct.
   *Fails if missed:* `make coverage`, for code only an end-to-end test reaches. Nothing fails for an
   end-to-end test written in the compiler's own package or in one of its internal packages.
+- **A test of behaviour an open issue describes, which no change yet delivers, is pending.** It is
+  written in a `<name>_pending_test.go` file under `//go:build pending`, its doc comment citing the
+  issue as `GitHub #<n>`. `make vet` compiles it in `compilers/openapi/e2e`, the one package it
+  vets under the tag, so a helper it calls cannot be renamed out from under it, and no gate runs it:
+  it fails today by design, and the change that closes the issue removes the tag and the word.
+  *Fails if missed:* `TestPendingTests_EachCitesAnIssue`, for a pending file without the tag or a
+  test of one without its citation, and `make vet`, for a pending file in `compilers/openapi/e2e`
+  that no longer compiles; one in another package is compiled by nothing.
 
 ## Run the checks
 
@@ -113,9 +121,10 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The race detector is outside it: a nightly job runs `make race` on `main`. The `Makefile`
-holds the step list, and each target (`make coverage`, `make race`, `make fuzz`, `make bench` and
-the rest) runs on its own while iterating. Coverage is gated at exactly 100% of statements, counted
+by side. The race detector and every schema case are outside it: a nightly job runs `make race`,
+then `make cases`, on `main`. The `Makefile` holds the step list, and each target
+(`make coverage`, `make race`, `make cases`, `make fuzz`, `make bench` and the rest) runs on its
+own while iterating. Coverage is gated at exactly 100% of statements, counted
 from the profile rather than from `go test`'s rounded percentage, so one uncovered statement fails
 the build.
 
@@ -153,6 +162,30 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
   which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
   it reads the IR's declarations through the go command.
+- **Schema cases.** `go test ./internal/harness/openapicases`, in the gate, holds the core schema
+  cases to the records under its `testdata/`; `make cases`, which the nightly job runs on `main`,
+  holds every case, those in `testdata/full/` too. Every line of a record names an open issue: its
+  reason is a key of `Reasons` whose text opens `#<issue>: `. `TestReasons_EachCitesAnIssue` holds
+  that form; no test reads whether the issue is still open. When `make cases` fails, or the nightly
+  job opens `ci: the nightly cases run finds a difference on main`, each failure is a line naming
+  the case, what was found and the command writing it,
+  `go run ./cmd/morphic-harness -cases full -at N`, which prints the case's sources and each
+  oracle's verdict: a spelling's with both spellings' sources and their difference, a presence
+  finding's with the name of the neighbour it equals. `-at` takes an index alone, and no command
+  prints the index of a case named anywhere else, a recorded line's or a neighbour's. Then:
+  1. A line whose finding is gone is a fix landed: regenerate, and commit the deletion.
+  2. A new finding the cases wrote themselves, a difference besides the spelling under test, is
+     the cases' to fix, with a test of the writer in `internal/harness/openapicases`.
+  3. Any other is the compiler's. Search the tracker for its shape; a new site of an open issue's
+     cause is a comment there, anything else a new issue (`CLAUDE.md`, "Filing issues"). Then
+     regenerate, which writes the line as `unclassified`, and give it the key of that issue, adding
+     one to `Reasons` where none fits.
+
+  ```bash
+  go test ./internal/harness/openapicases -update                   # the core records
+  go test ./internal/harness/openapicases -run TestFull_ -full -update  # testdata/full
+  ```
+
 - **Fuzzing.** `make fuzz` runs every fuzz target for 5s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
   `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
@@ -195,9 +228,13 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    joins `schema`'s `allof.go`, or, in a package split by responsibility, the file of the
    responsibility it serves, as a visibility rule's joins `merge`'s `visibility.go`. A construct or
    responsibility no file holds yet starts a file named for it, however small, and a helper goes
-   with what it serves, not with its caller. The
-   parser library's model can read an absent field and an empty one alike, so check what it
-   returns before you branch on it. A call of the library that panics on input it accepts runs
+   with what it serves, not with its caller. A rule reads a schema from its statement
+   (`compilers/openapi/internal/statement`), not from the parser library's model, and a keyword the
+   statement lacks is added to `oas`'s rows and filled in the statement's `model.go`, the one file
+   that reads the model. Two places outside it still read the model's fields: the load phase, which
+   builds the bindings from it before any statement is read, and the operation walk. Wherever the
+   model is read, it can read an absent field and an empty one alike, so check what it returns
+   before you branch on it. A call of the library that panics on input it accepts runs
    behind `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but
    `barrier` may call `recover` outside its tests. The root guidance's caps apply: no function
    over 70 lines or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no
@@ -207,6 +244,9 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    instead, or, for a call of a kind the table keeps, such as an immediate callback, raise its
    pair's count.
    *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
+   `TestModelHolders_NoOtherPackageHoldsAParserSchema` for a package outside its list that holds
+   the model's schema type, whether it imports the library or not,
+   `TestModelReads_HeldToTheBaseline` for a read of the model beside the statement,
    `TestMethodsPerType_StayUnderTheCap`, `TestDocComments_StayUnderTheCap`,
    `TestSuppressions_NoDirectiveStandsInTheSource`, `TestCallShape_HeldToTheBaseline`. Nothing fails
    for code in the wrong file of its package.
@@ -233,11 +273,41 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    `matrix.md` that is no spec and for a row that has both a witness and a reason, and
    `make coverage` for a statement only the case reaches. Nothing fails for a spec that witnesses a
    row but is not listed under it.
+
+   A keyword the Schema Object gains also gets a construct row in
+   `internal/harness/openapicases/constructs.go`: its two values, the versions writing it and the
+   targets it is said of, or, for a keyword nothing carries, why not. The schema cases then write it
+   at every position, in each spelling that moves it, for the case oracles (the root guidance's
+   Testing strategy says what each holds).
+   *Fails if missed:* `TestCases_CoverTheRuleTable`, for a keyword of the rule table no construct
+   row writes at a version that defines it.
 5. **Regenerate what the change moves, and read the diff.** Other goldens may change too:
 
    ```bash
    go test ./compilers/openapi/e2e -run 'TestGolden|TestConformance' -update
    git status --short testdata/
+   ```
+
+   A fix that makes two spellings lower alike, or carries a keyword that was dropped, leaves lines of
+   `internal/harness/openapicases/testdata/` naming no finding, and the case oracles' tests fail on
+   them as stale. Regenerating the records deletes them; read what else it moved:
+
+   ```bash
+   go test ./internal/harness/openapicases -update
+   git diff internal/harness/openapicases/testdata/
+   ```
+
+   A line the diff adds is a finding the change made, written as `unclassified`, which fails until
+   the compiler is fixed or the line is given the reason, a key of `Reasons`, of the issue it stands
+   under, which every key of `Reasons` cites. A line whose finding changed keeps its reason, so
+   check the reason still holds.
+
+   The lines of `testdata/full` are the findings outside the core, which the gate does not run:
+   `make cases` checks them, as the nightly job does, and this rewrites them the same way, in a few
+   minutes:
+
+   ```bash
+   go test ./internal/harness/openapicases -run TestFull_ -full -update
    ```
 
    A regeneration that changes nothing looks exactly like a broken `-update`, and nothing checks
@@ -349,12 +419,16 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    and `compilers/compile` by exact path, its own internal tree once it has one, and its format
    libraries, with `barrier` for a package that runs one of them behind `barrier.Catch`, the one
    way to recover a panic outside a test. Give each package under its `internal/` an entry of its
-   own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours.
+   own. Run `gofmt -w` on the file afterwards: a longer key realigns its neighbours. A package of
+   the OpenAPI compiler also needs a row in `layers` (`internal/archtest/layers_test.go`), in the
+   layer its imports and its role say, which `architecture.md` §3 describes.
    *Fails if missed:* `TestImportGraph_EveryPackageIsRuledOrExempt`, which requires every package
    under `compilers/` to carry an entry of its own and names the one that does not, and
    `TestImportGraph_LayeringHolds` for an import an entry does not allow, whose message says when
    the package is audited under an ancestor's entry for want of its own, and for an entry no
-   production file the rule audits imports.
+   production file the rule audits imports. For a package of the OpenAPI compiler,
+   `TestLayers_EveryCompilerPackageHasOne` fails for one with no row in `layers`, and
+   `TestLayers_NoPackageImportsAboveItsLayer` for an import of a layer above its own.
 3. **Mint IDs and names through the framework.** Intern types through `compile.Types`, derive IDs
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
    ID lives in, source-addressed as well as minted (`docs/ir/identity.md`), and stamp

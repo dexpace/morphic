@@ -13,13 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -30,15 +30,15 @@ import (
 // one it did declare.
 func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(2, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
+	c := service.New(2, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
 
-	named := commonFor(c, "t/x", "/components/schemas/User")
+	named := commonFor(c.Ctx, "t/x", "/components/schemas/User")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
 	assert.Equal(t, "User", named.Name.Source)
 	assert.Equal(t, "user", named.Name.Canonical, "the framework supplies the neutral words")
 	assert.Empty(t, named.Name.Hint, "a named node needs no hint")
 
-	anon := commonFor(c, "t/y", "/components/schemas/User/properties/id")
+	anon := commonFor(c.Ctx, "t/y", "/components/schemas/User/properties/id")
 	assert.True(t, anon.Anonymous, "an inline position declares no name")
 	assert.Empty(t, anon.Name.Source)
 	assert.Equal(t, "id", anon.Name.Hint, "only the hint survives: the property's key")
@@ -49,8 +49,8 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(5, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	got := commonFor(c, "t/x", "/components/schemas/User")
+	c := service.New(5, &load.Document{Doc: &soa.OpenAPI{}}, service.Policy{})
+	got := commonFor(c.Ctx, "t/x", "/components/schemas/User")
 
 	assert.Equal(t, ir.TypeID("t/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)
@@ -62,18 +62,18 @@ func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 // schema would do forever.
 func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
 	var built int
-	build := func(common ir.TypeCommon) ir.TypeDef {
+	build := func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		built++
-		return &ir.Model{TypeCommon: common}
+		return &ir.Model{TypeCommon: common}, 0
 	}
 
-	first := internNode(c, ts, at, build)
-	second := internNode(c, ts, at, build)
+	first := internNode(c.Ctx, ts, at, build, nil)
+	second := internNode(c.Ctx, ts, at, build, nil)
 
 	assert.Equal(t, ids.Document{}.ForPointer(at), first, "the ID is derived from the pointer")
 	assert.Equal(t, first, second, "a second visit returns the interned ID")
@@ -84,54 +84,45 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	assert.Equal(t, first, td.Common().ID, "and carries that same ID")
 }
 
-// TestRegisteredNode_ReportsAMissRatherThanDroppingIt pins the invariant check.
-// Outside its build, every ID interning returns has a node, so a miss is a
-// compiler bug no source can provoke — and the caller was about to attach docs
-// or preserved constructs to that node, which would vanish without a word.
-func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
+// TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt pins where a node
+// is finished: on the node its build returned, in hand, before the registry
+// holds it, and only by the visit building it, so a later visit writes nothing.
+func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(4, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	ts := compile.NewTypes()
-
-	_, ok, diags := registeredNode(c, ts, "t/absent", "/components/schemas/Ghost")
-
-	assert.False(t, ok)
-	require.Len(t, diags, 1, "a miss is announced, not swallowed")
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, diag.InternalInvariant, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 4, Pointer: "/components/schemas/Ghost"}, diags[0].Provenance)
-
-	id := internNode(c, ts, "/components/schemas/User", func(cm ir.TypeCommon) ir.TypeDef {
-		return &ir.Model{TypeCommon: cm}
-	})
-	td, ok, diags := registeredNode(c, ts, id, "/components/schemas/User")
-	assert.True(t, ok)
-	assert.Empty(t, diags, "a hit reports nothing")
-	assert.Equal(t, id, td.Common().ID)
-}
-
-// TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder pins the one miss
-// that is no bug: a revisit while the node's build is still running further up
-// the walk. That frame finishes the node once its build returns, so the
-// revisit hands back nothing and reports nothing (GitHub #749).
-func TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
-	t.Parallel()
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
-	var midBuild bool
-	var midBuildDiags []ir.Diagnostic
-	id := internNode(c, ts, at, func(cm ir.TypeCommon) ir.TypeDef {
-		_, midBuild, midBuildDiags = registeredNode(c, ts, cm.ID, at)
-		return &ir.Model{TypeCommon: cm}
+	var finished []ir.TypeDef
+	var stored []bool
+	fin := finisher(func(td ir.TypeDef, _ keySet) {
+		_, held := ts.Node(td.Common().ID)
+		finished, stored = append(finished, td), append(stored, held)
 	})
-	assert.False(t, midBuild, "there is no node to hand back yet")
-	assert.Empty(t, midBuildDiags, "and that is not a broken invariant")
+	build := func(common ir.TypeCommon) (ir.TypeDef, keySet) { return &ir.Model{TypeCommon: common}, 0 }
+	id := internNode(c.Ctx, ts, at, build, fin)
+	internNode(c.Ctx, ts, at, build, fin)
 
-	_, ok, diags := registeredNode(c, ts, id, at)
-	assert.True(t, ok, "once the build returns, the node is there")
-	assert.Empty(t, diags)
+	require.Len(t, finished, 1, "only the visit building the node finishes it")
+	assert.Equal(t, []bool{false}, stored, "before the registry holds it")
+	td, ok := ts.Node(id)
+	require.True(t, ok)
+	assert.Same(t, td, finished[0], "the node in hand is the node stored")
+}
+
+// TestFinisher_ThenRunsBothInOrder pins the composition the frames of a
+// position build their finishing from: each in turn, a nil one skipped.
+func TestFinisher_ThenRunsBothInOrder(t *testing.T) {
+	t.Parallel()
+	var ran []string
+	first := finisher(func(ir.TypeDef, keySet) { ran = append(ran, "first") })
+	second := finisher(func(ir.TypeDef, keySet) { ran = append(ran, "second") })
+	var none finisher
+	first.then(second)(&ir.Model{}, 0)
+	none.then(first)(&ir.Model{}, 0)
+	first.then(none)(&ir.Model{}, 0)
+	assert.Equal(t, []string{"first", "second", "first", "first"}, ran)
+	assert.Nil(t, none.then(none), "two nil finishers finish nothing")
 }
 
 // TestUnionVariant_StopsAtTheHopCap pins naming.MaxHops through a compile.
@@ -173,4 +164,16 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 			assert.Equal(t, "t", node.Common().Name.Hint, "the node the variant holds reaches T either way")
 		})
 	}
+}
+
+// TestMarkKindInferred_JoinsWhatTheNodeNames pins that the kind-inference
+// marker joins what a node's provenance already names, once however often it
+// is written.
+func TestMarkKindInferred_JoinsWhatTheNodeNames(t *testing.T) {
+	t.Parallel()
+	node := &ir.Model{Provenance: ir.Provenance{Inferred: lowering.NullableInferenceHeuristic}}
+	markKindInferred(node, 0)
+	markKindInferred(node, 0)
+	assert.Equal(t, ir.JoinInferred(lowering.NullableInferenceHeuristic, lowering.KindInferenceHeuristic),
+		node.Provenance.Inferred)
 }

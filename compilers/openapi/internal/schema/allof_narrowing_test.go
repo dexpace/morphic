@@ -135,7 +135,8 @@ func TestAllOf_NonBareNarrowingIsOrderInvariant(t *testing.T) {
 
 // TestAllOf_AnUnknownFormatWinsInEitherOrder pins GitHub #782: a format that
 // hoists a Scalar over the bare kind narrows it whichever branch is first, and
-// the format's own details land on the field rather than being parked.
+// the format's own details land on the field or its scalar rather than being
+// parked, the bound on the scalar alone (GitHub #1988).
 func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 	t.Parallel()
 	plain := "{type: string}"
@@ -151,11 +152,12 @@ func TestAllOf_AnUnknownFormatWinsInEitherOrder(t *testing.T) {
 		assert.Equal(t, ir.KindScalar, doc.Types[p.Type.Target].Kind(), "the format's scalar types the field (order %d)", i)
 		require.NotNil(t, p.Default, "order %d", i)
 		assert.Equal(t, "x", p.Default.Str, "order %d", i)
-		require.NotNil(t, p.Constraints, "order %d", i)
-		require.NotNil(t, p.Constraints.MinLength, "order %d", i)
-		assert.Equal(t, int64(8), *p.Constraints.MinLength, "order %d", i)
+		assert.Nil(t, p.Constraints, "order %d", i)
 		sc, ok := doc.Types[p.Type.Target].(*ir.Scalar)
 		require.True(t, ok, "order %d", i)
+		require.NotNil(t, sc.Constraints, "order %d", i)
+		require.NotNil(t, sc.Constraints.MinLength, "order %d", i)
+		assert.Equal(t, int64(8), *sc.Constraints.MinLength, "order %d", i)
 		assert.Equal(t, "the token", sc.Docs.Description, "the description stays on the scalar that wrote it (order %d)", i)
 		assert.Empty(t, p.Unmodeled, "nothing is parked (order %d)", i)
 		assert.Empty(t, diags, "order %d", i)

@@ -344,13 +344,13 @@ func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 	}
 }
 
-// TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes pins the carrier of a
-// position owning its node: a property and a parameter restate the value bounds
-// the node's type takes, a Scalar hoisted for its format, a Model and a union
-// alike, and hold none where the type list lowers to its variants, which hold
-// each (docs/compilers/openapi.md#type-arrays), nor beside the literals of an
-// enum, which keep them.
-func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
+// TestConstraints_ACarrierOwningItsNodeHoldsNoBound pins the carrier of a
+// position owning its node: a property and a parameter hold no bound, and the
+// node holds those its kind takes, a Scalar hoisted for its format, a Model and
+// a union alike, so each bound is written once. The Union a type list lowers to
+// holds none, its variants holding each (docs/compilers/openapi.md#type-arrays),
+// and neither does one beside which no branch takes the bound.
+func TestConstraints_ACarrierOwningItsNodeHoldsNoBound(t *testing.T) {
 	t.Parallel()
 	for schema, want := range map[string]*ir.Constraints{
 		"{type: string, format: x-mine, maxLength: 3, minimum: 1}":     {MaxLength: new(int64(3))},
@@ -363,21 +363,23 @@ func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", schema))
 		openapitest.RequireNoErrorDiags(t, diags)
-		p := propertyOf(t, doc, "Holder", "p")
-		assert.Equal(t, want, p.Constraints, "property %s", schema)
-		q, ok := openapitest.ParamBySource(openapitest.FirstOp(t, doc.Services[0]), "q")
-		require.True(t, ok)
-		assert.Equal(t, want, q.Constraints, "parameter %s", schema)
+		for _, site := range sitesOf(t, doc) {
+			if !site.carrier {
+				continue
+			}
+			require.NotNil(t, site.node, "%s: %s owns its node", schema, site.pointer)
+			assert.Nil(t, site.held, "the carrier at %s: %s", site.pointer, schema)
+			assert.Equal(t, want, heldBounds(site.node), "the node at %s: %s", site.pointer, schema)
+		}
 	}
 }
 
 // TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome pins a value bound
 // written beside a union, a value set or a branch folding into either, at every
 // site atEverySite writes: a oneOf or anyOf holds it in its Union's
-// Constraints, which its carrier restates, whether or not its branches list
-// values, and an Enum, a Literal or the Union of literals a mixed enum lowers to
-// keeps it verbatim, once, with one report, its carrier holding none (GitHub
-// #1924).
+// Constraints, whether or not its branches list values, and an Enum, a Literal
+// or the Union of literals a mixed enum lowers to keeps it verbatim, once, with
+// one report. A carrier holds none either way (GitHub #1924, #1988).
 func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -398,7 +400,7 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 		{schema: "{type: [string, 'null'], enum: [a, null], minLength: 1}", kept: "minLength", bound: "minLength"},
 		{schema: "{const: abc, minLength: 1}", kept: "minLength", bound: "minLength"},
 		{schema: "{enum: [a, 1], minLength: 1}", kept: "minLength", bound: "minLength"},
-		{schema: "{type: string, enum: [a, bb], allOf: [{maxLength: 9}]}", kept: "allOf/0", under: "/allOf/0", bound: "maxLength"},
+		{schema: "{type: string, enum: [a, bb], allOf: [{maxLength: 9}]}", kept: "maxLength", under: "/allOf/0", bound: "maxLength"},
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", tc.schema))
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -407,9 +409,7 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 			if tc.held != nil {
 				assert.Equal(t, tc.held, heldBounds(site.node), "%s: %s", tc.schema, site.pointer)
 				assert.Empty(t, site.node.Common().Unmodeled, "%s: %s", tc.schema, site.pointer)
-				if site.carrier {
-					assert.Equal(t, tc.held, site.held, "%s: the carrier at %s", tc.schema, site.pointer)
-				}
+				assert.Nil(t, site.held, "%s: the carrier at %s", tc.schema, site.pointer)
 				assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, site.pointer), "%s: %s", tc.schema, site.pointer)
 				continue
 			}
@@ -437,10 +437,10 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ schema, keyword, branch string }{
 		{"{allOf: [{type: string, minimum: 1}, {type: string, minimum: 2}]}", "minimum", "openapi:allOf/1"},
-		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/1"},
+		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{type: [string, integer], format: x-mine, allOf: [{type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{allOf: [{$ref: '#/components/schemas/O'}, {type: object, properties: {a: {type: string}}, maxLength: 3}]}",
-			"maxLength", "openapi:allOf/1"},
+			"maxLength", "openapi:maxLength"},
 	} {
 		doc, diags := parseFull(t, atEverySite("3.1.0", tc.schema)+"    O: {properties: {o: {type: string}}}\n")
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -456,17 +456,17 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 
 // TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
 // bits on a folding allOf branch declaring a type that takes no count of its
-// kind: the branch keeps it, once, with the report of a branch kept whole, and
-// it is not kept again as a count no field states.
+// kind: kept under its own key, once, with the report of a keyword with no
+// home, and not kept again as a count no field states.
 func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    Num: {type: number}\n"+
 		"    C: {allOf: [{$ref: '#/components/schemas/Num'}, {type: number, maxLength: 99999999999999999999}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, []string{"openapi:allOf/1"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
+	assert.Equal(t, []string{"openapi:maxLength"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
 	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), "99999999999999999999"))
 	require.Len(t, diags, 1, "%+v", diags)
-	assert.Contains(t, diags[0].Message, "the branch (maxLength)")
+	assert.Contains(t, diags[0].Message, "no home for maxLength written on this inline branch")
 }
 
 // schemaKept returns what a parameter or a header keeps of what its schema

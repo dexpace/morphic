@@ -414,10 +414,7 @@ func TestCompile_OneFileUnderTwoNamesIsOneDocument(t *testing.T) {
 	assert.Len(t, relative.Sources, 2, "the spec and the one file it reads")
 	s := ids.In("inner/real.yaml").NamedType("/components/schemas/S")
 	for _, name := range []string{"A", "B"} {
-		a, ok := relative.Types[ids.Document{}.NamedType(ids.Ptr("components", "schemas", name))].(*ir.Scalar)
-		require.True(t, ok, name)
-		require.NotNil(t, a.Base, name)
-		assert.Equal(t, s, a.Base.Target, "%s names the one S", name)
+		assert.Equal(t, s, useTarget(t, relative, name), "%s names the one S", name)
 	}
 	gone := 0
 	for _, d := range diags {

@@ -285,21 +285,9 @@ func (w *finder) landOn(from Position, h Hop) {
 // no schema. The parser reads none (docs/parser-library.md#mapping-unresolved),
 // so each is bound here.
 func (w *finder) mappingsOf(n *yaml.Node, at Position) {
-	view := w.docs.list[at.Doc].view
-	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
-	if d == nil || d.Kind != yaml.MappingNode {
-		return
-	}
 	disc := Position{Doc: at.Doc, Pointer: at.Pointer.AppendToken("discriminator")}
-	var values []*yaml.Node
-	if m := nodeview.Deref(view.ChildByToken(d, "mapping")); m != nil && m.Kind == yaml.MappingNode {
-		for _, p := range view.MappingPairs(m) {
-			values = append(values, p.Val)
-		}
-	}
-	values = append(values, view.ChildByToken(d, "defaultMapping"))
-	for _, v := range values {
-		if v = nodeview.Deref(v); v == nil || v.Kind != yaml.ScalarNode || w.docs.components[v.Value] {
+	for _, v := range mappingValues(w.docs.list[at.Doc].view, n) {
+		if w.docs.components[v.Value] {
 			continue
 		}
 		if k := (mappingKey{at: disc, value: v.Value}); !w.mappingSites[k] {
@@ -309,15 +297,34 @@ func (w *finder) mappingsOf(n *yaml.Node, at Position) {
 	}
 }
 
+// mappingValues returns the scalars the discriminator of the schema n names
+// schemas by, as view reads them, aliases followed: each value of its mapping,
+// then its defaultMapping. The finder binds them and NamedPointerBytes weighs
+// where they land, each by its text whatever its tag, so both ask here.
+func mappingValues(view *nodeview.View, n *yaml.Node) []*yaml.Node {
+	d := nodeview.Deref(view.ChildByToken(n, "discriminator"))
+	if d == nil || d.Kind != yaml.MappingNode {
+		return nil
+	}
+	var values []*yaml.Node
+	for _, p := range view.MappingPairs(nodeview.Deref(view.ChildByToken(d, "mapping"))) {
+		values = append(values, p.Val)
+	}
+	values = append(values, nodeview.Deref(view.ChildByToken(d, "defaultMapping")))
+	return slices.DeleteFunc(values, func(v *yaml.Node) bool { return v == nil || v.Kind != yaml.ScalarNode })
+}
+
 // pushChildren returns stack with the positions directly below f, whose node is
 // n, appended in order, so a walk reads its children with no slice of their
 // own. Nothing beside a reference object's $ref is read but a path item's
 // fields (refsOnly): OpenAPI ignores it, so it holds no reference and declares
-// no identifier.
+// no identifier. Every frame a walk reads past its root is pushed here, which
+// is where a test counts the pointers the walks spell (Config.pushed).
 func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 	if w.refsOnly(n, f) {
 		return stack
 	}
+	from := len(stack)
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
@@ -329,6 +336,11 @@ func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 			token := strconv.Itoa(i)
 			stack = append(stack, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
 				dialect: f.dialect})
+		}
+	}
+	if note := w.docs.cfg.pushed; note != nil {
+		for _, c := range stack[from:] {
+			note(c.at, n.Kind == yaml.MappingNode)
 		}
 	}
 	return stack

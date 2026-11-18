@@ -49,6 +49,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/internal/exectest"
+	"github.com/dexpace/morphic/internal/harness/openapicases"
 )
 
 // update rewrites oracleDisagreements and validationDisagreements from what
@@ -59,9 +60,6 @@ var update = flag.Bool("update", false, "rewrite the oracles' disagreement lists
 const (
 	// oracleDisagreements lists every disagreement and its reason.
 	oracleDisagreements = "testdata/binding_disagreements.txt"
-	// oracleSuite holds the JSON Schema Test Suite's draft 2020-12 files
-	// whose groups write a $ref, vendored with the suite's licence.
-	oracleSuite = "testdata/json-schema-test-suite/tests/draft2020-12"
 	// oracleSkipEnv tells a child where to start: a document and a site in
 	// it, the one past where the last child died.
 	oracleSkipEnv = "MORPHIC_CANARY_ORACLE_SKIP"
@@ -696,40 +694,22 @@ func oracleDocs(t *testing.T) []oracleDoc {
 	return docs
 }
 
-// suiteDocs wraps each Test Suite group whose schema writes a reference as
-// the component T of a document of its own.
+// suiteDocs wraps each JSON Schema Test Suite group of 2020-12 whose schema
+// writes a reference as the component T of a document of its own, named by
+// the group (openapicases.SuiteGroups).
 func suiteDocs(t *testing.T) []oracleDoc {
 	t.Helper()
-	var docs []oracleDoc
-	err := filepath.WalkDir(oracleSuite, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || filepath.Ext(path) != ".json" {
-			return err
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		var groups []struct {
-			Schema jsontext.Value `json:"schema"`
-		}
-		if err := json.Unmarshal(data, &groups, json.RejectUnknownMembers(false)); err != nil {
-			return fmt.Errorf("%s: %w", path, err)
-		}
-		rel, err := filepath.Rel(oracleSuite, path)
-		if err != nil {
-			return err
-		}
-		for i, g := range groups {
-			if !strings.Contains(string(g.Schema), `"$ref"`) {
-				continue
-			}
-			docs = append(docs, oracleDoc{name: fmt.Sprintf("suite/%s/%d", filepath.ToSlash(rel), i),
-				spec: head + "components:\n  schemas:\n    T: " + string(g.Schema.Clone()) + "\n"})
-		}
-		return nil
-	})
+	groups, err := openapicases.SuiteGroups()
 	require.NoError(t, err)
-	require.NotEmpty(t, docs, "the suite's files are where %s says", oracleSuite)
+	var docs []oracleDoc
+	for _, g := range groups {
+		if !strings.Contains(string(g.Schema), `"$ref"`) {
+			continue
+		}
+		docs = append(docs, oracleDoc{name: "suite/" + g.Name,
+			spec: head + "components:\n  schemas:\n    T: " + string(g.Schema) + "\n"})
+	}
+	require.NotEmpty(t, docs, "no group of the suite writes a reference")
 	return docs
 }
 

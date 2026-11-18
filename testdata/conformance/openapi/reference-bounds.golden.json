@@ -511,14 +511,12 @@
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:allOf/1": {
+            "openapi:minLength": {
               "reason": "degraded_lowering",
-              "value": {
-                "minLength": 1
-              },
+              "value": 1,
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"
+                "pointer": "/components/schemas/Failure/properties/voiced/allOf/1/minLength"
               }
             }
           },
@@ -617,10 +615,6 @@
           "defaultAdded": false,
           "visibility": {
             "none": false
-          },
-          "constraints": {
-            "uniqueItems": false,
-            "minProps": 2
           },
           "flatten": false,
           "eventHeader": false,
@@ -868,7 +862,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for minLength declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/site"
@@ -886,7 +880,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch adds; the branch (minLength) is kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for minLength written on this inline branch; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/voiced/allOf/1"
@@ -922,7 +916,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for minItems declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for minItems declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Failure/properties/counted"
@@ -949,7 +943,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1names~1{name}/get/parameters/1/schema"

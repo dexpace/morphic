@@ -391,7 +391,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/RefAdditionalProperties": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/RefAdditionalProperties",
       "name": {
         "source": "RefAdditionalProperties",
@@ -400,16 +400,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:additionalProperties": {
-          "reason": "degraded_lowering",
-          "value": false,
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/RefAdditionalProperties/additionalProperties"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefAdditionalProperties"
@@ -417,7 +407,11 @@
       "base": {
         "target": "t/openapi/components/schemas/RefTargetObj",
         "nullable": false
-      }
+      },
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/RefCarrier": {
       "kind": "model",
@@ -477,7 +471,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/RefConst": {
-      "kind": "scalar",
+      "kind": "literal",
       "id": "t/openapi/components/schemas/RefConst",
       "name": {
         "source": "RefConst",
@@ -487,12 +481,12 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:const": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": "a",
+          "value": "#/components/schemas/RefTargetStr",
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RefConst/const"
+            "pointer": "/components/schemas/RefConst"
           }
         }
       },
@@ -500,10 +494,11 @@
         "source": 0,
         "pointer": "/components/schemas/RefConst"
       },
-      "base": {
-        "target": "t/openapi/components/schemas/RefTargetStr",
-        "nullable": false
-      }
+      "value": {
+        "kind": "string",
+        "str": "a"
+      },
+      "valueType": "string"
     },
     "t/openapi/components/schemas/RefConstrained": {
       "kind": "scalar",
@@ -531,7 +526,7 @@
       }
     },
     "t/openapi/components/schemas/RefDiscriminator": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/RefDiscriminator",
       "name": {
         "source": "RefDiscriminator",
@@ -540,18 +535,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:discriminator": {
-          "reason": "degraded_lowering",
-          "value": {
-            "propertyName": "a"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/RefDiscriminator/discriminator"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefDiscriminator"
@@ -559,10 +542,17 @@
       "base": {
         "target": "t/openapi/components/schemas/RefTargetObj",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "propertyName": "a",
+        "inferred": false
+      },
+      "inputOnly": false
     },
     "t/openapi/components/schemas/RefEnum": {
-      "kind": "scalar",
+      "kind": "enum",
       "id": "t/openapi/components/schemas/RefEnum",
       "name": {
         "source": "RefEnum",
@@ -572,15 +562,12 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:enum": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": [
-            "a",
-            "b"
-          ],
+          "value": "#/components/schemas/RefTargetStr",
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RefEnum/enum"
+            "pointer": "/components/schemas/RefEnum"
           }
         }
       },
@@ -588,10 +575,35 @@
         "source": 0,
         "pointer": "/components/schemas/RefEnum"
       },
-      "base": {
-        "target": "t/openapi/components/schemas/RefTargetStr",
-        "nullable": false
-      }
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/RefEnum/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/RefEnum/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
     },
     "t/openapi/components/schemas/RefFormat": {
       "kind": "scalar",
@@ -623,7 +635,7 @@
       }
     },
     "t/openapi/components/schemas/RefRequired": {
-      "kind": "scalar",
+      "kind": "model",
       "id": "t/openapi/components/schemas/RefRequired",
       "name": {
         "source": "RefRequired",
@@ -632,26 +644,20 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:required": {
-          "reason": "degraded_lowering",
-          "value": [
-            "a"
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/RefRequired/required"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefRequired"
       },
+      "requires": [
+        "a"
+      ],
       "base": {
         "target": "t/openapi/components/schemas/RefTargetObj",
         "nullable": false
-      }
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/RefTargetObj": {
       "kind": "model",
@@ -859,7 +865,7 @@
       }
     },
     "t/openapi/components/schemas/UntypedItems": {
-      "kind": "scalar",
+      "kind": "list",
       "id": "t/openapi/components/schemas/UntypedItems",
       "name": {
         "source": "UntypedItems",
@@ -868,29 +874,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:items": {
-          "reason": "degraded_lowering",
-          "value": {
-            "type": "string"
-          },
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UntypedItems/items"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedItems"
+        "pointer": "/components/schemas/UntypedItems",
+        "inferred": "kind-inference"
       },
-      "base": {
-        "target": "t/prim/any",
+      "elem": {
+        "target": "t/prim/string",
         "nullable": false
       }
     },
     "t/openapi/components/schemas/UntypedPrefixItems": {
-      "kind": "scalar",
+      "kind": "tuple",
       "id": "t/openapi/components/schemas/UntypedPrefixItems",
       "name": {
         "source": "UntypedPrefixItems",
@@ -899,25 +894,18 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:prefixItems": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "type": "string"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/UntypedPrefixItems/prefixItems"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/UntypedPrefixItems"
+        "pointer": "/components/schemas/UntypedPrefixItems",
+        "inferred": "kind-inference"
       },
-      "base": {
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
         "target": "t/prim/any",
         "nullable": false
       }
@@ -995,24 +983,6 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"primitive\", which has no home for items declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UntypedItems"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"primitive\", which has no home for prefixItems declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/UntypedPrefixItems"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
       "message": "this position lowered to a node of kind \"primitive\", which has no home for required declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
@@ -1085,7 +1055,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for format declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefFormat"
@@ -1094,7 +1064,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for enum declared beside it; kept verbatim under Unmodeled",
+      "message": "the value set of this schema narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefEnum"
@@ -1103,7 +1073,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for const declared beside it; kept verbatim under Unmodeled",
+      "message": "the value set of this schema narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefConst"
@@ -1112,34 +1082,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for required declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/RefRequired"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for additionalProperties declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/RefAdditionalProperties"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/RefDiscriminator"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to an alias over its $ref target, which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a use of one of its conjuncts, which has no home for format declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefCarrier/properties/p"
@@ -1186,7 +1129,7 @@
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "1da2631ca04450d576529ea9b45cc7bee71057d896a75ea056569503c09bf2a8"
+      "hash": "8e9c1e5bde926939decbdf5bff9a95aec5016ab48eada3ecd535ea0fccf4dc2b"
     }
   ]
 }

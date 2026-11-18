@@ -6,12 +6,11 @@ package schema
 import (
 	"slices"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,11 +34,12 @@ func newAgreement(c lowering.Ctx) *agreement {
 
 // write records what conjunct writes for the position and returns its entries,
 // rendering each once: the first writer's is compared with every later one's.
-func (a *agreement) write(conjunct *oas3.Schema) []string {
+func (a *agreement) write(conjunct *statement.Schema) []string {
 	var entries []string
 	var cons *ir.Constraints
 	read := false
-	for _, keyword := range rawMappingKeys(conjunct.GetRootNode()) {
+	for _, k := range conjunct.Keys {
+		keyword := k.Name
 		entry, fold := foldEntry(a.c, conjunct, keyword)
 		if !fold || annotation.WritesKeywordLeftOut(conjunct, keyword) {
 			continue

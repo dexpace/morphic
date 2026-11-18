@@ -487,7 +487,7 @@ func dependentRequired(r ruler, rule Rule) {
 		}
 		repeats(list, textOf, func(i, first int, s string) {
 			r.fail(rule, classDuplicate, itemPointer(ptr, i), "field \"dependentRequired\" entry "+quote(p.Key)+
-				" repeats "+quote(s)+" first written at "+string(itemPointer(ptr, first)))
+				" repeats "+quote(s)+" first written at "+string(r.w.placed(itemPointer(ptr, first))))
 		})
 	}
 }
@@ -498,7 +498,7 @@ func vocabulary(r ruler, rule Rule) {
 	base := r.f.at.ptr.AppendToken("$vocabulary")
 	for _, p := range r.w.view.MappingPairs(r.f.byKey["$vocabulary"]) {
 		ptr := base.AppendToken(p.Key)
-		if !validFormat(AbsoluteURI, p.Key) {
+		if !ValidFormat(AbsoluteURI, p.Key) {
 			r.fail(rule, classFormat, ptr, "field \"$vocabulary\" has the key "+quote(p.Key)+", which must be "+describeFormat(AbsoluteURI))
 		}
 		if v := nodeview.Deref(p.Val); v == nil || !matches(Boolean, v) {
@@ -541,6 +541,6 @@ func propertyDependency(r ruler, rule Rule, key string, list *yaml.Node, ptr jso
 	}
 	repeats(list, textOf, func(i, first int, s string) {
 		r.fail(rule, classDuplicate, itemPointer(ptr, i), what+" repeats "+quote(s)+" first written at "+
-			string(itemPointer(ptr, first)))
+			string(r.w.placed(itemPointer(ptr, first))))
 	})
 }

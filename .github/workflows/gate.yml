@@ -114,26 +114,25 @@ jobs:
         run: make coverage
       - *save
 
-  # The race detector, each night main has moved since the last scheduled run
-  # that finished. It restores and saves no cache. A failure opens an issue, or
-  # comments on the one still open, so it is not left on a run nobody reads.
+  # The race detector, then every schema case, each night main has moved since
+  # the last scheduled run that finished. It restores and saves no cache. A
+  # failure opens an issue, or comments on the one still open, so it is not left
+  # on a run nobody reads.
   #
   # This job alone may write to issues, and it runs only main's code or a
   # writer's dispatch, never a pull request's. The checkout leaves no credential
-  # in .git/config, and the race step's environment holds no token, but checkout
-  # and setup-go are handed one as an input's default, and the two steps that
-  # call the API as GH_TOKEN.
+  # in .git/config, and the race and cases steps' environments hold no token, but
+  # checkout and setup-go are handed one as an input's default, and the two steps
+  # that call the API as GH_TOKEN.
   race:
     name: race detector
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 80
     permissions:
       actions: read
       contents: read
       issues: write
-    env:
-      ISSUE_TITLE: "ci: the nightly race run fails on main"
     steps:
       # A dispatch always runs. A scheduled run is skipped where the last one
       # that finished, red or green, ran at this sha: a red one has its issue.
@@ -168,49 +167,79 @@ jobs:
       # timeout of its own, inside the job's: a step's timeout fails the step,
       # which the report below sees, where the job's would cancel it unseen.
       - name: build
+        id: build
         if: steps.moved.outputs.run == 'true'
         timeout-minutes: 15
         run: make build
       - name: race
+        id: race
         if: steps.moved.outputs.run == 'true'
         timeout-minutes: 35
         shell: bash
         run: make race 2>&1 | tee race.log
+      # Run whether or not the race run passed, as the two find different
+      # failures, but not where the build failed, which the race report says.
+      - name: cases
+        id: cases
+        if: ${{ !cancelled() && steps.moved.outputs.run == 'true' && steps.build.outcome == 'success' }}
+        timeout-minutes: 20
+        shell: bash
+        run: make cases 2>&1 | tee cases.log
+      # A failed cases step is reported under its own title, and every other
+      # failure, the race run's or a step's before it, under the race run's.
       - name: report the failure
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           LAST: ${{ steps.moved.outputs.last }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RACE: ${{ steps.race.outcome }}
+          CASES: ${{ steps.cases.outcome }}
         run: |
-          {
-            echo "The race run failed on $GITHUB_REF_NAME at $GITHUB_SHA: $RUN_URL"
-            if [ -n "$LAST" ]; then
-              echo
-              echo "The last scheduled run finished at $LAST: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$LAST...$GITHUB_SHA"
-            fi
-            failures="$(grep -E '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' race.log 2>/dev/null | head -n 100)"
-            if [ -n "$failures" ]; then
-              echo
-              echo "Its failures, at most 100 lines; the run's log holds the rest:"
-              echo
-              echo '```'
-              echo "$failures"
-              echo '```'
-            elif [ -s race.log ]; then
-              echo
-              echo "Its output names no failure, as when the step times out: read the run's log."
+          # report TITLE RUN LOG PATTERN BEFORE opens an issue titled TITLE, or
+          # comments on the one open, saying RUN failed, with LOG's lines that
+          # PATTERN matches, or that it failed before BEFORE ran.
+          report() {
+            {
+              echo "The $2 run failed on $GITHUB_REF_NAME at $GITHUB_SHA: $RUN_URL"
+              if [ -n "$LAST" ]; then
+                echo
+                echo "The last scheduled run finished at $LAST: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$LAST...$GITHUB_SHA"
+              fi
+              failures="$(grep -E "$4" "$3" 2>/dev/null | head -n 100)"
+              if [ -n "$failures" ]; then
+                echo
+                echo "Its failures, at most 100 lines; the run's log holds the rest:"
+                echo
+                echo '```'
+                echo "$failures"
+                echo '```'
+              elif [ -s "$3" ]; then
+                echo
+                echo "Its output names no failure, as when the step times out: read the run's log."
+              else
+                echo
+                echo "It failed before $5 ran: read the run's log."
+              fi
+            } >"$RUNNER_TEMP/body.md"
+            open="$(TITLE="$1" gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
+              --search "\"$1\" in:title" --json number,title \
+              --jq '[.[] | select(.title == env.TITLE)][0].number // empty')"
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
             else
-              echo
-              echo "It failed before the suite ran: read the run's log."
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$1" \
+                --body-file "$RUNNER_TEMP/body.md" --label type:bug --label priority:P1
             fi
-          } >"$RUNNER_TEMP/body.md"
-          open="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 \
-            --search "\"$ISSUE_TITLE\" in:title" --json number,title \
-            --jq '[.[] | select(.title == env.ISSUE_TITLE)][0].number // empty')"
-          if [ -n "$open" ]; then
-            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$ISSUE_TITLE" \
-              --body-file "$RUNNER_TEMP/body.md" --label type:bug --label priority:P1
+          }
+          if [ "$RACE" = failure ] || [ "$CASES" != failure ]; then
+            report "ci: the nightly race run fails on main" race race.log \
+              '^(race:|--- FAIL|FAIL|WARNING: DATA RACE|panic:)' "the suite"
+          fi
+          # Each failure is a test log line, its file and line then a case, its
+          # values joined by "/", and what was found or the record line gone
+          # stale; panic: and --- FAIL lines end the run itself.
+          if [ "$CASES" = failure ]; then
+            report "ci: the nightly cases run finds a difference on main" cases cases.log \
+              '(^panic:|^--- FAIL|_test\.go:[0-9]+: )' "the cases"
           fi

@@ -226,7 +226,7 @@
         "kind": "number",
         "num": "80"
       },
-      "valueType": "int32"
+      "valueType": "number"
     },
     "t/anon/components/schemas/Scores/items": {
       "kind": "scalar",
@@ -280,11 +280,9 @@
       },
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/0": {
+        "openapi:$ref": {
           "reason": "degraded_lowering",
-          "value": {
-            "$ref": "#/components/schemas/Mode"
-          },
+          "value": "#/components/schemas/Mode",
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/level/allOf/0"
@@ -313,23 +311,35 @@
       "closed": true,
       "flags": false
     },
-    "t/anon/components/schemas/Zone/properties/mode/allOf/1": {
+    "t/anon/components/schemas/Zone/properties/mode": {
       "kind": "enum",
-      "id": "t/anon/components/schemas/Zone/properties/mode/allOf/1",
+      "id": "t/anon/components/schemas/Zone/properties/mode",
       "name": {
         "hint": "mode"
       },
       "anonymous": true,
-      "docs": {},
+      "docs": {
+        "description": "What to do"
+      },
       "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/Mode",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/mode/allOf/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Zone/properties/mode/allOf/1"
+        "pointer": "/components/schemas/Zone/properties/mode"
       },
       "valueType": "string",
       "members": [
         {
-          "id": "e/anon/components/schemas/Zone/properties/mode/allOf/1/s:set",
+          "id": "e/anon/components/schemas/Zone/properties/mode/s:set",
           "name": {
             "source": "set",
             "canonical": "set"
@@ -754,7 +764,7 @@
       }
     },
     "t/openapi/components/schemas/Port80": {
-      "kind": "scalar",
+      "kind": "literal",
       "id": "t/openapi/components/schemas/Port80",
       "name": {
         "source": "Port80",
@@ -767,10 +777,11 @@
         "source": 0,
         "pointer": "/components/schemas/Port80"
       },
-      "base": {
-        "target": "t/anon/components/schemas/Port80/allOf/1",
-        "nullable": false
-      }
+      "value": {
+        "kind": "number",
+        "num": "80"
+      },
+      "valueType": "int32"
     },
     "t/openapi/components/schemas/Prim": {
       "kind": "scalar",
@@ -1094,7 +1105,7 @@
           },
           "wireName": "mode",
           "type": {
-            "target": "t/anon/components/schemas/Zone/properties/mode/allOf/1",
+            "target": "t/anon/components/schemas/Zone/properties/mode",
             "nullable": false
           },
           "required": false,
@@ -1107,21 +1118,7 @@
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
-          "docs": {
-            "description": "What to do"
-          },
-          "unmodeled": {
-            "openapi:allOf/0": {
-              "reason": "degraded_lowering",
-              "value": {
-                "$ref": "#/components/schemas/Mode"
-              },
-              "provenance": {
-                "source": 0,
-                "pointer": "/components/schemas/Zone/properties/mode/allOf/0"
-              }
-            }
-          },
+          "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/mode"
@@ -1150,15 +1147,12 @@
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:allOf/1": {
+            "openapi:format": {
               "reason": "degraded_lowering",
-              "value": {
-                "format": "int32",
-                "type": "integer"
-              },
+              "value": "int32",
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/Zone/properties/width/allOf/1"
+                "pointer": "/components/schemas/Zone/properties/width/allOf/1/format"
               }
             }
           },
@@ -1375,7 +1369,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch adds; the branch (format) is kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a use of one of its allOf conjuncts, which has no home for format written on this inline branch; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Zone/properties/width/allOf/1"
@@ -1402,7 +1396,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/0"
@@ -1411,7 +1405,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
+      "message": "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry under that keyword holds one value; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/1"
@@ -1431,7 +1425,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "c7a3949bd6f5f1b7c986f4e0028c1d249f78c524270fac86b83180adc637d794"
+      "hash": "19180a0a966d49e1ee8afccb07fdf2d3d8ff7bb5c282184af4efe660da01a9e3"
     }
   ]
 }

@@ -3,9 +3,10 @@ info: {title: TypeArrayDiscriminator, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # A type array lowers to a union of one variant per type. Nothing can name
-    # the object variant, which a subtype's allOf never composes, so the
-    # discriminator is kept verbatim on the union.
+    # A type array lowers to a union of one variant per type. No $ref or
+    # mapping names the object variant, which holds no discriminator, so the
+    # discriminator is kept verbatim on the union; a subtype's allOf composes
+    # that variant.
     Pet:
       type: [object, string]
       properties:
@@ -14,7 +15,8 @@ components:
         propertyName: kind
         mapping:
           cat: '#/components/schemas/Cat'
-    # Named by the mapping: its tag is the key, and its base is the union.
+    # Named by the mapping: its tag is the key, and its base is the union's
+    # object variant.
     Cat:
       allOf:
         - {$ref: '#/components/schemas/Pet'}

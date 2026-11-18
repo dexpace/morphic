@@ -19,7 +19,8 @@ import (
 )
 
 // markersSpec holds one use of each reading that leaves a marker named for
-// its policy: a streaming media type, a binary one and a nullable keyword.
+// its policy: a streaming media type, a binary one, a nullable keyword and a
+// schema whose kind its properties imply.
 const markersSpec = `openapi: 3.0.3
 info: {title: Markers, version: "1.0.0"}
 paths:
@@ -50,6 +51,9 @@ components:
       type: object
       properties:
         pet: {allOf: [{$ref: '#/components/schemas/Pet'}], nullable: true}
+    Tag:
+      properties:
+        label: {type: string}
 `
 
 // inferredMark matches every value an inferred member holds in an encoded
@@ -75,14 +79,14 @@ func compileMarkers(t *testing.T, settings map[string]string) (map[string]int, [
 	return counts, diags
 }
 
-// TestMarkers_NameTheirOptions pins that the streaming, binary and nullable
-// readings each leave the marker their option is spelled as: the document
+// TestMarkers_NameTheirOptions pins that the streaming, binary, nullable and
+// kind readings each leave the marker their option is spelled as: the document
 // holds each once or twice as the spec uses it, the one nullable reading is
 // reported under the policy's name, and switching an option off by that name
 // removes that marker and no other.
 func TestMarkers_NameTheirOptions(t *testing.T) {
 	t.Parallel()
-	all := map[string]int{"binary-inference": 1, "nullable-inference": 1, "streaming-inference": 2}
+	all := map[string]int{"binary-inference": 1, "kind-inference": 1, "nullable-inference": 1, "streaming-inference": 2}
 
 	counts, diags := compileMarkers(t, nil)
 	assert.Equal(t, all, counts)
@@ -97,7 +101,7 @@ func TestMarkers_NameTheirOptions(t *testing.T) {
 	assert.EqualValues(t, "/components/schemas/Owner/properties/pet/nullable", infos[0].Provenance.Pointer)
 	assert.Contains(t, infos[0].Message, "nullable-inference policy")
 
-	for _, option := range []string{"streaming-inference", "binary-inference", "nullable-inference"} {
+	for _, option := range []string{"streaming-inference", "binary-inference", "nullable-inference", "kind-inference"} {
 		t.Run(option, func(t *testing.T) {
 			t.Parallel()
 			want := maps.Clone(all)

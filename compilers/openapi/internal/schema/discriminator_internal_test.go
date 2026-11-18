@@ -6,15 +6,15 @@ package schema
 import (
 	"testing"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -113,8 +113,8 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-			d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Ghost", model: "t/ghost"}
+			c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+			d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Ghost", model: "t/ghost"}
 
 			diags := d.Settle(t.Context(), reg)
 
@@ -132,8 +132,8 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
 	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
 	reg := ir.TypeRegistry{"t/pet": mt}
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-	d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Pet", model: "t/pet"}
+	c := servicetest.Context(t, openapitest.EmptySpec, service.Policy{})
+	d := besideUnionDiscriminator{c: c.Ctx, pointer: "/components/schemas/Pet", model: "t/pet"}
 
 	assert.Empty(t, d.Settle(t.Context(), reg))
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
@@ -141,11 +141,11 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 
 // petDiscriminator returns the discriminator the component schema Pet holds
 // in l's document.
-func petDiscriminator(t *testing.T, l *Lowerer) *oas3.Discriminator {
+func petDiscriminator(t *testing.T, l *Lowerer) *statement.Discriminator {
 	t.Helper()
-	js, ok := l.Ctx.Doc.Components.GetSchemas().Get("Pet")
+	js, ok := l.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
-	d := js.GetSchema().GetDiscriminator()
+	d := (l.Ctx.Statements().Of(js).Schema).Discriminator()
 	require.NotNil(t, d)
 	return d
 }

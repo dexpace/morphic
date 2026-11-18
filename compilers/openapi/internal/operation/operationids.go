@@ -12,8 +12,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -58,7 +58,7 @@ func (o *operationIDClaims) add(src *soa.Operation, ptrs opPointers) {
 // report judges every operationId claimed more than once, in first-claim order.
 // The document's text is read only once an id is claimed twice, which most
 // documents never do.
-func (o *operationIDClaims) report(c lowering.Ctx) []ir.Diagnostic {
+func (o *operationIDClaims) report(c service.Ctx) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var written *writtenTree
 	for _, name := range o.names {
@@ -92,7 +92,7 @@ type declaration struct {
 // merge key) is a warning at each mount but its first, the one where it is
 // written when it has one. The document writes the id once, but an emitter
 // renders every mount under one identifier.
-func judge(c lowering.Ctx, name string, decls []declaration) []ir.Diagnostic {
+func judge(c service.Ctx, name string, decls []declaration) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i, d := range decls {
 		if i > 0 {

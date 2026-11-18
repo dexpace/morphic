@@ -121,11 +121,6 @@
           "visibility": {
             "none": false
           },
-          "constraints": {
-            "minLength": 5,
-            "maxLength": 9,
-            "uniqueItems": false
-          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,

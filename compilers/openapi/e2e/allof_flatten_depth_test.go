@@ -11,7 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -53,8 +53,8 @@ func TestAllOf_ACollisionPastTheFlatteningDepthIsRefused(t *testing.T) {
 		depth int
 		want  int
 	}{
-		{"within the depth of both", schema.MaxAllOfFlattenDepth - 1, 0},
-		{"past the model's depth, within the wrapper's", schema.MaxAllOfFlattenDepth, 1},
+		{"within the depth of both", statement.MaxFlattenDepth - 1, 0},
+		{"past the model's depth, within the wrapper's", statement.MaxFlattenDepth, 1},
 	} {
 		_, diags := parseFull(t, spec(tc.depth))
 		assert.Equal(t, tc.want, refused(diags), tc.name)

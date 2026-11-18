@@ -122,25 +122,27 @@ func recursiveRefsOf(diags []ir.Diagnostic) map[string]string {
 // where that declares no $recursiveAnchor true, or where every schema of its
 // document declaring one lies in that resource, and is kept where two
 // resources do, as the target then depends on the evaluation path. One only a
-// kept `then` or `else` reaches is never lowered, and says nothing.
+// kept `then` or `else` reaches is lowered where its `$defs` member is: the
+// kind-inference policy reads that member's additionalProperties as a map's,
+// whose values it lowers.
 func TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic(t *testing.T) {
 	t.Parallel()
 	in := func(group int, pointer string) string {
 		return string(ids.In("g" + strconv.Itoa(group) + ".json").ForPointer(jsontext.Pointer(pointer)))
 	}
 	const tail = "/anyOf/1/additionalProperties"
+	const kept = "kept: $recursiveRef was not expanded because $recursiveAnchor: true is also declared in a schema " +
+		"resource that reaches this one, so the target depends on the evaluation path; it is kept verbatim under Unmodeled"
 	want := map[int]map[string]string{
 		0: {"/properties/foo": in(0, "")},
 		1: {"/$defs/myobject" + tail: in(1, "/$defs/myobject")},
-		2: {"/$defs/myobject" + tail: "kept: $recursiveRef was not expanded because $recursiveAnchor: true is also " +
-			"declared in a schema resource that reaches this one, so the target depends on the evaluation path; it is " +
-			"kept verbatim under Unmodeled"},
+		2: {"/$defs/myobject" + tail: kept},
 		3: {"/$defs/myobject" + tail: in(3, "/$defs/myobject")},
 		4: {"/$defs/myobject" + tail: in(4, "/$defs/myobject")},
 		5: {tail + tail: in(5, tail)},
 		6: {tail + tail: in(6, tail)},
-		7: {},
-		8: {},
+		7: {"/$defs/inner/additionalProperties": kept},
+		8: {"/$defs/inner/additionalProperties": kept},
 	}
 	require.Len(t, recursiveRefGroups, len(want))
 	for group, schema := range recursiveRefGroups {

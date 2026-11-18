@@ -9,12 +9,12 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -71,10 +71,10 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // or report a collision with this entry.
 //
 // An absent keyword is no construct: it keeps and places nothing.
-func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func PreserveSchemaKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
 	reason ir.UnmodeledReason, pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {
-	node := RawPropertyNode(s, keyword)
+	node := keyNode(s, keyword)
 	if node == nil {
 		return false, nil
 	}
@@ -88,7 +88,7 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 // of, it announces nothing of. A validation-only entry combining several
 // keywords has no such node and is not kept here but by Read, which attributes
 // it by the keywords it holds (GitHub #534).
-func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
+func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *statement.Schema, keyword string,
 	pointer jsontext.Pointer, doc provenance.Doc,
 ) []ir.Diagnostic {
 	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, doc)
@@ -194,17 +194,48 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	return dst
 }
 
-// underlayUnmodeled adds to dst each entry of src it lacks, so a nearer writer
-// keeps its entry, walking src alone: a site folds its voices into one map, and
-// overlaying that map on each would cost every voice all those before it.
-func underlayUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
+// underlay is what Read knows of the entries it merged: those the site's own
+// schema keeps (own), and those only a voice kept whole wrote (filled).
+type underlay struct {
+	own, filled map[string]bool
+}
+
+// add adds to dst each entry of src, one voice's, it lacks, walking src alone:
+// overlaying the site's map on each voice would cost it all those before it.
+// An entry own keeps stays its. A voice kept whole is no writer of what it
+// folds, which its branch holds: it fills a key no other voice writes, which
+// the first voice kept apart writing it takes. One two voices kept apart write,
+// alike, as voices agree, is no one writer's, so it takes site, and no order of
+// the voices decides where it points
+// (docs/compilers/openapi.md#allof-inline-residue).
+func (u *underlay) add(dst, src ir.Unmodeled, whole bool, site ir.Provenance) ir.Unmodeled {
 	if dst == nil && len(src) > 0 {
 		dst = make(ir.Unmodeled, len(src))
 	}
 	for keyword, entry := range src {
-		if _, held := dst[keyword]; !held {
+		held, written := dst[keyword]
+		switch {
+		case !written:
 			dst[keyword] = entry
+			if whole {
+				u.fill(keyword)
+			}
+		case whole || u.own[keyword]:
+		case u.filled[keyword]:
+			dst[keyword] = entry
+			delete(u.filled, keyword)
+		default:
+			held.Provenance = site
+			dst[keyword] = held
 		}
 	}
 	return dst
+}
+
+// fill marks keyword as written by a voice kept whole alone.
+func (u *underlay) fill(keyword string) {
+	if u.filled == nil {
+		u.filled = map[string]bool{}
+	}
+	u.filled[keyword] = true
 }

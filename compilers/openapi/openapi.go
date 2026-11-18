@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"path/filepath"
 	"slices"
 
@@ -25,9 +26,12 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/paramchoice"
+	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/stream"
 	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
@@ -119,7 +123,9 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	// components schemas → auth → service/operations → document metadata;
 	// assembles Document
-	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes(), whole.New)
+	out, lowerDiags, err := run(ctx, service.New(rootSrcIndex, loadedDoc, loweringPolicy(formatOpts)),
+		inferencesOf(formatOpts), compile.NewTypes(),
+		whole.New)
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
@@ -192,7 +198,9 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // the phases honouring ctx stop mid-registry, leaving references to types never
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
-func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*ir.Document) *whole.Document) (*ir.Document, []ir.Diagnostic, error) {
+func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
+	newWhole func(*ir.Document) *whole.Document,
+) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
 	out := &ir.Document{}
@@ -202,7 +210,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	// copies; compile.Diags.Append is what collapses them, and it has to see the
 	// whole stream to do it.
 	var acc compile.Diags
-	acc.AppendAll(schema.LowerComponentSchemas(ctx, c, ts))
+	acc.AppendAll(schema.LowerComponentSchemas(ctx, c.Ctx, ts, componentStatements(c)))
 	// The checks in this function sit after the phases that honour ctx. Each
 	// stops between items and returns what it had, so a non-nil ctx.Err() here
 	// is the only way to tell a phase that finished from one that was cut short —
@@ -219,7 +227,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	out.Services = []ir.Service{lowered.Service}
 	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
-	schema.PromiseLandings(c, ts)
+	schema.PromiseLandings(c.Ctx, ts)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
 	// (compile.Types.Promise), and what was deferred until the registry is whole
@@ -255,14 +263,15 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	// pagination inference passes over, by the precedence
 	// docs/compilers/openapi.md#policies gives: what they say of one, even that
 	// there is none, wins over what the names an operation uses suggest.
-	stated, pageDiags := pagination.Promote(c, w, out.Unmodeled)
+	promoter := c.Promoter()
+	stated, pageDiags := pagination.Promote(promoter, w, out.Unmodeled)
 	acc.AppendAll(pageDiags)
-	acc.AppendAll(stream.PromoteDetail(c, w))
-	acc.AppendAll(paramchoice.PromoteChoices(c, w))
-	acc.AppendAll(replacement.Resolve(c, w))
-	acc.AppendAll(replacement.Infer(c, w))
-	acc.AppendAll(convention.Apply(c, w))
-	acc.AppendAll(pagination.InferWalks(c, w, stated))
+	acc.AppendAll(stream.PromoteDetail(promoter, w))
+	acc.AppendAll(paramchoice.PromoteChoices(promoter, w))
+	acc.AppendAll(replacement.Resolve(promoter, w))
+	acc.AppendAll(replacement.Infer(inf.replacement, promoter, w))
+	acc.AppendAll(convention.Apply(inf.convention, promoter, w))
+	acc.AppendAll(pagination.InferWalks(inf.pagination, w, stated))
 
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
@@ -270,7 +279,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 	acc.AppendAll(metaDiags)
 	// An extension under a prefix the policy owns is judged once every node
 	// that could keep one is built, the document's own Unmodeled included.
-	acc.AppendAll(lowering.UnreadExtensions(c, out))
+	acc.AppendAll(promotion.UnreadExtensions(promoter, c.GroupingExtension.Keys(c.Grouping), out))
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is
 	// reported alone, the same in any order. It is asked once every lowering has
@@ -279,9 +288,22 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types, newWhole func(*
 		return nil, []ir.Diagnostic{refusal}, nil
 	}
 	out.IRVersion = ir.IRVersion
-	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
+	out.IDSpaces = ids.Namespaces(service.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
 	return out, acc.List(), nil
+}
+
+// componentStatements yields each component schema of c's document under its
+// name, in source order, as the statement c's table reads of it, read when the
+// schema walk asks for it.
+func componentStatements(c service.Ctx) iter.Seq2[string, *statement.Statement] {
+	return func(yield func(string, *statement.Statement) bool) {
+		for name, js := range c.Doc.Components.GetSchemas().All() {
+			if !yield(name, c.Statements().Of(js)) {
+				return
+			}
+		}
+	}
 }
 
 // optionsFrom resolves the compiler-specific options: a nil FormatOptions gets
@@ -324,31 +346,46 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 	return out
 }
 
-// loweringCtx builds the lowering context over a loaded document under the
-// caller's options, and is the loadOptions of the phase below: it projects
-// Options onto lowering.Policy, that package's own input, deliberately not this
-// public type. It reads the budgets the lowering holds, on enums and on what
-// $refs and path items copy, as loadOptions reads the others.
-func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	return lowering.New(rootSrcIndex, doc, lowering.Policy{
-		Grouping:          o.Grouping,
-		GroupingExtension: o.GroupingExtension,
-		Limits: lowering.Limits{
-			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
-			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+// loweringPolicy projects the caller's options onto the lowerings', and is the
+// loadOptions of the phase below: service.Policy is that package's own input,
+// deliberately not this public type. It reads the budgets the lowering holds,
+// on enums and on what $refs and path items copy, as loadOptions reads the
+// others.
+func loweringPolicy(o Options) service.Policy {
+	return service.Policy{
+		Schema: lowering.Policy{
+			Limits:                 lowering.Limits{MaxEnumMembers: budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers)},
+			Promotions:             o.Promotions,
+			NullableInference:      o.NullableInference,
+			DiscriminatorInference: o.DiscriminatorInference,
+			KindInference:          o.KindInference,
+			TitleNames:             o.TitleNames,
 		},
-		StreamingInference:     o.StreamingInference,
-		BinaryInference:        o.BinaryInference,
-		Promotions:             o.Promotions,
-		NullableInference:      o.NullableInference,
-		DiscriminatorInference: o.DiscriminatorInference,
-		IdempotencyInference:   o.IdempotencyInference,
-		SecretInference:        o.SecretInference,
-		HTTPDateInference:      o.HTTPDateInference,
-		ReplacementInference:   o.ReplacementInference,
-		PaginationInference:    o.PaginationInference,
-		TitleNames:             o.TitleNames,
-	})
+		Grouping:              o.Grouping,
+		GroupingExtension:     o.GroupingExtension,
+		MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+		StreamingInference:    o.StreamingInference,
+		BinaryInference:       o.BinaryInference,
+	}
+}
+
+// inferences holds the policies of what run infers once the document is whole,
+// each handed to the one step that honours it.
+type inferences struct {
+	pagination  pagination.Inference
+	replacement replacement.Inference
+	convention  convention.Policy
+}
+
+// inferencesOf projects Options onto the inference policies, as loweringPolicy
+// projects it onto the lowering's.
+func inferencesOf(o Options) inferences {
+	return inferences{
+		pagination:  o.PaginationInference,
+		replacement: o.ReplacementInference,
+		convention: convention.Policy{Idempotency: o.IdempotencyInference, Secret: o.SecretInference,
+			HTTPDate: o.HTTPDateInference},
+	}
 }
 
 // undecodable reports a source this compiler recognized and could not read.

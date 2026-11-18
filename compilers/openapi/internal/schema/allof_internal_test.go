@@ -11,53 +11,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
-
-// TestRawMappingKeys_OnlyEnumeratesAMapping pins the shape guards on the branch
-// residue's key reader. It is handed whatever the source wrote at a branch, so a
-// sequence or a bare scalar reaches it as readily as a mapping, and the residue
-// derivation depends on it reporting no keys rather than guessing at some.
-//
-// The alias and `<<` rows are the same guard read the other way: a node written
-// by reference stands for keys, so answering "none" there would report a branch
-// that declares plenty as one the merge consumed entirely.
-func TestRawMappingKeys_OnlyEnumeratesAMapping(t *testing.T) {
-	t.Parallel()
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("a: 1\nb: 2\n"), &doc))
-	require.Equal(t, yaml.DocumentNode, doc.Kind)
-
-	cases := []struct {
-		name string
-		node *yaml.Node
-		want []string
-	}{
-		{"a nil node has no keys", nil, nil},
-		{"a sequence is not a mapping", openapitest.YAMLNode(t, "- a\n- b\n"), nil},
-		{"a bare scalar is not a mapping", openapitest.YAMLNode(t, "plain"), nil},
-		{"a mapping yields its keys in source order", openapitest.YAMLNode(t, "b: 1\na: 2\n"), []string{"b", "a"}},
-		{"a document unwraps to the mapping inside it", &doc, []string{"a", "b"}},
-		{"an alias yields the anchored mapping's keys",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: *a\n"), []string{"b", "c"}},
-		{"an alias to a scalar is still not a mapping",
-			useValue(t, "anchor: &a plain\nuse: *a\n"), nil},
-		{"a merge key yields the keys it merges in",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {<<: *a}\n"), []string{"b", "c"}},
-		{"an explicit key beats the one it merges over, merged keys first",
-			useValue(t, "anchor: &a {b: 1, c: 2}\nuse: {c: 9, <<: *a}\n"), []string{"b", "c"}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tc.want, rawMappingKeys(tc.node))
-		})
-	}
-}
 
 // TestAllOfBranches_DepthCapKeepsWrapperVerbatim pins the bound on flattening: a
 // chain of wrappers as deep as the cap is flattened whole, and one level more
@@ -71,8 +30,8 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 		wrappers int
 		flat     bool
 	}{
-		{"at the cap", MaxAllOfFlattenDepth, true},
-		{"one past the cap", MaxAllOfFlattenDepth + 1, false},
+		{"at the cap", statement.MaxFlattenDepth, true},
+		{"one past the cap", statement.MaxFlattenDepth + 1, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -94,14 +53,14 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 				return
 			}
 			assert.Nil(t, m.Base, "the ref sits inside the wrapper kept verbatim")
-			path := strings.TrimSuffix(strings.Repeat("allOf/0/", MaxAllOfFlattenDepth+1), "/")
+			path := strings.TrimSuffix(strings.Repeat("allOf/0/", statement.MaxFlattenDepth+1), "/")
 			entry, ok := m.Unmodeled["openapi:"+path]
 			require.True(t, ok, "the wrapper at the cap is kept under its path; got %v", m.Unmodeled)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/M/"+path), entry.Provenance.Pointer)
 			assert.Len(t, m.Unmodeled, 1)
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
-			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(MaxAllOfFlattenDepth)+
+			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth)+
 				", so its own allOf was not flattened, and the branch is kept verbatim under Unmodeled", msg)
 		})
 	}
@@ -121,9 +80,9 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
                 - {type: object}
                 - {type: object}
 `))
-	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
+	decl, ok := l.Doc.Components.Schemas.Get("M")
 	require.True(t, ok)
-	comp := allOfBranches(nil, decl.GetSchema(), "/components/schemas/M")
+	comp := allOfBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/M")
 	entries := comp.branches
 	require.Len(t, entries, 6, "four inline branches and two wrappers")
 	wantKeys := []string{
@@ -145,58 +104,35 @@ func TestAllOfBranches_KeysSpellEachEntrysPath(t *testing.T) {
 	assert.True(t, entries[len(entries)-1].wrapper, "a wrapper follows its own branches")
 }
 
-// TestWalkAllOf_StopsWhenTheConsumerDoes pins that the walk and the schema view
-// end when the loop reading them breaks: at a leaf, at a wrapper that follows
-// its entries, and at a $ref branch the view yields.
-func TestWalkAllOf_StopsWhenTheConsumerDoes(t *testing.T) {
+// TestAllOfRefBranches_StopsWhenTheConsumerDoes pins that the view of a
+// flattened allOf's $ref branches yields them in order, a nested wrapper's
+// included, and ends when the loop reading it breaks.
+func TestAllOfRefBranches_StopsWhenTheConsumerDoes(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    A: {type: object}
+    B: {type: object}
     M:
       allOf:
         - allOf:
             - {$ref: '#/components/schemas/A'}
         - {type: object}
-    Flat:
-      allOf:
-        - {$ref: '#/components/schemas/A'}
-        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/B'}
 `))
-	decl, ok := l.Ctx.Doc.Components.Schemas.Get("M")
-	require.True(t, ok)
-	m := decl.GetSchema()
-
-	var all []bool // wrapper flag of every step, in order
-	for st := range walkAllOf(nil, m) {
-		all = append(all, st.wrapper)
+	s := StatedIn(l, componentSchema(t, l, "M"))
+	var all []*statement.Statement
+	for b := range allOfRefBranches(l.Ctx, s) {
+		all = append(all, b)
 	}
-	assert.Equal(t, []bool{false, true, false}, all, "the ref, its wrapper, then the inline branch")
+	require.Len(t, all, 2, "the nested $ref and the one beside it")
+	assert.Equal(t, StatedIn(l, componentSchema(t, l, "A")), refBranchTarget(l.Ctx, all[0]))
+	assert.Equal(t, StatedIn(l, componentSchema(t, l, "B")), refBranchTarget(l.Ctx, all[1]))
 
-	for stop := range all {
-		var seen int
-		for range walkAllOf(nil, m) {
-			seen++
-			if seen > stop {
-				break
-			}
-		}
-		assert.Equal(t, stop+1, seen, "the walk yields nothing after the loop breaks")
-	}
-
-	var refs int
-	for range allOfRefBranches(nil, m) {
-		refs++
+	var seen int
+	for range allOfRefBranches(l.Ctx, s) {
+		seen++
 		break
 	}
-	assert.Equal(t, 1, refs)
-
-	flatDecl, ok := l.Ctx.Doc.Components.Schemas.Get("Flat")
-	require.True(t, ok)
-	var flatRefs int
-	for range allOfRefBranches(nil, flatDecl.GetSchema()) {
-		flatRefs++
-		break
-	}
-	assert.Equal(t, 1, flatRefs, "a flat list stops at the first $ref when the loop breaks")
+	assert.Equal(t, 1, seen, "the view yields nothing after the loop breaks")
 }
 
 // TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites pins that a wrapper
@@ -218,19 +154,19 @@ func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 			t.Parallel()
 			var b strings.Builder
 			b.WriteString("    A: {type: object, properties: {a: {type: string}}}\n    M:\n      allOf:\n")
-			for i := range MaxAllOfFlattenDepth {
+			for i := range statement.MaxFlattenDepth {
 				b.WriteString(strings.Repeat("  ", i) + "        - allOf:\n")
 			}
-			pad := strings.Repeat("  ", MaxAllOfFlattenDepth)
+			pad := strings.Repeat("  ", statement.MaxFlattenDepth)
 			b.WriteString(pad + "        - " + tc.sibling + "\n" + pad + "          allOf:\n" +
 				pad + "            - {$ref: '#/components/schemas/A'}\n")
 
 			_, diags := LowerSpec(t, openapitest.ComponentSpec(b.String()))
 			openapitest.RequireNoErrorDiags(t, diags)
-			path := strings.TrimSuffix(strings.Repeat("allOf/0/", MaxAllOfFlattenDepth+1), "/")
+			path := strings.TrimSuffix(strings.Repeat("allOf/0/", statement.MaxFlattenDepth+1), "/")
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				tc.severity, "/components/schemas/M/"+path)
-			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(MaxAllOfFlattenDepth))
+			assert.Contains(t, msg, "nested past the flattening depth of "+strconv.Itoa(statement.MaxFlattenDepth))
 			assert.Contains(t, msg, "was not flattened")
 			assert.Contains(t, msg, tc.want)
 			assert.NotContains(t, msg, "allOf)", "allOf is not listed as a kept keyword")

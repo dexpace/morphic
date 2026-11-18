@@ -95,6 +95,17 @@ kept whole is `openapi:schema/readOnly` on one parameter and only inside `openap
 another. A key the promotion policy reads is the exception, kept beside what holds it, since a
 promotion reads the kept entries ([promotion](#promotion)).
 
+A keyword an inline `allOf` entry writes is the same construct as that keyword beside the `allOf`,
+so it takes the same key, reason and report there, its provenance naming the keyword on the entry:
+`openapi:format`, never `openapi:allOf/1`. An inline entry is kept under a path key such as
+`openapi:allOf/1` only where it is kept whole, a keyword of it being read against the rest of it or
+held apart by no one key ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue));
+a `$ref` entry a `Model` does not compose keeps its reference's text under `openapi:$ref`, or
+`openapi:$ref/<i>`, `i` its rank by that text, where one carrier keeps several
+([`allof-classification`](../compilers/openapi.md#allof-classification)). A keyword several entries
+write alike is one entry, its provenance the position's pointer, as no one writer's is the same in
+every order of the entries; an entry kept whole is no such writer, as it holds its own.
+
 An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
 document's, keyed by the declaration's coordinate rather than a scope:
 `openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier
@@ -223,7 +234,10 @@ from `Unmodeled` and no two derive it differently:
    lends the property, parameter or header naming it is recorded twice: the target keeps the entry
    and its marker, and the use lists the marker too, since a use is read without resolving its
    target ([what a reference carries down](./annotations.md#what-a-reference-carries-down)) and its
-   type reaches the entry. `Inferred` holds one string and a node can be reached by more than one
+   type reaches the entry. A decorator holding a promoted field keeps the entry and the marker as
+   any node does; the property, parameter or header naming it holds neither in the IR, and the
+   emitter's collapse carries the marker with the field
+   ([decorators](../emitters/refine/decorators.md)). `Inferred` holds one string and a node can be reached by more than one
    heuristic, so the names are listed rather than overwritten, and a name already listed is not
    repeated. The list joins the names with commas in the order the heuristics first applied, none
    empty; names compare exactly, and the IR declares no set of them. `TypeRef.Inferred`

@@ -79,7 +79,7 @@ canary. A behaviour found that the page lacks is added there.
   the parser does and sort keys, a failed one unequal to all, as far as text decides
   (`references/openapi-lessons.md#text-decides-under-one-base`), not by `Schema.IsEqual`, whose
   model misses keywords (`docs/parser-library.md#unmodeled-keywords`), or `yml.EqualNodes`. In
-  `schema`, call `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each
+  `schema`, call `sameText` in `compilers/openapi/internal/schema/writtentext.go`, which renders each
   schema once a run; elsewhere, render each node once.
 - **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
   restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the

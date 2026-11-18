@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -166,9 +167,9 @@ type Document struct {
 	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay, and
-	// Dialects the rows each schema resource root naming its dialect governs.
+	// Dialects the rows each schema of them is read with.
 	Others   Others
-	Dialects Dialects
+	Dialects dialect.Table
 	// Rows is what the table says at the minor the source declares, in the
 	// dialect its jsonSchemaDialect names, which its Encoding Objects and its
 	// schemas where none names its own (Dialects) are read with, from the table
@@ -354,10 +355,13 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 // namedWithin reports whether the pointers a compile of idx's tree names one
 // by one total within the bound its size allows, counting a value kept raw by
 // its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
-// leaves, one too large to weigh so, and one that may name a dialect, whose
-// schemas another grammar may read (namesDialect), are not within it.
+// leaves, one too large to weigh so, one that may name a dialect, whose
+// schemas another grammar may read (namesDialect), and one a mapping of which
+// writes a key the Format section refuses, where the check of its keys spells
+// a pointer for every node to place its findings (oas.BreaksFormat), are not
+// within it.
 func namedWithin(ctx context.Context, idx sourceindex.Index) bool {
-	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) {
+	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) || oas.BreaksFormat(ctx, idx.Root(), maxTreeNodes) {
 		return false
 	}
 	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
@@ -416,11 +420,11 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// rowsAt returns what spec says at the minor version names, in dialect, and
-// whether dialect is one spec has no Schema Object rows for
+// rowsAt returns what spec says at the minor version names, in the dialect uri
+// names, and whether that is one spec has no Schema Object rows for
 // (oas.Spec.SchemaRules).
-func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
-	schema, unread := spec.SchemaRules(version, dialect)
+func rowsAt(spec oas.Spec, version, uri string) (rows Rows, unread bool) {
+	schema, unread := spec.SchemaRules(version, uri)
 	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 

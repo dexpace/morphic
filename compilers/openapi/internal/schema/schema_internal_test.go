@@ -9,12 +9,12 @@ import (
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
@@ -67,22 +67,10 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "one fewer is mended whole")
 }
 
-// TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
-// keyword families the dispatch passed over. It is reached directly for the
-// reason TestRecordUnhomedKeywords_MissingOwner is: the caller hands it either
-// the node it just looked up or one internAlias just interned, so no source
-// reaches this.
-func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
-	t.Parallel()
-	l := NewRawLowerer(&soa.OpenAPI{})
-	diags := recordSkippedFamilies(l.Ctx, l.Types, "t/anon/missing", &oas3.Schema{},
-		dispatch{won: "const", skipped: []string{"enum"}}, "/p")
-	assertInternalInvariant(t, diags)
-}
-
 // TestDeclaresFamily_AnUnknownNameDeclaresNothing reaches the arm familyOrder
-// cannot reach today, the way TestRecordSkippedFamilies_MissingOwner reaches its
-// own: every name dispatchOf passes in is one of the three with a case here.
+// cannot reach today, the way TestKeywordHome_AnUnknownKeywordIsHomedNowhere
+// reaches its own: every name dispatchOf passes in is one of the three with a
+// case here.
 //
 // It guards the direction the default falls. Answering an unknown name from
 // another family's guard would let a familyOrder entry added without a case be
@@ -95,8 +83,62 @@ func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 		oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}),
 	}}
 
-	require.True(t, declaresFamily(withAllOf, "allOf"), "allOf is named and declared")
-	assert.False(t, declaresFamily(withAllOf, "oneOf"),
+	require.True(t, declaresFamily(StandaloneSchema(withAllOf), "allOf"), "allOf is named and declared")
+	assert.False(t, declaresFamily(StandaloneSchema(withAllOf), "oneOf"),
 		"an unknown name must not inherit allOf's guard")
-	assert.False(t, declaresFamily(&oas3.Schema{}, "nosuchfamily"))
+	assert.False(t, declaresFamily(StandaloneSchema(&oas3.Schema{}), "nosuchfamily"))
+}
+
+// TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates pins what states a
+// null in a schema merging past nodeview.MergeDepthLimit, read from its keys
+// alone: a `nullable` merged in past the bound states none, a truth word's or
+// a boolean, nor does one a later source writes within the bound, which the
+// deeper one outranks, while one the schema merges within the bound does.
+func TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates(t *testing.T) {
+	t.Parallel()
+	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: true}")
+	word := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{nullable: 'yes'}")
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Past: {<<: "+past+", type: string}\n"+
+		"    PastWord: {<<: "+word+", type: string}\n"+
+		"    Outranks: {<<: ["+past+", {nullable: false}], type: string}\n"+
+		"    OutranksWord: {<<: ["+past+", {nullable: 'yes'}], type: string}\n"+
+		"    Within: {<<: {nullable: true}, type: string}\n    Yes: {type: string, nullable: 'yes'}\n"))
+
+	s := StatedIn(l, componentSchema(t, l, "Past"))
+	_, written := s.Key("nullable")
+	require.False(t, written, "the keyword lies past the bound")
+	require.True(t, s.Truncated)
+	assert.False(t, nullableTrue(s))
+	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "PastWord"))))
+	outranks := StatedIn(l, componentSchema(t, l, "Outranks"))
+	_, listed := outranks.Key("nullable")
+	require.False(t, listed, "the key a source past the bound outranks is left out")
+	assert.False(t, nullableTrue(outranks))
+	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "OutranksWord"))))
+	assert.True(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Within"))))
+	assert.False(t, nullableTrue(StatedIn(l, componentSchema(t, l, "Yes"))))
+}
+
+// TestRef_ASchemaMergingPastTheBoundIsReportedOnce lowers, twice each, a
+// schema whose `<<` merges run past nodeview.MergeDepthLimit and one whose
+// inline allOf entry's do: each schema object draws one warning a run, at its
+// own pointer, however many times a position lowers it.
+func TestRef_ASchemaMergingPastTheBoundIsReportedOnce(t *testing.T) {
+	t.Parallel()
+	past := openapitest.NestedMerges(nodeview.MergeDepthLimit+1, "{minLength: 1}")
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    P: {<<: "+past+", type: string}\n"+
+		"    A: {allOf: [{<<: "+past+", type: string}]}\n"))
+	var reports []string
+	for range 2 {
+		for _, name := range []string{"P", "A"} {
+			st := l.Ctx.Statements().At(l.Ctx.Position(jsontext.Pointer("/components/schemas/" + name)))
+			_, diags := Ref(l.Ctx, l.Types, 0, st, jsontext.Pointer("/components/schemas/"+name))
+			for _, d := range diags {
+				if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "deeper than") {
+					reports = append(reports, string(d.Provenance.Pointer))
+				}
+			}
+		}
+	}
+	assert.Equal(t, []string{"/components/schemas/P", "/components/schemas/A/allOf/0"}, reports)
 }

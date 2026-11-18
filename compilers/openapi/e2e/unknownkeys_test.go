@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -289,6 +292,87 @@ components:
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 			diagsAt(diags, "openapi/unknown-object-key", at),
 			"%s key is announced as an object's, not as a schema keyword's", tc.keyword)
+	}
+}
+
+// TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported holds the census of
+// a schema's xml, discriminator and externalDocs objects, and of the
+// discriminator an allOf branch writes for its union, to every key their
+// models name no field for, as
+// annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable
+// holds the schema's own: one merged in through `<<` from past
+// nodeview.MergeDepthLimit, which the compiler reads no pair for, is reported
+// unreachable rather than dropped in silence.
+func TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported(t *testing.T) {
+	t.Parallel()
+	deep := func(body string) string { return openapitest.NestedMerges(nodeview.MergeDepthLimit, body) }
+	_, diags := compileAnnotationSpec(t, "merged-past-the-bound", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      properties: {k: {type: string}}
+      xml: {name: s, <<: `+deep("{attribute2: X}")+`}
+      discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
+      externalDocs: {url: 'https://d.example', <<: `+deep("{title: E}")+`}
+    U:
+      type: object
+      allOf:
+        - discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
+          oneOf: [{$ref: '#/components/schemas/S'}]
+`)
+	for _, at := range []string{
+		"/components/schemas/S/xml/attribute2", "/components/schemas/S/discriminator/mapping2",
+		"/components/schemas/S/externalDocs/title", "/components/schemas/U/allOf/0/discriminator/mapping2",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.UnknownKeyUnreachable, at),
+			"the key at %s", at)
+	}
+}
+
+// TestUnknownKeys_ExtensionMergedPastTheBoundIsKept holds the extensions a
+// schema, its xml, discriminator and externalDocs objects, and the
+// discriminator an allOf branch writes for its union, merge in through `<<`
+// from past nodeview.MergeDepthLimit to what the parser's model holds: each is
+// kept on the node holding the object, as one written in place is, though the
+// compiler reads no pair for it.
+func TestUnknownKeys_ExtensionMergedPastTheBoundIsKept(t *testing.T) {
+	t.Parallel()
+	deep := func(body string) string { return openapitest.NestedMerges(nodeview.MergeDepthLimit, body) }
+	doc, _ := compileAnnotationSpec(t, "extension-past-the-bound", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      type: object
+      <<: `+deep("{x-own: 1}")+`
+      properties: {k: {type: string}}
+      xml: {name: s, <<: `+deep("{x-x: 2}")+`}
+      discriminator: {propertyName: k, <<: `+deep("{x-d: 3}")+`}
+      externalDocs: {url: 'https://d.example', <<: `+deep("{x-e: 4}")+`}
+    U:
+      type: object
+      allOf:
+        - discriminator: {propertyName: k, <<: `+deep("{x-b: 5}")+`}
+          oneOf: [{$ref: '#/components/schemas/S'}]
+`)
+	for _, tc := range []struct{ schema, key, want string }{
+		{"S", "openapi:x-own", "1"},
+		{"S", "openapi:xml/x-x", "2"},
+		{"S", "openapi:discriminator/x-d", "3"},
+		{"S", "openapi:externalDocs/x-e", "4"},
+		{"U", "openapi:allOf/0/discriminator/x-b", "5"},
+	} {
+		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+tc.schema)]
+		require.True(t, ok, tc.schema)
+		entry, found := node.Common().Unmodeled[tc.key]
+		if assert.True(t, found, "%s keeps %s", tc.schema, tc.key) {
+			assert.Equal(t, tc.want, string(entry.Value), tc.key)
+			assert.Equal(t, ir.ReasonVendorExtension, entry.Reason, tc.key)
+		}
 	}
 }
 
