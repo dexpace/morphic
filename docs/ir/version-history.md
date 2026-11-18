@@ -1133,15 +1133,21 @@ it sees. Changes made together in one bump are listed together under it.
     conjuncts" is said of a `$ref` principal alone. A bound beside a principal carrying a number as
     text is kept as `no_ir_home` with the report the flat spelling draws, where the alias held a
     length bound in its `Constraints` and kept a value bound as `degraded_lowering`. Where an inline
-    principal and the keywords beside the `allOf` both keep one keyword with different values, the
-    position's node keeps the position's under `openapi:<keyword>` and the principal's under the
-    entry's key, `openapi:allOf/<n>`, an object of those keywords alone, each with one report:
-    `{allOf: [{type: string, minimum: 1}], minimum: 2}` holds `openapi:minimum: 2` and
-    `openapi:allOf/0: {"minimum": 1}`, where 1 stood on the entry's node `…/allOf/0`. A principal
-    the position keeps whole under `openapi:allOf/<n>` holds every keyword of it that no field
-    reads, each once, and takes the reason those keywords share, else `degraded_lowering`: `{allOf:
-    [{type: string, minimum: 1, x-k: 1}], x-k: 2}` keeps it as `degraded_lowering`, where the
-    entry's own node kept `minimum` as `degraded_lowering` and `x-k` as `vendor_extension`.
+    principal and the keywords beside the `allOf` both write a keyword no field reads, with
+    different values, the position's node keeps the position's under `openapi:<keyword>` and the
+    principal's under the entry's key, `openapi:allOf/<n>`, one object holding every such keyword
+    whichever reading of the principal keeps it, each reading naming its own in one report: `{allOf:
+    [{type: string, format: int64, minimum: 1, required: [a]}], minimum: 2, required: [b]}` holds
+    `openapi:allOf/0: {"minimum": 1, "required": ["a"]}`, where both stood on the entry's node
+    `…/allOf/0`. A draft entry's `dependencies` and a key no dialect defines are kept so too, where
+    the entry's was dropped unreported or the principal was kept whole. Written alike on both, a
+    keyword is read once, or kept once, where it was kept on two nodes. Of two patterns the node's
+    field holds the position's, and the principal is kept whole under its entry's key. A principal
+    the position keeps whole under `openapi:allOf/<n>`, for a disagreeing extension or a closure,
+    holds every keyword of it, each once, and takes the reason those the node does not read share,
+    else `degraded_lowering`: `{allOf: [{type: string, minimum: 1, x-k: 1}], x-k: 2}` keeps it as
+    `degraded_lowering`, where the entry's own node kept `minimum` as `degraded_lowering` and `x-k`
+    as `vendor_extension`; one whose entry no JSON holds is kept keyword by keyword.
 
   - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
     the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
