@@ -2938,8 +2938,8 @@ own, or reached through an alias that holds some, since each bounds the values o
 whichever variant holds them, which the variants do not say. One judgment reads at most 64
 variants, past which the two are unrelated. A structure whose source admits every instance of the
 other's kind is the exception to the disjoint pairs, as `properties` alone constrains objects and
-admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf: [{type: object},
-{type: integer}]}` admits every integer: what it admits is read as
+admits a string, and `{allOf: [{$ref: Obj}], properties: …}` over `Obj: {properties: …}` admits
+every integer: what it admits is read as
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
 `enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
 `$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
@@ -2951,17 +2951,19 @@ of that kind while admitting others: a value set, a numeric or a string bound, a
 keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
 kinds in part, but for one whose schemas, applied to the instance's parts, each state nothing, as
 `items: {}` and `additionalProperties: true` do; and a union admits a kind whole where a branch does
-and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
-`{enum: [1, 2]}` and `{anyOf: [{type: object}, {type: integer, minimum: 5}]}` each admit some
-integers and not every one, and a structure composing one of them is judged against `integer` as a
-structure stating its type is: the conflict is reported and the declaration the field does not keep
-is kept verbatim, since a field of either type alone would lose what the other says. Where that read
-meets what it does not follow but which could refuse a value of
-some kind, a `not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a
-`$recursiveRef` the bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no
-schema, the structure reads as stating its type; a `not` or an `if` written `null` is the keyword
-left out ([`null-schema`](#null-schema)) and refuses nothing. A value type or a
-structure of another instance type is narrower than it, in either order, where it and each alias
+and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So
+`{minimum: 5}` and `{format: int32}` each admit some integers and not every one, and a structure
+composing one of them, as `{allOf: [{minimum: 5}], properties: …}` does, is judged against
+`integer` as a structure stating its type is; an `allOf` entry stating a value set, or naming a
+union of an object and another kind, makes no structure but a refinement
+([`allof-refinement`](#allof-refinement)). The conflict is reported and the declaration the field
+does not keep is kept verbatim, since a field of either type alone would lose what the other says.
+Where that read meets what it does not follow but which could refuse a value of some kind, a
+`not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a `$recursiveRef` the
+bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no schema, the structure
+reads as stating its type; a `not` or an `if` written `null` is the keyword left out
+([`null-schema`](#null-schema)) and refuses nothing. A value type or a structure of another instance
+type is narrower than it, in either order, where it and each alias
 naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps it otherwise,
 since a type replacing it would lose what it holds. So a structure written at the declaration
 itself, which keeps its docs, deprecation and redaction on its own node, overlaps a value type or a
