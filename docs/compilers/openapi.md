@@ -2173,8 +2173,9 @@ such entry becomes `Base`, and of several, of those to a schema taking part in a
 hierarchy (one declaring a `discriminator`, or composing through `allOf`, at any depth, a schema
 that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag off), one whose
 hierarchy's mapping names the composing schema before one whose does not, then the one whose
-reference text is the least. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
-discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
+reference text is the least. Every other such `$ref` entry becomes a `Mixin`, so a schema
+composing a subtype of a discriminated base beside another `$ref` is a subtype of that base too. A
+`$ref` entry whose target
 admits every kind, or another kind than an object, composes nothing, so no `Model` names a base or a
 mixin known to be no object: its reference is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
 reference text where several are kept, a failed one's among them (`degraded_lowering`), with an
@@ -2194,9 +2195,10 @@ on the field without its source. A `$ref` entry naming a union of objects is no 
 is the `Base` or a `Mixin`, never distributed over its variants as one written beside the `allOf` is
 ([models](../ir/models.md#a-union-a-composition-names)). One naming a schema whose `type` list holds
 an object and another kind composes that list's object variant, the one node of that kind its union
-holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, {type: object, …}]}` over `Pet: {type:
-[object, string], properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
-keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or `anyOf` writes is not unpacked: it
+holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, {type: object, …}]}` over
+`Pet: {type: [object, string], properties: …}` has the variant as its `Base`, so it inherits what
+`Pet` declares of an object and keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or
+`anyOf` writes is not unpacked: it
 may hold several objects, or none a model is, so one admitting another kind is kept as above. The
 list is read only where the entry's `$ref` lands: one landing on another `$ref` to `Pet`, as
 `{$ref: Chain}` over `Chain: {$ref: Pet}` does, is kept as above too.
@@ -2289,7 +2291,8 @@ is read as the schema it names, and one it does not admits every kind, as one be
 one on an entry of it, which no position expands, do. So `{allOf: [{$ref: T}], $dynamicRef: '#m'}`
 and `{allOf: [{$ref: T}, {$dynamicRef: '#m'}]}` lower alike, whatever schema `#m` names: a `Model`
 over `T` where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. One naming
-no schema is the `$ref` it spells ([`references`](#references)), so it lands on none. A union beside the `allOf` sharing no kind with the rest, as in
+no schema is the `$ref` it spells ([`references`](#references)), so it lands on none. A union
+beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
