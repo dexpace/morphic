@@ -181,7 +181,7 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // oneOf wins when both are written, so every caller owns the set it passed over:
 // buildUnion keeps it on the Union (preserveUnusedCombinator), nullUnionCollapse
 // declines to collapse past it, and the verbatim lowering keeps both keywords
-// (preserveUnionSiblings). Reading the preference as one only that last lowering
+// (preserveUnionSiblingsAt). Reading the preference as one only that last lowering
 // could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *statement.Schema) ([]statement.Sub, string, bool) {
 	choice := choiceIn(s)

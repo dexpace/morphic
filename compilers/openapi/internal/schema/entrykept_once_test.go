@@ -113,7 +113,7 @@ func TestEntryKeptOnce_APromotedKeyStaysBesideTheEntryKeptWhole(t *testing.T) {
 	}
 }
 
-// keptOnceShapes are the entries keptOnceGrid draws from: two vendor
+// keptOnceShapes are the entries the grid test below draws from: two vendor
 // extensions apart, a closure and an unevaluated keyword that keep their entry
 // whole, and a validation-only keyword with a residue keyword. Each key one
 // writes is a member of the entry.

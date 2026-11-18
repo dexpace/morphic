@@ -42,8 +42,9 @@ type refinement struct {
 	// held is what the position lowers to admits, which decides what a keyword
 	// left unread loses.
 	held admitted
-	// contradicts marks conjuncts sharing no value, of which a value set was
-	// elected before the composition they would otherwise lower to.
+	// contradicts marks conjuncts sharing no value: a value set was elected
+	// before the composition they would otherwise lower to, or, for value sets
+	// sharing no member, no conjunct was (decide).
 	contradicts bool
 }
 

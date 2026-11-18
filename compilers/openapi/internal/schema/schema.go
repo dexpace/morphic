@@ -411,8 +411,9 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 
 // refinedDisjoint reports the refinement r of s whose union beside the allOf
 // shares no kind with the rest (unionAside), or whose conjuncts share no value
-// and lowered to the value set elected before them, at s, as a composition
-// reports conjuncts sharing no value.
+// and lowered to the value set elected before them or to what the keywords
+// beside the allOf say (contradictionShape), at s, as a composition reports
+// conjuncts sharing no value.
 func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Diagnostic {
 	shape := refinedShape(r.comp)
 	switch {

@@ -267,7 +267,7 @@ components:
 // TestFill_ATruncatedSchemaHoldsNoKeywordItsKeysDoNotList holds listedOnly to
 // fill: a Truncated schema whose keys list nothing, read from a model holding
 // a value in every field, holds no typed value at all. A keyword fill reads
-// from the model with no row of modelKeywords to clear it leaves one.
+// from the model with no row of fillKeywords to clear it leaves one.
 func TestFill_ATruncatedSchemaHoldsNoKeywordItsKeysDoNotList(t *testing.T) {
 	t.Parallel()
 	m := &oas3.Schema{}

@@ -302,7 +302,7 @@ func branchReferent(c lowering.Ctx, b *statement.Statement) (variant ir.TypeID, 
 
 // keepUncomposedBranch keeps the union branch b, which the variant m does not
 // compose (branchReferent), verbatim under m's Unmodeled (unionBranchKey), and
-// reports it, as keepUncomposedRef keeps an allOf's $ref entry. b lowers
+// reports it, as keepUncomposedRefs keeps an allOf's $ref entries. b lowers
 // nowhere, so this is its one home; the target of a $ref it writes lowers
 // where the $ref lands, as every landing does (PromiseLandings).
 func keepUncomposedBranch(c lowering.Ctx, m *ir.Model, b *statement.Statement) []ir.Diagnostic {
