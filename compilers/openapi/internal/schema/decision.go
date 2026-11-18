@@ -343,9 +343,9 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 // soleUnion returns the inline conjunct writing the union the position is,
 // nothing beside it conjoining with it, as hasUnionSiblings reads one written
 // at the position (docs/compilers/openapi.md#union-beside-structure): s writes
-// no union, no conjunct is a $ref or writes another, the union's writes no
-// allOf, a body beside it, no other writes a discriminator, which routes the
-// union, and each keyword a conjunct writes that a variant would carry
+// no union, no conjunct is a $ref or writes another, the union's entry writes
+// no allOf, a body beside it, no other writes a discriminator, which routes
+// the union, and each keyword a conjunct writes that a variant would carry
 // (siblingKeywords), an allOf aside, every branch says (branchesSay), the
 // branches declaring shape against the rest where one is written. The union
 // is looked for first, as most composing allOfs write none.
