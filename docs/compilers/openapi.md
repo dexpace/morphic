@@ -4306,7 +4306,9 @@ judged as one whose branches declare shape.
   `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
   `e2e.TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806).
+  legal (#1806). A `oneOf` and an `anyOf` beside an `allOf` of an object body whose branches share
+  null alone, as `[{type: object}, {type: 'null'}]` and `[{type: string}, {type: 'null'}]` do, draw
+  both warnings, where on its entries they draw the one naming the conjuncts (#2011).
 
 ### `union-beside-ref`
 
