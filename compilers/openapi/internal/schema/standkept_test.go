@@ -275,34 +275,38 @@ func TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept(t *testing.T) {
 	assert.NotContains(t, media[0], "no Encoding field")
 }
 
-// TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey pins an inline
-// principal its position keeps whole, holding a value no JSON holds: no entry
-// is kept under its key, whole or in part, and one error says so; what its
-// own reading keeps is kept keyword by keyword, as written flat, and held
-// against the position's, each named by its report.
-func TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey(t *testing.T) {
+// TestPrincipalKept_AWholeEntryThatCannotRenderIsKeptByKeyword pins an inline
+// principal its position would keep whole, holding a value no JSON holds: it
+// is not kept whole, and nothing of it is lost for that one value. What it
+// keeps is held keyword by keyword against the position's, as any principal's
+// is, and the one value is refused where it is written, as written flat.
+func TestPrincipalKept_AWholeEntryThatCannotRenderIsKeptByKeyword(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Free: {allOf: [{type: string, minimum: 1, x-k: 1, x-q: "+unpreservableValue+"}], x-k: 2}\n"+
 			"    Taken: {allOf: [{type: string, minimum: 1, x-k: 1, x-q: "+unpreservableValue+"}], x-k: 2, minimum: 2}\n"+
 			"    Shared: {allOf: [{type: string, x-k: 1, x-q: "+unpreservableValue+"}], x-k: 2}\n"))
-	assert.Equal(t, map[string]string{"openapi:minimum": "1 [degraded_lowering]", "openapi:x-k": "2 [vendor_extension]"},
-		keptOn(t, doc, "Free"))
 	assert.Equal(t, map[string]string{
-		"openapi:allOf/0": `{"minimum":1} [degraded_lowering]`,
+		"openapi:allOf/0": `{"x-k":1} [vendor_extension]`,
+		"openapi:minimum": "1 [degraded_lowering]",
+		"openapi:x-k":     "2 [vendor_extension]",
+	}, keptOn(t, doc, "Free"))
+	assert.Equal(t, map[string]string{
+		"openapi:allOf/0": `{"minimum":1,"x-k":1} [degraded_lowering]`,
 		"openapi:minimum": "2 [degraded_lowering]",
 		"openapi:x-k":     "2 [vendor_extension]",
 	}, keptOn(t, doc, "Taken"))
-	assert.Equal(t, map[string]string{"openapi:x-k": "2 [vendor_extension]"}, keptOn(t, doc, "Shared"))
+	assert.Equal(t, map[string]string{"openapi:allOf/0": `{"x-k":1} [vendor_extension]`, "openapi:x-k": "2 [vendor_extension]"},
+		keptOn(t, doc, "Shared"))
 	for _, name := range []string{"Free", "Taken", "Shared"} {
-		entry := reportsAt(diags, "/components/schemas/"+name+"/allOf/0")
-		require.NotEmpty(t, entry, name)
-		assert.Contains(t, strings.Join(entry, "\n"), "could not be kept whole", name)
-		assert.Contains(t, strings.Join(entry, "\n"), "the rest (x-k, x-q) in no form at all", name)
-		assert.NotContains(t, strings.Join(entry, "\n"), "is represented in the IR in no form at all", name)
+		at := "/components/schemas/" + name + "/allOf/0"
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnpreservableConstruct, at+"/x-q"), "%s: the value is refused at its keyword", name)
+		for _, msg := range reportsAt(diags, at) {
+			assert.NotContains(t, msg, "in no form at all", "%s: the entry is in the IR", name)
+		}
 	}
-	assert.Len(t, reportsAt(diags, "/components/schemas/Free/allOf/0"), 2, "the error and the bound's own report")
-	assert.Len(t, reportsAt(diags, "/components/schemas/Taken/allOf/0"), 2, "the error and the bound kept under the entry's key")
+	assert.Len(t, reportsAt(diags, "/components/schemas/Free/allOf/0"), 2, "the bound's own report and the extension held otherwise")
+	assert.Len(t, reportsAt(diags, "/components/schemas/Taken/allOf/0"), 2, "the bound and the extension, each held otherwise")
 }
 
 // TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes pins the kind a
@@ -432,7 +436,7 @@ func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
 		{"ResidueApart", "{allOf: [{type: string, minimum: 1, foo: " + bad + "}], minimum: 2, foo: 2}", diag.UnpreservableConstruct,
 			[]string{"allOf:minimum", "foo", "minimum"}},
 		{"Whole", "{allOf: [{type: string, minimum: 1, x-k: 1, x-q: " + bad + "}], minimum: 2, x-k: 2}", diag.UnpreservableConstruct,
-			[]string{"allOf:minimum", "minimum"}},
+			[]string{"allOf:minimum", "allOf:x-k", "minimum"}},
 		{"RoutesApart", "{allOf: [{type: string, minimum: 1, discriminator: {propertyName: a, mapping: {x: Nope}}}], " +
 			"minimum: 2, discriminator: {propertyName: b}}", diag.UnresolvedRef, []string{"allOf:discriminator", "allOf:minimum", "discriminator", "minimum"}},
 		{"RoutesPlain", "{allOf: [{type: string, minimum: 1, discriminator: {propertyName: a, mapping: {x: Nope}}}], minimum: 2}",

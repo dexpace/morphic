@@ -2783,9 +2783,9 @@ written, as the flat spelling's is, and kept nowhere. A principal the position k
 for one of the causes above holds there every keyword of it that no field reads: each is kept once,
 inside the whole entry, and named once, by that entry's report, whose reason reads them as it reads
 the rest, and the principal's own reading keeps and reports none of them apart, a type list's
-variants included. One whose entry no JSON holds is not kept whole: an
-`openapi/unpreservable-construct` error at the entry names the keywords left in no form, and the
-principal's readings keep theirs keyword by keyword, as above. It is kept
+variants included. One whose entry no JSON holds is not kept whole: what it keeps is held keyword
+by keyword, as above, the value no JSON holds refused where it is written by an
+`openapi/unpreservable-construct` error. It is kept
 under the reason its kept keywords share where they share one, else
 `degraded_lowering`, and reported at the branch by an `openapi/validation-only-keyword` where that
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
@@ -2843,7 +2843,7 @@ every entry reads that one twice.
   `schema.TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines`,
   `schema.TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce`,
   `schema.TestPrincipalKept_AValueThatCannotRenderIsRefusedAsWrittenFlat`,
-  `schema.TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey`,
+  `schema.TestPrincipalKept_AWholeEntryThatCannotRenderIsKeptByKeyword`,
   `schema.TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName`,
   `schema.TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing`,
   `e2e.TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce`,

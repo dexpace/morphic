@@ -388,20 +388,20 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 // it lowered from, an entry of comp, with held, what that principal's readers
 // keep after the position (principalKept). Kept whole, the entry holds what
 // they said: its report names those too, its reason reads them, and held is
-// told, so they keep none. An entry no JSON holds is not kept whole and says
-// so, the readers keeping theirs. Else what e keeps that another conjunct
-// writes otherwise (keptEntry.apart) is placed as theirs are (heldAgainst):
-// under its own key where p holds none, else the entry's (keepApart).
+// told, so they keep none. An entry no JSON holds is not kept whole: what it
+// keeps is placed keyword by keyword, as what e keeps that another conjunct
+// writes otherwise is (keptEntry.apart): under its own key where p holds
+// none, else under the entry's (heldAgainst, keepApart).
 func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, comp allOfComposition, e keptEntry,
 	held *principalKept,
 ) (keptEntry, []ir.Diagnostic) {
 	if e.keptWhole() {
 		if _, err := annotation.RawFromNode(e.entry.schema.Node); err != nil {
-			return keptEntry{entry: e.entry}, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnpreservableConstruct, e.entry.pointer,
-				"this inline branch could not be kept whole under Unmodeled, so of what it writes only what the position "+
-					"lowered from it and what is kept keyword by keyword is in the IR, and the rest (%s) in no form at all: %s",
-				strings.Join(e.residue, ", "), err.Error())}
+			// The keeper of the keyword no JSON holds refuses it, where written.
+			e.whole, e.apart = keptApart, keptOf(c, e)
 		}
+	}
+	if e.keptWhole() {
 		if held == nil {
 			// No reader of the principal keeps a keyword after the position.
 			return e, nil
