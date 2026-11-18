@@ -5733,7 +5733,8 @@ with its reason, which names the open issue it stands under. The test asks this 
 asks it of every case, an entry written before the `$ref` and a second keyword written with the
 first among them, and fails on what the records, `testdata/full` among them, do not explain. The guarantee is a floor rather than an inventory:
 it compares one pair of values per keyword, so a lowering that carried one value and dropped
-another would still pass. A dependency map with no entry is no value in that sense but the keyword
+another would still pass. It compares compiled documents with each other and never with the value
+written, so a value read wrongly in every spelling, a bound one wider than written, passes too. A dependency map with no entry is no value in that sense but the keyword
 left out ([`validation-only`](#validation-only)). A keyword kept verbatim keeps its `$ref`s as written, and the positions
 they land on are lowered ([`validation-only`](#validation-only)).
 
