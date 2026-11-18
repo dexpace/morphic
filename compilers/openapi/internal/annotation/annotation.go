@@ -312,10 +312,10 @@ func DeclaresRedaction(s *statement.Schema) bool {
 // position attaching annotations makes it apart.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
-	for _, keyword := range st.Leaves {
-		if _, kept := out.Unmodeled[EntryKey("", keyword)]; kept {
-			delete(out.Unmodeled, EntryKey("", keyword))
-			diags = lessNote(diags, doc.At(pointer), EntryKey("", keyword))
+	for _, key := range leftEntries(st) {
+		if _, kept := out.Unmodeled[key]; kept {
+			delete(out.Unmodeled, key)
+			diags = lessNote(diags, doc.At(pointer), key)
 		}
 	}
 	var u underlay
@@ -347,6 +347,28 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 	out.Deprecated = EffectiveDeprecated(chain)
 	out.Sensitive = slices.ContainsFunc(chain, DeclaresRedaction)
 	return out, diags
+}
+
+// leftEntries returns the entries Read keeps none of for st.Leaves: the one
+// each keyword is kept under, and the one several keywords fold into, if, then
+// and else or contains and its counts, where the site leaves every one of
+// them it writes.
+func leftEntries(st Site) []string {
+	if len(st.Leaves) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(st.Leaves)+2)
+	for _, keyword := range st.Leaves {
+		out = append(out, EntryKey("", keyword))
+	}
+	left := func(keyword string) bool { return slices.Contains(st.Leaves, keyword) }
+	if _, written, _ := IfThenElseRaw(st.Node); len(written) > 0 && !slices.ContainsFunc(written, func(k string) bool { return !left(k) }) {
+		out = append(out, "openapi:if-then-else")
+	}
+	if _, written, _ := ContainsRaw(st.Node); len(written) > 0 && !slices.ContainsFunc(written, func(k string) bool { return !left(k) }) {
+		out = append(out, "openapi:contains")
+	}
+	return out
 }
 
 // lessNote returns diags less the report validationOnlyAt drew at at for the

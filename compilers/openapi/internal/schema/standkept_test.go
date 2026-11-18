@@ -648,6 +648,7 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 	t.Parallel()
 	keywords := map[string]string{
 		"foo": "1", "default": "a", "readOnly": "true", "dependentRequired": "{a: [z]}", "not": "{type: integer}", "x-v": "1",
+		"if": "{minLength: 1}",
 	}
 	var lines strings.Builder
 	for keyword, value := range keywords {
@@ -662,8 +663,12 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 		name := strings.ToUpper(keyword[:1]) + strings.ReplaceAll(keyword[1:], "-", "")
 		at := "/components/schemas/" + name
 		kept := keptOn(t, doc, name)
+		key := "openapi:" + keyword
+		if keyword == "if" {
+			key = "openapi:if-then-else" // the entry if, then and else fold into
+		}
 		require.Len(t, kept, 1, "%s: kept once: %v", name, kept)
-		assert.Contains(t, kept, "openapi:"+keyword, name)
+		assert.Contains(t, kept, key, name)
 		said := 0
 		for _, d := range diags {
 			if strings.HasPrefix(string(d.Provenance.Pointer), at) && (d.Provenance.Pointer == jsontext.Pointer(at) ||
@@ -678,7 +683,7 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 		assert.Equal(t, want, said, "%s: reported once", name)
 
 		whole := keptOn(t, doc, "Whole"+name)
-		assert.NotContains(t, whole, "openapi:"+keyword, "Whole%s: the whole entry holds the one writing", name)
+		assert.NotContains(t, whole, key, "Whole%s: the whole entry holds the one writing", name)
 		assert.Contains(t, whole["openapi:allOf/0"], `"`+keyword+`":`, "Whole%s", name)
 		assert.Empty(t, reportsAt(diags, "/components/schemas/Whole"+name), "Whole%s: nothing is reported of the position's", name)
 		assert.Empty(t, reportsAt(diags, "/components/schemas/Whole"+name+"/"+keyword), "Whole%s", name)

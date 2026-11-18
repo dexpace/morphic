@@ -748,9 +748,16 @@ func TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce(t *testing.T) {
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/p": 2, "/p/allOf/0": 1}, at, "the site reports its two, the voice the one it alone writes")
 
-	got, diags = Read(Site{Kind: Declaration, Node: site, Leaves: []string{"not", "x-a", "title"}}, "/p", sourced(0))
+	got, diags = Read(Site{Kind: Declaration, Node: site, Leaves: []string{"not", "x-a", "title", "if"}}, "/p", sourced(0))
 	assert.NotContains(t, got.Unmodeled, "openapi:not")
 	assert.NotContains(t, got.Unmodeled, "openapi:x-a")
-	assert.Contains(t, got.Unmodeled, "openapi:if-then-else", "a keyword it does not leave is kept")
+	assert.Contains(t, got.Unmodeled, "openapi:if-then-else", "an entry of several keywords is kept while it leaves but one")
+	assert.Len(t, diags, 1)
+
+	both := standaloneSchema(schemaFromYAML(t, written+"contains: {type: string}\nminContains: 2\n"))
+	got, diags = Read(Site{Kind: Declaration, Node: both, Leaves: []string{"if", "then", "contains", "minContains"}}, "/p", sourced(0))
+	assert.NotContains(t, got.Unmodeled, "openapi:if-then-else", "and left where it leaves every one it writes")
+	assert.NotContains(t, got.Unmodeled, "openapi:contains")
+	assert.Contains(t, got.Unmodeled, "openapi:not")
 	assert.Len(t, diags, 1)
 }
