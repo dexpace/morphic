@@ -4925,9 +4925,9 @@ same way, its values still read as references ([`discriminator`](#discriminator)
 naming the empty string as its tag on a `Model`, or a `Union` a `oneOf` or `anyOf` builds, that
 cannot hold that tag, whose report says so, where the `Union` an enum or a type array lowers to
 routes by none and is reported as for any tag. At a
-`$ref` position the census runs on the alias the use-site rule of
-[models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
-than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
+`$ref` position the census runs on the node the position owns
+([models](../ir/models.md#composition-entries)), the `Model` over an object or the alias over
+anything else, since the siblings bind the position rather than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
 holds what a node of its kind holds. A collapsed union and an expanded `$dynamicRef` lower to a
 reference, so they are read as a `$ref` position is, and an `allOf` that refines takes the same
 census, but for what its principal already says, a union beside it among what it keeps
