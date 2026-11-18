@@ -25,8 +25,8 @@ func Reasons() map[string]string {
 			"beside the allOf the conjunction's items answers it",
 		"entry-type-list": "#2039: a type list on an inline allOf entry over an object composition is kept " +
 			"verbatim, where beside the allOf it is read",
-		"closure-beside-union": "#2047: a closure keyword beside a oneOf or anyOf on one inline allOf entry " +
-			"keeps the entry whole, where beside the allOf it closes each variant",
+		"closure-beside-union": "#2047: an additionalProperties or patternProperties beside a oneOf or anyOf on " +
+			"one inline allOf entry keeps the entry whole, where beside the allOf each variant takes it",
 		"residue-per-variant": "#2054: a keyword kept verbatim beside a union on an inline allOf entry is " +
 			"copied onto each variant the union distributes into, where beside the allOf it is kept once on " +
 			"the Union",
