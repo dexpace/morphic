@@ -349,6 +349,9 @@ testdata/openapi/path_item_unmounted.yaml	58:30	unknown-object-key	compiler	unde
 testdata/openapi/path_item_unmounted.yaml	63:18	unknown-object-key	compiler	undefined-key
 testdata/openapi/status_key_unreadable.yaml	20:71	unknown-object-key	compiler	undefined-key
 testdata/openapi/status_key_unreadable.yaml	26:76	unknown-object-key	compiler	undefined-key
+testdata/conformance/openapi/kept-ref-unrenderable.yaml	15:7	validation-invalid-syntax	library	numeric-literal
+testdata/conformance/openapi/kept-ref-unrenderable.yaml	20:7	validation-invalid-syntax	library	numeric-literal
+testdata/conformance/openapi/kept-ref-unrenderable.yaml	25:7	validation-invalid-syntax	library	numeric-literal
 testdata/conformance/openapi/ref-beside-keys.yaml	10:67	unknown-object-key	compiler	undefined-key
 testdata/conformance/openapi/ref-beside-keys.yaml	12:59	unknown-object-key	compiler	undefined-key
 testdata/conformance/openapi/ref-beside-keys.yaml	12:77	unknown-object-key	compiler	undefined-key
