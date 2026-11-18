@@ -145,6 +145,14 @@ func TestUnpairedFacts_PairsAnUntiedMembersFactsByWhatLost(t *testing.T) {
 	left, right = unpairedFacts(written, written, nil)
 	assert.Empty(t, left)
 	assert.Empty(t, right)
+
+	info := conflictAt(seqs, "/A/q", []string{"/B/q"}, "p/M/q")
+	info.rebased.Severity = ir.SeverityInfo
+	restated, _ := factsOf([]report{info}, seqs)
+	once, _ := factsOf([]report{twice}, seqs)
+	left, right = unpairedFacts(once, restated, nil)
+	assert.Equal(t, []report{twice}, left, "a report saying the same of a member at another severity is no pair")
+	assert.Equal(t, []report{info}, right)
 }
 
 // TestHeldBy_ReadsWhatAMemberTakesAndWhatItsDeclarationsSay pins the reading

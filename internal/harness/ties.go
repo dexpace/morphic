@@ -21,15 +21,15 @@ import (
 // names it in both orders.
 type decision struct{ member, lost, kept string }
 
-// fact is a decision, the report stating it, and its two places as written,
-// not erased, which tell two entries of one allOf apart. A conflict between
-// two declarations is such a report (ir.RelatedKept, ir.RelatedDecided), said
-// once for every model composing them, so it states a fact per member it
-// lists.
+// fact is a decision, the report stating it, what it says beside its places
+// (its severity and code), and its two places as written, not erased, which
+// tell two entries of one allOf apart. A conflict between two declarations is
+// such a report (ir.RelatedKept, ir.RelatedDecided), said once for every model
+// composing them, so it states a fact per member it lists.
 type fact struct {
 	decision
-	lostAt, keptAt string
-	report         report
+	lostAt, keptAt, says string
+	report               report
 }
 
 // factsOf splits rs into the facts its reports carrying a pair state and the
@@ -43,10 +43,11 @@ func factsOf(rs []report, written sequences) (facts []fact, rest []report) {
 			continue
 		}
 		lostAt, keptAt := placeOf(r.rebased.Provenance), placeOf(kept[0])
+		says := string(r.rebased.Severity) + "\x00" + r.rebased.Code
 		for _, member := range decided {
 			facts = append(facts, fact{
 				member: erase(member, written), lost: erase(lostAt, written), kept: erase(keptAt, written),
-				lostAt: lostAt, keptAt: keptAt, report: r,
+				lostAt: lostAt, keptAt: keptAt, says: says, report: r,
 			})
 		}
 	}
@@ -112,17 +113,17 @@ func unpairedFacts(a, b []fact, tied []string) (left, right []report) {
 
 // factsWithout returns, once each and in order, the reports of a stating a
 // fact of an untied member left once each fact of b takes one of a of its
-// member and lost place.
+// member, lost place and what its report says beside its places.
 func factsWithout(a, b []fact, tied []string) []report {
-	type lost struct{ member, at string }
+	type lost struct{ member, at, says string }
 	taken := map[lost]int{}
 	for _, f := range b {
-		taken[lost{f.member, f.lost}]++
+		taken[lost{f.member, f.lost, f.says}]++
 	}
 	var out []report
 	seen := map[string]bool{}
 	for _, f := range a {
-		key := lost{f.member, f.lost}
+		key := lost{f.member, f.lost, f.says}
 		if _, isTied := slices.BinarySearch(tied, f.member); isTied {
 			continue
 		}
