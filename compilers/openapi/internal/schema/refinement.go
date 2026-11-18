@@ -1339,18 +1339,19 @@ const primitiveKinds = kindString | kindNumber | kindBoolean
 
 // undecidedTypes returns the types s, written at pointer, lowers by where its
 // allOf refines electing no entry: the kinds its conjuncts admit together, null
-// aside (lowersTo), in one order whatever the order written. It returns none
-// where they share no value, are none, or hold an object or an array, whose
-// shape no entry was elected to give, every kind among them, or the
-// kind-inference policy read them, as it reads only those: the position is then
-// the top type.
+// aside (lowersTo), and where they state value sets of the members those share
+// (sharedKinds), in one order whatever the order written. It returns none
+// where those are none, as for sets sharing no member, or hold an object or an
+// array, whose shape no entry was elected to give, every kind among them, or
+// the kind-inference policy read them, as it reads only those: the position is
+// then the top type.
 func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.Kind {
 	r, refines := refinementOf(c, s, pointer)
-	if !refines || r.principal != nil || r.contradicts {
+	if !refines || r.principal != nil {
 		return nil
 	}
 	kinds, inferred := lowersTo(c, c.Statements().Read(s))
-	kinds &^= kindNull
+	kinds &= sharedKinds(r.joint) &^ kindNull
 	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
 		return nil
 	}
@@ -1367,6 +1368,21 @@ func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 	}
 	if kinds&kindBoolean != 0 {
 		out = append(out, statement.KindBoolean)
+	}
+	return out
+}
+
+// sharedKinds returns the kinds of what joint, what the conjuncts of a
+// refinement admit together as its election reads them, holds: where they
+// state value sets, the kinds of the members every set shares, as an instance
+// meets each set only as a member of it; else its kinds.
+func sharedKinds(joint admitted) kindSet {
+	if !joint.fixed {
+		return joint.kinds
+	}
+	var out kindSet
+	for _, kind := range joint.members {
+		out |= kind
 	}
 	return out
 }

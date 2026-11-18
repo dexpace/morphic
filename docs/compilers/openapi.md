@@ -2354,8 +2354,13 @@ only overlap. The position then lowers by the keywords beside the `allOf`, keepi
 an info. Where they name no kind, it is what its conjuncts admit together, null aside, as a `type`
 list naming those kinds lowers, where those are a string, a number or a boolean alone or together:
 `{allOf: [{type: string, format: email}, {type: string, format: uuid}]}` is a `string`, two type lists
-sharing a string and an integer the `Union` of the two, two `enum`s the kinds each holds a member
-of, as `{allOf: [{enum: [true, a]}, {enum: [true, b]}]}` is the `Union` of a string and a boolean. Where they admit an object or an array, every kind among them, it is the top type, as no entry
+sharing a string and an integer the `Union` of the two, and value sets the kinds of the members
+every set holds, as an instance meets each only as a member of it, so `{allOf: [{enum: [true, a]},
+{enum: [true, b]}]}` is a boolean, `true` alone meeting both, `{allOf: [{enum: [1, true, x]}, {enum:
+[1, true, y]}, {type: [integer, string]}]}` an integer, the other conjuncts' kinds leaving `1`, and
+sets sharing no member, or whose shared members another conjunct's kinds exclude, admit no value:
+the top type, with the warning that they share no value
+([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Where they admit an object or an array, every kind among them, it is the top type, as no entry
 was elected to give that shape and a node of the kind would assert members or items none states.
 Words admitting alike part only where a node reads a
 keyword from its principal alone, `items`, `prefixItems`, `additionalItems` and the content
@@ -2468,6 +2473,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 - Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
   `e2e.TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal`,
   `e2e.TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder`,
+  `schema.TestRefinementUndecided_ValueSetsAreTypedByTheMembersTheyShare`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAlikeInEitherOrder`,
   `e2e.TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling`,

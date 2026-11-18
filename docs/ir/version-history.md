@@ -924,7 +924,7 @@ it sees. Changes made together in one bump are listed together under it.
   `$ref` whose target admits every kind. An `allOf` electing no entry, with no keyword beside it
   naming a kind, is the primitive its entries admit together, or the `Union` of several, where those
   are a string, a number or a boolean, where it was the top type, which it stays where they admit an
-  object or an array. Value sets sharing no member, whose kinds share one other than an object
+  object or an array; of value sets, the kinds of the members every set holds. Value sets sharing no member, whose kinds share one other than an object
   alone, compose no `Model` and elect no conjunct: the keywords beside the `allOf` decide, the top
   type keeping each entry where they name no kind, and the warning that the conjuncts share no value,
   naming each set by its member count, is drawn wherever the election reads them so, where it
