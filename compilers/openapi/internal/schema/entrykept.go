@@ -408,10 +408,20 @@ func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition
 	holder := comp.branches[i].schema.Schema
 	choice := holder.ChoiceKeywords()
 	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, choice.OneOf, choice.AnyOf) ||
-		keptWithElected(c, s, comp.pointer) {
+		keptWithElected(c, s, comp.pointer) || pairedWithNullOnly(c, s) {
 		return ir.ReasonDegradedLowering
 	}
 	return ir.ReasonValidationOnly
+}
+
+// pairedWithNullOnly reports whether s refines to the union one inline entry
+// of its allOf writes, of two written on two entries (unionPair), every branch
+// of which is a null branch: the position lowers as null alone, which keeps
+// the union passed over as degraded_lowering, as one schema writing both does
+// (docs/compilers/openapi.md#union-null-only).
+func pairedWithNullOnly(c lowering.Ctx, s *statement.Schema) bool {
+	d := decisionOf(c, s)
+	return d.refines && d.r.paired && allNullUnion(c, branchStatement(c, s, d.principalAt).Schema)
 }
 
 // keptWithElected reports whether s, written at pointer, elects the union an

@@ -122,6 +122,10 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 		switch {
 		case key == "allOf" && e.wrapper, speaks && folds(c, bs, key, homes), collapsed && unionKeyword(key):
 			return true
+		case r.paired && unionKeyword(key) && !r.principalIs(e):
+			// The union passed over is kept whatever the elected one says, as
+			// one schema writing both keeps it (preserveUnusedCombinator).
+			return false
 		case censused && unionKeyword(key):
 			return !set
 		case censused && slices.Contains(contentKeywords, key):

@@ -4019,7 +4019,12 @@ the union's own entry, the union stands alone and lowers as written at the posit
 the nullable reference to `X` and `{allOf: [{oneOf: [{$ref: X}, {$ref: Y}]}]}` the `Union` of `X`
 and `Y` ([`union`](#union), [`union-null-variant`](#union-null-variant),
 [`union-null-only`](#union-null-only)), keeping of the union what the bare union keeps, and a
-note, bound or annotation beside it lands where it does beside the bare union. A `type: object`, a property set, a
+note, bound or annotation beside it lands where it does beside the bare union. A `oneOf` and an
+`anyOf` standing so together, on one entry or one each on two, at any depth, lower as one schema
+writing both with nothing beside them does, whatever kinds their branches admit
+([`competing-keywords`](#competing-keywords)): the entry of the one elected is the principal, its
+null branch lifted no more than that schema's, and the other is kept on the node it lowers to, a
+`discriminator` on the other's entry leaving them a composition. A `type: object`, a property set, a
 `$ref` or a `discriminator` written beside the union, on its entry, on another or beside the `allOf`,
 is what a variant carries, so there the union distributes, one variant included, a `discriminator` on
 its own entry aside, which routes the union standing alone. The `discriminator` standing with it is the one its branch writes, else the
@@ -4297,11 +4302,10 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs`,
   `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
-  `e2e.TestUnionAlone_ABodyBesideItStillDistributes`
+  `e2e.TestUnionAlone_ABodyBesideItStillDistributes`,
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806). With no body, a `oneOf` and an `anyOf` on two entries of an `allOf` distribute the
-  `oneOf`, where one entry writing both, or the schema itself, is the `Union` keeping the `anyOf`
-  (#2011).
+  legal (#1806).
 
 ### `union-beside-ref`
 
@@ -4342,7 +4346,8 @@ collapsing would resolve the position to a shared primitive, which must never ca
 declaration's keywords. The same preference decides between a `oneOf` and an `anyOf` written on two
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
-with its entry. Where a *structural* sibling is written as well, beside the two or on another entry
+with its entry; with nothing else conjoining with them, the two lower as one schema writing both
+does, wherever their entries are, and draw what it draws. Where a *structural* sibling is written as well, beside the two or on another entry
 of the `allOf` holding them on one entry or two,
 [`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
 and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
@@ -4371,6 +4376,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
   `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
   `e2e.TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten`,
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 

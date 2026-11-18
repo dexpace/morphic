@@ -39,8 +39,12 @@ type refinement struct {
 	held admitted
 	// contradicts marks conjuncts sharing no value: a value set was elected
 	// before the composition they would otherwise lower to, or, for value sets
-	// sharing no member, no conjunct was (decide).
+	// sharing no member, no conjunct was (decide). Two unions standing alone
+	// are not marked, as one schema writing both reports none (unionPair).
 	contradicts bool
+	// paired marks an inline principal writing the union the position elects
+	// of two written on two entries, the other passed over (unionPair).
+	paired bool
 }
 
 // principalIs reports whether e is the branch the position lowers from: its
@@ -129,7 +133,7 @@ type decisionAt struct {
 // pointer asked; the indices of that principal and ref among the branches, -1
 // for none and the principal for the keywords beside the allOf; whether a
 // union written beside the allOf shares no kind with the rest, which the
-// position leaves out and keeps (unionAside); and apart, what each conjunct
+// position leaves out and keeps (unionAside); apart, what each conjunct
 // states where the election found they share no value (apartNames).
 type decision struct {
 	r           refinement
@@ -278,15 +282,15 @@ func statesNothing(s *statement.Schema) bool {
 	})
 }
 
-// decide reads what refinementOf remembers. Where the conjuncts share no
-// value, or their kinds, null aside, are an object alone, it composes, unless
-// it first elects a value set a conjunct states
-// (docs/compilers/openapi.md#competing-keywords) or a union nothing else
-// conjoins with (soleUnion); it composes too where the read is cut short, or
-// passes a cap but where it weighs one $ref alone (pastAlone). Value sets
-// sharing no member compose a Model only where those kinds are an object alone;
-// elsewhere the keywords beside the allOf decide. Anything else uses its
-// principal, a use of one target saying nothing more (usesOneRef) too.
+// decide reads what refinementOf remembers. Two unions standing alone elect
+// one (unionPair). Else conjuncts sharing no value, or whose kinds, null
+// aside, are an object alone, compose, unless it first elects a value set one
+// states (docs/compilers/openapi.md#competing-keywords) or a union standing
+// alone (soleUnion); so does a read cut short, or past a cap but where it
+// weighs one $ref alone (pastAlone). Value sets sharing no member compose a
+// Model only where those kinds are an object alone; elsewhere the keywords
+// beside the allOf decide. Anything else uses its principal, a use of one
+// target saying nothing more (usesOneRef) too.
 func decide(c lowering.Ctx, s *statement.Schema) decision {
 	comp := allOfBranches(c, s, "")
 	if !refinableBranches(comp) {
@@ -305,7 +309,8 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if aside {
 		kinds, inferred = restKinds(c, s, comp)
 	}
-	var principal *conjunct
+	pair, paired := unionPair(c, s, conjuncts)
+	principal := pair
 	one := usesOneRef(c, s, comp)
 	contradicts := !one && disjoint(joint, conjuncts)
 	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
@@ -313,11 +318,8 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if contradicts {
 		names = apartNames(s, comp, conjuncts, joint)
 	}
-	if contradicts || kinds == kindObject && !one {
-		principal = setElected(&w, s, conjuncts)
-		if principal == nil && !contradicts {
-			principal = soleUnion(c, s, conjuncts)
-		}
+	if principal == nil && (contradicts || kinds == kindObject && !one) {
+		principal = composingElected(c, &w, s, conjuncts, contradicts)
 		if principal == nil && !apart {
 			return decision{aside: aside, apart: names}
 		}
@@ -330,7 +332,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case principal == nil:
 		principal = w.elect(conjuncts, electable)
 	}
-	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts}
+	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts && pair == nil, paired: paired}
 	refAt := readThrough(conjuncts, principal)
 	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
 	// A use saying nothing more of a reference naming no schema is that
@@ -340,54 +342,125 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	return decision{r: r, apart: names, principalAt: principal.at, refAt: refAt, refines: refines, aside: aside}
 }
 
+// composingElected returns the conjunct elected where the conjuncts of s
+// would otherwise compose: a value set one states (setElected), else, where
+// they share a value (contradicts says not), a union standing alone
+// (soleUnion), and nil where neither is.
+func composingElected(c lowering.Ctx, w *admissionReader, s *statement.Schema, conjuncts []conjunct, contradicts bool) *conjunct {
+	if set := setElected(w, s, conjuncts); set != nil || contradicts {
+		return set
+	}
+	return soleUnion(c, s, conjuncts)
+}
+
 // soleUnion returns the inline conjunct writing the union the position is,
 // nothing beside it conjoining with it, as hasUnionSiblings reads one written
-// at the position (docs/compilers/openapi.md#union-beside-structure): s writes
-// no union, no conjunct is a $ref or writes another, the union's writes no
-// allOf, a body beside it, no other writes a discriminator, which routes the
-// union, and each keyword a conjunct writes that a variant would carry
-// (siblingKeywords), an allOf aside, every branch says (branchesSay), the
-// branches declaring shape against the rest where one is written. The union
-// is looked for first, as most composing allOfs write none.
+// at the position (docs/compilers/openapi.md#union-beside-structure): one
+// conjunct writes a union (unionEntries) and nothing else conjoins with it
+// (standsAlone).
 func soleUnion(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conjunct {
+	unions := unionEntries(s, conjuncts)
+	if len(unions) != 1 || !standsAlone(c, s, conjuncts, unions, unions[0]) {
+		return nil
+	}
+	return unions[0]
+}
+
+// unionPair returns the conjunct writing the union the position elects where
+// its conjuncts write a oneOf and an anyOf, on one inline entry or one each on
+// two, and nothing else conjoining with them (standsAlone): the position is
+// then one schema writing both (docs/compilers/openapi.md#competing-keywords),
+// whatever the kinds their branches admit. The second result marks the two
+// written on two entries.
+func unionPair(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) (*conjunct, bool) {
+	unions := unionEntries(s, conjuncts)
+	elected := pairElected(c, s, unions)
+	if elected == nil || !standsAlone(c, s, conjuncts, unions, elected) {
+		return nil, false
+	}
+	return elected, len(unions) == 2
+}
+
+// pairElected returns the conjunct of unions whose union the position elects
+// where they write one oneOf and one anyOf between them: the one entry
+// writing both, which elects within itself (unionBranches), or of two entries
+// the one whose branches declare shape against the position, the oneOf's where
+// both or neither do, as anyOfElected reads one schema; else nil.
+func pairElected(c lowering.Ctx, s *statement.Schema, unions []*conjunct) *conjunct {
+	if len(unions) == 1 {
+		if choice := unions[0].schema.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
+			return unions[0]
+		}
+		return nil
+	}
+	if len(unions) != 2 {
+		return nil
+	}
+	one, other := unions[0], unions[1]
+	if len(one.schema.ChoiceKeywords().OneOf) == 0 {
+		one, other = other, one
+	}
+	oneOf, anyOf := one.schema.ChoiceKeywords(), other.schema.ChoiceKeywords()
+	if len(oneOf.AnyOf) > 0 || len(oneOf.OneOf) == 0 || len(anyOf.OneOf) > 0 || len(anyOf.AnyOf) == 0 {
+		return nil
+	}
+	if !setsDeclareShape(c, s, one.schema, oneOf.OneOf) && setsDeclareShape(c, s, other.schema, anyOf.AnyOf) {
+		return other
+	}
+	return one
+}
+
+// unionEntries returns the conjuncts writing a union where each is an inline
+// entry writing no allOf of its own, s writes no union and no conjunct is a
+// $ref, and nil otherwise. The unions are looked for first, as most composing
+// allOfs write none.
+func unionEntries(s *statement.Schema, conjuncts []conjunct) []*conjunct {
 	if declaresUnion(s) {
 		return nil
 	}
-	var union *conjunct
+	var unions []*conjunct
 	for i := range conjuncts {
 		cj := &conjuncts[i]
 		switch {
 		case cj.branch == nil || cj.branch.schema.Ref == nil && !declaresUnion(cj.schema):
-		case union != nil || cj.branch.schema.Ref != nil || cj.branch.wrapper:
+		case cj.branch.schema.Ref != nil || cj.branch.wrapper:
 			return nil
 		default:
-			union = cj
+			unions = append(unions, cj)
 		}
 	}
-	if union == nil {
-		return nil
-	}
+	return unions
+}
+
+// standsAlone reports whether nothing beside unions, the conjuncts writing
+// them, conjoins with them, elected writing the one the position is: no other
+// conjunct writes a discriminator, which routes that union, and each keyword a
+// conjunct writes that a variant would carry (siblingKeywords), an allOf
+// aside, every branch of each union says (branchesSay), a union declaring shape
+// against the rest where one is written.
+func standsAlone(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, unions []*conjunct, elected *conjunct) bool {
 	written := false
 	for i := range conjuncts {
 		cj := &conjuncts[i]
-		if cj != union && cj.schema.Discriminator() != nil {
-			return nil
+		if cj != elected && cj.schema.Discriminator() != nil {
+			return false
 		}
 		keys := slices.DeleteFunc(siblingKeywords(cj.schema), func(k string) bool { return k == "allOf" })
 		if len(keys) == 0 {
 			continue
 		}
-		said := branchesSay(c, union.schema, cj.schema)
-		if slices.ContainsFunc(keys, func(k string) bool { return !slices.Contains(said, k) }) {
-			return nil
+		for _, u := range unions {
+			said := branchesSay(c, u.schema, cj.schema)
+			if slices.ContainsFunc(keys, func(k string) bool { return !slices.Contains(said, k) }) {
+				return false
+			}
 		}
 		written = true
 	}
-	choice := union.schema.ChoiceKeywords()
-	if written && !setsDeclareShape(c, s, union.schema, choice.OneOf, choice.AnyOf) {
-		return nil
-	}
-	return union
+	return !written || slices.ContainsFunc(unions, func(u *conjunct) bool {
+		choice := u.schema.ChoiceKeywords()
+		return setsDeclareShape(c, s, u.schema, choice.OneOf, choice.AnyOf)
+	})
 }
 
 // pastAlone reports whether conjuncts, read past a cap, still refine: the
