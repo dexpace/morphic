@@ -23,7 +23,7 @@ func TestEntryValueSet_ARefWithTheValueSetBesideItIsTheSameNode(t *testing.T) {
 			schema := "{$ref: '#/components/schemas/T', " + vs.keyword + "}"
 			inBothMappingOrders(t, conjunctionSpec("3.1.0", schema, vs.target), func(t *testing.T, spec string) {
 				doc, diags := compileAnnotationSpec(t, "beside", spec)
-				requireErrorsAndWarnings(t, diags, nil)
+				requireErrorsAndWarnings(t, diags, entryWarnings(vs))
 				requireNoEntryIndexedType(t, doc)
 				for _, at := range conjunctionPositions {
 					requireEntryNodeAt(t, doc, diags, at, vs, -1)

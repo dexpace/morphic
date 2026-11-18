@@ -2262,11 +2262,15 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
 3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
    depth ([`allof-classification`](#allof-classification));
 4. the conjuncts share no value, a null they all admit being no shared value unless a conjunct
-   admits nothing else, and no value set is elected (below). A warning says so at the schema where
-   their instance types share none ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), and
+   admits nothing else, no value set is elected (below), and the kinds they admit share none or
+   are an object alone. A warning says so at the schema where their instance types share none
+   ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), or their value sets no member, and
    otherwise at a branch writing a `type` that excludes an object
-   ([`allof-inline-residue`](#allof-inline-residue)). Where neither holds, as for two `enum`s
-   sharing no member, each branch is kept with an info and no report names the contradiction.
+   ([`allof-inline-residue`](#allof-inline-residue)). Value sets sharing no member whose kinds
+   share one that is no object alone compose nothing: no conjunct is the principal, so the
+   position lowers by the keywords beside the `allOf`, and to the top type keeping each entry
+   where those name no kind, `{allOf: [{enum: [a, b]}, {enum: [c, d]}]}` among them, with the one
+   warning. A `$ref` among such conjuncts is kept with an info saying so.
 
 A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in what a `$ref` lands on,
 is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
@@ -2295,9 +2299,8 @@ over a string; a set that keyword leaves no value either, as `enum: []`, is elec
 `{allOf: [{$ref: Obj},
 {enum: [{a: x}]}]}` is the `Union` of `Literal`s that enum is, as written beside the `allOf`, and
 `{allOf: [{$ref: Level}, {enum: [other]}]}` with `other` outside `Level` an `Enum` of `other`, the
-`$ref` kept with an info saying they share no value, and where their instance types share none the
-warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) names the value set it lowered
-as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
+`$ref` kept with an info saying they share no value, and the warning of
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the value set it lowered as. Each conjunct the value set beats is kept as below, never the `allOf` whole, but where no value
 set is elected, as `enum: []` or two neither lying within the other,
 and the `allOf` writes an inline entry: one of `$ref` entries alone keeps each as below then too, as
 the `$ref` written beside the value set is kept.
@@ -3574,9 +3577,25 @@ is, the value set beside it among its conjuncts, so `{allOf: [{$ref: Obj}], enum
 lowered as. A value set beside the `allOf` holding no value its own type admits is reported where it
 is written ([`enum-const`](#enum-const)), so the `allOf` draws nothing more.
 
+Where the kinds the conjuncts admit share one but the election of
+[`allof-refinement`](#allof-refinement) reads them sharing no value, the null included, as value
+sets sharing no member do, or a set none of whose members a `format` it reads as narrowing a number
+to an integer admits, the same warning is drawn, read by that election, and names each value set
+by its member count and each other conjunct by the kinds and formats it admits, one admitting every
+kind left out, listed by what each states and then by name, so no order written orders them:
+`{allOf: [{enum: [a, b]}, {enum: [c, d]}]}` draws `allOf/0: 2 values, allOf/1: 2 values`, and
+`{allOf: [{type: number, format: int32}, {type: number, enum: [1.5]}]}` draws
+`allOf/1: 1 value, allOf/0: integer of format int32`, the format read as
+[`numeric-formats`](#numeric-formats) reads it, where JSON Schema asserts none by default. A null
+the schema admits as the nulls reading has it, a conjunct admitting no value by itself and a read
+cut short draw it nowhere, as above.
+
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
+  `schema.TestAllOf_ValueSetsSharingNoMemberWarnOnce`, `schema.TestAllOf_ValueSetsSharingAValueDrawNoWarning`,
+  `schema.TestAllOf_ValueSetsSharingNoMemberReportAlikeInEitherOrder`,
+  `schema.TestAllOf_ARefAmongValueSetsSharingNoMemberIsKept`,
   `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
   `e2e.TestEntryValueSet_AValueSetSharingNoKindWithItsRefWarnsInEverySpelling`, `schema.TestAllOf_AValueSetBesideAUnionWarnsOnce`,
   `schema.TestAllOf_DisjointReportStaysSilent`,

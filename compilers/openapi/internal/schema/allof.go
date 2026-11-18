@@ -161,7 +161,7 @@ func allOfBranches(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // election passed over does not.
 func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(c, s, pointer)
-	comp.disjoint = disjointConjuncts(c, s, comp)
+	comp.disjoint = disjointNames(c, s, comp)
 	comp.bounds = modelTakes(boundKinds(c, s))
 	comp.closer = closerOf(c, s, comp)
 	if allOfDecides(c, s) {

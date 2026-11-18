@@ -27,6 +27,7 @@ type entryValueSet struct {
 	target  string // the component T the $ref names, one line of YAML
 	keyword string // the value set as one YAML member
 	only31  bool   // the keyword is a 3.1 one
+	apart   bool   // the value set shares no member with its target's
 	kind    ir.TypeKind
 	check   func(t *testing.T, doc *ir.Document, node ir.TypeDef)
 }
@@ -42,7 +43,7 @@ func entryValueSets() []entryValueSet {
 		{name: "const", target: str, keyword: "const: a", only31: true, kind: ir.KindLiteral, check: requireEntryLiteral("a")},
 		{
 			name: "enum outside the target", target: "T: {type: string, enum: [low, mid]}", keyword: "enum: [other]",
-			kind: ir.KindEnum, check: requireEntryEnum("other"),
+			apart: true, kind: ir.KindEnum, check: requireEntryEnum("other"),
 		},
 		{name: "object enum", target: obj, keyword: "enum: [{a: x}]", kind: ir.KindUnion, check: requireEntryObjectUnion},
 		{name: "object const", target: obj, keyword: "const: {a: x}", only31: true, kind: ir.KindLiteral, check: requireEntryObjectLiteral},
@@ -125,7 +126,7 @@ func entryTree(t *testing.T, doc *ir.Document) string {
 	var findings []string
 	if list, ok := tree["diagnostics"].([]any); ok {
 		for _, d := range list {
-			findings = append(findings, fmt.Sprint(entryIndexless(d)))
+			findings = append(findings, disjointNamesAnywhere.ReplaceAllString(fmt.Sprint(entryIndexless(d)), "share no value"))
 		}
 	}
 	slices.Sort(findings)
@@ -251,7 +252,7 @@ func TestEntryValueSet_TheNodeStandsAtThePositionInEverySpelling(t *testing.T) {
 					t.Parallel()
 					inBothMappingOrders(t, conjunctionSpec(version, sp.schema, vs.target), func(t *testing.T, spec string) {
 						doc, diags := compileAnnotationSpec(t, "stands", spec)
-						requireErrorsAndWarnings(t, diags, nil)
+						requireErrorsAndWarnings(t, diags, entryWarnings(vs))
 						requireNoEntryIndexedType(t, doc)
 						for _, at := range conjunctionPositions {
 							requireEntryNodeAt(t, doc, diags, at, vs, sp.ref)
@@ -470,7 +471,7 @@ func TestEntryValueSet_AValueSetWrittenTwiceIsOneNodeInEveryOrder(t *testing.T) 
 				for _, entries := range []string{entryRef + ", " + set + ", " + set, set + ", " + entryRef + ", " + set,
 					set + ", " + set + ", " + entryRef} {
 					doc, diags := compileAnnotationSpec(t, "twice", conjunctionSpec(version, "{allOf: ["+entries+"]}", vs.target))
-					requireErrorsAndWarnings(t, diags, nil)
+					requireErrorsAndWarnings(t, diags, entryWarnings(vs))
 					requireNoEntryIndexedType(t, doc)
 					node := kindNode(t, doc, componentID("Pos"))
 					vs.check(t, doc, node)

@@ -250,7 +250,7 @@ func (r deadReport) none(c lowering.Ctx, body *statement.Schema) string {
 // reads a union as the nulls walk does, admitting a null the rest admits,
 // where a union no branch of which admits null refuses it.
 func diagDeadEntryUnion(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
-	if len(disjointConjuncts(c, s, allOfBranches(c, s, pointer))) > 0 {
+	if len(disjointNames(c, s, allOfBranches(c, s, pointer))) > 0 {
 		return nil
 	}
 	return diagDeadBranches(c, s, u, deadBranches(c, s, u.holder), pointer, false)

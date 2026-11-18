@@ -418,12 +418,15 @@ func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement) []ir.Dia
 	switch {
 	case unionAside(c, s):
 	case r.contradicts:
-		shape = "the " + electedSet(r, s) + " it lowered as"
+		shape = contradictionShape(r, s)
 	default:
 		return nil
 	}
 	comp := r.comp
 	comp.disjoint = disjointAtoms(c, s, refinedAtoms(c, s, r))
+	if len(comp.disjoint) == 0 && r.contradicts {
+		comp.disjoint = conjunctsApart(c, s)
+	}
 	return diagDisjointConjuncts(c, comp, shape)
 }
 
