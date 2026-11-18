@@ -3876,12 +3876,11 @@ admits no null or the body's own `type` keeps null out: a string, an array, a va
 whose read is cut short, decides nothing and lives, as does one naming a `$dynamicRef` the position
 does not expand, which admits every kind, and every branch beside a body the policy made an object;
 a branch admitting null lives beside a body that may admit it, and under the nullable-inference
-policy a body writing `nullable: true` or an `allOf` is read as one that may. A branch whose read
-passes the bounds of [`allof-refinement`](#allof-refinement) is not cut short: those stop only what
-an election compares, so its kinds are read whole and a branch over a union of 300 strings is dead
-as one over 100 is; but beside a body that may admit null, whether it admits null is not read, and
-it lives. The `Union` keeps each
-dead branch verbatim under the key a kept branch takes on a variant
+policy a body writing `nullable: true` or an `allOf` is read as one that may. The bounds of
+[`allof-refinement`](#allof-refinement) cut short only what an election compares: a branch whose
+read passes them keeps its kinds, read whole, so a branch over a union of 300 strings is dead as one
+over 100 is; but beside a body that may admit null, whether it admits null is not read, and it
+lives. The `Union` keeps each dead branch verbatim under the key a kept branch takes on a variant
 (`degraded_lowering`), and the schema draws one warning `openapi/degraded-construct` naming each
 with the kinds it admits, the code [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) gives
 conjuncts sharing no value, of which a dead branch and the body are two; no finding is made at the
