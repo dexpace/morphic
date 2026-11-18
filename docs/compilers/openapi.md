@@ -2248,8 +2248,9 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 ### `allof-refinement`
 
 An `allOf` is a composition where the kinds the position lowers to, null aside, are an object
-alone and no conjunct states a value set, which is elected first (below), the keywords beside the
-`allOf` being a conjunct as much as a branch is, and where its marker
+alone and no conjunct states a value set, which is elected first (below), or is a union standing
+alone (below), the keywords beside the `allOf` being a conjunct as much as a branch is, and where
+its marker
 is the kind-inference policy's where that reading is inferred
 ([`shape-applicator`](#shape-applicator)). Those kinds are what the conjuncts declare together, or,
 where nothing declares one, what their shape keywords claim, so `{allOf: [{$ref: E}], description:
@@ -2337,6 +2338,18 @@ over a string; a set that keyword leaves no value either, as `enum: []`, is elec
 set is elected, as `enum: []` or two neither lying within the other,
 and the `allOf` writes an inline entry: one of `$ref` entries alone keeps each as below then too, as
 the `$ref` written beside the value set is kept.
+
+Where they would compose a value they share, their kinds an object alone, and no value set is
+elected, an inline conjunct writing a `oneOf` or an `anyOf` that nothing else conjoins with is the
+principal: the schema writes no union beside its `allOf`, no conjunct is a `$ref` or writes another
+union, the union's entry writes no `allOf`, which would compose beside it, none but that entry writes
+a `discriminator`, which would route a union beside it, and each keyword a conjunct writes that would make a body beside a union, its `allOf` aside, is one
+every branch of the union says, the branches declaring shape against the rest where one is written,
+as [`union-beside-structure`](#union-beside-structure) reads the keywords beside a union. The
+position then lowers as that union written there does: `{allOf: [{oneOf: [{$ref: X}, {type:
+'null'}]}], description: d}` is the nullable reference to `X` that `{oneOf: [{$ref: X}, {type:
+'null'}], description: d}` is, keeping nothing of the union, the null branch its `Nullable`
+([`union-null-variant`](#union-null-variant)).
 
 The principal is chosen from the whole set:
 
@@ -2600,7 +2613,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition`,
   `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`,
   `schema.TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt`,
-  `e2e.TestInlinePrincipal_AUnionStandingKeepsItsDiscriminatorsKeys`
+  `e2e.TestInlinePrincipal_AUnionStandingKeepsItsDiscriminatorsKeys`,
+  `schema.TestAllOf_AUnionAloneOnAnEntryLowersAsItsBareSpelling`
 
 ### `allof-beside-ref`
 
@@ -2692,7 +2706,10 @@ reported at the keyword, the last by an `openapi/unknown-schema-keyword`, as is 
 ([`dynamic-ref`](#dynamic-ref)), kept `degraded_lowering`. A `oneOf` or `anyOf` is `validation_only` where its branches declare no shape
 against the position, reported by an `openapi/validation-only-keyword` at the branch, and
 `degraded_lowering` where they do or where it shares no kind with the rest
-([`union-beside-structure`](#union-beside-structure)). A value bound where the position's own node
+([`union-beside-structure`](#union-beside-structure)). The union of an inline principal that lowered
+to the nullable reference to its one non-null branch is no residue: the reference says it, as it says
+the same union written at the position, and a null branch writing more than its null is kept whole
+as [`union-null-variant`](#union-null-variant) keeps one there. A value bound where the position's own node
 carries a number as text is `no_ir_home`, reported at the keyword, as one beside it is
 ([`string-formats`](#string-formats)). An `unevaluatedProperties` or `unevaluatedItems` keeps its
 branch whole (below), its slot `validation_only` as beside the `allOf`
@@ -2830,7 +2847,8 @@ every entry reads that one twice.
   `schema.TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt`,
   `schema.TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes`,
   `schema.TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt`,
-  `openapicases.TestCore_SpellingsHoldTheRecord`
+  `openapicases.TestCore_SpellingsHoldTheRecord`,
+  `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`
 
 ### `allof-redeclared-property`
 
@@ -3784,7 +3802,7 @@ and teaching the relation the step would change what it means for every document
 A null branch of a `oneOf` or `anyOf` is one written inline whose own keywords admit `null` alone
 ([`null-alone`](#null-alone)), whatever spells it: `type: "null"`, an `enum` of `null` alone,
 `const: null`, or 3.0's `{type: object, enum: [null], nullable: true}`. It is no variant, of a union
-lowered alone or of one distributed across a body beside it
+lowered alone, on an `allOf` entry as at the position, or of one distributed across a body beside it
 ([`union-beside-structure`](#union-beside-structure)), since it would lower on its own to the `Enum`
 with no member whose one value the reference's `Nullable` bit states, so the union's reference
 admits `null` instead ([`nullable`](#nullable)). A `oneOf` or `anyOf` with exactly one branch that
@@ -3835,7 +3853,8 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
   `schema.TestNullBranch_AKeptBranchTheKeeperCannotConvertIsReportedByIt`,
   `schema.TestNullBranch_KeepsANullableNothingReads`,
   `schema.TestNullBranch_ARepeatedNullIsReportedAtTheBranch`,
-  `schema.TestNullableInference_EachShapeReadsByItsVersion`
+  `schema.TestNullableInference_EachShapeReadsByItsVersion`,
+  `e2e.TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs`
 
 ### `union-null-only`
 
@@ -3909,8 +3928,8 @@ variant requires. A null branch is no variant of a distributed union, as it is n
 ([`union-null-variant`](#union-null-variant)): the reference to the position admits `null` where
 the body admits it too, so beside a body writing `type: object` it admits none, and beside one
 writing no `type`, or listing `null` in its `type`, it admits the union's
-([`nullable`](#nullable)), and a union written on an `allOf` branch distributes past its null branch
-alike.
+([`nullable`](#nullable)), and a union written on an `allOf` branch beside such a body distributes
+past its null branch alike.
 
 A branch no instance of the body satisfies is no variant either. Every instance of the schema is one
 of the body, which admits objects alone, null aside, so a branch is dead where the kinds it lowers
@@ -3979,7 +3998,18 @@ writes no union of its own, its `allOf` composes rather than refines
 declare shape (below), or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. An entry writing both is one such union and
-lowers as a schema writing both does (above), each variant keeping the union it passes over. The `discriminator` standing with it is the one its branch writes, else the
+lowers as a schema writing both does (above), each variant keeping the union it passes over. Where
+the rest of the schema writes nothing a variant would carry, no keyword or only those every branch
+says, as beside the union (below), and no `$ref`, other union or `discriminator`, nor an `allOf` on
+the union's own entry, the union stands alone and lowers as written at the position, its entry the principal of a refining `allOf`
+([`allof-refinement`](#allof-refinement)): `{allOf: [{oneOf: [{$ref: X}, {type: 'null'}]}]}` is
+the nullable reference to `X` and `{allOf: [{oneOf: [{$ref: X}, {$ref: Y}]}]}` the `Union` of `X`
+and `Y` ([`union`](#union), [`union-null-variant`](#union-null-variant),
+[`union-null-only`](#union-null-only)), keeping of the union what the bare union keeps, and a
+note, bound or annotation beside it lands where it does beside the bare union. A `type: object`, a property set, a
+`$ref` or a `discriminator` written beside the union, on its entry, on another or beside the `allOf`,
+is what a variant carries, so there the union distributes, one variant included, a `discriminator` on
+its own entry aside, which routes the union standing alone. The `discriminator` standing with it is the one its branch writes, else the
 one beside the `allOf`: where both write one, nothing says which routes the union, so it is kept as
 what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword where
 the two are written alike and with its branch whole, under `openapi:allOf/<i>`, where they differ,
@@ -4251,7 +4281,9 @@ judged as one whose branches declare shape.
   `schema.TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf`,
   `schema.TestNullBranch_BesideABodyIsLiftedPastTheDistribution`,
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
-  `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
+  `e2e.TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs`,
+  `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
+  `e2e.TestUnionAlone_ABodyBesideItStillDistributes`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
   legal (#1806). A union none of whose branches admits null, beside an `allOf` whose rest admits
   null or on an entry beside an inline rest that does, draws no warning (#2055).

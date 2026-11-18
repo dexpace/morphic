@@ -278,15 +278,15 @@ func statesNothing(s *statement.Schema) bool {
 	})
 }
 
-// decide reads the decision refinementOf remembers. Where the conjuncts share
-// no value, or the kinds the position lowers to, null aside, are an object
-// alone, it composes, unless a conjunct states a value set, which is elected
-// first (docs/compilers/openapi.md#competing-keywords); it composes too where
-// the read is cut short, or passes a cap but where it weighs one $ref alone
-// (pastAlone). Value sets sharing no member compose a Model only where those
-// kinds are an object alone; elsewhere the keywords beside the allOf decide.
-// Anything else, a use of one target saying nothing more (usesOneRef) among
-// it, uses its principal.
+// decide reads what refinementOf remembers. Where the conjuncts share no
+// value, or their kinds, null aside, are an object alone, it composes, unless
+// it first elects a value set a conjunct states
+// (docs/compilers/openapi.md#competing-keywords) or a union nothing else
+// conjoins with (soleUnion); it composes too where the read is cut short, or
+// passes a cap but where it weighs one $ref alone (pastAlone). Value sets
+// sharing no member compose a Model only where those kinds are an object alone;
+// elsewhere the keywords beside the allOf decide. Anything else uses its
+// principal, a use of one target saying nothing more (usesOneRef) too.
 func decide(c lowering.Ctx, s *statement.Schema) decision {
 	comp := allOfBranches(c, s, "")
 	if !refinableBranches(comp) {
@@ -314,7 +314,11 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 		names = apartNames(s, comp, conjuncts, joint)
 	}
 	if contradicts || kinds == kindObject && !one {
-		if principal = setElected(&w, s, conjuncts); principal == nil && !apart {
+		principal = setElected(&w, s, conjuncts)
+		if principal == nil && !contradicts {
+			principal = soleUnion(c, s, conjuncts)
+		}
+		if principal == nil && !apart {
 			return decision{aside: aside, apart: names}
 		}
 	}
@@ -334,6 +338,56 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	failed := one && refAt >= 0 && !namesReferent(c, comp.branches[refAt].schema)
 	refines := failed || !w.incomplete() || !w.cut && pastAlone(c, conjuncts, one)
 	return decision{r: r, apart: names, principalAt: principal.at, refAt: refAt, refines: refines, aside: aside}
+}
+
+// soleUnion returns the inline conjunct writing the union the position is,
+// nothing beside it conjoining with it, as hasUnionSiblings reads one written
+// at the position (docs/compilers/openapi.md#union-beside-structure): s writes
+// no union, no conjunct is a $ref or writes another, the union's writes no
+// allOf, a body beside it, no other writes a discriminator, which routes the
+// union, and each keyword a conjunct writes that a variant would carry
+// (siblingKeywords), an allOf aside, every branch says (branchesSay), the
+// branches declaring shape against the rest where one is written. The union
+// is looked for first, as most composing allOfs write none.
+func soleUnion(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conjunct {
+	if declaresUnion(s) {
+		return nil
+	}
+	var union *conjunct
+	for i := range conjuncts {
+		cj := &conjuncts[i]
+		switch {
+		case cj.branch == nil || cj.branch.schema.Ref == nil && !declaresUnion(cj.schema):
+		case union != nil || cj.branch.schema.Ref != nil || cj.branch.wrapper:
+			return nil
+		default:
+			union = cj
+		}
+	}
+	if union == nil {
+		return nil
+	}
+	written := false
+	for i := range conjuncts {
+		cj := &conjuncts[i]
+		if cj != union && cj.schema.Discriminator() != nil {
+			return nil
+		}
+		keys := slices.DeleteFunc(siblingKeywords(cj.schema), func(k string) bool { return k == "allOf" })
+		if len(keys) == 0 {
+			continue
+		}
+		said := branchesSay(c, union.schema, cj.schema)
+		if slices.ContainsFunc(keys, func(k string) bool { return !slices.Contains(said, k) }) {
+			return nil
+		}
+		written = true
+	}
+	choice := union.schema.ChoiceKeywords()
+	if written && !setsDeclareShape(c, s, union.schema, choice.OneOf, choice.AnyOf) {
+		return nil
+	}
+	return union
 }
 
 // pastAlone reports whether conjuncts, read past a cap, still refine: the

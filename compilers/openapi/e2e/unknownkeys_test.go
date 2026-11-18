@@ -297,8 +297,9 @@ components:
 
 // TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported holds the census of
 // a schema's xml, discriminator and externalDocs objects, and of the
-// discriminator an allOf branch writes for its union, to every key their
-// models name no field for, as
+// discriminator an allOf branch writes for its union, distributed over a body
+// or standing alone at the position, to every key their models name no field
+// for, as
 // annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable
 // holds the schema's own: one merged in through `<<` from past
 // nodeview.MergeDepthLimit, which the compiler reads no pair for, is reported
@@ -319,6 +320,12 @@ components:
       externalDocs: {url: 'https://d.example', <<: `+deep("{title: E}")+`}
     U:
       type: object
+      properties: {u: {type: string}}
+      allOf:
+        - discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
+          oneOf: [{$ref: '#/components/schemas/S'}]
+    V:
+      type: object
       allOf:
         - discriminator: {propertyName: k, <<: `+deep("{mapping2: D}")+`}
           oneOf: [{$ref: '#/components/schemas/S'}]
@@ -326,6 +333,7 @@ components:
 	for _, at := range []string{
 		"/components/schemas/S/xml/attribute2", "/components/schemas/S/discriminator/mapping2",
 		"/components/schemas/S/externalDocs/title", "/components/schemas/U/allOf/0/discriminator/mapping2",
+		"/components/schemas/V/allOf/0/discriminator/mapping2",
 	} {
 		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, diag.UnknownKeyUnreachable, at),
 			"the key at %s", at)
@@ -334,10 +342,11 @@ components:
 
 // TestUnknownKeys_ExtensionMergedPastTheBoundIsKept holds the extensions a
 // schema, its xml, discriminator and externalDocs objects, and the
-// discriminator an allOf branch writes for its union, merge in through `<<`
-// from past nodeview.MergeDepthLimit to what the parser's model holds: each is
-// kept on the node holding the object, as one written in place is, though the
-// compiler reads no pair for it.
+// discriminator an allOf branch writes for its union, distributed over a body
+// or standing alone at the position, merge in through `<<` from past
+// nodeview.MergeDepthLimit to what the parser's model holds: each is kept on
+// the node holding the object, as one written in place is, though the compiler
+// reads no pair for it.
 func TestUnknownKeys_ExtensionMergedPastTheBoundIsKept(t *testing.T) {
 	t.Parallel()
 	deep := func(body string) string { return openapitest.NestedMerges(nodeview.MergeDepthLimit, body) }
@@ -355,8 +364,14 @@ components:
       externalDocs: {url: 'https://d.example', <<: `+deep("{x-e: 4}")+`}
     U:
       type: object
+      properties: {u: {type: string}}
       allOf:
         - discriminator: {propertyName: k, <<: `+deep("{x-b: 5}")+`}
+          oneOf: [{$ref: '#/components/schemas/S'}]
+    V:
+      type: object
+      allOf:
+        - discriminator: {propertyName: k, <<: `+deep("{x-v: 6}")+`}
           oneOf: [{$ref: '#/components/schemas/S'}]
 `)
 	for _, tc := range []struct{ schema, key, want string }{
@@ -365,6 +380,7 @@ components:
 		{"S", "openapi:discriminator/x-d", "3"},
 		{"S", "openapi:externalDocs/x-e", "4"},
 		{"U", "openapi:allOf/0/discriminator/x-b", "5"},
+		{"V", "openapi:discriminator/x-v", "6"},
 	} {
 		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+tc.schema)]
 		require.True(t, ok, tc.schema)

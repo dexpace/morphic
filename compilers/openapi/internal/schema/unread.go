@@ -72,7 +72,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
-	return unreadByReference(c, s, keySetOf(branchesSay(c, s)...)), collapsedShape
+	return unreadByReference(c, s, keySetOf(branchesSay(c, s, s)...)), collapsedShape
 }
 
 // keepingUnread lowers the position s, written at pointer, through build, the

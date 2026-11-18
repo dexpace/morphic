@@ -87,15 +87,17 @@ func keysOf(m map[ir.TypeID]*ir.Model) []ir.TypeID {
 	return out
 }
 
-// TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch holds a union
-// with a null branch written on an allOf branch: it distributes across the
-// composition as the same union beside it does, its null branch no variant,
-// and the reference to the position admits null.
-func TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch(t *testing.T) {
+// TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs
+// holds a union with a null branch written alone on an allOf entry to lower as
+// the same union written at the position: a nullable reference to its one other
+// branch, with no node of its own or composed for a variant, nothing kept and
+// nothing reported, in both orders of the components.
+func TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
 		"X: {type: object, properties: {id: {type: string}}}",
-		"H: {type: object, properties: {p: {allOf: [{oneOf: [{$ref: '#/components/schemas/X'}, {type: 'null'}]}]}}}",
+		"H: {type: object, properties: {p: {allOf: [{oneOf: [{$ref: '#/components/schemas/X'}, {type: 'null'}]}]}, " +
+			"q: {oneOf: [{$ref: '#/components/schemas/X'}, {type: 'null'}]}}}",
 	}
 	inBothOrders(t, schemas, func(t *testing.T, schemas []string) {
 		doc, diags := compileKindInference(t, "branch", admissionSpec("3.1.0", "", schemas...), false)
@@ -104,9 +106,18 @@ func TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch(t *testing.T) 
 		require.True(t, ok)
 		p, ok := propByWire(h, "p")
 		require.True(t, ok)
-		assert.True(t, p.Type.Nullable, "the null branch admits null")
-		variants := distributedOver(t, doc, p.Type.Target)
-		assert.Equal(t, []ir.TypeID{componentID("X")}, keysOf(variants))
-		assert.Empty(t, keptUnder(doc, "/components/schemas/H/properties/p"))
+		q, ok := propByWire(h, "q")
+		require.True(t, ok)
+		assert.Equal(t, ir.TypeRef{Target: componentID("X"), Nullable: true}, q.Type, "the bare union is X, nullable")
+		assert.Equal(t, q.Type, p.Type, "the union on an entry is what the bare union is")
+		for id := range doc.Types {
+			assert.NotContains(t, string(id), "/properties/p", "no node stands for p or beneath it")
+		}
+		assert.Empty(t, keptUnder(doc, "/components/schemas/H/properties/p"), "nothing is kept")
+		assert.Empty(t, p.Unmodeled, "the property keeps nothing")
+		assert.Empty(t, degradedUnder(diags, "/components/schemas/H/properties/p"), "nothing is reported")
+		for _, d := range diags {
+			assert.NotContains(t, string(d.Provenance.Pointer), "/properties/p", "no finding at p: %s", d.Message)
+		}
 	})
 }
