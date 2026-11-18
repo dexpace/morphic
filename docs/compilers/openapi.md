@@ -2166,16 +2166,18 @@ still composes. A component, or a position a `$ref` names, still owns a node: ov
 an object alone the `Model` whose `Base` is that object, in this spelling and the bare `$ref`'s;
 over any other target, one admitting null, which a `Base` does not carry, or a reference no node
 answers, the `Scalar` alias. A
-`$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, or to
-the union of a `type` list holding an object, whose object variant it composes (below): the sole
+`$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, to
+the union of a `type` list holding an object, whose object variant it composes (below), or where its
+own read is cut short, as over a schema whose `$ref`s lead round a loop: the sole
 such entry becomes `Base`, and of several, of those to a schema taking part in a discriminator
-hierarchy, one whose hierarchy's mapping names the composing schema before one whose does not, then
-the one whose reference text is the least, whichever is written first: one declaring a `discriminator`, or composing through `allOf`, at any
-depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag
-off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
-discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
+hierarchy (one declaring a `discriminator`, or composing through `allOf`, at any depth, a schema
+that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag off), one whose
+hierarchy's mapping names the composing schema before one whose does not, then the one whose
+reference text is the least. Every other such `$ref` entry becomes a `Mixin`, so a schema
+composing a subtype of a discriminated base beside another `$ref` is a subtype of that base too. A
+`$ref` entry whose target
 admits every kind, or another kind than an object, composes nothing, so no `Model` names a base or a
-mixin that is no object: its reference is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
+mixin known to be no object: its reference is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
 reference text where several are kept, a failed one's among them (`degraded_lowering`), with an
 info `openapi/degraded-construct` at the entry, and its target still lowers. What such an entry
 writes beside its `$ref` is a conjunct of its own, kept by keyword as an inline entry's is. A composition meets one
@@ -2193,9 +2195,10 @@ on the field without its source. A `$ref` entry naming a union of objects is no 
 is the `Base` or a `Mixin`, never distributed over its variants as one written beside the `allOf` is
 ([models](../ir/models.md#a-union-a-composition-names)). One naming a schema whose `type` list holds
 an object and another kind composes that list's object variant, the one node of that kind its union
-holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, …]}` over `Pet: {type: [object, string],
-properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
-keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or `anyOf` writes is not unpacked: it
+holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, {type: object, …}]}` over
+`Pet: {type: [object, string], properties: …}` has the variant as its `Base`, so it inherits what
+`Pet` declares of an object and keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or
+`anyOf` writes is not unpacked: it
 may hold several objects, or none a model is, so one admitting another kind is kept as above. The
 list is read only where the entry's `$ref` lands: one landing on another `$ref` to `Pet`, as
 `{$ref: Chain}` over `Chain: {$ref: Pet}` does, is kept as above too.
@@ -2286,8 +2289,10 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
 A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in what a `$ref` lands on,
 is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
 one on an entry of it, which no position expands, do. So `{allOf: [{$ref: T}], $dynamicRef: '#m'}`
-and `{allOf: [{$ref: T}, {$dynamicRef: '#m'}]}` lower alike, whatever `#m` names: a `Model` over `T`
-where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. A union beside the `allOf` sharing no kind with the rest, as in
+and `{allOf: [{$ref: T}, {$dynamicRef: '#m'}]}` lower alike, whatever schema `#m` names: a `Model`
+over `T` where `T` is an object, a use of `T` otherwise, each keeping the `$dynamicRef`. One naming
+no schema is the `$ref` it spells ([`references`](#references)), so it lands on none. A union
+beside the `allOf` sharing no kind with the rest, as in
 `{allOf: [{type: string}], anyOf: [{type: integer}, {type: boolean}]}`, is left out of the reading:
 the position lowers as the rest does, the union is kept under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`) with an info, and the warning of
@@ -3584,8 +3589,10 @@ conjunct admitting no value is named `no value` in the report, alone or
 beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
 a schema that admits none and says nothing of it, such as a `type` other than `object` beside a
 union none of whose branches it admits, or beside a `$ref` to another kind. A read cut short decides
-nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
-converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
+nothing: a cycle of `allOf` entries, a value no reading converts, or an entry nested past
+`statement.MaxFlattenDepth`. An entry whose `$ref` lands on no schema, or on `$ref`s leading round a
+loop, is read as admitting every kind, so the conjuncts beside it are still reported where they
+share no value. A `$dynamicRef` the bindings read as
 no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
 may admit less than is read, and conjuncts disjoint as read are disjoint. An `allOf` beside a
 `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read. One passed over
@@ -4171,7 +4178,8 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806).
+  legal (#1806). A union none of whose branches admits null, beside an `allOf` whose rest admits
+  null or on an entry beside an inline rest that does, draws no warning (#2055).
 
 ### `union-beside-ref`
 
@@ -4219,7 +4227,7 @@ An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its 
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
 each conjunct it beats kept as that rule keeps it, a set its own keywords leave no value standing for
 the keyword this election elects of it, each reported apart: the keyword passed over with an info, as
-below, and each conjunct the set beats as that rule reports it, where one info named both. So the
+below, and each conjunct the set beats as that rule reports it. So the
 election passes over the `allOf` only where no value set is elected, keeping it whole where
 it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, as the `$ref` beside it
 is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing

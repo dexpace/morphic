@@ -128,8 +128,8 @@ func index(s *Schema) {
 // flatten lists the inline allOf entries of st's schema as the lowering
 // flattens them: in source order, depth first, an entry writing a reference
 // beside what else it says (conjoins) listed as that reference and then the
-// rest (restOf), an entry that writes an allOf and names no reference beside nothing
-// else replaced by its entries and then listed itself as a Wrapper, while at
+// rest (restOf), an entry that writes an allOf and no reference, whatever else
+// it writes, replaced by its entries and then listed itself as a Wrapper, while at
 // most MaxFlattenDepth lists hold it, and listed Capped past that. It walks an
 // explicit stack of at most MaxFlattenDepth+1 lists, reading each entry's
 // schema object and never an entry's statement, so it adds no recursion.

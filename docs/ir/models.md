@@ -333,9 +333,10 @@ naming that pointer gives the same one, whichever lowering interns the node.
 `Base` and `Mixins` name the referents a composition of objects composes: a `$ref` entry is one
 only where the schema it lands on lowers to an object alone, null aside, or, where that schema's
 `type` list holds an object, through the object variant its union holds, so no `Model` names a base
-or a mixin that is no object. In JSON Schema any schema may be a conjunct: `allOf: [{$ref: Pet},
+or a mixin known to be no object: one whose own read is cut short, as over `$ref`s leading round a
+loop, composes as written. In JSON Schema any schema may be a conjunct: `allOf: [{$ref: Pet},
 {$ref: Tags}]` is legal and, `Tags` being a list, admits no instance, so it composes `Pet` and keeps
-the `$ref` to `Tags` verbatim under `openapi:allOf/1` with an info, as it keeps one to a `Scalar`, an
+the `$ref` to `Tags` verbatim under `openapi:$ref` with an info, as it keeps one to a `Scalar`, an
 `Enum`, a union admitting another kind or the top type: no branch the source wrote is dropped,
 against invariant 2. They are typed `TypeRef` rather than "reference to a `Model`" because a union
 of objects ([below](#a-union-a-composition-names)) and the node a position owns over one are

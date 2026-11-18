@@ -927,17 +927,17 @@ it sees. Changes made together in one bump are listed together under it.
     `nullable: true` the nullable-inference policy reads, where a property, a parameter or a header
     carries it, as the bare `$ref` already was. A component `{$ref: Obj}` or `{allOf: [{$ref:
     Obj}]}` over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias.
-  - **`Model.Base` and `Model.Mixins`** name only objects
-    ([`allof-classification`](../compilers/openapi.md#allof-classification)). A `$ref` entry whose
-    target is not an object alone is kept under `openapi:$ref`, where it was a base or a mixin; over
-    a `type` list holding an object, the list's object variant (`…/type/<i>`) is the base, where the
-    union was. Of several `$ref` entries in discriminator hierarchies, the base is the one whose
-    mapping names the model, where it was the first written. A composed `Model` takes `Additional`
-    and `AdditionalProps` from the one schema object of its `allOf` whose `additionalProperties`
-    reads every member the position and its entries declare: an entry closing the model types the
-    closure, where the entry was kept whole, and a closure beside an `allOf` whose entries declare
-    members is kept under `openapi:additionalProperties`, where it closed or typed the model
-    ([`additional-properties`](../compilers/openapi.md#additional-properties)).
+  - **`Model.Base` and `Model.Mixins`** name only objects, but for an entry whose own read is cut
+    short ([`allof-classification`](../compilers/openapi.md#allof-classification)). A `$ref` entry
+    whose target is not an object alone is kept under `openapi:$ref`, where it was a base or a
+    mixin; over a `type` list holding an object, the list's object variant (`…/type/<i>`) is the
+    base, where the union was. Of several `$ref` entries in discriminator hierarchies, the base is
+    the one whose mapping names the model, where it was the first written. A composed `Model` takes
+    `Additional` and `AdditionalProps` from the one schema object of its `allOf` whose
+    `additionalProperties` reads every member the position and its entries declare: an entry closing
+    the model types the closure, where the entry was kept whole, and a closure beside an `allOf`
+    whose entries declare members is kept under `openapi:additionalProperties`, where it closed or
+    typed the model ([`additional-properties`](../compilers/openapi.md#additional-properties)).
   - **A union beside a body**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Object keywords
     with no `type` beside a `oneOf` or an `anyOf` are distributed across it where the position's

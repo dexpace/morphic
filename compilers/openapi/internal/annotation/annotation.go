@@ -295,8 +295,8 @@ func DeclaresRedaction(s *statement.Schema) bool {
 // keywords fold nowhere (schema.foldEntry): its branch, kept whole, is their
 // one record.
 //
-// This is the one place the site-versus-referent choice is made: three
-// attachment points used to make it separately and disagreed.
+// This is the one place the site-versus-referent choice is made, so no
+// position attaching annotations makes it apart.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
 	var u underlay
