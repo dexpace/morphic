@@ -130,7 +130,7 @@ build:
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
 # in a stack dump naming the stuck goroutine. It bounds a hang, not the suite:
-# on 2026-11-18, at #1996's db5a27723, the slowest package,
+# on 2026-11-18, on the branch of #1996, the slowest package,
 # compilers/openapi/e2e, took 195s on the gate's runner; slower runners that day
 # took it to 287s, and once past 300s. 600s is three times its normal time, and
 # a package past 300s on a normal run means the limit is tight again.
