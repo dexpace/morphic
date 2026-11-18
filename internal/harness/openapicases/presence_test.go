@@ -110,7 +110,7 @@ func TestCore_TheControlsAreAskedAndChangeNothing(t *testing.T) {
 // written from 3.1 holds, and from31Positions are those positions.
 const only30Keyword = "nullable"
 
-var from31Positions = []string{"prefixItem"}
+var from31Positions = []string{"prefixItem", "patternProperty"}
 
 // keywords returns the keyword each construct of the cases writes.
 func keywords(t *testing.T) []string {
