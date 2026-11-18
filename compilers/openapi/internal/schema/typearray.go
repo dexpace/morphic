@@ -23,8 +23,8 @@ import (
 // exactly one, so overlapping variants must not exclude each other; with an
 // integer width, integer and number name the same primitive, and the two
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
-// The Union stands where st says, each variant, which no source pointer
-// names, at <there>/type/<i>, built from what the Union reads beside s.
+// The Union stands where st says, and each variant, which no source pointer
+// names, under it at /type/<i>, built from what the Union reads beside s.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, list typeArray,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
