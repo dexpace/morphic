@@ -3585,8 +3585,10 @@ conjunct admitting no value is named `no value` in the report, alone or
 beside others: an inline entry, which nothing lowers apart from the `allOf`, and a `$ref` landing on
 a schema that admits none and says nothing of it, such as a `type` other than `object` beside a
 union none of whose branches it admits, or beside a `$ref` to another kind. A read cut short decides
-nothing: a cycle of `$ref`s or `allOf` entries, a `$ref` landing on no schema, a value no reading
-converts, or an entry nested past `statement.MaxFlattenDepth`. A `$dynamicRef` the bindings read as
+nothing: a cycle of `allOf` entries, a value no reading converts, or an entry nested past
+`statement.MaxFlattenDepth`. An entry whose `$ref` lands on no schema, or on `$ref`s leading round a
+loop, is read as admitting every kind, so the conjuncts beside it are still reported where they
+share no value. A `$dynamicRef` the bindings read as
 no `$ref` masks nothing, and a `not`, an `if` or a `dependentSchemas` is not followed: a conjunct
 may admit less than is read, and conjuncts disjoint as read are disjoint. An `allOf` beside a
 `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read. One passed over
