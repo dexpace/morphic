@@ -4001,12 +4001,14 @@ lowers as one does at that position, to an `Enum` with no member behind a nullab
 one too where both are written, is kept verbatim under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, and what else the
 schema writes that the `Enum` has no field for is kept by the census, as beside a schema of `null`
-alone.
+alone. Both are written wherever the two are: beside an `allOf`, on one of its entries or one each
+on two, a body beside them or none, the other union keeps that reason in every spelling.
 
 - Cases: `null-only-union`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestOneOfAnyOf_NullOnlyLowersAsNullAlone`,
-  `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`
+  `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`,
+  `e2e.TestElection_TwoUnionsOfNullAloneBesideABodyKeepTheirReasonEverywhere`
 
 ### `union-beside-structure`
 

@@ -483,13 +483,12 @@ func entryUnionSets(comp allOfComposition) [][]statement.Sub {
 }
 
 // pairedWithNullOnly reports whether s refines to the union one inline entry
-// of its allOf writes, of two written on two entries (unionPair), every branch
-// of which is a null branch: the position lowers as null alone, which keeps
-// the union passed over as degraded_lowering, as one schema writing both does
-// (docs/compilers/openapi.md#union-null-only).
+// of its allOf writes, of a pair (electsOneOfPair), every branch of which is a
+// null branch: the position lowers as null alone, which keeps the union passed
+// over as degraded_lowering, as the same two beside the allOf do, a body beside
+// them or none (docs/compilers/openapi.md#union-null-only).
 func pairedWithNullOnly(c lowering.Ctx, s *statement.Schema) bool {
-	d := decisionOf(c, s)
-	return d.refines && d.r.paired && allNullUnion(c, branchStatement(c, s, d.principalAt).Schema)
+	return electsOneOfPair(c, s) && allNullUnion(c, branchStatement(c, s, decisionOf(c, s).principalAt).Schema)
 }
 
 // keptWithElected reports whether s, written at pointer, elects the union an

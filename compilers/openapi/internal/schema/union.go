@@ -110,6 +110,21 @@ func pairedPrincipal(c lowering.Ctx, st stand) bool {
 	return st.of != nil && decisionOf(c, st.of).r.paired
 }
 
+// electsOneOfPair reports whether s refines to an inline entry writing one
+// union of a oneOf and an anyOf that s and its entries write between them
+// (writesUnionPair), a body beside them or none, the other passed over.
+func electsOneOfPair(c lowering.Ctx, s *statement.Schema) bool {
+	d := decisionOf(c, s)
+	if !d.refines || d.principalAt < 0 {
+		return false
+	}
+	p := branchStatement(c, s, d.principalAt)
+	if p.Ref != nil || !declaresUnion(p.Schema) || writesBothUnions(p.Schema) {
+		return false
+	}
+	return writesUnionPair(s, allOfBranches(c, s, ""))
+}
+
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
 // unionBranches elects is a null branch (nullBranch). nullUnionCollapse has no
 // non-null branch to collapse a set like this onto, so without this check
