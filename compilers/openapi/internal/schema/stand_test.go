@@ -38,3 +38,32 @@ func TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition(t *testing.T) 
 	_, atEntry := doc.Types["t/anon/components/schemas/Entry/allOf/1"]
 	assert.False(t, atEntry, "nothing stands at the entry")
 }
+
+// TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt pins the
+// content vocabulary an inline principal writes beside its type: the Scalar a
+// string builds holds it in its Encoding, keeping nothing, and the Enum a value
+// set builds, which has no Encoding, keeps it, each as the same keywords beside
+// each other do.
+func TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    ScalarBeside: {description: d, type: string, contentEncoding: base64}\n"+
+			"    ScalarEntry: {allOf: [{description: d}, {type: string, contentEncoding: base64}]}\n"+
+			"    SetBeside: {description: d, type: string, contentEncoding: base64, enum: [a]}\n"+
+			"    SetEntry: {allOf: [{description: d}, {type: string, contentEncoding: base64, enum: [a]}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"ScalarBeside", "ScalarEntry"} {
+		sc, ok := typeByName(doc, name).(*ir.Scalar)
+		require.True(t, ok, "%s is the scalar, not %T", name, typeByName(doc, name))
+		require.NotNil(t, sc.Encoding, name)
+		assert.Equal(t, "base64", sc.Encoding.Name, name)
+		assert.Empty(t, sc.Unmodeled, "%s keeps nothing", name)
+	}
+	for _, name := range []string{"SetBeside", "SetEntry"} {
+		enum, ok := typeByName(doc, name).(*ir.Enum)
+		require.True(t, ok, "%s is the enum, not %T", name, typeByName(doc, name))
+		kept, held := enum.Unmodeled["openapi:contentEncoding"]
+		require.True(t, held, "%s keeps what no Encoding holds", name)
+		assert.Equal(t, ir.ReasonNoIRHome, kept.Reason, name)
+	}
+}

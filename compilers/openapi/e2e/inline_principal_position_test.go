@@ -226,12 +226,13 @@ func TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction(t *testing.T) {
 
 // TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone holds a $ref to
 // an entry an allOf lowers from to a node at the entry's own ID typed by what
-// the entry writes alone, beside the node at the position holding the bounds
-// of the whole conjunction, whichever is declared first.
+// the entry writes alone, keeping the readOnly it writes as a component does,
+// beside the node at the position holding the bounds of the whole
+// conjunction, whichever is declared first.
 func TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone(t *testing.T) {
 	t.Parallel()
 	schemas := []string{
-		"ArrE: {allOf: [{description: d, minItems: 2}, {type: array, items: {type: string}, maxItems: 9}]}",
+		"ArrE: {allOf: [{description: d, minItems: 2}, {type: array, items: {type: string}, maxItems: 9, readOnly: true}]}",
 		"R: {$ref: '#/components/schemas/ArrE/allOf/1'}",
 	}
 	docs := map[string]string{}
@@ -254,6 +255,7 @@ func TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone(t *testing.T) {
 		require.NotNil(t, entry.Constraints.MaxItems)
 		assert.EqualValues(t, 9, *entry.Constraints.MaxItems)
 		assert.Empty(t, entry.Docs.Description, "nor the description beside it")
+		assert.Contains(t, keptOn(entry), "openapi:readOnly", "a use-bound keyword it writes is kept on it")
 		assert.Equal(t, entry.Elem.Target, whole.Elem.Target, "one element, at the entry's items")
 		docs[t.Name()] = withoutVersion(t, doc)
 	})

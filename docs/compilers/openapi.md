@@ -2595,7 +2595,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestInlinePrincipal_AReferenceToTheEntryNamesTheEntryAlone`,
   `e2e.TestInlinePrincipal_AWrapperHoldsEachBoundOnce`,
   `e2e.TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition`,
-  `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`
+  `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`,
+  `schema.TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt`
 
 ### `allof-beside-ref`
 
