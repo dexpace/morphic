@@ -5,6 +5,8 @@ package schema_test
 
 import (
 	"encoding/json/jsontext"
+	"encoding/json/v2"
+	"slices"
 	"strings"
 	"testing"
 
@@ -358,5 +360,101 @@ func TestPrincipalKept_EachKeywordHasOneKeeper(t *testing.T) {
 	said = strings.Join(reportsAt(diags, "/components/schemas/Draft/allOf/0"), "\n")
 	for _, keyword := range []string{"minLength", "dependencies", "discriminator"} {
 		assert.Equal(t, 1, strings.Count(said, keyword), "%s is named once", keyword)
+	}
+}
+
+// keptAndSaid lists what the component name holds verbatim, bar vendor
+// extensions, which no report names, an entry's key by its members, and what
+// its reports say is kept: the keywords a report names as written otherwise or
+// with no home, read off the two wordings the readers of a principal draw.
+func keptAndSaid(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, name string) (kept, said []string) {
+	t.Helper()
+	td := typeByName(doc, name)
+	require.NotNil(t, td, name)
+	for key, e := range td.Common().Unmodeled {
+		switch {
+		case e.Reason == ir.ReasonVendorExtension:
+		case strings.HasPrefix(key, "openapi:allOf/"):
+			var members map[string]jsontext.Value
+			require.NoError(t, json.Unmarshal(e.Value, &members), key)
+			for member := range members {
+				kept = append(kept, "allOf:"+member)
+			}
+		default:
+			kept = append(kept, strings.TrimPrefix(key, "openapi:"))
+		}
+	}
+	at := "/components/schemas/" + name
+	for _, d := range diags {
+		pointer := string(d.Provenance.Pointer)
+		if d.Severity == ir.SeverityError || !strings.HasPrefix(pointer, at) || !strings.Contains(d.Message, "kept verbatim") {
+			continue
+		}
+		switch before, _, apart := strings.Cut(d.Message, " otherwise than this inline branch"); {
+		case apart:
+			_, list, _ := strings.Cut(before, " write ")
+			for keyword := range strings.SplitSeq(list, ", ") {
+				said = append(said, "allOf:"+keyword)
+			}
+		case strings.Contains(d.Message, "which has no home for "):
+			_, list, _ := strings.Cut(d.Message, "which has no home for ")
+			list, _, _ = strings.Cut(list, " declared beside it")
+			said = append(said, strings.Split(list, ", ")...)
+		default:
+			said = append(said, pointer[strings.LastIndex(pointer, "/")+1:])
+		}
+	}
+	slices.Sort(kept)
+	slices.Sort(said)
+	return kept, said
+}
+
+// TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName fails each keeping
+// of an inline principal's keyword in turn, a value no JSON holds in each
+// reader's hands and in the whole entry, a discriminator naming no schema, a
+// kept object referring to none: what the node holds verbatim is what its
+// reports name, no more and no less, and each failure draws its error.
+func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
+	t.Parallel()
+	bad := unpreservableValue
+	cases := []struct {
+		name, schema, failure string
+		kept                  []string
+	}{
+		{"CensusApart", "{allOf: [{type: string, minimum: " + bad + ", maxItems: 1}], minimum: 2, maxItems: 2}", diag.UnpreservableConstruct,
+			[]string{"allOf:maxItems", "maxItems", "minimum"}},
+		{"CensusPlain", "{allOf: [{type: string, minimum: " + bad + ", maxItems: 1}], maxItems: 2}", diag.UnpreservableConstruct,
+			[]string{"allOf:maxItems", "maxItems"}},
+		{"TextApart", "{allOf: [{type: string, format: int64, minimum: " + bad + ", required: [a]}], minimum: 2, required: [b]}",
+			diag.UnpreservableConstruct, []string{"allOf:required", "minimum", "required"}},
+		{"ContentApart", "{allOf: [{type: integer, minLength: 1, contentSchema: {const: " + bad + "}}], minLength: 2, contentSchema: {const: 1}}",
+			diag.UnpreservableConstruct, []string{"allOf:minLength", "contentSchema", "minLength"}},
+		{"ResidueApart", "{allOf: [{type: string, minimum: 1, foo: " + bad + "}], minimum: 2, foo: 2}", diag.UnpreservableConstruct,
+			[]string{"allOf:minimum", "foo", "minimum"}},
+		{"Whole", "{allOf: [{type: string, minimum: 1, x-k: 1, x-q: " + bad + "}], minimum: 2, x-k: 2}", diag.UnpreservableConstruct,
+			[]string{"allOf:minimum", "minimum"}},
+		{"RoutesApart", "{allOf: [{type: string, minimum: 1, discriminator: {propertyName: a, mapping: {x: Nope}}}], " +
+			"minimum: 2, discriminator: {propertyName: b}}", diag.UnresolvedRef, []string{"allOf:discriminator", "allOf:minimum", "discriminator", "minimum"}},
+		{"RoutesPlain", "{allOf: [{type: string, minimum: 1, discriminator: {propertyName: a, mapping: {x: Nope}}}], minimum: 2}",
+			diag.UnresolvedRef, []string{"allOf:minimum", "discriminator", "minimum"}},
+		{"RefInObject", "{allOf: [{type: string, minimum: 1, properties: {a: {$ref: '#/components/schemas/Nope'}}}], " +
+			"minimum: 2, properties: {b: {type: string}}}", "", []string{"allOf:minimum", "allOf:properties", "minimum", "properties"}},
+	}
+	var lines strings.Builder
+	for _, tc := range cases {
+		lines.WriteString("    " + tc.name + ": " + tc.schema + "\n")
+	}
+	doc, diags := parseFull(t, openapitest.ComponentSpec(lines.String()))
+	for _, tc := range cases {
+		kept, said := keptAndSaid(t, doc, diags, tc.name)
+		assert.Equal(t, tc.kept, kept, "%s: what the node holds", tc.name)
+		assert.Equal(t, kept, said, "%s: what its reports name", tc.name)
+		if tc.failure == "" {
+			continue
+		}
+		failed := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+			return d.Code == tc.failure && strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/"+tc.name+"/allOf/0")
+		})
+		assert.True(t, failed, "%s: the failure is reported at the entry", tc.name)
 	}
 }
