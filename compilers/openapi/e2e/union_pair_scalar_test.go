@@ -4,9 +4,11 @@
 package e2e_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -49,6 +51,40 @@ func TestElection_TwoUnionsOfNullAloneBesideABodyKeepTheirReasonEverywhere(t *te
 					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
 				}, keptOn(kindNode(t, doc, entryPositionID(site.at))), "the position keeps both unions")
 			})
+		}
+	}
+}
+
+// TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf
+// holds that an anyOf of null and a $ref to a string, elected over a oneOf
+// declaring no shape, beside a string or null, lowers alike beside the allOf,
+// on one entry, on two in either order and one allOf deeper, in either order of
+// the branches and the components: a Union of the one string, as beside the
+// allOf, not collapsed to a reference on two entries, keeping the oneOf as
+// validation_only (GitHub #2011).
+func TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, site := range scalarPairSites {
+			for _, reversed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/%t", version, site.name, reversed), func(t *testing.T) {
+					t.Parallel()
+					anyOf := "[{type: 'null'}, {$ref: '#/components/schemas/Kstr'}]"
+					if version == "3.0.3" {
+						anyOf = "[{type: object, enum: [null], nullable: true}, {$ref: '#/components/schemas/Kstr'}]"
+					}
+					if reversed {
+						anyOf = reversedBranches(t, anyOf)
+					}
+					doc, _ := compileSpellingsAlike(t, site, version,
+						unionPairSpellings(stringOrNullBodies[version], "[{required: [a]}]", anyOf))
+					union, ok := kindNode(t, doc, entryPositionID(site.at)).(*ir.Union)
+					require.True(t, ok, "the position is a Union")
+					require.Len(t, union.Variants, 1)
+					assert.Equal(t, componentID("Kstr"), union.Variants[0].Type.Target)
+					assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:oneOf": ir.ReasonValidationOnly}, keptOn(union))
+				})
+			}
 		}
 	}
 }

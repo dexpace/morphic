@@ -41,9 +41,6 @@ type refinement struct {
 	// before the composition they would otherwise lower to, or, for value sets
 	// sharing no member, no conjunct was (decide).
 	contradicts bool
-	// paired marks an inline principal writing the union the position elects
-	// of two written on two entries, the other passed over (unionPair).
-	paired bool
 }
 
 // principalIs reports whether e is the branch the position lowers from: its
@@ -308,7 +305,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if aside {
 		kinds, inferred = restKinds(c, s, comp)
 	}
-	principal, paired := unionPair(c, s, conjuncts)
+	principal := unionPair(c, s, conjuncts)
 	one := usesOneRef(c, s, comp)
 	contradicts := !one && disjoint(joint, conjuncts)
 	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
@@ -330,7 +327,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case principal == nil:
 		principal = w.elect(conjuncts, electable)
 	}
-	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts, paired: paired}
+	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts}
 	refAt := readThrough(conjuncts, principal)
 	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
 	// A use saying nothing more of a reference naming no schema is that
@@ -368,15 +365,14 @@ func soleUnion(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conju
 // its conjuncts write a oneOf and an anyOf, on one inline entry or one each on
 // two, and nothing else conjoining with them (standsAlone): the position is
 // then one schema writing both (docs/compilers/openapi.md#competing-keywords),
-// whatever the kinds their branches admit. The second result marks the two
-// written on two entries.
-func unionPair(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) (*conjunct, bool) {
+// whatever the kinds their branches admit.
+func unionPair(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct) *conjunct {
 	unions := unionEntries(s, conjuncts)
 	elected := pairElected(c, s, unions)
 	if elected == nil || !standsAlone(c, s, conjuncts, unions, elected) {
-		return nil, false
+		return nil
 	}
-	return elected, len(unions) == 2
+	return elected
 }
 
 // pairElected returns the conjunct of unions whose union the position elects

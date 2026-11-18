@@ -4492,7 +4492,10 @@ declaration's keywords. The same preference decides between a `oneOf` and an `an
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
 with its entry; with nothing else conjoining with them, the two lower as one schema writing both
-does, wherever their entries are. Where the two share no value, a null only where both admit it,
+does, wherever their entries are. Written one each on two entries of an `allOf` that refines, the
+elected union collapses no more than it does beside the `allOf`, a body beside them or none: the
+elected `anyOf: [{type: 'null'}, {$ref: S}]` stays a `Union` of `S` behind a nullable reference,
+not a nullable reference to `S`. Where the two share no value, a null only where both admit it,
 the schema writing them draws the warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)
 once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it. A
 refinement folds neither union of such a pair into its principal as said, wherever they are
@@ -4528,6 +4531,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten`,
   `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
   `e2e.TestElection_AUnionPassedOverThatSaysNothingIsKeptEverywhere`,
+  `e2e.TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 

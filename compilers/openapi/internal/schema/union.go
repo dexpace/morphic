@@ -103,11 +103,11 @@ func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 }
 
 // pairedPrincipal reports whether the union lowering where st says is the
-// principal of a refinement passing over another entry's union (unionPair),
-// which conjoins with it as a co-declared anyOf does, so it collapses no more
-// than one schema writing both does.
+// principal of a refinement passing over another entry's union
+// (electsOneOfPair), which conjoins with it as a co-declared anyOf does, so it
+// collapses no more than one schema writing both does.
 func pairedPrincipal(c lowering.Ctx, st stand) bool {
-	return st.of != nil && decisionOf(c, st.of).r.paired
+	return st.of != nil && electsOneOfPair(c, st.of)
 }
 
 // electsOneOfPair reports whether s refines to an inline entry writing one
