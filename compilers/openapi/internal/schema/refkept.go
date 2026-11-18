@@ -295,22 +295,22 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 	return out
 }
 
-// keptEntryWhy words why a refinement keeps an inline branch whole, undecided
+// keptEntryWhy words why a refinement keeps an entry whole, undecided
 // saying it elected no entry, naming the schema writing its conjuncts as comp's
 // subject does.
 func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool) string {
 	if why := wholeWhy(e); why != "" {
 		return why
 	}
-	of := comp.subject()
+	of, n := comp.subject(), namesOf(e.entry)
 	if undecided {
 		return "no conjunct of " + of + " is the one it lowers from, so it lowered by the keywords beside them, " +
 			"where those name no kind by the primitive kinds its entries admit together, else to the top type, and " +
-			"nothing there homes what this inline branch adds; the branch (" +
+			"nothing there homes what " + n.this + " adds; " + n.kept + " (" +
 			strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 	}
-	return of + " lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
-		"adds; the branch (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
+	return of + " lowered to a use of one of its conjuncts, which has no home for what " + n.this + " " +
+		"adds; " + n.kept + " (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
 // keepRefConjuncts keeps on p each $ref conjunct of branches, one a

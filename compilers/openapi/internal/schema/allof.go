@@ -478,7 +478,8 @@ func compositionResidue(c lowering.Ctx, comp allOfComposition, i int) []string {
 func diagUnmergedBranch(c lowering.Ctx, k keptEntry, disjoint bool) ir.Diagnostic {
 	e, residue := k.entry, k.residue
 	if branchExcludesObject(e.schema.Schema) && !disjoint {
-		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
+		n := namesOf(e)
+		msg := n.lead + " declares a type that is not an object, which the composed model asserts it is; " + n.kept + " (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {
 			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) + ", was not flattened"
@@ -506,20 +507,21 @@ func keptKeywords(residue []string, e allOfBranch) []string {
 // declines, so allOf is left out of the keywords it lists.
 func unmergedWhy(residue []string, e allOfBranch) string {
 	const keptTail = " is kept verbatim under Unmodeled"
+	n := namesOf(e)
 	switch {
 	case e.wrapper:
-		return "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch (" +
+		return n.lead + " is merged in place, its nested allOf composes, and nothing reads the rest of it; " + n.kept + " (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	case e.capped:
 		rest := keptKeywords(residue, e)
-		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) +
-			", so its own allOf was not flattened, and the branch"
+		why := n.lead + " is nested past the flattening depth of " + strconv.Itoa(statement.MaxFlattenDepth) +
+			", so its own allOf was not flattened, and " + n.kept
 		if len(rest) > 0 {
 			why += " (" + strings.Join(rest, ", ") + ")"
 		}
 		return why + keptTail
 	default:
-		return "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (" +
+		return n.lead + " is merged in place, and nothing reads the rest of it; " + n.kept + " (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	}
 }

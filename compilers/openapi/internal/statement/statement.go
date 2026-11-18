@@ -75,7 +75,8 @@ type Schema struct {
 	// beside other keys, that reference, which the composition lists as the
 	// entry before the rest. No reader of conjuncts reads it: one of how the
 	// keys are spelt does, as a draft ignoring the keys beside a $ref does
-	// (docs/compilers/openapi.md#dialect-keywords).
+	// (docs/compilers/openapi.md#dialect-keywords), and so does a report naming
+	// the rest as written beside a $ref rather than as an inline entry.
 	WrittenBeside *Schema
 	AllOf         []Sub
 

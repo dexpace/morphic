@@ -521,7 +521,7 @@ func mergeKept(c lowering.Ctx, p *ir.Unmodeled, held ir.Unmodeled, pointer jsont
 	for _, key := range slices.Sorted(maps.Keys(held)) {
 		if other, taken := (*p)[key]; taken && !bytes.Equal(other.Value, held[key].Value) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-				"internal: %s, kept apart from this inline allOf branch, is held with another value", key))
+				"internal: %s, kept apart from this allOf branch, is held with another value", key))
 			continue
 		}
 		if *p == nil {
@@ -569,10 +569,33 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
 	diags = append(diags, keepTextBounds(c, p, bs, text, at)...)
 	where := "on this inline branch"
-	if k.entry.schema.Ref != nil {
+	switch {
+	case k.entry.schema.Ref != nil:
 		where = "beside this $ref, which names nothing"
+	case besideRef(k.entry):
+		where = "beside this $ref"
 	}
-	return append(diags, recordEntryUnhomed(c, ts, p, bs, unhomed, shape, where, at, warn)...)
+	return append(diags, recordEntryUnhomed(c, ts, p, k.entry, unhomed, shape, where, warn)...)
+}
+
+// besideRef reports whether e is what an allOf entry writing a $ref beside
+// other keys writes beside it (statement.Schema.WrittenBeside): a conjunct of
+// its own, kept as an inline entry's is
+// (docs/compilers/openapi.md#allof-classification), though no inline entry.
+func besideRef(e allOfBranch) bool { return e.schema.WrittenBeside != nil }
+
+// branchNames is how a report names an allOf entry: at the head of a sentence
+// (lead), as the entry it is about (this), and as what it keeps (kept).
+type branchNames struct{ lead, this, kept string }
+
+// namesOf returns how a report names e: as an inline branch, or as the
+// conjunct written beside its $ref where it is one (besideRef).
+func namesOf(e allOfBranch) branchNames {
+	if besideRef(e) {
+		return branchNames{lead: "conjunct beside this allOf branch's $ref", this: "the conjunct beside this $ref",
+			kept: "the conjunct"}
+	}
+	return branchNames{lead: "inline allOf branch", this: "this inline branch", kept: "the branch"}
 }
 
 // keepEntryDynamicRef keeps the dynamic reference keyword the inline entry bs
@@ -607,24 +630,24 @@ func keepUnknownOf(c lowering.Ctx, p *ir.Unmodeled, bs *statement.Schema, keys [
 	return append(diags, annotation.UndefinedKeywordsIn(p, bs, undefined, pointer, c.Place())...)
 }
 
-// recordEntryUnhomed keeps each of unhomed, keywords the entry bs at pointer
-// writes that no home the position lowered to, shape, holds, as
-// degraded_lowering (keepUnhomed), and reports them in one finding at the
-// entry, where says how they are written: a warning where warn says bs
-// declares a type no object is, which the composed model asserts it is.
-func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, bs *statement.Schema, unhomed []string,
-	shape, where string, pointer jsontext.Pointer, warn bool,
+// recordEntryUnhomed keeps each of unhomed, keywords the entry e writes that
+// no home the position lowered to, shape, holds, as degraded_lowering
+// (keepUnhomed), and reports them in one finding at the entry, where says how
+// they are written: a warning where warn says e declares a type no object is,
+// which the composed model asserts it is.
+func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, e allOfBranch, unhomed []string,
+	shape, where string, warn bool,
 ) []ir.Diagnostic {
-	kept, diags := keepUnhomed(c, ts, p, bs, unhomed, pointer)
+	kept, diags := keepUnhomed(c, ts, p, e.schema.Schema, unhomed, e.pointer)
 	if len(kept) == 0 {
 		return diags
 	}
 	if warn {
-		return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer,
-			"inline allOf branch declares a type that is not an object, which the composed model asserts it is; "+
-				"%s, written on it, kept verbatim under Unmodeled", strings.Join(kept, ", ")))
+		return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer,
+			"%s declares a type that is not an object, which the composed model asserts it is; "+
+				"%s, written on it, kept verbatim under Unmodeled", namesOf(e).lead, strings.Join(kept, ", ")))
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer,
 		"this allOf lowered to %s, which has no home for %s written %s; kept verbatim under Unmodeled",
 		shape, strings.Join(kept, ", "), where))
 }
@@ -632,16 +655,17 @@ func recordEntryUnhomed(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, bs *
 // wholeWhy words why k is kept whole where its cause says so whatever the
 // position lowered to, and is "" where the caller's own wording says it.
 func wholeWhy(k keptEntry) string {
+	n := namesOf(k.entry)
 	switch k.whole {
 	case wholeElsewhere:
-		return "this inline allOf branch reads its $refs against another base than the position does, as an " +
-			"identifier at or above it names another URI, so nothing it writes folds or is kept apart; the branch (" +
-			strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
+		return "this " + n.lead + " reads its $refs against another base than the position does, as an " +
+			"identifier at or above it names another URI, so nothing it writes folds or is kept apart; " + n.kept +
+			" (" + strings.Join(k.residue, ", ") + ") is kept verbatim under Unmodeled"
 	case wholeDisagreed:
-		return disagreedWhy(k.residue)
+		return disagreedWhy(k.residue, n)
 	case wholeApart:
-		return "another conjunct of this allOf writes a keyword this inline branch keeps otherwise, and one entry " +
-			"under that keyword holds one value; the branch (" + strings.Join(k.residue, ", ") +
+		return "another conjunct of this allOf writes a keyword " + n.this + " keeps otherwise, and one entry " +
+			"under that keyword holds one value; " + n.kept + " (" + strings.Join(k.residue, ", ") +
 			") is kept verbatim under Unmodeled"
 	default:
 		return ""

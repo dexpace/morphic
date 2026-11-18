@@ -236,11 +236,11 @@ func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 	return placed && known && knownAt && own == position
 }
 
-// disagreedWhy words why a branch that would have folded is kept: its keywords
-// have homes, and what they say is what is in question.
-func disagreedWhy(residue []string) string {
-	return "the conjuncts of this allOf disagree on a keyword this inline branch writes, so nothing it writes folds; " +
-		"the branch (" + strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
+// disagreedWhy words why a branch that would have folded is kept, as n names
+// it: its keywords have homes, and what they say is what is in question.
+func disagreedWhy(residue []string, n branchNames) string {
+	return "the conjuncts of this allOf disagree on a keyword " + n.this + " writes, so nothing it writes folds; " +
+		n.kept + " (" + strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
 // disagreed reports whether residue, what a branch that did not fold keeps of bs,

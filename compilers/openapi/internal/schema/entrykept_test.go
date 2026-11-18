@@ -39,6 +39,43 @@ func TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason(t *testing.
 	}
 }
 
+// TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt pins how a
+// report names what an allOf entry writes beside a $ref that resolves: as
+// written beside that $ref, never as an inline branch, whether each keyword is
+// kept under its own key or what it writes is kept whole (#2068). An inline
+// entry writing the same keyword is still named an inline branch.
+func TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt(t *testing.T) {
+	t.Parallel()
+	const head = "    T: {type: object, properties: {a: {type: string}}}\n" +
+		"    U: {type: object, properties: {u: {type: string}}}\n    Str: {type: string}\n"
+	for _, c := range []struct{ entries, code, want string }{
+		{"{$ref: '#/components/schemas/T', minLength: 2}, {type: object}", diag.DegradedConstruct,
+			"has no home for minLength written beside this $ref; kept"},
+		{"{$ref: '#/components/schemas/T', unevaluatedProperties: false}, {type: object}", diag.ValidationOnlyKeyword,
+			"conjunct beside this allOf branch's $ref is merged in place, and nothing reads the rest of it; " +
+				"the conjunct (unevaluatedProperties) is kept"},
+		{"{$ref: '#/components/schemas/T', allOf: [{$ref: '#/components/schemas/U'}], unevaluatedProperties: false}",
+			diag.ValidationOnlyKeyword, "conjunct beside this allOf branch's $ref is merged in place, its nested allOf composes"},
+		{"{$ref: '#/components/schemas/T', minLength: 2}, {minLength: 3}", diag.DegradedConstruct,
+			"writes a keyword the conjunct beside this $ref keeps otherwise, and one entry under that keyword holds one " +
+				"value; the conjunct (minLength) is kept"},
+		{"{$ref: '#/components/schemas/T', title: a}, {title: b}", diag.DegradedConstruct,
+			"disagree on a keyword the conjunct beside this $ref writes, so nothing it writes folds; the conjunct (title) is kept"},
+		{"{$ref: '#/components/schemas/Str', unevaluatedItems: false}", diag.ValidationOnlyKeyword,
+			"which has no home for what the conjunct beside this $ref adds; the conjunct (unevaluatedItems) is kept"},
+	} {
+		_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", head+"    S: {allOf: ["+c.entries+"]}\n"))
+		msg := openapitest.DiagMessageAt(t, diags, c.code, ir.SeverityInfo, "/components/schemas/S/allOf/0")
+		assert.Contains(t, msg, c.want, c.entries)
+		assert.NotContains(t, msg, "inline", c.entries)
+	}
+
+	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", head+
+		"    S: {allOf: [{$ref: '#/components/schemas/T'}, {minLength: 2}]}\n"))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/1"),
+		"has no home for minLength written on this inline branch; kept")
+}
+
 // TestEntryKept_AnEntryKeptWholeHoldsWhatItFoldsOnce pins an entry kept whole
 // for a closure it does not type while what else it writes folds: its vendor
 // extension and its validation-only keyword are kept inside it alone, and its
