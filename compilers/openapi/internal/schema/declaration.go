@@ -228,6 +228,21 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 	return nodes
 }
 
+// principalDiscriminatorKeys returns what the discriminator the inline
+// principal of s's allOf writes declares that reaches no IR field, where the
+// principal's node stands at s's position, written at pointer and lowered to
+// target (standsAtPosition): that node holds the discriminator as one written
+// at the position, so it keeps the object's keys as the position's own
+// (annotation.DiscriminatorKeys), which no voice's read keeps.
+func principalDiscriminatorKeys(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+) (ir.Unmodeled, []ir.Diagnostic) {
+	r, refines := refinementOf(c, s, pointer)
+	if !refines || !standsAtPosition(c, r, target, pointer) {
+		return nil, nil
+	}
+	return annotation.DiscriminatorKeys(r.principal.schema.Schema, r.principal.pointer, c.Place())
+}
+
 // closedAfterComposition reports whether td is a Model closed once composition
 // is resolved.
 func closedAfterComposition(td ir.TypeDef) bool {
@@ -255,6 +270,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	site := use.SiteAt(c, s, pointer)
 	site.Closure = closureTyped(c, ts, s, td)
 	a, diags := annotation.Read(site, pointer, c.Place())
+	held, heldDiags := principalDiscriminatorKeys(c, s, pointer, target)
+	a.Unmodeled = annotation.MergeUnmodeled(a.Unmodeled, held)
+	diags = append(diags, heldDiags...)
 
 	common := td.Common()
 	common.Docs = a.Docs

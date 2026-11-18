@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -29,8 +30,14 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode)
 		return ref.Target, diags
 	}
+	// The node keeps the content vocabulary the branch writes where it holds
+	// none, as the branch's own node would (recordUnplacedContent).
+	var content finished
+	fin = content.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return recordUnplacedContent(c, &td.Common().Unmodeled, e.schema.Schema, td, e.pointer)
+	}).then(fin)
 	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, stand{of: s, at: pointer})
-	return ref.Target, append(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags...)
+	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, content.diags)
 }
 
 // resolveBeaten resolves each $ref of r but its principal: nothing else may

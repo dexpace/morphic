@@ -67,3 +67,59 @@ func TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt(t *testing.T
 		assert.Equal(t, ir.ReasonNoIRHome, kept.Reason, name)
 	}
 }
+
+// TestStand_ContentVocabularyItsNodeCannotHoldIsKept pins the content
+// vocabulary an inline principal writes beside a union, a null alone or an
+// inferred list, whose node has no Encoding: it is kept on that node where it
+// is written, as the same keywords beside each other keep it
+// (docs/compilers/openapi.md#content-vocabulary).
+func TestStand_ContentVocabularyItsNodeCannotHoldIsKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    UnionBeside: {description: d, oneOf: [{type: string}, {type: integer}], contentMediaType: text/plain}\n"+
+			"    UnionEntry: {allOf: [{description: d}, {oneOf: [{type: string}, {type: integer}], contentMediaType: text/plain}]}\n"+
+			"    NullEntry: {allOf: [{description: d}, {oneOf: [{type: 'null'}], contentMediaType: text/plain}]}\n"+
+			"    ListEntry: {allOf: [{description: d}, {items: {type: string}, contentMediaType: text/plain}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for name, at := range map[string]string{
+		"UnionBeside": "/components/schemas/UnionBeside/contentMediaType",
+		"UnionEntry":  "/components/schemas/UnionEntry/allOf/1/contentMediaType",
+		"NullEntry":   "/components/schemas/NullEntry/allOf/1/contentMediaType",
+		"ListEntry":   "/components/schemas/ListEntry/allOf/1/contentMediaType",
+	} {
+		td := typeByName(doc, name)
+		require.NotNil(t, td, name)
+		kept, held := td.Common().Unmodeled["openapi:contentMediaType"]
+		require.True(t, held, "%s keeps what no Encoding holds, on %T", name, td)
+		assert.Equal(t, ir.ReasonNoIRHome, kept.Reason, name)
+		assert.Equal(t, at, string(kept.Provenance.Pointer), "%s: kept where it is written", name)
+	}
+}
+
+// TestStand_ContentBesideTheAllOfIsKeptBesideThePrincipalsEncoding pins a
+// content keyword the position writes beside an allOf whose inline principal
+// builds a Scalar holding an Encoding of its own: the Encoding is the branch's,
+// so the keyword is kept beside it where it is written, never dropped, where
+// the keywords beside an allOf electing no entry build the Encoding holding it
+// (docs/compilers/openapi.md#content-vocabulary).
+func TestStand_ContentBesideTheAllOfIsKeptBesideThePrincipalsEncoding(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Beside: {allOf: [{type: string, contentEncoding: base64}], contentMediaType: text/plain}\n"+
+			"    Own: {type: string, contentEncoding: base64, allOf: [{minLength: 1}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	own, ok := typeByName(doc, "Own").(*ir.Scalar)
+	require.True(t, ok, "Own is the scalar, not %T", typeByName(doc, "Own"))
+	require.NotNil(t, own.Encoding)
+	assert.Equal(t, "base64", own.Encoding.Name)
+	assert.NotContains(t, own.Unmodeled, "openapi:contentEncoding", "Own's Encoding holds what it writes")
+	sc, ok := typeByName(doc, "Beside").(*ir.Scalar)
+	require.True(t, ok, "Beside is the scalar, not %T", typeByName(doc, "Beside"))
+	require.NotNil(t, sc.Encoding)
+	assert.Equal(t, "base64", sc.Encoding.Name, "the branch's Encoding stands")
+	assert.Empty(t, sc.Encoding.MediaType, "and holds nothing the position writes")
+	kept, held := sc.Unmodeled["openapi:contentMediaType"]
+	require.True(t, held, "the position's keyword is kept")
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.Equal(t, "/components/schemas/Beside/contentMediaType", string(kept.Provenance.Pointer))
+}

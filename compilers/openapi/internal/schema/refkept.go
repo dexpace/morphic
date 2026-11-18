@@ -72,6 +72,10 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		degraded, validation := keptUnion(c, r, s)
 		k.keywords, k.validation = append(refinedUnhomed(c, r, s, typed), degraded...), validation
 	}
+	collapsed := collapsedPrincipal(c, r)
+	if collapsed {
+		k.nulls = nullBranchKeeps(c, r.principal.schema.Schema, r.principal.pointer)
+	}
 	homes := homesAt(c, s, target, pointer)
 	voices := voicingOf(c, s)
 	w := newAdmissionReader(c)
@@ -90,7 +94,8 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
-			residues[i] = unmergedBranchKeys(e.schema.Schema, residueRead(c, &w, r, typed, e, voices.speaks[i], censused, homes))
+			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes)
+			residues[i] = unmergedBranchKeys(e.schema.Schema, read)
 		}
 	}
 	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties)
@@ -106,15 +111,16 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // principal standing at the position, e where censused says so, reads or keeps
 // on its node (keepUnread). A value set's union and content vocabulary are
 // kept, as its node holds neither; any other principal's union is its node's,
-// as is the content vocabulary of one whose types take it (holdsContent).
-func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused bool,
+// or the reference's where it collapsed (collapsed, collapsedPrincipal), as is
+// the content vocabulary of one whose types take it (holdsContent).
+func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused, collapsed bool,
 	homes boundHomes,
 ) func(string) bool {
 	bs := e.schema.Schema
 	_, set := valueSetPrincipal(r)
 	return func(key string) bool {
 		switch {
-		case key == "allOf" && e.wrapper, speaks && folds(c, bs, key, homes):
+		case key == "allOf" && e.wrapper, speaks && folds(c, bs, key, homes), collapsed && unionKeyword(key):
 			return true
 		case censused && unionKeyword(key):
 			return !set
@@ -126,6 +132,19 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 			return said(w, r, typed, bs, key)
 		}
 	}
+}
+
+// collapsedPrincipal reports whether r's principal is an inline union that
+// lowered as the nullable reference to its one non-null branch, the outcome
+// the same union written alone at a position has (referenceOutcomeKeywords):
+// the reference says the union, its target the branch and its Nullable the
+// null branches, of which one saying more is kept apart (nullBranchKeeps).
+func collapsedPrincipal(c lowering.Ctx, r refinement) bool {
+	if r.principal == nil || r.principal.schema.Ref != nil || !declaresUnion(r.principal.schema.Schema) {
+		return false
+	}
+	_, shape := referenceOutcomeKeywords(c, r.principal.schema.Schema, r.principal.pointer)
+	return shape == collapsedShape
 }
 
 // unionKeyword reports whether keyword is oneOf or anyOf.

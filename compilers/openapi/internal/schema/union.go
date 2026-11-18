@@ -42,7 +42,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 	if allNullUnion(c, s) {
 		return lowerNullOnlyUnion(c, ts, s, pointer, fin, st)
 	}
-	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s)}, fin, st,
+	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s, s)}, fin, st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			var diags []ir.Diagnostic
 			tid := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {

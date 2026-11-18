@@ -97,9 +97,9 @@ func requireEntryObjectUnion(t *testing.T, doc *ir.Document, node ir.TypeDef) {
 // entryIndexAnywhere matches the entry of an allOf a pointer passes through.
 var entryIndexAnywhere = regexp.MustCompile(`/allOf/[0-9]+`)
 
-// entryIndexBeneath matches the entry of an allOf a pointer passes through
-// to something written beneath it.
-var entryIndexBeneath = regexp.MustCompile(`/allOf/[0-9]+/`)
+// entryIndexBeneath matches the entries of allOfs a pointer passes through,
+// one nested in another included, to something written beneath them.
+var entryIndexBeneath = regexp.MustCompile(`(/allOf/[0-9]+)+/`)
 
 // entryPositionID is the ID of the node a schema written at at owns: the
 // component's own for a component, the anonymous one at the pointer for any

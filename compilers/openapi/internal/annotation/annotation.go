@@ -373,13 +373,30 @@ func subObjectKeys(s *statement.Schema, hints *ir.XMLHints, pointer jsontext.Poi
 		diags = append(diags, xmlDiags...)
 		keep("xml", x.Unknown, x.Node, x.Extensions, taken)
 	}
-	if d := s.Discriminator(); d != nil && discriminator {
-		keep("discriminator", d.Unknown, d.Node, d.Extensions, nil)
+	if discriminator {
+		kept, keptDiags := DiscriminatorKeys(s, pointer, doc)
+		out = MergeUnmodeled(out, kept)
+		diags = append(diags, keptDiags...)
 	}
 	if e := s.ExternalDocs(); e != nil {
 		keep("externalDocs", e.Unknown, e.Node, e.Extensions, nil)
 	}
 	return out, diags
+}
+
+// DiscriminatorKeys returns what the discriminator s writes, at pointer,
+// declares that reaches no IR field, as Read keeps a site's own schema's: the
+// x-* it carries and the keys the specification does not define for it. A node
+// holding the discriminator of a schema written elsewhere, an allOf entry whose
+// union stands at the entry's position, keeps them so.
+func DiscriminatorKeys(s *statement.Schema, pointer jsontext.Pointer, doc provenance.Doc) (ir.Unmodeled, []ir.Diagnostic) {
+	d := s.Discriminator()
+	if d == nil {
+		return nil, nil
+	}
+	owner := pointer + ids.Ptr("discriminator")
+	out, diags := SchemaExtensions(d.Extensions, doc, owner, "discriminator")
+	return out, append(diags, UnknownKeysNamed(&out, d.Unknown, d.Node, doc, owner, "discriminator")...)
 }
 
 // applyNodeType places the nodeType the XML object x writes on hints, which the

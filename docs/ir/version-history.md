@@ -1062,6 +1062,16 @@ it sees. Changes made together in one bump are listed together under it.
     alias, the property or the parameter held, a wrapper's once. A `$ref` to the entry's own
     pointer names a node of the entry alone.
 
+  - **A union alone on an inline `allOf` entry**
+    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). A `oneOf` or
+    `anyOf` on an entry, beside nothing a variant would carry, lowers as the union written at the
+    position: `{allOf: [{oneOf: [{$ref: X}, {type: 'null'}]}]}` is the nullable reference to `X`,
+    where it was a nullable `Union` of one `Model` composed over `X`, with an info; several
+    branches give the `Union` of the branches' own nodes. Such a union's discriminator keys the
+    compiler does not read are kept under `openapi:discriminator/<key>`, where an entry's stood
+    under `openapi:allOf/<n>/discriminator/<key>`. A union that collapses to a reference keeps no
+    `openapi:oneOf`, and a null branch writing more than null is kept under `openapi:oneOf/<i>`.
+
   A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
-  keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, or the
-  principal's node at its entry's ID.
+  keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, the
+  principal's node at its entry's ID, or a one-variant `Union` over a composed `Model`.

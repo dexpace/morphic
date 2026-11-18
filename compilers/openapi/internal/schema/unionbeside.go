@@ -37,7 +37,7 @@ func hasUnionSiblings(c lowering.Ctx, s *statement.Schema) bool {
 	if len(siblings) == 0 {
 		return false
 	}
-	said := branchesSay(c, s)
+	said := branchesSay(c, s, s)
 	if slices.ContainsFunc(siblings, func(k string) bool { return !slices.Contains(said, k) }) {
 		return true
 	}
@@ -48,22 +48,24 @@ func hasUnionSiblings(c lowering.Ctx, s *statement.Schema) bool {
 // in full, read as an admissionReader reads what a schema admits.
 var restatableKeywords = []string{"type", "format", "enum", "const", "items"}
 
-// branchesSayOf keys what branchesSay read of one schema.
+// branchesSayOf keys what branchesSay read of one union and the schema
+// writing keywords beside it.
 type branchesSayOf struct {
-	schema *statement.Schema
+	union, beside *statement.Schema
 }
 
-// branchesSay returns the keywords of restatableKeywords s writes beside its
-// oneOf and anyOf that every branch of both already says: a `type` naming each
+// branchesSay returns the keywords of restatableKeywords beside writes that
+// every branch of union's oneOf and anyOf already says: a `type` naming each
 // kind a branch admits, null included, and a `format`, an `enum`, a `const` or
 // an `items` each branch is held to (admissionReader.holds). Such a keyword adds
-// nothing to the union, so the position reads as if it were not written
-// (docs/compilers/openapi.md#union-beside-structure). A read cut short says
-// none, and so does a schema writing no union, of which "every branch" would
-// say anything. Every reader of the position asks, so it is read once a run.
-func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
-	return lowering.Remembered(c, branchesSayOf{s}, func() []string {
-		choice := s.ChoiceKeywords()
+// nothing to the union, as if it were not written
+// (docs/compilers/openapi.md#union-beside-structure); beside is union, or a
+// conjunct of the allOf holding it. A read cut short says none, as does a union
+// of no branch, which every keyword would pass. Every reader asks, so it is
+// read once a run.
+func branchesSay(c lowering.Ctx, union, beside *statement.Schema) []string {
+	return lowering.Remembered(c, branchesSayOf{union, beside}, func() []string {
+		choice := union.ChoiceKeywords()
 		branches := slices.Concat(choice.OneOf, choice.AnyOf)
 		if len(branches) == 0 {
 			return nil
@@ -78,10 +80,10 @@ func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 		}
 		var out []string
 		for _, key := range restatableKeywords {
-			if !hasKey(s, key) {
+			if !hasKey(beside, key) {
 				continue
 			}
-			if !slices.ContainsFunc(reads, func(r admitted) bool { return !branchSays(&w, r, s, key) }) {
+			if !slices.ContainsFunc(reads, func(r admitted) bool { return !branchSays(&w, r, beside, key) }) {
 				out = append(out, key)
 			}
 		}

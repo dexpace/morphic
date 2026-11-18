@@ -49,7 +49,8 @@ func TestBranchesSay_NoBranchesSayNothing(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 	l := NewRawLowerer(&soa.OpenAPI{})
-	assert.Empty(t, branchesSay(l.Ctx, StandaloneSchema(js.GetSchema())), "no branch says a keyword the schema writes")
+	s := StandaloneSchema(js.GetSchema())
+	assert.Empty(t, branchesSay(l.Ctx, s, s), "no branch says a keyword the schema writes")
 }
 
 // TestPreserveNullOnlyUnion_NothingToKeep covers a node whose

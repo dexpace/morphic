@@ -310,7 +310,10 @@ func holdsContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer js
 	}
 	switch n := td.(type) {
 	case *ir.Scalar:
-		return n.Encoding != nil
+		// An inline principal's node reads the Encoding of its branch alone, so
+		// it holds none that s writes beside its allOf.
+		r, refined := refinementOf(c, s, pointer)
+		return n.Encoding != nil && (!refined || r.principal == nil)
 	case *ir.Union:
 		return lowersTypeArray(c, s, pointer)
 	default:
