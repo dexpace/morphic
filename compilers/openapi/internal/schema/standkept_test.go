@@ -271,3 +271,33 @@ func TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept(t *testing.T) {
 	assert.Contains(t, media[0], "holds what its inline allOf branch writes")
 	assert.NotContains(t, media[0], "no Encoding field")
 }
+
+// TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey pins an inline
+// principal its position keeps whole, holding a value no JSON holds: no entry
+// is kept under its key, whole or in part, and one error says so; what its
+// own reading keeps is kept keyword by keyword, as written flat, and held
+// against the position's, each named by its report.
+func TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Free: {allOf: [{type: string, minimum: 1, x-k: 1, x-q: "+unpreservableValue+"}], x-k: 2}\n"+
+			"    Taken: {allOf: [{type: string, minimum: 1, x-k: 1, x-q: "+unpreservableValue+"}], x-k: 2, minimum: 2}\n"+
+			"    Shared: {allOf: [{type: string, x-k: 1, x-q: "+unpreservableValue+"}], x-k: 2}\n"))
+	assert.Equal(t, map[string]string{"openapi:minimum": "1 [degraded_lowering]", "openapi:x-k": "2 [vendor_extension]"},
+		keptOn(t, doc, "Free"))
+	assert.Equal(t, map[string]string{
+		"openapi:allOf/0": `{"minimum":1} [degraded_lowering]`,
+		"openapi:minimum": "2 [degraded_lowering]",
+		"openapi:x-k":     "2 [vendor_extension]",
+	}, keptOn(t, doc, "Taken"))
+	assert.Equal(t, map[string]string{"openapi:x-k": "2 [vendor_extension]"}, keptOn(t, doc, "Shared"))
+	for _, name := range []string{"Free", "Taken", "Shared"} {
+		entry := reportsAt(diags, "/components/schemas/"+name+"/allOf/0")
+		require.NotEmpty(t, entry, name)
+		assert.Contains(t, strings.Join(entry, "\n"), "could not be kept whole", name)
+		assert.Contains(t, strings.Join(entry, "\n"), "the rest (x-k, x-q) in no form at all", name)
+		assert.NotContains(t, strings.Join(entry, "\n"), "is represented in the IR in no form at all", name)
+	}
+	assert.Len(t, reportsAt(diags, "/components/schemas/Free/allOf/0"), 2, "the error and the bound's own report")
+	assert.Len(t, reportsAt(diags, "/components/schemas/Taken/allOf/0"), 2, "the error and the bound kept under the entry's key")
+}
