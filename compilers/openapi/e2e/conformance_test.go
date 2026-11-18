@@ -195,6 +195,9 @@ func conformanceCases() []conformanceCase {
 		{"allof-refinement", assertAllOfRefinement},
 		{"allof-entry-infers-array", assertAllOfEntryInfersArray},
 		{"ref-use-bound-keywords", assertRefUseBoundKeywords},
+		{"allof-value-set-beside-entry", assertAllOfValueSetBesideEntry},
+		{"union-joined-value-sets", assertUnionJoinedValueSets},
+		{"kept-ref-unrenderable", assertKeptRefUnrenderable},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-discriminated", assertAnyOfDiscriminated},
 		{"discriminator-inheritance", assertDiscriminatorInheritance},
@@ -316,6 +319,7 @@ func conformanceCases() []conformanceCase {
 		{"path-item-operations", assertPathItemOperations},
 		{"path-item-anchored-key", assertPathItemAnchoredKey},
 		{"yaml-merge-keys", assertYAMLMergeKeys},
+		{"merge-depth-bound", assertMergeDepthBound},
 		{"path-item-ref-siblings", assertPathItemRefSiblings},
 		{"deprecation", assertDeprecation},
 		{"replacement-inference", assertReplacementInference},
@@ -414,6 +418,9 @@ func invalidCases() map[string][]string {
 		// An operation binding Idempotency-Key in two cases, a repeat as header
 		// names compare in any case, whose token the policy then declines to infer.
 		"idempotency-inference": {"openapi/duplicate-parameter"},
+		// An allOf entry writing a length no JSON number spells, `.inf`: a
+		// Schema Object field "must be a non-negative integer".
+		"kept-ref-unrenderable": {"openapi/validation/validation-type-mismatch"},
 		// Requirements naming a scheme the document does not hold: each name
 		// "MUST correspond to a security scheme". An entry naming no mechanism
 		// and one whose $ref reaches nothing are among what they name.

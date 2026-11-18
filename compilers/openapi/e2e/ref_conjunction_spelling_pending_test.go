@@ -15,16 +15,11 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Pending: an enum on an entry next to a $ref naming no schema composes a
-// Model, where beside the $ref or the allOf it lowers as the enum keeping the
-// $ref: the failed reference cuts the read the election makes. The entry
-// writing both, `{allOf: [{$ref: Missing, enum: [a]}]}`, is read whole, its
-// keys kept by the composition (docs/compilers/openapi.md#allof-inline-residue),
-// so that spelling is held to the composition.
-
 // TestRefConjunction_AValueSetBesideAFailedRefLowersAsBesideItsRef holds an
 // enum beside a $ref naming no schema to one document in each spelling but an
-// entry writing both, which is read whole.
+// entry writing both, which is read whole. Pending (GitHub #2064): an enum on
+// an entry of its own next to the $ref composes a Model, where beside the $ref
+// or the allOf it lowers as the enum keeping the $ref.
 func TestRefConjunction_AValueSetBesideAFailedRefLowersAsBesideItsRef(t *testing.T) {
 	t.Parallel()
 	const target, k = "Other: {type: string}", "enum: [a]"
@@ -38,13 +33,12 @@ func TestRefConjunction_AValueSetBesideAFailedRefLowersAsBesideItsRef(t *testing
 	}
 }
 
-// Pending: an inline conjunct an allOf lowers from stands at its own pointer,
-// behind an alias at a component and naming the carrier's $ref at a property,
-// where beside the $ref or the allOf the position owns it.
-
 // TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition holds
 // the four spellings of a union beside a $ref to a schema admitting every
-// kind to one document, the union the node the position owns.
+// kind to one document, the union the node the position owns. Pending
+// (GitHub #2053): an inline union an allOf lowers from stands at its own
+// pointer, behind an alias at a component, where beside the $ref the position
+// owns it.
 func TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition(t *testing.T) {
 	t.Parallel()
 	for _, target := range []string{"T: {}", "T: true", "T: {properties: {a: {type: string}}}"} {
@@ -52,13 +46,12 @@ func TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition(t *testi
 	}
 }
 
-// Pending: a component written as a $ref to a discriminated schema, saying
-// nothing else, is the Model over it with no tag, where an allOf of the $ref
-// is the subtype the discriminator routes to by the component's name.
-
 // TestRefConjunction_AComponentOverADiscriminatedBaseIsTaggedInEverySpelling
 // holds the tag a component over a discriminated schema carries to one value
-// in every spelling of a use saying nothing more of it.
+// in every spelling of a use saying nothing more of it. Pending (GitHub
+// #2060): a component written as a $ref to a discriminated schema is the
+// Model over it with no tag, where an allOf of the $ref is the subtype the
+// discriminator routes to by the component's name.
 func TestRefConjunction_AComponentOverADiscriminatedBaseIsTaggedInEverySpelling(t *testing.T) {
 	t.Parallel()
 	disc := "T: {type: object, required: [kind], properties: {kind: {type: string}}, discriminator: {propertyName: kind}}"
@@ -74,13 +67,12 @@ func TestRefConjunction_AComponentOverADiscriminatedBaseIsTaggedInEverySpelling(
 	}
 }
 
-// Pending: a redaction beside a $ref to an object at a carrier is Sensitive on
-// the Model the use owns, which no emitter collapses, where beside a $ref to a
-// string it is the carrier's Secret.
-
 // TestRefConjunction_ARedactionBesideARefToAnObjectIsTheCarriersInEverySpelling
 // holds format: password beside a $ref to an object, at a property, to the
-// property's Secret in every spelling, its type the target.
+// property's Secret in every spelling, its type the target. Pending (GitHub
+// #2061): a redaction beside a $ref to an object at a carrier is Sensitive on
+// the Model the use owns, which no emitter collapses, where beside a $ref to a
+// string it is the carrier's Secret.
 func TestRefConjunction_ARedactionBesideARefToAnObjectIsTheCarriersInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for name, schema := range fourSpellings("format: password") {

@@ -1,0 +1,662 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ValueSetBesideEntry",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ValueSetBesideEntry",
+        "canonical": "value_set_beside_entry"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Beside/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Beside/enum/0",
+      "name": {
+        "hint": "beside_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Beside/enum/0"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "a",
+            "value": {
+              "kind": "number",
+              "num": "1"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/Beside/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Beside/enum/1",
+      "name": {
+        "hint": "beside_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Beside/enum/1"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "b",
+            "value": {
+              "kind": "number",
+              "num": "2"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/BesideRef/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/BesideRef/enum/0",
+      "name": {
+        "hint": "beside_ref_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideRef/enum/0"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "a",
+            "value": {
+              "kind": "number",
+              "num": "1"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/BesideRef/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/BesideRef/enum/1",
+      "name": {
+        "hint": "beside_ref_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideRef/enum/1"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "b",
+            "value": {
+              "kind": "number",
+              "num": "2"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/BesideTwo/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/BesideTwo/enum/0",
+      "name": {
+        "hint": "beside_two_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTwo/enum/0"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "a",
+            "value": {
+              "kind": "number",
+              "num": "1"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/BesideTwo/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/BesideTwo/enum/1",
+      "name": {
+        "hint": "beside_two_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTwo/enum/1"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "b",
+            "value": {
+              "kind": "number",
+              "num": "2"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/BesideTyped/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/BesideTyped/enum/0",
+      "name": {
+        "hint": "beside_typed_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTyped/enum/0"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "a",
+            "value": {
+              "kind": "number",
+              "num": "1"
+            }
+          }
+        ]
+      }
+    },
+    "t/anon/components/schemas/BesideTyped/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/BesideTyped/enum/1",
+      "name": {
+        "hint": "beside_typed_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTyped/enum/1"
+      },
+      "value": {
+        "kind": "object",
+        "object": [
+          {
+            "name": "b",
+            "value": {
+              "kind": "number",
+              "num": "2"
+            }
+          }
+        ]
+      }
+    },
+    "t/openapi/components/schemas/Beside": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Beside",
+      "name": {
+        "source": "Beside",
+        "canonical": "beside"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                {
+                  "a": 1
+                },
+                {
+                  "c": 3
+                }
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Beside/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Beside"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "beside_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Beside/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "beside_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Beside/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BesideRef": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/BesideRef",
+      "name": {
+        "source": "BesideRef",
+        "canonical": "beside_ref"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/Target",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideRef"
+          }
+        },
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                {
+                  "a": 1
+                },
+                {
+                  "c": 3
+                }
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideRef/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideRef"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "beside_ref_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideRef/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "beside_ref_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideRef/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BesideTwo": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/BesideTwo",
+      "name": {
+        "source": "BesideTwo",
+        "canonical": "beside_two"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                {
+                  "a": 1
+                },
+                {
+                  "c": 3
+                }
+              ]
+            },
+            {
+              "required": [
+                "a"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideTwo/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTwo"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "beside_two_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideTwo/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "beside_two_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideTwo/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BesideTyped": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/BesideTyped",
+      "name": {
+        "source": "BesideTyped",
+        "canonical": "beside_typed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "enum": [
+                {
+                  "a": 1
+                },
+                {
+                  "c": 3
+                }
+              ],
+              "type": "object"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideTyped/allOf"
+          }
+        },
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "object",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideTyped/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTyped"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "beside_typed_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideTyped/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "beside_typed_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideTyped/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Target": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Target",
+      "name": {
+        "source": "Target",
+        "canonical": "target"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Target"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Beside"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Beside"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTyped"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"union\", which has no home for type declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTyped"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTyped"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTwo"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideTwo"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideRef"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position declares $ref and allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with $ref and allOf kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideRef"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-value-set-beside-entry.yaml",
+      "hash": "f23499de0db090d2815be1d26e1c34e398f867cb0f5ae31d93b5e26546d9a872"
+    }
+  ]
+}

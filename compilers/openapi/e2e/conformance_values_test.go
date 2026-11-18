@@ -562,3 +562,40 @@ func assertReferenceBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.Nil(t, header.Constraints)
 	assert.Contains(t, header.Unmodeled, "openapi:schema/pattern")
 }
+
+// assertUnionJoinedValueSets holds union-joined-value-sets to
+// docs/compilers/openapi.md#allof-refinement: the value sets of a union's
+// branches are one set to the conjunct beside them, whether the branches share
+// members, nest, or number more than a set joins beside its first. A set lying
+// within what the union admits is the position's, and the union is kept; one
+// that does not leaves the union the position's conjunct, with the set kept.
+func assertUnionJoinedValueSets(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	memberStrings := func(e *ir.Enum) []string {
+		out := make([]string, 0, len(e.Members))
+		for _, m := range e.Members {
+			out = append(out, m.Value.Str)
+		}
+		return out
+	}
+
+	nested, ok := typeByName(doc, "Nested").(*ir.Enum)
+	require.True(t, ok, "a set within the nested union's members is the position")
+	assert.Equal(t, []string{"s1", "p"}, memberStrings(nested))
+	assertKeptRaw(t, nested.Unmodeled, "openapi:anyOf", `[{"enum":["s1","s2","s3","s4","s5"]},{"anyOf":[{"enum":["p","q"]},{"enum":["s1"]}]}]`)
+
+	shared, ok := typeByName(doc, "Shared").(*ir.Scalar)
+	require.True(t, ok, "a set outside what the union admits leaves the union the position's")
+	union, ok := doc.Types[shared.Base.Target].(*ir.Union)
+	require.True(t, ok)
+	assert.Len(t, union.Variants, 2)
+	assertKeptRaw(t, shared.Unmodeled, "openapi:enum", `["b","x"]`)
+
+	many, ok := typeByName(doc, "Many").(*ir.Scalar)
+	require.True(t, ok)
+	base, ok := doc.Types[many.Base.Target].(*ir.Union)
+	require.True(t, ok, "the ten branches are the union the position's conjunct is")
+	assert.Len(t, base.Variants, 10)
+	assertKeptRaw(t, many.Unmodeled, "openapi:enum", `["v3","zz"]`)
+
+	assertNoErrorDiags(t, diags)
+}

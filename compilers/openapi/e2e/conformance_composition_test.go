@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1129,4 +1130,37 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		assert.True(t, u.WireTagged, name)
 		assert.Equal(t, []string{"Bank", "Card"}, slices.Sorted(maps.Keys(u.Discriminator.Mapping)), name)
 	}
+}
+
+// assertAllOfValueSetBesideEntry holds allof-value-set-beside-entry to
+// docs/compilers/openapi.md#competing-keywords: where no value set is elected
+// before the composition, the allOf an inline entry is written on is passed
+// over and kept whole, each beside the value set the position lowers as, and a
+// $ref written beside them with it. The sets share a member, so the document
+// is no refusal of an empty intersection.
+func assertAllOfValueSetBesideEntry(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	entry := `[{"enum":[{"a":1},{"c":3}]}]`
+	for name, want := range map[string]map[string]string{
+		"Beside":      {"openapi:allOf": entry},
+		"BesideTyped": {"openapi:allOf": `[{"enum":[{"a":1},{"c":3}],"type":"object"}]`, "openapi:type": `"object"`},
+		"BesideTwo":   {"openapi:allOf": `[{"enum":[{"a":1},{"c":3}]},{"required":["a"]}]`},
+		"BesideRef":   {"openapi:allOf": entry, "openapi:$ref": `"#/components/schemas/Target"`},
+	} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s lowers as the union of the literals its enum lists", name)
+		assert.Len(t, union.Variants, 2, name)
+		assert.ElementsMatch(t, slices.Collect(maps.Keys(want)), slices.Collect(maps.Keys(union.Unmodeled)), "%s keeps what it passed over", name)
+		for key, value := range want {
+			assertKeptRaw(t, union.Unmodeled, key, value)
+		}
+		reported := 0
+		for _, d := range diags {
+			if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
+				strings.Contains(d.Message, "beside its enum") {
+				reported++
+			}
+		}
+		assert.Equal(t, 1, reported, "%s: the election reports what it passed over once", name)
+	}
+	assertNoErrorDiags(t, diags)
 }

@@ -1,0 +1,93 @@
+openapi: 3.1.0
+info: {title: MergeDepthBound, version: "1"}
+# A schema merges its keywords through `<<`: some from short chains the reader
+# expands, and a description through a chain of 65 merges, one past the 64 the
+# reader expands. The schema is read from the keys within the bound alone, so the
+# description at the far end is neither lowered nor kept, and the warning at the
+# schema says why. Every other keyword is read as written, and a schema that
+# merges nothing (Plain) is read as it always is.
+paths: {}
+x-c0: &c0 {description: past the bound}
+x-c1: &c1 {<<: *c0}
+x-c2: &c2 {<<: *c1}
+x-c3: &c3 {<<: *c2}
+x-c4: &c4 {<<: *c3}
+x-c5: &c5 {<<: *c4}
+x-c6: &c6 {<<: *c5}
+x-c7: &c7 {<<: *c6}
+x-c8: &c8 {<<: *c7}
+x-c9: &c9 {<<: *c8}
+x-c10: &c10 {<<: *c9}
+x-c11: &c11 {<<: *c10}
+x-c12: &c12 {<<: *c11}
+x-c13: &c13 {<<: *c12}
+x-c14: &c14 {<<: *c13}
+x-c15: &c15 {<<: *c14}
+x-c16: &c16 {<<: *c15}
+x-c17: &c17 {<<: *c16}
+x-c18: &c18 {<<: *c17}
+x-c19: &c19 {<<: *c18}
+x-c20: &c20 {<<: *c19}
+x-c21: &c21 {<<: *c20}
+x-c22: &c22 {<<: *c21}
+x-c23: &c23 {<<: *c22}
+x-c24: &c24 {<<: *c23}
+x-c25: &c25 {<<: *c24}
+x-c26: &c26 {<<: *c25}
+x-c27: &c27 {<<: *c26}
+x-c28: &c28 {<<: *c27}
+x-c29: &c29 {<<: *c28}
+x-c30: &c30 {<<: *c29}
+x-c31: &c31 {<<: *c30}
+x-c32: &c32 {<<: *c31}
+x-c33: &c33 {<<: *c32}
+x-c34: &c34 {<<: *c33}
+x-c35: &c35 {<<: *c34}
+x-c36: &c36 {<<: *c35}
+x-c37: &c37 {<<: *c36}
+x-c38: &c38 {<<: *c37}
+x-c39: &c39 {<<: *c38}
+x-c40: &c40 {<<: *c39}
+x-c41: &c41 {<<: *c40}
+x-c42: &c42 {<<: *c41}
+x-c43: &c43 {<<: *c42}
+x-c44: &c44 {<<: *c43}
+x-c45: &c45 {<<: *c44}
+x-c46: &c46 {<<: *c45}
+x-c47: &c47 {<<: *c46}
+x-c48: &c48 {<<: *c47}
+x-c49: &c49 {<<: *c48}
+x-c50: &c50 {<<: *c49}
+x-c51: &c51 {<<: *c50}
+x-c52: &c52 {<<: *c51}
+x-c53: &c53 {<<: *c52}
+x-c54: &c54 {<<: *c53}
+x-c55: &c55 {<<: *c54}
+x-c56: &c56 {<<: *c55}
+x-c57: &c57 {<<: *c56}
+x-c58: &c58 {<<: *c57}
+x-c59: &c59 {<<: *c58}
+x-c60: &c60 {<<: *c59}
+x-c61: &c61 {<<: *c60}
+x-c62: &c62 {<<: *c61}
+x-c63: &c63 {<<: *c62}
+x-c64: &c64 {<<: *c63}
+x-kStr: &kStr {type: string, minLength: 1, maxLength: 9, pattern: '^a', format: byte, contentEncoding: base64, contentMediaType: text/plain, contentSchema: {type: string}}
+x-kInt: &kInt {minimum: 1, maximum: 9, multipleOf: 2, exclusiveMinimum: 0, exclusiveMaximum: 10}
+x-kArr: &kArr {items: {type: string}, prefixItems: [{type: string}], contains: {type: string}, minContains: 1, maxContains: 3, minItems: 1, maxItems: 4, uniqueItems: true, unevaluatedItems: false}
+x-kObj: &kObj {properties: {a: {type: string}, b: {type: string}}, patternProperties: {'^x': {type: string}}, additionalProperties: false, propertyNames: {maxLength: 3}, unevaluatedProperties: false, required: [a, b], minProperties: 1, maxProperties: 4}
+x-kDisc: &kDisc {oneOf: [{type: object, properties: {pet: {type: string}}}, {type: object, properties: {pet: {type: string}}}], discriminator: {propertyName: pet}}
+x-kDoc: &kDoc {title: T, description: D, default: x, example: x, examples: [x], deprecated: true, readOnly: true, writeOnly: false, xml: {name: s}, externalDocs: {url: 'https://e.example'}, nullable: true, const: x, $comment: c}
+x-kEnum: &kEnum {type: string, enum: [x, y]}
+x-kLog: &kLog {allOf: [{type: string}, {minLength: 1}], oneOf: [{type: string}, {type: integer}], anyOf: [{type: string}], not: {type: integer}, if: {type: string}, then: {minLength: 1}, else: {type: integer}, dependentSchemas: {a: {type: string}}}
+components:
+  schemas:
+    Str: {<<: [*c64, *kStr]}
+    Int: {<<: [*c64, *kInt], type: integer}
+    Arr: {<<: [*c64, *kArr], type: array}
+    Obj: {<<: [*c64, *kObj], type: object}
+    Doc: {<<: [*c64, *kDoc], type: string}
+    Log: {<<: [*c64, *kLog]}
+    Disc: {<<: [*c64, *kDisc]}
+    Enum: {<<: [*c64, *kEnum]}
+    Plain: {type: object, properties: {a: {type: string}, b: {type: string}}, required: [a, b]}

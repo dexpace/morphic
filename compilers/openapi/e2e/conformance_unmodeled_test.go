@@ -11,6 +11,7 @@ package e2e_test // external test package — exercises only the public API
 
 import (
 	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"maps"
 	"slices"
@@ -1529,6 +1530,45 @@ func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding
 		out[b.WireName] = b
 	}
 	return out
+}
+
+// assertMergeDepthBound holds a schema merging through `<<` past the levels the
+// reader expands to what docs/compilers/openapi.md#references says: read from
+// the keys within the bound alone, a keyword only the far end of the chain
+// writes neither lowered nor kept, and one a source past the bound outranks
+// (the description both ends write) not read from the nearer source. Each
+// schema draws one warning at its own pointer, and the document one more.
+func assertMergeDepthBound(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const code = "openapi/degraded-construct"
+	for _, name := range []string{"Str", "Int", "Arr", "Obj", "Doc", "Enum", "Log", "Disc"} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, code, "/components/schemas/"+name),
+			"%s: one warning, at the schema", name)
+	}
+	assert.Len(t, diagsAt(diags, code, ""), 1, "the document's own warning names no position")
+
+	str, ok := typeByName(doc, "Str").(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, str.Constraints.MinLength)
+	require.NotNil(t, str.Constraints.MaxLength)
+	assert.Equal(t, [2]int64{1, 9}, [2]int64{*str.Constraints.MinLength, *str.Constraints.MaxLength},
+		"a keyword merged in within the bound is read as written")
+	assert.Equal(t, "^a", str.Constraints.Pattern)
+
+	literal, ok := typeByName(doc, "Doc").(*ir.Literal)
+	require.True(t, ok)
+	assert.Equal(t, "T", literal.Docs.Summary, "a title merged in within the bound is read")
+	assert.Empty(t, literal.Docs.Description, "a description the far end writes too outranks the near one, and neither is read")
+
+	obj, ok := typeByName(doc, "Obj").(*ir.Model)
+	require.True(t, ok)
+	assert.Len(t, obj.Properties, 2, "each property merged in is read")
+
+	// The root keeps the anchors' own extensions, the far end's description
+	// among them; no type holds it.
+	data, err := json.Marshal(doc.Types)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "past the bound", "what only the far end of the chain writes is in no type")
+	assertNoErrorDiags(t, diags)
 }
 
 // assertYAMLMergeKeys pins that every reader of the source reads a mapping as

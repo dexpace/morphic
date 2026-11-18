@@ -1,0 +1,33 @@
+openapi: 3.1.0
+info: {title: KeptRefUnrenderable, version: "1"}
+# A value set narrows the $refs an allOf writes, so each is kept verbatim, under
+# a key ranked by its reference and then by the entry as written. An entry that
+# cannot be rendered as JSON (`.inf` is no JSON number, and the specification
+# bars it as a length) is alike to no other: it ranks by where it is written, so
+# the keys do not depend on the order of the entries. Entries written alike are
+# one key, at the position.
+paths: {}
+components:
+  schemas:
+    A: {type: string}
+    B: {type: string}
+    Distinct:
+      enum: [a]
+      allOf:
+        - {$ref: '#/components/schemas/B'}
+        - {$ref: '#/components/schemas/A', minLength: .inf}
+    Alike:
+      enum: [a]
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/A', minLength: .inf}
+    Twice:
+      enum: [a]
+      allOf:
+        - {$ref: '#/components/schemas/A', minLength: .inf}
+        - {$ref: '#/components/schemas/A', minLength: .inf}
+    Same:
+      enum: [a]
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/A'}

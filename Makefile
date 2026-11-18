@@ -91,10 +91,12 @@ fmt:
 		exit 1; \
 	fi
 
-# go vet's own analyzers, then the repository's: internal/lintrules, through
+# go vet's own analyzers, once more over the tests held behind the pending tag
+# so they keep compiling, then the repository's: internal/lintrules, through
 # cmd/morphic-vet. scripts/vet-rules.sh says how.
 vet:
 	$(GO) vet ./...
+	$(GO) vet -tags pending ./compilers/openapi/e2e/
 	./scripts/vet-rules.sh
 
 lint: check-lint-version

@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: JoinedValueSets, version: "1"}
+# A union of value sets beside an enum, in an allOf: the sets a union admits join
+# into one, whichever way they overlap (Shared, Nested) and however many
+# branches write one (Many, past the sets a value set joins beside its first).
+paths: {}
+components:
+  schemas:
+    Shared:
+      allOf:
+        - anyOf: [{enum: [a, b]}, {enum: [b, c]}]
+        - enum: [b, x]
+    Many:
+      allOf:
+        - oneOf: [{enum: [v1]}, {enum: [v2]}, {enum: [v3]}, {enum: [v4]}, {enum: [v5]}, {enum: [v6]}, {enum: [v7]}, {enum: [v8]}, {enum: [v9]}, {enum: [v10]}]
+        - enum: [v3, zz]
+    Nested:
+      allOf:
+        - anyOf:
+            - enum: [s1, s2, s3, s4, s5]
+            - anyOf: [{enum: [p, q]}, {enum: [s1]}]
+        - enum: [s1, p]

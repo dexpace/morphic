@@ -707,6 +707,10 @@ what the built document is written in. A package's allowlist says what it import
 `TestLayers_NoPackageImportsAboveItsLayer` holds the packages' real imports to it. A package with
 no row, or a row naming no package, fails `TestLayers_EveryCompilerPackageHasOne`.
 
+In `internal/schema` a position is lowered from three readings, each made once a run: what its
+schema writes (`statement.Table`), what that admits (`admissionOf`), and which conjunct of its
+`allOf` decides it (`decisionOf`).
+
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or
 a cognitive complexity of 20. The method cap exists because the god object that
