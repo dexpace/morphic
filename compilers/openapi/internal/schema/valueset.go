@@ -17,23 +17,23 @@ import (
 )
 
 // valueSetSite is where a value set lowers: set, the schema writing it at
-// written, and the node it lowers to, standing at pointer, where position is
-// written. The pointers part only for a refinement's inline principal, whose
-// node is the position's while its members and reports stay where they are
-// written (docs/compilers/openapi.md#allof-refinement). position is nil for a
-// member of an enum lowered as a union of literals, which no conjunct types.
-// finish finishes the node at pointer, nil for a member's.
+// written, and the node it lowers to, standing where at says: at the position
+// for a refinement's inline principal, whose node is the position's while its
+// members and reports stay where they are written
+// (docs/compilers/openapi.md#allof-refinement). member marks a member of an
+// enum lowered as a union of literals, which no conjunct types. finish
+// finishes the node, nil for a member's.
 type valueSetSite struct {
-	set      *statement.Schema
-	written  jsontext.Pointer
-	position *statement.Schema
-	pointer  jsontext.Pointer
-	finish   finisher
+	set     *statement.Schema
+	finish  finisher
+	at      stand
+	written jsontext.Pointer
+	member  bool
 }
 
 // ownValueSet is the site of the value set s, written at pointer, lowers to.
 func ownValueSet(s *statement.Schema, pointer jsontext.Pointer) valueSetSite {
-	return valueSetSite{set: s, written: pointer, position: s, pointer: pointer}
+	return valueSetSite{set: s, written: pointer}
 }
 
 // finishedBy returns vs, its node finished by fin.
@@ -45,21 +45,31 @@ func (vs valueSetSite) finishedBy(fin finisher) valueSetSite {
 // memberSite is the site of a member of vs's set lowered as a Literal of its
 // own at at, typed by its value and its set's schema alone.
 func (vs valueSetSite) memberSite(at jsontext.Pointer) valueSetSite {
-	return valueSetSite{set: vs.set, written: at, pointer: at}
+	return valueSetSite{set: vs.set, written: at, member: true}
+}
+
+// pointer returns where the node vs lowers to stands.
+func (vs valueSetSite) pointer() jsontext.Pointer {
+	return vs.at.pointer(vs.written)
 }
 
 // valueType types the node vs lowers to: own, what its set's schema selects,
 // narrowed by every conjunct where its position refines (conjunctPrim), fits
-// saying which primitives the values are of.
+// saying which primitives the values are of. The position is the stand's, else
+// the set's own; a member has none.
 func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
-	if vs.position == nil {
+	if vs.member {
 		return own
 	}
-	r, refines := refinementOf(c, vs.position, vs.pointer)
+	position := vs.set
+	if vs.at.of != nil {
+		position = vs.at.of
+	}
+	r, refines := refinementOf(c, position, vs.pointer())
 	if !refines {
 		return own
 	}
-	return conjunctPrim(c, r, vs.position, own, fits)
+	return conjunctPrim(c, r, position, own, fits)
 }
 
 // valueSetPrincipal returns the inline principal of r that lowers to a value
@@ -115,7 +125,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	bs := e.schema.Schema
 	d := principalDispatch(e)
 	var kept, own finished
-	site := valueSetSite{set: bs, written: e.pointer, position: s, pointer: pointer, finish: kept.onRead(func(td ir.TypeDef, read keySet) []ir.Diagnostic {
+	site := valueSetSite{set: bs, written: e.pointer, at: stand{of: s, at: pointer}, finish: kept.onRead(func(td ir.TypeDef, read keySet) []ir.Diagnostic {
 		return keepUnread(c, ts, bs, e.pointer, td, d, read)
 	}).then(own.on(func(td ir.TypeDef) []ir.Diagnostic {
 		// The position's own keywords type the value set as a conjunct does.
@@ -151,7 +161,8 @@ func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer
 	site := ownValueSet(s, pointer)
 	d := dispatchOf(s).besideAllOf()
 	if e, ok := valueSetPrincipal(r); ok {
-		site.set, site.written, d = e.schema.Schema, e.pointer, principalDispatch(e)
+		site = valueSetSite{set: e.schema.Schema, written: e.pointer, at: stand{of: s, at: pointer}}
+		d = principalDispatch(e)
 	} else if r.principal != nil {
 		return setType{}
 	}
