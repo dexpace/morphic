@@ -328,3 +328,35 @@ func TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes(t *testing.T) {
 		}
 	}
 }
+
+// TestPrincipalKept_EachKeywordHasOneKeeper pins three readers of one inline
+// principal at once, its census, its content reader and what the entry keeps
+// as residue, each holding a keyword the position writes otherwise: one object
+// under the entry's key holds all three, each keyword is named by one report,
+// its reader's, and no reader keeps another's.
+func TestPrincipalKept_EachKeywordHasOneKeeper(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Three: {allOf: [{type: integer, minLength: 1, contentEncoding: a, foo: 1}], minLength: 2, contentEncoding: b, foo: 2}\n"+
+			"    Draft: {allOf: [{"+draft07+", type: integer, minLength: 1, dependencies: {a: [z]}, discriminator: {propertyName: a}}], "+
+			"minLength: 2, dependencies: {b: [z]}, discriminator: {propertyName: b}}\n"))
+	assert.Equal(t, map[string]string{
+		"openapi:allOf/0":         `{"contentEncoding":"a","foo":1,"minLength":1} [degraded_lowering]`,
+		"openapi:contentEncoding": `"b" [no_ir_home]`,
+		"openapi:foo":             "2 [out_of_scope]",
+		"openapi:minLength":       "2 [degraded_lowering]",
+	}, keptOn(t, doc, "Three"))
+	said := strings.Join(reportsAt(diags, "/components/schemas/Three/allOf/0"), "\n")
+	assert.Len(t, reportsAt(diags, "/components/schemas/Three/allOf/0"), 3, "one report a reader")
+	for _, keyword := range []string{"minLength", "contentEncoding", "foo"} {
+		assert.Equal(t, 1, strings.Count(said, keyword), "%s is named once", keyword)
+	}
+
+	draft := keptOn(t, doc, "Draft")
+	assert.Equal(t, `{"dependencies":{"a":["z"]},"discriminator":{"propertyName":"a"},"minLength":1} [degraded_lowering]`,
+		draft["openapi:allOf/0"])
+	said = strings.Join(reportsAt(diags, "/components/schemas/Draft/allOf/0"), "\n")
+	for _, keyword := range []string{"minLength", "dependencies", "discriminator"} {
+		assert.Equal(t, 1, strings.Count(said, keyword), "%s is named once", keyword)
+	}
+}

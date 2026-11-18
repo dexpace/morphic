@@ -119,8 +119,8 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // position, e where censused says so, reads or keeps on its node (keepUnread).
 // A value set's union and content vocabulary are kept, as its node holds
 // neither; another principal's union is its node's, or the collapsed
-// reference's (collapsedPrincipal), as is the content vocabulary its types
-// take (holdsContent).
+// reference's (collapsedPrincipal), and its content vocabulary its own
+// reading's (unplacedContent).
 func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused, collapsed bool,
 	homes boundHomes, pair bool,
 ) func(string) bool {
@@ -137,7 +137,9 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 		case censused && unionKeyword(key):
 			return !set
 		case censused && slices.Contains(contentKeywords, key):
-			return !set && takesContent(declaredInstanceTypes(bs))
+			// The principal's own reading keeps what its node holds no
+			// Encoding for (lowerPrincipal), so the entry keeps none again.
+			return !set
 		case censused:
 			return keyBit(key) != 0 || said(w, r, typed, bs, key)
 		default:
