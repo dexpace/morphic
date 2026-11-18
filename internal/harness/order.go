@@ -170,7 +170,8 @@ func diagnosticKey(d ir.Diagnostic) string {
 		d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred)
 	for _, r := range d.Related {
 		q := r.Provenance
-		fmt.Fprintf(&key, "\x00%s\x00%s\x00%s\x00%d\x00%d", r.Role, q.Pointer, q.Node, q.Source, q.WrittenBy)
+		fmt.Fprintf(&key, "\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
+			r.Role, q.Pointer, q.Position != ir.Position{}, q.Node, q.Source, q.WrittenBy, q.Inferred)
 	}
 	return key.String()
 }

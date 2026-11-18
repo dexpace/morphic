@@ -524,6 +524,8 @@ func TestDiagnosticKey_ReadsWhatElseADiagnosticConcerns(t *testing.T) {
 		"node":       func(d *ir.Diagnostic) { d.Related[1].Provenance.Node = "p/N/p" },
 		"source":     func(d *ir.Diagnostic) { d.Related[0].Provenance.Source = 1 },
 		"writer":     func(d *ir.Diagnostic) { d.Related[0].Provenance.WrittenBy = 1 },
+		"positioned": func(d *ir.Diagnostic) { d.Related[0].Provenance.Position = ir.Position{Line: 1} },
+		"inferred":   func(d *ir.Diagnostic) { d.Related[1].Provenance.Inferred = "h" },
 		"order":      func(d *ir.Diagnostic) { d.Related[0], d.Related[1] = d.Related[1], d.Related[0] },
 	} {
 		changed := base()
