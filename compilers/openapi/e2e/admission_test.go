@@ -577,12 +577,12 @@ func requireStructure(t *testing.T, doc *ir.Document, name string, swapped bool)
 	require.True(t, isModel, "the redeclaration of %s's f must be a structure", name)
 }
 
-// TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut holds that a field
+// TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut holds that a field
 // redeclared as a structure over a schema stating no type, whose allOf writes
 // a null not, is judged as the structure without the not, which the
 // validation table warns of once: the field keeps integer, and the only error
 // or warning is that one.
-func TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut(t *testing.T) {
+func TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
 	for _, swapped := range []bool{false, true} {
 		schemas := []string{

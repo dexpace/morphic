@@ -3276,7 +3276,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `e2e.TestCompile_AVariantIsReadWithEverySchemaHoldingItsUnion`,
   `schema.TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch`,
   `schema.TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart`,
-  `e2e.TestCompile_ANullNotBesideAUnionIsTheKeywordLeftOut`,
+  `e2e.TestCompile_ANullNotOnAStructuresEntryIsTheKeywordLeftOut`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestTypeJudge_ModelsAlikeAreCopies`,
   `merge.TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase`,
