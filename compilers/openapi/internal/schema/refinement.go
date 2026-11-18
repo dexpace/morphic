@@ -32,12 +32,15 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	}
 	// The node keeps the content vocabulary the branch writes where it holds
 	// none, as the branch's own node would (recordUnplacedContent).
-	var content finished
-	fin = content.on(func(td ir.TypeDef) []ir.Diagnostic {
-		return recordUnplacedContent(c, &td.Common().Unmodeled, e.schema.Schema, td, e.pointer)
-	}).then(fin)
-	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, stand{of: s, at: pointer})
-	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, content.diags)
+	var content []ir.Diagnostic
+	st := stand{of: s, at: pointer}
+	position := fin
+	fin = func(td ir.TypeDef, read keySet, held *principalKept) {
+		k := unplacedContent(c, e.schema.Schema, td, e.pointer)
+		content = keepAround(c, ts, st, td, read, held, e.schema.Schema, e.pointer, k, position)
+	}
+	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, st)
+	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, content)
 }
 
 // resolveBeaten resolves each $ref of r but its principal: nothing else may

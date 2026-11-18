@@ -16,14 +16,14 @@ import (
 )
 
 // finisher writes on a node, in hand, what the frames lowering its position
-// keep there beyond its build: the home of its declaration's facts, the
-// keywords it has no field for, the families an election passed over, the
-// branches kept beside it, the kind-inference mark, a discriminator settled
-// beside a union. internNode runs it once, on the node it builds, before the
-// registry stores it, so no write looks its node up, and a visit finding the
-// node built writes nothing, its build having written it. read is what the
-// build read of the schema it was built from.
-type finisher func(td ir.TypeDef, read keySet)
+// keep there beyond its build: its declaration's facts, the keywords it has no
+// field for, the families an election passed over, the branches kept beside
+// it, the kind-inference mark, a discriminator settled beside a union.
+// internNode runs it once, on the node it builds, before the registry stores
+// it, so no write looks its node up, and a visit finding the node built writes
+// nothing. read is what the build read, and held what an inline principal's
+// readers keep after the frames outside (principalKept), nil for none.
+type finisher func(td ir.TypeDef, read keySet, held *principalKept)
 
 // then returns the finisher running f, then g, either of which may be nil.
 func (f finisher) then(g finisher) finisher {
@@ -33,10 +33,17 @@ func (f finisher) then(g finisher) finisher {
 	case g == nil:
 		return f
 	default:
-		return func(td ir.TypeDef, read keySet) {
-			f(td, read)
-			g(td, read)
+		return func(td ir.TypeDef, read keySet, held *principalKept) {
+			f(td, read, held)
+			g(td, read, held)
 		}
+	}
+}
+
+// run runs f, a nil one finishing nothing.
+func (f finisher) run(td ir.TypeDef, read keySet, held *principalKept) {
+	if f != nil {
+		f(td, read, held)
 	}
 }
 
@@ -51,17 +58,9 @@ type finished struct {
 // on returns the finisher writing with write, recording into f that it ran and
 // what it reported.
 func (f *finished) on(write func(td ir.TypeDef) []ir.Diagnostic) finisher {
-	return func(td ir.TypeDef, _ keySet) {
+	return func(td ir.TypeDef, _ keySet, _ *principalKept) {
 		f.ran = true
 		f.diags = append(f.diags, write(td)...)
-	}
-}
-
-// onRead is on for a write that asks what the build read.
-func (f *finished) onRead(write func(td ir.TypeDef, read keySet) []ir.Diagnostic) finisher {
-	return func(td ir.TypeDef, read keySet) {
-		f.ran = true
-		f.diags = append(f.diags, write(td, read)...)
 	}
 }
 
@@ -81,7 +80,7 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, bui
 	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef {
 		td, read := build(commonFor(c, id, pointer))
 		if fin != nil && !ir.IsNilTypeDef(td) {
-			fin(td, read)
+			fin(td, read, nil)
 		}
 		return td
 	})

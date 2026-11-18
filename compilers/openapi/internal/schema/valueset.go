@@ -126,12 +126,15 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	bs := e.schema.Schema
 	d := principalDispatch(e)
 	var kept, own finished
-	site := valueSetSite{set: bs, written: e.pointer, at: stand{of: s, at: pointer}, finish: kept.onRead(func(td ir.TypeDef, read keySet) []ir.Diagnostic {
-		return keepUnread(c, ts, bs, e.pointer, td, d, read, stand{of: s, at: pointer})
-	}).then(own.on(func(td ir.TypeDef) []ir.Diagnostic {
-		// The position's own keywords type the value set as a conjunct does.
-		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td), stand{})
-	})).then(fin)}
+	st := stand{of: s, at: pointer}
+	// The position's own keywords type the value set as a conjunct does, and
+	// its census keeps what they leave before the principal's keeps its own.
+	position := own.on(func(td ir.TypeDef) []ir.Diagnostic {
+		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td), stand{}, nil, nil)
+	}).then(fin)
+	site := valueSetSite{set: bs, written: e.pointer, at: st, finish: func(td ir.TypeDef, read keySet, held *principalKept) {
+		kept.diags = keepUnread(c, ts, bs, e.pointer, td, d, read, st, held, position)
+	}}
 	var id ir.TypeID
 	var built []ir.Diagnostic
 	switch d.won {

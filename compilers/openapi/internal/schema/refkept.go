@@ -105,7 +105,11 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 			residues[i] = unmergedBranchKeys(e.schema.Schema, read)
 		}
 	}
-	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties)
+	lowered := -1
+	if r.principal != nil && r.principal.schema.Ref == nil {
+		lowered = slices.IndexFunc(r.comp.branches, r.principalIs)
+	}
+	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, lowered)
 	for i := range k.entries {
 		k.entries[i].numberText = homes.numberText
 	}
@@ -307,16 +311,17 @@ func unionHeld(w *admissionReader, r refinement, s *statement.Schema, key string
 }
 
 // record keeps k on p and reports it, standing being the node the position
-// owns, nil where it owns none (refinedShape). A branch the IR cannot hold is
+// owns, nil where it owns none (refinedShape), and held what the readers of
+// an inline principal standing there keep after it, which it answers where it
+// keeps that principal whole (wholePrincipal). A branch the IR cannot hold is
 // reported by the keeper, and nothing here claims it was kept.
 func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer,
-	standing ir.TypeDef,
+	standing ir.TypeDef, held *principalKept,
 ) []ir.Diagnostic {
 	shape := k.shape
 	if k.refined {
 		shape = refinedShape(c, k.comp, k.principal, standing)
 	}
-	held, heldReason := heldByCensus(k, *p)
 	diags := recordUnhomedAt(c, ts, p, s, k.keywords, shape, pointer)
 	diags = append(diags, keepTextBounds(c, p, s, k.text, pointer)...)
 	for _, key := range k.validation {
@@ -331,11 +336,10 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		}
 	}
 	for _, e := range k.entries {
-		if k.principal != nil && e.entry.pointer == k.principal.pointer && len(held) > 0 {
-			// The whole entry's report names what the principal's census left
-			// it, and its reason reads those too.
-			e.residue = slices.Concat(e.residue, held)
-			e.reason = sharedOf(e.reason, heldReason)
+		if k.principal != nil && k.principal.schema.Ref == nil && e.entry.pointer == k.principal.pointer {
+			var heldDiags []ir.Diagnostic
+			e, heldDiags = wholePrincipal(c, ts, p, s, k.comp, e, held)
+			diags = append(diags, heldDiags...)
 		}
 		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, func(e keptEntry) ir.Diagnostic {
 			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.principal == nil, shape))
@@ -343,6 +347,34 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	}
 	dropFoldedIntoWhole(c, p)
 	return diags
+}
+
+// wholePrincipal settles e, what the position s keeps of the inline principal
+// it lowered from, an entry of comp, with held, what that principal's readers
+// keep after the position where its node stands there (principalKept), nil
+// where none does. Kept whole, the entry holds what they said: its report
+// names those too, its reason reads them, and held is told, so they keep none.
+// Else what e keeps that another conjunct writes otherwise (keptEntry.apart)
+// is placed as the readers' keywords are (heldAgainst): under its own key
+// where p holds none there, else under the entry's (keepApart).
+func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, comp allOfComposition, e keptEntry,
+	held *principalKept,
+) (keptEntry, []ir.Diagnostic) {
+	held = held.saying(keeping{})
+	if e.keptWhole() {
+		held.whole = true
+		if len(held.keys) > 0 {
+			e.residue = slices.Concat(e.residue, held.keys)
+			e.reason = sharedOf(e.reason, held.reason)
+		}
+		return e, nil
+	}
+	bs := e.entry.schema.Schema
+	plain, apart := heldAgainst(*p, bs, e.apart)
+	own := slices.Concat(e.own, plain)
+	e.own = slices.DeleteFunc(slices.Clone(e.residue), func(key string) bool { return !slices.Contains(own, key) })
+	i := slices.IndexFunc(comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })
+	return e, keepApart(c, ts, comp, held, p, bs, e.entry.pointer, apart, sharedReason(c, s, comp, i, apart))
 }
 
 // keptRef is the key a kept $ref conjunct is kept under, and where the entry

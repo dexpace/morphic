@@ -172,7 +172,7 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 		comp.conjoins = u.at
 	}
 	comp.kept = entryKeeps(c, s, comp, func(i int) []string { return compositionResidue(c, comp, i) },
-		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword)
+		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword, -1)
 	return comp
 }
 
@@ -376,7 +376,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, fields modelFields, e allO
 	}
 	unhomed := unreadByReference(c, b.Schema, compositionCensusHandled)
 	var kept finished
-	keep := kept.on(keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer, stand{}))
+	keep := keepUnhomedOn(c, ts, b.Schema, unhomed, refSiteShape, e.pointer, stand{}, &kept, nil)
 	ref, homeDiags := homeDeclaration(c, ts, b.Schema, ir.TypeRef{Target: id}, e.pointer, annotation.HomeOwnNode, len(unhomed) > 0, keep)
 	diags = append(diags, homeDiags...)
 	diags = append(diags, kept.diags...)

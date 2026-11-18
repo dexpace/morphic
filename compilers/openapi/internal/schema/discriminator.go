@@ -291,7 +291,7 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 // kept its discriminator where it kept the rest, a multi-typed body's on its
 // union (lowerTypeVariant).
 func discriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, s, holder *statement.Schema, pointer jsontext.Pointer) finisher {
-	return func(td ir.TypeDef, _ keySet) {
+	return func(td ir.TypeDef, _ keySet, _ *principalKept) {
 		if isKind(td, ir.KindModel) {
 			ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: td.Common().ID, named: namedBranches(c, holder)})
 		}

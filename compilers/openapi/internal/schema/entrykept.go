@@ -39,6 +39,11 @@ type keptEntry struct {
 	// validation is what of own is a union of validation logic
 	// (entryUnionReason).
 	validation []string
+	// apart is what the inline principal the position lowered from keeps that
+	// another conjunct writes otherwise: under its own key where the position
+	// holds none there, else under the entry's, the rest of it lowered
+	// (wholePrincipal).
+	apart []string
 	// whole is why the entry is kept whole, keptApart where it is not.
 	whole wholeCause
 	// reason is what a whole entry is kept as (sharedReason).
@@ -49,7 +54,7 @@ type keptEntry struct {
 }
 
 // keeps reports whether k keeps anything.
-func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 }
+func (k keptEntry) keeps() bool { return k.keptWhole() || len(k.own) > 0 || len(k.apart) > 0 }
 
 // keptWhole reports whether k is kept whole, holding what its entry writes: it
 // is no writer of a keyword it writes alike with another conjunct, kept apart
@@ -83,9 +88,12 @@ const (
 // of what residueOf says it left unread, by index: nothing where that is
 // nothing a rule does not consume, else the entry whole (wholeCauseOf), where
 // closure names a keyword the position types no closure from, else each
-// keyword apart. v is s's voicing, nil where its allOf does not decide.
+// keyword apart. v is s's voicing, nil where its allOf does not decide, and
+// lowered the index of the inline principal the position lowered from, -1 for
+// none: a keyword it keeps that another conjunct writes otherwise is kept
+// under its entry's key, the entry not whole for it (keptEntry.apart).
 func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, residueOf func(int) []string,
-	v voicing, closure func(string) bool,
+	v voicing, closure func(string) bool, lowered int,
 ) []keptEntry {
 	out := make([]keptEntry, len(comp.branches))
 	for i := range comp.branches {
@@ -106,11 +114,17 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 		if failedRef(c, k.entry) {
 			apartHere = apartKept
 		}
+		var otherwise []string
+		if i == lowered {
+			otherwise = slices.DeleteFunc(slices.Clone(kept), func(key string) bool { return !apartHere[key] })
+			kept = slices.DeleteFunc(kept, func(key string) bool { return apartHere[key] })
+		}
 		out[i].whole = wholeCauseOf(c, comp, i, k.residue, v, closure, kept, apartHere)
 		if out[i].keptWhole() {
-			out[i].reason = sharedReason(c, s, comp, i, kept)
+			out[i].reason = sharedReason(c, s, comp, i, slices.Concat(kept, otherwise))
 			continue
 		}
+		out[i].apart = otherwise
 		out[i].own = slices.DeleteFunc(kept, func(key string) bool { return hasKey(s, key) })
 		for _, key := range out[i].own {
 			held[key]++

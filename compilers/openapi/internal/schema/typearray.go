@@ -35,7 +35,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		list.voices = st.voices(c, s, pointer)
 		list.held = st.heldWhole(c, pointer)
 		var read keySet
-		collect := finisher(func(_ ir.TypeDef, variant keySet) { read |= variant })
+		collect := finisher(func(_ ir.TypeDef, variant keySet, _ *principalKept) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := at + ids.Ptr("type", strconv.Itoa(i))

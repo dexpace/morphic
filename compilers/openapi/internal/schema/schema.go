@@ -279,10 +279,10 @@ type declaring struct {
 
 // finish writes the declaration and what the position keeps beside it on td,
 // in hand (declarationOn, keptOn).
-func (d *declaring) finish(td ir.TypeDef, _ keySet) {
+func (d *declaring) finish(td ir.TypeDef, _ keySet, held *principalKept) {
 	d.ran = true
 	d.diags = declarationOn(d.c, d.ts, d.s, d.target, d.pointer, d.home, td)
-	d.kept = keptOn(d.c, d.ts, d.s, d.target, d.pointer, td)
+	d.kept = keptOn(d.c, d.ts, d.s, d.target, d.pointer, td, held)
 }
 
 // keptOn keeps on td, in hand, the node the position s, written at pointer,
@@ -290,6 +290,7 @@ func (d *declaring) finish(td ir.TypeDef, _ keySet) {
 // to a reference and the branches its refinement left (keepsAtOutcome). A
 // carrier keeps them where the position owns no node (PreserveRefSiteKeywords).
 func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, td ir.TypeDef,
+	held *principalKept,
 ) []ir.Diagnostic {
 	keeps := keepsAtOutcome(c, s, target, pointer)
 	if !keeps.holdsAny() {
@@ -299,7 +300,7 @@ func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.Ty
 	if LoweredToOwnNode(c, pointer, target) {
 		standing = td
 	}
-	return keeps.record(c, ts, &td.Common().Unmodeled, s, pointer, standing)
+	return keeps.record(c, ts, &td.Common().Unmodeled, s, pointer, standing, held)
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
@@ -504,7 +505,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// the type set itself is what built them.
 		var census finished
 		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
-			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer, st)).then(fin), st)
+			keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer, st, &census, fin), st)
 		return id, append(diags, census.diags...)
 	case len(types) == 1:
 		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {

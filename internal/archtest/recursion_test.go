@@ -85,14 +85,15 @@ var loweringRecursions = [][]string{
 // scalar hoisters and the encoding reader are members because contentSchema's
 // value is a schema, so lowering it re-enters the walk from a scalar position.
 // Discriminator lowering is one because resolving a mapping target can hoist
-// the position it names, and so is the census, which resolves a kept one's.
+// the position it names, and so is every keeping of one (keepUnhomed,
+// keepAround).
 var schemaRecursion = []string{
 	"CarriedRef", "FillPropertyDetail", "PreserveRefSiteKeywords", "Ref", "buildComposedVariant",
 	"buildListedTuple", "buildTuple", "buildUnion",
 	"composeMixin", "composeModel", "composedVariant", "contentSchemaRef", "declaring.finish", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
 	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
-	"keepFailedRefs",
+	"keepApart", "keepAround", "keepFailedRefs", "keepStanding",
 	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keepUnread", "keepUnreadAcross", "keepUnreadShared",
 	"keepingUnread", "keptOn", "lower",
 	"lowerAllOf",
@@ -102,10 +103,10 @@ var schemaRecursion = []string{
 	"lowerTyped", "lowerUndecided", "lowerUnion",
 	"lowerUntyped", "lowerUntypedUnion", "mintUnion", "outcomeKeeps.record", "patternProps",
 	"preserveUnmergedBranch", "recordEntryUnhomed",
-	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "recordUnhomedStanding", "refSiteRef", "refTypeRef",
+	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry", "routesKept",
-	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
+	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed", "wholePrincipal",
 }
 
 // loweringPackages are the directories whose sources the call graph reads,

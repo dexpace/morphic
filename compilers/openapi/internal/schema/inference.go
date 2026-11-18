@@ -52,7 +52,7 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	}
 	var census finished
 	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
-		mark.then(census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer, st))).then(fin), st)
+		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer, st, &census, fin)), st)
 	return id, append(diags, census.diags...)
 }
 
@@ -101,7 +101,7 @@ func shapeKinds(s *statement.Schema) kindSet {
 // markKindInferred names the kind-inference policy in the provenance of td,
 // in hand, the node a position owns whose kind lowerUntyped read off its shape
 // keywords (docs/compilers/openapi.md#policies).
-func markKindInferred(td ir.TypeDef, _ keySet) {
+func markKindInferred(td ir.TypeDef, _ keySet, _ *principalKept) {
 	common := td.Common()
 	common.Provenance.Inferred = ir.JoinInferred(common.Provenance.Inferred, lowering.KindInferenceHeuristic)
 }
