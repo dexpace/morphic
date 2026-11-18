@@ -356,3 +356,39 @@ func requireUnionOf(t *testing.T, doc *ir.Document, at jsontext.Pointer, n int) 
 	require.Len(t, union.Variants, n)
 	return union
 }
+
+// TestElection_AnEntryHoldingBothIsJudgedWithoutThemAtAnyDepth holds that an
+// entry writing a oneOf and an anyOf lowers as one directly on the allOf where
+// it is nested in an allOf entry, and from 3.1 where it writes them beside a
+// $ref to the body: each union is judged against the rest of the position
+// read without the entry's own two, wherever the entry is listed. Read with
+// them, the rest admits nothing, so a oneOf of strings and integers restated it
+// and the anyOf was elected, or an anyOf of them was kept as validation logic.
+func TestElection_AnEntryHoldingBothIsJudgedWithoutThemAtAnyDepth(t *testing.T) {
+	t.Parallel()
+	objects := "[{type: object, properties: {d: {type: string}}}, {type: object, properties: {e: {type: string}}}]"
+	apart := "[{type: string}, {type: integer}]"
+	pairs := []struct{ name, oneOf, anyOf string }{
+		{"a oneOf sharing no kind with the body", apart, objects},
+		{"an anyOf sharing no kind with the body", bothKeywordsOneOf, apart},
+	}
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, site := range bothKeywordsSites {
+			for _, pair := range pairs {
+				t.Run(fmt.Sprintf("%s/%s/%s", version, site.name, pair.name), func(t *testing.T) {
+					t.Parallel()
+					both := "oneOf: " + pair.oneOf + ", anyOf: " + pair.anyOf
+					spellings := map[string]string{
+						"one entry":                "{allOf: [" + entryRef + ", {" + both + "}]}",
+						"one entry, in an allOf":   "{allOf: [" + entryRef + ", {allOf: [{" + both + "}]}]}",
+						"one entry, two allOfs in": "{allOf: [" + entryRef + ", {allOf: [{allOf: [{" + both + "}]}]}]}",
+					}
+					if version != "3.0.3" {
+						spellings["one entry, beside the $ref"] = "{allOf: [{$ref: '#/components/schemas/T', " + both + "}]}"
+					}
+					compileSpellingsAlike(t, site, version, spellings)
+				})
+			}
+		}
+	}
+}

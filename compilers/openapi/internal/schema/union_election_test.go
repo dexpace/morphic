@@ -40,3 +40,29 @@ func TestUnion_AnAnyOfAloneDeclaringShapeIsElected(t *testing.T) {
 		}
 	}
 }
+
+// TestUnion_AnEntryHoldingBothIsReadWithoutThemWhereverListed pins an entry
+// writing a oneOf of strings and integers beside an anyOf of objects, on the
+// allOf, nested one or two allOfs deeper, under a wrapper writing a type of
+// its own, and beside a $ref to the body: each keeps both unions, as the
+// oneOf declares shape against the body read without them, where read with
+// them the body admits nothing and the anyOf was elected.
+func TestUnion_AnEntryHoldingBothIsReadWithoutThemWhereverListed(t *testing.T) {
+	t.Parallel()
+	const both = "{oneOf: [{type: string}, {type: integer}], " +
+		"anyOf: [{type: object, properties: {d: {type: string}}}, {type: object, properties: {e: {type: string}}}]}"
+	const ref = "{$ref: '#/components/schemas/T'}"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    T: {type: object, properties: {a: {type: string}}}
+    Entry: {allOf: [`+ref+`, `+both+`]}
+    Nested: {allOf: [`+ref+`, {allOf: [`+both+`]}]}
+    Deeper: {allOf: [`+ref+`, {allOf: [{allOf: [`+both+`]}]}]}
+    Typed: {allOf: [`+ref+`, {type: object, allOf: [`+both+`]}]}
+    BesideRef: {allOf: [{$ref: '#/components/schemas/T', `+both[1:]+`]}
+`))
+	for _, name := range []string{"Entry", "Nested", "Deeper", "Typed", "BesideRef"} {
+		model, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s keeps both unions on a Model", name)
+		assert.Contains(t, model.Unmodeled, "openapi:oneOf", name)
+		assert.Contains(t, model.Unmodeled, "openapi:anyOf", name)
+	}
+}
