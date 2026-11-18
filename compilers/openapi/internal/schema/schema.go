@@ -662,43 +662,43 @@ func dispatchOf(s *statement.Schema) dispatch {
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
 // passed over, and reports them once.
 //
-// JSON Schema conjoins keywords, so `{const: a, enum: [a, b]}` admits a alone and
-// is no malformed document. The IR has no intersection combinator
+// JSON Schema conjoins keywords, so `{const: a, enum: [a, b]}` admits a alone,
+// no malformed document. The IR has no intersection combinator
 // (docs/ir/boundaries.md#deliberate-exclusions), so only one family can be the
 // value; keeping the loser beside it is what the rule
 // docs/compilers/openapi.md#competing-keywords asks of an unrepresentable
 // conjunction.
 //
-// It reports the keywords it stored, never the ones it was handed, so the
-// message cannot claim one that failed to convert. An allOf whose conjuncts
-// share no value draws its warning, stored or not.
+// It reports what it stored, as the node holds it (keepConjuncts), never what
+// it was handed, so the message cannot claim a keyword that failed to convert.
+// An allOf whose conjuncts share no value draws its warning, stored or not.
 func recordSkippedFamilies(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(d.skipped) == 0 {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	common := td.Common()
-	kept := make([]string, 0, len(d.skipped))
+	written := make([]string, 0, len(d.skipped))
+	named := make([]string, 0, len(d.skipped))
 	for _, keyword := range d.skipped {
 		if keyword == "allOf" {
-			written, keptDiags := keepConjuncts(c, &common.Unmodeled, s, pointer)
+			conjuncts, as, keptDiags := keepConjuncts(c, &common.Unmodeled, s, pointer)
 			diags = append(diags, keptDiags...)
-			kept = append(kept, written...)
+			written, named = append(written, conjuncts...), append(named, as...)
 			continue
 		}
 		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword,
 			ir.ReasonDegradedLowering, pointer, c.Place())
 		diags = append(diags, storedDiags...)
 		if stored {
-			kept = append(kept, keyword)
+			written, named = append(written, keyword), append(named, keyword)
 		}
 	}
-	if len(kept) > 0 {
-		skipped := strings.Join(kept, " and ")
+	if len(written) > 0 {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
 				"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
-			skipped, d.won, d.won, skipped))
+			strings.Join(written, " and "), d.won, d.won, strings.Join(named, " and ")))
 	}
 	if !slices.Contains(d.skipped, "allOf") {
 		return diags

@@ -421,7 +421,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with allOf kept verbatim under Unmodeled",
+      "message": "this position declares allOf beside its enum, and JSON Schema conjoins them where only one can be the value; it lowered as the enum, with the $ref of its allOf kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/BesideAllOf"

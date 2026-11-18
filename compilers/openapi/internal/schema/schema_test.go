@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -367,6 +368,59 @@ func TestCoDeclaredFamily_EveryPassedOverKeywordIsKept(t *testing.T) {
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
 		"the $ref is kept verbatim under Unmodeled")
+}
+
+// TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps holds the report of an
+// allOf passed over for an enum with no member to what the node keeps of it:
+// the allOf whole where an entry is inline, else each entry's $ref under
+// openapi:$ref, which the report names as the allOf's $refs, not as the allOf.
+func TestCoDeclaredFamily_TheReportNamesWhatTheNodeKeeps(t *testing.T) {
+	t.Parallel()
+	const obj, obj2 = "{$ref: '#/components/schemas/Obj'}", "{$ref: '#/components/schemas/Obj2'}"
+	for _, tc := range []struct {
+		name, body, named string
+		keys              []string
+		unresolved        bool
+	}{
+		{name: "an allOf of one $ref", body: "{enum: [], allOf: [" + obj + "]}",
+			keys: []string{"openapi:$ref"}, named: "the $ref of its allOf"},
+		{name: "an allOf of a $ref and an inline entry", body: "{enum: [], allOf: [" + obj + ", {properties: {b: {type: string}}}]}",
+			keys: []string{"openapi:allOf"}, named: "allOf"},
+		{name: "an allOf of two $refs", body: "{enum: [], allOf: [" + obj + ", " + obj2 + "]}",
+			keys: []string{"openapi:$ref/0", "openapi:$ref/1"}, named: "the $refs of its allOf"},
+		{name: "an allOf of one $ref written twice", body: "{enum: [], allOf: [" + obj + ", " + obj + "]}",
+			keys: []string{"openapi:$ref"}, named: "the $refs of its allOf"},
+		{name: "a $ref beside an allOf of one", body: "{enum: [], $ref: '#/components/schemas/Obj', allOf: [" + obj2 + "]}",
+			keys: []string{"openapi:$ref/0", "openapi:$ref/1"}, named: "$ref and the $ref of its allOf"},
+		{name: "an allOf of one $ref beside a type", body: "{type: string, enum: [], allOf: [{$ref: '#/components/schemas/Str'}]}",
+			keys: []string{"openapi:$ref"}, named: "the $ref of its allOf"},
+		{name: "an allOf of one $ref beside a union", body: "{enum: [], oneOf: [" + obj + "], allOf: [" + obj2 + "]}",
+			keys: []string{"openapi:$ref", "openapi:oneOf"}, named: "the $ref of its allOf"},
+		{name: "an allOf of one $ref naming nothing", body: "{enum: [], allOf: [{$ref: '#/components/schemas/Missing'}]}",
+			keys: []string{"openapi:$ref"}, named: "the $ref of its allOf", unresolved: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    Obj: {type: object, properties: {a: {type: string}}}\n"+
+				"    Obj2: {type: object, properties: {c: {type: string}}}\n    Str: {type: string}\n    S: "+tc.body+"\n"))
+			if !tc.unresolved {
+				openapitest.RequireNoErrorDiags(t, diags)
+			}
+
+			td := typeByName(doc, "S")
+			require.NotNil(t, td)
+			assert.Equal(t, tc.keys, unmodeledKeys(td.Common().Unmodeled))
+			var said []string
+			for _, d := range diags {
+				if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/components/schemas/S" &&
+					strings.Contains(d.Message, "allOf beside its enum, and JSON Schema conjoins them") {
+					said = append(said, d.Message)
+				}
+			}
+			require.Len(t, said, 1, "one report says what the election passed over: %+v", diags)
+			assert.Contains(t, said[0], "it lowered as the enum, with "+tc.named+" kept verbatim under Unmodeled")
+		})
+	}
 }
 
 // TestCoDeclaredFamily_UnpreservableIsNotAnnounced pins the pairing GitHub #144

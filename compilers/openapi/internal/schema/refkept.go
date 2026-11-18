@@ -373,35 +373,44 @@ func keptWhy(comp allOfComposition, b keptBranch) string {
 // $ref it passes over (keepRefConjuncts), so `{allOf: [{$ref: T}], K}` keeps
 // what `{$ref: T, K}` does; else the $ref written beside them so, and the
 // allOf whole. It returns the keywords it kept, `$ref` and `allOf`, in that
-// order.
-func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
+// order, and how a report names what p holds of each: an allOf of references
+// as its entries' $refs.
+func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer,
+) (written, named []string, diags []ir.Diagnostic) {
 	if refs, ok := refConjuncts(c, s, pointer); ok {
-		kept, diags := keepRefConjuncts(c, p, refs, pointer)
-		var written []string
+		kept, keptDiags := keepRefConjuncts(c, p, refs, pointer)
 		if kept[pointer] {
-			written = append(written, "$ref")
+			written, named = append(written, "$ref"), append(named, "$ref")
 		}
-		if slices.ContainsFunc(refs, func(b keptBranch) bool { return b.entry.pointer != pointer && kept[b.entry.pointer] }) {
-			written = append(written, "allOf")
+		entries := 0
+		for _, b := range refs {
+			if b.entry.pointer != pointer && kept[b.entry.pointer] {
+				entries++
+			}
 		}
-		return written, diags
+		if entries > 0 {
+			as := "the $ref of its allOf"
+			if entries > 1 {
+				as = "the $refs of its allOf"
+			}
+			written, named = append(written, "allOf"), append(named, as)
+		}
+		return written, named, keptDiags
 	}
-	var written []string
-	var diags []ir.Diagnostic
 	if s.BesideRef != nil {
 		e := allOfBranch{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
 		kept, keptDiags := keepRefConjuncts(c, p, []keptBranch{{entry: e}}, pointer)
 		diags = append(diags, keptDiags...)
 		if kept[pointer] {
-			written = append(written, "$ref")
+			written, named = append(written, "$ref"), append(named, "$ref")
 		}
 	}
 	kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, "allOf", ir.ReasonDegradedLowering, pointer, c.Place())
 	diags = append(diags, keptDiags...)
 	if kept {
-		written = append(written, "allOf")
+		written, named = append(written, "allOf"), append(named, "allOf")
 	}
-	return written, diags
+	return written, named, diags
 }
 
 // refConjuncts returns the conjuncts s, written at pointer, writes beside its
