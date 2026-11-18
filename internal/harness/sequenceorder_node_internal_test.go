@@ -213,8 +213,9 @@ func TestCanonicalForm_LeavesOutBeneathATiedMemberOnlyWhatItsFoldMints(t *testin
 
 // TestMintedPosition_ReadsThePositionsAFoldBuildsAMemberAt pins the positions
 // beneath a tied member a fold mints at, a level down each: items,
-// additionalProperties, prefixItems with an index, in any nesting, and the
-// member's own pointer. Anything else beneath, or beside, is written.
+// additionalProperties, prefixItems with an index, a member of a model it
+// composes, an allOf deeper, in any nesting, and the member's own pointer.
+// Anything else beneath, or beside, is written.
 func TestMintedPosition_ReadsThePositionsAFoldBuildsAMemberAt(t *testing.T) {
 	t.Parallel()
 	for rest, want := range map[string]bool{
@@ -222,6 +223,12 @@ func TestMintedPosition_ReadsThePositionsAFoldBuildsAMemberAt(t *testing.T) {
 		"/items":                              true,
 		"/additionalProperties/items":         true,
 		"/prefixItems/0/items/prefixItems/12": true,
+		"/items/allOf/allOf/properties/q":     true,
+		"/allOf/allOf/properties/q/items":     true,
+		"/allOf/allOf/properties":             false,
+		"/allOf/allOf/x/q":                    false,
+		"/allOf/x/properties/q":               false,
+		"/allOf/properties/q":                 false,
 		"/prefixItems":                        false,
 		"/prefixItems/x":                      false,
 		"/properties/x":                       false,

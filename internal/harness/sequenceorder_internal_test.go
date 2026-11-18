@@ -340,6 +340,33 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want:  declined(OracleSequenceOrder, DeclineNothingToPermute),
 		},
 		{
+			// The lists win the tie as written, so the fold mints a list of a
+			// model composing X and Y, which settles q and reports its own
+			// conflict, in that order alone.
+			name: "a tie a list of a composed model wins as written",
+			src:  schemas(composes("M", "I1", "I2", "LX", "LY"), listsOfModels("{type: string}", "{type: integer}")),
+			kept: []string{"p/items/allOf/allOf/properties/q"},
+			codes: map[string]string{
+				"openapi/conflicting-redeclaration": s + "/X/properties/q",
+			},
+			want: passed(OracleSequenceOrder),
+		},
+		{
+			name:  "the same tie the lists win reversed",
+			src:   schemas(composes("M", "LX", "LY", "I1", "I2"), listsOfModels("{type: string}", "{type: integer}")),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/LX/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// q's declarations meet, so the composed model's fold mints a
+			// list of its own beneath the tied member.
+			name: "a tie whose composed model mints for its own member",
+			src: schemas(composes("M", "I1", "I2", "LX", "LY"),
+				listsOfModels("{type: array, items: {type: string, description: d}}", "{type: array, items: {type: string, maxLength: 3}}")),
+			kept: []string{`"t/composed/components/schemas/M/allOf/properties/p/items/allOf/allOf/properties/q"`},
+			want: passed(OracleSequenceOrder),
+		},
+		{
 			// The deepest chain the permutation admits: its canonical form
 			// nests within two source bounds whichever link is met first.
 			name: "a chain of 255 schemas, each a property under an allOf",
@@ -388,6 +415,21 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// listsOfModels writes the components I1 and I2, declaring p an integer, and
+// LX and LY, declaring it a non-empty list of X and of Y, whose q is xq and yq:
+// the two lists meet in a list of a model composing X and Y, which ties with
+// the two integers.
+func listsOfModels(xq, yq string) string {
+	return strings.Join([]string{
+		"X: {type: object, properties: {q: " + xq + "}}",
+		"Y: {type: object, properties: {q: " + yq + "}}",
+		"I1: {type: object, properties: {p: {type: integer}}}",
+		"I2: {type: object, properties: {p: {type: integer}}}",
+		"LX: {type: object, properties: {p: {type: array, minItems: 1, items: {$ref: '#/components/schemas/X'}}}}",
+		"LY: {type: object, properties: {p: {type: array, minItems: 1, items: {$ref: '#/components/schemas/Y'}}}}",
+	}, "\n    ")
 }
 
 // TestCheck_SequenceOrderOracleDeclinesASpecOfTwoFiles pins that a source

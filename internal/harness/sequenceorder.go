@@ -315,9 +315,9 @@ func renderUnpaired(left, right []report) string {
 // settledFrom returns ties with every member doc settles from a tied one: a
 // member a moved report names, one declared at or beneath where a moved report
 // sits, as a fold of inline declarations reports where they are written, or at
-// a tied member's pointer, and a model's own member whose flattening overrides
-// a tied declaration (ir.FlatProperty.Overridden), which reads what that tie
-// decided, to a fixpoint each pass of which ties one more member at least.
+// a tied member's pointer or minted beneath it, and a model's own member whose
+// flattening overrides a tied declaration (ir.FlatProperty.Overridden), which
+// reads what that tie decided, to a fixpoint (tieSettled).
 // Each tied member's pointer joins ties.members. IDs are erased in seqs, doc's
 // coordinates; a nil doc, as a refused compile leaves, adds none.
 func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
@@ -348,15 +348,19 @@ func settledFrom(ties tieSites, doc *ir.Document, seqs sequences) tieSites {
 // moved report sits (ties.pointers), at a tied member's pointer (ties.members),
 // or overriding a tied declaration, and each union whose inferred
 // discriminator reads a tied member (inferenceTied), adds each tied member's
-// pointer to sites and its model to holders, and reports whether it tied any.
-// A member declared beneath a tied member's pointer is written there in either
-// order, so it is not tied for that.
+// pointer to sites and its model to holders, and reports whether it tied any
+// or found a tied member's pointer. A member declared beneath a tied member's
+// pointer is written there in either order, so it is not tied for that, unless
+// the tied member's fold minted it (minted), as a model it composes declares
+// one.
 func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSites, tied, sites, holders map[string]bool) bool {
 	grew := false
+	members := slices.Concat(ties.members, slices.Collect(maps.Keys(sites)))
 	isTied := func(d ir.PropertyDecl) bool {
 		at := erase(string(d.Property.Provenance.Pointer), seqs)
 		_, atMember := slices.BinarySearch(ties.members, at)
-		return tied[erase(string(d.Property.ID), seqs)] || atSite(ties.pointers, at) || atMember
+		return tied[erase(string(d.Property.ID), seqs)] || atSite(ties.pointers, at) || atMember ||
+			minted(members, string(d.Property.ID), at)
 	}
 	for _, id := range models {
 		if u, isUnion := doc.Types[id].(*ir.Union); isUnion && !tied[erase(string(id), seqs)] && inferenceTied(doc, u, isTied) {
@@ -370,8 +374,9 @@ func tieSettled(doc *ir.Document, models []ir.TypeID, seqs sequences, ties tieSi
 			if p.Owner == id && !tied[own] && (isTied(p.PropertyDecl) || slices.ContainsFunc(p.Overridden, isTied)) {
 				tied[own], grew = true, true
 			}
-			if p.Owner == id && tied[own] {
-				sites[erase(string(p.Property.Provenance.Pointer), seqs)] = true
+			if at := erase(string(p.Property.Provenance.Pointer), seqs); p.Owner == id && tied[own] {
+				grew = grew || !sites[at]
+				sites[at] = true
 				holders[erase(string(id), seqs)] = true
 			}
 		}

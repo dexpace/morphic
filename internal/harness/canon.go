@@ -425,7 +425,7 @@ func (r *rewriter) tied(o map[string]any) (string, bool) {
 	id, hasID := o["id"].(string)
 	named := hasID && r.nodes[erase(id, r.seqs)]
 	switch {
-	case atSite, hasID && r.minted(id, erased), named && r.atMember(erased):
+	case atSite, hasID && minted(r.members, id, erased), named && r.atMember(erased):
 		return erased, true
 	case named:
 		return erase(id, r.seqs), true
@@ -445,20 +445,21 @@ func (r *rewriter) atMember(erased string) bool {
 // at or beneath a tie site, a tied member's fold minted it, or a tie names it.
 func (r *rewriter) tiedNode(id ir.TypeID, td ir.TypeDef) bool {
 	erased, atSite := r.tiedAt(string(td.Common().Provenance.Pointer))
-	return atSite || r.minted(string(id), erased) || r.nodes[erase(string(id), r.seqs)]
+	return atSite || minted(r.members, string(id), erased) || r.nodes[erase(string(id), r.seqs)]
 }
 
-// minted reports whether the node id, at erased, an erased pointer, is one a
-// tied member's fold minted: in the composed namespace, at the member's
-// pointer or beneath it at a position the fold builds a member at
-// (docs/compilers/openapi.md#allof-redeclared-property), so which declaration
-// won decides it. A node written in the source beneath the member, alike in
-// either order, is not. The oracle reads one source, so no space is qualified.
-func (r *rewriter) minted(id, erased string) bool {
+// minted reports whether the node or member id, at erased, an erased pointer,
+// is one the fold of a tied member, standing at one of members, minted: in the
+// composed namespace, at the member's pointer or beneath it at a position the
+// fold builds a member at (docs/compilers/openapi.md#allof-redeclared-property),
+// so which declaration won decides it. A node written in the source beneath
+// the member, alike in either order, is not. The oracle reads one source, so
+// no space is qualified.
+func minted(members []string, id, erased string) bool {
 	if parts := strings.SplitN(id, ir.IDSeparator, 3); len(parts) < 2 || parts[1] != "composed" {
 		return false
 	}
-	return slices.ContainsFunc(r.members, func(member string) bool {
+	return slices.ContainsFunc(members, func(member string) bool {
 		rest, beneath := strings.CutPrefix(erased, member)
 		return beneath && mintedPosition(rest)
 	})
@@ -466,7 +467,9 @@ func (r *rewriter) minted(id, erased string) bool {
 
 // mintedPosition reports whether rest, what follows a tied member's pointer in
 // another, is empty or names a position a fold builds a member at, a level
-// down each: items, additionalProperties, or prefixItems and an index.
+// down each: items, additionalProperties, or prefixItems and an index; or
+// where a model the fold composes there declares a member, an allOf deeper
+// than its own pointer: allOf, allOf, properties and a name.
 func mintedPosition(rest string) bool {
 	if rest == "" {
 		return true
@@ -481,6 +484,10 @@ func mintedPosition(rest string) bool {
 		case "items", "additionalProperties":
 		case "prefixItems":
 			if i++; i == len(position) || !decimal(position[i]) {
+				return false
+			}
+		case "allOf":
+			if i += 3; i >= len(position) || position[i-2] != "allOf" || position[i-1] != "properties" {
 				return false
 			}
 		default:
@@ -570,10 +577,10 @@ func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
 	id := erase(string(p.Property.ID), r.seqs)
 	erased, atSite := r.tiedAt(string(prov.Pointer))
-	minted := r.minted(string(p.Property.ID), erased)
-	if atSite || minted || r.nodes[id] {
+	byFold := minted(r.members, string(p.Property.ID), erased)
+	if atSite || byFold || r.nodes[id] {
 		tie := "reported tie " + id
-		if atSite || minted || r.atMember(erased) {
+		if atSite || byFold || r.atMember(erased) {
 			tie = "reported tie at " + erased
 		}
 		visibility, err := json.Marshal(&p.Property.Visibility, json.Deterministic(true))
