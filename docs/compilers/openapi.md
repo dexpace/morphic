@@ -2193,8 +2193,8 @@ on the field without its source. A `$ref` entry naming a union of objects is no 
 is the `Base` or a `Mixin`, never distributed over its variants as one written beside the `allOf` is
 ([models](../ir/models.md#a-union-a-composition-names)). One naming a schema whose `type` list holds
 an object and another kind composes that list's object variant, the one node of that kind its union
-holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, …]}` over `Pet: {type: [object, string],
-properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
+holds, standing at `…/type/<n>`: `Cat: {allOf: [{$ref: Pet}, {type: object, …}]}` over `Pet: {type:
+[object, string], properties: …}` has the variant as its `Base`, so it inherits what `Pet` declares of an object and
 keeps the tag `Pet`'s discriminator gives it. A union a `oneOf` or `anyOf` writes is not unpacked: it
 may hold several objects, or none a model is, so one admitting another kind is kept as above. The
 list is read only where the entry's `$ref` lands: one landing on another `$ref` to `Pet`, as
