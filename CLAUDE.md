@@ -371,10 +371,14 @@ assertion shapes:
   members, and the diagnostics without their message text or line and column. It permutes mappings
   alone. The sequence-order oracle beside it reverses each `allOf` and `required` sequence that
   `reverseSequences` in `internal/harness/sequence.go` may, and forgives what the order oracle does
-  and what `canonicalForm` in `canon.go` lists, and, among declarations a member folds that do not
-  all say the same, a report the other order holds one of its key for, whatever its code, member or
-  count, and the member where the documents show a tie traded what it takes (`tieClasses` in
-  `tieclass.go`).
+  and what `canonicalForm` in `canon.go` lists, and a tie the compiler states: a member that a
+  report carrying a pair (`ir.RelatedKept`, `ir.RelatedDecided`) decides in each order, the two
+  places the other way round (`tiedBy` in `ties.go`), and each member settled from one. Of a tied
+  member only whether it is required is compared, and its docs where a stated tie alone decided it
+  (`statedAlone`), so a dependence of a member settled from a tied one that the tie does not
+  explain passes (#2099 writes one); of a member no tie decided, a report's kept place is not
+  compared, since of several agreeing declarations it names the one written last. A tied member
+  taking in each order the type its report says lost is found.
   Both compile at the default limits, so an order dependence among a listed collection's elements,
   in any other sequence or another order of one, or in a verdict at another limit (#1519) needs its
   own two-order diff. A targeted case still earns its place when it pins one lowering, because the

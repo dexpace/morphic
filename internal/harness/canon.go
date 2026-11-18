@@ -56,128 +56,47 @@ type canonical struct {
 	identify        func(id string) (string, bool)
 }
 
-// formReader reads the forms of doc, whose source's coordinates seqs are in:
-// its rewriter, made at the first reading and shared by every later one, so
-// the document is encoded and indexed once, and the error making it met.
-type formReader struct {
-	doc  *ir.Document
-	seqs sequences
-	r    *rewriter
-	err  error
-}
-
-// rewriter returns f's rewriter reading ties, its digests yet to compute, as
-// a tie changes what a node's owners write.
-func (f *formReader) rewriter(ties tieSites) (*rewriter, error) {
-	if f.r == nil && f.err == nil {
-		f.r, f.err = newRewriter(f.doc, f.seqs)
-	}
-	if f.err != nil {
-		return nil, f.err
-	}
-	f.r.tie(ties)
-	return f.r, nil
-}
-
-// canonicalForm is f's document as the sequence-order oracle compares it,
-// where ties are what the reports that moved decided. It forgives an index of
+// canonicalForm is doc as the sequence-order oracle compares it, where seqs
+// are the sequences reversed, in doc's source's coordinates, and ties what
+// the reports that moved decided. It forgives an index of
 // a reversed sequence a string names, an ID beneath one told apart by its
 // owners' digest; the order of what orderFree lists, mixins, requires and an
 // array kept verbatim at a reversed sequence's pointer; and each node a tie
 // decided (tied), with what is keyed by its ID (untie). An unmodeled member's
 // name is relative, so an index after allOf or required in it is always
-// erased. Its identify holds until f is read again.
-func (f *formReader) canonicalForm(ties tieSites) (canonical, error) {
-	r, err := f.rewriter(ties)
+// erased.
+func canonicalForm(doc *ir.Document, seqs sequences, ties tieSites) (canonical, error) {
+	r, err := newRewriter(doc, seqs, ties)
 	if err != nil {
 		return canonical{}, err
 	}
 	out := jsontext.Value(r.rewrite(r.tree, place{}, 0))
 	r.fail(out.Indent(jsontext.WithIndent("  ")))
-	shape := r.shape(f.doc)
+	shape := r.shape(doc)
 	return canonical{document: lines(out), shape: shape, identify: r.identify}, r.err
 }
 
-// newRewriter returns a rewriter of doc's forms, where seqs are the sequences
-// reversed, in doc's source's coordinates, holding doc's encoding decoded,
-// each owner of an ID in it indexed.
-func newRewriter(doc *ir.Document, seqs sequences) (*rewriter, error) {
+// newRewriter returns a rewriter of doc's forms reading ties, where seqs are
+// the sequences reversed, in doc's source's coordinates, holding doc's
+// encoding decoded, each owner of an ID in it indexed.
+func newRewriter(doc *ir.Document, seqs sequences, ties tieSites) (*rewriter, error) {
 	encoded, err := encodeComparable(doc, markedArray, nil)
 	if err != nil {
 		return nil, err
 	}
-	r := &rewriter{seqs: seqs, owners: map[string][]map[string]any{}}
-	r.tree = r.decode(encoded)
-	r.index(r.tree, 0)
-	return r, nil
-}
-
-// tie makes r read ties, with no digest computed or being computed.
-func (r *rewriter) tie(ties tieSites) {
-	r.ties, r.nodes = ties.pointers, map[string]bool{}
+	r := &rewriter{
+		seqs: seqs, ties: ties.pointers, nodes: map[string]bool{}, stated: map[string]bool{}, owners: map[string][]map[string]any{},
+		digests: map[string]string{}, visiting: map[string]bool{},
+	}
 	for _, node := range ties.nodes {
 		r.nodes[node] = true
 	}
-	r.digests, r.visiting, r.computing = map[string]string{}, map[string]bool{}, ""
-	r.sayings = map[*ir.Property]string{}
-}
-
-// memberForm is what a member takes in one model: the model, as a form writes
-// it, the member's shape there (rewriter.memberShape) and its tie shape
-// (rewriter.tieShape); the pointers, erased, of the declarations it overrides
-// saying what it says (rewriter.said), which it takes, and of those whose type
-// it takes (rewriter.typeOf); and whether those declarations do not all say
-// the same, where a tie has something to decide.
-type memberForm struct {
-	model, shape, tie string
-	takes, typed      []string
-	conflicts         bool
-}
-
-// memberForms returns, for each member of f's models whose ID, erased in
-// f.seqs, members holds, its form in each model whose flattening holds it,
-// where no tie decides anything, sorted. It fails as a form does.
-func memberForms(f *formReader, members map[string]folds) (map[string][]memberForm, error) {
-	r, err := f.rewriter(tieSites{})
-	if err != nil {
-		return nil, err
+	for _, node := range ties.stated {
+		r.stated[node] = true
 	}
-	out := map[string][]memberForm{}
-	for id, t := range f.doc.Types {
-		if _, ok := t.(*ir.Model); !ok {
-			continue
-		}
-		for _, p := range ir.FlattenedProperties(f.doc.Types, id).Properties {
-			member := erase(string(p.Property.ID), f.seqs)
-			if _, wanted := members[member]; !wanted {
-				continue
-			}
-			out[member] = append(out[member], r.memberForm(string(id), p))
-		}
-	}
-	for _, forms := range out {
-		slices.SortFunc(forms, func(x, y memberForm) int {
-			return cmp.Or(strings.Compare(x.model, y.model), strings.Compare(x.shape, y.shape))
-		})
-	}
-	return out, r.err
-}
-
-// memberForm is p's form in the model whose ID is model.
-func (r *rewriter) memberForm(model string, p ir.FlatProperty) memberForm {
-	form := memberForm{model: r.text(model, 0), shape: r.memberShape(p), tie: r.tieShape(p)}
-	said, typ := r.said(p.Property), r.typeOf(p.Property)
-	for _, d := range p.Overridden {
-		at := erase(string(d.Property.Provenance.Pointer), r.seqs)
-		form.conflicts = form.conflicts || r.said(d.Property) != r.said(p.Overridden[0].Property)
-		if r.said(d.Property) == said {
-			form.takes = append(form.takes, at)
-		}
-		if r.typeOf(d.Property) == typ {
-			form.typed = append(form.typed, at)
-		}
-	}
-	return form
+	r.tree = r.decode(encoded)
+	r.index(r.tree, 0)
+	return r, nil
 }
 
 // number is a JSON number's text, which the rewrite writes as it stands.
@@ -227,11 +146,11 @@ type rewriter struct {
 	tree      any
 	ties      []string
 	nodes     map[string]bool
+	stated    map[string]bool
 	owners    map[string][]map[string]any
 	digests   map[string]string
 	visiting  map[string]bool
 	computing string
-	sayings   map[*ir.Property]string
 	err       error
 }
 
@@ -303,7 +222,7 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 	o = r.untie(o)
 	own := provenancePointer(o)
 	if erased, tied := r.tied(o); tied && p.how&noIdentity == 0 {
-		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), []byte("}"))
+		return slices.Concat([]byte(`{"reportedTie":`), r.quote(erased), requiredOf(o), r.docsOf(o, depth), []byte("}"))
 	}
 	type member struct{ name, value []byte }
 	members := make([]member, 0, len(o))
@@ -336,6 +255,31 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 		out = append(append(append(out, m.name...), ':'), m.value...)
 	}
 	return append(out, '}')
+}
+
+// requiredOf writes whether o, a tied node, is required, where it is a
+// property: a member is required where any of its declarations or its model
+// says so (docs/compilers/openapi.md#allof-redeclared-property), which no tie
+// between two of them decides, so it is compared where nothing else of the
+// member is.
+func requiredOf(o map[string]any) []byte {
+	required, isProperty := o["required"].(bool)
+	if _, named := o["wireName"]; !named || !isProperty {
+		return nil
+	}
+	return []byte(`,"required":` + strconv.FormatBool(required))
+}
+
+// docsOf writes the docs of o, a tied node, where a stated tie alone decided
+// it (tieSites.stated): such a tie decides nothing of a member's docs, which
+// fold over every declaration, so they are compared.
+func (r *rewriter) docsOf(o map[string]any, depth int) []byte {
+	id, _ := o["id"].(string)
+	docs, written := o["docs"]
+	if !r.stated[erase(id, r.seqs)] || !written {
+		return nil
+	}
+	return append([]byte(`,"docs":`), r.rewrite(docs, place{}, depth+1)...)
 }
 
 // childPlace is the place of the member name of an object at p, whose
@@ -548,49 +492,25 @@ func (r *rewriter) shape(doc *ir.Document) []string {
 	return out
 }
 
-// tieShape is p's shape (memberShape) without what its model decides itself,
-// whether it requires the member, which a tie between declarations does not
-// decide: the outcome of a tie two models trade.
-func (r *rewriter) tieShape(p ir.FlatProperty) string {
-	decl := *p.Property
-	decl.Required = false
-	p.Property, p.Required = &decl, false
-	return r.memberShape(p)
-}
-
-// said is what a declaration says, rewritten without its identity and
-// without whether it is required, which the model holding it decides, so two
-// declarations saying the same are one. It is computed once per declaration
-// until r reads other ties.
-func (r *rewriter) said(p *ir.Property) string {
-	if s, ok := r.sayings[p]; ok {
-		return s
-	}
-	decl := *p
-	decl.Required = false
-	encoded, err := json.Marshal(&decl, comparableOptions(markedArray, nil))
-	r.fail(err)
-	s := string(r.rewrite(r.decode(encoded), place{how: noIdentity}, 0))
-	r.sayings[p] = s
-	return s
-}
-
-// typeOf is the type a declaration names, as a form writes a reference to
-// it, and whether it admits null.
-func (r *rewriter) typeOf(p *ir.Property) string {
-	return r.text(string(p.Type.Target), 0) + " " + strconv.FormatBool(p.Type.Nullable)
-}
-
 // memberShape is what a flattened member takes: whether it is required,
 // secret and deprecated, and its declaration, rewritten without its identity,
 // so two declarations saying the same are one.
 func (r *rewriter) memberShape(p ir.FlatProperty) string {
 	prov := p.Property.Provenance
-	if erased, tied := r.tiedAt(string(prov.Pointer)); tied {
-		return "reported tie at " + erased
-	}
-	if id := erase(string(p.Property.ID), r.seqs); r.nodes[id] {
-		return "reported tie " + id
+	id := erase(string(p.Property.ID), r.seqs)
+	erased, atSite := r.tiedAt(string(prov.Pointer))
+	if atSite || r.nodes[id] {
+		tie := "reported tie " + id
+		if atSite {
+			tie = "reported tie at " + erased
+		}
+		tie += " required " + strconv.FormatBool(p.Required)
+		if !r.stated[id] {
+			return tie
+		}
+		docs, err := json.Marshal(&p.Property.Docs, json.Deterministic(true))
+		r.fail(err)
+		return tie + " docs " + string(docs)
 	}
 	encoded, err := json.Marshal(struct {
 		Declaration *ir.Property    `json:"declaration"`

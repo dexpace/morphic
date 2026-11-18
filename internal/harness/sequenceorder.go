@@ -47,62 +47,63 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 
 // diffSequenceInvariants compares what reversing the sequences of perm must
 // leave untouched: the diagnostics, the document and each model's flattened
-// shape, each in its own source's coordinates. Two diagnostics equal but for
-// which element of a reversed sequence their pointers name are a report the
-// order moves, a tie: nothing at or beneath its pointer, or at the node it
-// names, is compared. A tie the documents show among declarations is read by
-// its classes (tieClasses). Two naming nodes the forms read alike are one
-// (sameNodes). It declines a document of several files, and what
-// tieClassesOf and compareForms decline.
+// shape, each in its own source's coordinates. A tie is a member a report
+// states it decided between two declarations in each order, the other way
+// round (tiedBy), or what a report the order moves decided, two diagnostics
+// equal but for which element of a reversed sequence their pointers name.
+// Nothing at or beneath a moved report's pointer, or of a tied node but
+// whether it is required, is compared. It declines a document of several
+// files, and what compareForms declines.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
 	}
-	a, b := reportsOf(firstDiags, nil, perm.written), reportsOf(secondDiags, perm.moved, perm.written)
-	asWritten, reversed := &formReader{doc: first, seqs: perm.written}, &formReader{doc: second, seqs: perm.moved}
-	classes, why := tieClassesOf(asWritten, reversed, a, b)
-	if why != "" {
-		return "", false, why
-	}
+	stated, a := factsOf(reportsOf(firstDiags, nil, perm.written), perm.written)
+	restated, b := factsOf(reportsOf(secondDiags, perm.moved, perm.written), perm.written)
 	ties, left, right := movedReports(a, b, perm.written)
-	left, right = classes.unmatched(left, b, perm.written), classes.unmatched(right, a, perm.written)
-	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, classes.members))))
+	tied, moved := tiedBy(stated, restated), ties
+	ties.nodes = slices.Compact(slices.Sorted(slices.Values(slices.Concat(ties.nodes, tied))))
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
+	ties.stated = statedAlone(statedAlone(tied, moved, ties.nodes, first, perm.written), moved, ties.nodes, second, perm.moved)
 	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
 	refused := oneRefusal(first, second)
 	var forms []string
 	if refused == "" && first != nil {
 		var why Decline
-		left, right, forms, why = compareForms(asWritten, reversed, ties, left, right)
+		left, right, forms, why = compareForms(first, second, perm, ties, left, right)
 		if why != "" {
 			return "", false, why
 		}
 	}
+	onlyStated, onlyRestated := unpairedFacts(stated, restated, ties.nodes)
 	var found []string
-	if unpaired := renderUnpaired(left, right); unpaired != "" {
+	if unpaired := renderUnpaired(append(left, onlyStated...), append(right, onlyRestated...)); unpaired != "" {
 		found = append(found, "diagnostics depend on sequence order (-as-written +reversed):\n"+unpaired)
 	}
 	if refused != "" {
 		found = append(found, refused)
 	}
 	found = append(found, forms...)
+	if wrong := contradicted(first, second, stated, tied, perm); len(wrong) > 0 {
+		found = append(found, "a tie's reports name the declaration the member takes as the one that lost:\n"+strings.Join(wrong, "\n"))
+	}
 	return strings.Join(found, "\n"), len(found) == 0, ""
 }
 
 // compareForms compares two documents' canonical forms under ties
-// (formReader.canonicalForm), each in its own source's coordinates, line by line, and
+// (canonicalForm), each in its own source's coordinates, line by line, and
 // their flattened shapes, and pairs what left and right, the reports only one
 // order makes, say of one node by what the forms read (sameNodes). It
 // declines where either form nests past its bound or meets a cycle of digests.
-func compareForms(first, second *formReader, ties tieSites, left, right []report) ([]report, []report, []string, Decline) {
-	a, err := first.canonicalForm(ties)
+func compareForms(first, second *ir.Document, perm permutation, ties tieSites, left, right []report) ([]report, []report, []string, Decline) {
+	a, err := canonicalForm(first, perm.written, ties)
 	if why := formDecline(err); why != "" {
 		return nil, nil, nil, why
 	}
 	if err != nil {
 		return left, right, []string{"encode as written: " + err.Error()}, ""
 	}
-	b, err := second.canonicalForm(ties)
+	b, err := canonicalForm(second, perm.moved, ties)
 	if why := formDecline(err); why != "" {
 		return nil, nil, nil, why
 	}
@@ -189,21 +190,23 @@ func formDecline(err error) Decline {
 // report is one diagnostic as the comparison reads it, in the coordinates of
 // the source as written: as diagnosticKey renders it, the same with every
 // index of a reversed sequence erased, and with no pointer where it names a
-// node, its pointer and its node; and raw, the diagnostic in its own
+// node, its pointer and its node; rebased, the diagnostic in those
+// coordinates, what else it concerns too; and raw, the diagnostic in its own
 // compile's coordinates. A report naming the node it decided is told apart by that
 // node: it sits at the declaration the order made lose, which a nested allOf
 // can place at another depth.
 type report struct {
 	key, erased, pointer, node string
-	raw                        ir.Diagnostic
+	rebased, raw               ir.Diagnostic
 }
 
 // tieSites is what the reports a reversal moved decided: the erased pointer of
 // each, at or beneath which nothing is compared, the erased node of each naming
-// one (ir.Provenance's Node) or of each tied member (tieClasses), which is not
-// compared wherever it sits, and the models holding a member a tie decided
-// (settledFrom), whose reports follow it.
-type tieSites struct{ pointers, nodes, holders []string }
+// one (ir.Provenance's Node) or of each member a report states a tie decided
+// (tiedBy), which is not compared wherever it sits, the models holding a
+// member a tie decided (settledFrom), whose reports follow it, and the tied
+// members a stated tie alone decided (statedAlone), whose docs are compared.
+type tieSites struct{ pointers, nodes, holders, stated []string }
 
 // reportsOf reads diags, rebasing each pointer and node from the coordinates
 // of from, when given, to those of the source as written, where written lists
@@ -214,14 +217,24 @@ func reportsOf(diags []ir.Diagnostic, from, written sequences) []report {
 		raw := d
 		d.Provenance.Pointer = jsontext.Pointer(rebase(string(d.Provenance.Pointer), from))
 		d.Provenance.Node = rebase(d.Provenance.Node, from)
+		d.Related = slices.Clone(d.Related)
+		for i := range d.Related {
+			p := &d.Related[i].Provenance
+			p.Pointer, p.Node = jsontext.Pointer(rebase(string(p.Pointer), from)), rebase(p.Node, from)
+		}
 		e := d
 		e.Provenance.Pointer = jsontext.Pointer(erase(string(d.Provenance.Pointer), written))
 		e.Provenance.Node = erase(d.Provenance.Node, written)
 		if e.Provenance.Node != "" {
 			e.Provenance.Pointer = ""
 		}
+		e.Related = slices.Clone(d.Related)
+		for i := range e.Related {
+			p := &e.Related[i].Provenance
+			p.Pointer, p.Node = jsontext.Pointer(erase(string(p.Pointer), written)), erase(p.Node, written)
+		}
 		out = append(out, report{key: diagnosticKey(d), erased: diagnosticKey(e), pointer: string(d.Provenance.Pointer),
-			node: d.Provenance.Node, raw: raw})
+			node: d.Provenance.Node, rebased: d, raw: raw})
 	}
 	return out
 }

@@ -160,12 +160,19 @@ func diagnosticSet(diags []ir.Diagnostic) []string {
 	return out
 }
 
-// diagnosticKey is what diagnosticSet compares of one diagnostic.
+// diagnosticKey is what diagnosticSet compares of one diagnostic: all but its
+// message and its positions, what else it concerns included, entry by entry.
 func diagnosticKey(d ir.Diagnostic) string {
 	p := d.Provenance
 	positioned := p.Position != ir.Position{}
-	return fmt.Sprintf("%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
+	var key strings.Builder
+	fmt.Fprintf(&key, "%s\x00%s\x00%s\x00%t\x00%s\x00%d\x00%d\x00%s",
 		d.Severity, d.Code, p.Pointer, positioned, p.Node, p.Source, p.WrittenBy, p.Inferred)
+	for _, r := range d.Related {
+		q := r.Provenance
+		fmt.Fprintf(&key, "\x00%s\x00%s\x00%s\x00%d\x00%d", r.Role, q.Pointer, q.Node, q.Source, q.WrittenBy)
+	}
+	return key.String()
 }
 
 // lines splits an encoding into its lines, so a difference reads line by line.
