@@ -54,7 +54,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 		diags = append(diags, unionDiags...)
 		// Each variant composes the body, reading its members and its bounds.
 		return def, objectKeys | typeReadAs(s, statement.KindObject) | boundsRead(s, body.comp.bounds, nil)
-	}, census.onRead(keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), nil, pointer)).then(fin))
+	}, census.onRead(keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), 0, pointer)).then(fin))
 	// The union read s's discriminator, so one it cannot hold says why.
 	diags = append(diags, census.diags...)
 	where := "co-declared with structural keywords"

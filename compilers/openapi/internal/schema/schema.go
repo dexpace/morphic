@@ -499,7 +499,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// the type set itself is what built them.
 		var census finished
 		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
-			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), []string{"type"}, pointer)).then(fin))
+			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer)).then(fin))
 		return id, append(diags, census.diags...)
 	case len(types) == 1:
 		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
@@ -619,6 +619,13 @@ type dispatch struct {
 	// mixin is the union a routed subtype composes (lowerSubtypeUnion), which
 	// the build of its model mints, nil where the position composes none.
 	mixin *unionAt
+}
+
+// handled returns the keys of censusDomain the election accounted for: the
+// families it passed over, which recordSkippedFamilies keeps, and the keywords
+// the branches say.
+func (d dispatch) handled() keySet {
+	return keySetOf(d.skipped...) | keySetOf(d.said...)
 }
 
 // besideAllOf returns the election lower() makes of the keywords beside s's

@@ -187,9 +187,9 @@ func LowerSource(t *testing.T, src compilers.Source) (*ir.Document, []*statement
 	return l.Document(t), statements, true
 }
 
-// UnreadKeys is unreadKeys, the keys read and handled named.
-func UnreadKeys(s *statement.Schema, read, handled []string) []string {
-	return unreadKeys(s, keySetOf(read...), handled)
+// UnreadKeys is unreadKeys, the keys read named.
+func UnreadKeys(s *statement.Schema, read []string) []string {
+	return unreadKeys(s, keySetOf(read...))
 }
 
 // CensusDomain returns censusDomain.

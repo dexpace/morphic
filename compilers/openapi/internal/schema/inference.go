@@ -51,7 +51,7 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	}
 	var census finished
 	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
-		mark.then(census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), nil, pointer))).then(fin))
+		mark.then(census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer))).then(fin))
 	return id, append(diags, census.diags...)
 }
 

@@ -17,13 +17,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// unreadKeys returns the keys of censusDomain s writes that read does not hold
-// and handled does not name, in censusDomain order: what the node a position
-// lowered to keeps verbatim, as no build read it into a field.
-func unreadKeys(s *statement.Schema, read keySet, handled []string) []string {
+// unreadKeys returns the keys of censusDomain s writes that read does not
+// hold, in censusDomain order: what the node a position lowered to keeps
+// verbatim, as no build read it into a field and no election accounted for it.
+func unreadKeys(s *statement.Schema, read keySet) []string {
 	var out []string
 	for _, k := range censusDomain {
-		if hasKey(s, k) && !read.has(k) && !slices.Contains(handled, k) {
+		if hasKey(s, k) && !read.has(k) {
 			out = append(out, k)
 		}
 	}
@@ -32,9 +32,10 @@ func unreadKeys(s *statement.Schema, read keySet, handled []string) []string {
 
 // unreadByReference is unreadKeys for a position s lowered to a reference,
 // whose alias or carrier reads what referenceReads says, beside what is read
-// outside a node's build (readElsewhere).
-func unreadByReference(c lowering.Ctx, s *statement.Schema, handled []string) []string {
-	return unreadKeys(s, referenceReads(c, s)|readElsewhere(s), handled)
+// outside a node's build (readElsewhere) and what the position's lowering
+// accounted for itself, handled.
+func unreadByReference(c lowering.Ctx, s *statement.Schema, handled keySet) []string {
+	return unreadKeys(s, referenceReads(c, s)|readElsewhere(s)|handled)
 }
 
 // What a position lowering to a reference lowered to, for the diagnostic
@@ -63,7 +64,7 @@ func expandedShapeOf(s *statement.Schema) string {
 // Those two write few: neither expands or collapses beside a shape (GitHub #595).
 func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) ([]string, string) {
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
-		return unreadByReference(c, s, nil), expandedShapeOf(s)
+		return unreadByReference(c, s, 0), expandedShapeOf(s)
 	}
 	if hasUnionSiblings(c, s) {
 		return nil, ""
@@ -71,7 +72,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 	if _, _, collapses := nullUnionCollapse(c, s, ""); !collapses {
 		return nil, ""
 	}
-	return unreadByReference(c, s, branchesSay(c, s)), collapsedShape
+	return unreadByReference(c, s, keySetOf(branchesSay(c, s)...)), collapsedShape
 }
 
 // keepingUnread lowers the position s, written at pointer, through build, the
@@ -112,7 +113,7 @@ func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, point
 func keepUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, td ir.TypeDef, d dispatch,
 	read keySet,
 ) []ir.Diagnostic {
-	unread := unreadKeys(s, read|readBeside(s, td), slices.Concat(d.skipped, d.said))
+	unread := unreadKeys(s, read|readBeside(s, td)|d.handled())
 	var diags []ir.Diagnostic
 	if len(unread) > 0 {
 		diags = recordUnhomedAt(c, ts, &td.Common().Unmodeled, s, unread, positionShape(td, s), pointer)
@@ -128,7 +129,7 @@ func keepUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer 
 func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, id ir.TypeID, d dispatch,
 	shared keySet, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
-	unread := unreadKeys(s, shared|boundsRead(s, boundKinds(c, s), nil)|readElsewhere(s), slices.Concat(d.skipped, d.said))
+	unread := unreadKeys(s, shared|boundsRead(s, boundKinds(c, s), nil)|readElsewhere(s)|d.handled())
 	if len(unread) == 0 && len(d.skipped) == 0 {
 		return id, nil
 	}
@@ -207,10 +208,10 @@ const distributedShape = "a union of models conjoining its body with each branch
 // keepUnreadAcross returns the keeping of the Union, in hand, that a
 // position's own schema s builds the variants of: a type array's (lowerUnion)
 // and a distributed composition's (composedVariant). It keeps on the Union what
-// s writes that neither it nor a variant read, read being what they did;
-// handled is as unreadKeys takes it. A discriminator the Union holds is homed
-// there, routing its variants. shape describes the Union.
-func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shape string, handled []string, pointer jsontext.Pointer,
+// s writes that neither it nor a variant read, read being what they did,
+// nor its lowering accounted for, handled. A discriminator the Union holds is
+// homed there, routing its variants. shape describes the Union.
+func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shape string, handled keySet, pointer jsontext.Pointer,
 ) func(td ir.TypeDef, read keySet) []ir.Diagnostic {
 	return func(td ir.TypeDef, read keySet) []ir.Diagnostic {
 		u, isUnion := td.(*ir.Union)
@@ -218,10 +219,11 @@ func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, sh
 			return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 				"internal: type %q is not the union its variants were built for", td.Common().ID)}
 		}
+		read |= readElsewhere(s) | handled
 		if u.Discriminator != nil {
-			handled = append(slices.Clip(handled), "discriminator")
+			read |= keyBit("discriminator")
 		}
-		unread := unreadKeys(s, read|readElsewhere(s), handled)
+		unread := unreadKeys(s, read)
 		if len(unread) == 0 {
 			return nil
 		}

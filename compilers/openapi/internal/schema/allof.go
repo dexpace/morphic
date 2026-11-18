@@ -86,7 +86,7 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 // reads itself, so neither the census of a $ref branch nor that of the composed
 // position reports them again: lowerAllOf lands every required list on the
 // composed model (requireMembers).
-var compositionCensusHandled = []string{"required"}
+var compositionCensusHandled = keyBit("required")
 
 // allOfBranch is one inline-or-ref branch of an allOf composition after nested
 // wrappers are flattened into the list (GitHub #599).

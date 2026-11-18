@@ -149,7 +149,12 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed set
 		return nil
 	}
 	w := newAdmissionReader(c)
-	held := slices.DeleteFunc(slices.Clone(nodeKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
+	var held keySet
+	for _, key := range nodeKeywords {
+		if said(&w, r, typed, s, key) {
+			held |= keyBit(key)
+		}
+	}
 	return unreadByReference(c, s, held)
 }
 
