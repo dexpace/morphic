@@ -301,3 +301,29 @@ func TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey(t *testing.T) {
 	assert.Len(t, reportsAt(diags, "/components/schemas/Free/allOf/0"), 2, "the error and the bound's own report")
 	assert.Len(t, reportsAt(diags, "/components/schemas/Taken/allOf/0"), 2, "the error and the bound kept under the entry's key")
 }
+
+// TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes pins the kind a
+// report names where an inline principal's node stands at the position: the
+// report of what the position keeps and the principal's own name it alike, as
+// the same keywords written flat do, a shared primitive's alias a primitive.
+func TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Alias: {allOf: [{type: string, minimum: 1}], maxItems: 3}\n"+
+			"    AliasFlat: {type: string, minimum: 1, maxItems: 3}\n"+
+			"    Scalar: {allOf: [{type: string, format: byte, minimum: 1}], maxItems: 3}\n"+
+			"    ScalarFlat: {type: string, format: byte, minimum: 1, maxItems: 3}\n"+
+			"    List: {allOf: [{type: array, items: {type: string}, minimum: 1}], minLength: 3}\n"+
+			"    ListFlat: {type: array, items: {type: string}, minimum: 1, minLength: 3}\n"))
+	for name, kind := range map[string]string{"Alias": "primitive", "Scalar": "scalar", "List": "list"} {
+		want := `this position lowered to a node of kind "` + kind + `"`
+		flat := reportsAt(diags, "/components/schemas/"+name+"Flat")
+		require.Len(t, flat, 1, name)
+		assert.Contains(t, flat[0], want, name)
+		for _, at := range []string{"", "/allOf/0"} {
+			got := reportsAt(diags, "/components/schemas/"+name+at)
+			require.Len(t, got, 1, name+at)
+			assert.Contains(t, got[0], want, name+at)
+		}
+	}
+}

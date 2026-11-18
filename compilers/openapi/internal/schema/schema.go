@@ -393,10 +393,13 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 	// The node the position owns is reported on by the visit building it, as
 	// its census is (keepingUnread); a node it does not own, by each visit.
 	var disjoint finished
-	fin = disjoint.on(func(td ir.TypeDef) []ir.Diagnostic { return refinedDisjoint(c, s, r, td) }).then(fin)
+	fin = finisher(func(td ir.TypeDef, _ keySet, held *principalKept) {
+		disjoint.ran = true
+		disjoint.diags = refinedDisjoint(c, s, r, td, held)
+	}).then(fin)
 	reported := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
 		if !disjoint.ran && !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id}) {
-			disjoint.diags = refinedDisjoint(c, s, r, nil)
+			disjoint.diags = refinedDisjoint(c, s, r, nil, nil)
 		}
 		return id, append(diags, disjoint.diags...)
 	}
@@ -416,9 +419,9 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 // and lowered to the value set elected before them or to what the keywords
 // beside the allOf say (contradictionShape), at s, as a composition reports
 // conjuncts sharing no value, standing being the node the position owns, nil
-// where it owns none (refinedShape).
-func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement, standing ir.TypeDef) []ir.Diagnostic {
-	shape := refinedShape(c, r.comp, r.principal, standing)
+// where it owns none, and held how its builder names it (refinedShape).
+func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement, standing ir.TypeDef, held *principalKept) []ir.Diagnostic {
+	shape := refinedShape(c, r.comp, r.principal, standing, held)
 	switch {
 	case unionAside(c, s):
 	case r.contradicts:

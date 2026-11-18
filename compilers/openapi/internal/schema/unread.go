@@ -124,8 +124,9 @@ func keepUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer 
 	}
 	var skipped finished
 	fin = skipped.on(func(td ir.TypeDef) []ir.Diagnostic { return recordSkippedFamilies(c, td, s, d, pointer) }).then(fin)
-	k := keeping{keys: unread, reason: ir.ReasonDegradedLowering, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
-		return recordUnhomedAt(c, ts, p, s, keys, positionShape(td, s), pointer)
+	shape := positionShape(td, s)
+	k := keeping{keys: unread, reason: ir.ReasonDegradedLowering, shape: shape, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		return recordUnhomedAt(c, ts, p, s, keys, shape, pointer)
 	}}
 	return append(keepAround(c, ts, st, td, read, held, s, pointer, k, fin), skipped.diags...)
 }
@@ -157,7 +158,7 @@ func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, po
 func keepUnhomedOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, unhomed []string, shape string, pointer jsontext.Pointer,
 	st stand, kept *finished, fin finisher,
 ) finisher {
-	k := keeping{keys: unhomed, reason: ir.ReasonDegradedLowering, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+	k := keeping{keys: unhomed, reason: ir.ReasonDegradedLowering, shape: shape, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
 		return recordUnhomedAt(c, ts, p, s, keys, shape, pointer)
 	}}
 	return func(td ir.TypeDef, read keySet, held *principalKept) {
@@ -244,7 +245,7 @@ func keepUnreadAcross(c lowering.Ctx, ts *compile.Types, s *statement.Schema, sh
 		if u.Discriminator != nil {
 			read |= keyBit("discriminator")
 		}
-		k := keeping{keys: unreadKeys(s, read), reason: ir.ReasonDegradedLowering, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		k := keeping{keys: unreadKeys(s, read), reason: ir.ReasonDegradedLowering, shape: shape, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
 			return recordUnhomedAt(c, ts, p, s, keys, shape, pointer)
 		}}
 		kept.diags = append(kept.diags, keepAround(c, ts, st, td, built, held, s, pointer, k, fin)...)

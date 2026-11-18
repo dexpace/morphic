@@ -353,7 +353,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 ) []ir.Diagnostic {
 	shape := k.shape
 	if k.refined {
-		shape = refinedShape(c, k.comp, k.principal, standing)
+		shape = refinedShape(c, k.comp, k.principal, standing, held)
 	}
 	diags := recordUnhomedAt(c, ts, p, s, k.keywords, shape, pointer)
 	diags = append(diags, keepTextBounds(c, p, s, k.text, pointer)...)

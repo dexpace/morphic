@@ -5,6 +5,7 @@ package schema
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json/jsontext"
 	"slices"
 	"strings"
@@ -27,6 +28,9 @@ import (
 // against what it wrote (keepAround,
 // docs/compilers/openapi.md#allof-inline-residue).
 type principalKept struct {
+	// shape is how the reader that built the node names it in a report
+	// (positionShape), which the position's reports say too.
+	shape string
 	// keys are the keywords the readers keep verbatim once the position has
 	// written, in the order said, and reason the one they share (sharedOf).
 	keys   []string
@@ -42,10 +46,12 @@ type principalKept struct {
 
 // keeping is what one reader keeps verbatim of a schema on the node it lowered
 // to: keys, for reason, each under its own key by keep, which reports them as
-// the same keywords written flat are reported.
+// the same keywords written flat are reported, naming the node shape where the
+// reader names one.
 type keeping struct {
 	keys   []string
 	reason ir.UnmodeledReason
+	shape  string
 	keep   func(p *ir.Unmodeled, keys []string) []ir.Diagnostic
 }
 
@@ -55,6 +61,7 @@ func (h *principalKept) saying(k keeping) *principalKept {
 	if h == nil {
 		h = &principalKept{}
 	}
+	h.shape = cmp.Or(k.shape, h.shape)
 	if len(k.keys) == 0 {
 		return h
 	}
@@ -64,6 +71,15 @@ func (h *principalKept) saying(k keeping) *principalKept {
 	}
 	h.keys = append(h.keys, k.keys...)
 	return h
+}
+
+// named returns how the principal's readers name the node standing for their
+// position, "" where none said.
+func (h *principalKept) named() string {
+	if h == nil {
+		return ""
+	}
+	return h.shape
 }
 
 // sharedOf is the reason an entry holding what a and b are kept for is kept

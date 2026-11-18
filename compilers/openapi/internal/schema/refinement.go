@@ -59,9 +59,10 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 // owns, nil for none. Only a $ref principal makes it a use of a conjunct, named
 // as comp's subject names them; electing none lowers by the keywords beside
 // them (undecidedShape); an inline principal is named as written alone: the
-// reference it collapses or expands to (referenceOutcomeKeywords), the node
-// standing, else the shared primitive, as keepUnreadShared names it.
-func refinedShape(c lowering.Ctx, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef) string {
+// reference it collapses or expands to (referenceOutcomeKeywords), its node as
+// its builder names it (held), else the node standing or the
+// shared primitive.
+func refinedShape(c lowering.Ctx, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef, held *principalKept) string {
 	switch {
 	case principal == nil:
 		return undecidedShape
@@ -72,6 +73,9 @@ func refinedShape(c lowering.Ctx, comp allOfComposition, principal *allOfBranch,
 	}
 	if _, shape := referenceOutcomeKeywords(c, principal.schema.Schema, principal.pointer); shape != "" {
 		return shape
+	}
+	if named := held.named(); named != "" {
+		return named
 	}
 	if standing != nil {
 		return nodeShape(standing.Kind())
