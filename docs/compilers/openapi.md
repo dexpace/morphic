@@ -2433,9 +2433,9 @@ spelling keeps it, and an object bound of a `type` list's object variant as
 [`type-arrays`](#type-arrays) says. The node reads the position's own keywords before the
 principal's, as the keywords beside an `allOf` stand before an entry's: of two `pattern`s written
 otherwise its field holds the position's, and the principal, disagreeing, is kept whole
-([`allof-inline-residue`](#allof-inline-residue)). A keyword the position writes as its inline
-principal does is one writing, the principal's: the node reads it once, or keeps it once, at the
-entry. So a content keyword written alike is read in the `Encoding` the principal's node holds, a
+([`allof-inline-residue`](#allof-inline-residue)). A keyword the principal's census, its bounds on
+a number carried as text or its content vocabulary reads, written beside the `allOf` as the
+principal writes it, is one writing: the node reads it once, or keeps it once. So a content keyword written alike is read in the `Encoding` the principal's node holds, a
 type list's on its string variant, and one written otherwise is kept under its keyword, reported
 as held beside an `Encoding` holding its branch's. The conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is, once the
