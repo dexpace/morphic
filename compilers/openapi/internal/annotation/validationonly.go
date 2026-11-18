@@ -47,7 +47,7 @@ func ExamplesRaw(s *statement.Schema) (ir.RawValue, []string, error) {
 // an applicator kept verbatim that evaluates a member leaves the closure typed
 // (GitHub #1904).
 func ClosesAfterComposition(s *statement.Schema) bool {
-	return objectIn(s).UnevaluatedProperties.Truth().ReadsFalse() && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
+	return s.ObjectKeywords().UnevaluatedProperties.Truth().ReadsFalse() && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
 }
 
 // unevaluatedRaw renders the entry holding kept, each inert keyword beside the
@@ -84,10 +84,10 @@ func unevaluatedKept(s *statement.Schema, closure bool, dialect Dialect) []keptU
 	keep := func(keyword string) {
 		out = append(out, keptUnevaluated{keyword: keyword, inertBy: inertBeside(s, keyword, dialect)})
 	}
-	if up := objectIn(s).UnevaluatedProperties.Truth(); up != statement.Unwritten && (!closure || !up.ReadsFalse()) {
+	if up := s.ObjectKeywords().UnevaluatedProperties.Truth(); up != statement.Unwritten && (!closure || !up.ReadsFalse()) {
 		keep("unevaluatedProperties")
 	}
-	if arrayIn(s).UnevaluatedItems.Truth() != statement.Unwritten {
+	if s.ArrayKeywords().UnevaluatedItems.Truth() != statement.Unwritten {
 		keep("unevaluatedItems")
 	}
 	return out
@@ -116,7 +116,7 @@ func unevaluatedMembers(kept []keptUnevaluated) []string {
 // list any other dialect reads is no schema, and evaluates nothing.
 func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 	if keyword == "unevaluatedProperties" {
-		if objectIn(s).AdditionalProperties.Truth() != statement.Unwritten {
+		if s.ObjectKeywords().AdditionalProperties.Truth() != statement.Unwritten {
 			return "additionalProperties"
 		}
 		return ""
@@ -127,7 +127,7 @@ func inertBeside(s *statement.Schema, keyword string, dialect Dialect) string {
 		}
 		return ""
 	}
-	if arrayIn(s).Items.Truth() != statement.Unwritten {
+	if s.ArrayKeywords().Items.Truth() != statement.Unwritten {
 		return "items"
 	}
 	return ""
@@ -275,7 +275,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), note)...)
 	}
 
-	if logicIn(s).Not.Truth() != statement.Unwritten {
+	if s.LogicKeywords().Not.Truth() != statement.Unwritten {
 		keepKeyword("not")
 	}
 	ite, iteKeys, iteErr := IfThenElseRaw(s)
@@ -299,7 +299,7 @@ func validationOnlyAt(s *statement.Schema, pointer jsontext.Pointer, doc provena
 		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
 		keepKeyword("dependencies")
 	}
-	if objectIn(s).PropertyNames.Truth() != statement.Unwritten {
+	if s.ObjectKeywords().PropertyNames.Truth() != statement.Unwritten {
 		keepKeyword("propertyNames")
 	}
 	craw, cKeys, cErr := ContainsRaw(s)

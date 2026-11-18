@@ -44,24 +44,7 @@ func writtenFormat(s *statement.Schema) string {
 	if annotation.DeclaresRedaction(s) {
 		return ""
 	}
-	return namedFormat(s)
-}
-
-// namedFormat returns the format s names, "" where it names none.
-func namedFormat(s *statement.Schema) string {
-	if s == nil || s.Format == nil {
-		return ""
-	}
-	return s.Format.Name
-}
-
-// textIn returns what s's string keywords say, the zero Text where it writes
-// none.
-func textIn(s *statement.Schema) statement.Text {
-	if s == nil || s.Text == nil {
-		return statement.Text{}
-	}
-	return *s.Text
+	return s.FormatName()
 }
 
 // scalarShape is what a scalar of one type lowers to: the primitive it is over,
@@ -136,7 +119,7 @@ func formatPrimitive(s *statement.Schema) (ir.PrimKind, bool) {
 	if len(types) != 1 {
 		return "", false
 	}
-	return spelling.Lookup(string(types[0]) + "/" + namedFormat(s))
+	return spelling.Lookup(string(types[0]) + "/" + s.FormatName())
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
@@ -206,7 +189,7 @@ func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	}
 	name, diags := encodingName(c, s, formatName, common, pointer)
 	content, contentDiags := contentSchemaRef(c, ts, depth, s, pointer)
-	enc := &ir.Encoding{Name: name, MediaType: textIn(s).ContentMediaType, Schema: content}
+	enc := &ir.Encoding{Name: name, MediaType: s.TextKeywords().ContentMediaType, Schema: content}
 	return enc, append(diags, contentDiags...)
 }
 
@@ -218,7 +201,7 @@ func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 // named a *different* encoding is kept verbatim on the node rather than
 // overwritten away.
 func encodingName(c lowering.Ctx, s *statement.Schema, formatName string, common *ir.TypeCommon, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
-	content := textIn(s).ContentEncoding
+	content := s.TextKeywords().ContentEncoding
 	if content == "" || content == formatName {
 		return formatName, nil
 	}
@@ -239,7 +222,7 @@ func encodingName(c lowering.Ctx, s *statement.Schema, formatName string, common
 // other than formatName, the one its format names, which encodingName lowers
 // in the format's place.
 func contentOverridesFormat(s *statement.Schema, formatName string) bool {
-	content := textIn(s).ContentEncoding
+	content := s.TextKeywords().ContentEncoding
 	return formatName != "" && content != "" && content != formatName
 }
 
@@ -253,7 +236,7 @@ func contentOverridesFormat(s *statement.Schema, formatName string) bool {
 // declaration can name, so the node needs no namespace of its own
 // (docs/ir/identity.md#the-id-grammar).
 func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer) (*ir.TypeRef, []ir.Diagnostic) {
-	cs := c.Statements().Sub(textIn(s).ContentSchema)
+	cs := c.Statements().Sub(s.TextKeywords().ContentSchema)
 	if cs.Truth == statement.Unwritten {
 		return nil, nil
 	}
@@ -279,7 +262,7 @@ func takesContent(takes kindSet) bool {
 // declaresContentVocabulary reports whether s writes any content-vocabulary
 // keyword, so a position that wrote one owns a node to keep it on.
 func declaresContentVocabulary(s *statement.Schema) bool {
-	text := textIn(s)
+	text := s.TextKeywords()
 	return text.ContentEncoding != "" || text.ContentMediaType != "" || written(text.ContentSchema)
 }
 

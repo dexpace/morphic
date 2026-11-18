@@ -341,7 +341,7 @@ func mappingWhy(c lowering.Ctx, d *statement.Discriminator, value string) string
 // the type each chain ends on is promised a node, and one naming no schema is
 // reported at its entry, as on a model.
 func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	d := discriminatorIn(s)
+	d := s.Discriminator()
 	if d == nil {
 		return nil
 	}

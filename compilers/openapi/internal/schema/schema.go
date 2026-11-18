@@ -10,8 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v3"
-
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -586,7 +584,7 @@ var familyOrder = []string{"const", "enum", "allOf"}
 func declaresFamily(s *statement.Schema, family string) bool {
 	switch family {
 	case "const":
-		return constIn(s) != nil
+		return s.Const() != nil
 	case "enum":
 		return enumWritten(s)
 	case "allOf":
@@ -606,7 +604,7 @@ func declaresFamily(s *statement.Schema, family string) bool {
 // empty list leaves it non-nil. A member list the model layer could not parse
 // reads as absent, which is a document the loader already refuses.
 func enumWritten(s *statement.Schema) bool {
-	return enumIn(s) != nil
+	return s.Enum() != nil
 }
 
 // dispatch records how lower() resolved a schema's competing keyword families:
@@ -714,14 +712,14 @@ func recordSkippedFamilies(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, d
 // none: `type: null` is the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
 func writesType(s *statement.Schema) bool {
-	return slices.ContainsFunc(kindsIn(s), func(t statement.Kind) bool { return t != "" })
+	return slices.ContainsFunc(s.Types(), func(t statement.Kind) bool { return t != "" })
 }
 
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
 // member removed, and any null that declares none (writesType); nullability is
 // normalized onto the TypeRef, not the type set.
 func effectiveTypes(s *statement.Schema) []statement.Kind {
-	types := kindsIn(s)
+	types := s.Types()
 	out := make([]statement.Kind, 0, len(types))
 	for _, t := range types {
 		if t == statement.KindNull || t == "" {
@@ -730,31 +728,6 @@ func effectiveTypes(s *statement.Schema) []statement.Kind {
 		out = append(out, t)
 	}
 	return out
-}
-
-// kindsIn returns the types s's `type` names, as written, nil for none.
-func kindsIn(s *statement.Schema) []statement.Kind {
-	if s == nil || s.Kinds == nil {
-		return nil
-	}
-	return s.Kinds.Types
-}
-
-// enumIn returns the members s's `enum` lists, nil where it writes none and
-// empty where it writes an empty list (enumWritten).
-func enumIn(s *statement.Schema) []*yaml.Node {
-	if s == nil || s.Values == nil {
-		return nil
-	}
-	return s.Values.Enum
-}
-
-// constIn returns the value s's `const` holds, nil where it writes none.
-func constIn(s *statement.Schema) *yaml.Node {
-	if s == nil || s.Values == nil {
-		return nil
-	}
-	return s.Values.Const
 }
 
 // nullableTrue reports whether s's `nullable` reads true whatever the dialect

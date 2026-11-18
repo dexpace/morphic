@@ -174,7 +174,7 @@ func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement
 	if st.Truth != statement.Stated {
 		return nil
 	}
-	choice := choiceIn(st.Schema)
+	choice := st.ChoiceKeywords()
 	subs := slices.Concat(st.AllOf, choice.OneOf, choice.AnyOf)
 	out := make([]*statement.Statement, 0, len(subs)+2)
 	if st.BesideRef != nil {
@@ -323,7 +323,7 @@ func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Stat
 			firm: anyInstance, reads: 1}
 	}
 	r := w.readOwn(st)
-	choice := choiceIn(st.Schema)
+	choice := st.ChoiceKeywords()
 	conjuncts := len(st.AllOf)
 	if st.BesideRef != nil {
 		conjuncts++
@@ -458,21 +458,21 @@ func refusesNothing(t *statement.Table, s *statement.Schema, name string) bool {
 	}
 	switch name {
 	case "items":
-		return statesNothing(arrayIn(s).Items)
+		return statesNothing(s.ArrayKeywords().Items)
 	case "unevaluatedItems":
-		return statesNothing(arrayIn(s).UnevaluatedItems)
+		return statesNothing(s.ArrayKeywords().UnevaluatedItems)
 	case "prefixItems":
-		return !slices.ContainsFunc(arrayIn(s).PrefixItems, func(sub statement.Sub) bool { return !statesNothing(sub) })
+		return !slices.ContainsFunc(s.ArrayKeywords().PrefixItems, func(sub statement.Sub) bool { return !statesNothing(sub) })
 	case "additionalProperties":
-		return statesNothing(objectIn(s).AdditionalProperties)
+		return statesNothing(s.ObjectKeywords().AdditionalProperties)
 	case "propertyNames":
-		return statesNothing(objectIn(s).PropertyNames)
+		return statesNothing(s.ObjectKeywords().PropertyNames)
 	case "unevaluatedProperties":
-		return statesNothing(objectIn(s).UnevaluatedProperties)
+		return statesNothing(s.ObjectKeywords().UnevaluatedProperties)
 	case "properties":
-		return !slices.ContainsFunc(objectIn(s).Properties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+		return !slices.ContainsFunc(s.ObjectKeywords().Properties, func(sub statement.Sub) bool { return !statesNothing(sub) })
 	case "patternProperties":
-		return !slices.ContainsFunc(objectIn(s).PatternProperties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+		return !slices.ContainsFunc(s.ObjectKeywords().PatternProperties, func(sub statement.Sub) bool { return !statesNothing(sub) })
 	default:
 		return false
 	}

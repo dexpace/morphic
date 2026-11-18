@@ -63,7 +63,7 @@ type branchesSayOf struct {
 // say anything. Every reader of the position asks, so it is read once a run.
 func branchesSay(c lowering.Ctx, s *statement.Schema) []string {
 	return lowering.Remembered(c, branchesSayOf{s}, func() []string {
-		choice := choiceIn(s)
+		choice := s.ChoiceKeywords()
 		branches := slices.Concat(choice.OneOf, choice.AnyOf)
 		if len(branches) == 0 {
 			return nil
@@ -216,7 +216,7 @@ func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 // one on a branch of its allOf the body distributes (branchUnion), it does so
 // only where this says unionDistributed.
 func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
-	if choice := choiceIn(holder); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
+	if choice := holder.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return unionBothCombinators
 	}
 	if !branchesNameReferents(c, holder) {
@@ -235,7 +235,7 @@ func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
 // `required`, closure or catch-all beside branches each declaring an object
 // composes, as beside `type: object`.
 func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
-	if constIn(s) != nil || enumWritten(s) {
+	if s.Const() != nil || enumWritten(s) {
 		return false
 	}
 	if allOfComposes(c, s) {

@@ -448,7 +448,7 @@ func typeNullVerdict(s *statement.Schema) nullVerdict {
 	if !writesType(s) {
 		return nullSilent
 	}
-	if slices.Contains(kindsIn(s), statement.KindNull) {
+	if slices.Contains(s.Types(), statement.KindNull) {
 		return nullAdmitted
 	}
 	return nullForbidden
@@ -456,7 +456,7 @@ func typeNullVerdict(s *statement.Schema) nullVerdict {
 
 // constNullVerdict reads `const`, which fixes the value space to one member.
 func constNullVerdict(s *statement.Schema) nullVerdict {
-	node := constIn(s)
+	node := s.Const()
 	if node == nil {
 		return nullSilent
 	}
@@ -474,7 +474,7 @@ func constNullVerdict(s *statement.Schema) nullVerdict {
 // co-declared type array's null; what an empty enum lowers to is GitHub #278's
 // question, and this rule leaves it open.
 func enumNullVerdict(s *statement.Schema) nullVerdict {
-	nodes := enumIn(s)
+	nodes := s.Enum()
 	if len(nodes) == 0 {
 		return nullSilent
 	}
@@ -503,7 +503,7 @@ func isNullValue(node *yaml.Node) bool {
 // null branch says nothing of a null a sibling admits, as in
 // `{nullable: true, oneOf: …}`.
 func unionNullReading(c lowering.Ctx, s *statement.Schema) nullReading {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	out := alike(nullSilent)
 	for _, b := range slices.Concat(choice.OneOf, choice.AnyOf) {
 		st := c.Statements().Sub(b)
@@ -591,11 +591,11 @@ func leavesOnlyNull(c lowering.Ctx, s *statement.Schema) bool {
 		return false
 	}
 	if enumWritten(s) {
-		members := enumIn(s)
+		members := s.Enum()
 		return len(members) > 0 && c.Limits.MaxEnumMembers.Admits(len(members)) &&
 			!slices.ContainsFunc(members, func(v *yaml.Node) bool { return !isNullValue(v) })
 	}
-	return constIn(s) != nil || writesType(s) && len(effectiveTypes(s)) == 0
+	return s.Const() != nil || writesType(s) && len(effectiveTypes(s)) == 0
 }
 
 // allOf conjoins what the allOf branches say. A conjunction admits null when a

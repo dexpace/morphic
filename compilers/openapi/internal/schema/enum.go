@@ -37,7 +37,7 @@ import (
 // of null alone is an Enum with no member.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
 	s, written := site.set, site.written
-	members := enumIn(s)
+	members := s.Enum()
 	var diags []ir.Diagnostic
 	build := func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
@@ -110,7 +110,7 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // the census keeps verbatim.
 func enumEntries(c lowering.Ctx, s *statement.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
-	types := kindsIn(s)
+	types := s.Types()
 	kept := make([]enumEntry, 0, len(entries))
 	var diags []ir.Diagnostic
 	for _, e := range entries {
@@ -306,7 +306,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, site valueSetSite, common ir
 // holds the value as written, and the census keeps a type it does not fit
 // verbatim.
 func lowerConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID, []ir.Diagnostic) {
-	constant := constIn(site.set)
+	constant := site.set.Const()
 	val, err := value.FromNode(constant)
 	if err == nil && val.Kind == ir.ValueNull {
 		return nullConst(c, ts, site)
@@ -315,7 +315,7 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
-	if types := kindsIn(site.set); !typesAdmit(types, val) {
+	if types := site.set.Types(); !typesAdmit(types, val) {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))
@@ -472,7 +472,7 @@ func structural(st statement.Kind) bool {
 func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
 	types := effectiveTypes(s)
 	if len(types) == 0 {
-		return typesAdmit(kindsIn(s), lit.Value)
+		return typesAdmit(s.Types(), lit.Value)
 	}
 	if len(types) > 1 {
 		return false
@@ -494,7 +494,7 @@ func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
 // set s declares, which then says nothing the members do not. One a member is
 // no value of is a type the Enum's ValueType does not take (enumValueType).
 func membersTyped(members []ir.EnumMember, s *statement.Schema) bool {
-	types := kindsIn(s)
+	types := s.Types()
 	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
 }
 

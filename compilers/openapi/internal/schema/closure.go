@@ -75,20 +75,20 @@ func closerOf(c lowering.Ctx, s *statement.Schema, comp allOfComposition) closur
 // properties do not name: additionalProperties, or patternProperties naming a
 // pattern.
 func writesCatchAll(s *statement.Schema) bool {
-	return objectIn(s).AdditionalProperties.Truth() != statement.Unwritten || len(objectIn(s).PatternProperties) > 0
+	return s.ObjectKeywords().AdditionalProperties.Truth() != statement.Unwritten || len(s.ObjectKeywords().PatternProperties) > 0
 }
 
 // declaresMembers reports whether s names a member its additionalProperties
 // leaves alone: a property, or a pattern.
 func declaresMembers(s *statement.Schema) bool {
-	return len(objectIn(s).Properties) > 0 || len(objectIn(s).PatternProperties) > 0
+	return len(s.ObjectKeywords().Properties) > 0 || len(s.ObjectKeywords().PatternProperties) > 0
 }
 
 // unionDeclares reports whether an inline branch of the oneOf or anyOf s
 // writes declares a member, which the union distributes into the composed
 // model, where an entry's additionalProperties applies to it as well.
 func unionDeclares(c lowering.Ctx, s *statement.Schema) bool {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	for _, sub := range slices.Concat(choice.OneOf, choice.AnyOf) {
 		b := c.Statements().Sub(sub)
 		if b.Truth == statement.Stated && b.Ref == nil && declaresMembers(b.Schema) {
@@ -122,7 +122,7 @@ func fillComposedAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.
 		diags := keepUnclosing(c, m, s, comp.pointer)
 		return append(diags, fillCatchAll(c, ts, depth, m, statement.Sub{}, s, comp.pointer, closes)...)
 	}
-	ap := objectIn(e.schema).AdditionalProperties
+	ap := e.schema.ObjectKeywords().AdditionalProperties
 	return fillCatchAll(c, ts, depth, m, ap, e.schema, e.at, closes && ap.Truth() == statement.Unwritten)
 }
 

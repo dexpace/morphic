@@ -145,7 +145,7 @@ func petDiscriminator(t *testing.T, l *Lowerer) *statement.Discriminator {
 	t.Helper()
 	js, ok := l.Doc.Components.GetSchemas().Get("Pet")
 	require.True(t, ok)
-	d := discriminatorIn(l.Ctx.Statements().Of(js).Schema)
+	d := (l.Ctx.Statements().Of(js).Schema).Discriminator()
 	require.NotNil(t, d)
 	return d
 }

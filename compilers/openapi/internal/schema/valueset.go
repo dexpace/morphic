@@ -168,7 +168,7 @@ func refinedValueType(c lowering.Ctx, r refinement, s *statement.Schema, pointer
 // enumSetType is refinedValueType for an enum: the Enum's ValueType, as
 // lowerEnum gives it, and none where the enum lowers to anything else.
 func enumSetType(c lowering.Ctx, site valueSetSite) setType {
-	written := enumIn(site.set)
+	written := site.set.Enum()
 	if !c.Limits.MaxEnumMembers.Admits(len(written)) {
 		return setType{}
 	}
@@ -184,7 +184,7 @@ func enumSetType(c lowering.Ctx, site valueSetSite) setType {
 // the ValueType of the Enum with no member a null lowers to, and none where
 // the value converts to none.
 func constSetType(c lowering.Ctx, site valueSetSite) setType {
-	val, err := value.FromNode(constIn(site.set))
+	val, err := value.FromNode(site.set.Const())
 	if err == nil && val.Kind == ir.ValueNull {
 		return setType{prim: site.enumType(c, admitsEvery, ir.PrimAny), ok: true}
 	}

@@ -34,7 +34,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			diags = append(diags, tupleDiags...)
 			return t, read | keySetOf("prefixItems", "additionalItems")
 		}
-		if prefix := prefixItems(s); len(prefix) > 0 {
+		if prefix := s.PrefixItems(); len(prefix) > 0 {
 			t, tupleDiags := buildTuple(c, ts, depth, s, common, pointer, prefix)
 			diags = append(diags, tupleDiags...)
 			return t, read | keySetOf("prefixItems", "additionalItems")
@@ -79,14 +79,6 @@ func itemsSchema(s *statement.Schema) statement.Sub {
 		return statement.Sub{}
 	}
 	return s.Array.Items
-}
-
-// prefixItems returns the schemas s writes `prefixItems` as, nil for none.
-func prefixItems(s *statement.Schema) []statement.Sub {
-	if s == nil || s.Array == nil {
-		return nil
-	}
-	return s.Array.PrefixItems
 }
 
 // buildListedTuple lowers the n schemas s writes `items` as a list of into a
@@ -220,7 +212,7 @@ func collectionConstraints(c lowering.Ctx, s *statement.Schema, pointer jsontext
 // ownCollectionConstraints reads the collection bounds s itself writes, and nil
 // where it states none.
 func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
-	array := arrayIn(s)
+	array := s.ArrayKeywords()
 	minItems, maxItems := annotation.ExactCount(s, "minItems", array.MinItems), annotation.ExactCount(s, "maxItems", array.MaxItems)
 	if minItems == nil && maxItems == nil && array.UniqueItems == nil {
 		return nil
@@ -230,15 +222,6 @@ func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
 		cons.UniqueItems = *array.UniqueItems
 	}
 	return cons
-}
-
-// arrayIn returns what s's array keywords say, the zero Array where it writes
-// none.
-func arrayIn(s *statement.Schema) statement.Array {
-	if s == nil || s.Array == nil {
-		return statement.Array{}
-	}
-	return *s.Array
 }
 
 // missingArrayItems reports a 3.0 schema that writes type array and no items,
@@ -252,10 +235,10 @@ func arrayIn(s *statement.Schema) statement.Array {
 // behaviour models. missingArrayItemsConjoined reads past a schema's
 // conjuncts; a subschema kept verbatim never reaches it.
 func missingArrayItems(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if !slices.Contains(kindsIn(s), statement.KindArray) {
+	if !slices.Contains(s.Types(), statement.KindArray) {
 		return nil
 	}
-	if _, listed := listedItems(s); listed || written(arrayIn(s).Items) {
+	if _, listed := listedItems(s); listed || written(s.ArrayKeywords().Items) {
 		return nil
 	}
 	if !c.SchemaRules().RequiredWhen("items", "type", string(statement.KindArray)) {

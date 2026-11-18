@@ -289,9 +289,9 @@ func (w *admission) written(s *statement.Schema, nullable bool) admitted {
 		}
 	}
 	if enumWritten(s) {
-		out = out.and(w.valueSet(valueSetOf{s, "enum"}, enumIn(s)))
+		out = out.and(w.valueSet(valueSetOf{s, "enum"}, s.Enum()))
 	}
-	if constant := constIn(s); constant != nil {
+	if constant := s.Const(); constant != nil {
 		out = out.and(w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant}))
 	}
 	return out
@@ -307,7 +307,7 @@ func writtenKinds(s *statement.Schema, nullable bool) kindSet {
 		return kindAny
 	}
 	var out kindSet
-	for _, t := range kindsIn(s) {
+	for _, t := range s.Types() {
 		out |= kindOfType(t)
 	}
 	if nullable && nullableTrue(s) {
@@ -318,7 +318,7 @@ func writtenKinds(s *statement.Schema, nullable bool) kindSet {
 
 // formOf returns the format s holds a value to. The redaction names no shape.
 func formOf(s *statement.Schema) (scalarForm, bool) {
-	format := namedFormat(s)
+	format := s.FormatName()
 	if format == "" || annotation.DeclaresRedaction(s) {
 		return scalarForm{}, false
 	}
@@ -367,9 +367,9 @@ func memberSetOf(c lowering.Ctx, key valueSetOf, members []*yaml.Node) memberSet
 func valueKinds(c lowering.Ctx, s *statement.Schema) kindSet {
 	kinds := anyInstance
 	if enumWritten(s) {
-		kinds &= memberSetOf(c, valueSetOf{s, "enum"}, enumIn(s)).kinds
+		kinds &= memberSetOf(c, valueSetOf{s, "enum"}, s.Enum()).kinds
 	}
-	if constant := constIn(s); constant != nil {
+	if constant := s.Const(); constant != nil {
 		kinds &= memberSetOf(c, valueSetOf{s, "const"}, []*yaml.Node{constant}).kinds
 	}
 	return kinds

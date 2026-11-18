@@ -405,7 +405,7 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 // degraded where they do or the union shares no kind with the rest
 // (docs/compilers/openapi.md#union-beside-structure).
 func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
-	choice := choiceIn(comp.branches[i].schema.Schema)
+	choice := comp.branches[i].schema.ChoiceKeywords()
 	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 		return ir.ReasonDegradedLowering
 	}

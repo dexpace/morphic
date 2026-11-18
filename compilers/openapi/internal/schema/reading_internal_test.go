@@ -52,7 +52,7 @@ func (w *admission) formerWhole(js *statement.Statement) admitted {
 	for _, b := range conjunctsIn(w.c, js.Schema) {
 		out = out.and(w.formerWhole(b))
 	}
-	choice := choiceIn(js.Schema)
+	choice := js.ChoiceKeywords()
 	for _, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
 		if len(branches) == 0 {
 			continue

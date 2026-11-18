@@ -611,17 +611,17 @@ func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
 
 	s := schemaFromYAML(t, "type: string\nxml: {name: n, namespace: ns, prefix: p, wrapped: true, attribute: true}\n")
 	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: new(true), Attribute: new(true)},
-		XMLHints(xmlIn(standaloneSchema(s))))
+		XMLHints(standaloneSchema(s).XML()))
 
 	bare := schemaFromYAML(t, "type: string\nxml: {}\n")
-	assert.Equal(t, &ir.XMLHints{}, XMLHints(xmlIn(standaloneSchema(bare))), "an empty xml object invents nothing")
+	assert.Equal(t, &ir.XMLHints{}, XMLHints(standaloneSchema(bare).XML()), "an empty xml object invents nothing")
 
 	unwrapped := schemaFromYAML(t, "type: array\nxml: {wrapped: false}\n")
-	assert.Equal(t, &ir.XMLHints{Wrapped: new(false)}, XMLHints(xmlIn(standaloneSchema(unwrapped))),
+	assert.Equal(t, &ir.XMLHints{Wrapped: new(false)}, XMLHints(standaloneSchema(unwrapped).XML()),
 		"a declared false is kept, so it can override a type's true field by field")
 
 	notAttr := schemaFromYAML(t, "type: string\nxml: {attribute: false}\n")
-	assert.Equal(t, &ir.XMLHints{Attribute: new(false)}, XMLHints(xmlIn(standaloneSchema(notAttr))),
+	assert.Equal(t, &ir.XMLHints{Attribute: new(false)}, XMLHints(standaloneSchema(notAttr).XML()),
 		"a declared false is kept, so it can override a type's true field by field")
 }
 

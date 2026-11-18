@@ -90,7 +90,7 @@ func (r *bodyReading) declared() declarationSet {
 // declares shape, so the body is read only once an inline branch needs it, and
 // a reading its budget cut short says nothing, so it counts as one that does.
 func unionBranchesDeclareShape(c lowering.Ctx, s *statement.Schema) bool {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	return setsDeclareShape(c, s, choice.OneOf, choice.AnyOf)
 }
 
@@ -244,7 +244,7 @@ func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 			conjuncts = c.written.AllOf
 		case k.Name == "properties":
 			decls := r.declarationsAt(c)
-			for _, p := range objectIn(c.written.Schema).Properties {
+			for _, p := range c.written.ObjectKeywords().Properties {
 				inner = append(inner, nested{written: t.Sub(p), at: decls.property(t, p.Name)})
 			}
 		case k.Name == "items":
@@ -252,7 +252,7 @@ func (r *bodyReading) keysRestate(c claim) ([]statement.Sub, []nested, bool) {
 				// A tuple, or a malformed list, which no element the body declares restates.
 				return nil, nil, false
 			}
-			inner = append(inner, nested{written: t.Sub(arrayIn(c.written.Schema).Items), at: r.declarationsAt(c).items})
+			inner = append(inner, nested{written: t.Sub(c.written.ArrayKeywords().Items), at: r.declarationsAt(c).items})
 		case k.Name == refKeyword(c.written):
 			if !r.lands(c) {
 				return nil, nil, false
@@ -320,5 +320,5 @@ func shapeless(t *statement.Table, s *statement.Schema, key string) bool {
 	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
 	}
-	return key == "unevaluatedProperties" && !t.Sub(objectIn(s).UnevaluatedProperties).Truth.ReadsFalse()
+	return key == "unevaluatedProperties" && !t.Sub(s.ObjectKeywords().UnevaluatedProperties).Truth.ReadsFalse()
 }

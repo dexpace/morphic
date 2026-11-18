@@ -198,9 +198,9 @@ func unionHeld(w *admission, r refinement, s *statement.Schema, key string) bool
 	var branches []statement.Sub
 	switch key {
 	case "oneOf":
-		branches = choiceIn(s).OneOf
+		branches = s.ChoiceKeywords().OneOf
 	case "anyOf":
-		branches = choiceIn(s).AnyOf
+		branches = s.ChoiceKeywords().AnyOf
 	default:
 		return false
 	}

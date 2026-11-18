@@ -76,7 +76,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 // conjoins, so the position is not nullable X. The Union keeps the unused
 // combinator (preserveUnusedCombinator), which X's shared node cannot.
 func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (*statement.Statement, jsontext.Pointer, bool) {
-	if choice := choiceIn(s); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
+	if choice := s.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
 		return nil, "", false
 	}
 	variants, key, _ := unionBranches(s)
@@ -184,7 +184,7 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, re
 // (preserveUnionSiblingsAt). Reading the preference as one only that last lowering
 // could reach is what dropped the anyOf in silence (GitHub #35).
 func unionBranches(s *statement.Schema) ([]statement.Sub, string, bool) {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	if len(choice.OneOf) > 0 {
 		return choice.OneOf, "oneOf", true
 	}
@@ -206,7 +206,7 @@ var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 // its branches declare no shape against s. Beside a body the union distributes
 // across, each variant keeps it instead (buildComposedVariant).
 func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
@@ -353,7 +353,7 @@ func (u unionAt) variantBranch(c lowering.Ctx, i int, st *statement.Statement) b
 // besideUnion is the union s, written at pointer, writes itself, with the
 // discriminator written beside it.
 func besideUnion(s *statement.Schema, pointer jsontext.Pointer) unionAt {
-	return unionAt{holder: s, at: pointer, disc: discriminatorIn(s), discAt: pointer}
+	return unionAt{holder: s, at: pointer, disc: s.Discriminator(), discAt: pointer}
 }
 
 // branchUnionOf keys what branchUnion read of one schema.
@@ -381,8 +381,8 @@ func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 		return unionAt{}, 0, false
 	}
 	e := allOfBranches(c, s, pointer).branches[at.index]
-	u := unionAt{holder: e.schema.Schema, at: e.pointer, disc: discriminatorIn(s), discAt: pointer, branch: true}
-	if d := discriminatorIn(u.holder); d != nil {
+	u := unionAt{holder: e.schema.Schema, at: e.pointer, disc: s.Discriminator(), discAt: pointer, branch: true}
+	if d := u.holder.Discriminator(); d != nil {
 		u.disc, u.discAt = d, e.pointer
 	}
 	how := classifyConjoined(c, s, u, pointer)
@@ -411,7 +411,7 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	branches := allOfBranches(c, s, "").branches
 	var shaped, oneOfs []int
 	for i, e := range branches {
-		choice := choiceIn(e.schema.Schema)
+		choice := e.schema.ChoiceKeywords()
 		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, choice.OneOf, choice.AnyOf) {
 			continue
 		}
@@ -427,7 +427,7 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 		return branchUnionIndex{}
 	}
 	index := shaped[0]
-	if discriminatorIn(branches[index].schema.Schema) != nil && discriminatorIn(s) != nil ||
+	if branches[index].schema.Discriminator() != nil && s.Discriminator() != nil ||
 		classifyBranchSet(c, branches[index].schema.Schema) != unionDistributed {
 		return branchUnionIndex{}
 	}
@@ -474,9 +474,9 @@ func variantHint(c lowering.Ctx, b *statement.Statement, vptr jsontext.Pointer) 
 func variantNamesTarget(s *statement.Schema, branches []allOfBranch) bool {
 	refs := 0
 	declares := func(o *statement.Schema) bool {
-		object := objectIn(o)
+		object := o.ObjectKeywords()
 		return len(object.Properties) > 0 || len(object.PatternProperties) > 0 || len(object.Required) > 0 ||
-			written(object.AdditionalProperties) || discriminatorIn(o) != nil || declaresUnion(o)
+			written(object.AdditionalProperties) || o.Discriminator() != nil || declaresUnion(o)
 	}
 	if declares(s) {
 		return false
@@ -495,15 +495,6 @@ func variantNamesTarget(s *statement.Schema, branches []allOfBranch) bool {
 
 // declaresUnion reports whether s writes oneOf or anyOf at all.
 func declaresUnion(s *statement.Schema) bool {
-	choice := choiceIn(s)
+	choice := s.ChoiceKeywords()
 	return len(choice.OneOf) > 0 || len(choice.AnyOf) > 0
-}
-
-// choiceIn returns what s's oneOf and anyOf list, the zero Choice where it
-// writes neither.
-func choiceIn(s *statement.Schema) statement.Choice {
-	if s == nil || s.Choice == nil {
-		return statement.Choice{}
-	}
-	return *s.Choice
 }
