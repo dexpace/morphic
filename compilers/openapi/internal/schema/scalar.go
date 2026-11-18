@@ -302,38 +302,53 @@ func declaresContentVocabulary(s *statement.Schema) bool {
 // turns out to be a string, so they are kept rather than dropped. It asks the
 // node the position lowered to (holdsContent), not lower()'s dispatch.
 func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) []ir.Diagnostic {
-	k := unplacedContent(c, s, td, pointer)
-	return k.keep(p, k.keys)
+	// Called directly, never through a keeping: p is a carrier's field on most
+	// calls, which a call through a function value would move to the heap.
+	keys, why := unplacedContentKeys(c, s, td, pointer)
+	return keepContentKeywords(c, p, s, keys, pointer, why)
 }
 
 // unplacedContent is the keeping of the content keywords s, written at
 // pointer, writes where td, the node it lowered to, holds no ir.Encoding for
-// them (holdsContent): each as no_ir_home, reported at the keyword. Where td
-// holds the Encoding of the inline principal s lowers from
-// (principalEncoding), a keyword s writes as that principal does is read
-// there, and any other is kept beside it, the report saying whose the
-// Encoding is.
+// them (unplacedContentKeys): each as no_ir_home, reported at the keyword.
 func unplacedContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) keeping {
-	why, bs := noEncodingField, principalEncoding(c, s, td, pointer)
+	keys, why := unplacedContentKeys(c, s, td, pointer)
+	return keeping{keys: keys, reason: ir.ReasonNoIRHome, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
+		return keepContentKeywords(c, p, s, keys, pointer, why)
+	}}
+}
+
+// unplacedContentKeys returns the content keywords s, written at pointer,
+// writes that td, the node it lowered to, holds no ir.Encoding for
+// (holdsContent), and why, for their report. Where td holds the Encoding of
+// the inline principal s lowers from (principalEncoding), a keyword s writes
+// as that principal does is read there, and any other is kept beside it, the
+// report saying whose the Encoding is.
+func unplacedContentKeys(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) (keys []string, why string) {
+	if !declaresContentVocabulary(s) || holdsContent(c, s, td, pointer) {
+		return nil, ""
+	}
+	why = noEncodingField
+	bs := principalEncoding(c, s, td, pointer)
 	if bs != nil {
 		why = encodingOfBranch
 	}
-	k := keeping{reason: ir.ReasonNoIRHome, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
-		diags := make([]ir.Diagnostic, 0, len(keys))
-		for _, keyword := range keys {
-			diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer, why)...)
-		}
-		return diags
-	}}
-	if !declaresContentVocabulary(s) || holdsContent(c, s, td, pointer) {
-		return k
-	}
 	for _, keyword := range contentKeywords {
 		if hasKey(s, keyword) && (bs == nil || !keyWrittenAlike(s, bs, keyword)) {
-			k.keys = append(k.keys, keyword)
+			keys = append(keys, keyword)
 		}
 	}
-	return k
+	return keys, why
+}
+
+// keepContentKeywords keeps each of keys by keepContentKeyword.
+func keepContentKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keys []string, pointer jsontext.Pointer, why string,
+) []ir.Diagnostic {
+	diags := make([]ir.Diagnostic, 0, len(keys))
+	for _, keyword := range keys {
+		diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer, why)...)
+	}
+	return diags
 }
 
 // Why a content keyword reaches no ir.Encoding, for the report

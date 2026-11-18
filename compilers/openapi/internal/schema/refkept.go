@@ -395,13 +395,16 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, comp allOfComposition, e keptEntry,
 	held *principalKept,
 ) (keptEntry, []ir.Diagnostic) {
-	held = held.saying(keeping{})
 	if e.keptWhole() {
 		if _, err := annotation.RawFromNode(e.entry.schema.Node); err != nil {
 			return keptEntry{entry: e.entry}, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnpreservableConstruct, e.entry.pointer,
 				"this inline branch could not be kept whole under Unmodeled, so of what it writes only what the position "+
 					"lowered from it and what is kept keyword by keyword is in the IR, and the rest (%s) in no form at all: %s",
 				strings.Join(e.residue, ", "), err.Error())}
+		}
+		if held == nil {
+			// No reader of the principal keeps a keyword after the position.
+			return e, nil
 		}
 		held.whole = true
 		if len(held.keys) > 0 {
@@ -410,6 +413,10 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 		}
 		return e, nil
 	}
+	if len(e.apart) == 0 {
+		return e, nil
+	}
+	held = held.saying(keeping{})
 	bs := e.entry.schema.Schema
 	plain, apart := heldAgainst(*p, bs, e.apart)
 	own := slices.Concat(e.own, plain)

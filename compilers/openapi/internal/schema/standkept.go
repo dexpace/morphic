@@ -143,9 +143,14 @@ func keepStanding(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held
 func heldAgainst(p ir.Unmodeled, s *statement.Schema, keys []string) (plain, apart []string) {
 	for _, key := range keys {
 		entry, taken := p[annotation.EntryKey("", key)]
+		if !taken {
+			// The path nearly every keyword takes: nothing to render.
+			plain = append(plain, key)
+			continue
+		}
 		raw, err := annotation.RawFromNode(keyNode(s, key))
 		switch {
-		case !taken || err != nil:
+		case err != nil:
 			plain = append(plain, key)
 		case !bytes.Equal(raw, entry.Value):
 			apart = append(apart, key)
