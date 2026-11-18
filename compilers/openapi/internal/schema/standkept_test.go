@@ -769,3 +769,35 @@ func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
 	assert.Equal(t, "1 [out_of_scope]", keptOn(t, doc, "Unrendered")["openapi:foo"],
 		"an entry no JSON holds is not whole, so the position keeps its own")
 }
+
+// TestPrincipalKept_AnAlikeKeywordStandsWithItsFirstKeeper pins where a keyword
+// written alike beside an inline principal is kept, once and reported once: a
+// content keyword the node holds no field for is the position's, whose reading
+// keeps it first; a union the principal's build keeps beside its Union is the
+// principal's, at the entry, with the build's reason and report
+// (docs/compilers/openapi.md#allof-refinement).
+func TestPrincipalKept_AnAlikeKeywordStandsWithItsFirstKeeper(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Content: {allOf: [{type: integer, contentMediaType: text/x}], contentMediaType: text/x}\n"+
+			"    Shapeless: {allOf: [{type: string, oneOf: [{minLength: 1}, {maxLength: 9}], anyOf: [{maxLength: 3}]}], "+
+			"anyOf: [{maxLength: 3}]}\n"+
+			"    NullOnly: {allOf: [{oneOf: [{type: 'null'}], anyOf: [{type: 'null', description: q}]}], "+
+			"anyOf: [{type: 'null', description: q}]}\n"))
+	for _, tc := range []struct{ name, key, kept, at string }{
+		{"Content", "openapi:contentMediaType", `"text/x" [no_ir_home]`, "/contentMediaType"},
+		{"Shapeless", "openapi:anyOf", `[{"maxLength":3}] [validation_only]`, "/allOf/0/anyOf"},
+		{"NullOnly", "openapi:anyOf", `[{"description":"q","type":"null"}] [degraded_lowering]`, "/allOf/0/anyOf"},
+	} {
+		at := "/components/schemas/" + tc.name
+		assert.Equal(t, tc.kept, keptOn(t, doc, tc.name)[tc.key], tc.name)
+		assert.Equal(t, jsontext.Pointer(at+tc.at), typeByName(doc, tc.name).Common().Unmodeled[tc.key].Provenance.Pointer, tc.name)
+		var said []string
+		for _, d := range diags {
+			if strings.HasPrefix(string(d.Provenance.Pointer), at) && strings.Contains(d.Message, strings.TrimPrefix(tc.key, "openapi:")) {
+				said = append(said, string(d.Provenance.Pointer)+": "+d.Message)
+			}
+		}
+		assert.Len(t, said, 1, "%s: reported once: %v", tc.name, said)
+	}
+}
