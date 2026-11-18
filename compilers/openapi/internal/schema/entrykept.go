@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -94,7 +95,7 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 	for i, k := range out {
 		kepts[i] = keptOf(c, k)
 	}
-	apart, apartKept := writtenApartKeys(c, s, comp, kepts)
+	apart, apartKept := writtenApartKeys(c, s, comp, kepts, new(budget.Budget))
 	held := map[string]int{}
 	for i, k := range out {
 		kept := kepts[i]
@@ -158,22 +159,105 @@ func markKeptWhole(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 }
 
 // writtenApartKeys returns which of the keywords the entries of comp keep, kepts
-// by index, their writers write apart (writtenApart): as the writers are, and
-// as the entries keeping the keyword are, which is how a $ref naming nothing is
-// asked, as no merge or fold of another entry parts it.
-func writtenApartKeys(c lowering.Ctx, s *statement.Schema, comp allOfComposition, kepts [][]string) (writers, keepers map[string]bool) {
-	writers, keepers = map[string]bool{}, map[string]bool{}
+// by index, their writers write apart: otherwise than one another, or in a
+// value that cannot be rendered. The writers are s and the inline entries (and
+// $refs naming nothing) writing the key; among keepers, as a $ref naming nothing
+// is asked, only the entries keeping it, as no merge or fold of another entry
+// parts it. Each writer is read once whatever it keeps: reads is charged a step
+// for each key asked of.
+func writtenApartKeys(c lowering.Ctx, s *statement.Schema, comp allOfComposition, kepts [][]string,
+	reads *budget.Budget,
+) (writers, keepers map[string]bool) {
+	asked, askedKeepers := writtenKeys{}, writtenKeys{}
 	for i, kept := range kepts {
+		failed := len(kept) > 0 && failedRef(c, comp.branches[i])
 		for _, key := range kept {
-			if _, read := writers[key]; !read {
-				writers[key] = writtenApart(c, s, comp, key, nil)
-			}
-			if _, read := keepers[key]; !read && failedRef(c, comp.branches[i]) {
-				keepers[key] = writtenApart(c, s, comp, key, kepts)
+			asked[key] = keyWrite{}
+			if failed {
+				askedKeepers[key] = keyWrite{}
 			}
 		}
 	}
-	return writers, keepers
+	asked.readWriter(s, reads)
+	askedKeepers.readWriter(s, reads)
+	for i, e := range comp.branches {
+		if (e.schema.Ref != nil && !failedRef(c, e)) || !stated(e.schema.Schema) {
+			continue
+		}
+		asked.readWriter(e.schema.Schema, reads)
+		askedKeepers.readKept(e.schema.Schema, kepts[i], reads)
+	}
+	return asked.apart(), askedKeepers.apart()
+}
+
+// keyWrite is what the writers of one key met so far write: the first one's
+// rendering, and whether any writer wrote it otherwise or could not be
+// rendered, which no later writer changes.
+type keyWrite struct {
+	first ir.RawValue
+	met   bool
+	apart bool
+}
+
+// writtenKeys maps each key asked of to what its writers met so far write.
+type writtenKeys map[string]keyWrite
+
+// readWriter notes of each key bs writes that w asks of, what it writes.
+func (w writtenKeys) readWriter(bs *statement.Schema, reads *budget.Budget) {
+	if len(w) == 0 {
+		return
+	}
+	for _, k := range bs.Keys {
+		reads.Spend(1)
+		if _, asked := w[k.Name]; asked {
+			w.note(bs, k.Name)
+		}
+	}
+}
+
+// readKept notes of each of kept, the keys an entry bs keeps, that w asks of,
+// what bs writes, where it writes it.
+func (w writtenKeys) readKept(bs *statement.Schema, kept []string, reads *budget.Budget) {
+	if len(w) == 0 {
+		return
+	}
+	for _, key := range kept {
+		reads.Spend(1)
+		if _, asked := w[key]; asked {
+			w.note(bs, key)
+		}
+	}
+}
+
+// note records what bs writes for key, unless it writes none (hasKey): the
+// first writer's rendering is kept and each later one is compared with it, and
+// a key already apart is read no further.
+func (w writtenKeys) note(bs *statement.Schema, key string) {
+	k, read := bs.Key(key)
+	if !read {
+		return
+	}
+	seen := w[key]
+	if seen.apart {
+		return
+	}
+	raw, err := annotation.RawFromNode(k.Node)
+	switch {
+	case err != nil || (seen.met && !bytes.Equal(seen.first, raw)):
+		seen = keyWrite{met: true, apart: true}
+	case !seen.met:
+		seen = keyWrite{first: raw, met: true}
+	}
+	w[key] = seen
+}
+
+// apart returns which of the keys asked of their writers write apart.
+func (w writtenKeys) apart() map[string]bool {
+	out := make(map[string]bool, len(w))
+	for key, seen := range w {
+		out[key] = seen.apart
+	}
+	return out
 }
 
 // keptOf is what of k's residue a rule does not consume (consumedByRule):
@@ -200,37 +284,6 @@ func consumedByRule(c lowering.Ctx, bs *statement.Schema, key string, pointer js
 	default:
 		return false
 	}
-}
-
-// writtenApart reports whether the writers of key, s and the entries of comp
-// keeping their own keywords (inline ones, and $refs naming nothing) writing
-// it, write it otherwise than one another. One that cannot be rendered agrees
-// with nothing. Where kepts, what each entry keeps by index, is not nil, an
-// entry counts only if it keeps key, not where the merge or a fold reads it:
-// that is what one entry under key holds.
-func writtenApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, key string, kepts [][]string) bool {
-	writers := make([]*statement.Schema, 0, len(comp.branches)+1)
-	if hasKey(s, key) {
-		writers = append(writers, s)
-	}
-	for i, e := range comp.branches {
-		if (e.schema.Ref == nil || failedRef(c, e)) && stated(e.schema.Schema) && hasKey(e.schema.Schema, key) &&
-			(kepts == nil || slices.Contains(kepts[i], key)) {
-			writers = append(writers, e.schema.Schema)
-		}
-	}
-	var first ir.RawValue
-	for i, w := range writers {
-		raw, err := annotation.RawFromNode(keyNode(w, key))
-		if err != nil {
-			return true
-		}
-		if i > 0 && !bytes.Equal(first, raw) {
-			return true
-		}
-		first = raw
-	}
-	return false
 }
 
 // wholeCauseOf returns why the inline entry at index i of comp, leaving residue
