@@ -84,6 +84,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	voices := voicingOf(c, s)
 	w := newAdmissionReader(c)
 	standing := standsAtPosition(c, r, target, pointer)
+	pair := writesUnionPair(s, r.comp)
 	residues := make([][]string, len(r.comp.branches))
 	for i, e := range r.comp.branches {
 		// A $ref principal keeps what is written beside it on its alias. A branch
@@ -98,7 +99,9 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		case e.schema.Ref != nil:
 			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
-			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes)
+			// The principal's node keeps what it passes over (preserveUnusedCombinator).
+			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes,
+				pair && !r.principalIs(e))
 			residues[i] = unmergedBranchKeys(e.schema.Schema, read)
 		}
 	}
@@ -111,14 +114,15 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 
 // residueRead reports whether a key the entry e of r writes is read where the
 // position lowered, leaving no residue: a wrapper's allOf, what folds where e
-// speaks, what the principal says (said), and a key of censusDomain the
-// principal standing at the position, e where censused says so, reads or keeps
-// on its node (keepUnread). A value set's union and content vocabulary are
-// kept, as its node holds neither; any other principal's union is its node's,
-// or the reference's where it collapsed (collapsed, collapsedPrincipal), as is
-// the content vocabulary of one whose types take it (holdsContent).
+// speaks, what the principal says (said) but a union of a pair (pair,
+// writesUnionPair), and a key of censusDomain the principal standing at the
+// position, e where censused says so, reads or keeps on its node (keepUnread).
+// A value set's union and content vocabulary are kept, as its node holds
+// neither; another principal's union is its node's, or the collapsed
+// reference's (collapsedPrincipal), as is the content vocabulary its types
+// take (holdsContent).
 func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused, collapsed bool,
-	homes boundHomes,
+	homes boundHomes, pair bool,
 ) func(string) bool {
 	bs := e.schema.Schema
 	_, set := valueSetPrincipal(r)
@@ -126,9 +130,9 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 		switch {
 		case key == "allOf" && e.wrapper, speaks && folds(c, bs, key, homes), collapsed && unionKeyword(key):
 			return true
-		case r.paired && unionKeyword(key) && !r.principalIs(e):
-			// The union passed over is kept whatever the elected one says, as
-			// one schema writing both keeps it (preserveUnusedCombinator).
+		case pair && unionKeyword(key):
+			// A union of a pair is kept whatever the principal says, as one
+			// schema writing both keeps the one it passes over.
 			return false
 		case censused && unionKeyword(key):
 			return !set
@@ -140,6 +144,26 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 			return said(w, r, typed, bs, key)
 		}
 	}
+}
+
+// writesUnionPair reports whether s and the inline entries of comp, the allOf
+// it writes, write a oneOf and an anyOf between them: two unions competing
+// keywords elects between (docs/compilers/openapi.md#competing-keywords), of
+// which a refinement folds neither into its principal as said, as one schema
+// writing both keeps the one it passes over whatever the other says.
+func writesUnionPair(s *statement.Schema, comp allOfComposition) bool {
+	oneOf, anyOf := false, false
+	note := func(x *statement.Schema) {
+		choice := x.ChoiceKeywords()
+		oneOf, anyOf = oneOf || len(choice.OneOf) > 0, anyOf || len(choice.AnyOf) > 0
+	}
+	note(s)
+	for _, e := range comp.branches {
+		if e.schema.Ref == nil {
+			note(e.schema.Schema)
+		}
+	}
+	return oneOf && anyOf
 }
 
 // collapsedPrincipal reports whether r's principal is an inline union that
@@ -211,18 +235,20 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed set
 
 // keptUnion returns the union keywords s writes beside an allOf that lowered to
 // its principal r, a keyword beside a refinement, that the position keeps: none
-// the principal says (unionHeld), as validation logic those whose branches
-// declare no shape, as the same union beside any body is, and every other one
-// degraded (docs/compilers/openapi.md#allof-refinement).
+// the principal says (unionHeld) but a union of a pair (writesUnionPair), as
+// validation logic those whose branches declare no shape, as the same union
+// beside any body is, and every other one degraded
+// (docs/compilers/openapi.md#allof-refinement).
 func keptUnion(c lowering.Ctx, r refinement, s *statement.Schema) (degraded, validation []string) {
 	if !declaresUnion(s) {
 		return nil, nil
 	}
 	shapeless := !unionBranchesDeclareShape(c, s)
+	pair := writesUnionPair(s, r.comp)
 	w := newAdmissionReader(c)
 	for _, key := range []string{"oneOf", "anyOf"} {
 		switch {
-		case !hasKey(s, key) || unionHeld(&w, r, s, key):
+		case !hasKey(s, key) || !pair && unionHeld(&w, r, s, key):
 		case shapeless:
 			validation = append(validation, key)
 		default:

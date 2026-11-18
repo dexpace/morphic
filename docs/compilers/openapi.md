@@ -4409,7 +4409,10 @@ entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refineme
 with its entry; with nothing else conjoining with them, the two lower as one schema writing both
 does, wherever their entries are. Where the two share no value, a null only where both admit it,
 the schema writing them draws the warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)
-once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it. Where a *structural* sibling is written as well, beside the two or on another entry
+once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it. A
+refinement folds neither union of such a pair into its principal as said, wherever they are
+written: the one passed over is kept as one schema writing both keeps it, though its branches
+declare nothing, as `anyOf: [{}]` does. Where a *structural* sibling is written as well, beside the two or on another entry
 of the `allOf` holding them on one entry or two,
 [`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
 and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
@@ -4439,6 +4442,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
   `e2e.TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten`,
   `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
+  `e2e.TestElection_AUnionPassedOverThatSaysNothingIsKeptEverywhere`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
