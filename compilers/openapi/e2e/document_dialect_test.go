@@ -294,3 +294,31 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 		assert.NotNil(t, contents[0].File, "draft 4's id beside a $ref, read in lib.yaml's dialect, is $id")
 	})
 }
+
+// TestDocumentDialect_AnAllOfIsDecidedInItsOwnDocumentsDialect pins that an
+// allOf in a 3.1 document lowers to one node whether or not a 3.0 document
+// also names it. Its decision is remembered once a run, so it is read in its
+// own document's dialect, never in that of the document whose reader asks
+// first, where `nullable: true` would admit the null the other conjunct is.
+func TestDocumentDialect_AnAllOfIsDecidedInItsOwnDocumentsDialect(t *testing.T) {
+	t.Parallel()
+	const other = "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    Holder: {type: object, properties: {h: {$ref: '#/components/schemas/W'}}}\n" +
+		"    W: {allOf: [{type: string, nullable: true}, {type: 'null'}]}\n"
+	const root = "openapi: 3.0.3\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    B: {type: object, properties: {y: {$ref: './other.yaml#/components/schemas/Holder'}}}\n"
+	w := func(t *testing.T, more string) ir.TypeDef {
+		t.Helper()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+		doc := compileSource(t, filepath.Join(dir, "root.yaml"), root+more)
+		node, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/W")]
+		require.True(t, ok)
+		return node
+	}
+	alone := w(t, "")
+	_, composes := alone.(*ir.Model)
+	require.True(t, composes, "a string and a null share no value at 3.1, so W composes")
+	named := w(t, "    A: {type: object, properties: {x: {$ref: './other.yaml#/components/schemas/W'}}}\n")
+	assert.Empty(t, cmp.Diff(alone, named), "a 3.0 document naming W changes nothing of it")
+}

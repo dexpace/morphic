@@ -293,6 +293,9 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 		return decision{}
 	}
 	w := newAdmission(c)
+	// The decision is remembered by s alone, so s is read in its own
+	// document's dialect, never in that of the reader asking first.
+	w.nullable = definesNullableAt(c, c.Statements().Read(s))
 	conjuncts, aside := w.conjuncts(s, comp)
 	joint := conjuncts[0].read
 	for _, cj := range conjuncts[1:] {
