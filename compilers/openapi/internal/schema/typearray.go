@@ -24,14 +24,15 @@ import (
 // integer width, integer and number name the same primitive, and the two
 // variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 // Each variant reads what the position's folding allOf branches write, at the
-// pointers they are written at.
+// pointers they are written at, and stands where it is written, the Union
+// where st says.
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, list typeArray,
-	fin finisher,
+	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	types := list.types
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
-		list.voices = positionVoices(c, s, pointer, ir.TypeRef{})
+	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		list.voices = st.voices(c, s, pointer)
 		var read keySet
 		collect := finisher(func(_ ir.TypeDef, variant keySet) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
@@ -83,14 +84,14 @@ func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		id, diags := lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark.then(fin))
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, list.mark.then(fin))
+		id, diags := lowerArray(c, ts, depth, s, pointer, list.mark.then(fin), stand{})
 		return id, 0, diags
 	default:
 		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
 		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
 			return ts.PrimID(shape.base), shape.read, nil
 		}
-		id, diags := hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, fin)
+		id, diags := hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, fin, stand{})
 		return id, 0, diags
 	}
 }

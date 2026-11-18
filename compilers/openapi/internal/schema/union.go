@@ -22,13 +22,14 @@ import (
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A set of one non-null branch X
 // beside any number of null branches collapses to nullable X
 // (docs/ir/type-graph.md#type-references); a set with no non-null branch at all
-// has no X for that collapse to name, so it lowers as a schema of null alone
-// does instead (lowerNullOnlyUnion); everything else becomes a Union with one
+// has no X to name, so it lowers as a schema of null alone does
+// (lowerNullOnlyUnion); everything else becomes a Union with one
 // Variant per non-null branch (oneOf exclusive, anyOf not), never collapsing a
-// union into optional fields. The Union holds the value bounds written beside
-// it, as a branch's node, which every use of the branch shares, cannot
-// (docs/compilers/openapi.md#constraints). fin finishes the node built.
+// union into optional fields. The Union, standing where st says, holds the
+// value bounds written beside it, as a branch's node, shared by every use of
+// the branch, cannot (docs/compilers/openapi.md#constraints). fin finishes it.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+	st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok {
 		ref, diags := Ref(c, ts, depth, inner, ip)
@@ -39,12 +40,12 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, s, pointer)...)
 	}
 	if allNullUnion(c, s) {
-		return lowerNullOnlyUnion(c, ts, s, pointer, fin)
+		return lowerNullOnlyUnion(c, ts, s, pointer, fin, st)
 	}
-	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s)}, fin,
+	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s)}, fin, st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			var diags []ir.Diagnostic
-			tid := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+			tid := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 				def, unionDiags := buildUnion(c, ts, besideUnion(s, pointer), common,
 					func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
 						ref, refDiags := Ref(c, ts, depth, b, vptr)
@@ -52,10 +53,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 						return ref
 					})
 				diags = append(diags, unionDiags...)
-				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
+				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.voices(c, s, pointer), pointer, st.takes(c, s))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
-				read := nodeBoundsRead(s, boundKinds(c, s), def.Constraints, def.Unmodeled)
+				read := nodeBoundsRead(s, st.takes(c, s), def.Constraints, def.Unmodeled)
 				if def.Discriminator != nil {
 					read |= keyBit("discriminator")
 				}
@@ -119,14 +120,15 @@ func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
 // cannot hold. The combinator that produced it, and the other one too when both
 // are declared, carries no shape the node's fields could hold, so it is kept
 // verbatim under Unmodeled instead of dropped
-// (docs/compilers/openapi.md#union-null-only).
+// (docs/compilers/openapi.md#union-null-only). The node stands where st says.
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+	st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	var branches finished
 	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{},
-		branches.on(func(td ir.TypeDef) []ir.Diagnostic { return preserveNullOnlyUnion(c, td, s, pointer) }).then(fin),
+		branches.on(func(td ir.TypeDef) []ir.Diagnostic { return preserveNullOnlyUnion(c, td, s, pointer) }).then(fin), st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), 0, nil
+			return lowerNullAlone(c, ts, standingValueSet(s, pointer, st).finishedBy(fin)), 0, nil
 		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
 	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(c, s, pointer))

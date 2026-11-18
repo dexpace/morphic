@@ -83,7 +83,7 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 // docs/compilers/openapi.md#shape-applicator covers a contradictory schema's
 // dropped half and an untyped applicator such as `items`. build returns, beside
 // the ID, what a lowering to a shared node read.
-func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
+func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher, st stand,
 	build func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic),
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept finished
@@ -94,12 +94,12 @@ func keepingUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, point
 			fin(td, read)
 		}
 	})
-	if kept.ran || LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id}) {
+	if kept.ran || LoweredToOwnNode(c, st.pointer(pointer), ir.TypeRef{Target: id}) {
 		// A node the position owns that this visit found built was finished by
 		// the visit building it.
 		return id, append(diags, kept.diags...)
 	}
-	owner, sharedDiags := keepUnreadShared(c, ts, s, pointer, id, d, shared, fin)
+	owner, sharedDiags := keepUnreadShared(c, ts, s, pointer, id, d, shared, fin, st)
 	return owner, append(diags, sharedDiags...)
 }
 
@@ -122,14 +122,14 @@ func keepUnread(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer 
 }
 
 // keepUnreadShared is keepUnread for a position that lowered to id, a shared
-// primitive, which read shared of s: the alias hoisted over it, finished by
-// the keeping and then fin, holds what neither read, the alias reading the
-// bounds the types the position admits take. It returns id itself, fin
-// unfinished, where nothing is kept.
+// primitive, which read shared of s: the alias hoisted over it where st says,
+// finished by the keeping and then fin, holds what neither read, the alias
+// reading the bounds the types the position admits take. It returns id
+// itself, fin unfinished, where nothing is kept.
 func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, id ir.TypeID, d dispatch,
-	shared keySet, fin finisher,
+	shared keySet, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
-	unread := unreadKeys(s, shared|boundsRead(s, boundKinds(c, s), nil)|readElsewhere(s)|d.handled())
+	unread := unreadKeys(s, shared|boundsRead(s, st.takes(c, s), nil)|readElsewhere(s)|d.handled())
 	if len(unread) == 0 && len(d.skipped) == 0 {
 		return id, nil
 	}
@@ -137,7 +137,7 @@ func keepUnreadShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, po
 	var kept finished
 	owner, aliasDiags := internAlias(c, ts, s, pointer, ir.TypeRef{Target: id}, kept.on(func(alias ir.TypeDef) []ir.Diagnostic {
 		return append(keep(alias), recordSkippedFamilies(c, alias, s, d, pointer)...)
-	}).then(fin))
+	}).then(fin), st)
 	return owner, append(aliasDiags, kept.diags...)
 }
 

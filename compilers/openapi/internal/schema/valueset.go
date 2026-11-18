@@ -36,6 +36,12 @@ func ownValueSet(s *statement.Schema, pointer jsontext.Pointer) valueSetSite {
 	return valueSetSite{set: s, written: pointer}
 }
 
+// standingValueSet is the site of the value set s, written at pointer, lowers
+// to, its node standing where st says.
+func standingValueSet(s *statement.Schema, pointer jsontext.Pointer, st stand) valueSetSite {
+	return valueSetSite{set: s, written: pointer, at: st}
+}
+
 // finishedBy returns vs, its node finished by fin.
 func (vs valueSetSite) finishedBy(fin finisher) valueSetSite {
 	vs.finish = fin

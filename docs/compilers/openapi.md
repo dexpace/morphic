@@ -2411,9 +2411,11 @@ conjunct writes the set, its members and the reports on them where they are writ
 branch writes beside the set is kept on that node at its own pointer, as any conjunct's is, a
 `oneOf` or `anyOf` among it, which the set does not say since the node holds no union, kept under its
 keyword as the same union beside the `allOf` is. A `$ref`
-to the branch's own pointer names the branch alone, a node of its own typed by what it writes. Any
-other principal lowers at the pointer it is written at, so nothing is minted and each node stands at
-a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
+to the branch's own pointer names the branch alone, a node of its own typed by what it writes. An
+inline principal writing a union or a type list stands at the position's pointer too, holding the
+bounds the conjunction writes, its variants where they are written. Any other principal lowers at
+the pointer it is written at, so nothing is minted and each node stands at a pointer naming its
+schema: a `$ref` as any `$ref` branch does, what is written beside it on the
 alias [models](../ir/models.md#composition-entries) describes, and an inline branch as a schema
 carried by the position. A branch that reduces to a shared node reads as
 written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
@@ -2449,8 +2451,8 @@ position. One a value set beats still
 speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set
 takes it, and still lowers, though nothing else names it, as a position no component holds lowers
 for a `$ref`. A `oneOf` or `anyOf` written on a branch is a conjunct admitting what any of its
-branches admits, naming the kinds they name, so it may be the principal, lowering at its own pointer
-as an inline branch does. The principal says the union where one of its branches says nothing the
+branches admits, naming the kinds they name, so it may be the principal, standing at the position.
+The principal says the union where one of its branches says nothing the
 principal does not, each keyword the branch writes compared as one written beside the `allOf` is,
 and a `oneOf` only where that branch also shares no kind with another, so that exactly one admits
 each value the position holds:
@@ -2520,7 +2522,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_KeptKeywordsLandAtEveryPosition`,
   `schema.TestRefinement_SeveralRefsUseTheNarrowest`, `schema.TestRefinement_KindsBeyondAnObjectAreAUse`,
   `schema.TestRefinement_ADynamicRefMasksNoKind`, `schema.TestDynamicRefEntry_OnAnEntryLowersAsBesideTheAllOf`,
-  `e2e.TestElection_AUnionAndTheWordsItTiesWithAreAUseOfTheUnionHoldingTheBound`,
+  `e2e.TestElection_AUnionAndTheWordsItTiesWithAreTheUnionHoldingTheBound`,
   `schema.TestRefinementSetUnion_AUnionTheValueSetStandsBesideIsKept`,
   `e2e.TestAllOfCompose_ATargetAdmittingEveryKindIsUsedNotComposed`,
   `e2e.TestAllOfCompose_AModelKeywordOnAKindThatIsNoObjectIsKept`,
@@ -2585,9 +2587,12 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_TheKeywordsBesideWithAUnionLowerAsWithNoAllOf`,
   `schema.TestRefinement_AShapelessUnionBesideIsValidationLogic`,
   `schema.TestUse_AUnionBesideAnAllOfReadsThroughOnlyARefinement`,
-  `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
-- Status: partly built: an elected inline union stands at its entry, so a bound beside it is held
-  by its use, not by `Union.Constraints` (#2053).
+  `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`,
+  `e2e.TestInlinePrincipal_TheNodeStandsAtThePositionInEverySpelling`,
+  `e2e.TestInlinePrincipal_TheNodeHoldsTheBoundsOfTheConjunction`,
+  `e2e.TestInlinePrincipal_ChildrenKeepThePointerTheyAreWrittenAt`,
+  `e2e.TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition`,
+  `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`
 
 ### `allof-beside-ref`
 

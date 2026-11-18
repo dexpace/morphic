@@ -6,7 +6,10 @@ package schema
 import (
 	"encoding/json/jsontext"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/ir"
 )
 
 // stand is where the node a schema lowers to stands where that is not where the
@@ -27,4 +30,40 @@ func (st stand) pointer(written jsontext.Pointer) jsontext.Pointer {
 		return written
 	}
 	return st.at
+}
+
+// voices returns what the node of s, written at written, reads beside s: the
+// voices of its position (positionVoices), where it stands at another, that
+// position's own keywords and each voice of its allOf but s, whose keywords the
+// node reads as its own.
+func (st stand) voices(c lowering.Ctx, s *statement.Schema, written jsontext.Pointer) []annotation.Voice {
+	if st.of == nil {
+		return positionVoices(c, s, written, ir.TypeRef{})
+	}
+	voices := positionVoices(c, st.of, st.at, ir.TypeRef{})
+	out := make([]annotation.Voice, 0, len(voices)+1)
+	out = append(out, annotation.Voice{Node: st.of, At: st.at})
+	for _, v := range voices {
+		if v.Node != s || v.At != written {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// takes returns the kinds whose value bounds the node of s takes (boundKinds):
+// those its position admits.
+func (st stand) takes(c lowering.Ctx, s *statement.Schema) kindSet {
+	if st.of == nil {
+		return boundKinds(c, s)
+	}
+	return boundKinds(c, st.of)
+}
+
+// standsAtPosition reports whether r's principal is inline and built the node
+// the position written at pointer owns, having lowered to target: its census ran
+// on that node (keepsAtOutcome), and what that node holds is the principal's
+// (ownHomes).
+func standsAtPosition(c lowering.Ctx, r refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
+	return r.principal != nil && r.principal.schema.Ref == nil && LoweredToOwnNode(c, pointer, target)
 }

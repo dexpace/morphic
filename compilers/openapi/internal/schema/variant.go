@@ -81,7 +81,7 @@ func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
-	id, diags := lowerElected(c, ts, depth, s, pointer, d, fin)
+	id, diags := lowerElected(c, ts, depth, s, pointer, d, fin, stand{})
 	if d.won != "allOf" {
 		// A discriminator routes to s through the allOf naming its ancestor
 		// (subtypeDiscriminatorValue), so no other election composes it.

@@ -252,14 +252,18 @@ func branchesNameReferents(c lowering.Ctx, position, s *statement.Schema) bool {
 const coDeclaredUnionWhyPrefix = "oneOf/anyOf co-declared with structural keywords intersects with them, and "
 
 // lowerCoDeclaredUnion lowers a schema whose oneOf/anyOf sits beside structural
-// keywords, per classifyUnionSiblings, fin finishing the node built at pointer.
+// keywords, per classifyUnionSiblings, fin finishing the node built, where st
+// says. A union distributed over its body composes an object, which no
+// refinement's principal is, so only the union kept beside the body stands
+// elsewhere.
 func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+	st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	beside := func(reason ir.UnmodeledReason, why string) (ir.TypeID, []ir.Diagnostic) {
 		if why != "" {
 			why = coDeclaredUnionWhyPrefix + why
 		}
-		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why, fin)
+		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why, fin, st)
 	}
 	switch classifyUnionSiblings(c, s, pointer) {
 	case unionDistributed:
@@ -315,22 +319,23 @@ func diagUnresolvedBranches(c lowering.Ctx, s *statement.Schema, pointer jsontex
 // structural shape nor the union is dropped. reason says which kind of union it
 // is and why says what stopped a classified lowering; lowerCoDeclaredUnion picks
 // both from classifyUnionSiblings' verdict. A discriminator the body's model
-// holds is settled once every node is interned (discriminatorBesideUnion).
+// holds is settled once every node is interned (discriminatorBesideUnion). The
+// node stands where st says.
 func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	reason ir.UnmodeledReason, why string, fin finisher,
+	reason ir.UnmodeledReason, why string, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var siblings finished
 	beside := discriminatorBesideUnion(c, ts, s, s, pointer).then(siblings.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return preserveUnionSiblingsAt(c, &td.Common().Unmodeled, s, pointer, reason, why)
 	})).then(fin)
-	inner, diags := lower(c, ts, depth, s, pointer, beside, nil)
+	inner, diags := lower(c, ts, depth, s, pointer, beside, nil, st)
 	owner := inner
-	if !siblings.ran && !LoweredToOwnNode(c, pointer, ir.TypeRef{Target: inner}) {
+	if !siblings.ran && !LoweredToOwnNode(c, st.pointer(pointer), ir.TypeRef{Target: inner}) {
 		// The structural body reduced to a shared/aliased target; hoist an alias
 		// so the preserved union attaches to a node this pointer owns, never to a
 		// shared primitive.
 		var aliasDiags []ir.Diagnostic
-		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner}, beside)
+		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner}, beside, st)
 		diags = append(diags, aliasDiags...)
 	}
 	return owner, append(diags, siblings.diags...)

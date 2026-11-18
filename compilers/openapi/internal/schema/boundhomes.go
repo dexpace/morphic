@@ -39,21 +39,32 @@ func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jso
 }
 
 // ownHomes returns which bounds the node the refinement s, written at pointer,
-// owns holds for the voices of its allOf, read off what lowers the position
-// rather than off the node: none of a value set's (a principal's, or the
-// election's const or enum), the value bounds of the types a Scalar built for
-// each type its lowering names takes, the collection bounds of an array's List
-// or Tuple, a union's of oneOf or anyOf the bounds the position admits, and
-// none of an object's, which lowerModel builds with no voice.
+// owns holds for the voices of its allOf: where an inline principal built it,
+// that principal's (nodeHomes), none for a value set's or a $ref's, and
+// otherwise what s's own election builds.
 func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) boundHomes {
+	takes := boundKinds(c, s)
 	if r, refined := refinementOf(c, s, pointer); refined && r.principal != nil {
-		return boundHomes{}
+		e := r.principal
+		if _, set := valueSetPrincipal(r); set || e.schema.Ref != nil {
+			return boundHomes{}
+		}
+		return nodeHomes(c, e.schema.Schema, e.pointer, principalDispatch(*e), takes)
 	}
 	d, _ := electionOf(c, s, pointer)
+	return nodeHomes(c, s, pointer, d, takes)
+}
+
+// nodeHomes returns which bounds the node s, written at pointer, lowers to by
+// the election d holds, read off what lowers it rather than off the node, takes
+// the kinds its position admits: none of a value set's, the value bounds of the
+// types a Scalar built for each type its lowering names takes, the collection
+// bounds of an array's List or Tuple, a union's of oneOf or anyOf the bounds the
+// position admits, and none of an object's, which lowerModel builds with no voice.
+func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d dispatch, takes kindSet) boundHomes {
 	if d.won == "const" || d.won == "enum" {
 		return boundHomes{}
 	}
-	takes := boundKinds(c, s)
 	if declaresUnion(s) {
 		branches, _, _ := unionBranches(c, s, s)
 		return boundHomes{value: takes, collection: slices.ContainsFunc(branches, func(b statement.Sub) bool {

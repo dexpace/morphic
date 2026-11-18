@@ -116,7 +116,7 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 	fin finisher,
 ) []ir.Diagnostic {
 	if kinds, _ := lowersTo(c, js); ref.Nullable || kinds != kindObject || !stated(js.Schema) {
-		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin)
+		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
 	comp := allOfComposition{pointer: pointer, branches: []allOfBranch{{schema: js, pointer: pointer}}}
@@ -131,7 +131,7 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 		return resolved
 	}) {
 		// The reference lowered to the top type, already reported.
-		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin)
+		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
 	var diags []ir.Diagnostic
@@ -148,13 +148,18 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 // target still owns a resolvable node at its own TypeID. It carries the value
 // constraints s writes that the types the position admits take (boundKinds),
 // and the exclusive modifier no Constraints field holds, for the reason
-// hoistScalar records. fin finishes the alias where this builds it.
+// hoistScalar records. fin finishes the alias where this builds it, which is
+// where st says.
 func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, target ir.TypeRef,
-	fin finisher,
+	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), pointer, boundKinds(c, s))
-	return internAliasHolding(c, ts, cons, kept, boundsRead(s, boundKinds(c, s), nil), pointer, target, fin), diags
+	voices := positionVoices(c, s, pointer, target)
+	if st.of != nil {
+		voices = st.voices(c, s, pointer)
+	}
+	cons, diags := ConstraintsOf(c, &kept, s, voices, pointer, st.takes(c, s))
+	return internAliasHolding(c, ts, cons, kept, boundsRead(s, st.takes(c, s), nil), st.pointer(pointer), target, fin), diags
 }
 
 // internReferenceAlias is internAlias for the home of a declaration whose census

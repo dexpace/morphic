@@ -13,22 +13,34 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerPrincipal lowers the branch r uses, at the pointer it is written at, so
-// nothing is minted and each node stands at a pointer naming its schema. A $ref
-// goes through Ref, as fillRefBranch's does, keeping the alias what is written
-// beside it always has. An inline branch that reduces to a shared node leaves
-// what it writes to the position, as a voice. Either takes a frame of its own, so
-// a refinement counts two against maxSchemaDepth, a limit no real schema nears. A
-// $ref the principal beat is still resolved: nothing else may lower what it names.
-func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement, fin finisher) (ir.TypeID, []ir.Diagnostic) {
+// lowerPrincipal lowers the branch r uses where s, written at pointer, refines.
+// A $ref goes through Ref, as fillRefBranch's does, keeping the alias what is
+// written beside it always has, in a frame of its own. An inline branch lowers
+// by its own keywords, its node standing at pointer for the whole conjunction,
+// finished by fin, its children and the reports on what it writes where they are
+// written (docs/compilers/openapi.md#allof-refinement). A $ref the principal beat
+// is still resolved: nothing else may lower what it names.
+func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, r refinement,
+	fin, principal finisher,
+) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
 	resolveBeaten(c, ts, r)
-	home := annotation.HomeCarrier
 	if e.schema.Ref != nil {
-		home = annotation.HomeOwnNode
+		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeOwnNode, principal)
+		return ref.Target, diags
 	}
-	ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, home, fin)
-	return ref.Target, diags
+	if !standsYet(e.schema.Schema) {
+		ref, diags := schemaRefHomed(c, ts, depth, e.schema, e.pointer, annotation.HomeCarrier, principal)
+		return ref.Target, diags
+	}
+	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, nil, stand{of: s, at: pointer})
+	return ref.Target, append(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags...)
+}
+
+// standsYet reports whether the inline principal s lowers standing at its
+// position: a union and a type list.
+func standsYet(s *statement.Schema) bool {
+	return declaresUnion(s) || len(effectiveTypes(s)) > 1
 }
 
 // resolveBeaten resolves each $ref of r but its principal: nothing else may
@@ -56,20 +68,20 @@ func refinedShape(comp allOfComposition) string {
 // where it admits none of a primitive's kinds alone. fin finishes the node
 // standing at pointer after its census.
 func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
-	fin finisher,
+	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	types := undecidedTypes(c, s, pointer)
 	switch len(types) {
 	case 0:
-		return keepingUnread(c, ts, s, pointer, d, fin, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return ts.PrimID(ir.PrimAny), 0, nil
 		})
 	case 1:
-		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, types[0], fin, st)
 		})
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin)
+		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin, st)
 	}
 }
 

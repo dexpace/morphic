@@ -42,8 +42,9 @@ var inferredKinds = []statement.Kind{statement.KindObject, statement.KindArray}
 // its shape keywords speak of, or the kinds an allOf electing no entry admits
 // (lowerUndecided). Where the policy read the kinds, the union and each
 // variant are marked, as each variant's kind was read off the keywords too.
+// The union stands where st says.
 func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	types []statement.Kind, inferred bool, fin finisher,
+	types []statement.Kind, inferred bool, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var mark finisher
 	if inferred {
@@ -51,7 +52,7 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 	}
 	var census finished
 	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
-		mark.then(census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer))).then(fin))
+		mark.then(census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer))).then(fin), st)
 	return id, append(diags, census.diags...)
 }
 

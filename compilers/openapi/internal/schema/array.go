@@ -24,18 +24,18 @@ import (
 // dialect reads as one (listedTuple), or when prefixItems is present, else a
 // List over its item schema, each with the collection bounds it declares, fin
 // finishing it once built.
-func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
+func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	read := keyBit("items") | typeReadAs(s, statement.KindArray) | collectionReads(s)
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		if n, tuple := listedTuple(c, s, pointer); tuple {
-			t, tupleDiags := buildListedTuple(c, ts, depth, s, common, pointer, n)
+			t, tupleDiags := buildListedTuple(c, ts, depth, s, common, pointer, n, st)
 			diags = append(diags, tupleDiags...)
 			return t, read | keySetOf("prefixItems", "additionalItems")
 		}
 		if prefix := s.PrefixItems(); len(prefix) > 0 {
-			t, tupleDiags := buildTuple(c, ts, depth, s, common, pointer, prefix)
+			t, tupleDiags := buildTuple(c, ts, depth, s, common, pointer, prefix, st)
 			diags = append(diags, tupleDiags...)
 			return t, read | keySetOf("prefixItems", "additionalItems")
 		}
@@ -44,7 +44,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		return &ir.List{
 			TypeCommon:  common,
 			Elem:        elem,
-			Constraints: collectionConstraints(c, s, pointer),
+			Constraints: collectionConstraints(c, s, pointer, st),
 		}, read
 	}, fin)
 	return id, diags
@@ -89,7 +89,9 @@ func itemsSchema(s *statement.Schema) statement.Sub {
 // unconstrained, as `true` does, and `false` admits none. An entry or rest
 // written as a number, a string or a list lowers as `false` does, and a `null`
 // as one left out, as 2020-12's are, which the load phase reports.
-func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int) (ir.TypeDef, []ir.Diagnostic) {
+func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int,
+	st stand,
+) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	there, site := writtenAt(c, s, pointer)
 	elems := make([]ir.TypeRef, 0, n)
@@ -99,7 +101,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, s, pointer)}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, s, pointer, st)}
 	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !js.Truth.ReadsFalse() {
@@ -182,7 +184,9 @@ func heldAt(c lowering.Ctx, pointer jsontext.Pointer) *statement.Statement {
 // lowers to the top type as `items: true` does, though only the latter makes an
 // unevaluatedItems beside it inert. No field is derived from another: Elems is
 // never trimmed to maxItems, and a closed tuple gains no maxItems.
-func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Sub) (ir.TypeDef, []ir.Diagnostic) {
+func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, common ir.TypeCommon, pointer jsontext.Pointer, prefix []statement.Sub,
+	st stand,
+) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, len(prefix))
 	for i, ps := range prefix {
@@ -190,7 +194,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, s, pointer)}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, s, pointer, st)}
 	if items := c.Statements().Sub(itemsSchema(s)); !items.Truth.ReadsFalse() {
 		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)
@@ -205,8 +209,8 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // Only the integer and boolean bounds are read here, as the statement holds the
 // model's, each count where the model holds the number its literal states
 // (annotation.ExactCount); the census keeps one it does not (keptCount).
-func collectionConstraints(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) *ir.Constraints {
-	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, s, pointer, ir.TypeRef{}))
+func collectionConstraints(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, st stand) *ir.Constraints {
+	return voicedCollectionBounds(ownCollectionConstraints(s), st.voices(c, s, pointer))
 }
 
 // ownCollectionConstraints reads the collection bounds s itself writes, and nil

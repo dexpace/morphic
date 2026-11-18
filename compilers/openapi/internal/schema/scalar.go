@@ -26,15 +26,15 @@ import (
 //
 // byte and a number carried as text put the logical primitive in Base and the
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
-func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, st statement.Kind, pointer jsontext.Pointer,
-	fin finisher,
+func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, kind statement.Kind, pointer jsontext.Pointer,
+	fin finisher, st stand,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
-	shape := scalarShapeOf(s, st, writtenFormat(s))
+	shape := scalarShapeOf(s, kind, writtenFormat(s))
 	if shape.shared {
 		// The type and the format beside it selected the shared primitive.
 		return ts.PrimID(shape.base), scalarTypeRead(s) | shape.read, nil
 	}
-	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer, fin)
+	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(kind), st.voices(c, s, pointer), pointer, fin, st)
 	return id, 0, diags
 }
 
@@ -148,10 +148,10 @@ func baseForType(st statement.Kind) ir.PrimKind {
 //
 // fin finishes the Scalar once built.
 func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, shape scalarShape, takes kindSet,
-	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher,
+	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+	id := internNode(c, ts, st.pointer(pointer), func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		baseRef := ts.PrimRef(shape.base)
 		enc, encDiags := scalarEncoding(c, ts, depth, s, shape.format, takesContent(takes), &common, pointer)
 		diags = append(diags, encDiags...)

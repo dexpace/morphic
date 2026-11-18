@@ -251,7 +251,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	diags := missingArrayItemsConjoined(c, schema, pointer)
 	decl := &declaring{c: c, ts: ts, s: schema, target: ir.TypeRef{Target: c.IDs().ForPointer(pointer)}, pointer: pointer, home: home, fin: fin}
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer, decl.finish,
-		principalResidue(c, schema, pointer, home, &decl.principal))
+		principalResidue(c, schema, pointer, home, &decl.principal), stand{})
 	diags = append(diags, bodyDiags...)
 	ref := target
 	// A body's census ran where its node was built, the only thing that can
@@ -317,7 +317,7 @@ func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.Ty
 // fin finishes the node the body builds at pointer, and principal the node a
 // refinement's principal builds at its own (lower).
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer,
-	fin, principal finisher,
+	fin, principal finisher, st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
 		// The expansion settled that the target resolves, by what resolveAt
@@ -329,13 +329,13 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
 	}
-	if declaresUnion(schema) && !refinesToBranch(c, schema, pointer) {
+	if declaresUnion(schema) && (st.of != nil || !refinesToBranch(c, schema, pointer)) {
 		if hasUnionSiblings(c, schema) {
-			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer, fin)
+			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer, fin, st)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 			return ref, append(unionDiags, nullDiags...)
 		}
-		return lowerOneOfAnyOf(c, ts, depth, schema, pointer, fin)
+		return lowerOneOfAnyOf(c, ts, depth, schema, pointer, fin, st)
 	}
 	u, how, ok := branchUnion(c, schema, pointer)
 	if ok {
@@ -352,7 +352,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		// on the model, held to its routes as one beside the union is.
 		fin = discriminatorBesideUnion(c, ts, schema, u.holder, pointer).then(fin)
 	}
-	id, bodyDiags := lower(c, ts, depth, schema, pointer, fin, principal)
+	id, bodyDiags := lower(c, ts, depth, schema, pointer, fin, principal, st)
 	if how == unionNoLiveBranch {
 		bodyDiags = append(bodyDiags, diagDeadEntryUnion(c, schema, u, pointer)...)
 	}
@@ -386,11 +386,18 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 // (valueSetSite.valueType). Any other schema lowers by its election (lowerElected).
 // fin finishes the node built at pointer, principal an inline principal's.
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin, principal finisher,
+	st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
+	if st.of != nil {
+		// s is the inline principal of the refinement st stands for, a wrapper's
+		// allOf being the position's conjuncts and no rival of its keywords
+		// (principalDispatch).
+		return lowerElected(c, ts, depth, s, pointer, dispatchOf(s).besideAllOf(), fin, st)
+	}
 	d, elected := electionOf(c, s, pointer)
 	r, refines := refinementOf(c, s, pointer)
 	if !refines {
-		return lowerElected(c, ts, depth, s, pointer, d, fin)
+		return lowerElected(c, ts, depth, s, pointer, d, fin, st)
 	}
 	reported := refinedDisjoint(c, s, r)
 	if e, ok := valueSetPrincipal(r); ok {
@@ -400,10 +407,10 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 	}
 	if elected {
 		resolveBeaten(c, ts, r)
-		id, diags := lowerElected(c, ts, depth, s, pointer, d, fin)
+		id, diags := lowerElected(c, ts, depth, s, pointer, d, fin, st)
 		return id, append(diags, reported...)
 	}
-	id, diags := lowerPrincipal(c, ts, depth, r, principal)
+	id, diags := lowerPrincipal(c, ts, depth, s, pointer, r, fin, principal)
 	return id, append(diags, reported...)
 }
 
@@ -468,9 +475,10 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // (keepingUnread), which keeps what the build did not read. fin
 // finishes the node built at pointer after the census.
 func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
+	st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	census := func(build func(fin finisher) (ir.TypeID, []ir.Diagnostic)) (ir.TypeID, []ir.Diagnostic) {
-		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := build(fin)
 			return id, 0, diags
 		})
@@ -478,11 +486,11 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	switch d.won {
 	case "const":
 		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
-			return lowerConst(c, ts, ownValueSet(s, pointer).finishedBy(fin))
+			return lowerConst(c, ts, standingValueSet(s, pointer, st).finishedBy(fin))
 		})
 	case "enum":
 		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
-			return lowerEnum(c, ts, ownValueSet(s, pointer).finishedBy(fin))
+			return lowerEnum(c, ts, standingValueSet(s, pointer, st).finishedBy(fin))
 		})
 	case "allOf":
 		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
@@ -499,38 +507,39 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		// the type set itself is what built them.
 		var census finished
 		id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types},
-			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer)).then(fin))
+			census.onRead(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), keyBit("type"), pointer)).then(fin), st)
 		return id, append(diags, census.diags...)
 	case len(types) == 1:
-		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerTyped(c, ts, depth, s, pointer, types[0], fin, st)
 		})
 	case writesType(s):
 		// Every type s names is null, so its value space is null and nothing
 		// else, which is no schemaless position's (docs/compilers/openapi.md#null-alone).
 		return census(func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
-			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), nil
+			return lowerNullAlone(c, ts, standingValueSet(s, pointer, st).finishedBy(fin)), nil
 		})
 	default:
-		return lowerUntyped(c, ts, depth, s, pointer, d, fin)
+		return lowerUntyped(c, ts, depth, s, pointer, d, fin, st)
 	}
 }
 
 // lowerTyped dispatches a single-typed schema to its structural or scalar form,
 // fin finishing the node it builds at pointer, and returns what a lowering to
 // a shared primitive read.
-func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind,
-	fin finisher,
+func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, kind statement.Kind,
+	fin finisher, st stand,
 ) (ir.TypeID, keySet, []ir.Diagnostic) {
-	switch st {
+	switch kind {
 	case statement.KindObject:
+		// An object composes, so no refinement's principal reaches here.
 		id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, kindObject, fin)
 		return id, 0, diags
 	case statement.KindArray:
-		id, diags := lowerArray(c, ts, depth, s, pointer, fin)
+		id, diags := lowerArray(c, ts, depth, s, pointer, fin, st)
 		return id, 0, diags
 	default:
-		return scalarTypeID(c, ts, depth, s, st, pointer, fin)
+		return scalarTypeID(c, ts, depth, s, kind, pointer, fin, st)
 	}
 }
 
@@ -540,7 +549,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // kind, else to the top type. The keywords the node cannot hold are kept beside
 // it (keepingUnread), as for a schema writing that type.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
-	fin finisher,
+	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	kinds, inferred := untypedKinds(c, s)
 	var mark finisher
@@ -549,21 +558,21 @@ func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	}
 	switch kinds {
 	case 0:
-		return lowerUndecided(c, ts, depth, s, pointer, d, fin)
+		return lowerUndecided(c, ts, depth, s, pointer, d, fin, st)
 	case kindObject:
 		// The node asserts an object, as the bounds beside it read it
 		// (boundKinds): one an object does not take is kept.
-		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			id, diags := lowerModel(c, ts, depth, s, pointer, true /* discriminated */, boundKinds(c, s), mark.then(fin))
 			return id, 0, diags
 		})
 	case kindArray:
-		return keepingUnread(c, ts, s, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			id, diags := lowerArray(c, ts, depth, s, pointer, mark.then(fin))
+		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			id, diags := lowerArray(c, ts, depth, s, pointer, mark.then(fin), st)
 			return id, 0, diags
 		})
 	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, inferredKinds, inferred, fin)
+		return lowerUntypedUnion(c, ts, depth, s, pointer, inferredKinds, inferred, fin, st)
 	}
 }
 

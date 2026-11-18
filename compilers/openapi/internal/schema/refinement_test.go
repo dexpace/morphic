@@ -200,7 +200,8 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 // nothing more where a branch says nothing that conjunct does not and, for a
 // oneOf, shares a kind with no other; a branch's bound, pattern or annotation
 // says more, so it stays with its branch. Where it is the narrowest, it is the
-// principal, and where it shares no value with the rest, the allOf composes.
+// principal, standing at the position, and where it shares no value with the
+// rest, the allOf composes.
 func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Value:
@@ -284,11 +285,9 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	assert.True(t, composes, "a union sharing no value with the rest leaves the allOf a composition")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Disjoint/allOf/1"))
 
-	widest, ok := typeByName(doc, "Widest").(*ir.Scalar)
-	require.True(t, ok, "Widest is an alias over its principal, not %T", typeByName(doc, "Widest"))
-	u, ok := doc.Types[widest.Base.Target].(*ir.Union)
-	require.True(t, ok, "the union branch is the principal")
-	assert.Len(t, u.Variants, 2)
+	widest, ok := typeByName(doc, "Widest").(*ir.Union)
+	require.True(t, ok, "Widest is its principal, the union, not %T", typeByName(doc, "Widest"))
+	assert.Len(t, widest.Variants, 2)
 	assert.Equal(t, "either", widest.Docs.Description)
 }
 
@@ -2074,17 +2073,17 @@ func TestRefinement_ANullKeywordRestatesNothingMore(t *testing.T) {
 
 // TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds pins an inline
 // principal that lowers as a type array: what none of its variants holds, a
-// bound no listed type takes, is kept on the union it lowers to, as a type array
-// written alone keeps it, whether the keyword sits on the branch or beside the
-// allOf, and a bound one takes lands on that variant.
+// bound no listed type takes, is kept on the union it lowers to, standing at the
+// position, as a type array written alone keeps it, whether the keyword sits on
+// the branch or beside the allOf, and a bound one takes lands on that variant.
 func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
 		"    OnBranch: {allOf: [{type: [string, integer], minProperties: 1, minLength: 1}]}\n"+
 			"    Beside: {type: [string, integer], minProperties: 1, minLength: 1, allOf: [{description: d}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	branch, ok := doc.Types["t/anon/components/schemas/OnBranch/allOf/0"].(*ir.Union)
-	require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/OnBranch/allOf/0"])
+	branch, ok := typeByName(doc, "OnBranch").(*ir.Union)
+	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
 	assert.Equal(t, []string{"openapi:minProperties"}, unmodeledKeys(branch.Unmodeled))
 	beside, ok := typeByName(doc, "Beside").(*ir.Union)
 	require.True(t, ok, "got %T", typeByName(doc, "Beside"))
