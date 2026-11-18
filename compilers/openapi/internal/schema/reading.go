@@ -89,19 +89,27 @@ func (r *reading) took(child *reading) bool {
 	r.loose = r.loose || child.loose
 	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
 	r.members = min(r.members+child.members, maxAdmissionMembers+1)
-	if r.reads <= maxAdmissionReads && r.members <= maxAdmissionMembers {
+	if r.within() {
 		return true
 	}
 	r.past(child)
 	return false
 }
 
-// past is r once its read takes in more than a reader's cap, which every
-// reader reads as cut short: it admits every kind and holds no value set or
-// format, so what it merges stops growing with the paths to it, as the formats
-// a read conjoins are one per schema taken in. The element schema is kept,
-// child's where r holds none, which missingArrayItemsConjoined reads past a
-// cut.
+// within reports whether r's read takes in no more schemas than
+// maxAdmissionReads and no more value-set members than maxAdmissionMembers.
+func (r *reading) within() bool {
+	return r.reads <= maxAdmissionReads && r.members <= maxAdmissionMembers
+}
+
+// past is r once its read takes in more than a cap: what an election compares
+// admits every kind and holds no value set or format, so what it merges stops
+// growing with the paths to it, as the formats a read conjoins are one per
+// schema taken in, and the election reads it as cut short (admission.of). The
+// kinds r admits, declares and lowers to are still read over every edge, each
+// statement once, so they stay whole and cut stays false. The element schema
+// is kept, child's where r holds none, which missingArrayItemsConjoined reads
+// past a cut.
 func (r *reading) past(child *reading) {
 	items := r.admitted.items
 	if items == nil {
@@ -357,7 +365,7 @@ func (w *admissionWalk) readOwn(st *statement.Statement) *reading {
 	r.firm, r.claims = r.admits, claimedKinds(w.c, st.Schema)
 	r.partial = narrowedWithin(w.c.Statements(), st.Schema)
 	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
-	if r.members > maxAdmissionMembers {
+	if !r.within() {
 		r.past(r)
 	}
 	r.cut = own.members.Exhausted()

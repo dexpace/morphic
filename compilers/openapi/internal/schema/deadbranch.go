@@ -75,13 +75,11 @@ func restAdmitsObjects(c lowering.Ctx, body, holder *statement.Schema) bool {
 // objects alone, null aside, as a union distributing it requires, and the
 // union branch b: the kinds b lowers to (lowersTo) hold no object, and b
 // admits no null or body keeps it out. Kinds the kind-inference policy read,
-// on either side, and a read cut short or past the admission's caps decide
-// nothing, so such a branch lives
+// on either side, and a read cut short decide nothing, so such a branch lives.
+// A read past the admission's caps keeps its kinds, which are whole, and
+// beside a body that may admit null it lives, its null reading not asked
 // (docs/compilers/openapi.md#union-beside-structure).
 func deadBranch(c lowering.Ctx, body *statement.Schema, b *statement.Statement) bool {
-	if r := admissionOf(c, b); r.reads > maxAdmissionReads || r.members > maxAdmissionMembers {
-		return false
-	}
 	kinds, inferred := lowersTo(c, b)
 	if inferred || kinds&kindObject != 0 || bodyKindInferred(c, body) {
 		return false
@@ -89,9 +87,13 @@ func deadBranch(c lowering.Ctx, body *statement.Schema, b *statement.Statement) 
 	if bodyForbidsNull(c, body) {
 		return true
 	}
-	// b's read is whole and within the caps: the null reading of b, which may
-	// classify a union it reaches and so ask this again, reaches no cycle
-	// through body and nests at most maxAdmissionReads deep.
+	// lowersTo reads a cut read as every kind, so b's reaches no cycle through
+	// body. The null reading of b may classify a union it reaches and so ask
+	// this again, which a read within the caps nests at most maxAdmissionReads
+	// deep.
+	if !admissionOf(c, b).within() {
+		return false
+	}
 	n := newNulls(c)
 	return !n.conjunct(b, nullSite{}).admits(c)
 }

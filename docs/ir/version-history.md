@@ -950,7 +950,9 @@ it sees. Changes made together in one bump are listed together under it.
     a `MapT` where it composes nothing beside a map. Where the rest admits objects alone, a branch
     admitting no object, nor a null the body admits, is dead and no variant: the `Union` keeps it
     under that key with a warning, where a variant over it was a `Model` no value inhabits, and a
-    `mapping` entry routing to it is kept under `openapi:discriminator/mapping/<key>`. Where no
+    `mapping` entry routing to it is kept under `openapi:discriminator/mapping/<key>`. A branch is
+    read so however many schemas its read takes in, but one past 256 schemas or 4,096 `enum`
+    members beside a body that may admit null, whose null is not read, lives. Where no
     branch lives, the body lowers as itself keeping the union under `openapi:oneOf` or
     `openapi:anyOf`, and a discriminator mapping to a branch under `openapi:discriminator`. A union
     on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed.

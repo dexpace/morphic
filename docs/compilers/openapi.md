@@ -3876,7 +3876,11 @@ admits no null or the body's own `type` keeps null out: a string, an array, a va
 whose read is cut short, decides nothing and lives, as does one naming a `$dynamicRef` the position
 does not expand, which admits every kind, and every branch beside a body the policy made an object;
 a branch admitting null lives beside a body that may admit it, and under the nullable-inference
-policy a body writing `nullable: true` or an `allOf` is read as one that may. The `Union` keeps each
+policy a body writing `nullable: true` or an `allOf` is read as one that may. A branch whose read
+passes the bounds of [`allof-refinement`](#allof-refinement) is not cut short: those stop only what
+an election compares, so its kinds are read whole and a branch over a union of 300 strings is dead
+as one over 100 is; but beside a body that may admit null, whether it admits null is not read, and
+it lives. The `Union` keeps each
 dead branch verbatim under the key a kept branch takes on a variant
 (`degraded_lowering`), and the schema draws one warning `openapi/degraded-construct` naming each
 with the kinds it admits, the code [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) gives
@@ -4116,6 +4120,10 @@ judged as one whose branches declare shape.
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
+  `e2e.TestCompile_AReadPastTheAdmissionCapsKeepsItsKinds`,
+  `e2e.TestCompile_ABranchPastTheAdmissionCapsBesideANullableBodyLives`,
+  `schema.TestReading_ACapStopsTheElectionsSummaryAlone`,
+  `schema.TestDeadBranch_ReadsABranchPastTheCapsByItsKinds`,
   `e2e.TestCompile_ARestOfAValueSetIsNotSaidToRefuseABranchItAdmits`,
   `e2e.TestCompile_AUnionBesideAnyRestDrawsOneWarningAtMost`, `schema.TestOneOf_CoDeclaredNotDistributedReasons`, `schema.TestLower_AllOfWithOneOfKeepsBoth`,
   `e2e.TestAllOfUnion_AUnionSharingNoKindWithTheRestIsKeptNotDistributed`,
