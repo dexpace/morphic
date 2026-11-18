@@ -44,6 +44,16 @@ func sequenceVerdict(t *testing.T, r Result) Verdict {
 // construct go red on it.
 func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 	const s = "/components/schemas"
+	composes := func(name string, entries ...string) string {
+		refs := make([]string, len(entries))
+		for i, e := range entries {
+			refs[i] = "{$ref: '#/components/schemas/" + e + "'}"
+		}
+		return name + ": {allOf: [" + strings.Join(refs, ", ") + "]}"
+	}
+	common := "Common: {type: object, properties: {success: {type: boolean, enum: [true]}}}"
+	failure := "Failure: {type: object, properties: {success: {type: boolean, enum: [false]}}}"
+	const merged = "the same holds at each of 2 models composing both"
 	tests := []struct {
 		name  string
 		src   string
@@ -74,6 +84,78 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			src: schemas("Base: {allOf: [{type: object, properties: {x: {type: integer}}}, {type: object, properties: {x: {type: string}}}]}",
 				"Sub: {allOf: [{$ref: '#/components/schemas/Base'}, {type: object, properties: {x: {type: string, description: d}}}]}"),
 			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Base/allOf/0/properties/x"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// The models composing both components draw one report, at the
+			// declaration that lost, which a reversal moves to the other
+			// declaration rather than to another entry.
+			name:  "a tie between two components several models compose",
+			src:   schemas(composes("Both", "Common", "Failure"), composes("Both2", "Common", "Failure"), common, failure),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Common/properties/success"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			name:  "the same tie with the components composed in the other order",
+			src:   schemas(composes("Both", "Failure", "Common"), composes("Both2", "Failure", "Common"), common, failure),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Failure/properties/success"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// Two declarations lose to the third, and the reversal makes the
+			// first win: one report stays where it was, one moves.
+			name: "two of three declarations losing to the last",
+			src: schemas(composes("Both", "A", "B", "C"), composes("Both2", "A", "B", "C"),
+				"A: {type: object, properties: {p: {type: string}}}", "B: {type: object, properties: {p: {type: integer}}}",
+				"C: {type: object, properties: {p: {type: boolean}}}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/A/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			name: "a tie through aliases of the components and of the members' types",
+			src: schemas(composes("Both", "CommonAlias", "FailureAlias"), composes("Both2", "CommonAlias", "FailureAlias"),
+				"CommonAlias: {$ref: '#/components/schemas/Common'}", "FailureAlias: {$ref: '#/components/schemas/Failure'}",
+				"Common: {type: object, properties: {success: {$ref: '#/components/schemas/True'}}}",
+				"Failure: {type: object, properties: {success: {$ref: '#/components/schemas/False'}}}",
+				"True: {type: boolean, enum: [true]}", "False: {type: boolean, enum: [false]}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Common/properties/success"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// FailureX settles its own tie, so the member it brings keeps
+			// Common's identity, and the report of the tie above it sits where
+			// its type is written.
+			name: "a tie at a member a composed component settles",
+			src: schemas(composes("Both", "FailureX", "Other"), composes("Both2", "FailureX", "Other"), common,
+				"FailureX: {allOf: [{$ref: '#/components/schemas/Common'}, {type: object, properties: {success: {type: string}}}]}",
+				"Other: {type: object, properties: {success: {type: integer}}}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/FailureX/allOf/1/properties/success"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			name: "a tie three models compose, one of them with a member of its own",
+			src: schemas(composes("Both", "Common", "Failure"), composes("Both2", "Common", "Failure"),
+				"Both3: {allOf: [{$ref: '#/components/schemas/Common'}, {$ref: '#/components/schemas/Failure'}, "+
+					"{type: object, properties: {extra: {type: string}}}]}",
+				"Holder: {type: object, properties: {b: {$ref: '#/components/schemas/Both'}}}", common, failure),
+			kept:  []string{"the same holds at each of 3 models composing both"},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Common/properties/success"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			// Each tie pairs with the report naming its own member: no model
+			// folds success and code together.
+			name: "ties on two members of one pair of declarations",
+			src: schemas(composes("Both", "Common", "Failure"), composes("Both2", "Common", "Failure"),
+				"Common: {type: object, properties: {success: {type: boolean, enum: [true]}, code: {type: integer}, same: {type: string}}}",
+				"Failure: {type: object, properties: {success: {type: boolean, enum: [false]}, code: {type: string}, same: {type: string}}}"),
+			kept:  []string{merged},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/Common/properties/code"},
 			want:  passed(OracleSequenceOrder),
 		},
 		{
@@ -324,6 +406,13 @@ var (
 	// fixtureZ: both branches declare p, as an object of their own.
 	fixtureZ = schemas("AB: {allOf: [{type: object, properties: {p: {type: object, properties: {x: {type: string}}}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: object, properties: {y: {type: string}}}, beta: {type: string}}}]}")
+	// fixtureSwap: two models composing alpha and beta, whose p disagree, so
+	// the one report of the tie moves from one declaration to the other.
+	fixtureSwap = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}], "+
+		"properties: {r: {type: string}}}",
+		"AB2: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"alpha: {type: object, properties: {p: {type: string}, q: {type: string}}}",
+		"beta: {type: object, properties: {p: {type: integer}, q: {type: string}}}")
 )
 
 // abID is the model every detection fixture declares.
@@ -375,6 +464,9 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 		found    bool
 		contains []string
 		not      []string
+		// unread says the source as given was not compiled, so a refusal as
+		// written is compared rather than declined.
+		unread bool
 	}{
 		{
 			name:  "a member whose type follows the order",
@@ -514,6 +606,97 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"document depends on sequence order"},
 		},
 		{
+			// Every fact of each member folding both declarations follows the
+			// tie, as a report naming its node forgives that node.
+			name: "a report a tie moves between declarations forgives what folds both",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if reversed {
+					property(t, doc, "p").Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+		},
+		{
+			name:     "a report a tie moves between declarations forgives no other member",
+			src:      fixtureSwap,
+			edit:     integer("r"),
+			found:    true,
+			contains: []string{"document depends on sequence order", `"wireName":"r"`},
+		},
+		{
+			// A declaration stands on its own model, which no tie decides.
+			name: "a report a tie moves between declarations forgives neither declaration",
+			src:  fixtureSwap,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				alpha, ok := doc.Types["t/openapi/components/schemas/alpha"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower alpha to a model")
+				if reversed {
+					alpha.Properties[0].Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `alpha member "p"`},
+		},
+		{
+			// No member folds alpha's q with beta's p.
+			name: "a report moving between declarations no member folds together",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				at := "/components/schemas/alpha/properties/q"
+				if reversed {
+					at = "/components/schemas/beta/properties/p"
+				}
+				return doc, append(slices.Clip(diags), diagnostic(ir.SeverityWarning, "x/swap", at, "")), nil
+			},
+			found:    true,
+			contains: []string{"diagnostics depend on sequence order", "x/swap"},
+		},
+		{
+			// One reversed report pairs with one as written, not with two.
+			name: "two reports as written moving to one declaration",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				d := diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/alpha/properties/p", "")
+				planted := []ir.Diagnostic{d, d}
+				if reversed {
+					planted = []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/beta/properties/p", "")}
+				}
+				return doc, append(slices.Clip(diags), planted...), nil
+			},
+			found:    true,
+			contains: []string{"diagnostics depend on sequence order", "x/swap"},
+		},
+		{
+			name: "a report moving between declarations that changes more than its pointer",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				d := diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/alpha/properties/p", "")
+				if reversed {
+					d = diagnostic(ir.SeverityInfo, "x/swap", "/components/schemas/beta/properties/p", "")
+				}
+				return doc, append(slices.Clip(diags), d), nil
+			},
+			found:    true,
+			contains: []string{"diagnostics depend on sequence order", "x/swap"},
+		},
+		{
+			// Only the reversed compile holds models, and a report the written
+			// one lacks: there is no document as written to pair it through.
+			name: "a source compiling as written to no document",
+			src:  fixtureSwap,
+			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if !reversed {
+					return nil, []ir.Diagnostic{diagnostic(ir.SeverityError, "x/refused", "", "")}, nil
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"the permuted source compiles to a document, and as written to none"},
+			unread:   true,
+		},
+		{
 			name: "a permuted source compiling to no document",
 			src:  fixtureX,
 			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
@@ -530,7 +713,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			plant(t, tc.edit)
 
-			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(tc.src), true)
+			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(tc.src), !tc.unread)
 
 			if !tc.found {
 				assert.Equal(t, passed(OracleSequenceOrder), got)
@@ -554,7 +737,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
 	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ,
-		"mixins": fixtureMixins, "kept": fixtureKept} {
+		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap} {
 		t.Run(name, func(t *testing.T) {
 			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(src), true)
 

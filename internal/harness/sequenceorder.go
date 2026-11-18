@@ -49,17 +49,19 @@ func sequenceOrderInvariant(ctx context.Context, spec string, data []byte, compi
 
 // diffSequenceInvariants compares what reversing the sequences of perm must
 // leave untouched: the diagnostics, the document and each model's flattened
-// shape, each read in the coordinates of its own source. A pair of diagnostics
-// equal but for which element of a reversed sequence their pointers name is a
-// report that moves with the order, a tie, so nothing the documents hold at or
-// beneath its pointer, or at the node it names, is compared; a pair naming
-// nodes the forms read alike is one report (sameNodes). It declines a document
-// read from more than one file, and what compareForms declines.
+// shape, each read in its own source's coordinates. Two diagnostics equal but
+// for which element of a reversed sequence their pointers name, or for which
+// of two declarations one member folds, are a report the order moves, a tie:
+// nothing the documents hold at or beneath its pointer, at the node it names
+// or at that member (swappedReports) is compared. Two naming nodes the forms
+// read alike are one (sameNodes). It declines a document of several files,
+// and what compareForms declines.
 func diffSequenceInvariants(first *ir.Document, firstDiags []ir.Diagnostic, second *ir.Document, secondDiags []ir.Diagnostic, perm permutation) (string, bool, Decline) {
 	if first != nil && len(first.Sources) > 1 {
 		return "", false, DeclineReadsAnotherFile
 	}
 	ties, left, right := movedReports(firstDiags, secondDiags, perm)
+	ties, left, right = swappedReports(ties, left, right, first, perm.written)
 	ties = settledFrom(settledFrom(ties, first, perm.written), second, perm.moved)
 	left, right = untied(left, ties, perm.written), untied(right, ties, perm.written)
 	refused := oneRefusal(first, second)
@@ -193,7 +195,8 @@ type report struct {
 
 // tieSites is what the reports a reversal moved decided: the erased pointer of
 // each, at or beneath which nothing is compared, the erased node of each naming
-// one (ir.Provenance's Node), which is not compared wherever it sits, and the
+// one (ir.Provenance's Node) or folding the declarations one naming none moved
+// between (swappedReports), which is not compared wherever it sits, and the
 // models holding a member a tie decided (settledFrom), whose reports follow it.
 type tieSites struct{ pointers, nodes, holders []string }
 
@@ -249,6 +252,93 @@ func movedReports(firstDiags, secondDiags []ir.Diagnostic, perm permutation) (ti
 	slices.Sort(ties.nodes)
 	ties.pointers, ties.nodes = slices.Compact(ties.pointers), slices.Compact(ties.nodes)
 	return ties, left, right
+}
+
+// swappedReports pairs what movedReports leaves of the reports naming no node:
+// one as written with one reversed, equal but for their pointers, where a
+// model's member folds a declaration written at each pointer (folders).
+// That is a report a tie among declarations moves from the one that lost to
+// the one that won as written, said once for every model composing both and so
+// naming no member. Each member folding both is a tied node. The documents as
+// written say which: what the reversed one composes, and each declaration, are
+// compared and tied nowhere. It returns what stays unpaired.
+func swappedReports(ties tieSites, left, right []report, first *ir.Document, seqs sequences) (tieSites, []report, []report) {
+	if first == nil || len(left) == 0 || len(right) == 0 {
+		return ties, left, right
+	}
+	folding := folders(first, seqs)
+	slices.SortFunc(right, func(x, y report) int { return strings.Compare(x.key, y.key) })
+	var keptLeft []report
+	for _, a := range left {
+		i, members := -1, []string(nil)
+		for j, b := range right {
+			if members = swapped(a, b, folding, seqs); len(members) > 0 {
+				i = j
+				break
+			}
+		}
+		if i < 0 {
+			keptLeft = append(keptLeft, a)
+			continue
+		}
+		right = slices.Delete(right, i, i+1)
+		ties.nodes = append(ties.nodes, members...)
+	}
+	slices.Sort(ties.nodes)
+	ties.nodes = slices.Compact(ties.nodes)
+	return ties, keptLeft, right
+}
+
+// swapped returns the members folding the declarations a and b sit at
+// (folders), or none where either names a node or the two differ in anything
+// but their pointers.
+func swapped(a, b report, folding map[string][]string, seqs sequences) []string {
+	if a.node != "" || b.node != "" || unpointed(a.raw) != unpointed(b.raw) {
+		return nil
+	}
+	return intersect(folding[erase(a.pointer, seqs)], folding[erase(b.pointer, seqs)])
+}
+
+// unpointed is d's key with no pointer.
+func unpointed(d ir.Diagnostic) string {
+	d.Provenance.Pointer = ""
+	return diagnosticKey(d)
+}
+
+// folders maps the pointer of each declaration doc's models hold, erased in
+// seqs, doc's coordinates, to the erased IDs of the members of their shapes
+// folding it, each sorted: a member folds its own declaration and those it
+// overrides (ir.FlatProperty).
+func folders(doc *ir.Document, seqs sequences) map[string][]string {
+	out := map[string][]string{}
+	for id, td := range doc.Types {
+		if _, isModel := td.(*ir.Model); !isModel {
+			continue
+		}
+		for _, p := range ir.FlattenedProperties(doc.Types, id).Properties {
+			member := erase(string(p.Property.ID), seqs)
+			for _, d := range append([]ir.PropertyDecl{p.PropertyDecl}, p.Overridden...) {
+				at := erase(string(d.Property.Provenance.Pointer), seqs)
+				out[at] = append(out[at], member)
+			}
+		}
+	}
+	for at, members := range out {
+		slices.Sort(members)
+		out[at] = slices.Compact(members)
+	}
+	return out
+}
+
+// intersect returns what both a and b, each sorted, hold.
+func intersect(a, b []string) []string {
+	var out []string
+	for _, s := range a {
+		if _, found := slices.BinarySearch(b, s); found {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // untied returns the reports of rs no tie decided: one naming a tied node or a

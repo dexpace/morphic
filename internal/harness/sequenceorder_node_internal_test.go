@@ -263,3 +263,38 @@ func TestNodeKey_PairsOnlyANodeItsFormTellsByWhatItHolds(t *testing.T) {
 	want.Provenance = ir.Provenance{Node: "t/anon/a/allOf/0#held"}
 	assert.Equal(t, diagnosticKey(want), nodeKey(named, tells))
 }
+
+// TestSwapped_PairsOnlyReportsNamingNoNode holds the pairing of reports a tie
+// moves between declarations to reports naming no node: a node is read in its
+// own compile's coordinates, which the key compared does not rebase, so two
+// reports naming one pair by it (movedReports) or not at all.
+func TestSwapped_PairsOnlyReportsNamingNoNode(t *testing.T) {
+	folding := map[string][]string{"/a": {"p/m"}, "/b": {"p/m"}}
+	at := func(pointer, node string) report {
+		return report{pointer: pointer, node: node, raw: diagnostic(ir.SeverityWarning, "x/swap", pointer, node)}
+	}
+
+	assert.Equal(t, []string{"p/m"}, swapped(at("/a", ""), at("/b", ""), folding, nil))
+	assert.Empty(t, swapped(at("/a", "n"), at("/b", "n"), folding, nil))
+}
+
+// TestSequenceOrderInvariant_PairsASwappedReportOneWayOnEveryRun plants a
+// report as written that two reversed ones could pair with, the declaration
+// beta writes and the member AB folds both into, and holds the oracle to one
+// pairing, and so one report left over, on every run.
+func TestSequenceOrderInvariant_PairsASwappedReportOneWayOnEveryRun(t *testing.T) {
+	plant(t, func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+		planted := []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/alpha/properties/p", "")}
+		if reversed {
+			planted = []ir.Diagnostic{diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/beta/properties/p", ""),
+				diagnostic(ir.SeverityWarning, "x/swap", "/components/schemas/AB/allOf/properties/p", "")}
+		}
+		return doc, append(slices.Clip(diags), planted...), nil
+	})
+
+	first := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureSwap), true)
+	require.True(t, first.Found(), "one reversed report must stay unpaired: %+v", first)
+	for range 19 {
+		assert.Equal(t, first, sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(fixtureSwap), true))
+	}
+}
