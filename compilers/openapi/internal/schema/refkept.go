@@ -429,11 +429,11 @@ func (k outcomeKeeps) lowered() []int {
 // wholePrincipal settles e, what the position s keeps of an entry it lowers
 // from (lowersFrom), with held, what its principal's readers keep after the
 // position (principalKept). Kept whole, the entry holds the principal and what
-// they said: its report names that too, its reason reads it, and held
-// is told, so they keep none; inside says a wrapper around e is, which holds e.
-// An entry no JSON holds is not kept whole: what it keeps is placed keyword by
-// keyword, as what another conjunct writes otherwise is (keptEntry.apart):
-// under its own key where p holds none, else the entry's.
+// they said: its report names that too, its reason reads it and what the build
+// kept, and held is told, so they keep none; inside says a wrapper around e is,
+// which holds e. An entry no JSON holds is not kept whole: what it keeps is
+// placed keyword by keyword, as keptEntry.apart is, under its own key where p
+// holds none, else the entry's.
 func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, k outcomeKeeps, e keptEntry,
 	held *principalKept, inside bool,
 ) (keptEntry, []ir.Diagnostic) {
@@ -459,6 +459,9 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 		}
 		if len(held.keys) > 0 {
 			e.reason = sharedOf(e.reason, held.reason)
+		}
+		if held.built != "" {
+			e.reason = sharedOf(e.reason, held.built)
 		}
 		return e, nil
 	}

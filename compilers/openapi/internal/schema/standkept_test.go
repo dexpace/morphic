@@ -495,7 +495,8 @@ func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing
 // the union keyword a Union passes over, a prefixItems beside a listed tuple.
 // The position's own keyword takes the plain key, the principal's is kept
 // under its entry's key, and each is reported once, the build's as written
-// flat. Written alike it is one writing, and a whole principal holds it.
+// flat. Written alike it is one writing, and a whole principal holds it, its
+// reason reading it.
 func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	t.Parallel()
 	union := "oneOf: [{type: string}, {type: integer}], anyOf: [{type: string}, {type: boolean}]"
@@ -530,6 +531,8 @@ func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
 	assert.Empty(t, reportsAt(diags, "/components/schemas/UnionAlike"))
 	whole := keptOn(t, doc, "Whole")
 	assert.Contains(t, whole["openapi:allOf/0"], `"anyOf":[{"type":"string"},{"type":"boolean"}]`)
+	assert.True(t, strings.HasSuffix(whole["openapi:allOf/0"], " [degraded_lowering]"),
+		"the whole entry's reason reads the anyOf the build kept beside the x-k: %s", whole["openapi:allOf/0"])
 	assert.Equal(t, `[{"type":"number"},{"type":"string"}] [degraded_lowering]`, whole["openapi:anyOf"])
 	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
 }

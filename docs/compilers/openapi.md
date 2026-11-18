@@ -2806,9 +2806,9 @@ they render to the same JSON, member order aside, a number's spelling and an arr
 included: `1` and `1.0` are two values, each kept. A value no JSON holds is refused where it is
 written, as the flat spelling's is, and kept nowhere. A principal the position keeps whole
 for one of the causes above holds there every keyword of it that no field reads: each is kept once,
-inside the whole entry, and named once, by that entry's report, whose reason reads them as it reads
-the rest, and the principal's own reading keeps and reports none of them apart, a type list's
-variants included. A wrapper kept whole holds the principal inside it the same way, and what is
+inside the whole entry, and named once, by that entry's report, or what its build keeps by the
+build's own (above), and the entry's reason reads them all as it reads the rest, and the
+principal's own reading keeps and reports none of them apart, a type list's variants included. A wrapper kept whole holds the principal inside it the same way, and what is
 kept of an entry within one kept whole is kept there alone. One whose entry no JSON holds is not
 kept whole: what it keeps is held keyword
 by keyword, as above, the value no JSON holds refused where it is written by an

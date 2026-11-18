@@ -43,6 +43,9 @@ type principalKept struct {
 	// written otherwise beside the allOf, and apartReason the one they share.
 	apart       []string
 	apartReason ir.UnmodeledReason
+	// built is the reason what the principal's build kept on the node shares
+	// (keepBuiltAround), "" for nothing: an entry kept whole holds that too.
+	built ir.UnmodeledReason
 }
 
 // keeping is what one reader keeps verbatim of a schema on the node it lowered
@@ -223,6 +226,9 @@ func keepBuiltAround(c lowering.Ctx, st stand, td ir.TypeDef, read keySet, held 
 	p := &td.Common().Unmodeled
 	built := takeBuilt(p, pointer)
 	held = held.saying(keeping{})
+	for _, entry := range built {
+		held.built = sharedOf(cmp.Or(held.built, entry.Reason), entry.Reason)
+	}
 	fin.run(td, read, held)
 	return keepBuilt(c, allOfBranches(c, st.of, st.at), held, p, s, pointer, built)
 }
