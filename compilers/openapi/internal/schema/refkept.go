@@ -477,7 +477,27 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 	own := slices.Concat(e.own, plain)
 	e.own = slices.DeleteFunc(slices.Clone(e.residue), func(key string) bool { return !slices.Contains(own, key) })
 	i := slices.IndexFunc(k.comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })
-	return e, keepApart(c, ts, k.comp, into, p, bs, e.entry.pointer, apart, sharedReason(c, s, k.comp, i, apart))
+	return e, keepApart(c, ts, k.comp, into, p, bs, e.entry.pointer, apart, apartReason(c, s, k.comp, i, e, apart))
+}
+
+// apartReason is the reason the keywords apart, kept under the entry's key of
+// e, the inline entry at index i of comp, share, else degraded_lowering: each
+// as it is kept on its own (keywordReason), and a value bound where the
+// position's node carries a number as text no_ir_home, as recordOwnKeywords
+// keeps one (keepTextBounds).
+func apartReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int, e keptEntry, apart []string) ir.UnmodeledReason {
+	var shared ir.UnmodeledReason
+	for n, key := range apart {
+		reason := keywordReason(c, s, comp, i, key)
+		if e.numberText && slices.Contains(valueConstraintKeywords, key) {
+			reason = ir.ReasonNoIRHome
+		}
+		if n > 0 {
+			reason = sharedOf(shared, reason)
+		}
+		shared = reason
+	}
+	return shared
 }
 
 // besideTag splits k's census keywords where standing, the node the position

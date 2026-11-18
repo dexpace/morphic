@@ -603,6 +603,19 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 				"openapi:allOf/0": `{"allOf":[{"foo":3,"minimum":3,"type":"string"}],"foo":2,"x-k":1} [degraded_lowering]`,
 				"openapi:x-k":     "2 [vendor_extension]",
 			}, atEntry: 1},
+		{name: "Text", schema: "{allOf: [{allOf: [{type: string, format: int64, minimum: 3}], minimum: 2, foo: 2}], minimum: 1, foo: 1}",
+			kept: map[string]string{
+				"openapi:minimum":         "1 [no_ir_home]",
+				"openapi:foo":             "1 [out_of_scope]",
+				"openapi:allOf/0":         `{"foo":2,"minimum":2} [degraded_lowering]`,
+				"openapi:allOf/0/allOf/0": `{"minimum":3} [no_ir_home]`,
+			}, atEntry: 1},
+		{name: "TextBound", schema: "{allOf: [{allOf: [{type: string, format: int64, minimum: 3}], minimum: 2}], minimum: 1}",
+			kept: map[string]string{
+				"openapi:minimum":         "1 [no_ir_home]",
+				"openapi:allOf/0":         `{"minimum":2} [no_ir_home]`,
+				"openapi:allOf/0/allOf/0": `{"minimum":3} [no_ir_home]`,
+			}, atEntry: 1},
 		{name: "Key", schema: "{allOf: [{allOf: [{type: string, foo: 3}], foo: 2}], foo: 1}", kept: map[string]string{
 			"openapi:foo":             "1 [out_of_scope]",
 			"openapi:allOf/0":         `{"foo":2} [out_of_scope]`,
