@@ -271,17 +271,6 @@ func folds(c lowering.Ctx, bs *statement.Schema, keyword string, homes boundHome
 	return fold
 }
 
-// boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there: the value bounds that apply to
-// a value of the kinds value (keywordKinds), and the collection bounds; and
-// whether the node it owns carries a number as text, which holds none of a
-// branch's value bounds (keepTextBounds).
-type boundHomes struct {
-	value      kindSet
-	collection bool
-	numberText bool
-}
-
 // foldsNullable reports whether `nullable` on the branch bs speaks for the whole
 // composition: a branch writing properties declares a shape of its own, which
 // its `nullable` reads as describing, so it stays conjoined with the rest.

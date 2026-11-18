@@ -800,57 +800,6 @@ func recordSkippedFamilies(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, d
 	return append(diags, diagDisjointConjuncts(c, readAllOf(c, s, pointer), "the "+d.won+" it lowered as")...)
 }
 
-// keepConjuncts keeps on p the conjuncts s, written at pointer, writes beside
-// its own keywords, which an election passed over: where they are references
-// alone, beside them or on its allOf's entries, each as a refinement keeps a
-// $ref it passes over (keepRefConjuncts), so `{allOf: [{$ref: T}], K}` keeps
-// what `{$ref: T, K}` does; else the $ref written beside them so, and the
-// allOf whole. It returns the keywords it kept, `$ref` and `allOf`, in that
-// order.
-func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
-	if refs, ok := refConjuncts(c, s, pointer); ok {
-		kept, diags := keepRefConjuncts(c, p, refs, pointer)
-		var written []string
-		if kept[pointer] {
-			written = append(written, "$ref")
-		}
-		if slices.ContainsFunc(refs, func(b keptBranch) bool { return b.entry.pointer != pointer && kept[b.entry.pointer] }) {
-			written = append(written, "allOf")
-		}
-		return written, diags
-	}
-	var written []string
-	var diags []ir.Diagnostic
-	if s.BesideRef != nil {
-		e := allOfBranch{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
-		kept, keptDiags := keepRefConjuncts(c, p, []keptBranch{{entry: e}}, pointer)
-		diags = append(diags, keptDiags...)
-		if kept[pointer] {
-			written = append(written, "$ref")
-		}
-	}
-	kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, "allOf", ir.ReasonDegradedLowering, pointer, c.Place())
-	diags = append(diags, keptDiags...)
-	if kept {
-		written = append(written, "allOf")
-	}
-	return written, diags
-}
-
-// refConjuncts returns the conjuncts s, written at pointer, writes beside its
-// own keywords, each a $ref, and false where one is not.
-func refConjuncts(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) ([]keptBranch, bool) {
-	branches := allOfBranches(c, s, pointer).branches
-	refs := make([]keptBranch, 0, len(branches))
-	for _, e := range branches {
-		if e.schema.Ref == nil {
-			return nil, false
-		}
-		refs = append(refs, keptBranch{entry: e})
-	}
-	return refs, len(refs) > 0
-}
-
 // writesType reports whether s writes a type. A YAML null, which the parser reads
 // as a type spelled "" (docs/parser-library.md#null-type-is-empty), declares
 // none: `type: null` is the keyword left out, unlike `type: "null"`
