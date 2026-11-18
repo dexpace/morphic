@@ -55,7 +55,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // schema: its members and their catch-alls, a type naming an object, the
 // discriminator m holds, and the value bounds of the kinds held m's reader took.
 func modelReads(s *statement.Schema, m *ir.Model, held kindSet) keySet {
-	read := objectKeys | typeReadAs(s, statement.KindObject) | boundsRead(s, held, m.Unmodeled)
+	read := objectKeys | typeReadAs(s, statement.KindObject) | nodeBoundsRead(s, held, m.Constraints, m.Unmodeled)
 	if m.Discriminator != nil {
 		read |= keyBit("discriminator")
 	}

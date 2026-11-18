@@ -187,7 +187,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 		}
 		diags = append(diags, consDiags...)
 		sc.Constraints = cons
-		return sc, scalarTypeRead(s) | shape.read | boundsRead(s, takes, sc.Unmodeled)
+		return sc, scalarTypeRead(s) | shape.read | nodeBoundsRead(s, takes, sc.Constraints, sc.Unmodeled)
 	}, fin)
 	return id, diags
 }

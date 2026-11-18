@@ -56,7 +56,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
-				read := boundsRead(s, boundKinds(c, s), def.Unmodeled)
+				read := nodeBoundsRead(s, boundKinds(c, s), def.Constraints, def.Unmodeled)
 				if def.Discriminator != nil {
 					read |= keyBit("discriminator")
 				}

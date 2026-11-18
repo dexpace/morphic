@@ -105,6 +105,16 @@ func boundsRead(s *statement.Schema, held kindSet, p ir.Unmodeled) keySet {
 	return out
 }
 
+// nodeBoundsRead is boundsRead for the reader of a node's Constraints, cons:
+// where it holds none, it read none of its kinds, as no field holds what it
+// took, such as an empty pattern, and the node keeps the bound verbatim.
+func nodeBoundsRead(s *statement.Schema, held kindSet, cons *ir.Constraints, p ir.Unmodeled) keySet {
+	if cons == nil {
+		held = 0
+	}
+	return boundsRead(s, held, p)
+}
+
 // collectionReads returns the collection bounds s writes that a List or a Tuple
 // reads into its Constraints (collectionConstraints): uniqueItems, and a count
 // a field states (keptCount).

@@ -45,7 +45,7 @@ func TestCensus_AgreesWithWhatTheBuildsRead(t *testing.T) {
 			}
 		}
 	}
-	for _, src := range testdataSources(t) {
+	for _, src := range append(testdataSources(t), readEdges()...) {
 		if lines, loaded := schema.ReadDisagreements(t, src); loaded {
 			add(src.Path, lines)
 		}
@@ -69,6 +69,20 @@ func TestCensus_AgreesWithWhatTheBuildsRead(t *testing.T) {
 	for _, class := range slices.Sorted(maps.Keys(found)) {
 		assert.Contains(t, readDisagreementClasses, class, "first met at %s", found[class])
 	}
+}
+
+// readEdges returns the documents of what reaches a census site no document
+// under testdata or core case does: an empty pattern beside a type list whose
+// string variant is a Scalar of its own.
+func readEdges() []compilers.Source {
+	const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    EmptyPattern: {type: [string, integer], format: x-text, pattern: ""}
+`
+	return []compilers.Source{{Path: "edges.yaml", Data: []byte(spec)}}
 }
 
 // fullGrid widens the cases TestCensus_AgreesWithWhatTheBuildsRead lowers from
