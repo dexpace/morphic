@@ -276,8 +276,8 @@ func movedReports(a, b []report, written sequences) (ties tieSites, left, right 
 }
 
 // untied returns the reports of rs no tie decided: one naming a tied node or a
-// model holding one, or sitting at or beneath a tie site, says what a tie
-// decided, in the one order it decided it.
+// model holding one, or sitting at or beneath a tie site or a tied member's
+// pointer, says what a tie decided, in the one order it decided it.
 func untied(rs []report, ties tieSites, written sequences) []report {
 	return slices.DeleteFunc(rs, func(r report) bool {
 		node := erase(r.node, written)

@@ -24,8 +24,8 @@ import (
 type decision struct{ member, lost, kept, says string }
 
 // fact is a decision, the report stating it, its two places as written, not
-// erased, which tell two entries of one allOf apart, and keptBy, the type of
-// the declaration at keptAt as its compile holds it (keptTypes), empty where
+// erased, which tell two entries of one allOf apart, and keptBy, the node the
+// declaration at keptAt names as its compile holds it (keptTypes), empty where
 // it reads none. A conflict between two declarations is such a report
 // (ir.RelatedKept, ir.RelatedDecided), said once for every model composing
 // them, so it states a fact per member it lists.
@@ -83,10 +83,10 @@ func placeOf(p ir.Provenance) string {
 		strconv.FormatBool(p.Position != ir.Position{}) + "\x00" + string(p.Inferred)
 }
 
-// sayingOf is what d, a report carrying a pair, says of the member member
-// lists beside its two places, as diagnosticKey reads it: its severity, its
-// code, and the entry listing the member but for its node, each index of a
-// reversed sequence, written, erased.
+// sayingOf is what d, a report carrying a pair, says beside its two places of
+// the member its entry member lists, as diagnosticKey reads it: its severity,
+// its code, and that entry but for its node, each index of a reversed
+// sequence, written, erased.
 func sayingOf(d ir.Diagnostic, member ir.Provenance, written sequences) string {
 	member.Node, member.Pointer = "", jsontext.Pointer(erase(string(member.Pointer), written))
 	return diagnosticKey(ir.Diagnostic{
@@ -120,10 +120,10 @@ func tiedBy(a, b []fact) []string {
 
 // unpairedFacts returns the reports of a and of b stating a fact the other
 // side does not, of a member no tie decided (tied, sorted): facts pair one to
-// one by member, lost place, what the report says, and the type of the
-// declaration kept, since of several saying the same a report names the one
-// written last (docs/compilers/openapi.md#allof-redeclared-property). Where a
-// compile reads no type there, the place kept is not compared. A tied member's
+// one by member, lost place, what the report says, and the node the
+// declaration kept names, since of several saying the same a report names the
+// one written last (docs/compilers/openapi.md#allof-redeclared-property).
+// Where a compile reads no declaration there, the place kept is not compared. A tied member's
 // facts are not compared, so where a third declaration disagrees, its report
 // dropped in one order passes.
 func unpairedFacts(a, b []fact, tied []string) (left, right []report) {
@@ -133,7 +133,7 @@ func unpairedFacts(a, b []fact, tied []string) (left, right []report) {
 // factsWithout returns, once each and in order, the reports of a stating a
 // fact of an untied member left once each fact of b takes one of a of its
 // member, lost place and what its report says beside its places, kept by a
-// declaration of the same type (pairing).
+// declaration naming the same node, or where either reads none (pairing).
 func factsWithout(a, b []fact, tied []string) []report {
 	type lost struct{ member, at, says string }
 	open := map[lost][]string{}
@@ -160,9 +160,9 @@ func factsWithout(a, b []fact, tied []string) []report {
 	return out
 }
 
-// pairing returns the index, in kept, the types the other side's open facts
-// were kept by, of the one a fact kept by keptBy pairs with: that type, or
-// else one where either side reads no type, or -1 for none.
+// pairing returns the index, in kept, the nodes the other side's open facts
+// were kept by, of the one a fact kept by keptBy pairs with: that node, or
+// else one where either side reads none, or -1 for none.
 func pairing(kept []string, keptBy string) int {
 	if i := slices.Index(kept, keptBy); i >= 0 {
 		return i
@@ -262,8 +262,9 @@ func pointerOf(place string) string {
 // reaches in doc: none a moved report names or sits over (moved), and none
 // overriding a declaration a tie decided (tied, every tied node, sorted),
 // which reads what that tie decided. A tie between two declarations that
-// disagree decides what the member takes of them, not its docs, which fold
-// over every declaration and draw a report of their own where two differ
+// disagree decides what the member takes of them, not its docs, deprecation,
+// name or XML hints (rewriter.statedOf), which fold over every declaration, two
+// giving one differently drawing a report of their own
 // (docs/compilers/openapi.md#allof-redeclared-property). IDs are erased in
 // seqs, doc's coordinates; a nil doc removes none.
 func statedAlone(stated []string, moved tieSites, tied []string, doc *ir.Document, seqs sequences) []string {

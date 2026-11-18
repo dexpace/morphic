@@ -358,11 +358,19 @@ func TestCanonicalForm_ComparesWhatATiedMembersFoldSettlesFromEveryDeclaration(t
 		require.NoError(t, err)
 		return !slices.Equal(a.document, b.document), !slices.Equal(a.shape, b.shape)
 	}
+	sensitive := settledDoc()
+	sensitive.Types["t/S"] = &ir.Scalar{ID: "t/S", Base: &ir.TypeRef{Target: "t/prim/string"}, Sensitive: true}
+	sensitive.Types["t/M"].(*ir.Model).Properties[0].Type.Target = "t/S"
 	for how, ties := range map[string]tieSites{
 		"by its ID":                 {nodes: []string{"p/M/p"}},
 		"at a tie site":             {pointers: []string{"/M/allOf/properties/p"}},
 		"by its ID where it stands": {nodes: []string{"p/M/p"}, members: []string{"/M/allOf/properties/p"}},
 	} {
+		a, err := canonicalForm(settledDoc(), nil, ties)
+		require.NoError(t, err)
+		b, err := canonicalForm(sensitive, nil, ties)
+		require.NoError(t, err)
+		assert.Equal(t, a.shape, b.shape, "%s: a Sensitive type the tie picks decides no secret flag compared", how)
 		for name, change := range folded {
 			document, shape := compare(ties, change)
 			assert.True(t, document, "%s, %s", how, name)

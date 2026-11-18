@@ -261,9 +261,9 @@ func (r *rewriter) object(o map[string]any, p place, depth int) []byte {
 }
 
 // foldedOf writes what o, a tied node, holds that its fold settles from every
-// declaration alike, where it is a property: whether it is required or secret
-// where any declaration or its model says so, and where it is visible, the
-// lifecycles every declaration admits
+// declaration alike, where it is a property: whether it is required, where
+// any declaration or its model says so, or secret, where any declaration does,
+// and where it is visible, the lifecycles every declaration admits
 // (docs/compilers/openapi.md#allof-redeclared-property). No tie between two of
 // them decides these, so they are compared where nothing else of the member is.
 func (r *rewriter) foldedOf(o map[string]any, depth int) []byte {
