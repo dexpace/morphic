@@ -51,3 +51,33 @@ func assertAllOfEntryInfersArray(t *testing.T, doc *ir.Document, diags []ir.Diag
 	require.Len(t, op.Params, 1)
 	assert.Equal(t, ir.KindList, kindNode(t, doc, op.Params[0].Type.Target).Kind())
 }
+
+// assertRefUseBoundKeywords holds ref-use-bound-keywords: each carried use
+// whose keywords beside its $ref to an object only bind the use names the
+// object, holding the keyword, with no node at its position, and the component
+// writing the same owns the Model over the object.
+func assertRefUseBoundKeywords(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	filter := componentID("Filter")
+	meeting, ok := doc.Types[componentID("Meeting")].(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(meeting.Properties)
+	for _, name := range []string{"owner", "draft", "parent", "audit"} {
+		assert.Equal(t, filter, props[name].Type.Target, "%s names the reference", name)
+		assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/schemas/Meeting/properties/"+name), name)
+	}
+	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, props["owner"].Visibility.Only)
+	assert.Equal(t, props["owner"].Visibility, props["audit"].Visibility, "both spellings hold it alike")
+	require.NotNil(t, props["draft"].Default)
+	assert.True(t, props["parent"].Type.Nullable)
+
+	op := operationAt(t, doc, "GET", "/meetings")
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, filter, op.Params[0].Type.Target)
+	require.NotNil(t, op.Params[0].Default)
+
+	component, ok := doc.Types[componentID("ReadOnlyFilter")].(*ir.Model)
+	require.True(t, ok, "a component owns the Model over the object")
+	require.NotNil(t, component.Base)
+	assert.Equal(t, filter, component.Base.Target)
+	assert.Contains(t, component.Unmodeled, "openapi:readOnly")
+}

@@ -263,7 +263,7 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationVoices(c, schema, target, pointer))) {
 		var homeDiags []ir.Diagnostic
 		decl.target = target
-		ref, homeDiags = hoistDeclarationHome(c, ts, schema, target, pointer, decl.finish)
+		ref, homeDiags = hoistUseHome(c, ts, schema, target, pointer, decl.finish)
 		diags = append(diags, homeDiags...)
 	}
 	return ref, slices.Concat(diags, decl.diags, decl.principal, decl.kept)

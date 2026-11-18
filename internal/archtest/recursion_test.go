@@ -91,7 +91,7 @@ var schemaRecursion = []string{
 	"buildListedTuple", "buildTuple", "buildUnion", "censusOn", "censusShared", "censused",
 	"composeMixin", "composeModel", "composedVariant", "contentSchemaRef", "declaring.finish", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
-	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "internOwnNode",
+	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
 	"keepCensus", "keepFailedRefs",
 	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keptOn", "lower",
 	"lowerAllOf",

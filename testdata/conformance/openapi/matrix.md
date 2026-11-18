@@ -94,7 +94,7 @@ witnessing it.
 
 ### `visibility`
 
-- Witnesses: `readonly-writeonly`
+- Witnesses: `readonly-writeonly`, `ref-use-bound-keywords`
 
 ### `redaction`
 

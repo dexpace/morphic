@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -200,9 +201,13 @@ func unionAside(c lowering.Ctx, s *statement.Schema) bool {
 // usesOneRef reports whether s, whose flattened conjuncts are comp, is a use of
 // one target saying nothing of it: one conjunct is a $ref writing nothing
 // read beside it, as an entry read whole may (statement.ReadBeside), and s
-// and every other conjunct state nothing (statesNothing). It is the
-// reference, as the $ref alone is (docs/compilers/openapi.md#allof-classification).
-func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
+// and every other conjunct state nothing (statesNothing), or, where a carrier
+// holds s's position (carriedAt), nothing but what binds the use
+// (bindsUseOnly), which the carrier holds. It is the reference, as the $ref
+// alone is (docs/compilers/openapi.md#allof-classification).
+func usesOneRef(c lowering.Ctx, s *statement.Schema, comp allOfComposition) bool {
+	carried := carriedAt(c, s)
+	quiet := func(x *statement.Schema) bool { return statesNothing(x) || carried && bindsUseOnly(c, x) }
 	refs := 0
 	for _, e := range comp.branches {
 		switch {
@@ -212,11 +217,78 @@ func usesOneRef(s *statement.Schema, comp allOfComposition) bool {
 			return false
 		case e.schema.Ref != nil:
 			refs++
-		case !statesNothing(e.schema.Schema):
+		case !quiet(e.schema.Schema):
 			return false
 		}
 	}
-	return refs == 1 && statesNothing(s)
+	return refs == 1 && quiet(s)
+}
+
+// hoistUseHome hoists the home of the declaration s, written at pointer,
+// whose body lowered to ref, a use of what it names: over an object alone the
+// Model composing it, as internOwnNode builds one, so no Scalar stands over a
+// model, a position a carrier holds that a $ref naming it reaches among them
+// (usesOneRef); over anything else the alias hoistDeclarationHome builds.
+func hoistUseHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir.TypeRef, pointer jsontext.Pointer,
+	fin finisher,
+) (ir.TypeRef, []ir.Diagnostic) {
+	js := c.Statements().Read(s)
+	if kinds, _ := lowersTo(c, js); kinds != kindObject || ref.Nullable {
+		return hoistDeclarationHome(c, ts, s, ref, pointer, fin)
+	}
+	out := ref
+	out.Target = c.IDs().ForPointer(pointer)
+	return out, internOwnNode(c, ts, js, pointer, ref, fin)
+}
+
+// bindsUseOnly reports whether every key s writes that says something of the
+// instance binds a use of the type rather than the type: `readOnly`,
+// `writeOnly`, `default`, and a `nullable: true` the nullable-inference policy
+// reads as widening the reference (docs/compilers/openapi.md#nullable), each
+// of which a carrier holds and a node cannot
+// (docs/compilers/openapi.md#use-bound-annotations).
+func bindsUseOnly(c lowering.Ctx, s *statement.Schema) bool {
+	return s.Truth == statement.Stated && !slices.ContainsFunc(s.Keys, func(k statement.Key) bool {
+		if k.Name == "allOf" && len(s.AllOf) > 0 || !statement.ReadBeside(k.Name, k.Node, "") {
+			return false
+		}
+		switch k.Name {
+		case "readOnly", "writeOnly", "default":
+			return false
+		case "nullable":
+			return !c.NullableInference.Honours() || !nullableTrue(s)
+		default:
+			return true
+		}
+	})
+}
+
+// carriedAt reports whether a carrier holds the position the bindings place s
+// at: a property a schema lists, or the schema of a parameter or a header,
+// its content's included. It reads the placement, never the lowering that
+// reaches s, so every reader of s's decision, the carrier's and a $ref's
+// naming the position alike, reads one answer.
+func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
+	at, placed := siteOf(s)
+	if !placed {
+		return false
+	}
+	p := at.Pointer
+	if p.Parent().LastToken() == "properties" {
+		owner := c.Statements().At(bind.Position{Doc: at.Doc, Pointer: p.Parent().Parent()})
+		return owner.Truth == statement.Stated && slices.ContainsFunc(objectIn(owner.Schema).Properties, func(sub statement.Sub) bool {
+			return sub.Name == p.LastToken() && c.Statements().Sub(sub).Schema == s
+		})
+	}
+	if p.LastToken() != "schema" {
+		return false
+	}
+	holder := p.Parent()
+	if holder.Parent().LastToken() == "content" {
+		holder = holder.Parent().Parent()
+	}
+	kind := holder.Parent().LastToken()
+	return kind == "parameters" || kind == "headers"
 }
 
 // statesNothing reports whether s states nothing of the instance: `true`, a
@@ -259,7 +331,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 		kinds, inferred = restKinds(c, s, comp)
 	}
 	var principal *conjunct
-	one := usesOneRef(s, comp)
+	one := usesOneRef(c, s, comp)
 	contradicts := !one && disjoint(joint, conjuncts)
 	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
 	var names []string

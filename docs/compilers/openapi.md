@@ -1779,7 +1779,15 @@ where any of its annotations is. An extension the promotion
 policy maps is read the same way ([`extension-promotion`](#extension-promotion)). Over a target
 that lowers to an object alone the keywords beside the `$ref` are a conjunct at a carrier too: the
 property, parameter or header names the `Model` over the target, a decorator holding them that the
-emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. At a position that
+emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
+bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
+and a `nullable: true` the nullable-inference policy reads, beside the `$ref` or beside an `allOf` of
+it, with nothing else but what says nothing of the instance, make no decorator there: the carrier
+names the reference and holds them, as over any other target, so
+`{$ref: Obj, readOnly: true}` at a property names `Obj`. Whether a carrier holds the position is
+read off where the schema is written, a property a schema lists or a parameter's or a header's
+schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the `Model`
+over the object the position owns for it, keeping the keywords as a declaration does. At a position that
 carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
 component — the keywords beside the `$ref` are a conjunct of that position, as beside an `allOf` of
 the `$ref`: the node the position owns holds them, the `Model` over an object or the alias over
@@ -1809,8 +1817,10 @@ it composes as `Base` and `Mixins`, which lends a carrier nothing, where a conju
 the `$ref` would lend written alone, since the visibility and `default` of the use have no other home.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
-  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`
+  `schema-ref-siblings-30`, `allof-refinement`, `ref-chain-annotations`, `ref-use-bound-keywords`
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
+  `e2e.TestRefUseBound_ACarriedUseIsTheReference`, `e2e.TestRefUseBound_AnotherKeywordKeepsTheModel`,
+  `e2e.TestRefUseBound_AReferenceToACarriedPositionReadsItInEitherOrder`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
   `schema.TestUse_ADefaultBesideItsValueSetStands`,

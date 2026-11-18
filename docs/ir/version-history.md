@@ -994,7 +994,12 @@ it sees. Changes made together in one bump are listed together under it.
   anonymous `Model` over an object, and over `false` or a reference naming no schema an open empty
   one, a `true` beside it saying nothing, as `{}` does, and a component or a position a `$ref`
   names written as either spelling over an object alone is the `Model` over it, where the bare `$ref` was a `Scalar` alias
-  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A node a use
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)). A use writing beside
+  its one `$ref` nothing but `readOnly`, `writeOnly`, `default` or a `nullable: true` the
+  nullable-inference policy reads, in either spelling, is the reference where a property, a
+  parameter or a header carries it, read off where it is written, hoisting no node, where it hoisted
+  an anonymous `Model` over an object holding nothing, the carrier then reading what the target
+  lends it as over any other target. A node a use
   hoists is hinted by its position, a variant naming one target that declares no member by that
   target, and a title on any inline conjunct names (the names golden moves)
   ([`ref-use-site`](../compilers/openapi.md#ref-use-site),
