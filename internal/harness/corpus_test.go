@@ -140,6 +140,10 @@ func knownInvalid() map[string]bool {
 		// The same at every carrier, with a name an entry holds and states no
 		// mechanism for, which the specification bars just the same.
 		filepath.FromSlash("../../testdata/conformance/openapi/security-unresolved.yaml"): true,
+		// An allOf entry beside a $ref writing a length no JSON number spells,
+		// which the specification bars; the case pins how the kept $refs are
+		// keyed when an entry cannot be rendered.
+		filepath.FromSlash("../../testdata/conformance/openapi/kept-ref-unrenderable.yaml"): true,
 		// A $ref whose pointer escapes non-canonically (a raw '~' for a
 		// component named "A~B"). The compiler resolves it to the interned
 		// node, but the loader reports the malformed JSON pointer as an

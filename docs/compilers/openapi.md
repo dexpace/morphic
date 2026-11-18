@@ -1192,7 +1192,8 @@ respect here, its `openapi/unresolved-ref` worded with the keyword it is written
 references that closes on itself is [`reference-cycles`](#reference-cycles)', whose message names
 each link a `$ref`, whichever keyword wrote it.
 
-- Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`
+- Cases: `schema-identifiers`, `component-media-types-32`, `reference-object-chains`,
+  `merge-depth-bound`
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
   `openapi/validation`
 
@@ -2444,7 +2445,7 @@ The IR's rule that compilers leave flattening to emitters
 keeping such an `allOf` a decorator for emitters to collapse is weighed in
 [models](../ir/models.md#an-allof-no-object-satisfies).
 
-- Cases: `allof-refinement`
+- Cases: `allof-refinement`, `union-joined-value-sets`, `kept-ref-unrenderable`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
 - Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
   `e2e.TestRefConjunction_AnEntrysValueSetLowersAsBesideItsRef`,
@@ -4176,7 +4177,7 @@ asks the node that was built: `type: object` beside an `allOf` is one the compos
 asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 [`allof-refinement`](#allof-refinement)'s.
 
-- Cases: `codeclared-keywords`, `codeclared-schema-content`
+- Cases: `codeclared-keywords`, `codeclared-schema-content`, `allof-value-set-beside-entry`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestCoDeclaredFamily_EveryPassedOverKeywordIsKept`,
   `schema.TestCoDeclaredFamily_UnpreservableIsNotAnnounced`,

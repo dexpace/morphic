@@ -1,0 +1,451 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "KeptRefUnrenderable",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "KeptRefUnrenderable",
+        "canonical": "kept_ref_unrenderable"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/A": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/A",
+      "name": {
+        "source": "A",
+        "canonical": "a"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/A"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Alike": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Alike",
+      "name": {
+        "source": "Alike",
+        "canonical": "alike"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref/0": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/A",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Alike/allOf/1"
+          }
+        },
+        "openapi:$ref/1": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/A",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Alike/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alike"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Alike/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/B": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/B",
+      "name": {
+        "source": "B",
+        "canonical": "b"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/B"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Distinct": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Distinct",
+      "name": {
+        "source": "Distinct",
+        "canonical": "distinct"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref/0": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/A",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Distinct/allOf/1"
+          }
+        },
+        "openapi:$ref/1": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/B",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Distinct/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distinct"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Distinct/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Same": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Same",
+      "name": {
+        "source": "Same",
+        "canonical": "same"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/A",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Same"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Same"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Same/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Twice": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Twice",
+      "name": {
+        "source": "Twice",
+        "canonical": "twice"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$ref/0": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/A",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Twice/allOf/0"
+          }
+        },
+        "openapi:$ref/1": {
+          "reason": "degraded_lowering",
+          "value": "#/components/schemas/A",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Twice/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twice"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Twice/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"minLength\" must be a non-negative integer in OpenAPI 3.1 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distinct/allOf/1/minLength",
+        "position": {
+          "line": 18,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"minLength\" must be a non-negative integer in OpenAPI 3.1 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alike/allOf/1/minLength",
+        "position": {
+          "line": 23,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"minLength\" must be a non-negative integer in OpenAPI 3.1 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twice/allOf/0/minLength",
+        "position": {
+          "line": 27,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"minLength\" must be a non-negative integer in OpenAPI 3.1 (Schema Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twice/allOf/1/minLength",
+        "position": {
+          "line": 28,
+          "column": 55
+        }
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distinct/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Distinct/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alike/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Alike/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twice/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Twice/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Same/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Same/allOf/1"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "kept-ref-unrenderable.yaml",
+      "hash": "f86227be99466c38b4f4e3af53fd78f50ed45cd4e0c45cdf831917ba749eb355"
+    }
+  ]
+}

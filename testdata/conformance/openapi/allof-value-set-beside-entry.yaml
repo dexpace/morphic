@@ -1,0 +1,30 @@
+openapi: 3.1.0
+info: {title: ValueSetBesideEntry, version: "1"}
+# A value set written beside an allOf whose entries are inline, where the two
+# sets share a member (`{a: 1}`) and neither lies within the other, so no set is
+# the one the position lowers from. The value set is the position's, and the
+# allOf is kept whole beside it, as no entry of it is the one the position is,
+# and a `$ref` written beside the value set is kept with it.
+paths: {}
+components:
+  schemas:
+    Beside:
+      enum: [{a: 1}, {b: 2}]
+      allOf:
+        - enum: [{a: 1}, {c: 3}]
+    BesideTyped:
+      type: object
+      enum: [{a: 1}, {b: 2}]
+      allOf:
+        - {type: object, enum: [{a: 1}, {c: 3}]}
+    BesideTwo:
+      enum: [{a: 1}, {b: 2}]
+      allOf:
+        - enum: [{a: 1}, {c: 3}]
+        - {required: [a]}
+    Target: {type: object}
+    BesideRef:
+      $ref: '#/components/schemas/Target'
+      enum: [{a: 1}, {b: 2}]
+      allOf:
+        - enum: [{a: 1}, {c: 3}]

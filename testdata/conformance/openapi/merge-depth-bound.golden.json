@@ -1,0 +1,1846 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "MergeDepthBound",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "MergeDepthBound",
+        "canonical": "merge_depth_bound"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Disc/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Disc/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disc/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Disc/oneOf/0/properties/pet",
+          "name": {
+            "source": "pet",
+            "canonical": "pet"
+          },
+          "wireName": "pet",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Disc/oneOf/0/properties/pet"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Disc/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Disc/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disc/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Disc/oneOf/1/properties/pet",
+          "name": {
+            "source": "pet",
+            "canonical": "pet"
+          },
+          "wireName": "pet",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Disc/oneOf/1/properties/pet"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Arr": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/Arr",
+      "name": {
+        "source": "Arr",
+        "canonical": "arr"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:contains": {
+          "reason": "validation_only",
+          "value": {
+            "contains": {
+              "type": "string"
+            },
+            "minContains": 1,
+            "maxContains": 3
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Arr"
+          }
+        },
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "items": {
+              "type": "string"
+            },
+            "unevaluatedItems": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Arr"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Arr"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "maxItems": 4,
+        "uniqueItems": true
+      }
+    },
+    "t/openapi/components/schemas/Disc": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Disc",
+      "name": {
+        "source": "Disc",
+        "canonical": "disc"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disc"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Disc/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Disc/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "pet",
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Doc": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/Doc",
+      "name": {
+        "source": "Doc",
+        "canonical": "doc"
+      },
+      "anonymous": false,
+      "docs": {
+        "summary": "T",
+        "externalDocs": [
+          {
+            "url": "https://e.example"
+          }
+        ]
+      },
+      "sensitive": false,
+      "deprecation": {},
+      "xml": {
+        "name": "s"
+      },
+      "examples": [
+        {
+          "value": {
+            "kind": "string",
+            "str": "x"
+          }
+        },
+        {
+          "value": {
+            "kind": "string",
+            "str": "x"
+          }
+        }
+      ],
+      "unmodeled": {
+        "openapi:default": {
+          "reason": "no_ir_home",
+          "value": "x",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Doc/default"
+          }
+        },
+        "openapi:readOnly": {
+          "reason": "no_ir_home",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Doc/readOnly"
+          }
+        },
+        "openapi:writeOnly": {
+          "reason": "no_ir_home",
+          "value": false,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Doc/writeOnly"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Doc"
+      },
+      "value": {
+        "kind": "string",
+        "str": "x"
+      },
+      "valueType": "string"
+    },
+    "t/openapi/components/schemas/Enum": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Enum",
+      "name": {
+        "source": "Enum",
+        "canonical": "enum"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Enum"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Enum/s:x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "value": {
+            "kind": "string",
+            "str": "x"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/Enum/s:y",
+          "name": {
+            "source": "y",
+            "canonical": "y"
+          },
+          "value": {
+            "kind": "string",
+            "str": "y"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Int": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Int",
+      "name": {
+        "source": "Int",
+        "canonical": "int"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Int"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "1",
+        "max": "9",
+        "exclusiveMin": "0",
+        "exclusiveMax": "10",
+        "multipleOf": "2",
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Log": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Log",
+      "name": {
+        "source": "Log",
+        "canonical": "log"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "type": "string"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Log/anyOf"
+          }
+        },
+        "openapi:dependentSchemas": {
+          "reason": "validation_only",
+          "value": {
+            "a": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Log/dependentSchemas"
+          }
+        },
+        "openapi:if-then-else": {
+          "reason": "validation_only",
+          "value": {
+            "if": {
+              "type": "string"
+            },
+            "then": {
+              "minLength": 1
+            },
+            "else": {
+              "type": "integer"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Log"
+          }
+        },
+        "openapi:not": {
+          "reason": "validation_only",
+          "value": {
+            "type": "integer"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Log/not"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Log"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "constraints": {
+        "minLength": 1,
+        "uniqueItems": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Obj": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Obj",
+      "name": {
+        "source": "Obj",
+        "canonical": "obj"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:propertyNames": {
+          "reason": "validation_only",
+          "value": {
+            "maxLength": 3
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Obj/propertyNames"
+          }
+        },
+        "openapi:unevaluated": {
+          "reason": "validation_only",
+          "value": {
+            "additionalProperties": false,
+            "unevaluatedProperties": false
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Obj"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Obj"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Obj/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Obj/properties/a"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Obj/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Obj/properties/b"
+          }
+        }
+      ],
+      "additionalProps": {
+        "patterns": [
+          {
+            "pattern": "^x",
+            "value": {
+              "target": "t/prim/string",
+              "nullable": false
+            }
+          }
+        ]
+      },
+      "additional": "closed",
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 1,
+        "maxProps": 4
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Plain": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Plain",
+      "name": {
+        "source": "Plain",
+        "canonical": "plain"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plain"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Plain/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Plain/properties/a"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Plain/properties/b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "wireName": "b",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Plain/properties/b"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Str": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Str",
+      "name": {
+        "source": "Str",
+        "canonical": "str"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Str"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 1,
+        "maxLength": 9,
+        "pattern": "^a",
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "base64",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        "mediaType": "text/plain",
+        "schema": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bytes"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "unmodeled": {
+    "openapi:x-c0": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c0"
+      }
+    },
+    "openapi:x-c1": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c1"
+      }
+    },
+    "openapi:x-c10": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c10"
+      }
+    },
+    "openapi:x-c11": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c11"
+      }
+    },
+    "openapi:x-c12": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c12"
+      }
+    },
+    "openapi:x-c13": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c13"
+      }
+    },
+    "openapi:x-c14": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c14"
+      }
+    },
+    "openapi:x-c15": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c15"
+      }
+    },
+    "openapi:x-c16": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c16"
+      }
+    },
+    "openapi:x-c17": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c17"
+      }
+    },
+    "openapi:x-c18": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c18"
+      }
+    },
+    "openapi:x-c19": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c19"
+      }
+    },
+    "openapi:x-c2": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c2"
+      }
+    },
+    "openapi:x-c20": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c20"
+      }
+    },
+    "openapi:x-c21": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c21"
+      }
+    },
+    "openapi:x-c22": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c22"
+      }
+    },
+    "openapi:x-c23": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c23"
+      }
+    },
+    "openapi:x-c24": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c24"
+      }
+    },
+    "openapi:x-c25": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c25"
+      }
+    },
+    "openapi:x-c26": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c26"
+      }
+    },
+    "openapi:x-c27": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c27"
+      }
+    },
+    "openapi:x-c28": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c28"
+      }
+    },
+    "openapi:x-c29": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c29"
+      }
+    },
+    "openapi:x-c3": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c3"
+      }
+    },
+    "openapi:x-c30": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c30"
+      }
+    },
+    "openapi:x-c31": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c31"
+      }
+    },
+    "openapi:x-c32": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c32"
+      }
+    },
+    "openapi:x-c33": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c33"
+      }
+    },
+    "openapi:x-c34": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c34"
+      }
+    },
+    "openapi:x-c35": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c35"
+      }
+    },
+    "openapi:x-c36": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c36"
+      }
+    },
+    "openapi:x-c37": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c37"
+      }
+    },
+    "openapi:x-c38": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c38"
+      }
+    },
+    "openapi:x-c39": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c39"
+      }
+    },
+    "openapi:x-c4": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c4"
+      }
+    },
+    "openapi:x-c40": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c40"
+      }
+    },
+    "openapi:x-c41": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c41"
+      }
+    },
+    "openapi:x-c42": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c42"
+      }
+    },
+    "openapi:x-c43": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c43"
+      }
+    },
+    "openapi:x-c44": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c44"
+      }
+    },
+    "openapi:x-c45": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c45"
+      }
+    },
+    "openapi:x-c46": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c46"
+      }
+    },
+    "openapi:x-c47": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c47"
+      }
+    },
+    "openapi:x-c48": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c48"
+      }
+    },
+    "openapi:x-c49": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c49"
+      }
+    },
+    "openapi:x-c5": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c5"
+      }
+    },
+    "openapi:x-c50": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c50"
+      }
+    },
+    "openapi:x-c51": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c51"
+      }
+    },
+    "openapi:x-c52": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c52"
+      }
+    },
+    "openapi:x-c53": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c53"
+      }
+    },
+    "openapi:x-c54": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c54"
+      }
+    },
+    "openapi:x-c55": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c55"
+      }
+    },
+    "openapi:x-c56": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c56"
+      }
+    },
+    "openapi:x-c57": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c57"
+      }
+    },
+    "openapi:x-c58": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c58"
+      }
+    },
+    "openapi:x-c59": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c59"
+      }
+    },
+    "openapi:x-c6": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c6"
+      }
+    },
+    "openapi:x-c60": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c60"
+      }
+    },
+    "openapi:x-c61": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c61"
+      }
+    },
+    "openapi:x-c62": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c62"
+      }
+    },
+    "openapi:x-c63": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c63"
+      }
+    },
+    "openapi:x-c64": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c64"
+      }
+    },
+    "openapi:x-c7": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c7"
+      }
+    },
+    "openapi:x-c8": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c8"
+      }
+    },
+    "openapi:x-c9": {
+      "reason": "vendor_extension",
+      "value": {
+        "description": "past the bound"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-c9"
+      }
+    },
+    "openapi:x-kArr": {
+      "reason": "vendor_extension",
+      "value": {
+        "contains": {
+          "type": "string"
+        },
+        "items": {
+          "type": "string"
+        },
+        "maxContains": 3,
+        "maxItems": 4,
+        "minContains": 1,
+        "minItems": 1,
+        "prefixItems": [
+          {
+            "type": "string"
+          }
+        ],
+        "unevaluatedItems": false,
+        "uniqueItems": true
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kArr"
+      }
+    },
+    "openapi:x-kDisc": {
+      "reason": "vendor_extension",
+      "value": {
+        "discriminator": {
+          "propertyName": "pet"
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "pet": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          {
+            "properties": {
+              "pet": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        ]
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kDisc"
+      }
+    },
+    "openapi:x-kDoc": {
+      "reason": "vendor_extension",
+      "value": {
+        "$comment": "c",
+        "const": "x",
+        "default": "x",
+        "deprecated": true,
+        "description": "D",
+        "example": "x",
+        "examples": [
+          "x"
+        ],
+        "externalDocs": {
+          "url": "https://e.example"
+        },
+        "nullable": true,
+        "readOnly": true,
+        "title": "T",
+        "writeOnly": false,
+        "xml": {
+          "name": "s"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kDoc"
+      }
+    },
+    "openapi:x-kEnum": {
+      "reason": "vendor_extension",
+      "value": {
+        "enum": [
+          "x",
+          "y"
+        ],
+        "type": "string"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kEnum"
+      }
+    },
+    "openapi:x-kInt": {
+      "reason": "vendor_extension",
+      "value": {
+        "exclusiveMaximum": 10,
+        "exclusiveMinimum": 0,
+        "maximum": 9,
+        "minimum": 1,
+        "multipleOf": 2
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kInt"
+      }
+    },
+    "openapi:x-kLog": {
+      "reason": "vendor_extension",
+      "value": {
+        "allOf": [
+          {
+            "type": "string"
+          },
+          {
+            "minLength": 1
+          }
+        ],
+        "anyOf": [
+          {
+            "type": "string"
+          }
+        ],
+        "dependentSchemas": {
+          "a": {
+            "type": "string"
+          }
+        },
+        "else": {
+          "type": "integer"
+        },
+        "if": {
+          "type": "string"
+        },
+        "not": {
+          "type": "integer"
+        },
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          }
+        ],
+        "then": {
+          "minLength": 1
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kLog"
+      }
+    },
+    "openapi:x-kObj": {
+      "reason": "vendor_extension",
+      "value": {
+        "additionalProperties": false,
+        "maxProperties": 4,
+        "minProperties": 1,
+        "patternProperties": {
+          "^x": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "a": {
+            "type": "string"
+          },
+          "b": {
+            "type": "string"
+          }
+        },
+        "propertyNames": {
+          "maxLength": 3
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "unevaluatedProperties": false
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kObj"
+      }
+    },
+    "openapi:x-kStr": {
+      "reason": "vendor_extension",
+      "value": {
+        "contentEncoding": "base64",
+        "contentMediaType": "text/plain",
+        "contentSchema": {
+          "type": "string"
+        },
+        "format": "byte",
+        "maxLength": 9,
+        "minLength": 1,
+        "pattern": "^a",
+        "type": "string"
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-kStr"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a mapping merges through `<<` deeper than 64 levels, which resolving the $refs does not expand; a $ref past that, or one that reads a key past it, is left unresolved, and where that mapping is a schema, no $dynamicRef in its document is expanded",
+      "provenance": {
+        "source": 0
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Str"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Int"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Arr"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"contains\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Arr"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedItems beside items applies to no element, since items evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Arr"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Obj"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"propertyNames\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Obj"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "unevaluatedProperties beside additionalProperties applies to no property, since additionalProperties evaluates each one it would; both kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Obj"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Doc"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Doc/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "default on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Doc/default"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "readOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Doc/readOnly"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "writeOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Doc/writeOnly"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Log"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"anyOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Log"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Log"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"if/then/else\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Log"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"dependentSchemas\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Log"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disc"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the schema merges through `<<` deeper than 64 levels and is read from the keys within them; a keyword merged in past them, or one a source past them outranks, is not read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Enum"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "merge-depth-bound.yaml",
+      "hash": "23be03e535f78c6bf085b8c069b48933f18e73151047e4960f5bfe741456d63f"
+    }
+  ]
+}
