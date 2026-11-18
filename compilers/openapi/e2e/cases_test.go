@@ -61,7 +61,8 @@ func TestCases_CoverTheRuleTable(t *testing.T) {
 
 // writtenConstructs returns, by the name of each version the version axis
 // lists, the keywords of the constructs some case writes at it, read through
-// the cases' own axes and Write.
+// the cases' own axes and Write. A case is written only while its pair of
+// version and keyword is not yet known written, since writing is the cost.
 func writtenConstructs(t *testing.T, c harness.Cases) map[string]map[string]bool {
 	t.Helper()
 	axes := c.Axes()
@@ -78,7 +79,10 @@ func writtenConstructs(t *testing.T, c harness.Cases) map[string]map[string]bool
 		if written[v] == nil {
 			written[v] = map[string]bool{}
 		}
-		if _, ok := c.Write(at); ok && k != "none" {
+		if k == "none" || written[v][k] {
+			continue
+		}
+		if _, ok := c.Write(at); ok {
 			written[v][k] = true
 		}
 	}
