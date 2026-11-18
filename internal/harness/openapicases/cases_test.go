@@ -6,6 +6,7 @@ package openapicases_test
 import (
 	"crypto/sha256"
 	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -228,7 +229,7 @@ func TestNew_TheAxesInTheirOrder(t *testing.T) {
 	assert.Equal(t, []harness.Value{{Name: "inline"}, {Name: "beside"}, {Name: "wrap"}, {Name: "entry"},
 		{Name: "entryFirst", Like: "entry"}, {Name: "nested"}, {Name: "besideEntry"}}, axes[5].Values)
 	assert.Equal(t, []harness.Value{{Name: "component"}, {Name: "property"}, {Name: "items"}, {Name: "additionalProperties"},
-		{Name: "branch"}, {Name: "anyOfBranch"}, {Name: "parameter"}, {Name: "requestBody"}, {Name: "responseBody"},
+		{Name: "branch"}, {Name: "anyOfBranch"}, {Name: "prefixItem"}, {Name: "parameter"}, {Name: "requestBody"}, {Name: "responseBody"},
 		{Name: "header"}}, axes[4].Values)
 }
 
@@ -261,5 +262,18 @@ func TestRecord_ReadsEachCaseOraclesRecord(t *testing.T) {
 		_, err := read(harness.OracleOrder)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `oracle "order-invariance" keeps no record`)
+	}
+}
+
+// TestNew_WritesAPositionOnlyAtTheVersionsItHolds pins the positions written
+// from 3.1, whose keywords exist from that version: no case writes them at 3.0.
+func TestNew_WritesAPositionOnlyAtTheVersionsItHolds(t *testing.T) {
+	c := openapicases.New()
+	axes := c.Axes()
+	for i, p := range axes[4].Values {
+		for v, version := range axes[0].Values {
+			_, ok := c.Write([]int{v, 0, 0, 0, i, 0})
+			assert.Equal(t, v > 0 || !slices.Contains(from31Positions, p.Name), ok, "%s at %s", p.Name, version.Name)
+		}
 	}
 }

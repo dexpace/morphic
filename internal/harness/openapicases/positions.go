@@ -50,6 +50,9 @@ func positions() []position {
 		{name: "anyOfBranch", place: func(s object) (object, object) {
 			return in(object{{"anyOf", []any{s, object{{"type", "boolean"}}}}})
 		}, pointer: "/components/schemas/C/anyOf/0"},
+		{name: "prefixItem", place: func(s object) (object, object) {
+			return in(object{{"type", "array"}, {"prefixItems", []any{s}}})
+		}, pointer: "/components/schemas/C/prefixItems/0", span: from31},
 		{"parameter", func(s object) (object, object) {
 			param := object{{"name", "q"}, {"in", "query"}, {"schema", s}}
 			return atCasePath(object{{"get", object{{"parameters", []any{param}}, {"responses", okResponses}}}})
