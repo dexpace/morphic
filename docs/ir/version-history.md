@@ -1123,7 +1123,12 @@ it sees. Changes made together in one bump are listed together under it.
     is reported as kept on the node its position lowered to, by kind; "a use of one of its allOf
     conjuncts" is said of a `$ref` principal alone. A bound beside a principal carrying a number as
     text is kept as `no_ir_home` with the report the flat spelling draws, where the alias held a
-    length bound in its `Constraints` and kept a value bound as `degraded_lowering`.
+    length bound in its `Constraints` and kept a value bound as `degraded_lowering`. Where an inline
+    principal and the keywords beside the `allOf` both keep one keyword with different values, the
+    position's node keeps the position's under `openapi:<keyword>` and the principal's under the
+    entry's key, `openapi:allOf/<n>`, an object of those keywords alone, each with one report:
+    `{allOf: [{type: string, minimum: 1}], minimum: 2}` holds `openapi:minimum: 2` and
+    `openapi:allOf/0: {"minimum": 1}`, where 1 stood on the entry's node `…/allOf/0`.
 
   - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
     the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
