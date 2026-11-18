@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry pins
@@ -27,7 +28,8 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 			"    Whole: {allOf: [{type: string, minItems: 1, x-k: 1}], minItems: 2, x-k: 2}\n"+
 			"    Lost: {allOf: [{type: string, minimum: "+unpreservableValue+"}], minimum: 2}\n"+
 			"    Text: {allOf: [{type: string, format: double, minimum: 1, x-k: 1}], minimum: 2, x-k: 2}\n"+
-			"    List: {allOf: [{type: [string, boolean], format: int64, minimum: 1, x-k: 1}], x-k: 2}\n"))
+			"    List: {allOf: [{type: [string, boolean], format: int64, minimum: 1, x-k: 1}], x-k: 2}\n"+
+			"    Docs: {allOf: [{type: string, minimum: 1, description: a}], description: b}\n"))
 	held := func(name string) map[string]string {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, name)
@@ -54,4 +56,8 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 	variant := doc.Types["t/anon/components/schemas/List/type/0"]
 	require.NotNil(t, variant)
 	assert.NotContains(t, variant.Common().Unmodeled, "openapi:minimum", "nor does the text variant")
+	docs := typeByName(doc, "Docs")
+	require.NotNil(t, docs)
+	assert.Equal(t, ir.ReasonDegradedLowering, docs.Common().Unmodeled["openapi:allOf/0"].Reason,
+		"a bound and a disagreeing description share degraded_lowering")
 }

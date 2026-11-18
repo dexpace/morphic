@@ -290,7 +290,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if k.refined {
 		shape = refinedShape(c, k.comp, k.principal, standing)
 	}
-	held := heldByCensus(k, *p)
+	held, heldReason := heldByCensus(k, *p)
 	diags := recordUnhomedAt(c, ts, p, s, k.keywords, shape, pointer)
 	diags = append(diags, keepTextBounds(c, p, s, k.text, pointer)...)
 	for _, key := range k.validation {
@@ -305,9 +305,11 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		}
 	}
 	for _, e := range k.entries {
-		if k.principal != nil && e.entry.pointer == k.principal.pointer {
-			// The whole entry's report names what the principal's census left it.
+		if k.principal != nil && e.entry.pointer == k.principal.pointer && len(held) > 0 {
+			// The whole entry's report names what the principal's census left
+			// it, and its reason reads those too.
 			e.residue = slices.Concat(e.residue, held)
+			e.reason = sharedOf(e.reason, heldReason)
 		}
 		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, func(e keptEntry) ir.Diagnostic {
 			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.principal == nil, shape))

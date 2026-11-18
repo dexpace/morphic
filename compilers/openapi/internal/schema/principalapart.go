@@ -77,20 +77,31 @@ func keepTextStanding(c lowering.Ctx, st stand, sc *ir.Scalar, s *statement.Sche
 // heldByCensus returns the keywords the census of k's inline principal staged
 // on p, the node standing for the position, where k keeps that principal
 // whole (keepHeld), which the whole entry's report names, in the order the
-// principal writes them.
-func heldByCensus(k outcomeKeeps, p ir.Unmodeled) []string {
+// principal writes them, and the reason they share, which the whole entry's
+// reason reads too.
+func heldByCensus(k outcomeKeeps, p ir.Unmodeled) ([]string, ir.UnmodeledReason) {
 	e := k.principal
 	if e == nil || e.schema.Ref != nil || !k.holdsWhole(e.pointer) {
-		return nil
+		return nil, ""
 	}
-	staged := stagedKeys(p, k.comp.branchKey(e.pointer))
+	key := k.comp.branchKey(e.pointer)
+	staged := stagedKeys(p, key)
 	var out []string
-	for _, key := range e.schema.Keys {
-		if slices.Contains(staged, key.Name) {
-			out = append(out, key.Name)
+	for _, name := range e.schema.Keys {
+		if slices.Contains(staged, name.Name) {
+			out = append(out, name.Name)
 		}
 	}
-	return out
+	return out, p[key].Reason
+}
+
+// sharedOf is the reason an entry holding what a and b are kept for is kept
+// under: the one they share, else degraded_lowering, as sharedReason reads it.
+func sharedOf(a, b ir.UnmodeledReason) ir.UnmodeledReason {
+	if a == b {
+		return a
+	}
+	return ir.ReasonDegradedLowering
 }
 
 // outcome returns what st's position keeps, having lowered to the node it owns.
@@ -119,6 +130,9 @@ func keepHeld(c lowering.Ctx, st stand, p *ir.Unmodeled, s *statement.Schema, po
 ) {
 	key := allOfBranches(c, st.of, st.at).branchKey(pointer)
 	held := slices.Concat(stagedKeys(*p, key), keys)
+	if staged, ok := (*p)[key]; ok {
+		reason = sharedOf(staged.Reason, reason)
+	}
 	members := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 	for _, k := range s.Keys {
 		if slices.Contains(held, k.Name) {

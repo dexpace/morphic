@@ -2759,8 +2759,9 @@ kept on the same node under its entry's key, `openapi:allOf/<n>`, as an object h
 keywords alone, under the reason it keeps them for, at the entry, with one `openapi/degraded-construct`
 info there saying so; written alike, the keyword is kept once. A principal the position keeps whole
 for one of the causes above holds there every keyword of it that no field reads: each is kept once,
-inside the whole entry, and named once, by that entry's report, and the principal's own reading
-keeps and reports none of them apart, a type list's variants included. It is kept
+inside the whole entry, and named once, by that entry's report, whose reason reads them as it reads
+the rest, and the principal's own reading keeps and reports none of them apart, a type list's
+variants included. It is kept
 under the reason its kept keywords share where they share one, else
 `degraded_lowering`, and reported at the branch by an `openapi/validation-only-keyword` where that
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
@@ -2811,6 +2812,7 @@ every entry reads that one twice.
   `e2e.TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth`,
   `e2e.TestPrincipalApart_AParameterSchemaHoldsBoth`,
   `e2e.TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce`,
+  `e2e.TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds`,
   `e2e.TestKeptEntryKeyword_EverySpellingOfAContentOrUnknownKeywordKeepsOneKeyAndReason`,
   `e2e.TestKeptEntryKeyword_AKindKeywordIsKeptUnderItsOwnKey`,
   `e2e.TestKeptEntryKeyword_APerKindBoundNoHomeTakesIsKeptUnderItsOwnKey`,

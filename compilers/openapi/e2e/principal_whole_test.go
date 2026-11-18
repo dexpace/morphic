@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 // wholeCase is a schema whose position keeps its inline allOf principal whole,
@@ -89,5 +91,57 @@ func TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce(t *testing.T) {
 					"the whole entry's report names it among what it holds: %s", said[0])
 			})
 		}
+	}
+}
+
+// reasonCase is a schema whose position keeps entries whole, with the reason
+// and report code each entry's key must carry.
+type reasonCase struct {
+	name, schema string
+	want         map[string]ir.UnmodeledReason
+}
+
+// TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds pins the
+// reason a principal kept whole is kept under: the one its kept keywords share
+// where they share one, the bound its own reading left it among them, else
+// degraded_lowering, with the report code that reason takes; an entry kept
+// whole beside it keeps its own (docs/compilers/openapi.md#allof-inline-residue).
+func TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []reasonCase{
+		{"an extension and a bound", "{allOf: [{type: string, minimum: 1, x-k: 1}], x-k: 2}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonDegradedLowering}},
+		{"a closure and a bound", "{allOf: [{type: string, minimum: 1, unevaluatedProperties: false}]}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonDegradedLowering}},
+		{"an extension alone", "{allOf: [{type: string, x-k: 1}], x-k: 2}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonVendorExtension}},
+		{"a closure alone", "{allOf: [{type: string, unevaluatedProperties: false}]}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonValidationOnly}},
+		{"an extension and a bound, an entry beside", "{allOf: [{type: string, minimum: 1, x-k: 1}, {x-k: 5}], x-k: 2}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonDegradedLowering, "openapi:allOf/1": ir.ReasonVendorExtension}},
+		{"a closure and a bound, an entry beside", "{allOf: [{type: string, minimum: 1, unevaluatedProperties: false}, {unevaluatedItems: false}]}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonDegradedLowering, "openapi:allOf/1": ir.ReasonValidationOnly}},
+		{"an extension alone, an entry beside", "{allOf: [{type: string, x-k: 1}, {minimum: 3, x-k: 5}], x-k: 2}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonVendorExtension, "openapi:allOf/1": ir.ReasonDegradedLowering}},
+		{"a closure alone, an entry beside", "{allOf: [{type: string, unevaluatedProperties: false}, {minimum: 3, unevaluatedItems: false}]}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/0": ir.ReasonValidationOnly, "openapi:allOf/1": ir.ReasonDegradedLowering}},
+		{"no principal held", "{allOf: [{type: string}, {minimum: 1, x-k: 1}], x-k: 2}",
+			map[string]ir.UnmodeledReason{"openapi:allOf/1": ir.ReasonDegradedLowering}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    X: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			held := doc.Types[componentID("X")].Common().Unmodeled
+			for key, want := range tc.want {
+				assert.Equal(t, want, unmodeledEntry(t, held, key).Reason, key)
+				at := "/components/schemas/X/" + strings.TrimPrefix(key, "openapi:")
+				code := diag.DegradedConstruct
+				if want == ir.ReasonValidationOnly {
+					code = diag.ValidationOnlyKeyword
+				}
+				assert.Equal(t, 1, countCode(diags, code, at), "%s is reported under the code its reason takes", key)
+			}
+		})
 	}
 }
