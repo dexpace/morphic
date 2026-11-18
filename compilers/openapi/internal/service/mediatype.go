@@ -18,6 +18,27 @@ func NormalizeMediaType(mediaType string) string {
 	return strings.ToLower(strings.TrimSpace(mediaType))
 }
 
+// mediaTypeSet normalizes a policy's media types into the set a classification
+// answers from, listed when the policy lists any and defaults otherwise, or
+// nil when the inference is off, which reads the same as an empty set so no
+// lowering has to ask whether the policy was disabled or merely empty.
+func mediaTypeSet(disabled bool, listed, defaults []string) map[string]bool {
+	if disabled {
+		return nil
+	}
+	types := listed
+	if len(types) == 0 {
+		types = defaults
+	}
+	set := make(map[string]bool, len(types))
+	for _, mt := range types {
+		if normalized := NormalizeMediaType(mt); normalized != "" {
+			set[normalized] = true
+		}
+	}
+	return set
+}
+
 // HoldsOneDocument reports whether mediaType names a syntax whose body is one
 // document, JSON's or XML's, by name or structured suffix (RFC 6839, RFC 7303).
 // It answers only for those two: which other media types repeat a structure is

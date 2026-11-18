@@ -63,23 +63,3 @@ func (c Ctx) MediaTypeStreams(mediaType string) bool {
 	suffix := strings.LastIndexByte(normalized, '+')
 	return suffix >= 0 && c.streaming[normalized[suffix:]]
 }
-
-// streamingSet normalizes a policy into the set MediaTypeStreams answers from,
-// or nil when the inference is off — which reads the same as an empty set, so
-// no lowering has to ask whether the policy was disabled or merely empty.
-func streamingSet(p StreamingInference) map[string]bool {
-	if p.Disabled {
-		return nil
-	}
-	types := p.MediaTypes
-	if len(types) == 0 {
-		types = DefaultStreamingMediaTypes()
-	}
-	set := make(map[string]bool, len(types))
-	for _, mt := range types {
-		if normalized := NormalizeMediaType(mt); normalized != "" {
-			set[normalized] = true
-		}
-	}
-	return set
-}

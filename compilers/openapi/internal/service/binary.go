@@ -66,22 +66,3 @@ func (c Ctx) MediaTypeBinary(mediaType string) bool {
 	top, _, ok := strings.Cut(normalized, "/")
 	return ok && c.binary[top+"/*"]
 }
-
-// binarySet normalizes a policy into the set MediaTypeBinary answers from, or
-// nil when the inference is off, as streamingSet does.
-func binarySet(p BinaryInference) map[string]bool {
-	if p.Disabled {
-		return nil
-	}
-	types := p.MediaTypes
-	if len(types) == 0 {
-		types = DefaultBinaryMediaTypes()
-	}
-	set := make(map[string]bool, len(types))
-	for _, mt := range types {
-		if normalized := NormalizeMediaType(mt); normalized != "" {
-			set[normalized] = true
-		}
-	}
-	return set
-}
