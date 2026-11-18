@@ -2435,9 +2435,11 @@ principal's, as the keywords beside an `allOf` stand before an entry's: of two `
 otherwise its field holds the position's, and the principal, disagreeing, is kept whole
 ([`allof-inline-residue`](#allof-inline-residue)). A keyword written beside the `allOf` as the
 inline principal writes it is one writing, whichever reading reads or keeps it: read once, or kept
-once and reported once. What the principal's census, its bounds on a number carried as text, its
-content vocabulary or its build keeps is the principal's, kept at the entry, and the position's
-readers leave it; a keyword the position keeps through its declaration or as validation logic, a
+once and reported once. What the principal's census, its bounds on a number carried as text or
+its build keeps is the principal's, kept at the entry, and the position's readers leave it, a
+`oneOf` or `anyOf` its union does not lower among it, with the build's reason and report;
+a content keyword the node holds no field for is the position's, whose reading keeps it first, the
+principal's finding it kept; and a keyword the position keeps through its declaration, a
 `default`, `readOnly`, `writeOnly`, a validation-only keyword, an extension or a key no dialect
 defines, is the position's, kept and reported there, and the entry's reading says nothing of it.
 Where the position keeps the principal whole, or a wrapper around it, that entry holds the one
@@ -2516,7 +2518,9 @@ The principal consumes it where it says it, as on a branch. Otherwise one whose 
 shape against the position ([`union-beside-structure`](#union-beside-structure)) is kept under
 `openapi:oneOf` or `openapi:anyOf` as `validation_only` and reported as an info
 `openapi/validation-only-keyword` at the position, as beside any body, and any other is kept there
-under `degraded_lowering`, with the report other keywords beside a refinement draw. So
+under `degraded_lowering`, with the report other keywords beside a refinement draw; one the
+principal's build keeps alike, which its union does not lower, is that one writing, kept at the
+entry with the build's reason and report (above). So
 `{allOf: [{type: string, maxLength: 10}], anyOf: [{type: string}, {type: number}]}` lowers as the
 same union on a branch does, and `{allOf: [{$ref: Str}], oneOf: [{minLength: 1}, {maxLength: 2}]}`
 is a use of `Str` keeping its `oneOf` as validation logic. Where the keywords beside the `allOf`
@@ -2654,6 +2658,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes`,
   `schema.TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader`,
   `schema.TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds`,
+  `schema.TestPrincipalKept_AnAlikeKeywordStandsWithItsFirstKeeper`,
   `annotation.TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce`
 
 ### `allof-beside-ref`
