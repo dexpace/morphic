@@ -171,14 +171,21 @@ func pairing(kept []string, keptBy string) int {
 }
 
 // keptTypes returns facts, each with keptBy set to the node the declaration at
-// its kept place names, as held, its compile's members, reads it. Whether it
+// its kept place names, as held, its compile's members, reads it, or the node
+// the member takes where the fold minted it: of declarations that meet, each
+// holding as many, the later wins, so which one a report names follows the
+// order (docs/compilers/openapi.md#allof-redeclared-property). So a report on
+// such a member naming a declaration it dropped as kept passes. Whether a node
 // admits null is not read: the field admits null where every declaration
-// folded into it does (docs/compilers/openapi.md#allof-redeclared-property),
-// whichever the report names.
+// folded into it does, whichever the report names.
 func keptTypes(facts []fact, held map[string]held) []fact {
 	out := slices.Clone(facts)
 	for i := range out {
-		out[i].keptBy = held[out[i].member].named[pointerOf(out[i].keptAt)]
+		h := held[out[i].member]
+		out[i].keptBy = h.named[pointerOf(out[i].keptAt)]
+		if takes, _, _ := strings.Cut(h.takes, " "); out[i].keptBy != "" && composed(takes) {
+			out[i].keptBy = takes
+		}
 	}
 	return out
 }

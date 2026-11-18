@@ -383,7 +383,9 @@ assertion shapes:
   among them where it lands on such a member, though #2099's own documents are found. Of a
   member no tie decided, a report's kept place is compared by the node its
   declaration names, since of several agreeing declarations it names the one written last, and
-  not where the compile reads no declaration there. A tied member taking in each order the type
+  not where the compile reads no declaration there; where the member takes a node the fold
+  minted, it is compared by that node, since of declarations that meet the later wins, so a report
+  there naming as kept a declaration the fold dropped passes. A tied member taking in each order the type
   its report says lost is found; one taking the same type in both orders passes.
   Both compile at the default limits, so an order dependence among a listed collection's elements,
   in any other sequence or another order of one, or in a verdict at another limit (#1519) needs its

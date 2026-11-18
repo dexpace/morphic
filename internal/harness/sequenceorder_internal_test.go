@@ -367,6 +367,37 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want: passed(OracleSequenceOrder),
 		},
 		{
+			// D0's and D1's lists meet, each holding as many declarations, so the
+			// later wins and D2's report keeps it: D1 as written, D0 reversed.
+			// The member takes the list the fold mints in either order.
+			name: "a conflict kept by whichever of two meeting lists is written later",
+			src: schemas(composes("M", "D0", "D1", "D2"),
+				"D0: {type: object, properties: {p: {type: array, minItems: 1, items: {type: string}}}}",
+				"D1: {type: object, properties: {p: {type: array, maxItems: 5, items: {type: string}}}}",
+				"D2: {type: object, properties: {p: {type: integer}}}"),
+			kept:  []string{`"target":"t/composed/components/schemas/M/allOf/properties/p"`},
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/D2/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			name: "the same with two enums meeting in the values they share",
+			src: schemas(composes("M", "D0", "D1", "D2"),
+				"D0: {type: object, properties: {p: {type: string, enum: [a, b, c]}}}",
+				"D1: {type: object, properties: {p: {type: string, enum: [b, c, d]}}}",
+				"D2: {type: object, properties: {p: {type: integer}}}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/D2/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
+			name: "the same with a described list and a list of bounded strings",
+			src: schemas(composes("M", "D0", "D1", "D2"),
+				"D0: {type: object, properties: {p: {type: array, description: d, items: {type: string}}}}",
+				"D1: {type: object, properties: {p: {type: array, items: {type: string, maxLength: 3}}}}",
+				"D2: {type: object, properties: {p: {type: integer}}}"),
+			codes: map[string]string{"openapi/conflicting-redeclaration": s + "/D2/properties/p"},
+			want:  passed(OracleSequenceOrder),
+		},
+		{
 			// The deepest chain the permutation admits: its canonical form
 			// nests within two source bounds whichever link is met first.
 			name: "a chain of 255 schemas, each a property under an allOf",
@@ -605,6 +636,13 @@ var (
 	fixtureAgreeing = schemas(composesAll("W", "alpha", "beta", "gamma"),
 		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
 		"gamma: {type: object, properties: {p: {type: string}}}")
+	// fixtureMeeting: W composing alpha, beta and gamma, where alpha's and
+	// gamma's lists meet in one the fold mints, so beta's p loses in either
+	// order, and its report keeps whichever list is written later.
+	fixtureMeeting = schemas(composesAll("W", "alpha", "beta", "gamma"),
+		"alpha: {type: object, properties: {p: {type: array, minItems: 1, items: {type: string}}}}",
+		"beta: {type: object, properties: {p: {type: integer}}}",
+		"gamma: {type: object, properties: {p: {type: array, maxItems: 5, items: {type: string}}}}")
 	// fixtureOutvoted: fixtureTrade's two families, and W composing beta,
 	// alpha and gamma, where gamma agrees with alpha, so beta's p loses in
 	// either order.
@@ -1059,6 +1097,30 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			not:      []string{"document depends on sequence order"},
 		},
 		{
+			// The stated limit: where W's p takes the list the fold mints, its
+			// report's kept place is read as that list, so naming beta's
+			// declaration, which the fold dropped, in one order passes.
+			name: "a report naming as kept, in one order, a dropped declaration where the fold mints",
+			src:  fixtureMeeting,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				if !reversed {
+					return doc, diags, nil
+				}
+				out := slices.Clone(diags)
+				renamed := 0
+				for i, d := range out {
+					if len(d.Related) == 2 && strings.Contains(d.Related[1].Provenance.Node, "/W/") {
+						out[i].Related = slices.Clone(d.Related)
+						out[i].Related[0].Provenance.Pointer = "/components/schemas/beta/properties/p"
+						renamed++
+					}
+				}
+				require.Equal(t, 1, renamed, "the fixture must report W's p alone")
+				return doc, out, nil
+			},
+			found: false,
+		},
+		{
 			// The object AB writes for p is a node in either order, whichever
 			// declaration p takes, so what it says is compared.
 			name: "a node written where a tied member stands, differing",
@@ -1345,7 +1407,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 // detection rows: each fixture, compiled by the real compiler in both orders,
 // passes, so a finding above is the plant's.
 func TestSequenceOrderInvariant_UnplantedFixturesPass(t *testing.T) {
-	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "Agreeing": fixtureAgreeing,
+	for name, src := range map[string]string{"X": fixtureX, "Y": fixtureY, "Z": fixtureZ, "Beneath": fixtureBeneath, "Agreeing": fixtureAgreeing, "Meeting": fixtureMeeting,
 		"mixins": fixtureMixins, "kept": fixtureKept, "swap": fixtureSwap, "beside": fixtureBeside,
 		"three": fixtureThree, "trade": fixtureTrade, "far": fixtureFar, "loser": fixtureLoser,
 		"outvoted": fixtureOutvoted, "group": fixtureGroup, "brought": fixtureBrought} {

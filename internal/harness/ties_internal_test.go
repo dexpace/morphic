@@ -258,22 +258,31 @@ func TestUnpairedFacts_ComparesThePlaceKeptByTheTypeItsDeclarationNames(t *testi
 // TestKeptTypes_ReadsTheTypeTheDeclarationKeptNames pins where a fact's kept
 // type comes from: the node the declaration at its kept place names, among
 // those its member overrides, as its compile holds them, whether it admits null
-// aside, and none where its member overrides nothing there or holds no
-// declaration. The facts handed in are left as they were.
+// aside; the node the member takes where the fold minted it; and none where its
+// member overrides nothing there or holds no declaration. The facts handed in
+// are left as they were.
 func TestKeptTypes_ReadsTheTypeTheDeclarationKeptNames(t *testing.T) {
 	t.Parallel()
 	facts, _ := factsOf([]report{
 		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/W/p"),
 		conflictAt(nil, "/B/p", []string{"/X/p"}, "p/W/p"),
 		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/V/p"),
+		conflictAt(nil, "/B/p", []string{"/A/p"}, "p/M/p"),
+		conflictAt(nil, "/B/p", []string{"/X/p"}, "p/M/p"),
 	}, nil)
-	held := map[string]held{"p/W/p": {
-		takes: "t/prim/string false", said: map[string]string{"/A/p": "t/prim/string true"}, named: map[string]string{"/A/p": "t/prim/string"},
-	}}
+	held := map[string]held{
+		"p/W/p": {
+			takes: "t/prim/string false", said: map[string]string{"/A/p": "t/prim/string true"}, named: map[string]string{"/A/p": "t/prim/string"},
+		},
+		"p/M/p": {
+			takes: "t/composed/M/p false", said: map[string]string{"/A/p": "t/anon/A/p false"}, named: map[string]string{"/A/p": "t/anon/A/p"},
+		},
+	}
 
 	got := keptTypes(facts, held)
 
-	assert.Equal(t, []string{"t/prim/string", "", ""}, []string{got[0].keptBy, got[1].keptBy, got[2].keptBy})
+	assert.Equal(t, []string{"t/prim/string", "", "", "t/composed/M/p", ""},
+		[]string{got[0].keptBy, got[1].keptBy, got[2].keptBy, got[3].keptBy, got[4].keptBy})
 	assert.Empty(t, facts[0].keptBy)
 }
 

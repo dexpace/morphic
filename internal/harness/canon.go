@@ -456,13 +456,20 @@ func (r *rewriter) tiedNode(id ir.TypeID, td ir.TypeDef) bool {
 // the member, alike in either order, is not. The oracle reads one source, so
 // no space is qualified.
 func minted(members []string, id, erased string) bool {
-	if parts := strings.SplitN(id, ir.IDSeparator, 3); len(parts) < 2 || parts[1] != "composed" {
+	if !composed(id) {
 		return false
 	}
 	return slices.ContainsFunc(members, func(member string) bool {
 		rest, beneath := strings.CutPrefix(erased, member)
 		return beneath && mintedPosition(rest)
 	})
+}
+
+// composed reports whether id is in the composed namespace, where a fold mints
+// what it builds (docs/compilers/openapi.md#allof-redeclared-property).
+func composed(id string) bool {
+	parts := strings.SplitN(id, ir.IDSeparator, 3)
+	return len(parts) >= 2 && parts[1] == "composed"
 }
 
 // mintedPosition reports whether rest, what follows a tied member's pointer in
