@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,16 +22,17 @@ const pairAloneObjects = "[{type: object, properties: {p: {type: string}}, requi
 	"{type: object, properties: {q: {type: string}}, required: [q]}]"
 
 // unionPairsAlone are a oneOf and an anyOf written with nothing beside them, by
-// the kinds of their branches, some sharing no value, each with what the
-// position lowers to: the union elected, its variant count and the reason the
-// other is kept under. A union of null alone
+// the kinds of their branches, each with what the position lowers to: the
+// union elected, its variant count, the reason the other is kept under, and
+// whether the two share no value, a null shared only where both admit it.
+// A union of null alone
 // elected is an Enum keeping both, and a null branch saying more is kept at
 // its index, its oneOf's second branch where saysMore.
 var unionPairsAlone = []struct {
 	name, oneOf, anyOf, elected string
 	variants                    int
 	kept                        ir.UnmodeledReason
-	null, saysMore              bool
+	unsatisfied, null, saysMore bool
 }{
 	{name: "an anyOf each oneOf branch satisfies", oneOf: pairAloneObjects, anyOf: "[{type: object}]",
 		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering},
@@ -51,13 +53,13 @@ var unionPairsAlone = []struct {
 	{name: "scalars sharing a null alone", oneOf: "[{type: string}, {type: 'null'}]",
 		anyOf: "[{type: integer}, {type: 'null'}]", elected: "oneOf", variants: 1, kept: ir.ReasonDegradedLowering, null: true},
 	{name: "objects beside scalars", oneOf: pairAloneObjects, anyOf: "[{type: string}, {type: integer}]",
-		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering},
+		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering, unsatisfied: true},
 	{name: "scalars beside objects", oneOf: "[{type: string}, {type: integer}]", anyOf: pairAloneObjects,
-		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering},
+		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering, unsatisfied: true},
 	{name: "scalars sharing no kind", oneOf: "[{type: string}, {type: integer}]", anyOf: "[{type: boolean}]",
-		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering},
+		elected: "oneOf", variants: 2, kept: ir.ReasonDegradedLowering, unsatisfied: true},
 	{name: "objects beside a null alone", oneOf: pairAloneObjects, anyOf: "[{type: 'null'}]",
-		elected: "oneOf", variants: 2, kept: ir.ReasonValidationOnly, null: true},
+		elected: "oneOf", variants: 2, kept: ir.ReasonValidationOnly, unsatisfied: true, null: true},
 }
 
 // unionPairAloneSpellings are the ways to write the oneOf one and the anyOf
@@ -109,8 +111,8 @@ func reversedBranches(t *testing.T, list string) string {
 // and the components, and one allOf deeper, at every version and position, by
 // every kind of pair: the position is a Union of the union competing keywords
 // elects, keeping the other under its keyword, as validation logic where its
-// branches declare no shape, and draws no warning, though no instance may
-// satisfy the two together (GitHub #2011).
+// branches declare no shape, and draws one warning where the two share no
+// value, as two conjuncts sharing none do (GitHub #2011).
 func TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
@@ -127,7 +129,12 @@ func TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 							one, anyOf = reversedBranches(t, one), reversedBranches(t, anyOf)
 						}
 						doc, diags := compileSpellingsAlike(t, site, version, unionPairAloneSpellings(one, anyOf))
-						requireErrorsAndWarnings(t, diags, nil)
+						var want []wantFinding
+						if pair.unsatisfied {
+							want = append(want, wantFinding{code: diag.DegradedConstruct, pointer: string(site.at),
+								contains: []string{"share no value", "so no instance satisfies this schema, which the union it lowered as"}})
+						}
+						requireErrorsAndWarnings(t, diags, want)
 						kept := map[string]ir.UnmodeledReason{}
 						if pair.saysMore {
 							kept[fmt.Sprintf("openapi:oneOf/%d", map[bool]int{false: 1, true: 0}[reversed])] = ir.ReasonNoIRHome

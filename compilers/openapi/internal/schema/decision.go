@@ -39,8 +39,7 @@ type refinement struct {
 	held admitted
 	// contradicts marks conjuncts sharing no value: a value set was elected
 	// before the composition they would otherwise lower to, or, for value sets
-	// sharing no member, no conjunct was (decide). Two unions standing alone
-	// are not marked, as one schema writing both reports none (unionPair).
+	// sharing no member, no conjunct was (decide).
 	contradicts bool
 	// paired marks an inline principal writing the union the position elects
 	// of two written on two entries, the other passed over (unionPair).
@@ -309,8 +308,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	if aside {
 		kinds, inferred = restKinds(c, s, comp)
 	}
-	pair, paired := unionPair(c, s, conjuncts)
-	principal := pair
+	principal, paired := unionPair(c, s, conjuncts)
 	one := usesOneRef(c, s, comp)
 	contradicts := !one && disjoint(joint, conjuncts)
 	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
@@ -332,7 +330,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case principal == nil:
 		principal = w.elect(conjuncts, electable)
 	}
-	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts && pair == nil, paired: paired}
+	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts, paired: paired}
 	refAt := readThrough(conjuncts, principal)
 	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
 	// A use saying nothing more of a reference naming no schema is that

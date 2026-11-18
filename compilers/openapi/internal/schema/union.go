@@ -65,6 +65,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 			return tid, 0, diags
 		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	if st.of == nil {
+		// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
+		diags = append(diags, diagUnionsShareNothing(c, s, pointer)...)
+	}
 	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
 }
 

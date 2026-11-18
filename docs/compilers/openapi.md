@@ -3635,7 +3635,9 @@ it as validation logic, is a conjunct too, named by its keyword and admitting wh
 and an `anyOf` written together that the position does not elect
 ([`competing-keywords`](#competing-keywords)): beside the `allOf`, named by its keyword, and on an
 entry, named `allOf/<n>/<keyword>` beside that entry, which is then its own keywords and the union
-it elects. The schema is reported where those sets share no member, every
+it elects. A `oneOf` and an `anyOf` with nothing else conjoining with them are two conjuncts too,
+named where they are written, by their keywords on a schema writing both, which is reported though
+it writes no `allOf`, and the report names the union the position lowered as. The schema is reported where those sets share no member, every
 conjunct admits some value by itself and none is cut short, and they share no null: a null is a
 shared value only where every conjunct admits it, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations, each read as
@@ -3699,6 +3701,8 @@ as above.
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
+  `schema.TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten`,
   `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
   `schema.TestAllOf_ValueSetsSharingNoMemberWarnOnce`, `schema.TestAllOf_ValueSetsSharingAValueDrawNoWarning`,
   `schema.TestAllOf_ValueSetsSharingNoMemberReportAlikeInEitherOrder`,
@@ -4381,7 +4385,9 @@ declaration's keywords. The same preference decides between a `oneOf` and an `an
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
 with its entry; with nothing else conjoining with them, the two lower as one schema writing both
-does, wherever their entries are, and draw what it draws. Where a *structural* sibling is written as well, beside the two or on another entry
+does, wherever their entries are. Where the two share no value, a null only where both admit it,
+the schema writing them draws the warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)
+once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it. Where a *structural* sibling is written as well, beside the two or on another entry
 of the `allOf` holding them on one entry or two,
 [`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
 and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a

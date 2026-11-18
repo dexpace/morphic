@@ -130,3 +130,26 @@ func TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
 		assert.Contains(t, string(v.Type.Target), "t/composed/", "the variant composes the body")
 	}
 }
+
+// TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten pins a oneOf of
+// objects and an anyOf of strings with nothing beside them, on one schema and
+// on two allOf entries: each is the Union of the oneOf keeping the anyOf, and
+// draws one warning at the schema that the two share no value, naming the
+// union it lowered as.
+func TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten(t *testing.T) {
+	t.Parallel()
+	const oneOf = "oneOf: [{type: object, properties: {p: {type: string}}}, {type: object, properties: {q: {type: string}}}]"
+	const anyOf = "anyOf: [{type: string}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {`+oneOf+`, `+anyOf+`}
+    TwoEntries: {allOf: [{`+anyOf+`}, {`+oneOf+`}]}
+`))
+	var warned []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			assert.Contains(t, d.Message, "share no value")
+			assert.Contains(t, d.Message, "which the union it lowered as cannot state")
+			warned = append(warned, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{"/components/schemas/Flat", "/components/schemas/TwoEntries"}, warned)
+}

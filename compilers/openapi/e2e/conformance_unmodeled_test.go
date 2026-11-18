@@ -1367,13 +1367,17 @@ func assertCoDeclaredKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assertKeptRaw(t, nullable.Unmodeled, "openapi:anyOf", anyOf)
 
 	for _, at := range []string{
-		"NarrowedEnum/allOf/0", "NarrowedConst/allOf/0", "ConstWithinEnum",
-		"BothCombinators", "NullableWithCombinators",
+		"NarrowedEnum/allOf/0", "NarrowedConst/allOf/0", "ConstWithinEnum", "BothCombinators",
 	} {
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 			diagsAt(diags, "openapi/degraded-construct", "/components/schemas/"+at),
 			"%s announces the keyword it passed over", at)
 	}
+	// No string or null is a number or a boolean, so no instance satisfies the
+	// two unions together, which the position warns of beside the announcement.
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo, ir.SeverityWarning},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/NullableWithCombinators"),
+		"NullableWithCombinators announces the keyword it passed over and that its unions share no value")
 }
 
 // assertKeptRaw requires p to hold key under ReasonDegradedLowering with the
