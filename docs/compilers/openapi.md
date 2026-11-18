@@ -5176,8 +5176,9 @@ written beside it, but for a number carried as text, whose `Constraints` speak o
 ([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
 numeric bound no string instance, so each value bound written beside it is kept verbatim under
 `openapi:<keyword>` (`no_ir_home`) on the `Scalar` alone with an info `openapi/degraded-construct`
-at it, one an inline `allOf` branch writes the same way ([`allof-inline-residue`](#allof-inline-residue)),
-and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
+at it, one an inline `allOf` branch writes, and one beside an `allOf` whose inline principal it is,
+the same way ([`allof-inline-residue`](#allof-inline-residue)), both on the `Union` where the
+principal is a type list, and neither the `Scalar` nor a property or parameter carrying it holds one. The table is the same at every minor, and a pairing of `format`
 with another `type` is [`numeric-formats`](#numeric-formats)'. Beside a type array, a format the
 table pairs with `string`, `byte` and `http-date` among them, is the `string` variant's alone
 ([`type-arrays`](#type-arrays)).
@@ -5191,6 +5192,8 @@ table pairs with `string`, `byte` and `http-date` among them, is the `string` va
   `schema.TestScalar_AnEncodedFormatBesideContentEncodingKeepsItsPrimitive`,
   `schema.TestScalar_ANumberAsTextIsItsNumberOnAString`,
   `schema.TestScalar_ANumberAsTextKeepsItsBoundsVerbatim`,
+  `e2e.TestNumberText_ABoundBesideAPrincipalIsKeptAsFlat`,
+  `e2e.TestNumberText_TwoWritersOfABoundKeepBoth`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,

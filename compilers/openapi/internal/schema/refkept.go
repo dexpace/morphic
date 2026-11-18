@@ -23,13 +23,14 @@ import (
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
 // census keywords it wrote, described by shape where no refinement decided it,
-// the $ref branches of its allOf its lowering left unread, what its inline
-// branches keep (entryKeeps), the null branches a collapsed union lifts that
-// say more than their null (nullBranchKeeps), and the union keywords beside the
-// allOf it keeps as validation logic, their branches declaring no shape
-// (keptUnion).
+// the value bounds of those a number carried as text holds none of (text), the
+// $ref branches of its allOf its lowering left unread, what its inline branches
+// keep (entryKeeps), the null branches a collapsed union lifts that say more
+// than their null (nullBranchKeeps), and the union keywords beside the allOf it
+// keeps as validation logic, their branches declaring no shape (keptUnion).
 type outcomeKeeps struct {
 	keywords   []string
+	text       []string
 	shape      string
 	comp       allOfComposition
 	branches   []keptBranch
@@ -51,7 +52,7 @@ type keptBranch struct {
 
 // holdsAny reports whether k keeps anything.
 func (k outcomeKeeps) holdsAny() bool {
-	return len(k.keywords) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0 ||
+	return len(k.keywords) > 0 || len(k.text) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0 ||
 		slices.ContainsFunc(k.entries, keptEntry.keeps)
 }
 
@@ -73,7 +74,8 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	homes := homesAt(c, s, target, pointer)
 	if r.principal != nil {
 		degraded, validation := keptUnion(c, r, s)
-		k.keywords, k.validation = append(refinedUnhomed(c, r, s, typed, homes), degraded...), validation
+		k.text, k.keywords = textBoundsOf(refinedUnhomed(c, r, s, typed, homes), homes.numberText)
+		k.keywords, k.validation = append(k.keywords, degraded...), validation
 	}
 	collapsed := collapsedPrincipal(c, r)
 	if collapsed {
@@ -161,6 +163,24 @@ func isAdditionalProperties(keyword string) bool { return keyword == "additional
 // whose first copy the election takes for both.
 func principalTwin(w *admissionReader, r refinement, e allOfBranch) bool {
 	return r.principal != nil && !r.principalIs(e) && sameText(w.c, r.principal.schema, e.schema)
+}
+
+// textBoundsOf splits unhomed, the keywords a position keeps, into the value
+// bounds a node carrying a number as text holds none of, where numberText says
+// the node carries one, which it keeps as it keeps them written beside its
+// own keywords (keepTextBounds), and the rest.
+func textBoundsOf(unhomed []string, numberText bool) (text, rest []string) {
+	if !numberText {
+		return nil, unhomed
+	}
+	for _, key := range unhomed {
+		if slices.Contains(valueConstraintKeywords, key) {
+			text = append(text, key)
+		} else {
+			rest = append(rest, key)
+		}
+	}
+	return text, rest
 }
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that
@@ -266,6 +286,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		shape = refinedShape(c, k.comp, k.principal, standing)
 	}
 	diags := recordUnhomedAt(c, ts, p, s, k.keywords, shape, pointer)
+	diags = append(diags, keepTextBounds(c, p, s, k.text, pointer)...)
 	for _, key := range k.validation {
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
