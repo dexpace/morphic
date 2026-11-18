@@ -200,6 +200,17 @@ func closureTyped(c lowering.Ctx, ts *compile.Types, s *statement.Schema, td ir.
 	}
 }
 
+// variantNodes returns the registered nodes of u's variants.
+func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
+	nodes := make([]ir.TypeDef, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		if td, ok := ts.Node(v.Type.Target); ok {
+			nodes = append(nodes, td)
+		}
+	}
+	return nodes
+}
+
 // closedAfterComposition reports whether td is a Model closed once composition
 // is resolved.
 func closedAfterComposition(td ir.TypeDef) bool {

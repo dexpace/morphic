@@ -15,63 +15,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// anyInstance is what a schema writing no `type` admits, null aside: nulls is
-// the one reading of null, so a set here holds no kindNull, and its zero is a
-// schema writing `type: "null"`.
-const anyInstance = kindAny &^ kindNull
-
-// kindWords spells the members of a kindSet in the order a diagnostic lists
-// them. A number holds an integer and a number with a fraction, so it is
-// spelled before either: each is named only where the other is not left
-// beside it, the second as no type names it.
-var kindWords = []struct {
-	kinds kindSet
-	word  string
-}{
-	{kindObject, string(statement.KindObject)},
-	{kindArray, string(statement.KindArray)},
-	{kindString, string(statement.KindString)},
-	{kindNumber, string(statement.KindNumber)},
-	{kindInteger, string(statement.KindInteger)},
-	{kindFraction, "number that is no integer"},
-	{kindBoolean, string(statement.KindBoolean)},
-}
-
-// instanceWords spells t, a set of instance types, for a diagnostic.
-func instanceWords(t kindSet) string {
-	if t == 0 {
-		return string(statement.KindNull)
-	}
-	out := make([]string, 0, len(kindWords))
-	for _, w := range kindWords {
-		if t&w.kinds == w.kinds {
-			out = append(out, w.word)
-			t &^= w.kinds
-		}
-	}
-	return strings.Join(out, " or ")
-}
-
-// declaredInstanceTypes is the set s's own `type` keyword states. A schema
-// writing none excludes nothing, whatever else it writes: `properties` alone
-// constrains objects and admits a string. A word no dialect defines says
-// nothing either: load reports it, so it is no conjunct's to contradict another.
-func declaredInstanceTypes(s *statement.Schema) kindSet {
-	declared := kindsIn(s)
-	if len(declared) == 0 {
-		return anyInstance
-	}
-	var out kindSet
-	for _, st := range declared {
-		kinds := kindOfType(st)
-		if kinds == 0 {
-			kinds = anyInstance
-		}
-		out |= kinds &^ kindNull
-	}
-	return out
-}
-
 // conjunctAtom is one conjunct of an allOf, as a disjoint report names it:
 // its name below the composing schema, what it admits, and whether its read
 // was cut short. Its null is the statement st's, or, for keywords read apart
