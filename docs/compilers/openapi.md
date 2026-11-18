@@ -3847,10 +3847,14 @@ written, as an entry's own keywords are kept ([`allof-inline-residue`](#allof-in
 position distributes one union, so no two such keys meet. It draws an info
 `openapi/degraded-construct` at the branch. That is the branch's one home: it lowers at no pointer
 of its own, and the target of a `$ref` it writes is the node it is wherever it is named. A schema
-writing both a `oneOf` and an `anyOf` distributes its `oneOf`, as
-[`competing-keywords`](#competing-keywords) elects it, and each variant keeps the `anyOf` verbatim
-under `openapi:anyOf` (`degraded_lowering`), drawing that rule's info at the schema; where the
-`oneOf` is one of the shapes below, the node keeps both, with that shape's info alone. Such a
+writing both a `oneOf` and an `anyOf`, beside the body or as one inline entry of its `allOf`,
+distributes its `oneOf`, as [`competing-keywords`](#competing-keywords) elects it, and each variant
+keeps the `anyOf` verbatim under `openapi:anyOf`, its provenance where it is written: as
+`validation_only` where its branches declare no shape against the position, the entry's other
+keywords and the rest of the `allOf` among it, with an info `openapi/validation-only-keyword`,
+and else as `degraded_lowering`, drawing that rule's info where the two are written; where the
+`oneOf` is one of the shapes below, the node keeps both as that shape keeps a union, with that
+shape's findings alone. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -3929,7 +3933,8 @@ writes no union of its own, its `allOf` composes rather than refines
 ([`allof-refinement`](#allof-refinement)), and the union is the one branch union whose branches
 declare shape (below), or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
-is kept on every variant, whichever is written first. The `discriminator` standing with it is the one its branch writes, else the
+is kept on every variant, whichever is written first. An entry writing both is one such union and
+lowers as a schema writing both does (above), each variant keeping its `anyOf`. The `discriminator` standing with it is the one its branch writes, else the
 one beside the `allOf`: where both write one, nothing says which routes the union, so it is kept as
 what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword where
 the two are written alike and with its branch whole, under `openapi:allOf/<i>`, where they differ,
@@ -4164,6 +4169,10 @@ judged as one whose branches declare shape.
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
   `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
+  `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
+  `e2e.TestElection_BothKeywordsOnOneEntryKeepWhatTheyKeepBesideTheAllOf`,
+  `e2e.TestElection_AnEntryWritingBothBesideAnotherOneOfDistributesNeither`,
+  `e2e.TestElection_BothKeywordsOnOneEntryOfARoutedSubtypeKeepTheAnyOfAsBeside`,
   `e2e.TestElection_TwoAnyOfUnionsBesideABodyDistributeNeither`,
   `e2e.TestElection_TwoOneOfUnionsBesideABodyDistributeNeither`,
   `schema.TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin`,
@@ -4235,7 +4244,8 @@ collapsing would resolve the position to a shared primitive, which must never ca
 declaration's keywords. The same preference decides between a `oneOf` and an `anyOf` written on two
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
-with its entry. Where a *structural* sibling is written as well,
+with its entry. Where a *structural* sibling is written as well, beside the two or on another entry
+of the `allOf` holding them on one entry or two,
 [`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
 and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
 conjunction the unions are conjuncts of ([`allof-refinement`](#allof-refinement)).
@@ -4260,6 +4270,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `schema.TestUnionCombinators_UnpreservableIsNotAnnounced`,
   `e2e.TestElection_BothKeywordsElectTheOneOfWhicheverIsWrittenFirst`,
   `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
+  `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
 ### `discriminator`

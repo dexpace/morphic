@@ -264,7 +264,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
 	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
 	_, key, _ := unionBranches(body.union.holder)
-	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union.holder, key, body.union.at)...)
+	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union, key)...)
 	if !composes {
 		// A variant composing nothing over a body that is a map alone is that map.
 		diags = append(diags, keepUncomposedBranch(c, m, b)...)

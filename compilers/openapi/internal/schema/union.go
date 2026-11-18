@@ -196,17 +196,18 @@ func unionBranches(s *statement.Schema) ([]statement.Sub, string, bool) {
 // restated beside it.
 var otherCombinator = map[string]string{"oneOf": "anyOf", "anyOf": "oneOf"}
 
-// preserveUnusedCombinator keeps the branch set unionBranches passed over
-// verbatim on the Union the position lowers to, and reports it. A schema
-// declaring only one combinator passes over nothing and is left alone.
+// preserveUnusedCombinator keeps the branch set unionBranches passed over in
+// u's holder verbatim on the Union the position lowers to, and reports it. A
+// holder declaring only one combinator passes over nothing and is left alone.
 //
 // A schema writing both conjoins them, but one ir.Union carries one branch set,
 // so the other stays recoverable beside the elected one
 // (docs/compilers/openapi.md#competing-keywords), as validation logic where
-// its branches declare no shape against s. Beside a body the union distributes
-// across, each variant keeps it instead (buildComposedVariant).
-func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, won string, pointer jsontext.Pointer) []ir.Diagnostic {
-	choice := s.ChoiceKeywords()
+// its branches declare no shape against the schema at the position, an entry
+// holding both as much as one written beside the allOf. Beside a body the union
+// distributes across, each variant keeps it instead (buildComposedVariant).
+func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, u unionAt, won string) []ir.Diagnostic {
+	choice := u.holder.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
@@ -214,16 +215,16 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *statement.Sche
 	if unused == "anyOf" {
 		set = choice.AnyOf
 	}
-	if !setsDeclareShape(c, s, set) {
-		// Branches narrowing only what s declares are validation logic, as the
-		// same union on an entry of an allOf is (entryUnionReason).
-		return annotation.PreserveValidationOnlyKeyword(p, s, unused, pointer, c.Place())
+	if !setsDeclareShape(c, u.schema, set) {
+		// Branches narrowing only what the position declares are validation
+		// logic, as the same union on an entry of its own is (entryUnionReason).
+		return annotation.PreserveValidationOnlyKeyword(p, u.holder, unused, u.at, c.Place())
 	}
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.Place())
+	kept, diags := annotation.PreserveSchemaKeyword(p, u.holder, unused, ir.ReasonDegradedLowering, u.at, c.Place())
 	if !kept {
 		return diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, u.at,
 		"oneOf and anyOf are both declared here and conjoin, and one Union carries one "+
 			"branch set; this position lowered as its %s, with %s kept verbatim under Unmodeled",
 		won, unused))
@@ -249,7 +250,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	branches, key, exclusive := unionBranches(u.holder)
 	var diags []ir.Diagnostic
 	if !u.distributed {
-		diags = preserveUnusedCombinator(c, &common.Unmodeled, u.holder, key, u.at)
+		diags = preserveUnusedCombinator(c, &common.Unmodeled, u, key)
 	}
 	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.holder, u.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
@@ -324,6 +325,10 @@ func discriminatorScope(u unionAt, pointer jsontext.Pointer) (jsontext.Pointer, 
 type unionAt struct {
 	holder *statement.Schema
 	at     jsontext.Pointer
+	// schema is the schema written at the position, holder itself or the one
+	// writing the allOf holding it: what each branch the union elects or passes
+	// over conjoins with.
+	schema *statement.Schema
 	// disc is the discriminator the union is routed by, nil for none: one written
 	// beside it, else one beside the allOf holding its branch (branchUnion).
 	disc   *statement.Discriminator
@@ -353,7 +358,7 @@ func (u unionAt) variantBranch(c lowering.Ctx, i int, st *statement.Statement) b
 // besideUnion is the union s, written at pointer, writes itself, with the
 // discriminator written beside it.
 func besideUnion(s *statement.Schema, pointer jsontext.Pointer) unionAt {
-	return unionAt{holder: s, at: pointer, disc: s.Discriminator(), discAt: pointer}
+	return unionAt{holder: s, at: pointer, schema: s, disc: s.Discriminator(), discAt: pointer}
 }
 
 // branchUnionOf keys what branchUnion read of one schema.
@@ -381,7 +386,7 @@ func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) 
 		return unionAt{}, 0, false
 	}
 	e := allOfBranches(c, s, pointer).branches[at.index]
-	u := unionAt{holder: e.schema.Schema, at: e.pointer, disc: s.Discriminator(), discAt: pointer, branch: true}
+	u := unionAt{holder: e.schema.Schema, at: e.pointer, schema: s, disc: s.Discriminator(), discAt: pointer, branch: true}
 	if d := u.holder.Discriminator(); d != nil {
 		u.disc, u.discAt = d, e.pointer
 	}
@@ -398,11 +403,11 @@ func branchUnionIndexOf(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 
 // findBranchUnion is branchUnion's reading of s alone: where s lowers its
 // allOf, composing, not refining, the branch whose union declares shape
-// against s, where it lies within the flattening depth and classifyBranchSet
-// distributes it. Of several, the one writing a oneOf, as a schema writing
-// both lowers to its oneOf, each other kept on every variant; two writing a
-// oneOf, or several anyOfs, leave none, in any order. One declaring no shape
-// stays residue. A discriminator on both s and the branch leaves none: nothing
+// against s, within the flattening depth, each $ref branch naming a
+// referent. Of several, the one writing a oneOf, as one writing both
+// lowers to its oneOf, each other kept on every variant; two writing a oneOf,
+// or several anyOfs, leave none, in any order. One declaring no shape stays
+// residue. A discriminator on both s and the branch leaves none: nothing
 // says which routes it. A $ref site or a union beside the allOf lowers first.
 func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
@@ -428,7 +433,7 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	}
 	index := shaped[0]
 	if branches[index].schema.Discriminator() != nil && s.Discriminator() != nil ||
-		classifyBranchSet(c, branches[index].schema.Schema) != unionDistributed {
+		!branchesNameReferents(c, branches[index].schema.Schema) {
 		return branchUnionIndex{}
 	}
 	if decisionOf(c, s).refines {

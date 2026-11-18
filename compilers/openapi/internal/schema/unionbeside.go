@@ -129,10 +129,6 @@ const (
 	// the position lowers to are not an object alone — so there are no
 	// composition fields to distribute into.
 	unionUncomposableBody
-	// unionBothCombinators marks an allOf branch declaring oneOf and anyOf at
-	// once: only one of the two can become the value, so distributing either
-	// would leave the other in no branch's keeping.
-	unionBothCombinators
 	// unionUnresolvedBranch marks a union with a $ref branch naming nothing this
 	// compilation can resolve — a target in a document it did not read, an
 	// undeclared component, a pointer addressing no schema.
@@ -174,8 +170,8 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 		return unionUncomposableBody
 	}
 	// Of a oneOf and an anyOf written beside the body, the oneOf is elected
-	// (unionBranches), as on two entries of its allOf, and the other is kept on
-	// each variant (buildComposedVariant).
+	// (unionBranches), as on one entry of its allOf or two, and the other is
+	// kept on each variant (buildComposedVariant).
 	if !branchesNameReferents(c, s) {
 		return unionUnresolvedBranch
 	}
@@ -209,20 +205,6 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer, nil)
 	return tag.routed
-}
-
-// classifyBranchSet is the part of classifyUnionSiblings that reads the union
-// holder writes rather than the body: whichever of a union beside the body and
-// one on a branch of its allOf the body distributes (branchUnion), it does so
-// only where this says unionDistributed.
-func classifyBranchSet(c lowering.Ctx, holder *statement.Schema) unionLowering {
-	if choice := holder.ChoiceKeywords(); len(choice.OneOf) > 0 && len(choice.AnyOf) > 0 {
-		return unionBothCombinators
-	}
-	if !branchesNameReferents(c, holder) {
-		return unionUnresolvedBranch
-	}
-	return unionDistributed
 }
 
 // composesAsModel reports whether the structural siblings lower to a Model,

@@ -955,7 +955,11 @@ it sees. Changes made together in one bump are listed together under it.
     members beside a body that may admit null, whose null is not read, lives. Where no
     branch lives, the body lowers as itself keeping the union under `openapi:oneOf` or
     `openapi:anyOf`, and a discriminator mapping to a branch under `openapi:discriminator`. A union
-    on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed.
+    on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed. A
+    `oneOf` and an `anyOf` written together over a body, beside its keywords or its `allOf` or on
+    one inline entry of that `allOf`, distribute the `oneOf`, each variant keeping the `anyOf` under
+    `openapi:anyOf`, where the position was a `Model` keeping both, under their keywords or with the
+    entry whole.
   - **`Constraints`** ([constraints](./constraints.md#constraints),
     [`constraints`](../compilers/openapi.md#constraints)). A bound is read by the kinds its home
     lowers from: those of a value set's members, a `type` beside any `$ref` of its chain, and an
