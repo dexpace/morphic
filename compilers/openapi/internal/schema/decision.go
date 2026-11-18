@@ -238,20 +238,18 @@ func hoistUseHome(c lowering.Ctx, ts *compile.Types, s *statement.Schema, ref ir
 }
 
 // bindsUseOnly reports whether every key s writes that says something of the
-// instance binds a use of the type rather than the type: `readOnly`,
-// `writeOnly`, `default`, and a `nullable: true` the nullable-inference policy
-// reads as widening the reference (docs/compilers/openapi.md#nullable), each
-// of which a carrier holds and a node cannot
+// instance binds a use of the type rather than the type: one of
+// residueKeywords, or a `nullable: true` the nullable-inference policy reads
+// as widening the reference (docs/compilers/openapi.md#nullable), each of
+// which a carrier holds and a node cannot
 // (docs/compilers/openapi.md#use-bound-annotations).
 func bindsUseOnly(c lowering.Ctx, s *statement.Schema) bool {
 	return s.Truth == statement.Stated && !slices.ContainsFunc(s.Keys, func(k statement.Key) bool {
-		if k.Name == "allOf" && len(s.AllOf) > 0 || !statement.ReadBeside(k.Name, k.Node, "") {
+		switch {
+		case k.Name == "allOf" && len(s.AllOf) > 0, !statement.ReadBeside(k.Name, k.Node, ""),
+			slices.Contains(residueKeywords, k.Name):
 			return false
-		}
-		switch k.Name {
-		case "readOnly", "writeOnly", "default":
-			return false
-		case "nullable":
+		case k.Name == "nullable":
 			return !c.NullableInference.Honours() || !nullableTrue(s)
 		default:
 			return true
