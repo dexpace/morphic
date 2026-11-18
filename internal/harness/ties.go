@@ -120,12 +120,13 @@ func tiedBy(a, b []fact) []string {
 
 // unpairedFacts returns the reports of a and of b stating a fact the other
 // side does not, of a member no tie decided (tied, sorted): facts pair one to
-// one by member, lost place, what the report says, and the node the
-// declaration kept names, since of several saying the same a report names the
-// one written last (docs/compilers/openapi.md#allof-redeclared-property).
-// Where a compile reads no declaration there, the place kept is not compared. A tied member's
-// facts are not compared, so where a third declaration disagrees, its report
-// dropped in one order passes.
+// one by member, lost place, what the report says, and the node kept
+// (keptTypes), since of agreeing declarations of one node a report names the
+// one written last, while copies at distinct nodes keep the declaration of the
+// node sorting first in either order
+// (docs/compilers/openapi.md#allof-redeclared-property); one read as none pairs
+// with any. A tied member's facts are not compared, so a third declaration's
+// report dropped in one order passes.
 func unpairedFacts(a, b []fact, tied []string) (left, right []report) {
 	return factsWithout(a, b, tied), factsWithout(b, a, tied)
 }

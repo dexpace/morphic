@@ -382,8 +382,9 @@ assertion shapes:
   dependence of a member settled from a tied one that the tie does not explain passes, #2099's
   among them where it lands on such a member, though #2099's own documents are found. Of a
   member no tie decided, a report's kept place is compared by the node its
-  declaration names, since of several agreeing declarations it names the one written last, and
-  not where the compile reads no declaration there; where the member takes a node the fold
+  declaration names, since of agreeing declarations of one node it names the one written last,
+  while copies at distinct nodes keep the declaration of the node sorting first in either order,
+  and not where the compile reads no declaration there; where the member takes a node the fold
   minted, it is compared by that node, since of declarations that meet the later wins, so a report
   there naming as kept a declaration the fold dropped passes. A tied member taking in each order the type
   its report says lost is found; one taking the same type in both orders passes.
