@@ -215,6 +215,10 @@ type Voice struct {
 	// it writes, so it writes no entry Read keeps beside it but one no other
 	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
 	KeptWhole bool
+	// Beside says Node is the position's own schema, read beside the inline
+	// allOf branch its node is built from: what it writes stands before that
+	// branch's, as the keywords beside an allOf do before an entry's.
+	Beside bool
 }
 
 // Chain returns what speaks for the site, nearest first: its own schema, its

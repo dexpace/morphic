@@ -207,3 +207,38 @@ func TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines(t *testing.
 	assert.Equal(t, `{"b":["z"]} [out_of_scope]`, model["openapi:dependencies"])
 	assert.Contains(t, model["openapi:allOf/0"], `"dependencies":{"a":["z"]}`, "a composition keeps its entry whole")
 }
+
+// TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth pins two patterns, one
+// on an inline principal whose node holds a string's bounds and one beside the
+// allOf: a field holds one pattern, the position's, as the keywords beside an
+// allOf stand, and the principal, disagreeing, is kept whole with its own,
+// whatever node it builds. A node holding no such bound keeps both verbatim.
+func TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Union: {allOf: [{oneOf: [{type: string}, {type: integer}], pattern: '^p$'}], pattern: '^b$'}\n"+
+			"    TypeList: {allOf: [{type: [string, boolean], pattern: '^p$'}], pattern: '^b$'}\n"+
+			"    Scalar: {allOf: [{type: string, format: byte, pattern: '^p$'}], pattern: '^b$'}\n"+
+			"    Shared: {allOf: [{type: string, pattern: '^p$'}], pattern: '^b$'}\n"+
+			"    Alike: {allOf: [{oneOf: [{type: string}, {type: integer}], pattern: '^p$'}], pattern: '^p$'}\n"+
+			"    List: {allOf: [{type: array, items: {type: string}, pattern: '^p$'}], pattern: '^b$'}\n"))
+	held := map[string]*ir.Constraints{
+		"Union":    doc.Types[componentID("Union")].(*ir.Union).Constraints,
+		"TypeList": doc.Types["t/anon/components/schemas/TypeList/type/0"].(*ir.Scalar).Constraints,
+		"Scalar":   doc.Types[componentID("Scalar")].(*ir.Scalar).Constraints,
+		"Shared":   doc.Types[componentID("Shared")].(*ir.Scalar).Constraints,
+	}
+	for name, cons := range held {
+		require.NotNil(t, cons, name)
+		assert.Equal(t, "^b$", cons.Pattern, "%s: the field holds the position's", name)
+		kept := keptOn(t, doc, name)
+		require.Len(t, kept, 1, name)
+		assert.Contains(t, kept["openapi:allOf/0"], `"pattern":"^p$"`, "%s: the whole principal holds its own", name)
+		assert.Len(t, reportsAt(diags, "/components/schemas/"+name+"/allOf/0"), 1, name)
+		assert.Empty(t, reportsAt(diags, "/components/schemas/"+name), name)
+	}
+	assert.Equal(t, "^p$", doc.Types[componentID("Alike")].(*ir.Union).Constraints.Pattern)
+	assert.Empty(t, keptOn(t, doc, "Alike"))
+	assert.Equal(t, map[string]string{"openapi:allOf/0": `{"pattern":"^p$"} [degraded_lowering]`, "openapi:pattern": `"^b$" [degraded_lowering]`},
+		keptOn(t, doc, "List"))
+}

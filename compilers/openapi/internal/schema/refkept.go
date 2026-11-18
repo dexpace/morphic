@@ -102,14 +102,10 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 			// The principal's node keeps what it passes over (preserveUnusedCombinator).
 			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes,
 				pair && !r.principalIs(e))
-			residues[i] = unmergedBranchKeys(e.schema.Schema, read)
+			residues[i] = unmergedBranchKeys(e.schema.Schema, lessPattern(read, censused && patternBeside(s, e.schema.Schema, homes)))
 		}
 	}
-	lowered := -1
-	if r.principal != nil && r.principal.schema.Ref == nil {
-		lowered = slices.IndexFunc(r.comp.branches, r.principalIs)
-	}
-	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, lowered)
+	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, inlinePrincipal(r))
 	for i := range k.entries {
 		k.entries[i].numberText = homes.numberText
 	}
@@ -148,6 +144,36 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 			return said(w, r, typed, bs, key)
 		}
 	}
+}
+
+// inlinePrincipal returns the index of r's principal among its branches where
+// it is inline, the schema the position lowered from, and -1 where r has none
+// or a $ref.
+func inlinePrincipal(r refinement) int {
+	if r.principal == nil || r.principal.schema.Ref != nil {
+		return -1
+	}
+	return slices.IndexFunc(r.comp.branches, r.principalIs)
+}
+
+// lessPattern returns read, which keys of an inline principal are read, less
+// its pattern where residue says the node holds the position's instead, so the
+// principal's is residue, and the two disagree (ConstraintsOf).
+func lessPattern(read func(string) bool, residue bool) func(string) bool {
+	if !residue {
+		return read
+	}
+	return func(key string) bool { return key != "pattern" && read(key) }
+}
+
+// patternBeside reports whether s writes a pattern beside its allOf otherwise
+// than bs, the inline principal whose node, holding what homes says, takes a
+// string's bounds: one field holds one pattern, the position's.
+func patternBeside(s, bs *statement.Schema, homes boundHomes) bool {
+	if !hasKey(s, "pattern") || !hasKey(bs, "pattern") || !taken(homes.value, "pattern") {
+		return false
+	}
+	return s.TextKeywords().Pattern != bs.TextKeywords().Pattern
 }
 
 // writesUnionPair reports whether s and the inline entries of comp, the allOf

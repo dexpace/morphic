@@ -46,7 +46,9 @@ func (st stand) voices(c lowering.Ctx, s *statement.Schema, written jsontext.Poi
 	}
 	voices := positionVoices(c, st.of, st.at, ir.TypeRef{})
 	out := make([]annotation.Voice, 0, len(voices)+1)
-	out = append(out, voiceAt(c, st.of, st.at))
+	beside := voiceAt(c, st.of, st.at)
+	beside.Beside = true
+	out = append(out, beside)
 	for _, v := range voices {
 		if v.Node != s || v.At != written {
 			out = append(out, v)
