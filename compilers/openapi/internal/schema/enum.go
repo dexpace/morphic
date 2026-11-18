@@ -416,11 +416,15 @@ func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPri
 // valueSetReads returns what the build of td, the node the value set set writes
 // lowers to, read of set: the value set, and the type and format its ValueType
 // is selected by (declaredReads), as an Enum's members or a Literal's value
-// fit them.
+// fit them. An Enum with no member reads its type too: no value is left for
+// the type to type, so it says nothing the Enum does not.
 func valueSetReads(set *statement.Schema, td ir.TypeDef) keySet {
 	read := keySetOf("enum", "const")
 	switch n := td.(type) {
 	case *ir.Enum:
+		if len(n.Members) == 0 {
+			read |= keyBit("type")
+		}
 		read |= declaredReads(set, func(p ir.PrimKind) bool { return enumMembersAre(n.Members, p) })
 	case *ir.Literal:
 		read |= declaredReads(set, func(p ir.PrimKind) bool { return merge.Admits(p, n.Value) })

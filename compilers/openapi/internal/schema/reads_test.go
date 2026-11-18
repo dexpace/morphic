@@ -26,7 +26,6 @@ import (
 // at which the census and the reads of the builds it judges still disagree,
 // each of which some document under testdata or a core case reaches.
 var readDisagreementClasses = []string{
-	"own\tenum\ttype\thomed, unread",
 	"own\tliteral\ttype\thomed, unread",
 }
 
