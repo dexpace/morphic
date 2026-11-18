@@ -25,7 +25,9 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 		"    Apart: {allOf: [{type: string, minItems: 1}], minItems: 2}\n"+
 			"    Alike: {allOf: [{type: string, minItems: 2}], minItems: 2}\n"+
 			"    Whole: {allOf: [{type: string, minItems: 1, x-k: 1}], minItems: 2, x-k: 2}\n"+
-			"    Lost: {allOf: [{type: string, minimum: "+unpreservableValue+"}], minimum: 2}\n"))
+			"    Lost: {allOf: [{type: string, minimum: "+unpreservableValue+"}], minimum: 2}\n"+
+			"    Text: {allOf: [{type: string, format: double, minimum: 1, x-k: 1}], minimum: 2, x-k: 2}\n"+
+			"    List: {allOf: [{type: [string, boolean], format: int64, minimum: 1, x-k: 1}], x-k: 2}\n"))
 	held := func(name string) map[string]string {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, name)
@@ -42,4 +44,14 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 	assert.Equal(t, "2", whole["openapi:minItems"])
 	assert.Equal(t, map[string]string{"openapi:minimum": "2"}, held("Lost"))
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct), "the value that cannot be kept is reported")
+	text := held("Text")
+	assert.JSONEq(t, `{"type":"string","format":"double","minimum":1,"x-k":1}`, text["openapi:allOf/0"],
+		"the whole entry holds a number as text's bound")
+	assert.Equal(t, "2", text["openapi:minimum"])
+	list := held("List")
+	assert.JSONEq(t, `{"type":["string","boolean"],"format":"int64","minimum":1,"x-k":1}`, list["openapi:allOf/0"])
+	assert.NotContains(t, list, "openapi:minimum", "the union keeps none beside the whole entry")
+	variant := doc.Types["t/anon/components/schemas/List/type/0"]
+	require.NotNil(t, variant)
+	assert.NotContains(t, variant.Common().Unmodeled, "openapi:minimum", "nor does the text variant")
 }

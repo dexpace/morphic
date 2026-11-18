@@ -33,6 +33,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 	at := st.pointer(pointer)
 	id := internNode(c, ts, at, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		list.voices = st.voices(c, s, pointer)
+		list.held = st.heldWhole(c, pointer)
 		var read keySet
 		collect := finisher(func(_ ir.TypeDef, variant keySet) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
@@ -64,6 +65,9 @@ type typeArray struct {
 	types  []statement.Kind
 	voices []annotation.Voice
 	mark   finisher
+	// held says the position keeps the principal writing the list whole, so a
+	// variant keeps none of its bounds verbatim (stand.held).
+	held bool
 }
 
 // lowerTypeVariant lowers the variant of s's type array that st names, at
@@ -91,7 +95,7 @@ func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement
 		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
 			return ts.PrimID(shape.base), shape.read, nil
 		}
-		id, diags := hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, fin, stand{})
+		id, diags := hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, fin, stand{held: list.held})
 		return id, 0, diags
 	}
 }

@@ -167,10 +167,9 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 		cons, consDiags := ConstraintsOf(c, &sc.Unmodeled, s, voices, pointer, takes)
 		var apart []string
 		if carriesNumberAsText(sc) {
-			text := declaredConstraints(s)
-			apart = st.apart(c, s, pointer, text, sc)
-			consDiags = append(consDiags, keepApart(c, st, &sc.Unmodeled, s, pointer, apart, ir.ReasonNoIRHome)...)
-			cons, consDiags = nil, append(consDiags, keepTextBounds(c, &sc.Unmodeled, s, without(text, apart), pointer)...)
+			var textDiags []ir.Diagnostic
+			apart, textDiags = keepTextStanding(c, st, sc, s, pointer)
+			cons, consDiags = nil, append(consDiags, textDiags...)
 		}
 		diags = append(diags, consDiags...)
 		sc.Constraints = cons

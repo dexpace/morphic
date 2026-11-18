@@ -22,6 +22,10 @@ import (
 type stand struct {
 	of *statement.Schema
 	at jsontext.Pointer
+	// held says the node is a type list's variant whose principal the position
+	// keeps whole under its entry's key (heldWhole), so it keeps none of its
+	// bounds verbatim.
+	held bool
 }
 
 // pointer returns where the node of a schema written at written stands.
