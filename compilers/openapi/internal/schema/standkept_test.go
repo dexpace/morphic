@@ -462,3 +462,29 @@ func TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName(t *testing.T) {
 		assert.True(t, failed, "%s: the failure is reported at the entry", tc.name)
 	}
 }
+
+// TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds pins a
+// discriminator written beside an allOf whose inline principal's Union holds
+// its own: it is kept verbatim, its routes resolved, and reported as kept
+// beside the discriminator the Union holds, never for want of a home, which a
+// Union has; a keyword with none is reported apart.
+func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Tag: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: a}}], discriminator: {propertyName: b}}\n"+
+			"    Two: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: a}}], "+
+			"discriminator: {propertyName: b, mapping: {x: Nope}}, maxItems: 3}\n"))
+	assert.Equal(t, map[string]string{"openapi:discriminator": `{"propertyName":"b"} [degraded_lowering]`}, keptOn(t, doc, "Tag"))
+	assert.EqualValues(t, "a", doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
+	said := reportsAt(diags, "/components/schemas/Tag")
+	require.Len(t, said, 1)
+	assert.Contains(t, said[0], "holds the discriminator its inline allOf branch writes")
+	assert.NotContains(t, said[0], "no home")
+
+	said = reportsAt(diags, "/components/schemas/Two")
+	require.Len(t, said, 2)
+	assert.Contains(t, said[0], "which has no home for maxItems declared beside it")
+	assert.Contains(t, said[1], "holds the discriminator its inline allOf branch writes")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Two/discriminator/mapping/x"),
+		"the kept discriminator's mapping is resolved")
+}

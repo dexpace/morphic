@@ -93,7 +93,7 @@ var schemaRecursion = []string{
 	"composeMixin", "composeModel", "composedVariant", "contentSchemaRef", "declaring.finish", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf", "fillCatchAll", "fillComposedAdditional",
 	"fillModelProperties", "fillRefBranch", "hierarchyRoute", "hoistScalar", "hoistSubSchema", "hoistUseHome", "internOwnNode",
-	"keepApart", "keepAround", "keepFailedRefs", "keepStanding",
+	"keepApart", "keepAround", "keepFailedRefs", "keepStanding", "keepTagBeside",
 	"keepUncomposedRefs", "keepUnhomed", "keepUnhomedOn", "keepUnread", "keepUnreadAcross", "keepUnreadShared",
 	"keepingUnread", "keptOn", "lower",
 	"lowerAllOf",

@@ -357,7 +357,9 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 	if k.refined {
 		shape = refinedShape(c, k.comp, k.principal, standing, held)
 	}
-	diags := recordUnhomedAt(c, ts, p, s, k.keywords, shape, pointer)
+	keywords, tagged := k.besideTag(standing)
+	diags := recordUnhomedAt(c, ts, p, s, keywords, shape, pointer)
+	diags = append(diags, keepTagBeside(c, ts, p, s, tagged, pointer)...)
 	diags = append(diags, keepTextBounds(c, p, s, k.text, pointer)...)
 	for _, key := range k.validation {
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
@@ -423,6 +425,33 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 	e.own = slices.DeleteFunc(slices.Clone(e.residue), func(key string) bool { return !slices.Contains(own, key) })
 	i := slices.IndexFunc(comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })
 	return e, keepApart(c, ts, comp, held, p, bs, e.entry.pointer, apart, sharedReason(c, s, comp, i, apart))
+}
+
+// besideTag splits k's census keywords where standing, the node the position
+// owns, is the Union its inline principal built holding that principal's
+// discriminator: the position's own discriminator is kept beside one the node
+// holds, never for want of a home, so it is reported apart (keepTagBeside).
+func (k outcomeKeeps) besideTag(standing ir.TypeDef) (keywords, tagged []string) {
+	u, ok := standing.(*ir.Union)
+	if !ok || u.Discriminator == nil || !slices.Contains(k.keywords, "discriminator") {
+		return k.keywords, nil
+	}
+	return slices.DeleteFunc(slices.Clone(k.keywords), func(key string) bool { return key == "discriminator" }), []string{"discriminator"}
+}
+
+// keepTagBeside keeps on p the discriminator s, written at pointer, writes
+// beside an allOf whose inline principal's Union holds its own, tagged naming
+// it or nothing: verbatim, its routes resolved, as keepUnhomed keeps one, with
+// a report saying whose discriminator the Union holds.
+func keepTagBeside(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, tagged []string, pointer jsontext.Pointer,
+) []ir.Diagnostic {
+	kept, diags := keepUnhomed(c, ts, p, s, tagged, pointer)
+	if len(kept) == 0 {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"the Union this position lowered to holds the discriminator its inline allOf branch writes, and one "+
+			"Union is routed by one; the discriminator declared beside the allOf is kept verbatim under Unmodeled"))
 }
 
 // keptRef is the key a kept $ref conjunct is kept under, and where the entry
