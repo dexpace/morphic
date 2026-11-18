@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json/jsontext"
+	"maps"
 	"slices"
 	"strings"
 
@@ -172,6 +173,26 @@ func keepApart(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held *p
 	if len(apart) == 0 {
 		return nil
 	}
+	kept, diags := holdApart(c, comp, held, p, s, pointer, apart, reason)
+	if !kept {
+		return diags
+	}
+	// A carrier keeps the key beneath its own scope, so the report names the
+	// entry's path, which every such key ends in.
+	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"the keywords beside %s write %s otherwise than this inline branch, and one entry under a keyword holds "+
+			"one value; the branch's are kept verbatim under Unmodeled under the key naming its entry, %s, the rest of it lowered",
+		comp.subject(), strings.Join(apart, ", "), comp.branchPath(pointer)))
+	return append(diags, routesKept(c, ts, s, apart, pointer)...)
+}
+
+// holdApart writes on p the object the entry's key of s, comp's inline
+// principal written at pointer, holds: the keywords apart and those held says
+// were kept there before, as s writes them, for the reason they share. It
+// reports whether it wrote, and held then counts apart among them.
+func holdApart(c lowering.Ctx, comp allOfComposition, held *principalKept, p *ir.Unmodeled, s *statement.Schema,
+	pointer jsontext.Pointer, apart []string, reason ir.UnmodeledReason,
+) (bool, []ir.Diagnostic) {
 	all, shared := slices.Concat(held.apart, apart), reason
 	if len(held.apart) > 0 {
 		shared = sharedOf(held.apartReason, reason)
@@ -183,17 +204,81 @@ func keepApart(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held *p
 		}
 	}
 	kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(pointer), members, shared, c.Place().At(pointer))
-	if !kept {
-		return diags
+	if kept {
+		held.apart, held.apartReason = all, shared
 	}
-	held.apart, held.apartReason = all, shared
-	// A carrier keeps the key beneath its own scope, so the report names the
-	// entry's path, which every such key ends in.
-	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"the keywords beside %s write %s otherwise than this inline branch, and one entry under a keyword holds "+
-			"one value; the branch's are kept verbatim under Unmodeled under the key naming its entry, %s, the rest of it lowered",
-		comp.subject(), strings.Join(apart, ", "), comp.branchPath(pointer)))
-	return append(diags, routesKept(c, ts, s, apart, pointer)...)
+	return kept, diags
+}
+
+// keepBuiltAround finishes td by fin, the frames outside every reader of the
+// inline principal s written at pointer, the position's among them, holding
+// back what the principal's build kept on td itself: a keyword kept beside the
+// field it could not fill, which no reader keeps after the position. Those
+// entries leave the node while the position writes, and are kept after it
+// against what it wrote (keepBuilt), so whatever a build keeps reaches the
+// node through the one writer too.
+func keepBuiltAround(c lowering.Ctx, st stand, td ir.TypeDef, read keySet, held *principalKept, s *statement.Schema,
+	pointer jsontext.Pointer, fin finisher,
+) []ir.Diagnostic {
+	p := &td.Common().Unmodeled
+	built := takeBuilt(p, pointer)
+	held = held.saying(keeping{})
+	fin.run(td, read, held)
+	return keepBuilt(c, allOfBranches(c, st.of, st.at), held, p, s, pointer, built)
+}
+
+// takeBuilt removes from p, and returns, the entries written at pointer or
+// beneath it: what the schema written there kept on the node it built.
+func takeBuilt(p *ir.Unmodeled, pointer jsontext.Pointer) ir.Unmodeled {
+	var built ir.Unmodeled
+	for key, entry := range *p {
+		at := entry.Provenance.Pointer
+		if at != pointer && !strings.HasPrefix(string(at), string(pointer)+"/") {
+			continue
+		}
+		if built == nil {
+			built = ir.Unmodeled{}
+		}
+		built[key] = entry
+		delete(*p, key)
+	}
+	return built
+}
+
+// keepBuilt keeps on p, which the position has written, the entries built,
+// what the build of s, comp's inline principal written at pointer, kept: each
+// under its own key where that is free; once where the key holds the same
+// value, or the position keeps s whole, the entry holding it; and under s's
+// entry's key where the position's keyword holds another (holdApart). The
+// build reported each where it kept it, as written flat, which stays true, so
+// nothing more is said. A key no keyword of s names cannot be held otherwise.
+func keepBuilt(c lowering.Ctx, comp allOfComposition, held *principalKept, p *ir.Unmodeled, s *statement.Schema,
+	pointer jsontext.Pointer, built ir.Unmodeled,
+) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, key := range slices.Sorted(maps.Keys(built)) {
+		entry := built[key]
+		cur, taken := (*p)[key]
+		keyword := strings.TrimPrefix(key, annotation.EntryKey("", ""))
+		switch {
+		case !taken:
+			annotation.PreserveInto(p, key, entry.Value, entry.Reason, entry.Provenance)
+		case held.whole || bytes.Equal(cur.Value, entry.Value):
+		case !hasKey(s, keyword):
+			diags = append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+				"internal: %s, kept by the build of this allOf branch, is held with another value", key))
+		default:
+			_, heldDiags := holdApart(c, comp, held, p, s, pointer, []string{keyword}, entry.Reason)
+			diags = append(diags, heldDiags...)
+		}
+	}
+	if _, kept := built[annotation.EntryKey("", "discriminator")]; kept || held.whole && len(built) > 0 {
+		// What the position read out of a discriminator kept whole, and what a
+		// whole entry holds, is kept once (dropFoldedIntoWhole).
+		promotion.DropContained(c.Promoter(), p, annotation.EntryKey("", "discriminator"))
+		dropFoldedIntoWhole(c, p)
+	}
+	return diags
 }
 
 // keyWrittenAlike reports whether a and b write key with one value, as heldAgainst

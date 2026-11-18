@@ -475,7 +475,7 @@ func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing
 			"    Two: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: a}}], "+
 			"discriminator: {propertyName: b, mapping: {x: Nope}}, maxItems: 3}\n"))
 	assert.Equal(t, map[string]string{"openapi:discriminator": `{"propertyName":"b"} [degraded_lowering]`}, keptOn(t, doc, "Tag"))
-	assert.EqualValues(t, "a", doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
+	assert.Equal(t, "a", doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
 	said := reportsAt(diags, "/components/schemas/Tag")
 	require.Len(t, said, 1)
 	assert.Contains(t, said[0], "holds the discriminator its inline allOf branch writes")
@@ -487,4 +487,63 @@ func TestPrincipalKept_ADiscriminatorBesideAUnionsOwnSaysWhoseItHolds(t *testing
 	assert.Contains(t, said[1], "holds the discriminator its inline allOf branch writes")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Two/discriminator/mapping/x"),
 		"the kept discriminator's mapping is resolved")
+}
+
+// TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions pins the keywords
+// an inline principal's build keeps on the node itself, beside the field it
+// could not fill, before any reader runs: a format beside a contentEncoding,
+// the union keyword a Union passes over, a prefixItems beside a listed tuple.
+// The position's own keyword takes the plain key, the principal's is kept
+// under its entry's key, and each is reported once, the build's as written
+// flat. Written alike it is one writing, and a whole principal holds it.
+func TestPrincipalKept_WhatABuildKeepsIsHeldAgainstThePositions(t *testing.T) {
+	t.Parallel()
+	union := "oneOf: [{type: string}, {type: integer}], anyOf: [{type: string}, {type: boolean}]"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Format: {allOf: [{type: string, format: byte, contentEncoding: base64url}], format: uuid}\n"+
+			"    Union: {allOf: [{"+union+"}], anyOf: [{type: number}, {type: string}]}\n"+
+			"    Prefix: {allOf: [{"+draft07+", type: array, items: [{type: string}], prefixItems: [{type: integer}]}], "+
+			"prefixItems: [{type: boolean}]}\n"+
+			"    Alike: {allOf: [{type: string, format: byte, contentEncoding: base64url}], format: byte}\n"+
+			"    UnionAlike: {allOf: [{"+union+"}], anyOf: [{type: string}, {type: boolean}]}\n"+
+			"    Whole: {allOf: [{"+union+", x-k: 1}], anyOf: [{type: number}, {type: string}], x-k: 2}\n"+
+			"    Free: {allOf: [{type: string, format: byte, contentEncoding: base64url}]}\n"))
+	for _, tc := range []struct{ name, keyword, entry, plain, flat string }{
+		{"Format", "format", `{"format":"byte"} [no_ir_home]`, `"uuid" [degraded_lowering]`, "format is kept verbatim under Unmodeled"},
+		{"Union", "anyOf", `{"anyOf":[{"type":"string"},{"type":"boolean"}]} [degraded_lowering]`,
+			`[{"type":"number"},{"type":"string"}] [degraded_lowering]`, "with anyOf kept verbatim under Unmodeled"},
+		{"Prefix", "prefixItems", `{"prefixItems":[{"type":"integer"}]} [degraded_lowering]`, `[{"type":"boolean"}] [degraded_lowering]`,
+			"prefixItems is kept verbatim: this schema's dialect"},
+	} {
+		kept := keptOn(t, doc, tc.name)
+		assert.Equal(t, tc.entry, kept["openapi:allOf/0"], "%s: the principal's under its entry's key", tc.name)
+		assert.Equal(t, tc.plain, kept["openapi:"+tc.keyword], "%s: the position's under the keyword", tc.name)
+		at := "/components/schemas/" + tc.name
+		said := strings.Join(slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/"+tc.keyword)), "\n")
+		assert.Equal(t, 1, strings.Count(said, tc.flat), "%s: the build's report, as written flat, once: %s", tc.name, said)
+		assert.NotContains(t, said, "otherwise than this inline branch", "%s: and no second report of it", tc.name)
+		assert.Len(t, reportsAt(diags, at), 1, "%s: the position's once", tc.name)
+	}
+	assert.Equal(t, map[string]string{"openapi:format": `"byte" [no_ir_home]`}, keptOn(t, doc, "Alike"))
+	assert.Empty(t, reportsAt(diags, "/components/schemas/Alike"), "one writing, reported at the entry alone")
+	assert.Equal(t, map[string]string{"openapi:anyOf": `[{"type":"string"},{"type":"boolean"}] [degraded_lowering]`}, keptOn(t, doc, "UnionAlike"))
+	assert.Empty(t, reportsAt(diags, "/components/schemas/UnionAlike"))
+	whole := keptOn(t, doc, "Whole")
+	assert.Contains(t, whole["openapi:allOf/0"], `"anyOf":[{"type":"string"},{"type":"boolean"}]`)
+	assert.Equal(t, `[{"type":"number"},{"type":"string"}] [degraded_lowering]`, whole["openapi:anyOf"])
+	assert.Equal(t, keptOn(t, doc, "Alike"), keptOn(t, doc, "Free"), "alone, it is kept as written flat")
+}
+
+// TestPrincipalKept_AVoicesBuildKeepStaysThePositions pins what the build of
+// a principal's node keeps of the position's own keywords, read beside the
+// principal: a 3.0 exclusive modifier with no bound beside it. It is the
+// position's, held back with nothing of the principal's, and one the principal
+// writes alike is kept once.
+func TestPrincipalKept_AVoicesBuildKeepStaysThePositions(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
+		"    Beside: {allOf: [{type: number, format: fixed}], exclusiveMinimum: true}\n"+
+			"    Alike: {allOf: [{type: number, format: fixed, exclusiveMinimum: true}], exclusiveMinimum: true}\n"))
+	assert.Equal(t, map[string]string{"openapi:exclusiveMinimum": "true [degraded_lowering]"}, keptOn(t, doc, "Beside"))
+	assert.Equal(t, map[string]string{"openapi:exclusiveMinimum": "true [degraded_lowering]"}, keptOn(t, doc, "Alike"))
 }

@@ -129,9 +129,13 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	st := stand{of: s, at: pointer}
 	// The position's own keywords type the value set as a conjunct does, and
 	// its census keeps what they leave before the principal's keeps its own.
-	position := own.on(func(td ir.TypeDef) []ir.Diagnostic {
+	outside := own.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td), stand{}, nil, nil)
 	}).then(fin)
+	var heldBack []ir.Diagnostic
+	position := finisher(func(td ir.TypeDef, read keySet, held *principalKept) {
+		heldBack = keepBuiltAround(c, st, td, read, held, bs, e.pointer, outside)
+	})
 	site := valueSetSite{set: bs, written: e.pointer, at: st, finish: func(td ir.TypeDef, read keySet, held *principalKept) {
 		kept.diags = keepUnread(c, ts, bs, e.pointer, td, d, read, st, held, position)
 	}}
@@ -146,7 +150,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 		id = lowerNullAlone(c, ts, site)
 	}
 	// The value set is the position's node, which its build censuses.
-	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags)
+	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags, heldBack)
 }
 
 // setType is the ValueType of the Enum or Literal a refinement's value set

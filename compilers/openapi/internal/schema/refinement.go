@@ -32,15 +32,21 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	}
 	// The node keeps the content vocabulary the branch writes where it holds
 	// none, as the branch's own node would (recordUnplacedContent).
-	var content []ir.Diagnostic
+	var content, built []ir.Diagnostic
 	st := stand{of: s, at: pointer}
-	position := fin
+	// What the principal's build kept on the node itself is held back while
+	// the position writes, the last of the principal's to leave and the first
+	// kept again.
+	outside := fin
+	position := finisher(func(td ir.TypeDef, read keySet, held *principalKept) {
+		built = keepBuiltAround(c, st, td, read, held, e.schema.Schema, e.pointer, outside)
+	})
 	fin = func(td ir.TypeDef, read keySet, held *principalKept) {
 		k := unplacedContent(c, e.schema.Schema, td, e.pointer)
 		content = keepAround(c, ts, st, td, read, held, e.schema.Schema, e.pointer, k, position)
 	}
 	ref, diags := lowerSchemaBody(c, ts, depth, e.schema.Schema, e.pointer, fin, st)
-	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, content)
+	return ref.Target, slices.Concat(missingArrayItemsConjoined(c, e.schema.Schema, e.pointer), diags, built, content)
 }
 
 // resolveBeaten resolves each $ref of r but its principal: nothing else may

@@ -75,6 +75,13 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	standing := standsAtPosition(c, r, target, pointer)
 	if r.principal != nil {
 		degraded, validation := keptUnion(c, r, s)
+		if standing {
+			// A union the position writes as its standing principal does is
+			// one writing, the principal's (refinedUnhomed).
+			bs := r.principal.schema.Schema
+			alike := func(key string) bool { return keyWrittenAlike(s, bs, key) }
+			degraded, validation = slices.DeleteFunc(degraded, alike), slices.DeleteFunc(validation, alike)
+		}
 		k.text, k.keywords = textBoundsOf(refinedUnhomed(c, r, s, typed, homes, standing), homes.numberText)
 		k.keywords, k.validation = append(k.keywords, degraded...), validation
 	}

@@ -37,3 +37,24 @@ func TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing(t *testing
 	assert.Empty(t, p, "nothing is kept")
 	assert.Equal(t, []string{"type"}, held.apart, "nor counted as kept under the entry's key")
 }
+
+// TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken drives the
+// state no build produces: an entry a principal's build kept under a key none
+// of its keywords names, which the position holds with another value. There is
+// no member of the entry's object to keep it as, so it is reported, never
+// overwritten.
+func TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string}]}\n"))
+	decl, ok := l.Doc.Components.Schemas.Get("S")
+	require.True(t, ok)
+	comp := allOfBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
+	e := comp.branches[0]
+	p := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`1`), Reason: ir.ReasonNoIRHome}}
+	built := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`2`), Reason: ir.ReasonNoIRHome}}
+
+	diags := keepBuilt(l.Ctx, comp, &principalKept{}, &p, e.schema.Schema, e.pointer, built)
+
+	assertInternalInvariant(t, diags)
+	assert.Equal(t, `1`, string(p["openapi:oneOf/0"].Value), "what the position wrote stands")
+}
