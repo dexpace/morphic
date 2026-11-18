@@ -1059,8 +1059,9 @@ it sees. Changes made together in one bump are listed together under it.
     union, a `List`, a `Tuple` or a `Scalar`, stands at the position's pointer and ID, as a value
     set's node already did, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
     carrier; its children keep their pointers. A `type` list's variants, which no pointer of the
-    source names, stand under the position's (`<position>/type/<i>`), where they stood under the
-    entry's, where the same keywords written flat at the position put them. It holds
+    source names, and the nodes beneath them stand under the position's (`<position>/type/<i>`),
+    where they stood under the entry's, where the same keywords written flat at the position put
+    them. It holds
     the bounds, notes and kept keywords written beside it, which the alias, the property or the
     parameter held, a wrapper's once: a `type` list's variant each bound its type takes, its array
     variant the collection bounds, and a bound no part of the node reads, a collection bound

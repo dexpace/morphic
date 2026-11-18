@@ -2424,8 +2424,8 @@ beside the `allOf` would, so one node stands for the position whichever conjunct
 value set, a `Union`, a `List`, a `Tuple` or a hoisted `Scalar`, its children and the reports on
 what it writes where they are written, so `{allOf: [{description: d}, {type: array, items: {type:
 string}}]}` is the `List` at the position, as its flat spelling is, and a node its `items` builds
-stands at `…/allOf/1/items`. A type list's variants, which no pointer of the source names, stand
-under the position's ([`type-arrays`](#type-arrays)). The node holds the
+stands at `…/allOf/1/items`. A type list's variants, which no pointer of the source names, and the
+nodes beneath them stand under the position's ([`type-arrays`](#type-arrays)). The node holds the
 bounds of the conjunction, the position's own and each other conjunct's, as the same keywords
 written beside each other give it them, each where the node's builder reads it and one no part of
 the node reads kept on it under its keyword, a collection bound beside a `oneOf` as the flat
