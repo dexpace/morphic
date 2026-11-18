@@ -229,9 +229,8 @@ func (r deadReport) none(c lowering.Ctx, body, holder *statement.Schema) string 
 	forbids := !bodyAdmitsNull(c, body, holder)
 	if r.on != "" {
 		// What the schema lowers as is the rest of its allOf, whose null a null
-		// branch of the union on the entry takes; the nulls walk reads it whole.
-		n := newNulls(c)
-		forbids = !n.schema(body, nullSite{}).admits(c)
+		// branch of the union on the entry takes: the schema read whole.
+		forbids = !mayAdmitNull(c, c.Statements().Read(body), nil)
 	}
 	but, none := "", "no instance"
 	if nulls > 0 && !forbids {
@@ -256,9 +255,8 @@ func (r deadReport) none(c lowering.Ctx, body, holder *statement.Schema) string 
 // diagDeadEntryUnion is the one warning s, written at pointer, draws where u,
 // the union on an entry of its allOf, keeps no branch beside the rest of it
 // (unionNoLiveBranch) and the report of conjuncts sharing no value
-// (docs/compilers/openapi.md#allof-disjoint-conjuncts) is silent: that report
-// reads a union as the nulls walk does, admitting a null the rest admits,
-// where a union no branch of which admits null refuses it.
+// (docs/compilers/openapi.md#allof-disjoint-conjuncts) is silent, as where a
+// null branch of u takes a null the rest admits, which the two then share.
 func diagDeadEntryUnion(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(disjointNames(c, s, allOfBranches(c, s, pointer))) > 0 {
 		return nil

@@ -407,17 +407,28 @@ func keywordReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i
 func entryUnionReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) ir.UnmodeledReason {
 	holder := comp.branches[i].schema.Schema
 	choice := holder.ChoiceKeywords()
-	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, choice.OneOf, choice.AnyOf) {
+	if unionApart(c, s, comp, i) || setsDeclareShape(c, s, holder, choice.OneOf, choice.AnyOf) ||
+		keptWithElected(c, s, comp.pointer) {
 		return ir.ReasonDegradedLowering
 	}
 	return ir.ReasonValidationOnly
 }
 
+// keptWithElected reports whether s, written at pointer, elects the union an
+// entry of its allOf writes and keeps it whole on that entry, as the shapes of
+// docs/compilers/openapi.md#union-beside-structure do, which keep every other
+// union as they keep that one, as degraded_lowering, as beside the allOf.
+func keptWithElected(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
+	u, _, distributed := branchUnion(c, s, pointer)
+	return u.holder != nil && !distributed
+}
+
 // unionApart reports whether the oneOf and anyOf the inline entry at index i
-// of comp writes share no kind with what the rest of s, the schema writing
-// comp, admits, the entry's other keywords among it: no instance satisfies
-// them together, as admissionReader.conjuncts reads a union beside the allOf. A
-// read cut short says no.
+// of comp writes, with those other inline entries write where s writes none,
+// share no kind with what the rest of s, the schema writing comp, admits, the
+// entries' other keywords among it: no instance satisfies them together, as
+// admissionReader.conjuncts reads two unions beside the allOf. A read cut
+// short says no.
 func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i int) bool {
 	w := newAdmissionReader(c)
 	bs := comp.branches[i].schema.Schema
@@ -431,6 +442,11 @@ func unionApart(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i in
 		case j == i || !stated(e.schema.Schema):
 		case e.schema.Ref != nil:
 			rest = rest.and(w.of(e.schema))
+		case !declaresUnion(s) && declaresUnion(e.schema.Schema):
+			// Unions on two entries are read together, as two beside the
+			// allOf are (unionAside).
+			union = union.and(unionsIn(&w, e.schema.Schema))
+			rest = rest.and(w.written(e.schema.Schema, w.nullable))
 		default:
 			rest = rest.and(inlineConjunct(&w, e.schema.Schema))
 		}

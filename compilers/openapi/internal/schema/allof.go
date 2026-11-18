@@ -233,9 +233,9 @@ func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
 
 // subject names the schema writing a's conjuncts in a report: "this allOf",
 // or, where the schema writes a $ref beside its keywords, the conjunct that
-// reference is, "this schema", which writes no allOf to name.
+// reference is, or no allOf at all, "this schema", which writes none to name.
 func (a allOfComposition) subject() string {
-	if len(a.branches) > 0 && a.branches[0].pointer == a.pointer {
+	if len(a.branches) == 0 || a.branches[0].pointer == a.pointer {
 		return "this schema"
 	}
 	return "this allOf"

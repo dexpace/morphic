@@ -417,18 +417,24 @@ type branchUnionIndex struct {
 // written at pointer, conjoins with the rest of its composition, as it would
 // the same union written beside the allOf
 // (docs/compilers/openapi.md#union-beside-structure), with the discriminator
-// written on the branch, else beside the allOf, and how the position lowers it
-// (classifyConjoined): ok is false where s is the base of the hierarchy the
-// discriminator routes, which leaves the union with its branch.
+// written on the branch, else beside the allOf, and how the position lowers it:
+// unionSharesNoKind where the unions its entries write share no kind with the
+// rest (unionApart), else as classifyConjoined says. ok is false where the
+// union stays with its branch, as for the base of a hierarchy the
+// discriminator routes.
 func branchUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
 	at := branchUnionIndexOf(c, s)
 	if !at.ok {
 		return unionAt{}, 0, false
 	}
-	e := allOfBranches(c, s, pointer).branches[at.index]
+	comp := allOfBranches(c, s, pointer)
+	e := comp.branches[at.index]
 	u := unionAt{holder: e.schema.Schema, at: e.pointer, schema: s, disc: s.Discriminator(), discAt: pointer, branch: true}
 	if d := u.holder.Discriminator(); d != nil {
 		u.disc, u.discAt = d, e.pointer
+	}
+	if unionApart(c, s, comp, at.index) {
+		return u, unionSharesNoKind, false
 	}
 	how := classifyConjoined(c, s, u, pointer)
 	return u, how, how == unionDistributed || how == unionRoutedSubtype
@@ -443,12 +449,12 @@ func branchUnionIndexOf(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 
 // findBranchUnion is branchUnion's reading of s alone: where s lowers its
 // allOf, composing, not refining, the branch whose union declares shape
-// against s, within the flattening depth, each $ref branch naming a
-// referent. Of several, the one writing a oneOf, as one writing both
-// lowers to its oneOf, each other kept on every variant; two writing a oneOf,
-// or several anyOfs, leave none, in any order. One declaring no shape stays
-// residue. A discriminator on both s and the branch leaves none: nothing
-// says which routes it. A $ref site or a union beside the allOf lowers first.
+// against s without any entry's union, within the flattening depth, each $ref
+// branch naming a referent. Of several, the one writing a oneOf, each other
+// kept on every variant; two writing a oneOf, or several anyOfs, leave none,
+// in any order. One declaring no shape stays residue. A discriminator on both
+// s and the branch leaves none: nothing says which routes it. A $ref site or a
+// union beside the allOf lowers first.
 func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
@@ -457,9 +463,10 @@ func findBranchUnion(c lowering.Ctx, s *statement.Schema) branchUnionIndex {
 	var shaped, oneOfs []int
 	for i, e := range branches {
 		choice := e.schema.ChoiceKeywords()
-		// Judged against the whole conjunction, the entry's own unions in it, as
-		// a union sharing no kind with the rest is read apart (entryUnionReason).
-		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) || !setsDeclareShape(c, s, nil, choice.OneOf, choice.AnyOf) {
+		// Judged against the rest of the conjunction, the entry's own unions
+		// apart, as a union beside the allOf and the election within an entry are.
+		if e.schema.Ref != nil || !declaresUnion(e.schema.Schema) ||
+			!setsDeclareShape(c, s, e.schema.Schema, choice.OneOf, choice.AnyOf) {
 			continue
 		}
 		shaped = append(shaped, i)

@@ -127,18 +127,26 @@ func TestElection_BothKeywordsOnOneEntryDistributeTheOneOf(t *testing.T) {
 
 // compileSpellingsAlike compiles each spelling at site, its components in both
 // orders, and holds every document equal to the one entry's with the components
-// as declared, read with no allOf entry's index, and returns that document.
+// as declared, read with no allOf entry's index, and returns that document. An
+// info is drawn at each entry a union is kept on (GitHub #2057), so infos are
+// compared as a set.
 func compileSpellingsAlike(
 	t *testing.T, site bothKeywordsSite, version string, spellings map[string]string,
 ) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	noEntry := func(text string) string { return entryNodes.ReplaceAllString(text, "") }
+	view := func(doc *ir.Document) any {
+		v, ok := electionView(t, doc, noEntry).(map[string]any)
+		require.True(t, ok)
+		v["findings"] = infosOnce(v["findings"])
+		return v
+	}
 	doc, diags := compileAnnotationSpec(t, "both", site.doc(version, spellings["one entry"], false))
-	want := electionView(t, doc, noEntry)
+	want := view(doc)
 	for _, name := range slices.Sorted(maps.Keys(spellings)) {
 		for _, reversed := range []bool{false, true} {
 			got, _ := compileAnnotationSpec(t, "both", site.doc(version, spellings[name], reversed))
-			if diff := cmp.Diff(want, electionView(t, got, noEntry)); diff != "" {
+			if diff := cmp.Diff(want, view(got)); diff != "" {
 				t.Errorf("%s, reversed %t, differs from one entry (-one entry +%s):\n%s", name, reversed, name, diff)
 			}
 		}
@@ -292,7 +300,8 @@ func TestElection_BothKeywordsOnOneEntryOfARoutedSubtypeKeepTheAnyOfAsBeside(t *
 // at every version and position, where the anyOf alone declares shape, where
 // it admits objects alone beside a oneOf branch of another kind, and where it
 // shares no kind with the body: the union declaring shape is elected, and the
-// other is a conjunct of the rest wherever it is written.
+// other is a conjunct of the rest wherever it is written, which keeps both on
+// the body's Model where it shares no kind with the body.
 func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
 	t.Parallel()
 	objects := "[{type: object, properties: {d: {type: string}}}, {type: object, properties: {e: {type: string}}}]"
@@ -327,10 +336,11 @@ func TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten(t *testing.T) {
 				t.Helper()
 				requireErrorsAndWarnings(t, diags, []wantFinding{{code: diag.DegradedConstruct, pointer: string(at),
 					contains: []string{"share no value", "string or integer"}}})
-				union := requireUnionOf(t, doc, at, 2)
-				for _, v := range union.Variants {
-					assert.Equal(t, degradedKept("openapi:anyOf"), keptOn(kindNode(t, doc, v.Type.Target)))
-				}
+				m, ok := kindNode(t, doc, entryPositionID(at)).(*ir.Model)
+				require.True(t, ok, "no instance satisfies the two, so the position is the Model its body gives")
+				assert.Equal(t, map[string]ir.UnmodeledReason{
+					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
+				}, keptOn(m), "it keeps both unions")
 			}},
 	}
 	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {

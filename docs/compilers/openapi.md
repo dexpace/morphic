@@ -3613,18 +3613,26 @@ way. The keywords beside a `$ref` entry apply to the instance as the reference d
 it admits they are a conjunct of their own, named `allOf/<n>` beside the reference's
 `allOf/<n>/$ref`: `{allOf: [{$ref: Str, type: object}]}` is reported at every version, beside the
 later-version warning 3.0 draws. A `oneOf` or `anyOf` beside the `allOf` none of whose branches
-shares a kind with the rest of the schema is a conjunct too, named by its keyword and admitting what
-any branch does ([`union-beside-structure`](#union-beside-structure)). So is the one of a `oneOf`
+shares a kind with the rest of the schema, or whose branches declare no shape and so are kept beside
+it as validation logic, is a conjunct too, named by its keyword and admitting what any branch does
+([`union-beside-structure`](#union-beside-structure)). So is the one of a `oneOf`
 and an `anyOf` written together that the position does not elect
 ([`competing-keywords`](#competing-keywords)): beside the `allOf`, named by its keyword, and on an
 entry, named `allOf/<n>/<keyword>` beside that entry, which is then its own keywords and the union
 it elects. The schema is reported where those sets share no member, every
-conjunct admits some value by itself and none is cut short, and the schema admits no null as
-[`nullable`](#nullable) reads it, under the nullable-inference policy where that is on: a null every
-conjunct admits is a shared value, as
-[`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
-null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
-the instance types nothing is reported, since one conjunct contradicts nothing, unless it admits no
+conjunct admits some value by itself and none is cut short, and they share no null: a null is a
+shared value only where every conjunct admits it, as
+[`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations, each read as
+[`nullable`](#nullable) reads one, under the nullable-inference policy where that is on, and wherever
+the IR holds it, so a union admits null where one of its branches does and keeps it out where each
+does. So `{allOf: [{$ref: ON}], oneOf: [{type: string}, {type: boolean}]}` over an `ON` admitting an
+object or null is reported, a null being no value the union admits; with a `{type: 'null'}` branch
+beside the two the conjuncts share the null, which
+[`union-beside-structure`](#union-beside-structure) then reports as all that satisfies the schema.
+A read of null that runs out of its budget reads each conjunct on its own, as which ones it reached
+would follow the order they are written in: one keeping null out within its own budget decides, and
+otherwise they share it. Where only one conjunct narrows the instance
+types nothing is reported, since one conjunct contradicts nothing, unless it admits no
 value by itself and nothing else says so (below).
 
 What writes no `type` and no value set admits every kind, so a report is made only of what the
@@ -3669,8 +3677,8 @@ kind left out, listed by what each states and then by name, so no order written 
 `{allOf: [{type: number, format: int32}, {type: number, enum: [1.5]}]}` draws
 `allOf/1: 1 value, allOf/0: integer of format int32`, the format read as
 [`numeric-formats`](#numeric-formats) reads it, where JSON Schema asserts none by default. A null
-the schema admits as the nulls reading has it, a conjunct admitting no value by itself and a read
-cut short draw it nowhere, as above.
+every conjunct admits, a conjunct admitting no value by itself and a read cut short draw it nowhere,
+as above.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
@@ -3690,6 +3698,7 @@ cut short draw it nowhere, as above.
   `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
   `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`,
   `e2e.TestCompile_AUnionConjunctSharingNoKindWithTheOtherIsReported`,
+  `e2e.TestCompile_AUnionAndARestShareNullOnlyWhereBothAdmitIt`,
   `e2e.TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases`,
   `e2e.TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema`,
   `e2e.TestCompile_AKeywordBesideARefIsReadByTheDisjointReportAtEveryVersion`,
@@ -3910,9 +3919,12 @@ branches declare no shape against the position, the rest of the `allOf` and the 
 among it and neither union, with an info `openapi/validation-only-keyword`, and else as
 `degraded_lowering`, drawing that rule's info where the two are written; where the elected union is
 one of the shapes below, the node keeps both as that shape keeps a union, with that shape's
-findings alone. Wherever it is written, the union passed over is a conjunct of the rest the elected
-one's branches are read against, for a dead branch (below) and for
-[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts). Such a
+findings alone, on one entry or two alike. Wherever it is written, the union passed over is a
+conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts); one sharing no kind with the rest read
+without either union leaves no instance satisfying the two, whichever branch is taken, so the
+position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
+naming its own keywords and that union. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -3995,7 +4007,8 @@ A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoin
 the composition as one written beside the `allOf` does, so it lowers the same way, where the schema
 writes no union of its own, its `allOf` composes rather than refines
 ([`allof-refinement`](#allof-refinement)), and the union is the one branch union whose branches
-declare shape (below), or of several the one written as a `oneOf`, as
+declare shape (below), judged against the rest without any entry's union as two beside the `allOf`
+judge each other by neither, or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. An entry writing both is one such union and
 lowers as a schema writing both does (above), each variant keeping the union it passes over. Where
@@ -4044,7 +4057,9 @@ reach these shapes:
 4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
    no instance satisfies the two together and a variant would hold no value: the position lowers as
    the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
-   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union;
+   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union; the unions inline
+   entries write are read together as two beside the `allOf` are, and so are a union and the one
+   the position passes over for it (above);
 5. every branch but a null one of a union the body would distribute is dead (above), so no variant
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
@@ -4052,10 +4067,9 @@ reach these shapes:
    is read against the rest of the `allOf`, its own entry aside, and kept as an entry's keyword is,
    under `openapi:oneOf` or `openapi:anyOf` at the position
    ([`allof-inline-residue`](#allof-inline-residue)). Its entry is a conjunct sharing no kind with
-   the rest, so the schema draws that rule's warning, unless the rest admits null, which that rule
-   reads a union as admitting too: the schema then draws the warning naming the dead branches,
-   which says that no instance satisfies it, as none of the branches admits null, or none but null
-   where a null branch takes it. A dead branch beside a live one on an entry is named as admitting
+   the rest, so the schema draws that rule's warning, a null the rest admits and no branch does
+   being no value they share; where a null branch takes it, the schema draws the warning naming
+   the dead branches instead, which says that no instance but null satisfies it. A dead branch beside a live one on an entry is named as admitting
    no value the rest of the `allOf` admits, which may hold kinds beside an object that no branch
    holds.
 
@@ -4285,8 +4299,9 @@ judged as one whose branches declare shape.
   `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
   `e2e.TestUnionAlone_ABodyBesideItStillDistributes`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806). A union none of whose branches admits null, beside an `allOf` whose rest admits
-  null or on an entry beside an inline rest that does, draws no warning (#2055).
+  legal (#1806). With no body, a `oneOf` and an `anyOf` on two entries of an `allOf` distribute the
+  `oneOf`, where one entry writing both, or the schema itself, is the `Union` keeping the `anyOf`
+  (#2011).
 
 ### `union-beside-ref`
 
@@ -4355,6 +4370,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
   `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
   `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `e2e.TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 

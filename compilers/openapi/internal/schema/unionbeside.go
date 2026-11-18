@@ -149,6 +149,10 @@ const (
 	// body satisfies (deadBranch), a null branch aside: distributing it would
 	// build no variant a value inhabits.
 	unionNoLiveBranch
+	// unionPassedApart marks a union beside another the position does not
+	// elect, sharing no kind with the body (passedApart): no instance satisfies
+	// the two together, whichever branch it takes.
+	unionPassedApart
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
@@ -188,6 +192,9 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 // whole where no branch lives beside s (deadBranches); else distributed, the
 // discriminator routing the composed variants (indexBranches).
 func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
+	if passedApart(c, s, u) {
+		return unionPassedApart
+	}
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
 	}
@@ -198,6 +205,40 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 		return unionNoLiveBranch
 	}
 	return unionDistributed
+}
+
+// passedApart reports whether a union the position written by s passes over
+// for u shares no kind with the rest of s read without any union: the other
+// combinator u's holder writes, or the union another inline entry of s's allOf
+// writes. It is a conjunct of the rest u's branches are read against, which it
+// leaves admitting nothing, so no branch of u reads as dead though none can be
+// inhabited. A read cut short says no.
+func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
+	w := newAdmissionReader(c)
+	var passed []admitted
+	if set, _ := passedOver(c, s, u.holder); set != nil {
+		passed = append(passed, w.union(set))
+	}
+	rest := w.written(s, w.nullable)
+	for _, e := range allOfBranches(c, s, "").branches {
+		bs := e.schema.Schema
+		switch {
+		case !stated(bs):
+		case e.schema.Ref != nil:
+			rest = rest.and(w.of(e.schema))
+		case bs == u.holder || u.branch && declaresUnion(bs):
+			rest = rest.and(w.written(bs, w.nullable))
+			if bs != u.holder {
+				passed = append(passed, unionsIn(&w, bs))
+			}
+		default:
+			rest = rest.and(inlineConjunct(&w, bs))
+		}
+	}
+	if w.incomplete() || !rest.reachable() {
+		return false
+	}
+	return slices.ContainsFunc(passed, func(p admitted) bool { return p.kinds&^kindNull != 0 && rest.kinds&p.kinds == 0 })
 }
 
 // routedSubtype reports whether a discriminator on an ancestor of s, written at
@@ -287,10 +328,28 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
 		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
+	case unionPassedApart:
+		_, passed := passedOver(c, s, s)
+		id, diags := beside(ir.ReasonDegradedLowering, "the "+passed+" beside it shares no kind with the body, so no "+
+			"instance satisfies them together")
+		return id, append(diags, diagUnionsApart(c, s, pointer)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
 	}
+}
+
+// diagUnionsApart is the warning s, written at pointer, draws where a union it
+// passes over shares no kind with its body and no allOf it writes reports its
+// conjuncts (docs/compilers/openapi.md#allof-disjoint-conjuncts): the body's
+// keywords and that union, as that report names them.
+func diagUnionsApart(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if writesConjuncts(s) {
+		return nil
+	}
+	comp := allOfComposition{pointer: pointer}
+	comp.disjoint = disjointAtoms(c, s, conjunctAtoms(c, s, comp))
+	return diagDisjointConjuncts(c, comp, "its body alone")
 }
 
 // diagUnresolvedBranches returns one diagnostic per union branch whose $ref

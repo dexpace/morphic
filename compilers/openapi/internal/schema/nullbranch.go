@@ -5,7 +5,6 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -28,23 +27,44 @@ func nullBranch(c lowering.Ctx, js *statement.Statement) bool {
 }
 
 // variantsNull is what s's oneOf and anyOf say of null where the IR holds a
-// union's null on its variants as on the reference to it: the union admits
-// null where any branch does, each read by n, whose budget bounds them. That
-// holds of a union however it lowers, so none is asked whether it is
-// distributed (unionNullReading), and the read starts no classification.
+// union's null on its variants as on the reference to it, the two conjoined:
+// each admits null where any branch does and keeps it out where every branch
+// does, each read by n, whose budget bounds them, so a branch left unread
+// keeps nothing out. That holds of a union however it lowers, so none is asked
+// whether it is distributed (unionNullReading), and the read starts no
+// classification.
 func (n *nulls) variantsNull(s *statement.Schema) nullReading {
 	choice := s.ChoiceKeywords()
-	out := alike(nullSilent)
-	for _, b := range slices.Concat(choice.OneOf, choice.AnyOf) {
+	return foldNullReadings(n.branchesNull(choice.OneOf), n.branchesNull(choice.AnyOf))
+}
+
+// branchesNull is what one union's branches say of null, under each reading:
+// admitted where a branch admits it, forbidden where every branch forbids it,
+// and silent where it writes none.
+func (n *nulls) branchesNull(branches []statement.Sub) nullReading {
+	if len(branches) == 0 {
+		return alike(nullSilent)
+	}
+	out := alike(nullForbidden)
+	for _, b := range branches {
 		r := n.conjunct(n.c.Statements().Sub(b), nullSite{})
-		if r.declared == nullAdmitted {
-			out.declared = nullAdmitted
-		}
-		if r.lenient == nullAdmitted {
-			out.lenient = nullAdmitted
-		}
+		out.declared = disjoinNullVerdicts(out.declared, r.declared)
+		out.lenient = disjoinNullVerdicts(out.lenient, r.lenient)
 	}
 	return out
+}
+
+// disjoinNullVerdicts is what two branches of a union say of null together:
+// one admitting it decides, and the union keeps it out only where both do.
+func disjoinNullVerdicts(a, b nullVerdict) nullVerdict {
+	switch {
+	case a == nullAdmitted || b == nullAdmitted:
+		return nullAdmitted
+	case a == nullForbidden && b == nullForbidden:
+		return nullForbidden
+	default:
+		return nullSilent
+	}
 }
 
 // mayAdmitNull reports whether b admits null wherever the IR holds it, on a
