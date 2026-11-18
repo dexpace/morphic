@@ -76,11 +76,11 @@ func TestRefConjunction_AComponentOverADiscriminatedBaseIsTaggedInEverySpelling(
 func TestRefConjunction_ARedactionBesideARefToAnObjectIsTheCarriersInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for name, schema := range fourSpellings("format: password") {
-		doc, _ := compileUnrefused(t, conjSites[1].write("3.1.0", schema, conjTargets["Obj"]))
+		doc, _ := compileUnrefused(t, conjSites[1].write("3.1.0", schema, "T: {type: object, properties: {a: {type: string}}}"))
 		holder, ok := kindNode(t, doc, componentID("Holder")).(*ir.Model)
 		require.True(t, ok, name)
 		require.Len(t, holder.Properties, 1, name)
 		assert.True(t, holder.Properties[0].Secret, "%s: the carrier is redacted", name)
-		assert.Equal(t, componentID("Obj"), holder.Properties[0].Type.Target, "%s: and names the target", name)
+		assert.Equal(t, componentID("T"), holder.Properties[0].Type.Target, "%s: and names the target", name)
 	}
 }
