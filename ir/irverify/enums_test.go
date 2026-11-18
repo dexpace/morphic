@@ -106,6 +106,17 @@ func enumCases() map[string]enumCase {
 			},
 			invalid: []string{"bogus", ""},
 		},
+		"RelatedRole": {
+			place: func(doc *ir.Document, v string) {
+				d := severityDiagnostic(string(ir.SeverityWarning))
+				d.Related = []ir.Related{{Role: ir.RelatedRole(v), Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}}}
+				doc.Diagnostics = []ir.Diagnostic{d}
+			},
+			code:    "ir/unknown-related-role",
+			path:    "doc.Diagnostics[0].Related[0].Role",
+			valid:   []string{string(ir.RelatedKept), string(ir.RelatedDecided)},
+			invalid: []string{"bogus", ""},
+		},
 		"Severity": {
 			place: func(doc *ir.Document, v string) {
 				doc.Diagnostics = []ir.Diagnostic{severityDiagnostic(v)}
@@ -164,6 +175,7 @@ func TestVerify_UndeclaredEnumValueCarriesItsMessage(t *testing.T) {
 		"MsgDirection":    `message binding carries undeclared direction "bogus"`,
 		"PageStrategy":    `pagination names undeclared strategy "bogus"`,
 		"Severity":        `diagnostic carries undeclared severity "bogus"`,
+		"RelatedRole":     `diagnostic's related entry carries undeclared role "bogus"`,
 	}
 	cases := enumCases()
 	assert.Len(t, messages, len(cases), "every enum case has a message row")

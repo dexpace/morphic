@@ -27,6 +27,7 @@ type github.com/dexpace/morphic/ir.Diagnostic struct
 	"code" string
 	"message" string
 	"provenance" github.com/dexpace/morphic/ir.Provenance
+	"related" []github.com/dexpace/morphic/ir.Related omitempty
 	"severity" github.com/dexpace/morphic/ir.Severity
 
 type github.com/dexpace/morphic/ir.Inferred string
@@ -42,6 +43,14 @@ type github.com/dexpace/morphic/ir.Provenance struct
 	"position" github.com/dexpace/morphic/ir.Position omitzero
 	"source" int
 	"writtenBy" int omitzero
+
+type github.com/dexpace/morphic/ir.Related struct
+	"provenance" github.com/dexpace/morphic/ir.Provenance
+	"role" github.com/dexpace/morphic/ir.RelatedRole
+
+type github.com/dexpace/morphic/ir.RelatedRole string
+	const "decided"
+	const "kept"
 
 type github.com/dexpace/morphic/ir.Severity string
 	const "error"

@@ -122,7 +122,8 @@ func checkOutput(prev, next *ir.Document, diags []ir.Diagnostic) error {
 	}
 	// A document built afresh leaves Diagnostics empty, which the engine fills;
 	// one that carries any carries what it was given.
-	if len(next.Diagnostics) > 0 && !slices.Equal(prev.Diagnostics, next.Diagnostics) {
+	same := func(a, b ir.Diagnostic) bool { return a.Key() == b.Key() }
+	if len(next.Diagnostics) > 0 && !slices.EqualFunc(prev.Diagnostics, next.Diagnostics, same) {
 		return errDiagnosticsChanged
 	}
 	if d, outside := ir.FirstOutsideTable(diags, len(next.Sources)); outside {

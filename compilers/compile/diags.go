@@ -20,18 +20,18 @@ import "github.com/dexpace/morphic/ir"
 // concurrent use.
 type Diags struct {
 	list    []ir.Diagnostic
-	emitted map[ir.Diagnostic]bool
+	emitted map[ir.DiagnosticKey]bool
 }
 
 // Append records d unless one identical to it was already recorded.
 func (d *Diags) Append(x ir.Diagnostic) {
-	if d.emitted[x] {
+	if d.emitted[x.Key()] {
 		return
 	}
 	if d.emitted == nil {
-		d.emitted = make(map[ir.Diagnostic]bool)
+		d.emitted = make(map[ir.DiagnosticKey]bool)
 	}
-	d.emitted[x] = true
+	d.emitted[x.Key()] = true
 	d.list = append(d.list, x)
 }
 

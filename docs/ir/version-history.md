@@ -1032,7 +1032,8 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi/unpreservable-construct` and kept nothing. `openapi/unknown-schema-keyword` is an info
     at each `nullable` kept, and an entry kept whole as `validation_only` draws
     `openapi/validation-only-keyword` where it drew `openapi/degraded-construct`.
-- **0.71.0** — no change of shape. The OpenAPI compiler changes what three conjunctions lower to:
+- **0.71.0** — one change of shape, a diagnostic's `related` member, and the OpenAPI compiler
+  changes what these conjunctions lower to:
   - **A `oneOf` and an `anyOf` over a body**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
     [`competing-keywords`](../compilers/openapi.md#competing-keywords)). Written together beside a
@@ -1089,6 +1090,13 @@ it sees. Changes made together in one bump are listed together under it.
     one entry or on two, to the body's `Model` keeping both as `degraded_lowering` with that one
     warning, where two entries, and a union passed over that shares no kind with the body,
     distributed the elected union.
+
+  - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
+    the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
+    `Provenance`, left out when empty. A finding concerning two declarations named the second in
+    its message alone, and one said for several models gave their number. A consumer
+    decoding a diagnostic strictly meets a member it does not know; one comparing two diagnostics
+    as values no longer can, and keys on `Diagnostic.Key`.
 
   A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
   keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, the

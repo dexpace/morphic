@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -130,6 +131,80 @@ type Diagnostic struct {
 	Code       string     `json:"code"`
 	Message    string     `json:"message"`
 	Provenance Provenance `json:"provenance"`
+	// Related lists what else the finding concerns, each by its role
+	// (docs/ir/provenance.md#related-places); empty for a finding about one
+	// place alone.
+	Related []Related `json:"related,omitempty"`
+}
+
+// Related is one more place or node a Diagnostic concerns, and what it is to
+// the finding. A conflict concerns two declarations, and one place cannot name
+// both.
+type Related struct {
+	Role       RelatedRole `json:"role"`
+	Provenance Provenance  `json:"provenance"`
+}
+
+// RelatedRole says what a Related entry is to its finding: one of the
+// constants below, which a consumer switches on. irverify reports any other.
+type RelatedRole string
+
+// The roles of a related entry.
+const (
+	// RelatedKept is the place whose say the finding kept over the one it
+	// sits at.
+	RelatedKept RelatedRole = "kept"
+	// RelatedDecided is a node the finding decided, named by its
+	// Provenance.Node: every one of them, where a finding said once speaks
+	// for several.
+	RelatedDecided RelatedRole = "decided"
+)
+
+// RelatedRoles returns every RelatedRole declared above, in the order a
+// finding lists its entries by.
+func RelatedRoles() []RelatedRole {
+	return []RelatedRole{RelatedKept, RelatedDecided}
+}
+
+// Valid reports whether r is one of the roles declared above.
+func (r RelatedRole) Valid() bool {
+	return slices.Contains(RelatedRoles(), r)
+}
+
+// DiagnosticKey is a Diagnostic's whole value as a comparable one, which a
+// Diagnostic holding a list is not: two diagnostics share a key exactly when
+// every field of one equals the other's, Related entry by entry.
+type DiagnosticKey struct {
+	severity   Severity
+	code       string
+	message    string
+	provenance Provenance
+	related    string
+}
+
+// Key returns d's identity, the one every reader deduping diagnostics keys
+// on. A finding with no related entry, the common one, allocates nothing.
+func (d Diagnostic) Key() DiagnosticKey {
+	key := DiagnosticKey{severity: d.Severity, code: d.Code, message: d.Message, provenance: d.Provenance}
+	if len(d.Related) == 0 {
+		return key
+	}
+	var b strings.Builder
+	for _, r := range d.Related {
+		p := r.Provenance
+		// Each text is written with its length, so no two lists spell alike.
+		for _, text := range []string{string(r.Role), string(p.Pointer), p.Node, string(p.Inferred)} {
+			b.WriteString(strconv.Itoa(len(text)))
+			b.WriteByte(':')
+			b.WriteString(text)
+		}
+		for _, n := range []int{p.Source, p.WrittenBy, p.Position.Line, p.Position.Column} {
+			b.WriteString(strconv.Itoa(n))
+			b.WriteByte(';')
+		}
+	}
+	key.related = b.String()
+	return key
 }
 
 // NewDiagnostic builds a Diagnostic, coercing message to well-formed UTF-8 so
@@ -185,8 +260,8 @@ func FirstOutsideTable(diags []Diagnostic, n int) (Diagnostic, bool) {
 }
 
 // MergeDiagnostics returns stored followed by every diagnostic of produced
-// that stored does not already hold, identity being the whole value, the one
-// compilers/compile dedupes on. A compiler hands its findings back on two
+// that stored does not already hold, identity being the whole value (Diagnostic.Key), the
+// one compilers/compile dedupes on. A compiler hands its findings back on two
 // channels and need fill only one, so taking either list over the other loses
 // what the other held.
 //
@@ -197,14 +272,14 @@ func MergeDiagnostics(stored, produced []Diagnostic) []Diagnostic {
 	if len(produced) == 0 {
 		return stored
 	}
-	held := make(map[Diagnostic]struct{}, len(stored))
+	held := make(map[DiagnosticKey]struct{}, len(stored))
 	for _, d := range stored {
-		held[d] = struct{}{}
+		held[d.Key()] = struct{}{}
 	}
 	merged := make([]Diagnostic, len(stored), len(stored)+len(produced))
 	copy(merged, stored)
 	for _, d := range produced {
-		if _, dup := held[d]; dup {
+		if _, dup := held[d.Key()]; dup {
 			continue
 		}
 		merged = append(merged, d)

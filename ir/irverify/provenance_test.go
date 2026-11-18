@@ -271,3 +271,47 @@ func TestVerify_AWriterIsAnOverlayWritingIntoTheSource(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_ARelatedEntryIsHeldAsAProvenanceIs holds what else a diagnostic
+// concerns to the rules its own place answers to: a related entry's source is
+// in the table, and its pointer is one.
+func TestVerify_ARelatedEntryIsHeldAsAProvenanceIs(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Sources = oneSource()
+	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
+	d.Related = []ir.Related{
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: 9}},
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "no-slash"}},
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/a"}},
+	}
+	doc.Diagnostics = []ir.Diagnostic{d}
+
+	got := verifyDeclared(doc)
+	assert.Equal(t, []string{"doc.Diagnostics[0].Related[0].Provenance"}, violationPaths(got, "ir/provenance-source-out-of-range"))
+	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/provenance-pointer-malformed"))
+}
+
+// TestVerify_ADecidedEntryNamesItsNode holds a related entry saying the
+// finding decided a node to naming one, and leaves every other role and a
+// named one alone.
+func TestVerify_ADecidedEntryNamesItsNode(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Sources = oneSource()
+	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
+	d.Related = []ir.Related{
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource}},
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Pointer: "/a"}},
+	}
+	doc.Diagnostics = []ir.Diagnostic{d}
+
+	got := verifyDeclared(doc)
+	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/related-names-no-node"))
+	for _, v := range got {
+		if v.Code == "ir/related-names-no-node" {
+			assert.Equal(t, "diagnostic's related entry says the finding decided a node and names none", v.Message)
+		}
+	}
+}

@@ -12,7 +12,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var provenanceType = reflect.TypeFor[ir.Provenance]()
+var (
+	provenanceType = reflect.TypeFor[ir.Provenance]()
+	relatedType    = reflect.TypeFor[ir.Related]()
+)
 
 // checkProvenance asserts every Provenance.Source addresses a declared entry of
 // Document.Sources, and that the locators beside it are ones that source can
@@ -22,12 +25,16 @@ var provenanceType = reflect.TypeFor[ir.Provenance]()
 //
 // It is document-wide rather than scoped to one carrier: the defect reads the
 // same on a type, a diagnostic or an Unmodeled entry, and one walk reaches all
-// of them.
+// of them. A diagnostic's related entry is held to naming what its role says it
+// does (appendRelatedViolation).
 func checkProvenance(doc *ir.Document) walkCheck {
 	var vs []Violation
 	declared := len(doc.Sources)
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() == reflect.Struct && v.Type() == relatedType {
+				vs = appendRelatedViolation(vs, v, at)
+			}
 			if v.Kind() != reflect.Struct || v.Type() != provenanceType {
 				return true
 			}
@@ -46,6 +53,21 @@ func checkProvenance(doc *ir.Document) walkCheck {
 		},
 		report: reporting(&vs),
 	}
+}
+
+// appendRelatedViolation reports a related entry of role ir.RelatedDecided
+// whose Provenance names no node: the role says the finding decided one, and a
+// consumer listing what a finding decided reads the node and nothing else.
+func appendRelatedViolation(vs []Violation, related reflect.Value, at ir.WalkPath) []Violation {
+	role := ir.RelatedRole(related.FieldByName("Role").String())
+	if role != ir.RelatedDecided || related.FieldByName("Provenance").FieldByName("Node").String() != "" {
+		return vs
+	}
+	return append(vs, Violation{
+		Code:    "ir/related-names-no-node",
+		Message: "diagnostic's related entry says the finding decided a node and names none",
+		Path:    at.String() + ".Provenance",
+	})
 }
 
 // appendWriterViolation reports a WrittenBy that names no overlay writing into
