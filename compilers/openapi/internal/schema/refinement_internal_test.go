@@ -51,10 +51,12 @@ func TestRecordVoicedResidue_KeepsWhatItsVoicesWrite(t *testing.T) {
 	t.Parallel()
 	l, s, at := lowererDeclaringS(t)
 	voices := []annotation.Voice{{Node: s, At: at}}
-	assert.Empty(t, recordVoicedResidue(l.Ctx, &ir.Model{}, nil), "no voice keeps nothing")
+	beside := StandaloneSchema(&oas3.Schema{})
+	assert.Empty(t, recordVoicedResidue(l.Ctx, &ir.Model{}, beside, nil), "no voice keeps nothing")
 	node := &ir.Model{}
-	assert.NotEmpty(t, recordVoicedResidue(l.Ctx, node, voices))
+	assert.NotEmpty(t, recordVoicedResidue(l.Ctx, node, beside, voices))
 	assert.Contains(t, node.Unmodeled, "openapi:readOnly", "the node in hand keeps what its voice writes")
+	assert.Empty(t, recordVoicedResidue(l.Ctx, &ir.Model{}, s, voices), "what the position writes too is the position's")
 }
 
 // componentSchema returns the schema the component name declares.

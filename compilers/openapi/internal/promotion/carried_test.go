@@ -164,3 +164,13 @@ func TestShadowed_ReturnsWhatCarriedPassesOver(t *testing.T) {
 		promotion.Shadowed(p, own, "content/m", "content/m/schema")), "the nearest scope is Carried's")
 	assert.Nil(t, promotion.Shadowed(p, own, "schema"), "nothing nearer writes the key")
 }
+
+// TestReads_NamesAKeyThePolicyReads pins which kept keys a promotion reads:
+// the extension its policy names, under any scope, and no other.
+func TestReads_NamesAKeyThePolicyReads(t *testing.T) {
+	t.Parallel()
+	p := stabilityPolicy()
+	assert.True(t, p.Reads("openapi:x-stability"))
+	assert.True(t, p.Reads("openapi:schema/x-stability"))
+	assert.False(t, p.Reads("openapi:x-other"))
+}

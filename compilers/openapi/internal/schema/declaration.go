@@ -62,8 +62,43 @@ func declarationOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, targe
 	if home != annotation.HomeOwnNode {
 		return diags
 	}
-	diags = append(diags, recordVoicedResidue(c, td, declarationVoices(c, s, target, pointer))...)
-	return append(diags, recordResidue(c, td.Common(), s, pointer)...)
+	diags = append(diags, recordVoicedResidue(c, td, s, declarationVoices(c, s, target, pointer))...)
+	leaves := leftToWhole(c, s, target, pointer)
+	return append(diags, recordResidue(c, td.Common(), s, pointer, func(keyword string) bool { return slices.Contains(leaves, keyword) })...)
+}
+
+// leftToWhole returns the keywords s, written at pointer and lowered to
+// target, writes as the inline principal of its allOf does where it keeps that
+// principal whole, or a wrapper around it: the entry holds the one writing, so
+// no reader of s keeps it again, but an extension the promotion policy reads,
+// which stays where a promotion finds it
+// (docs/compilers/openapi.md#allof-refinement).
+func leftToWhole(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) []string {
+	if !writesConjuncts(s) {
+		return nil
+	}
+	r, refined := refinementOf(c, s, pointer)
+	if !refined || r.principal == nil || r.principal.schema.Ref != nil {
+		return nil
+	}
+	var alike []string
+	for _, k := range s.Keys {
+		if keyWrittenAlike(s, r.principal.schema.Schema, k.Name) && !c.Promoter().Reads(annotation.EntryKey("", k.Name)) {
+			alike = append(alike, k.Name)
+		}
+	}
+	if len(alike) == 0 {
+		return nil
+	}
+	for _, e := range keepsAtOutcome(c, s, target, pointer).entries {
+		if !e.keptWhole() || !lowersFrom(r.principal, e.entry) {
+			continue
+		}
+		if _, err := annotation.RawFromNode(e.entry.schema.Node); err == nil {
+			return alike
+		}
+	}
+	return nil
 }
 
 // homesDeclaration reports whether the declaration s, written at pointer and
@@ -269,6 +304,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	use := nodeUse(c, s, pointer, target)
 	site := use.SiteAt(c, s, pointer)
 	site.Closure = closureTyped(c, ts, s, td)
+	site.Leaves = leftToWhole(c, s, target, pointer)
 	a, diags := annotation.Read(site, pointer, c.Place())
 	held, heldDiags := principalDiscriminatorKeys(c, s, pointer, target)
 	a.Unmodeled = annotation.MergeUnmodeled(a.Unmodeled, held)
@@ -317,7 +353,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *statement.S
 	}
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(c, &common.Unmodeled, s, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer, td)...)
+	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer, td, site.Leaves...)...)
 }
 
 // residueKeywords are the keywords a schema can write that bind a *use* of the
@@ -349,9 +385,13 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 // declaration's readOnly reaches a referencing parameter only here, on the
 // declaration's own node. A default no ir.Value holds reaches no carrier
 // (residueReach).
-func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *statement.Schema, pointer jsontext.Pointer, left func(string) bool,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
+		if left(keyword) {
+			continue
+		}
 		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {

@@ -624,3 +624,52 @@ func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
 	assert.Contains(t, whole[0], "the branch (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
 	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
 }
+
+// TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader pins a keyword an
+// inline principal and its position write alike that no census reads: a key no
+// dialect defines, a default, readOnly, a validation-only keyword, an
+// extension. It is one writing: kept once and reported once, by the position
+// where the principal is lowered, and inside the principal's entry, named by
+// its report, where the position keeps that entry whole.
+func TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader(t *testing.T) {
+	t.Parallel()
+	keywords := map[string]string{
+		"foo": "1", "default": "a", "readOnly": "true", "dependentRequired": "{a: [z]}", "not": "{type: integer}", "x-v": "1",
+	}
+	var lines strings.Builder
+	for keyword, value := range keywords {
+		name := strings.ToUpper(keyword[:1]) + strings.ReplaceAll(keyword[1:], "-", "")
+		lines.WriteString("    " + name + ": {allOf: [{type: string, " + keyword + ": " + value + "}], " + keyword + ": " + value + "}\n")
+		lines.WriteString("    Whole" + name + ": {allOf: [{type: string, " + keyword + ": " + value + ", x-k: 1}, {x-k: 2}], " +
+			keyword + ": " + value + "}\n")
+	}
+	lines.WriteString("    Unrendered: {allOf: [{type: string, foo: 1, x-k: 1, x-q: " + unpreservableValue + "}, {x-k: 2}], foo: 1}\n")
+	doc, diags := parseFull(t, openapitest.ComponentSpec(lines.String()))
+	for keyword := range keywords {
+		name := strings.ToUpper(keyword[:1]) + strings.ReplaceAll(keyword[1:], "-", "")
+		at := "/components/schemas/" + name
+		kept := keptOn(t, doc, name)
+		require.Len(t, kept, 1, "%s: kept once: %v", name, kept)
+		assert.Contains(t, kept, "openapi:"+keyword, name)
+		said := 0
+		for _, d := range diags {
+			if strings.HasPrefix(string(d.Provenance.Pointer), at) && (d.Provenance.Pointer == jsontext.Pointer(at) ||
+				strings.HasPrefix(string(d.Provenance.Pointer), at+"/")) {
+				said++
+			}
+		}
+		want := 1
+		if keyword == "x-v" {
+			want = 0 // an extension is kept with no report
+		}
+		assert.Equal(t, want, said, "%s: reported once", name)
+
+		whole := keptOn(t, doc, "Whole"+name)
+		assert.NotContains(t, whole, "openapi:"+keyword, "Whole%s: the whole entry holds the one writing", name)
+		assert.Contains(t, whole["openapi:allOf/0"], `"`+keyword+`":`, "Whole%s", name)
+		assert.Empty(t, reportsAt(diags, "/components/schemas/Whole"+name), "Whole%s: nothing is reported of the position's", name)
+		assert.Empty(t, reportsAt(diags, "/components/schemas/Whole"+name+"/"+keyword), "Whole%s", name)
+	}
+	assert.Equal(t, "1 [out_of_scope]", keptOn(t, doc, "Unrendered")["openapi:foo"],
+		"an entry no JSON holds is not whole, so the position keeps its own")
+}

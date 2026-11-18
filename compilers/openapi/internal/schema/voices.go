@@ -341,10 +341,12 @@ func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
 // (recordResidue), each reported at the keyword it wrote, in ResidueWriters'
 // order: an entry several write is the nearest voice's kept apart, and the
 // schema written at the position records after them.
-func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, voices []annotation.Voice) []ir.Diagnostic {
+func recordVoicedResidue(c lowering.Ctx, td ir.TypeDef, s *statement.Schema, voices []annotation.Voice) []ir.Diagnostic {
 	diags := make([]ir.Diagnostic, 0, len(voices))
 	for _, v := range ResidueWriters(voices) {
-		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At)...)
+		// What s writes too is s's to keep and report: one writing, as the
+		// voices agree.
+		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At, func(keyword string) bool { return hasKey(s, keyword) })...)
 	}
 	return diags
 }

@@ -726,3 +726,31 @@ func standaloneSchema(s *oas3.Schema) *statement.Schema {
 	}
 	return standalone(oas3.NewJSONSchemaFromSchema[oas3.Referenceable](s)).Schema
 }
+
+// TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce pins one writing two
+// schemas of a site write: an entry the site keeps is the site's alone, so a
+// voice writing it draws no second report, a keyword of several folded in one
+// entry among them; and a keyword the site leaves to a branch its position
+// keeps whole (Site.Leaves) is kept and reported by neither reading here.
+func TestRead_AKeywordWrittenAlikeIsKeptAndReportedOnce(t *testing.T) {
+	t.Parallel()
+	const written = "not: {type: string}\nif: {type: string}\nthen: {minLength: 1}\nx-a: 1\n"
+	site := standaloneSchema(schemaFromYAML(t, written))
+	voice := Voice{At: "/p/allOf/0", Node: standaloneSchema(schemaFromYAML(t, written+"propertyNames: {maxLength: 3}\n"))}
+
+	got, diags := Read(Site{Kind: Declaration, Node: site, Voices: []Voice{voice}}, "/p", sourced(0))
+	assert.Contains(t, got.Unmodeled, "openapi:not")
+	assert.Contains(t, got.Unmodeled, "openapi:if-then-else")
+	assert.Equal(t, jsontext.Pointer("/p/allOf/0/propertyNames"), got.Unmodeled["openapi:propertyNames"].Provenance.Pointer)
+	at := map[jsontext.Pointer]int{}
+	for _, d := range diags {
+		at[d.Provenance.Pointer]++
+	}
+	assert.Equal(t, map[jsontext.Pointer]int{"/p": 2, "/p/allOf/0": 1}, at, "the site reports its two, the voice the one it alone writes")
+
+	got, diags = Read(Site{Kind: Declaration, Node: site, Leaves: []string{"not", "x-a", "title"}}, "/p", sourced(0))
+	assert.NotContains(t, got.Unmodeled, "openapi:not")
+	assert.NotContains(t, got.Unmodeled, "openapi:x-a")
+	assert.Contains(t, got.Unmodeled, "openapi:if-then-else", "a keyword it does not leave is kept")
+	assert.Len(t, diags, 1)
+}

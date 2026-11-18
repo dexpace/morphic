@@ -9,6 +9,7 @@ import (
 	"iter"
 	"slices"
 	"strconv"
+	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -185,6 +186,10 @@ type Site struct {
 	// Closure says the node Node lowered to holds its `unevaluatedProperties:
 	// false` as its openness, so no entry keeps it. The zero value keeps it.
 	Closure bool
+	// Leaves names the keywords Node writes that Read keeps no entry of: an
+	// inline allOf branch the position keeps whole writes them alike, and that
+	// entry holds the one writing (docs/compilers/openapi.md#allof-refinement).
+	Leaves []string
 }
 
 // Dialect is what a schema's dialect spells otherwise than JSON Schema
@@ -307,6 +312,12 @@ func DeclaresRedaction(s *statement.Schema) bool {
 // position attaching annotations makes it apart.
 func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
 	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect, st.Closure)
+	for _, keyword := range st.Leaves {
+		if _, kept := out.Unmodeled[EntryKey("", keyword)]; kept {
+			delete(out.Unmodeled, EntryKey("", keyword))
+			diags = lessNote(diags, doc.At(pointer), EntryKey("", keyword))
+		}
+	}
 	var u underlay
 	if len(st.Voices) > 0 {
 		u.own = make(map[string]bool, len(out.Unmodeled))
@@ -316,6 +327,12 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 	}
 	for _, v := range st.Voices {
 		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: v.Dependencies}, false)
+		for key := range voice.Unmodeled {
+			if u.own[key] {
+				// The site keeps the one writing, and its report says so.
+				voiceDiags = lessNote(voiceDiags, doc.At(v.At), key)
+			}
+		}
 		diags = append(diags, voiceDiags...)
 		if out.XML == nil {
 			out.XML = voice.XML
@@ -330,6 +347,23 @@ func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diag
 	out.Deprecated = EffectiveDeprecated(chain)
 	out.Sensitive = slices.ContainsFunc(chain, DeclaresRedaction)
 	return out, diags
+}
+
+// lessNote returns diags less the report validationOnlyAt drew at at for the
+// validation-only entry under key, which its caller keeps no entry of: another
+// writer keeps the one writing, and reports it. An entry of another reason
+// drew none.
+func lessNote(diags []ir.Diagnostic, at ir.Provenance, key string) []ir.Diagnostic {
+	label := strings.TrimPrefix(key, EntryKey("", ""))
+	switch label {
+	case "if-then-else":
+		label = "if/then/else"
+	default:
+	}
+	message := validationOnlyMessage(label)
+	return slices.DeleteFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Code == diag.ValidationOnlyKeyword && d.Provenance.Pointer == at.Pointer && d.Message == message
+	})
 }
 
 // readLocal reads what s, written at pointer, says of the position alone: the
