@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -114,10 +112,10 @@ func compareForms(first, second *formReader, ties tieSites, left, right []report
 	left, right = sameNodes(left, right, a.identify, b.identify)
 	var found []string
 	if !slices.Equal(a.document, b.document) {
-		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.document, b.document))
+		found = append(found, "document depends on sequence order (-as-written +reversed):\n"+lineDifference(a.document, b.document))
 	}
 	if !slices.Equal(a.shape, b.shape) {
-		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+cmp.Diff(a.shape, b.shape))
+		found = append(found, "flattened shape depends on sequence order (-as-written +reversed):\n"+lineDifference(a.shape, b.shape))
 	}
 	return left, right, found, ""
 }
