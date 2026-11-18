@@ -18,9 +18,10 @@ import (
 
 // TestReading_ACapStopsTheElectionsSummaryAlone pins what each kind of read
 // leaves its readers: one that finishes, one a cycle of conjunct edges cuts,
-// and one at and past each cap. A cut leaves no kind known; a cap is no cut,
-// so the kinds stay whole, but past it the summary an election compares
-// admits every kind and the read is no longer within the caps.
+// and one at and past each cap, the members of an allOf's entries summed. A
+// cut leaves no kind known; a cap is no cut, so the kinds stay whole, but past
+// it the summary an election compares admits every kind and the read is no
+// longer within the caps.
 func TestReading_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
 	t.Parallel()
 	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", capsSpec()), service.Policy{})
@@ -31,6 +32,7 @@ func TestReading_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
 		"Str": {within: true, kinds: kindString}, "Cyc": {cut: true, kinds: anyInstance},
 		"AtReads": {within: true, kinds: kindString}, "PastReads": {kinds: kindString},
 		"AtMembers": {within: true, kinds: kindString}, "PastMembers": {kinds: kindString},
+		"AtMembersSummed": {within: true, kinds: kindString}, "PastMembersSummed": {kinds: kindString},
 	} {
 		r := admissionOf(c.Ctx, heldAt(c.Ctx, jsontext.Pointer("/components/schemas/"+name)))
 		assert.Equal(t, want.cut, r.cut, "%s: cut", name)
@@ -57,8 +59,9 @@ func TestDeadBranch_ReadsABranchPastTheCapsByItsKinds(t *testing.T) {
 
 // capsSpec declares the schemas the tests above read: Str, a cycle Cyc, a
 // chain AtReads taking in maxAdmissionReads schemas and PastReads one more,
-// enums at and past maxAdmissionMembers, and object bodies, nullable or not,
-// beside a branch over a string within and past the caps.
+// enums at and past maxAdmissionMembers, alone and split over two allOf
+// entries, and object bodies, nullable or not, beside a branch over a string
+// within and past the caps.
 func capsSpec() string {
 	// AtReads takes in itself, the aliases and Str: maxAdmissionReads schemas.
 	chain, prev := "", "Str"
@@ -73,9 +76,12 @@ func capsSpec() string {
 		}
 		return "{enum: [" + strings.Join(members, ", ") + "]}"
 	}
+	half := maxAdmissionMembers / 2
 	spec := "    Str: {type: string}\n    Cyc: {allOf: [{$ref: '#/components/schemas/Cyc'}]}\n" + chain +
 		"    AtReads: {$ref: '#/components/schemas/" + prev + "'}\n    PastReads: {$ref: '#/components/schemas/AtReads'}\n" +
-		"    AtMembers: " + enum(maxAdmissionMembers) + "\n    PastMembers: " + enum(maxAdmissionMembers+1) + "\n"
+		"    AtMembers: " + enum(maxAdmissionMembers) + "\n    PastMembers: " + enum(maxAdmissionMembers+1) + "\n" +
+		"    AtMembersSummed: {allOf: [" + enum(half) + ", " + enum(half) + "]}\n" +
+		"    PastMembersSummed: {allOf: [" + enum(half) + ", " + enum(half+1) + "]}\n"
 	for _, b := range [][2]string{{"Within", "Str"}, {"Past", "AtReads"}, {"MembersPast", "PastMembers"}} {
 		ref := "anyOf: [{$ref: '#/components/schemas/" + b[1] + "'}]}\n"
 		spec += "    Object" + b[0] + ": {type: object, " + ref + "    Nullable" + b[0] + ": {type: [object, 'null'], " + ref
