@@ -1631,25 +1631,26 @@ position, wherever the grammar reads a schema: a union branch, `by_name` for
 suggests; an inline schema under a property or a role; the schema of a parameter, header, request
 body or response; and a document a `$ref` reads whole. The positions beneath it compose from that
 name, and the title stays the node's `Docs.Summary`. A schema writing no title takes the one the
-inline branches of its `allOf` write between them, each conjunct describing the same instance, where
-they write one set of words, and none where they write two; a branch holding a `$ref` lends no
-title, and one nested in a branch is not read. A title is read whole, one that is a sentence giving
-all its words, and as the parser reads a string, so one under `!!binary` or a local tag names
-nothing. It names nothing where the document names the schema by a key: a component schema, and a
-`$defs` or `definitions` entry, which keep their keys. It names nothing at an `allOf` branch, named
-as its holder, and nothing where its words are a component schema's canonical name in any document
-read, or another branch's of the same `oneOf` or `anyOf`, written as its title or as its position
-(`variant_2`): the position keeps the name it has without the title, so two branches titled alike
-are both named by position, whichever is written first. A title is compared with no name a sibling
-`$ref` takes from the position it lands on, which the component names cover where it lands on a
-component, so a pair meeting elsewhere is the names pass's to report (`pass/name-collision`), since
-comparing would resolve every sibling's chain for each branch. A hint composed from a position is
-mechanical, while one read from an annotation is a reading, so policy (invariant 6): JSON Schema
-declares `title` a label for display, a request body titled with a sentence under
-`operationId: createThing` is named by its dozen words where its position gives
-`create_thing_request`, and editing a title renames the node. The title-names policy, on by
-default, is the Go option `Options.TitleNames`, whose `Disabled` names every anonymous schema by its
-position, and the text option `title-names`, which `false` turns off; the title is the node's
+inline conjuncts of its `allOf` write between them, each describing the same instance, where they
+write one set of words, and none where they write two: a title written beside a branch's `$ref` or
+`$dynamicRef` is that branch's own, the schema a `$ref` names lends none, and a branch's own `allOf`
+is read through, as [`allof-classification`](#allof-classification) flattens it. A title is read
+whole, one that is a sentence giving all its words, and as the parser reads a string, so one under
+`!!binary` or a local tag names nothing. It names nothing where the document names the schema by a
+key: a component schema, and a `$defs` or `definitions` entry, which keep their keys. It names
+nothing at an `allOf` branch, named as its holder, and nothing where its words are a component
+schema's canonical name in any document read, or another branch's of the same `oneOf` or `anyOf`,
+written as its title or as its position (`variant_2`): the position keeps the name it has without
+the title, so two branches titled alike are both named by position, whichever is written first. A
+title is compared with no name a sibling `$ref` takes from the position it lands on, which the
+component names cover where it lands on a component, so a pair meeting elsewhere is the names pass's
+to report (`pass/name-collision`), since comparing would resolve every sibling's chain for each
+branch. A hint composed from a position is mechanical, while one read from an annotation is a
+reading, so policy (invariant 6): JSON Schema declares `title` a label for display, a request body
+titled with a sentence under `operationId: createThing` is named by its dozen words where its
+position gives `create_thing_request`, and editing a title renames the node. The title-names policy,
+on by default, is the Go option `Options.TitleNames`, whose `Disabled` names every anonymous schema
+by its position, and the text option `title-names`, which `false` turns off; the title is the node's
 `Docs.Summary` either way. A hint read under it is marked no `Inferred`, since a `Hint` with no
 `Source` is a suggestion already. A hint changes no ID. A const branch's title is its member's
 summary alone ([`string-const-union`](#string-const-union)).
