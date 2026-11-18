@@ -1091,6 +1091,40 @@ it sees. Changes made together in one bump are listed together under it.
     warning, where two entries, and a union passed over that shares no kind with the body,
     distributed the elected union.
 
+  - **A `oneOf` and an `anyOf` with nothing beside them**
+    ([`competing-keywords`](../compilers/openapi.md#competing-keywords)).
+    Written on one `allOf` entry or one each on two, at any depth, with no other conjunct, they
+    lower as the same two written on one schema: the `Union` of the one the election picks, keeping
+    the other. `{allOf: [{oneOf: [P, Q]}, {anyOf: [X, Y]}]}` over objects is the `Union` of `P` and
+    `Q` keeping the `anyOf`, where it was a `Union` of composed `Model`s each keeping it; with
+    string and null branches against a string branch it is a one-variant `Union` keeping the
+    `anyOf`, where it was a nullable `Scalar` keeping the `oneOf` as `validation_only` and dropping
+    the `anyOf`. A `discriminator` on the entry passed over leaves the composition as it was. Where
+    the two share no value, every spelling, the one schema writing both among them, draws the
+    warning that the conjuncts share no value, where the one schema drew an info alone.
+
+  - **A union of null alone beside an `allOf`**
+    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
+    A union every branch of which admits null alone shares no kind with a rest admitting no null:
+    `{allOf: [T], oneOf: [{type: 'null'}]}` over an object `T` is the `Model` of `T` keeping the
+    `oneOf` with one warning naming it, where it was a one-variant `Union` of a composed `Model`.
+    Two unions whose branches share null alone are that `Model` keeping both with one warning, in
+    every spelling. Passed over for a union of objects, such a union is kept with the other on the
+    body's `Model` as `degraded_lowering`, and beside a body admitting null it is kept as
+    `degraded_lowering` on entries too, where two entries kept it as `validation_only`.
+
+  - **Keywords beside an inline principal**
+    ([`allof-refinement`](../compilers/openapi.md#allof-refinement),
+    [`dialect-keywords`](../compilers/openapi.md#dialect-keywords)).
+    An inline entry naming a draft before 2019-09 by its own `$id` and `$schema` keeps the
+    `dependencies` it writes under `openapi:dependencies` on the node the position lowers to, as the
+    schema written flat in that draft does, where a list, a `type` list and a `oneOf` kept it on
+    `…/allOf/<n>` and a scalar and an object dropped it. A keyword kept beside an inline principal
+    is reported as kept on the node its position lowered to, by kind; "a use of one of its allOf
+    conjuncts" is said of a `$ref` principal alone. A bound beside a principal carrying a number as
+    text is kept as `no_ir_home` with the report the flat spelling draws, where the alias held a
+    length bound in its `Constraints` and kept a value bound as `degraded_lowering`.
+
   - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
     the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
     `Provenance`, left out when empty. A finding concerning two declarations named the second in
