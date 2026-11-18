@@ -4115,8 +4115,7 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionOnAnAllOfBranchLiftsItsNullBranch`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806); a union beside a `$ref` sharing no kind with its target is kept by
-  [`union-beside-ref`](#union-beside-ref) rather than as shape 5 (#2010).
+  legal (#1806).
 
 ### `union-beside-ref`
 
@@ -4663,8 +4662,6 @@ the referent.
   `schema.TestAllOf_RequiresIsTheSameInEitherComponentOrder`,
   `schema.TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce`,
   `schema.TestDistributedUnion_EachVariantCarriesTheRequiresOfItsBody`
-- Status: partly built: a `required` beside a 3.1 `$ref` stays verbatim on the alias that `$ref`
-  hoists, with every other structural keyword written there (#1067).
 
 ### `pattern-properties`
 
@@ -5740,8 +5737,6 @@ they land on are lowered ([`validation-only`](#validation-only)).
 - Tests: `e2e.TestCases_CoverTheRuleTable`, `openapicases.TestCore_EveryKeywordIsCarriedEverywhere`,
   `schema.TestPromiseLandings_BuildsNothingTwice`, `schema.TestPromiseLandings_LowersWhatNothingElseReached`,
   `e2e.TestCompile_KeptRefLandingsAreLoweredOnceInEitherOrder`
-- Status: partly built: a `$dynamicRef` written beside a `$ref` at a position no property,
-  parameter, header or component holds reaches the IR in no form (#2009).
 
 ## 8. Paths and operations
 
