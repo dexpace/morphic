@@ -42,10 +42,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 	if allNullUnion(c, s) {
 		return lowerNullOnlyUnion(c, ts, s, pointer, fin)
 	}
-	owner, diags := censused(c, ts, s, pointer, pointer, dispatch{said: branchesSay(c, s)}, fin,
-		func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+	owner, diags := keepingUnread(c, ts, s, pointer, pointer, dispatch{said: branchesSay(c, s)}, fin,
+		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			var diags []ir.Diagnostic
-			tid := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+			tid := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 				def, unionDiags := buildUnion(c, ts, besideUnion(s, pointer), common,
 					func(b *statement.Statement, vptr jsontext.Pointer) ir.TypeRef {
 						ref, refDiags := Ref(c, ts, depth, b, vptr)
@@ -56,9 +56,13 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, positionVoices(c, s, pointer, ir.TypeRef{}), pointer, boundKinds(c, s))
 				def.Constraints = cons
 				diags = append(diags, consDiags...)
-				return def
+				read := nodeBoundsRead(s, boundKinds(c, s), def.Constraints, def.Unmodeled)
+				if def.Discriminator != nil {
+					read |= keyBit("discriminator")
+				}
+				return def, read
 			}, fin)
-			return tid, diags
+			return tid, 0, diags
 		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
 	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
@@ -120,10 +124,10 @@ func allNullUnion(c lowering.Ctx, s *statement.Schema) bool {
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
 ) (ir.TypeRef, []ir.Diagnostic) {
 	var branches finished
-	owner, diags := censused(c, ts, s, pointer, pointer, dispatch{},
+	owner, diags := keepingUnread(c, ts, s, pointer, pointer, dispatch{},
 		branches.on(func(td ir.TypeDef) []ir.Diagnostic { return preserveNullOnlyUnion(c, td, s, pointer) }).then(fin),
-		func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
-			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), nil
+		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return lowerNullAlone(c, ts, ownValueSet(s, pointer).finishedBy(fin)), 0, nil
 		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
 	return ref, slices.Concat(diags, branches.diags, nullDiags, liftedNullFindings(c, s, pointer))
@@ -503,12 +507,15 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	types := list.types
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		list.voices = positionVoices(c, s, pointer, ir.TypeRef{})
+		var read keySet
+		collect := finisher(func(_ ir.TypeDef, variant keySet) { read |= variant })
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
-			vid, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list)
+			vid, shared, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st, list, collect)
+			read |= shared
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
 				Name: compile.NamingHint(string(st)),
@@ -520,7 +527,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 			Variants:   variants,
 			Exclusive:  typesDisjoint(types),
 			Closed:     true,
-		}
+		}, read
 	}, fin)
 	return id, diags
 }
@@ -538,24 +545,30 @@ type typeArray struct {
 // lowerTypeVariant lowers the variant of s's type array that st names, at
 // pointer, as lowerTyped lowers st alone, but for what applies to another listed
 // type (docs/compilers/openapi.md#type-arrays). An object variant holds no
-// discriminator, as no $ref or mapping can name its position: the census keeps
-// it on the union. A variant reads the value bounds of the kinds of st the
-// position admits (boundKinds), as the census does, so a bound is held or
-// kept, never both. A scalar one, holding them, the format or the content
-// vocabulary, is a Scalar of its own, else the shared primitive.
-func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind, list typeArray) (ir.TypeID, []ir.Diagnostic) {
+// discriminator, which no $ref or mapping can name it by: the union keeps
+// it. A variant reads the value bounds of the kinds of st the
+// position admits (boundKinds), so a bound is held or kept, never both. A
+// scalar one holding them, the format or the content vocabulary is a Scalar of
+// its own, else the shared primitive, which returns what it read; fin
+// finishes one built.
+func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, st statement.Kind,
+	list typeArray, fin finisher,
+) (ir.TypeID, keySet, []ir.Diagnostic) {
 	takes := typeKinds(st) & boundKinds(c, s)
 	switch st {
 	case statement.KindObject:
-		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark)
+		id, diags := lowerModel(c, ts, depth, s, pointer, false /* discriminated */, takes, list.mark.then(fin))
+		return id, 0, diags
 	case statement.KindArray:
-		return lowerArray(c, ts, depth, s, pointer, list.mark)
+		id, diags := lowerArray(c, ts, depth, s, pointer, list.mark.then(fin))
+		return id, 0, diags
 	default:
 		shape := scalarShapeOf(s, st, variantFormat(s, st, list.types))
 		if shape.shared && !statesBounds(c, s, list.voices, pointer, takes) {
-			return ts.PrimID(shape.base), nil
+			return ts.PrimID(shape.base), shape.read, nil
 		}
-		return hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, nil)
+		id, diags := hoistScalar(c, ts, depth, s, shape, takes, list.voices, pointer, fin)
+		return id, 0, diags
 	}
 }
 
@@ -994,7 +1007,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 	u.distributed = true
 	u.dead = deadBranches(c, s, u.holder)
 	u.deadRoutes = deadRoutesOf(c, u)
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
 			voices: positionVoices(c, s, pointer, ir.TypeRef{}), inferred: bodyKindInferred(c, s), union: u}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
@@ -1006,8 +1019,9 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 				return ref
 			})
 		diags = append(diags, unionDiags...)
-		return def
-	}, census.on(variantsCensus(c, ts, s, taglessShape(nil, s, distributedShape), nil, pointer)).then(fin))
+		// Each variant composes the body, reading its members and its bounds.
+		return def, objectKeys | typeReadAs(s, statement.KindObject) | boundsRead(s, body.comp.bounds, nil)
+	}, census.onRead(keepUnreadAcross(c, ts, s, taglessShape(nil, s, distributedShape), nil, pointer)).then(fin))
 	// The union read s's discriminator, so one it cannot hold says why.
 	diags = append(diags, census.diags...)
 	where := "co-declared with structural keywords"

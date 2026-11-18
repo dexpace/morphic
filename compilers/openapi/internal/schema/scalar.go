@@ -28,12 +28,14 @@ import (
 // string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, st statement.Kind, pointer jsontext.Pointer,
 	fin finisher,
-) (ir.TypeID, []ir.Diagnostic) {
+) (ir.TypeID, keySet, []ir.Diagnostic) {
 	shape := scalarShapeOf(s, st, writtenFormat(s))
 	if shape.shared {
-		return ts.PrimID(shape.base), nil
+		// The type and the format beside it selected the shared primitive.
+		return ts.PrimID(shape.base), scalarTypeRead(s) | shape.read, nil
 	}
-	return hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer, fin)
+	id, diags := hoistScalar(c, ts, depth, s, shape, typeKinds(st), positionVoices(c, s, pointer, ir.TypeRef{}), pointer, fin)
+	return id, 0, diags
 }
 
 // writtenFormat returns the format s writes, but for a redaction, which names no
@@ -70,6 +72,8 @@ type scalarShape struct {
 	format string
 	wire   *ir.PrimKind
 	shared bool
+	// read is the format the shape was selected by, none where it names none.
+	read keySet
 }
 
 // scalarShapeOf returns what a scalar of type st that s writes, with format,
@@ -81,20 +85,22 @@ type scalarShape struct {
 // (keywordKinds).
 func scalarShapeOf(s *statement.Schema, st statement.Kind, format string) scalarShape {
 	key := string(st)
+	var read keySet
 	if format != "" {
 		key += "/" + format
+		read = keyBit("format")
 	}
 	if row, encoded := spelling.LookupEncoded(key); encoded {
-		return scalarShape{base: row.Prim, format: row.Encoding, wire: wireOf(row)}
+		return scalarShape{base: row.Prim, format: row.Encoding, wire: wireOf(row), read: read}
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
 		if num, carried := numberAsText(s, st, format); carried {
-			return scalarShape{base: num, format: numberTextEncoding, wire: new(ir.PrimString)}
+			return scalarShape{base: num, format: numberTextEncoding, wire: new(ir.PrimString), read: read}
 		}
-		return scalarShape{base: baseForType(st), format: format}
+		return scalarShape{base: baseForType(st), format: format, read: read}
 	}
-	return scalarShape{base: prim, shared: !takesContent(typeKinds(st)) || !declaresContentVocabulary(s)}
+	return scalarShape{base: prim, shared: !takesContent(typeKinds(st)) || !declaresContentVocabulary(s), read: read}
 }
 
 // wireOf returns the primitive row's value travels as, the WireType of the
@@ -162,7 +168,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 	voices []annotation.Voice, pointer jsontext.Pointer, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		baseRef := ts.PrimRef(shape.base)
 		enc, encDiags := scalarEncoding(c, ts, depth, s, shape.format, takesContent(takes), &common, pointer)
 		diags = append(diags, encDiags...)
@@ -181,7 +187,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 		}
 		diags = append(diags, consDiags...)
 		sc.Constraints = cons
-		return sc
+		return sc, scalarTypeRead(s) | shape.read | nodeBoundsRead(s, takes, sc.Constraints, sc.Unmodeled)
 	}, fin)
 	return id, diags
 }

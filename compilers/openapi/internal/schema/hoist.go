@@ -21,8 +21,9 @@ import (
 // branches kept beside it, the kind-inference mark, a discriminator settled
 // beside a union. internNode runs it once, on the node it builds, before the
 // registry stores it, so no write looks its node up, and a visit finding the
-// node built writes nothing, its build having written it.
-type finisher func(td ir.TypeDef)
+// node built writes nothing, its build having written it. read is what the
+// build read of the schema it was built from.
+type finisher func(td ir.TypeDef, read keySet)
 
 // then returns the finisher running f, then g, either of which may be nil.
 func (f finisher) then(g finisher) finisher {
@@ -32,9 +33,9 @@ func (f finisher) then(g finisher) finisher {
 	case g == nil:
 		return f
 	default:
-		return func(td ir.TypeDef) {
-			f(td)
-			g(td)
+		return func(td ir.TypeDef, read keySet) {
+			f(td, read)
+			g(td, read)
 		}
 	}
 }
@@ -50,28 +51,37 @@ type finished struct {
 // on returns the finisher writing with write, recording into f that it ran and
 // what it reported.
 func (f *finished) on(write func(td ir.TypeDef) []ir.Diagnostic) finisher {
-	return func(td ir.TypeDef) {
+	return func(td ir.TypeDef, _ keySet) {
 		f.ran = true
 		f.diags = append(f.diags, write(td)...)
+	}
+}
+
+// onRead is on for a write that asks what the build read.
+func (f *finished) onRead(write func(td ir.TypeDef, read keySet) []ir.Diagnostic) finisher {
+	return func(td ir.TypeDef, read keySet) {
+		f.ran = true
+		f.diags = append(f.diags, write(td, read)...)
 	}
 }
 
 // internNode is the single hoisting entry point: it derives pointer's stable
 // TypeID (ids.Document.ForPointer) and shared TypeCommon (commonFor) once, then
 // interns build's result under that ID, finished by fin. build receives the
-// built TypeCommon, so it never re-derives pointer, name or id.
+// built TypeCommon, so it never re-derives pointer, name or id, and returns
+// what it read of the schema it builds from.
 //
 // A $ref promises the node rather than building it (resolvePointer), so every
 // lowering reaching pointer does so in the context its position gives it, and
 // the first build, finished, stands for all.
-func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, build func(common ir.TypeCommon) ir.TypeDef,
+func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, build func(common ir.TypeCommon) (ir.TypeDef, keySet),
 	fin finisher,
 ) ir.TypeID {
 	id := c.IDs().ForPointer(pointer)
 	return ts.Intern(c.IDs().Coordinate(pointer), id, func() ir.TypeDef {
-		td := build(commonFor(c, id, pointer))
+		td, read := build(commonFor(c, id, pointer))
 		if fin != nil && !ir.IsNilTypeDef(td) {
-			fin(td)
+			fin(td, read)
 		}
 		return td
 	})
@@ -125,10 +135,10 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 		return diags
 	}
 	var diags []ir.Diagnostic
-	internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		td, modelDiags := composeModel(c, ts, TopLevelDepth, js.Schema, pointer, true, common, comp)
+	internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td, read, modelDiags := composeModel(c, ts, TopLevelDepth, js.Schema, pointer, true, common, comp)
 		diags = modelDiags
-		return td
+		return td, read
 	}, fin)
 	return diags
 }
@@ -144,7 +154,7 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := ConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), pointer, boundKinds(c, s))
-	return internAliasHolding(c, ts, cons, kept, pointer, target, fin), diags
+	return internAliasHolding(c, ts, cons, kept, boundsRead(s, boundKinds(c, s), nil), pointer, target, fin), diags
 }
 
 // internReferenceAlias is internAlias for the home of a declaration whose census
@@ -156,16 +166,16 @@ func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *statement.Schema
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := referenceConstraintsOf(c, &kept, s, positionVoices(c, s, pointer, target), target, pointer)
-	return internAliasHolding(c, ts, cons, kept, pointer, target, fin), diags
+	return internAliasHolding(c, ts, cons, kept, referenceReads(c, s), pointer, target, fin), diags
 }
 
 // internAliasHolding interns the alias over target, holding the bounds its caller
-// read and the keyword kept beside them, finished by fin.
-func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, pointer jsontext.Pointer,
-	target ir.TypeRef, fin finisher,
+// read, those of read, and the keyword kept beside them, finished by fin.
+func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, read keySet,
+	pointer jsontext.Pointer, target ir.TypeRef, fin finisher,
 ) ir.TypeID {
-	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	return internNode(c, ts, pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
-		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}
+		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}, read
 	}, fin)
 }

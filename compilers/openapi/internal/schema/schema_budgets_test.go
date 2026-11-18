@@ -65,9 +65,9 @@ components:
 			assert.Equal(t, jsontext.Pointer("/components/schemas/E"), diags[0].Provenance.Pointer,
 				"the refusal points at the enum, not at the document")
 			// The budget bounds what the IR holds, so the members must not come
-			// back as bytes. The unhomed-keyword census preserves verbatim
-			// whatever the node it built has no field for, and ir.Any has a field
-			// for nothing — so without keywordHome counting Any a home for `enum`,
+			// back as bytes. The finishing of a node keeps verbatim whatever its
+			// build did not read, and ir.Any has a field for nothing — so without
+			// the build of Any saying it read `enum` (valueSetReads),
 			// refusing the members here put every one of them straight back under
 			// Unmodeled, leaving only the per-member amplification bounded.
 			assert.Empty(t, node.Common().Unmodeled,

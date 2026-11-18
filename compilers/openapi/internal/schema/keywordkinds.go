@@ -4,8 +4,6 @@
 package schema
 
 import (
-	"slices"
-
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -100,15 +98,6 @@ func writerTakes(takes kindSet, w *statement.Schema) kindSet {
 func taken(takes kindSet, keyword string) bool {
 	kinds, listed := keywordKinds[keyword]
 	return !listed || takes&kinds != 0
-}
-
-// untakenBounds returns the value constraints s writes that a reader of the
-// kinds takes does not read, in valueConstraintKeywords order, but a count the
-// load phase refuses, which it reports and no reader holds (refusedCount).
-func untakenBounds(s *statement.Schema, takes kindSet) []string {
-	return slices.DeleteFunc(declaredConstraints(s), func(keyword string) bool {
-		return taken(takes, keyword) || refusedCount(s, keyword)
-	})
 }
 
 // boundsFor returns the groups of value bounds annotation.Constraints reads for
