@@ -2430,8 +2430,16 @@ bounds of the conjunction, the position's own and each other conjunct's, as the 
 written beside each other give it them, each where the node's builder reads it and one no part of
 the node reads kept on it under its keyword, a collection bound beside a `oneOf` as the flat
 spelling keeps it, and an object bound of a `type` list's object variant as
-[`type-arrays`](#type-arrays) says. The conjunct reads as a voice of the position, what it
-writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
+[`type-arrays`](#type-arrays) says. The node reads the position's own keywords before the
+principal's, as the keywords beside an `allOf` stand before an entry's: of two `pattern`s written
+otherwise its field holds the position's, and the principal, disagreeing, is kept whole
+([`allof-inline-residue`](#allof-inline-residue)). A keyword the position writes as its inline
+principal does is one writing, the principal's: the node reads it once, or keeps it once, at the
+entry. So a content keyword written alike is read in the `Encoding` the principal's node holds, a
+type list's on its string variant, and one written otherwise is kept under its keyword, reported
+as held beside an `Encoding` holding its branch's. The conjunct reads as a voice of the position, what it
+writes that its node has no field for kept there at its own pointer, as any conjunct's is, once the
+position has written its own ([`allof-inline-residue`](#allof-inline-residue)). A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
 as the same union beside the `allOf` is, and so are the unions conjuncts beside a principal writing
 none write, judged together as two beside the `allOf` are: each kept as `degraded_lowering` where
@@ -2470,8 +2478,9 @@ another URI, the same spelling may name another schema, while an absolute one na
 wherever it is read. A copy in another document is read apart. One saying
 more is kept under its own keyword, `openapi:<keyword>`, on a branch as beside the `allOf`, each
 reported as an info `openapi/degraded-construct` at the branch or at the position, naming what the
-position lowered to as the same keywords written flat would, a use of one of its conjuncts only
-where its principal is a `$ref`, a branch kept whole only where
+position lowered to as the same keywords written flat would, the position's report and an inline
+principal's own naming the node alike, a shared primitive's alias a primitive, a use of one of its
+conjuncts only where its principal is a `$ref`, a branch kept whole only where
 [`allof-inline-residue`](#allof-inline-residue) says. A `$ref` conjunct the position is no use of is kept, its text alone, under
 `openapi:$ref`, or `openapi:$ref/<i>` where it keeps several, `i` its rank by reference text, then by
 the entry as written, so no order of the entries decides, two written alike being one entry at the
@@ -2629,7 +2638,10 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt`,
   `e2e.TestInlinePrincipal_AUnionStandingKeepsItsDiscriminatorsKeys`,
   `schema.TestAllOf_AUnionAloneOnAnEntryLowersAsItsBareSpelling`,
-  `e2e.TestStandingShape_AReportNamesWhatAnInlinePrincipalLoweredTo`
+  `e2e.TestStandingShape_AReportNamesWhatAnInlinePrincipalLoweredTo`,
+  `schema.TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth`,
+  `schema.TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept`,
+  `schema.TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes`
 
 ### `allof-beside-ref`
 
@@ -2710,7 +2722,10 @@ folding keywords write a relative `$ref` it reads against another base than the 
 schema read at the position; it stays whole, with its report, and is no conjunct the others are
 compared with. One writing none
 there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
-writes from folding.
+writes from folding. A `dependencies` a branch naming a draft writes does not fold where the
+keywords beside the `allOf` write a `dependencies` their own dialect does not define
+([`dialect-keywords`](#dialect-keywords)): both are kept under `openapi:dependencies`, one key
+holding one value, so the branch's is residue, held against the other as below.
 
 What a branch writes that no reader consumes is kept as the same keyword beside the `allOf` is: each
 keyword under its own key, `Unmodeled["openapi:<keyword>"]`, its provenance the keyword where the
@@ -2752,16 +2767,25 @@ consumed keywords included, so the source stays reconstructable rather than havi
 from two places, but for an entry writing a `$ref` beside its keywords: that is two conjuncts, and
 what is kept whole is the rest, the entry less its `$ref`, which lowers or is kept as any `$ref`
 conjunct is, while one whose `$ref` names no schema, read whole, keeps its `$ref` inside. The inline
-principal, whose node stands at the position, is lowered and not kept whole for this: where it and
-the keywords beside the `allOf` both keep a keyword that no field holds, written otherwise, the plain
-key `openapi:<keyword>` holds the position's, as the flat spelling's does, and the principal's are
-kept on the same node under its entry's key, `openapi:allOf/<n>`, as an object holding those
-keywords alone, under the reason it keeps them for, at the entry, with one `openapi/degraded-construct`
-info there saying so; written alike, the keyword is kept once. A principal the position keeps whole
+principal, which the position lowers from, is lowered and not kept whole for this last cause. What
+it keeps is held against what the position keeps, which is written first, as the flat spelling
+writes it: a keyword whose own key `openapi:<keyword>` is free is kept there, as written flat; one
+that key holds with the same value is kept once; and one it holds with another value is kept on
+the same node under the principal's entry's key, `openapi:allOf/<n>`, the rest of the entry
+lowered. That key holds one object of every such keyword, whichever reading of the principal keeps
+it, its census, its bounds on a number carried as text, its content vocabulary or the entry's
+residue, a key no dialect defines among it, under the reason they share, else `degraded_lowering`,
+at the entry, and each reading names its own there in one `openapi/degraded-construct` info, by the
+entry's path, `allOf/<n>`, which the key ends in on a carrier too. Two values are the same where
+they render to the same JSON, member order aside, a number's spelling and an array's order
+included: `1` and `1.0` are two values, each kept. A value no JSON holds is refused where it is
+written, as the flat spelling's is, and kept nowhere. A principal the position keeps whole
 for one of the causes above holds there every keyword of it that no field reads: each is kept once,
 inside the whole entry, and named once, by that entry's report, whose reason reads them as it reads
 the rest, and the principal's own reading keeps and reports none of them apart, a type list's
-variants included. It is kept
+variants included. One whose entry no JSON holds is not kept whole: an
+`openapi/unpreservable-construct` error at the entry names the keywords left in no form, and the
+principal's readings keep theirs keyword by keyword, as above. It is kept
 under the reason its kept keywords share where they share one, else
 `degraded_lowering`, and reported at the branch by an `openapi/validation-only-keyword` where that
 reason is `validation_only`, else by an `openapi/degraded-construct` as above. What such a branch
@@ -2807,10 +2831,21 @@ every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`, `openapi/unknown-schema-keyword`,
-  `openapi/unresolved-ref`, `openapi/cyclic-ref`
+  `openapi/unresolved-ref`, `openapi/cyclic-ref`, `openapi/unpreservable-construct`
 - Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
   `e2e.TestPrincipalApart_AKeywordThePrincipalAndThePositionKeepHoldsBoth`,
   `e2e.TestPrincipalApart_AParameterSchemaHoldsBoth`,
+  `e2e.TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt`,
+  `schema.TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey`,
+  `schema.TestPrincipalKept_EachKeywordHasOneKeeper`,
+  `schema.TestPrincipalKept_AKeywordAlikeIsKeptOnce`,
+  `schema.TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey`,
+  `schema.TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines`,
+  `schema.TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce`,
+  `schema.TestPrincipalKept_AValueThatCannotRenderIsRefusedAsWrittenFlat`,
+  `schema.TestPrincipalKept_AWholeEntryThatCannotRenderLeavesNoKey`,
+  `schema.TestPrincipalKept_AFailedKeepingLeavesWhatItsReportsName`,
+  `schema.TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing`,
   `e2e.TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce`,
   `e2e.TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds`,
   `e2e.TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping`,
