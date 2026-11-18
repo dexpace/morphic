@@ -362,8 +362,10 @@ func keepDeadRoutes(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
 
 // routesClause is what the warning of u's dead branches says of the routes
 // its discriminator takes to them (deadRoutesOf), pronoun naming the branches:
-// none routes, and those it writes are kept. Tags are listed in byte order, as
-// no order of the mapping is the document's.
+// none routes, and those it writes are kept. Each route is listed by the byte
+// order of what the clause says of it, which puts the defaultMapping first,
+// then the mapping keys and then the names, as no order of the mapping is the
+// document's.
 func routesClause(u unionAt, pronoun string) string {
 	if len(u.deadRoutes) == 0 {
 		return ""

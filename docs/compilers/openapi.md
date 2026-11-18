@@ -1783,8 +1783,8 @@ property, parameter or header names the `Model` over the target, a decorator hol
 emitter's [fold](../emitters/refine/decorators.md) carries back onto the carrier. Keywords that only
 bind the use ([`use-bound-annotations`](#use-bound-annotations)), `readOnly`, `writeOnly`, `default`
 and a `nullable: true` the nullable-inference policy reads, beside the `$ref` or beside an `allOf` of
-it, with nothing else but what says nothing of the instance, make no decorator there: the carrier
-names the reference and holds them, as over any other target, so
+it, with nothing else but a `$comment`, an anchor or `$defs`, which make no conjunct, make no
+decorator there: the carrier names the reference and holds them, as over any other target, so
 `{$ref: Obj, readOnly: true}` at a property names `Obj`. Whether a carrier holds the position is
 read off where the schema is written, a property a schema lists or a parameter's or a header's
 schema, never off the lowering that reaches it, so a `$ref` naming such a position reads the `Model`
@@ -2938,8 +2938,8 @@ own, or reached through an alias that holds some, since each bounds the values o
 whichever variant holds them, which the variants do not say. One judgment reads at most 64
 variants, past which the two are unrelated. A structure whose source admits every instance of the
 other's kind is the exception to the disjoint pairs, as `properties` alone constrains objects and
-admits a string, and `{allOf: [{$ref: ObjOrInt}], properties: …}` over `{anyOf: [{type: object},
-{type: integer}]}` admits every integer: what it admits is read as
+admits a string, and `{allOf: [{$ref: Obj}], properties: …}` over `Obj: {properties: …}` admits
+every integer: what it admits is read as
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, through its `type`, its
 `enum` and `const`, its `allOf`, `oneOf` and `anyOf`, the keywords beside a `$ref` and what each
 `$ref` lands on, and for a variant of a union, a distributed one among them, what the schema writing
@@ -2951,17 +2951,19 @@ of that kind while admitting others: a value set, a numeric or a string bound, a
 keyword applying to arrays or to objects alone, `items` or `required` among them, each admit their
 kinds in part, but for one whose schemas, applied to the instance's parts, each state nothing, as
 `items: {}` and `additionalProperties: true` do; and a union admits a kind whole where a branch does
-and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So `{minimum: 5}`, `{format: int32}`,
-`{enum: [1, 2]}` and `{anyOf: [{type: object}, {type: integer, minimum: 5}]}` each admit some
-integers and not every one, and a structure composing one of them is judged against `integer` as a
-structure stating its type is: the conflict is reported and the declaration the field does not keep
-is kept verbatim, since a field of either type alone would lose what the other says. Where that read
-meets what it does not follow but which could refuse a value of
-some kind, a `not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a
-`$recursiveRef` the bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no
-schema, the structure reads as stating its type; a `not` or an `if` written `null` is the keyword
-left out ([`null-schema`](#null-schema)) and refuses nothing. A value type or a
-structure of another instance type is narrower than it, in either order, where it and each alias
+and, for a `oneOf`, which refuses what two branches admit, no other branch admits it. So
+`{minimum: 5}` and `{format: int32}` each admit some integers and not every one, and a structure
+composing one of them, as `{allOf: [{minimum: 5}], properties: …}` does, is judged against
+`integer` as a structure stating its type is; an `allOf` entry stating a value set, or naming a
+union of an object and another kind, makes no structure but a refinement
+([`allof-refinement`](#allof-refinement)). The conflict is reported and the declaration the field
+does not keep is kept verbatim, since a field of either type alone would lose what the other says.
+Where that read meets what it does not follow but which could refuse a value of some kind, a
+`not`, an `if` or a `dependentSchemas` holding a schema, a `$dynamicRef` or a `$recursiveRef` the
+bindings read as no `$ref`, a cycle of conjuncts or a `$ref` landing on no schema, the structure
+reads as stating its type; a `not` or an `if` written `null` is the keyword left out
+([`null-schema`](#null-schema)) and refuses nothing. A value type or a structure of another instance
+type is narrower than it, in either order, where it and each alias
 naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps it otherwise,
 since a type replacing it would lose what it holds. So a structure written at the declaration
 itself, which keeps its docs, deprecation and redaction on its own node, overlaps a value type or a
@@ -3842,7 +3844,11 @@ verbatim on its variant under its keyword and index, `openapi:oneOf/<i>` or `ope
 written, as an entry's own keywords are kept ([`allof-inline-residue`](#allof-inline-residue)); a
 position distributes one union, so no two such keys meet. It draws an info
 `openapi/degraded-construct` at the branch. That is the branch's one home: it lowers at no pointer
-of its own, and the target of a `$ref` it writes is the node it is wherever it is named. Such a
+of its own, and the target of a `$ref` it writes is the node it is wherever it is named. A schema
+writing both a `oneOf` and an `anyOf` distributes its `oneOf`, as
+[`competing-keywords`](#competing-keywords) elects it, and each variant keeps the `anyOf` verbatim
+under `openapi:anyOf` (`degraded_lowering`), drawing that rule's info at the schema; where the
+`oneOf` is one of the shapes below, the node keeps both, with that shape's info alone. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -3886,7 +3892,7 @@ then a conjunct like any other, a contradiction with the rest is that report's t
 whose kinds are not known draws neither, so a schema draws one of the two warnings at most.
 `{allOf: [{$ref: Str}, {oneOf: [{type: boolean}, {$ref: Obj}]}]}` over a string `Str` draws the
 warning that its conjuncts share no value and none naming a dead branch. Where no branch
-lives, the union is shape 6 below. A route the discriminator standing with the union takes to a
+lives, the union is shape 5 below. A route the discriminator standing with the union takes to a
 dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
 dead branch meets first, as a variant's branch meets one ([`discriminator`](#discriminator)), and a
 `defaultMapping` doing so, are left out of the `Discriminator` and kept verbatim on the `Union`
@@ -3896,8 +3902,9 @@ escaped segment, and `openapi:discriminator/defaultMapping` for one written besi
 `allOf`, and `openapi:allOf/<n>/discriminator/mapping/<key>` for one on the entry writing the union.
 The name of the component a dead branch names, which OpenAPI routes by where no entry keys it and no
 other branch names it, keys nothing in the `Mapping` either. The warning naming the dead branches
-names each such tag, in byte order, so a document whose routes are all the union's own compiles with
-no error; an entry naming a schema the union does not list still routes to it, which
+names each such route, the `defaultMapping`, then each `mapping` key and then each component name,
+each in byte order, so a document whose routes are all the union's own compiles with no error; an
+entry naming a schema the union does not list still routes to it, which
 `pass/validate` reports. Where no branch lives, the discriminator routes nothing and is kept whole
 (below).
 
@@ -3948,12 +3955,11 @@ reach these shapes:
    the schema through `allOf`, at any depth (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the
    base of a hierarchy the discriminator routes, which a union of composed variants would no longer
    be the base of;
-4. `oneOf` and `anyOf` are both declared, so distributing one would drop the other;
-5. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
+4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
    no instance satisfies the two together and a variant would hold no value: the position lowers as
    the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
    [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union;
-6. every branch but a null one of a union the body would distribute is dead (above), so no variant
+5. every branch but a null one of a union the body would distribute is dead (above), so no variant
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
    own ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Such a union on an `allOf` entry
@@ -4016,7 +4022,7 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 3).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
-`allOf` branch among them and shape 6 on an entry, stays on that `Model` only when every type it
+`allOf` branch among them and shape 5 on an entry, stays on that `Model` only when every type it
 routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
@@ -4220,9 +4226,9 @@ declaration's keywords. The same preference decides between a `oneOf` and an `an
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
 with its entry. Where a *structural* sibling is written as well,
-[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept,
-an `allOf` that refines being no such sibling but a conjunction the unions are conjuncts of
-([`allof-refinement`](#allof-refinement)).
+[`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
+and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
+conjunction the unions are conjuncts of ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
 each conjunct it beats kept as that rule keeps it, a set its own keywords leave no value standing for
@@ -4715,9 +4721,9 @@ one for every way an object lowers — a plain object, an `allOf`
 ([`allof-required`](#allof-required)), the object variant of a multi-typed schema, a distributed
 union's variant — and reports nothing, since nothing is lost. An object writing a catch-all beside a
 name its properties do not declare is a `Model`, not a `MapT`, since a map requires no key, and
-stays one when a discriminator moves off it. A `required` beside a `$ref` is kept on the alias the
-`$ref` site hoists ([`shape-applicator`](#shape-applicator)), as any keyword is there that composes
-the referent.
+stays one when a discriminator moves off it. A `required` beside a `$ref` lands as it does beside an
+`allOf` of the `$ref` ([`ref-use-site`](#ref-use-site)): `{$ref: User, required: [id]}` is a
+`Model` over `User` whose `Requires` names `id`, at a property as at a component.
 
 - Cases: `allof-required-only`, `required-members`
 - Tests: `schema.TestModel_PlainRequiredUndeclaredPropertyLandsInRequires`,
@@ -4920,9 +4926,9 @@ same way, its values still read as references ([`discriminator`](#discriminator)
 naming the empty string as its tag on a `Model`, or a `Union` a `oneOf` or `anyOf` builds, that
 cannot hold that tag, whose report says so, where the `Union` an enum or a type array lowers to
 routes by none and is reported as for any tag. At a
-`$ref` position the census runs on the alias the use-site rule of
-[models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
-than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
+`$ref` position the census runs on the node the position owns
+([models](../ir/models.md#composition-entries)), the `Model` over an object or the alias over
+anything else, since the siblings bind the position rather than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
 holds what a node of its kind holds. A collapsed union and an expanded `$dynamicRef` lower to a
 reference, so they are read as a `$ref` position is, and an `allOf` that refines takes the same
 census, but for what its principal already says, a union beside it among what it keeps

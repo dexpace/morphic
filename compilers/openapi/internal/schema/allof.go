@@ -263,11 +263,10 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // the rest stays verbatim beside the model (preserveUnmergedBranch, GitHub
 // #123).
 //
-// A $ref branch owns a node: keywords beside its $ref, if any, go on an alias
-// that homeDeclaration hoists there, and the composition points at it (GitHub
-// #143). The census every $ref site runs keeps what the alias cannot model,
-// except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
-// too (GitHub #406).
+// A $ref branch is the reference alone, composing what it names
+// (fillRefBranch). The keywords written beside its $ref are an inline branch
+// of their own at its pointer, merged as above, a oneOf or anyOf among them
+// lowering as on any branch (docs/ir/models.md#composition-entries).
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
 	base int, hasBase bool,
 ) []ir.Diagnostic {
