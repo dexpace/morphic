@@ -3844,7 +3844,10 @@ verbatim on its variant under its keyword and index, `openapi:oneOf/<i>` or `ope
 written, as an entry's own keywords are kept ([`allof-inline-residue`](#allof-inline-residue)); a
 position distributes one union, so no two such keys meet. It draws an info
 `openapi/degraded-construct` at the branch. That is the branch's one home: it lowers at no pointer
-of its own, and the target of a `$ref` it writes is the node it is wherever it is named. Such a
+of its own, and the target of a `$ref` it writes is the node it is wherever it is named. A schema
+writing both a `oneOf` and an `anyOf` distributes its `oneOf`, as
+[`competing-keywords`](#competing-keywords) elects it, and each variant keeps the `anyOf` verbatim
+under `openapi:anyOf` (`degraded_lowering`), drawing that rule's info at the schema. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
@@ -3888,7 +3891,7 @@ then a conjunct like any other, a contradiction with the rest is that report's t
 whose kinds are not known draws neither, so a schema draws one of the two warnings at most.
 `{allOf: [{$ref: Str}, {oneOf: [{type: boolean}, {$ref: Obj}]}]}` over a string `Str` draws the
 warning that its conjuncts share no value and none naming a dead branch. Where no branch
-lives, the union is shape 6 below. A route the discriminator standing with the union takes to a
+lives, the union is shape 5 below. A route the discriminator standing with the union takes to a
 dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
 dead branch meets first, as a variant's branch meets one ([`discriminator`](#discriminator)), and a
 `defaultMapping` doing so, are left out of the `Discriminator` and kept verbatim on the `Union`
@@ -3950,12 +3953,11 @@ reach these shapes:
    the schema through `allOf`, at any depth (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the
    base of a hierarchy the discriminator routes, which a union of composed variants would no longer
    be the base of;
-4. `oneOf` and `anyOf` are both declared, so distributing one would drop the other;
-5. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
+4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
    no instance satisfies the two together and a variant would hold no value: the position lowers as
    the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
    [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union;
-6. every branch but a null one of a union the body would distribute is dead (above), so no variant
+5. every branch but a null one of a union the body would distribute is dead (above), so no variant
    would hold a value: the position lowers as the body does, and the schema draws the warning naming
    the dead branches beside the info, a report a schema composing it through `allOf` takes for its
    own ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)). Such a union on an `allOf` entry
@@ -4018,7 +4020,7 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 3).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model`, shape 3 written on an
-`allOf` branch among them and shape 6 on an entry, stays on that `Model` only when every type it
+`allOf` branch among them and shape 5 on an entry, stays on that `Model` only when every type it
 routes to is a subtype of it
 at any depth (`ir.IsSubtype`): each `mapping` target,
 the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
@@ -4222,9 +4224,9 @@ declaration's keywords. The same preference decides between a `oneOf` and an `an
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
 with its entry. Where a *structural* sibling is written as well,
-[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept,
-an `allOf` that refines being no such sibling but a conjunction the unions are conjuncts of
-([`allof-refinement`](#allof-refinement)).
+[`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
+and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
+conjunction the unions are conjuncts of ([`allof-refinement`](#allof-refinement)).
 An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its conjuncts
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
 each conjunct it beats kept as that rule keeps it, a set its own keywords leave no value standing for
