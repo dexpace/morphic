@@ -469,6 +469,16 @@ var (
 		"BG: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/gamma'}]}",
 		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
 		"gamma: {type: object, properties: {p: {type: integer}}}")
+	// fixtureLoser: fixtureSwap's tie over alpha and beta, a tie over beta and
+	// delta, so beta's p loses as written and reversed, and a model composing
+	// beta alone, which holds that declaration as beta does.
+	fixtureLoser = schemas("AB: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"AB2: {allOf: [{$ref: '#/components/schemas/alpha'}, {$ref: '#/components/schemas/beta'}]}",
+		"BD: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/delta'}]}",
+		"BD2: {allOf: [{$ref: '#/components/schemas/beta'}, {$ref: '#/components/schemas/delta'}]}",
+		"B: {allOf: [{$ref: '#/components/schemas/beta'}]}",
+		"alpha: {type: object, properties: {p: {type: string}}}", "beta: {type: object, properties: {p: {type: integer}}}",
+		"delta: {type: object, properties: {p: {type: boolean}}}")
 )
 
 // abID is the model every detection fixture declares.
@@ -797,6 +807,23 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			},
 			found:    true,
 			contains: []string{"document depends on sequence order", `BG member "p"`},
+		},
+		{
+			// beta's own p is one declaration, which two models' flattenings
+			// hold and the ties report at in either order: no tie decides it.
+			name: "a member of one declaration differing where ties report at it in either order",
+			src:  fixtureLoser,
+			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
+				beta, ok := doc.Types["t/openapi/components/schemas/beta"].(*ir.Model)
+				require.True(t, ok, "the fixture must lower beta to a model")
+				require.Len(t, beta.Properties, 1, "the fixture must declare beta's p")
+				if reversed {
+					beta.Properties[0].Docs.Description = "reversed"
+				}
+				return doc, diags, nil
+			},
+			found:    true,
+			contains: []string{"document depends on sequence order", `beta member "p"`},
 		},
 		{
 			name: "a report moving between declarations that changes more than its pointer",
