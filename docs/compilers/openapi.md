@@ -2415,7 +2415,10 @@ bounds of the conjunction, the position's own and each other conjunct's, as the 
 written beside each other give it them, and the conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
-as the same union beside the `allOf` is. A `$ref` to the branch's own pointer names the branch
+as the same union beside the `allOf` is. A `discriminator` the conjunct writes is the node's, so
+the extensions and keys OpenAPI defines for no Discriminator Object are kept on it, under
+`openapi:discriminator/<key>` at the conjunct's pointer, as one written at the position is
+([`vendor-extensions`](#vendor-extensions)). A `$ref` to the branch's own pointer names the branch
 alone, a node of its own typed by what it writes. A wrapper's `allOf` is the position's conjuncts,
 so `{allOf: [{allOf: [{minItems: 1}], type: array, items: {type: string}}]}` is the one `List` its
 flat spelling is, holding the bound once. A `$ref` principal lowers as any `$ref` branch does, what
@@ -2596,7 +2599,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `e2e.TestInlinePrincipal_AWrapperHoldsEachBoundOnce`,
   `e2e.TestRefConjunction_AUnionBesideARefToTheTopTypeStandsAtThePosition`,
   `schema.TestStand_AUnionKeptBesideAPrincipalsBodyStandsAtThePosition`,
-  `schema.TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt`
+  `schema.TestStand_ContentVocabularyIsReadWhereThePrincipalsNodeHoldsIt`,
+  `e2e.TestInlinePrincipal_AUnionStandingKeepsItsDiscriminatorsKeys`
 
 ### `allof-beside-ref`
 
