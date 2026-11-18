@@ -90,8 +90,8 @@ func TestRegistryReads_HeldToTheBaseline(t *testing.T) {
 // what a lowering built before it (GitHub #1991). A file listed here that the
 // package no longer holds fails too, so the list follows the package.
 var registryFreeFiles = []string{
-	"admission.go", "admitted.go", "agreement.go", "allof_disjoint.go", "branchshape.go", "keywordkinds.go",
-	"kinds.go", "nullbranch.go", "nulls.go", "reading.go",
+	"admission.go", "admissionreader.go", "admitted.go", "agreement.go", "allof_disjoint.go", "branchshape.go", "keywordkinds.go",
+	"kinds.go", "nullbranch.go", "nulls.go",
 }
 
 // TestRegistryFreeFiles_NameNoRegistry holds each of registryFreeFiles to

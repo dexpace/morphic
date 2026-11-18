@@ -4,480 +4,489 @@
 package schema
 
 import (
-	"bytes"
+	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 
-	yaml "go.yaml.in/yaml/v3"
-
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
-	"github.com/dexpace/morphic/ir"
 )
 
-// A position's reading of what a schema admits is cut twice: past
-// maxAdmissionReads schemas taken in, each counted per path to it, and past
-// maxAdmissionMembers value-set members. A reading past either says nothing, and
-// the position stays the composition it would be with no reading at all, which
-// loses nothing. What each statement admits is read once a run (admissionOf),
-// and a position spends what that read takes in, so its verdict is the one a
-// read of its own would reach.
-const (
-	maxAdmissionReads   = 256
-	maxAdmissionMembers = 4096
-)
+// admission is what one statement admits, read once a run, and what the read
+// met on the way.
+type admission struct {
+	// admitted is what an election compares.
+	admitted admitted
+	// admits is the kinds of instance the statement's keywords leave, null
+	// aside; words those the keywords beside its $ref leave; and kinds those it
+	// lowers to, which a bound is placed by (settleKinds).
+	admits, words, kinds kindSet
+	// firm is the kinds what the statement declares leaves, its `type` and
+	// value sets conjoined with each conjunct's; claims the kinds the
+	// kind-inference policy reads off its own shape keywords (claimedKinds),
+	// united with the kinds of each conjunct whose kinds are claims.
+	firm, claims kindSet
+	// partial is the kinds some instance of which a keyword the read took in
+	// refuses while admitting others (narrowedWithin), so admits holds every
+	// instance of a kind only where partial does not hold it.
+	partial kindSet
+	// cut marks a statement on or reaching a cycle of conjunct edges, a $ref
+	// landing on no schema or a value set no reading converts; loose one
+	// meeting a keyword the read does not follow that could refuse a kind
+	// (looseIn), a $dynamicRef the bindings read as no $ref among them, so
+	// admits may claim more than the schema admits; inferred one whose kinds
+	// are its claims, nothing it declares naming a kind.
+	cut, loose, inferred bool
+	// reads and members are the schemas and value-set members the read takes
+	// in, each counted per path and held to one past a reader's cap.
+	reads, members int
+}
 
-// admissionReader reads what schemas admit, across each $ref along its chain and each
-// conjunct and union branch, within one budget for the whole read. It asks what
-// values a schema admits and mirrors no lowering's dispatch. A reading cut short
-// is told by incomplete, and says nothing.
-type admissionReader struct {
-	c lowering.Ctx
-	// nullable reports whether the dialect c reads its schemas in defines the
-	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
-	// elsewhere is read in its own document's (definesNullableAt).
+// conjoin adds what r's conjunct child admits, declares and claims, and what
+// its read took in, to r. A kind child admits only in part is admitted so by
+// both.
+func (r *admission) conjoin(child *admission) {
+	r.admits &= child.admits
+	r.partial |= child.partial
+	r.conjoinKinds(child)
+	if r.took(child) {
+		r.admitted = r.admitted.and(child.admitted)
+	}
+}
+
+// conjoinKinds adds what child declares to what r declares, and its kinds to
+// r's claims where they are claims: JSON Schema applies a shape keyword to the
+// instances of its kind and passes every other, so a claim narrows nothing a
+// conjunct beside it declares (docs/compilers/openapi.md#shape-applicator).
+func (r *admission) conjoinKinds(child *admission) {
+	r.firm &= child.firm
+	if child.inferred {
+		r.claims |= child.kinds
+	}
+}
+
+// settleKinds derives the kinds r lowers to once its conjuncts are read: what
+// it declares where that names a kind, else what it claims where that names
+// one, inferred, else every kind.
+func (r *admission) settleKinds() {
+	switch {
+	case r.firm != anyInstance:
+		r.kinds, r.inferred = r.firm, false
+	case r.claims != 0 && r.claims != anyInstance:
+		r.kinds, r.inferred = r.claims, true
+	default:
+		r.kinds, r.inferred = anyInstance, false
+	}
+}
+
+// took adds what child's read took in and met to r's, and reports whether r
+// is still within both caps. One past either stops (past).
+func (r *admission) took(child *admission) bool {
+	r.cut = r.cut || child.cut
+	r.loose = r.loose || child.loose
+	r.reads = min(r.reads+child.reads, maxAdmissionReads+1)
+	r.members = min(r.members+child.members, maxAdmissionMembers+1)
+	if r.within() {
+		return true
+	}
+	r.past(child)
+	return false
+}
+
+// within reports whether r's read takes in no more schemas than
+// maxAdmissionReads and no more value-set members than maxAdmissionMembers.
+func (r *admission) within() bool {
+	return r.reads <= maxAdmissionReads && r.members <= maxAdmissionMembers
+}
+
+// past is r once its read takes in more than a cap: what an election compares
+// admits every kind and holds no value set or format, so what it merges stops
+// growing with the paths to it, as the formats a read conjoins are one per
+// schema taken in, and the election reads it as cut short (admissionReader.of). The
+// kinds r admits, declares and lowers to are still read over every edge, each
+// statement once, so they stay whole and cut stays false. The element schema
+// is kept, child's where r holds none, which missingArrayItemsConjoined reads
+// past a cut.
+func (r *admission) past(child *admission) {
+	items := r.admitted.items
+	if items == nil {
+		items = child.admitted.items
+	}
+	r.admitted = admitted{kinds: kindAny, items: items}
+}
+
+// cycleRead is what a statement on a cycle of conjunct edges reads as: cut,
+// whichever of its statements the read entered at, and past every reader's
+// cap.
+func cycleRead() *admission {
+	return &admission{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance,
+		firm: anyInstance, partial: anyInstance, cut: true, reads: maxAdmissionReads + 1}
+}
+
+// admissionsIn keys a run's admissions. A statement the bindings do not place
+// is read in the dialect of the context asking (definesNullableAt), so each
+// dialect keeps its own.
+type admissionsIn struct {
 	nullable bool
-	reads    budget.Budget
-	members  budget.Budget
-	// walked hears how many members each value set comparison of the election
-	// looks up, for a test to hold it to the sets it compares; a compile leaves
-	// it nil.
-	walked func(int)
-	// compared hears each comparison of two readings (within), for a test to
-	// hold an election to one per pair of conjuncts; a compile leaves it nil.
-	compared func()
 }
 
-// newAdmissionReader returns a read with the whole budget, in the dialect c reads its
-// schemas in. It returns a value so the read lives on its caller's stack.
-func newAdmissionReader(c lowering.Ctx) admissionReader {
-	return admissionReader{c: c, nullable: c.SchemaRules().Defines("nullable"),
-		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
+// admissions is the run's store of what each statement admits; how many
+// statements and conjunct edges its walks have visited, which the tests hold to
+// one each; and how many formats and value-set members the admissions it
+// settled hold, which they hold to grow with the document and not with its
+// paths.
+type admissions struct {
+	read                  map[*statement.Statement]*admission
+	visits, edges, merged int
 }
 
-// incomplete reports whether the read met what it cannot answer for: a cycle
-// or more than its budget, a $ref landing on no schema, or a value it cannot
-// convert.
-func (w *admissionReader) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
-
-// of is what js, a schema of any form written anywhere, admits, as the run
-// reads it once (admissionOf): what its keywords say, in the dialect of the
-// document holding it, conjoined with its allOf, its unions and what its $ref
-// lands on. It spends what that read takes in, so a read past either cap, or
-// one admissionOf could not settle, is cut short here as reading it would be.
-// A $dynamicRef the read meets masks no kind: one the position expands is read
-// as what it names, and any other admits every kind.
-func (w *admissionReader) of(js *statement.Statement) admitted {
-	r := admissionOf(w.c, js)
-	w.reads.Spend(r.reads)
-	w.members.Spend(r.members)
-	if r.cut {
-		w.reads.Exhaust()
+// admissionOf returns what st admits, read once a run. The first ask walks
+// every statement st reaches by its conjunct edges that no read has settled,
+// and settles each.
+func admissionOf(c lowering.Ctx, st *statement.Statement) *admission {
+	store := admissionStore(c)
+	if r, ok := store.read[st]; ok {
+		return r
 	}
-	return r.admitted
+	w := admissionWalk{c: c, store: store, index: map[*statement.Statement]int{}}
+	w.run(st)
+	return store.read[st]
 }
 
-// lowered is what js admits as the node it lowers to does: what w reads of it,
-// narrowed to the kinds the kind-inference policy read off shape keywords
-// where nothing js declares names a kind (loweredAs). An election weighs what
-// each conjunct declares, and reads admissionReader.of; a reader asking whether a
-// position already says what a keyword does reads this.
-func lowered(w *admissionReader, js *statement.Statement) admitted {
-	return loweredAs(w.c, js, w.of(js))
+// admissionStore returns the run's admissions in the dialect c reads an
+// unplaced schema in.
+func admissionStore(c lowering.Ctx) *admissions {
+	return lowering.Remembered(c, admissionsIn{c.SchemaRules().Defines("nullable")}, func() *admissions {
+		return &admissions{read: map[*statement.Statement]*admission{}}
+	})
 }
 
-// loweredAs is read, what js admits, narrowed to the kinds js lowers to where
-// the kind-inference policy read them (lowersTo), as the node it lowers to
-// excludes every other kind.
-func loweredAs(c lowering.Ctx, js *statement.Statement, read admitted) admitted {
-	if kinds, inferred := lowersTo(c, js); inferred {
-		read.kinds &= kinds
+// conjunctsOf returns the statements st conjoins with, each conjunct edge in
+// the order the read conjoins them, a statement as often as st names it: the
+// reference written beside its keywords (statement.Schema.BesideRef) and its
+// allOf entries, its oneOf and then anyOf branches, and the statement its
+// $ref's first hop lands on, or, for a $dynamicRef the bindings read as no
+// $ref, the one it expands to (dynamicExpansionOf). A `properties` or an
+// `items` consumes the instance, so it is no edge.
+func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement {
+	if st.Truth != statement.Stated {
+		return nil
 	}
-	return read
-}
-
-// lowersTo returns the kinds js lowers to, null aside, and whether the
-// kind-inference policy read them: what the run's admission of it settles
-// (settleKinds), and where that read is cut short, what the policy reads off
-// the keywords js writes itself (claimedKinds), else every kind. The election,
-// the readers of what a position already says and the lowering of a schema
-// naming no kind each read a statement's kinds here.
-func lowersTo(c lowering.Ctx, js *statement.Statement) (kindSet, bool) {
-	r := admissionOf(c, js)
-	if !r.cut {
-		return r.kinds, r.inferred
+	choice := st.ChoiceKeywords()
+	subs := slices.Concat(st.AllOf, choice.OneOf, choice.AnyOf)
+	out := make([]*statement.Statement, 0, len(subs)+2)
+	if st.BesideRef != nil {
+		out = append(out, c.Statements().Read(st.BesideRef))
 	}
-	if claims := claimedKinds(c, js.Schema); claims != 0 {
-		return claims, true
+	for _, b := range subs {
+		out = append(out, c.Statements().Sub(b))
 	}
-	return anyInstance, false
-}
-
-// writtenLowered is what s's own keywords admit as w reads them
-// (admissionReader.written), narrowed, where it writes no type, to the kinds it
-// lowers to (untypedKinds): those its conjuncts declare where its keywords
-// speak of them, else those the kind-inference policy reads off them. So a
-// body beside branches each declaring an object admits what it would writing
-// `type: object`.
-func writtenLowered(w *admissionReader, s *statement.Schema, nullable bool) admitted {
-	read := w.written(s, nullable)
-	if writesType(s) {
-		return read
-	}
-	if kinds, _ := untypedKinds(w.c, s); kinds != 0 {
-		read.kinds &= kinds
-	}
-	return read
-}
-
-// declarationSet is a set of schemas declaring together, with every schema they
-// compose, as the walk gathering them reached it, and the place of their
-// `items`, nil where none writes one. The place of a property is gathered from
-// the schemas the first time a claim asks for it, since a claim names few of
-// those a body declares.
-type declarationSet struct {
-	schemas    []*statement.Schema
-	composed   []*statement.Statement
-	properties map[string]*place
-	items      *place
-}
-
-// place is one property or element a set of schemas declares: each declaration
-// of it, and what they admit together and declare of what they nest, each read
-// the first time it is asked for and kept, so every claim restating the place
-// shares one reading.
-type place struct {
-	decls []*statement.Statement
-	held  *admitted
-	inner *declarationSet
-}
-
-// newDeclarationSet returns an empty set, the one form property can be asked
-// of.
-func newDeclarationSet() declarationSet {
-	return declarationSet{properties: map[string]*place{}}
-}
-
-// add records s and its `items`. An s holding no schema object, a boolean
-// schema's, declares nothing: it writes no `items` and no property
-// (statement.Schema.Property).
-func (d *declarationSet) add(t *statement.Table, s *statement.Schema) {
-	d.schemas = append(d.schemas, s)
-	if items := t.Sub(itemsSchema(s)); items.Truth != statement.Unwritten {
-		if d.items == nil {
-			d.items = &place{}
-		}
-		d.items.decls = append(d.items.decls, items)
-	}
-}
-
-// property returns the place of the property name, nil where no schema of d
-// declares it, gathered once and read from t.
-func (d *declarationSet) property(t *statement.Table, name string) *place {
-	if at, ok := d.properties[name]; ok {
-		return at
-	}
-	var at *place
-	for _, s := range d.schemas {
-		if p, ok := s.Property(name); ok {
-			if at == nil {
-				at = &place{}
-			}
-			at.decls = append(at.decls, t.Sub(p))
-		}
-	}
-	d.properties[name] = at
-	return at
-}
-
-// declarations returns what s declares: itself, each allOf conjunct and what
-// a $ref lands on, read as of reads them and within the same budget.
-func (w *admissionReader) declarations(s *statement.Schema) declarationSet {
-	out := newDeclarationSet()
-	out.add(w.c.Statements(), s)
-	w.declare(&out, conjunctsIn(w.c, s))
-	return out
-}
-
-// heldAt returns what p's declarations admit together, read once.
-func (w *admissionReader) heldAt(p *place) admitted {
-	if p.held == nil {
-		held := lowered(w, p.decls[0])
-		for _, d := range p.decls[1:] {
-			held = held.and(lowered(w, d))
-		}
-		p.held = &held
-	}
-	return *p.held
-}
-
-// innerAt returns what p's declarations declare together, as declarations
-// reads one, read once.
-func (w *admissionReader) innerAt(p *place) declarationSet {
-	if p.inner == nil {
-		inner := newDeclarationSet()
-		w.declare(&inner, slices.Clone(p.decls))
-		p.inner = &inner
-	}
-	return *p.inner
-}
-
-// declare adds to out what each schema on stack declares, its conjuncts
-// (conjunctsIn) and what its $ref lands on. A union's branches are left out, since an
-// instance need match only one. A declaration the walk does not reach, past the
-// budget or a $ref landing nowhere, is one fewer to restate, which errs towards
-// shape. The walk keeps its own stack, so it adds no recursion cycle, and the
-// order of each list is no answer.
-func (w *admissionReader) declare(out *declarationSet, stack []*statement.Statement) {
-	for len(stack) > 0 && w.reads.Spend(1) {
-		st := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		out.composed = append(out.composed, st)
-		out.add(w.c.Statements(), st.Schema)
-		stack = append(stack, conjunctsIn(w.c, st.Schema)...)
-		if next, _ := declaredOf(w.c, st); next != nil {
-			stack = append(stack, next)
-		}
-	}
-}
-
-// statementsOf returns the statements of the schemas list names, in its
-// order.
-func statementsOf(c lowering.Ctx, list []statement.Sub) []*statement.Statement {
-	out := make([]*statement.Statement, len(list))
-	for i, b := range list {
-		out[i] = c.Statements().Sub(b)
+	if next, _ := declaredOf(c, st); next != nil {
+		out = append(out, next)
+	} else if at, ok := dynamicExpansionOf(c, st); ok {
+		out = append(out, c.Statements().At(at))
 	}
 	return out
 }
 
-// union reads a oneOf's or anyOf's branches, any of which an instance may be.
-func (w *admissionReader) union(branches []statement.Sub) admitted {
-	out := w.of(w.c.Statements().Sub(branches[0]))
+// dynamicExpansionOf returns the position the $dynamicRef or $recursiveRef st
+// writes names, read at st's own position in its own document, where dynamic
+// scope is static (dynamicTarget), and false where it writes none the bindings
+// do not read as a $ref, names none, or is placed nowhere. One an allOf entry
+// writes names none: no position expands it (keepEntryDynamicRef), so it masks
+// no kind (docs/compilers/openapi.md#allof-refinement).
+func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (bind.Position, bool) {
+	at, placed := siteOf(st.Schema)
+	if st.Ref != nil || !placed || !declaresDynamicRef(st.Schema) || writtenAsEntry(at.Pointer) {
+		return bind.Position{}, false
+	}
+	in, _ := lowering.InDocument(c, at.Doc)
+	return dynamicTarget(in, st.Schema, at.Pointer)
+}
+
+// writtenAsEntry reports whether pointer names an entry of an allOf.
+func writtenAsEntry(pointer jsontext.Pointer) bool {
+	_, err := strconv.ParseUint(pointer.LastToken(), 10, 64)
+	return err == nil && pointer.Parent().LastToken() == "allOf"
+}
+
+// admissionWalk is one walk settling the admissions a first ask needs, by
+// Tarjan's strongly connected components over the conjunct edges, on stacks
+// of its own: it recurses nowhere, and visits each statement it has not
+// settled and each of that statement's edges once. A component is settled
+// when its root returns, every component it reaches settled before it.
+type admissionWalk struct {
+	c      lowering.Ctx
+	store  *admissions
+	index  map[*statement.Statement]int
+	low    []int
+	open   []*statement.Statement
+	frames []admissionFrame
+}
+
+// admissionFrame is one statement the walk is inside: its place in the order
+// visited, its conjunct edges, and the next one to follow.
+type admissionFrame struct {
+	st    *statement.Statement
+	at    int
+	edges []*statement.Statement
+	next  int
+}
+
+// run walks from root. Each pass of the loop follows one edge or leaves one
+// statement, so it ends after the statements and edges reached, twice over.
+func (w *admissionWalk) run(root *statement.Statement) {
+	w.enter(root)
+	for len(w.frames) > 0 {
+		top := len(w.frames) - 1
+		if f := &w.frames[top]; f.next < len(f.edges) {
+			next := f.edges[f.next]
+			f.next++
+			w.follow(f.at, next)
+			continue
+		}
+		f := w.frames[top]
+		w.frames = w.frames[:top]
+		if top > 0 {
+			parent := w.frames[top-1].at
+			w.low[parent] = min(w.low[parent], w.low[f.at])
+		}
+		if w.low[f.at] == f.at {
+			w.settle(&f)
+		}
+	}
+}
+
+// enter visits st: it is given the next place in the order, pushed open, and
+// its edges read.
+func (w *admissionWalk) enter(st *statement.Statement) {
+	at := len(w.low)
+	w.index[st] = at
+	w.low = append(w.low, at)
+	w.open = append(w.open, st)
+	edges := conjunctsOf(w.c, st)
+	w.frames = append(w.frames, admissionFrame{st: st, at: at, edges: edges})
+	w.store.visits++
+	w.store.edges += len(edges)
+}
+
+// follow takes the edge from the statement at place from to next: settled
+// already, there is nothing to walk; unvisited, it is entered; still open, it
+// is on from's component.
+func (w *admissionWalk) follow(from int, next *statement.Statement) {
+	if _, settled := w.store.read[next]; settled {
+		return
+	}
+	at, seen := w.index[next]
+	if !seen {
+		w.enter(next)
+		return
+	}
+	w.low[from] = min(w.low[from], at)
+}
+
+// settle pops the component whose root is f's statement and records what each
+// of its statements admits: one holding more than one statement, or one naming
+// itself, is a cycle; any other reads over its edges, each settled.
+func (w *admissionWalk) settle(f *admissionFrame) {
+	from := len(w.open) - 1
+	for w.open[from] != f.st {
+		from--
+	}
+	members := w.open[from:]
+	if len(members) > 1 || slices.Contains(f.edges, f.st) {
+		for _, m := range members {
+			w.store.read[m] = cycleRead()
+		}
+	} else {
+		r := w.readOne(f.st, f.edges)
+		w.store.read[f.st] = r
+		w.store.merged += len(r.admitted.forms) + r.admitted.size()
+	}
+	w.open = w.open[:from]
+}
+
+// readOne reads st, whose conjunct edges each lead to a settled statement:
+// what its own keywords say, in the dialect of the document holding it,
+// conjoined with its allOf entries, the join of each union's branches and what
+// its $ref lands on, in conjunctsOf's order, its kinds settled last
+// (settleKinds). A statement stating no schema object admits nothing where it
+// reads as `false`, and anything else.
+func (w *admissionWalk) readOne(st *statement.Statement, edges []*statement.Statement) *admission {
+	if st.Truth != statement.Stated {
+		if st.Truth.ReadsFalse() {
+			return &admission{reads: 1}
+		}
+		return &admission{admitted: admitted{kinds: kindAny}, admits: anyInstance, words: anyInstance, kinds: anyInstance,
+			firm: anyInstance, reads: 1}
+	}
+	r := w.readOwn(st)
+	choice := st.ChoiceKeywords()
+	conjuncts := len(st.AllOf)
+	if st.BesideRef != nil {
+		conjuncts++
+	}
+	for _, e := range edges[:conjuncts] {
+		r.conjoin(w.store.read[e])
+	}
+	edges = edges[conjuncts:]
+	for i, branches := range [][]statement.Sub{choice.OneOf, choice.AnyOf} {
+		if len(branches) > 0 {
+			r.conjoin(w.join(edges[:len(branches)], i == 0))
+			edges = edges[len(branches):]
+		}
+	}
+	r.words = r.admits
+	switch {
+	case st.Ref != nil && len(edges) == 0:
+		r.cut = true
+	case st.Ref != nil:
+		r.conjoin(w.store.read[edges[0]])
+	case len(edges) > 0:
+		target := w.store.read[edges[0]]
+		r.admits &= target.admits
+		r.partial |= target.partial
+		r.conjoinKinds(target)
+		r.cut = r.cut || target.cut
+		r.loose = r.loose || target.loose
+	}
+	r.settleKinds()
+	return r
+}
+
+// readOwn reads what st's own keywords say: what they admit, the kinds their
+// type and value sets leave, and the members those sets hold.
+func (w *admissionWalk) readOwn(st *statement.Statement) *admission {
+	own := admissionReader{c: w.c, reads: budget.New(budget.Unbounded()), members: budget.New(budget.Unbounded())}
+	r := &admission{reads: 1, admitted: own.written(st.Schema, definesNullableAt(w.c, st))}
+	r.admits = declaredInstanceTypes(st.Schema) & valueKinds(w.c, st.Schema)
+	r.firm, r.claims = r.admits, claimedKinds(w.c, st.Schema)
+	r.partial = narrowedWithin(w.c.Statements(), st.Schema)
+	r.members = min(own.members.Spent(), maxAdmissionMembers+1)
+	if !r.within() {
+		r.past(r)
+	}
+	r.cut = own.members.Exhausted()
+	r.loose = declaresDynamicRef(st.Schema) && st.Ref == nil || looseIn(st.Schema)
+	return r
+}
+
+// join is what any of a union's settled branches admits, declares and lowers
+// to, with what their reads took in: a branch reading as every kind leaves
+// what the join declares open, so the kinds the branches lower to reach the
+// position as a claim where any branch's is one. A kind is admitted whole
+// where some branch admits it whole and, for an exclusive union, which refuses
+// an instance two branches admit, no other branch admits it at all.
+func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *admission {
+	first := w.store.read[branches[0]]
+	out := &admission{admitted: first.admitted, admits: first.admits, kinds: first.kinds, firm: first.firm,
+		inferred: first.inferred}
+	out.took(first)
+	whole, shared := first.admits&^first.partial, kindSet(0)
 	for _, b := range branches[1:] {
-		out = out.or(w.of(w.c.Statements().Sub(b)))
-	}
-	return out
-}
-
-// definesNullableAt reports whether the dialect of the document holding js
-// defines nullable: where c's bindings place js, that document's, and c's own
-// for a schema they do not place.
-func definesNullableAt(c lowering.Ctx, js *statement.Statement) bool {
-	at, ok := siteOf(js.Schema)
-	if !ok {
-		return c.SchemaRules().Defines("nullable")
-	}
-	return definesNullableIn(c, at.Doc)
-}
-
-// written reads the keywords s itself writes that say what a value is, in a
-// dialect defining nullable where nullable says: `type`, which a `nullable`
-// adds null to there, `format`, `enum`, `const` and `items`. A schema in c's
-// document is read in w.nullable's dialect.
-func (w *admissionReader) written(s *statement.Schema, nullable bool) admitted {
-	out := admitted{kinds: writtenKinds(s, nullable)}
-	// `items: true` admits what no `items` does, so it holds an element to nothing.
-	if items := w.c.Statements().Sub(itemsSchema(s)); items.Truth == statement.Stated || items.Truth.ReadsFalse() {
-		out.items = items
-	}
-	if form, ok := formOf(s); ok {
-		out.forms = []scalarForm{form}
-		if form.listed && form.prim.StrictlyWithin(ir.PrimInteger) {
-			out.kinds &= kindInteger | kindNull
+		branch := w.store.read[b]
+		shared |= out.admits & branch.admits
+		whole |= branch.admits &^ branch.partial
+		out.admits |= branch.admits
+		out.kinds |= branch.kinds
+		out.firm |= branch.firm
+		out.inferred = out.inferred || branch.inferred
+		if out.took(branch) {
+			out.admitted = out.admitted.or(branch.admitted)
 		}
 	}
-	if enumWritten(s) {
-		out = out.and(w.valueSet(valueSetOf{s, "enum"}, s.Enum()))
-	}
-	if constant := s.Const(); constant != nil {
-		out = out.and(w.valueSet(valueSetOf{s, "const"}, []*yaml.Node{constant}))
+	out.partial = out.admits &^ whole
+	if exclusive {
+		out.partial |= shared
 	}
 	return out
 }
 
-// writtenKinds reads a schema's `type`, with the null a `nullable: true` adds
-// to it, beside a $ref as anywhere, where the dialect defines the keyword, as
-// nullable says. A schema writing none, a null `type` among them (writesType),
-// admits every kind, whatever shape keywords it writes: each passes an
-// instance of another kind (docs/compilers/openapi.md#shape-applicator).
-func writtenKinds(s *statement.Schema, nullable bool) kindSet {
-	if !writesType(s) {
-		return kindAny
-	}
+// narrowedWithin returns the kinds some instance of which s's own keywords may
+// refuse while admitting others: every kind for a value set, a number for a
+// numeric bound, a string for a string bound, a string and a number for a
+// format, and an array or an object for a keyword applying to that kind alone
+// (oas.SlotOf), `dependentSchemas` and the drafts' `dependencies` among them,
+// but one refusing none (refusesNothing). A `type` refuses a kind whole, which
+// admits holds; a `not` or an `if` makes the read loose (looseIn); and a
+// keyword written null is left out.
+func narrowedWithin(t *statement.Table, s *statement.Schema) kindSet {
 	var out kindSet
-	for _, t := range s.Types() {
-		out |= kindOfType(t)
-	}
-	if nullable && nullableTrue(s) {
-		out |= kindNull
+	for _, k := range s.Keys {
+		if k.Null {
+			continue
+		}
+		switch k.Slot {
+		case oas.SlotValues:
+			out |= anyInstance
+		case oas.SlotFormat:
+			if _, ok := formOf(s); ok {
+				out |= kindString | kindNumber
+			}
+		case oas.SlotNumber:
+			out |= kindNumber
+		case oas.SlotText:
+			out |= kindString
+		case oas.SlotArray:
+			if !refusesNothing(t, s, k.Name) {
+				out |= kindArray
+			}
+		case oas.SlotObject:
+			if !refusesNothing(t, s, k.Name) {
+				out |= kindObject
+			}
+		case oas.SlotLogic:
+			if k.Name == "dependentSchemas" || k.Name == "dependencies" {
+				out |= kindObject
+			}
+		default:
+		}
 	}
 	return out
 }
 
-// formOf returns the format s holds a value to. The redaction names no shape.
-func formOf(s *statement.Schema) (scalarForm, bool) {
-	format := s.FormatName()
-	if format == "" || annotation.DeclaresRedaction(s) {
-		return scalarForm{}, false
+// refusesNothing reports whether the keyword name s writes refuses no instance
+// of the kind it applies to: a schema applied to each of an instance's parts
+// that states nothing, `true` or `{}`, or a `properties`, `patternProperties`
+// or `prefixItems` each of whose schemas states nothing. Any other array or
+// object keyword is read as refusing some.
+func refusesNothing(t *statement.Table, s *statement.Schema, name string) bool {
+	statesNothing := func(sub statement.Sub) bool {
+		return sub.Truth() == statement.Anything || sub.Truth() == statement.Stated && len(t.Sub(sub).Keys) == 0
 	}
-	prim, listed := formatPrimitive(s)
-	return scalarForm{spelled: format, prim: prim, listed: listed}, true
-}
-
-// valueSetOf keys the members one keyword of one schema writes.
-type valueSetOf struct {
-	schema  *statement.Schema
-	keyword string
-}
-
-// memberSet is a value set as a run remembers it, unread where a member has no
-// reading.
-type memberSet struct {
-	values map[string]kindSet
-	kinds  kindSet
-	unread bool
-}
-
-// valueSet reads the members of an enum or a const. Reading them is remembered,
-// so a shared enum costs its members once and not at each position naming it, but
-// spending is not: a read's verdict turns on what it spends, so a remembered set
-// must cut a read as reading it would, or lowering order would decide.
-func (w *admissionReader) valueSet(key valueSetOf, members []*yaml.Node) admitted {
-	if !w.members.Spend(len(members)) {
-		return admitted{fixed: true}
-	}
-	set := memberSetOf(w.c, key, members)
-	if set.unread {
-		w.members.Exhaust()
-	}
-	return admitted{kinds: set.kinds, fixed: true, values: set.values}
-}
-
-// memberSetOf returns the members of the set key names, members, read once a
-// run.
-func memberSetOf(c lowering.Ctx, key valueSetOf, members []*yaml.Node) memberSet {
-	return lowering.Remembered(c, key, func() memberSet { return readMembers(members) })
-}
-
-// valueKinds returns the kinds the enum and the const s writes leave, null
-// aside: every kind where it writes neither, and none for a set no reading
-// converts, which cuts the read (readOwn).
-func valueKinds(c lowering.Ctx, s *statement.Schema) kindSet {
-	kinds := anyInstance
-	if enumWritten(s) {
-		kinds &= memberSetOf(c, valueSetOf{s, "enum"}, s.Enum()).kinds
-	}
-	if constant := s.Const(); constant != nil {
-		kinds &= memberSetOf(c, valueSetOf{s, "const"}, []*yaml.Node{constant}).kinds
-	}
-	return kinds
-}
-
-// readMembers reads each member's key with its kind.
-func readMembers(members []*yaml.Node) memberSet {
-	out := memberSet{values: make(map[string]kindSet, len(members))}
-	for _, m := range members {
-		key, kind, ok := memberOf(m)
-		if !ok {
-			return memberSet{unread: true}
-		}
-		out.values[key] = kind
-		out.kinds |= kind
-	}
-	return out
-}
-
-// within reports whether every value a admits b admits, so far as what a reading
-// holds can say.
-func (w *admissionReader) within(a, b admitted) bool {
-	if w.compared != nil {
-		w.compared()
-	}
-	return a.kindsWithin(b) && a.valuesWithin(b) && a.formsWithin(b) && w.itemsWithin(a, b)
-}
-
-// itemsWithin reports whether a's elements are all b's elements can be.
-func (w *admissionReader) itemsWithin(a, b admitted) bool {
-	if b.items == nil || a.items == b.items {
-		return true
-	}
-	return a.items != nil && w.restates(w.of(a.items), a.items, b.items)
-}
-
-// restates reports whether what held admits, read from from, says all that js
-// writes: the same schema written twice, nothing a keyword of js adds, or no value
-// at all, which is within anything. A keyword no reading compares, a $ref among
-// them, says what it cannot tell, and a null one says nothing.
-func (w *admissionReader) restates(held admitted, from, js *statement.Statement) bool {
-	if !held.reachable() || w.sameText(from, js) {
-		return true
-	}
-	if js.Truth != statement.Stated || w.reads.Exhausted() {
-		return false
-	}
-	return !slices.ContainsFunc(js.Keys, func(k statement.Key) bool {
-		return !annotation.WritesKeywordLeftOut(js.Schema, k.Name) && !w.holds(held, js.Schema, k.Name)
-	})
-}
-
-// sameText reports whether a and b, both written in one document, write the
-// same JSON, read against one base where it writes a relative $ref: under an
-// $id naming another URI, the same spelling resolves elsewhere. A copy in
-// another document is read apart: its $refs resolve against that document, and
-// its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
-// placed nowhere, a nil one among them, is written alike with none.
-func (w *admissionReader) sameText(a, b *statement.Statement) bool {
-	at, placed := siteOf(a.Schema)
-	bt, placedB := siteOf(b.Schema)
-	if !placed || !placedB || at.Doc != bt.Doc {
-		return false
-	}
-	text := w.text(a)
-	if text == nil || !bytes.Equal(text, w.text(b)) {
-		return false
-	}
-	// The texts are remembered, so comparing them first leaves a base, which
-	// walks the document, to the rare pair written alike.
-	if !annotation.WritesReference(text) {
-		return true
-	}
-	base, known := w.c.Bindings().Table().Base(at)
-	other, knownB := w.c.Bindings().Table().Base(bt)
-	return known && knownB && base == other
-}
-
-// textOf keys what text rendered of one schema.
-type textOf struct {
-	schema *statement.Statement
-}
-
-// text renders js, nil where it cannot be rendered. Every position restating a
-// shared schema asks, so it is rendered once a run.
-func (w *admissionReader) text(js *statement.Statement) ir.RawValue {
-	return lowering.Remembered(w.c, textOf{js}, func() ir.RawValue {
-		raw, err := annotation.RawFromNode(js.Node)
-		if err != nil {
-			return nil
-		}
-		return raw
-	})
-}
-
-// holds reports whether what held admits says all that s's keyword key does, so
-// a position lowered to held loses nothing leaving it unread.
-func (w *admissionReader) holds(held admitted, s *statement.Schema, key string) bool {
-	switch key {
-	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
-	case "format":
-		return held.formsWithin(w.written(s, w.nullable))
-	case "enum", "const":
-		return held.valuesWithin(w.written(s, w.nullable))
+	switch name {
 	case "items":
-		return w.itemsWithin(held, w.written(s, w.nullable))
+		return statesNothing(s.ArrayKeywords().Items)
+	case "unevaluatedItems":
+		return statesNothing(s.ArrayKeywords().UnevaluatedItems)
+	case "prefixItems":
+		return !slices.ContainsFunc(s.ArrayKeywords().PrefixItems, func(sub statement.Sub) bool { return !statesNothing(sub) })
+	case "additionalProperties":
+		return statesNothing(s.ObjectKeywords().AdditionalProperties)
+	case "propertyNames":
+		return statesNothing(s.ObjectKeywords().PropertyNames)
+	case "unevaluatedProperties":
+		return statesNothing(s.ObjectKeywords().UnevaluatedProperties)
+	case "properties":
+		return !slices.ContainsFunc(s.ObjectKeywords().Properties, func(sub statement.Sub) bool { return !statesNothing(sub) })
+	case "patternProperties":
+		return !slices.ContainsFunc(s.ObjectKeywords().PatternProperties, func(sub statement.Sub) bool { return !statesNothing(sub) })
 	default:
 		return false
 	}
+}
+
+// looseIn reports whether s writes a keyword the read of what it admits does
+// not follow and that could refuse a value of some kind: a `not`, an `if` or a
+// `dependentSchemas` holding a schema. One written null is the keyword left
+// out (docs/compilers/openapi.md#null-schema), and refuses nothing.
+func looseIn(s *statement.Schema) bool {
+	if s.Logic == nil {
+		return false
+	}
+	l := s.Logic
+	return written(l.Not) || written(l.If) || slices.ContainsFunc(l.DependentSchemas, written)
 }

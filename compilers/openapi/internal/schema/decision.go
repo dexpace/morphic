@@ -407,7 +407,7 @@ func competingSet(w *admissionReader, s *statement.Schema) admitted {
 // its own keywords and comp's entries declare, else claim, as the run's
 // admission settles a statement's (settleKinds).
 func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kindSet, bool) {
-	rest := reading{firm: declaredInstanceTypes(s) & valueKinds(c, s), claims: claimedKinds(c, s)}
+	rest := admission{firm: declaredInstanceTypes(s) & valueKinds(c, s), claims: claimedKinds(c, s)}
 	for _, e := range comp.branches {
 		rest.conjoinKinds(admissionOf(c, e.schema))
 	}

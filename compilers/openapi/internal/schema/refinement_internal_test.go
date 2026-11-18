@@ -96,11 +96,11 @@ func TestRefinementOf_ReadsASchemaOnce(t *testing.T) {
 	assert.True(t, decisionOf(l.Ctx, StatedIn(l, s)).refines, "a reader with no pointer reads it too")
 }
 
-// TestAdmission_ReadsAValueSetOnce pins that an enum is read once a run however
+// TestAdmissionReader_ReadsAValueSetOnce pins that an enum is read once a run however
 // many positions read it, which is what keeps positions times members from being
 // the cost of a shared enum: a member changes after the first read, which no
 // lowering does, so only a remembered set stays.
-func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
+func TestAdmissionReader_ReadsAValueSetOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
@@ -220,10 +220,10 @@ func TestLentBy_ReadsATargetOnce(t *testing.T) {
 	assert.Equal(t, first, lentBy(l.Ctx, l.Ctx.Statements().Of(js)).Referents, "the second ask reads what the first read")
 }
 
-// TestAdmission_RendersASchemaOnce pins that a schema's text is rendered once a run
+// TestAdmissionReader_RendersASchemaOnce pins that a schema's text is rendered once a run
 // however many positions restate it: the node changes after the first render, which
 // no lowering does, so only remembered text stays.
-func TestAdmission_RendersASchemaOnce(t *testing.T) {
+func TestAdmissionReader_RendersASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
 	js, ok := l.Doc.Components.Schemas.Get("T")
@@ -328,20 +328,20 @@ func TestKindOfValue_NamesEachValuesKind(t *testing.T) {
 	}
 }
 
-// TestAdmission_AnEnumAndAConstAreTwoSets pins that one schema's two value sets are
+// TestAdmissionReader_AnEnumAndAConstAreTwoSets pins that one schema's two value sets are
 // remembered apart: each is read and conjoined, so an instance is held to both.
-func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
+func TestAdmissionReader_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmissionReader(l.Ctx)
 	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(StatedIn(l, componentSchema(t, l, "E")), w.nullable).values)
 }
 
-// TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
+// TestAdmissionReader_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
 // applied as 3.1 applies them and read as their document's dialect defines
 // them, so a 3.0 `nullable` there adds null to the type beside it, and a 3.1
 // one, which that dialect does not define, adds nothing.
-func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
+func TestAdmissionReader_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
 	t.Parallel()
 	for version, want := range map[string]kindSet{"3.0.3": kindString | kindNull, "3.1.0": kindString} {
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, `    S: {type: string}
@@ -352,10 +352,10 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
 	}
 }
 
-// TestAdmission_ASchemaIsWithinItself pins the comparison every election makes of
+// TestAdmissionReader_ASchemaIsWithinItself pins the comparison every election makes of
 // a conjunct with itself, which needs no rendering: rendering costs the whole
 // `items` subtree at each level, and a value that will not render shows it ran.
-func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
+func TestAdmissionReader_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
 	w := newAdmissionReader(l.Ctx)
@@ -363,11 +363,11 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	assert.True(t, w.within(read, read))
 }
 
-// TestAdmission_ARememberedSetStillSpends pins why a remembered set costs its
+// TestAdmissionReader_ARememberedSetStillSpends pins why a remembered set costs its
 // budget: a read's verdict turns on what it spent, so a set a first reader
 // read must cut a later one exactly as reading it would, or which position
 // lowered first would decide what another lowers to.
-func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
+func TestAdmissionReader_ARememberedSetStillSpends(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
@@ -381,9 +381,9 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	assert.True(t, short.incomplete())
 }
 
-// TestAdmission_AnUnreadableSetIsRememberedAsUnread pins that a set no reader could
+// TestAdmissionReader_AnUnreadableSetIsRememberedAsUnread pins that a set no reader could
 // read cuts every read of it, the first and those after.
-func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
+func TestAdmissionReader_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := componentSchema(t, l, "E")
