@@ -3847,7 +3847,8 @@ position distributes one union, so no two such keys meet. It draws an info
 of its own, and the target of a `$ref` it writes is the node it is wherever it is named. A schema
 writing both a `oneOf` and an `anyOf` distributes its `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects it, and each variant keeps the `anyOf` verbatim
-under `openapi:anyOf` (`degraded_lowering`), drawing that rule's info at the schema. Such a
+under `openapi:anyOf` (`degraded_lowering`), drawing that rule's info at the schema; where the
+`oneOf` is one of the shapes below, the node keeps both, with that shape's info alone. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
 the bounds written beside the union that the kinds it admits take, its branch's within the body's,
