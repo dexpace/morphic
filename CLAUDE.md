@@ -379,8 +379,9 @@ assertion shapes:
   the reversal moves that carries no pair. Of a tied member it compares what its fold settles from
   every declaration alike: whether it is required or secret and where it is visible, and its
   deprecation, docs, name and XML hints where a stated tie alone decided it (`statedAlone`). So a
-  dependence of a member settled from a tied one that the tie does not explain passes (#2099
-  writes one). Of a member no tie decided, a report's kept place is compared by the node its
+  dependence of a member settled from a tied one that the tie does not explain passes, #2099's
+  among them where it lands on such a member, though #2099's own documents are found. Of a
+  member no tie decided, a report's kept place is compared by the node its
   declaration names, since of several agreeing declarations it names the one written last, and
   not where the compile reads no declaration there. A tied member taking in each order the type
   its report says lost is found; one taking the same type in both orders passes.
