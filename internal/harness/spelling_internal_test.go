@@ -371,7 +371,9 @@ func TestDiffersIn_NamesEachPlaceOnce(t *testing.T) {
 	}}
 	diags := diagnosed{mine: []string{"warning\x00a/b\x00x"}, theirs: []string{"warning\x00a/b\x00y", "info\x00c\x00z"}}
 
-	assert.Equal(t, "diagnostics:a/b,diagnostics:c,stated:x,types,types.kind,types.list", differsIn(a, b, diags, []string{"stated:x"}))
+	assert.Equal(t, "diagnostics:a/b,diagnostics:c,stated:x,types.id,types.kind,types.list", differsIn(a, b, diags, []string{"stated:x"}))
+	lacks := map[string]any{"u": map[string]any{"k": map[string]any{"v": 1}, "l": []any{"x", map[string]any{"w": 2}}}}
+	assert.Equal(t, "u.k.v,u.l,u.l.w", differsIn(lacks, map[string]any{}, diagnosed{}, nil), "a member one side lacks is named by what it holds")
 	assert.Equal(t, "document", differsIn("a", nil, diagnosed{}, nil))
 	assert.Empty(t, differsIn(a, a, diagnosed{mine: diags.mine, theirs: diags.mine}, nil))
 

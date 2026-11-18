@@ -247,7 +247,9 @@ func differsIn(a, b any, diags diagnosed, lost []string) string {
 
 // signature records in places each place a and b differ, by the member names
 // leading to it from at: an array index is left out, and so is a member whose
-// value names itself as its id.
+// value names itself as its id. A member or element one side lacks is walked
+// on the side holding it, so its places name what it holds: a record line or a
+// part then explains only those, not whatever else comes to differ there.
 func signature(a, b any, at string, places map[string]bool, depth int) {
 	if depth > maxSpellingDepth {
 		places[at+"…"] = true
@@ -255,7 +257,7 @@ func signature(a, b any, at string, places map[string]bool, depth int) {
 	}
 	ao, aIsObject := a.(map[string]any)
 	bo, bIsObject := b.(map[string]any)
-	if aIsObject && bIsObject {
+	if (aIsObject || a == nil) && (bIsObject || b == nil) && (aIsObject || bIsObject) {
 		for _, name := range slices.Sorted(maps.Keys(union(ao, bo))) {
 			signature(ao[name], bo[name], memberPlace(at, name, ao[name], bo[name]), places, depth+1)
 		}
@@ -263,15 +265,23 @@ func signature(a, b any, at string, places map[string]bool, depth int) {
 	}
 	aa, aIsArray := a.([]any)
 	ba, bIsArray := b.([]any)
-	if aIsArray && bIsArray && len(aa) == len(ba) {
-		for i := range aa {
-			signature(aa[i], ba[i], at, places, depth+1)
+	if (aIsArray || a == nil) && (bIsArray || b == nil) && (aIsArray || bIsArray) {
+		for i := range max(len(aa), len(ba)) {
+			signature(element(aa, i), element(ba, i), at, places, depth+1)
 		}
 		return
 	}
 	if !gocmp.Equal(a, b) {
 		places[cmp.Or(at, "document")] = true
 	}
+}
+
+// element is the i-th element of l, nil past its end.
+func element(l []any, i int) any {
+	if i < len(l) {
+		return l[i]
+	}
+	return nil
 }
 
 // union is a map of a's and b's keys, b's value where both hold one.
