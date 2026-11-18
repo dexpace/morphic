@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -24,6 +25,38 @@ import (
 // names a node the source declares, and stays the variant naming it.
 func nullBranch(c lowering.Ctx, js *statement.Statement) bool {
 	return inlineBranch(js) && NullAlone(c, js.Schema)
+}
+
+// variantsNull is what s's oneOf and anyOf say of null where the IR holds a
+// union's null on its variants as on the reference to it: the union admits
+// null where any branch does, each read by n, whose budget bounds them. That
+// holds of a union however it lowers, so none is asked whether it is
+// distributed (unionNullReading), and the read starts no classification.
+func (n *nulls) variantsNull(s *statement.Schema) nullReading {
+	choice := s.ChoiceKeywords()
+	out := alike(nullSilent)
+	for _, b := range slices.Concat(choice.OneOf, choice.AnyOf) {
+		r := n.conjunct(n.c.Statements().Sub(b), nullSite{})
+		if r.declared == nullAdmitted {
+			out.declared = nullAdmitted
+		}
+		if r.lenient == nullAdmitted {
+			out.lenient = nullAdmitted
+		}
+	}
+	return out
+}
+
+// mayAdmitNull reports whether b admits null wherever the IR holds it, on a
+// variant of a union it is or reaches as on its own keywords, under the
+// reading c's policy selects. holder is a schema whose own union the read
+// leaves out, nil for none. A read past the walk's budget may, unless what it
+// read keeps null out, which no conjunct left unread lets back in.
+func mayAdmitNull(c lowering.Ctx, b *statement.Statement, holder *statement.Schema) bool {
+	n := newNulls(c)
+	n.variants, n.rest = true, holder
+	r := n.conjunct(b, nullSite{})
+	return r.admits(c) || n.conjuncts.Exhausted() && !r.forbids(c)
 }
 
 // inlineBranch reports whether js is a schema written in place: no boolean,

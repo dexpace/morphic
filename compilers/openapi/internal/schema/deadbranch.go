@@ -43,7 +43,7 @@ func deadBranches(c lowering.Ctx, body, holder *statement.Schema) []bool {
 		}
 		for i, b := range branches {
 			st := c.Statements().Sub(b)
-			out[i] = !nullBranch(c, st) && deadBranch(c, body, st)
+			out[i] = !nullBranch(c, st) && deadBranch(c, body, holder, st)
 		}
 		return out
 	})
@@ -73,43 +73,32 @@ func restAdmitsObjects(c lowering.Ctx, body, holder *statement.Schema) bool {
 
 // deadBranch reports whether no instance satisfies both body, which admits
 // objects alone, null aside, as a union distributing it requires, and the
-// union branch b: the kinds b lowers to (lowersTo) hold no object, and b
-// admits no null or body keeps it out. Kinds the kind-inference policy read,
-// on either side, and a read cut short decide nothing, so such a branch lives.
-// A read past the admission's caps keeps its kinds, which are whole, and
-// beside a body that may admit null it lives, its null reading not asked
-// (docs/compilers/openapi.md#union-beside-structure).
-func deadBranch(c lowering.Ctx, body *statement.Schema, b *statement.Statement) bool {
+// union branch b of the union holder writes: the kinds b lowers to (lowersTo)
+// hold no object, and b or body admits no null (mayAdmitNull). Kinds the
+// kind-inference policy read, on either side, and a read cut short decide
+// nothing, so such a branch lives. A read past the admission's caps keeps its
+// kinds, which are whole, and beside a body that may admit null it lives, its
+// null reading not asked (docs/compilers/openapi.md#union-beside-structure).
+func deadBranch(c lowering.Ctx, body, holder *statement.Schema, b *statement.Statement) bool {
 	kinds, inferred := lowersTo(c, b)
 	if inferred || kinds&kindObject != 0 || bodyKindInferred(c, body) {
 		return false
 	}
-	if bodyForbidsNull(c, body) {
+	if !bodyAdmitsNull(c, body, holder) {
 		return true
 	}
 	// lowersTo reads a cut read as every kind, so b's reaches no cycle through
-	// body. The null reading of b may classify a union it reaches and so ask
-	// this again, which a read within the caps nests at most maxAdmissionReads
-	// deep.
+	// body. Past the caps b's null is not read, as the rule says.
 	if !admissionOf(c, b).within() {
 		return false
 	}
-	n := newNulls(c)
-	return !n.conjunct(b, nullSite{}).admits(c)
+	return !mayAdmitNull(c, b, nil)
 }
 
-// bodyForbidsNull reports whether body keeps null out under the reading c's
-// policy selects, by its own type: the union beside it never forbids null
-// (unionNullReading), so none of its branches lets one in. Under the
-// nullable-inference policy a `nullable: true` on body, or on an entry of an
-// allOf it writes, may widen it, so a body writing either forbids nothing
-// here, the answer that claims the least; its union is not read again.
-func bodyForbidsNull(c lowering.Ctx, body *statement.Schema) bool {
-	n := newNulls(c)
-	if !c.NullableInference.Honours() {
-		return n.declaredTypeVerdict(body) == nullForbidden
-	}
-	return typeNullVerdict(body) == nullForbidden && !nullableTrue(body) && len(allOfIn(body)) == 0
+// bodyAdmitsNull reports whether body may admit null by what it writes but the
+// union of holder, whose branches are read against it.
+func bodyAdmitsNull(c lowering.Ctx, body, holder *statement.Schema) bool {
+	return mayAdmitNull(c, c.Statements().Read(body), holder)
 }
 
 // deadBranchAt is one branch of u that dead marks, with where it is written.
@@ -180,10 +169,10 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 			r.routes = routesClause(u, "them")
 		}
 		return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "%s",
-			r.some(bodyForbidsNull(c, body), kept))}
+			r.some(!bodyAdmitsNull(c, body, u.holder), kept))}
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer, "%s",
-		r.none(c, body))}
+		r.none(c, body, u.holder))}
 }
 
 // deadReport is what diagDeadBranches says of a union: its keyword and
@@ -233,14 +222,14 @@ func (r deadReport) some(forbids, kept bool) string {
 
 // none is the report of a union no branch of which lives, each but its null
 // ones dead: the schema lowers as its body alone, and admits null alone where
-// the body admits null and the union takes it, by its one null branch or by
-// any of them where it is an anyOf.
-func (r deadReport) none(c lowering.Ctx, body *statement.Schema) string {
+// the body admits null and the union of holder takes it, by its one null
+// branch or by any of them where it is an anyOf.
+func (r deadReport) none(c lowering.Ctx, body, holder *statement.Schema) string {
 	nulls := len(r.branches) - r.dead
-	forbids := bodyForbidsNull(c, body)
+	forbids := !bodyAdmitsNull(c, body, holder)
 	if r.on != "" {
-		// A body writing its union on an entry writes an allOf, which
-		// bodyForbidsNull leaves unread; the nulls walk reads it whole.
+		// What the schema lowers as is the rest of its allOf, whose null a null
+		// branch of the union on the entry takes; the nulls walk reads it whole.
 		n := newNulls(c)
 		forbids = !n.schema(body, nullSite{}).admits(c)
 	}

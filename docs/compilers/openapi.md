@@ -3902,12 +3902,18 @@ alike.
 A branch no instance of the body satisfies is no variant either. Every instance of the schema is one
 of the body, which admits objects alone, null aside, so a branch is dead where the kinds it lowers
 to, as the admission reads them ([`allof-refinement`](#allof-refinement)), hold no object, and it
-admits no null or the body's own `type` keeps null out: a string, an array, a value set of strings,
-`false`, a `type` list holding no object. A branch whose kinds the kind-inference policy read, or
-whose read is cut short, decides nothing and lives, as does one naming a `$dynamicRef` the position
-does not expand, which admits every kind, and every branch beside a body the policy made an object;
-a branch admitting null lives beside a body that may admit it, and under the nullable-inference
-policy a body writing `nullable: true` or an `allOf` is read as one that may. The bounds of
+or the body admits no null: a string, an array, a value set of strings, `false`, a `type` list
+holding no object. A branch whose kinds the kind-inference policy read, or whose read is cut short,
+decides nothing and lives, as does one naming a `$dynamicRef` the position does not expand, which
+admits every kind, and every branch beside a body the policy made an object; a branch admitting
+null lives beside a body that may admit it. Each null is read as [`nullable`](#nullable) reads one,
+under the nullable-inference policy as it selects, and wherever the IR holds it: a branch admits
+null where it is or names a union one of whose branches does, as a `$ref` to `{type: 'null'}`, a
+`{type: [integer, 'null']}` or a further such union does, whose null lies on that variant's
+reference rather than on one to the union ([`union-null-variant`](#union-null-variant)), and the
+body admits it by all it writes but the union, its `allOf` entries among it. That read takes in at
+most 256 schemas, and a body or branch whose read passes them, what it read leaving null in, is
+read as one that may admit null. The bounds of
 [`allof-refinement`](#allof-refinement) cut short only what an election compares: a branch whose
 read passes them keeps its kinds, read whole, so a branch over a union of 300 strings is dead as one
 over 100 is; but beside a body that may admit null, whether it admits null is not read, and it
@@ -4153,6 +4159,8 @@ judged as one whose branches declare shape.
 - Tests: `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
   `e2e.TestCompile_AReadPastTheAdmissionCapsKeepsItsKinds`,
   `e2e.TestCompile_ABranchPastTheAdmissionCapsBesideANullableBodyLives`,
+  `e2e.TestCompile_ABranchIsDeadWhereItOrItsBodyAdmitsNoNull`,
+  `e2e.TestCompile_ABodyWhoseNullTheWalkCannotFinishMayAdmitIt`,
   `schema.TestAdmission_ACapStopsTheElectionsSummaryAlone`,
   `schema.TestDeadBranch_ReadsABranchPastTheCapsByItsKinds`,
   `e2e.TestCompile_ARestOfAValueSetIsNotSaidToRefuseABranchItAdmits`,

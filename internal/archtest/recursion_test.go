@@ -51,13 +51,13 @@ var loweringRecursions = [][]string{
 	// end to walk to. A union's null branch counts only where the union is
 	// distributed, and a branch no instance of an object body satisfies is one
 	// that admits no null, so the walk and that classification ask each other.
-	// The branch is read so only where its admission read is whole, and each
-	// read it starts is of a statement that read took in, so the nesting is
-	// bounded by maxAdmissionReads.
+	// That classification reads null on variants (mayAdmitNull), which asks no
+	// union whether it is distributed, so it nests once.
 	{
-		"classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches", "distributesUnion",
-		"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage",
-		"nulls.widenByBranch", "unionNullReading", "valueNulls",
+		"bodyAdmitsNull", "classifyConjoined", "classifyUnionSiblings", "deadBranch", "deadBranches",
+		"distributesUnion", "mayAdmitNull", "nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands",
+		"nulls.ref", "nulls.schema", "nulls.usage", "nulls.variantsNull", "nulls.widenByBranch", "unionNullReading",
+		"valueNulls",
 	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation

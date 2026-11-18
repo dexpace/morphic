@@ -68,11 +68,17 @@ func foldNullReadings(a, b nullReading) nullReading {
 
 // admits reports whether the reading c's policy selects admits null: lenient
 // while the policy is on, declared once it is off.
-func (r nullReading) admits(c lowering.Ctx) bool {
+func (r nullReading) admits(c lowering.Ctx) bool { return r.selected(c) == nullAdmitted }
+
+// forbids reports whether the reading c's policy selects keeps null out.
+func (r nullReading) forbids(c lowering.Ctx) bool { return r.selected(c) == nullForbidden }
+
+// selected is the verdict of the reading c's policy selects.
+func (r nullReading) selected(c lowering.Ctx) nullVerdict {
 	if c.NullableInference.Honours() {
-		return r.lenient == nullAdmitted
+		return r.lenient
 	}
-	return r.declared == nullAdmitted
+	return r.declared
 }
 
 // ref returns a reference to target that admits null as c's policy reads it
@@ -150,7 +156,13 @@ type nulls struct {
 	// nullable reports whether the dialect of the schema being read defines the
 	// nullable keyword (oas.SchemaRules.Defines), the one question of the
 	// version this read asks.
-	nullable  bool
+	nullable bool
+	// variants marks a read of whether a schema admits null wherever the IR
+	// holds it, a variant included, so a union admits null where any branch
+	// does (variantsNull), not only where its null lifts onto the reference
+	// (unionNullReading); rest is a schema whose own union it leaves out.
+	variants  bool
+	rest      *statement.Schema
 	conjuncts budget.Budget
 	// found is each null the lenient reading reads in where the declared one
 	// leaves its schema without null, at a site the walk has.
@@ -232,12 +244,12 @@ func (n *nulls) lands(js *statement.Statement) nullReading {
 		return alike(nullSilent)
 	}
 	e := js.Ref.Entry
-	sites := []*landing{landingOf(n.c, js)}
+	sites := []*landing{landingOf(n, js)}
 	var aliases []nullHop
 	hop, at := declaredOf(n.c, js)
 	for i := 1; i < e.Chain.Hops && hop != nil && hop.Ref != nil && !sites[len(sites)-1].kept; i++ {
 		aliases = append(aliases, nullHop{s: hop.Schema, nullable: definesNullableIn(n.c, at.Doc)})
-		sites = append(sites, landingOf(n.c, hop))
+		sites = append(sites, landingOf(n, hop))
 		hop, at = declaredOf(n.c, hop)
 	}
 	// Each read below is in its own document's dialect, and the walk returns to
@@ -270,17 +282,21 @@ type landing struct {
 	kept    bool
 }
 
-// landedOn keys the landing of a reference site in the compile's readings.
+// landedOn keys the landing of a reference site in the compile's readings, one
+// for each way of reading a union (nulls.variants) and a union left out.
 type landedOn struct {
-	js *statement.Statement
+	js       *statement.Statement
+	rest     *statement.Schema
+	variants bool
 }
 
 // landsRead keys the count of hop readings lands has made.
 type landsRead struct{}
 
-// landingOf returns the landing of the reference site js, one per compile.
-func landingOf(c lowering.Ctx, js *statement.Statement) *landing {
-	return lowering.Remembered(c, landedOn{js}, func() *landing { return &landing{} })
+// landingOf returns the landing of the reference site js as n reads it, one
+// per compile.
+func landingOf(n *nulls, js *statement.Statement) *landing {
+	return lowering.Remembered(n.c, landedOn{js: js, rest: n.rest, variants: n.variants}, func() *landing { return &landing{} })
 }
 
 // landingCount returns the count of hop readings lands has made in the
@@ -335,7 +351,16 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 // each reading, the nullable keyword's declared effect on it
 // (declaredTypeVerdict); the conjuncts differ only as each is read.
 func (n *nulls) keywords(s *statement.Schema, site nullSite) nullReading {
-	v := valueNulls(n.c, s)
+	var v valueVerdicts
+	switch {
+	case !n.variants:
+		v = valueNulls(n.c, s)
+	case s == n.rest:
+		v = valueSetNulls(n.c, s)
+	default:
+		v = valueSetNulls(n.c, s)
+		v.union = n.variantsNull(s)
+	}
 	own := foldNullReadings(n.typed(s, v.constant, v.enum), v.union)
 	return foldNullReadings(own, n.allOf(s, site))
 }
@@ -349,10 +374,16 @@ func (n *nulls) typed(s *statement.Schema, constant, enum nullVerdict) nullReadi
 	}
 }
 
-// valueNullsOf keys what valueNulls read of one schema.
-type valueNullsOf struct {
-	schema *statement.Schema
-}
+// valueNullsOf keys what valueNulls read of one schema, and valueSetNullsOf
+// what valueSetNulls did.
+type (
+	valueNullsOf struct {
+		schema *statement.Schema
+	}
+	valueSetNullsOf struct {
+		schema *statement.Schema
+	}
+)
 
 // valueVerdicts is what a schema's const, enum and union families say of null.
 // Each reads only the schema, the same whichever site asks; the union's is read
@@ -367,7 +398,18 @@ type valueVerdicts struct {
 // at each reference would cost the references times the members.
 func valueNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
 	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
-		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullReading(c, s)}
+		v := valueSetNulls(c, s)
+		v.union = unionNullReading(c, s)
+		return v
+	})
+}
+
+// valueSetNulls returns what s's const and enum say of null, read once a run,
+// with no union: a read of null on variants reads that otherwise
+// (nulls.variantsNull), asking no union whether it is distributed.
+func valueSetNulls(c lowering.Ctx, s *statement.Schema) valueVerdicts {
+	return lowering.Remembered(c, valueSetNullsOf{s}, func() valueVerdicts {
+		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s)}
 	})
 }
 
