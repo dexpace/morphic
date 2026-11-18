@@ -657,7 +657,7 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 		case writesUnknown(c, bs, key, at):
 			unknown = append(unknown, key)
 		case slices.Contains(contentKeywords, key):
-			diags = append(diags, keepContentKeyword(c, p, bs, key, at)...)
+			diags = append(diags, keepContentKeyword(c, p, bs, key, at, noEncodingField)...)
 		case slices.Contains(k.validation, key):
 			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, bs, key, at, c.Place())...)
 		case key == "$dynamicRef" || key == "$recursiveRef":

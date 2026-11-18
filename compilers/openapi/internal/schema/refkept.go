@@ -72,9 +72,10 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	k := outcomeKeeps{comp: r.comp, refined: true, principal: r.principal}
 	typed := refinedValueType(c, r, s, pointer)
 	homes := homesAt(c, s, target, pointer)
+	standing := standsAtPosition(c, r, target, pointer)
 	if r.principal != nil {
 		degraded, validation := keptUnion(c, r, s)
-		k.text, k.keywords = textBoundsOf(refinedUnhomed(c, r, s, typed, homes), homes.numberText)
+		k.text, k.keywords = textBoundsOf(refinedUnhomed(c, r, s, typed, homes, standing), homes.numberText)
 		k.keywords, k.validation = append(k.keywords, degraded...), validation
 	}
 	collapsed := collapsedPrincipal(c, r)
@@ -83,7 +84,6 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	}
 	voices := voicingOf(c, s)
 	w := newAdmissionReader(c)
-	standing := standsAtPosition(c, r, target, pointer)
 	pair := writesUnionPair(s, r.comp)
 	residues := make([][]string, len(r.comp.branches))
 	for i, e := range r.comp.branches {
@@ -247,9 +247,11 @@ func textBoundsOf(unhomed []string, numberText bool) (text, rest []string) {
 // bounds the node the position lowered to reads, which homes says
 // (boundHomes.reads), where a $ref site reads no target and keeps them all
 // (GitHub #1067). typed is the type of the value set the principal lowered to,
-// if any (refinedValueType). A value set keeps them on its own node, in its
-// build (lowerPrincipalValueSet), so the outcome keeps none.
-func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed setType, homes boundHomes) []string {
+// if any (refinedValueType): a value set keeps them in its build
+// (lowerPrincipalValueSet). Where standing says an inline principal's node
+// stands at the position, a keyword s writes as it does is the principal's
+// writing, which its node read or keeps.
+func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed setType, homes boundHomes, standing bool) []string {
 	if _, atPosition := valueSetPrincipal(r); atPosition {
 		return nil
 	}
@@ -260,7 +262,12 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *statement.Schema, typed set
 			held |= keyBit(key)
 		}
 	}
-	return unreadKeys(s, homes.reads(s)|readElsewhere(s)|held)
+	unread := unreadKeys(s, homes.reads(s)|readElsewhere(s)|held)
+	if !standing {
+		return unread
+	}
+	bs := r.principal.schema.Schema
+	return slices.DeleteFunc(unread, func(key string) bool { return keyWrittenAlike(s, bs, key) })
 }
 
 // keptUnion returns the union keywords s writes beside an allOf that lowered to

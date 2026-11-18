@@ -103,21 +103,22 @@ func TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey(t *testing.T) {
 }
 
 // TestPrincipalKept_AKeywordAlikeIsKeptOnce pins a keyword an inline principal
-// and its position keep with one value: one entry, the position's, and one
-// report, whichever reader keeps the principal's; a number spelt another way is
-// another value, kept apart.
+// and its position keep with one value: one entry and one report, the
+// principal's for a keyword of the census, one writing of it, and the
+// position's for another reader's; a number spelt another way is another
+// value, kept apart.
 func TestPrincipalKept_AKeywordAlikeIsKeptOnce(t *testing.T) {
 	t.Parallel()
 	assertKept(t, []keptCase{
 		{name: "Census", schema: "{allOf: [{type: string, minimum: 2}], minimum: 2}",
-			kept: map[string]string{"openapi:minimum": "2 [degraded_lowering]"}, atSelf: 1},
+			kept: map[string]string{"openapi:minimum": "2 [degraded_lowering]"}, atEntry: 1},
 		{name: "Content", schema: "{allOf: [{oneOf: [{type: string}, {type: integer}], contentEncoding: a}], contentEncoding: a}",
 			kept: map[string]string{"openapi:contentEncoding": `"a" [no_ir_home]`}},
 		{name: "Spelling", schema: "{allOf: [{type: string, minimum: 1}], minimum: 1.0}",
 			kept:    map[string]string{"openapi:allOf/0": `{"minimum":1} [degraded_lowering]`, "openapi:minimum": "1.0 [degraded_lowering]"},
 			atEntry: 1, atSelf: 1},
 		{name: "Members", schema: "{allOf: [{type: string, properties: {a: {}, b: {}}}], properties: {b: {}, a: {}}}",
-			kept: map[string]string{"openapi:properties": `{"a":{},"b":{}} [degraded_lowering]`}, atSelf: 1},
+			kept: map[string]string{"openapi:properties": `{"a":{},"b":{}} [degraded_lowering]`}, atEntry: 1},
 	})
 }
 
@@ -241,4 +242,32 @@ func TestPrincipalKept_APatternBesideThePrincipalsKeepsBoth(t *testing.T) {
 	assert.Empty(t, keptOn(t, doc, "Alike"))
 	assert.Equal(t, map[string]string{"openapi:allOf/0": `{"pattern":"^p$"} [degraded_lowering]`, "openapi:pattern": `"^b$" [degraded_lowering]`},
 		keptOn(t, doc, "List"))
+}
+
+// TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept pins a keyword an inline
+// principal's node reads into a field, written beside the allOf too: alike, it
+// is one writing, in the field alone, as written flat; a content keyword
+// written otherwise is kept with a report saying whose the Encoding is, never
+// that the node has no such field.
+func TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Content: {allOf: [{type: string, contentEncoding: base64}], contentEncoding: base64}\n"+
+			"    ContentFlat: {type: string, contentEncoding: base64}\n"+
+			"    Tag: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: k}}], discriminator: {propertyName: k}}\n"+
+			"    TagFlat: {oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: k}}\n"+
+			"    Media: {allOf: [{type: string, contentMediaType: text/plain}], contentMediaType: text/html}\n"))
+	for _, name := range []string{"Content", "ContentFlat", "Tag", "TagFlat"} {
+		assert.Empty(t, keptOn(t, doc, name), name)
+		assert.Empty(t, reportsAt(diags, "/components/schemas/"+name), name)
+	}
+	assert.Equal(t, doc.Types[componentID("ContentFlat")].(*ir.Scalar).Encoding, doc.Types[componentID("Content")].(*ir.Scalar).Encoding)
+	assert.Equal(t, doc.Types[componentID("TagFlat")].(*ir.Union).Discriminator.PropertyName,
+		doc.Types[componentID("Tag")].(*ir.Union).Discriminator.PropertyName)
+
+	assert.Equal(t, map[string]string{"openapi:contentMediaType": `"text/html" [no_ir_home]`}, keptOn(t, doc, "Media"))
+	media := reportsAt(diags, "/components/schemas/Media/contentMediaType")
+	require.Len(t, media, 1)
+	assert.Contains(t, media[0], "holds what its inline allOf branch writes")
+	assert.NotContains(t, media[0], "no Encoding field")
 }

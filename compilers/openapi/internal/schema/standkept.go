@@ -174,6 +174,17 @@ func keepApart(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held *p
 	return append(diags, routesKept(c, ts, s, apart, pointer)...)
 }
 
+// keyWrittenAlike reports whether a and b write key with one value, as heldAgainst
+// compares two; one that cannot render is alike to nothing.
+func keyWrittenAlike(a, b *statement.Schema, key string) bool {
+	if !hasKey(a, key) || !hasKey(b, key) {
+		return false
+	}
+	x, errA := annotation.RawFromNode(keyNode(a, key))
+	y, errB := annotation.RawFromNode(keyNode(b, key))
+	return errA == nil && errB == nil && bytes.Equal(x, y)
+}
+
 // routesKept resolves the mapping of the discriminator s, written at pointer,
 // writes where kept, keywords kept another way than keepUnhomed keeps them,
 // holds it: a discriminator kept verbatim resolves its routes wherever it is

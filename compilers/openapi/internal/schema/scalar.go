@@ -308,12 +308,20 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema,
 
 // unplacedContent is the keeping of the content keywords s, written at
 // pointer, writes where td, the node it lowered to, holds no ir.Encoding for
-// them (holdsContent): each as no_ir_home, reported at the keyword.
+// them (holdsContent): each as no_ir_home, reported at the keyword. Where td
+// holds the Encoding of the inline principal s lowers from
+// (principalEncoding), a keyword s writes as that principal does is read
+// there, and any other is kept beside it, the report saying whose the
+// Encoding is.
 func unplacedContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) keeping {
+	why, bs := noEncodingField, principalEncoding(c, s, td, pointer)
+	if bs != nil {
+		why = encodingOfBranch
+	}
 	k := keeping{reason: ir.ReasonNoIRHome, keep: func(p *ir.Unmodeled, keys []string) []ir.Diagnostic {
 		diags := make([]ir.Diagnostic, 0, len(keys))
 		for _, keyword := range keys {
-			diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer)...)
+			diags = append(diags, keepContentKeyword(c, p, s, keyword, pointer, why)...)
 		}
 		return diags
 	}}
@@ -321,24 +329,47 @@ func unplacedContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer
 		return k
 	}
 	for _, keyword := range contentKeywords {
-		if hasKey(s, keyword) {
+		if hasKey(s, keyword) && (bs == nil || !keyWrittenAlike(s, bs, keyword)) {
 			k.keys = append(k.keys, keyword)
 		}
 	}
 	return k
 }
 
+// Why a content keyword reaches no ir.Encoding, for the report
+// keepContentKeyword draws: the node has no such field, or its field holds what
+// the inline allOf branch the position lowered from writes.
+const (
+	noEncodingField  = "this position lowered to a shape with no Encoding field"
+	encodingOfBranch = "the Encoding of the node this position lowered to holds what its inline allOf branch writes"
+)
+
+// principalEncoding returns the inline principal of the allOf s writes at
+// pointer whose Encoding td, the Scalar it built for the position, holds, and
+// nil where td holds none or s lowers from no inline principal.
+func principalEncoding(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) *statement.Schema {
+	sc, ok := td.(*ir.Scalar)
+	if !ok || sc.Encoding == nil {
+		return nil
+	}
+	r, refined := refinementOf(c, s, pointer)
+	if !refined || r.principal == nil || r.principal.schema.Ref != nil {
+		return nil
+	}
+	return r.principal.schema.Schema
+}
+
 // keepContentKeyword keeps the content keyword s, the schema at pointer,
 // writes under keyword verbatim on p, as no_ir_home, and reports it at the
-// keyword, where no ir.Encoding holds it.
-func keepContentKeyword(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keyword string, pointer jsontext.Pointer) []ir.Diagnostic {
+// keyword, where no ir.Encoding holds it, for why (noEncodingField).
+func keepContentKeyword(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, keyword string, pointer jsontext.Pointer, why string,
+) []ir.Diagnostic {
 	kept, diags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 	if !kept {
 		return diags
 	}
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
-		"%s is content-vocabulary data the IR holds in ir.Encoding, and this position "+
-			"lowered to a shape with no Encoding field; kept verbatim under Unmodeled", keyword))
+		"%s is content-vocabulary data the IR holds in ir.Encoding, and %s; kept verbatim under Unmodeled", keyword, why))
 }
 
 // holdsContent reports whether td, the node s lowered to at pointer, holds the
