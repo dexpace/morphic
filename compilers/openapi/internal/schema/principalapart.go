@@ -205,12 +205,24 @@ func recordUnhomedStanding(c lowering.Ctx, ts *compile.Types, td ir.TypeDef, s *
 	p := &td.Common().Unmodeled
 	if st.heldWhole(c, pointer) {
 		keepHeld(c, st, p, s, pointer, unread, ir.ReasonDegradedLowering)
-		return nil
+		return routesKept(c, ts, s, unread, pointer)
 	}
 	apart := st.apart(c, s, unread, td)
 	diags := keepApart(c, st, p, s, pointer, apart, ir.ReasonDegradedLowering)
+	diags = append(diags, routesKept(c, ts, s, apart, pointer)...)
 	if rest := without(unread, apart); len(rest) > 0 {
 		diags = append(diags, recordUnhomedAt(c, ts, p, s, rest, shape, pointer)...)
 	}
 	return diags
+}
+
+// routesKept resolves the mapping of the discriminator s, written at pointer,
+// writes where kept, the keywords kept apart from recordUnhomedAt, holds it: a
+// discriminator kept verbatim resolves its routes wherever it is kept, as
+// keepUnhomed resolves the one it keeps (resolveDiscriminatorRoutes).
+func routesKept(c lowering.Ctx, ts *compile.Types, s *statement.Schema, kept []string, pointer jsontext.Pointer) []ir.Diagnostic {
+	if !slices.Contains(kept, "discriminator") {
+		return nil
+	}
+	return resolveDiscriminatorRoutes(c, ts, s, pointer)
 }

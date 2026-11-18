@@ -104,7 +104,7 @@ var schemaRecursion = []string{
 	"preserveUnmergedBranch", "recordEntryUnhomed",
 	"recordKeptEntry", "recordOwnKeywords", "recordUnhomedAt", "recordUnhomedStanding", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
-	"resolvePointer", "resolveSchemaRef", "routeEntry",
+	"resolvePointer", "resolveSchemaRef", "routeEntry", "routesKept",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 

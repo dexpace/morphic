@@ -61,3 +61,18 @@ func TestStand_AKeywordThePositionKeepsOtherwiseIsKeptUnderThePrincipalsEntry(t 
 	assert.Equal(t, ir.ReasonDegradedLowering, docs.Common().Unmodeled["openapi:allOf/0"].Reason,
 		"a bound and a disagreeing description share degraded_lowering")
 }
+
+// TestStand_ADiscriminatorKeptUnderThePrincipalsEntryResolvesItsMapping pins a
+// principal's discriminator kept under its entry's key, apart from the
+// position's or held whole: its mapping value naming no schema is reported, as
+// the census reports one it keeps.
+func TestStand_ADiscriminatorKeptUnderThePrincipalsEntryResolvesItsMapping(t *testing.T) {
+	t.Parallel()
+	for name, schema := range map[string]string{
+		"apart": "{allOf: [{type: string, discriminator: {propertyName: a, mapping: {x: Nope}}}], discriminator: {propertyName: b}}",
+		"held":  "{allOf: [{type: string, x-k: 1, discriminator: {propertyName: a, mapping: {x: Nope}}}], x-k: 2}",
+	} {
+		_, diags := parseFull(t, openapitest.ComponentSpec("    D: "+schema+"\n"))
+		assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef), name)
+	}
+}

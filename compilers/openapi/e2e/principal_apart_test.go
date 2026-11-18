@@ -143,3 +143,32 @@ func TestPrincipalApart_AParameterSchemaHoldsBoth(t *testing.T) {
 	assert.Equal(t, "2", string(unmodeledEntry(t, held, "openapi:minimum").Value))
 	assert.JSONEq(t, `{"minimum":1}`, string(unmodeledEntry(t, held, "openapi:allOf/0").Value))
 }
+
+// TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping pins a principal's
+// discriminator kept under its entry's key, apart from the position's or held
+// in the whole entry, in both declaration orders: its mapping is resolved as a
+// discriminator the census keeps is, so a value naming no schema draws its one
+// error at the mapping entry (docs/compilers/openapi.md#allof-inline-residue).
+func TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping(t *testing.T) {
+	t.Parallel()
+	lines := []string{
+		"    Apart: {allOf: [{type: string, discriminator: {propertyName: a, mapping: {x: '#/components/schemas/Nope'}}}], " +
+			"discriminator: {propertyName: b}}",
+		"    Held: {allOf: [{type: string, x-k: 1, discriminator: {propertyName: a, mapping: {x: '#/components/schemas/Nope'}}}], " +
+			"x-k: 2}",
+	}
+	reversed := slices.Clone(lines)
+	slices.Reverse(reversed)
+	for _, order := range [][]string{lines, reversed} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(strings.Join(order, "\n")+"\n"))
+		for _, name := range []string{"Apart", "Held"} {
+			held := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)].Common().Unmodeled
+			assert.Contains(t, string(unmodeledEntry(t, held, "openapi:allOf/0").Value), "#/components/schemas/Nope", name)
+			at := jsontext.Pointer("/components/schemas/" + name + "/allOf/0/discriminator/mapping/x")
+			errs := slices.DeleteFunc(slices.Clone(diags), func(d ir.Diagnostic) bool {
+				return d.Code != diag.UnresolvedRef || d.Provenance.Pointer != at
+			})
+			assert.Len(t, errs, 1, "%s: the mapping naming no schema is reported once at %s", name, at)
+		}
+	}
+}

@@ -2813,6 +2813,8 @@ every entry reads that one twice.
   `e2e.TestPrincipalApart_AParameterSchemaHoldsBoth`,
   `e2e.TestPrincipalWhole_AKeptValueIsKeptOnceAndReportedOnce`,
   `e2e.TestPrincipalWhole_TheWholeEntrysReasonReadsEveryKeywordItHolds`,
+  `e2e.TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping`,
+  `schema.TestStand_ADiscriminatorKeptUnderThePrincipalsEntryResolvesItsMapping`,
   `e2e.TestKeptEntryKeyword_EverySpellingOfAContentOrUnknownKeywordKeepsOneKeyAndReason`,
   `e2e.TestKeptEntryKeyword_AKindKeywordIsKeptUnderItsOwnKey`,
   `e2e.TestKeptEntryKeyword_APerKindBoundNoHomeTakesIsKeptUnderItsOwnKey`,
