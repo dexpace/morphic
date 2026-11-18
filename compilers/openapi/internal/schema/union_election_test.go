@@ -66,3 +66,90 @@ func TestUnion_AnEntryHoldingBothIsReadWithoutThemWhereverListed(t *testing.T) {
 		assert.Contains(t, model.Unmodeled, "openapi:anyOf", name)
 	}
 }
+
+// TestUnion_EntriesOneAllOfDeeperJudgeEachOtherByNeither pins two unions on
+// two entries nested one allOf deeper beside an object body, a oneOf of
+// strings and an anyOf of booleans: each declares shape against the body read
+// without the other, so both are kept as degraded_lowering, as on the allOf's
+// own entries.
+func TestUnion_EntriesOneAllOfDeeperJudgeEachOtherByNeither(t *testing.T) {
+	t.Parallel()
+	const unions = "{oneOf: [{type: string}]}, {anyOf: [{type: boolean}]}"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    T: {type: object, properties: {a: {type: string}}}
+    Entries: {allOf: [{$ref: '#/components/schemas/T'}, `+unions+`]}
+    Deeper: {allOf: [{$ref: '#/components/schemas/T'}, {allOf: [`+unions+`]}]}
+`))
+	for _, name := range []string{"Entries", "Deeper"} {
+		model, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s keeps both unions on a Model", name)
+		for _, key := range []string{"openapi:oneOf", "openapi:anyOf"} {
+			require.Contains(t, model.Unmodeled, key, name)
+			assert.Equal(t, ir.ReasonDegradedLowering, model.Unmodeled[key].Reason, "%s %s", name, key)
+		}
+	}
+}
+
+// TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth pins a oneOf of objects
+// and an anyOf every one of them satisfies, with nothing beside them, on one
+// schema, on one allOf entry and on two: each is the Union of the oneOf
+// keeping the anyOf as degraded_lowering, the union passed over kept though
+// the elected one says it, and an anyOf alone declaring shape is elected over
+// a oneOf narrowing nothing it declares. Two oneOfs elect neither, and a keyword beside
+// the two that no branch says is a body they distribute over.
+func TestUnion_TwoUnionsAloneLowerAsOneSchemaWritingBoth(t *testing.T) {
+	t.Parallel()
+	const oneOf = "oneOf: [{type: object, properties: {p: {type: string}}}, {type: object, properties: {q: {type: string}}}]"
+	const anyOf = "anyOf: [{type: object}]"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {`+oneOf+`, `+anyOf+`}
+    OneEntry: {allOf: [{`+oneOf+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{`+anyOf+`}, {`+oneOf+`}]}
+    TwoOneOfs: {allOf: [{`+oneOf+`}, {oneOf: [{type: object, properties: {r: {type: string}}}, {required: [r]}]}]}
+    Required: {allOf: [{`+oneOf+`}, {`+anyOf+`}, {required: [p]}]}
+    Shapeless: {allOf: [{oneOf: [{required: [p]}, {}]}, {anyOf: [{type: object, properties: {x: {type: string}}}]}]}
+`))
+	for _, name := range []string{"Flat", "OneEntry", "TwoEntries"} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s is the Union of its oneOf", name)
+		assert.True(t, union.Exclusive, name)
+		require.Contains(t, union.Unmodeled, "openapi:anyOf", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, union.Unmodeled["openapi:anyOf"].Reason, name)
+		for _, v := range union.Variants {
+			assert.Contains(t, string(v.Type.Target), "t/anon/", "%s's variant is its branch", name)
+		}
+	}
+	shapeless, ok := typeByName(doc, "Shapeless").(*ir.Union)
+	require.True(t, ok, "the anyOf declaring shape is the Union")
+	assert.False(t, shapeless.Exclusive)
+	require.Contains(t, shapeless.Unmodeled, "openapi:oneOf")
+	assert.Equal(t, ir.ReasonValidationOnly, shapeless.Unmodeled["openapi:oneOf"].Reason)
+	_, isModel := typeByName(doc, "TwoOneOfs").(*ir.Model)
+	assert.True(t, isModel, "two oneOfs elect neither")
+	required, ok := typeByName(doc, "Required").(*ir.Union)
+	require.True(t, ok, "the oneOf distributes over the body")
+	for _, v := range required.Variants {
+		assert.Contains(t, string(v.Type.Target), "t/composed/", "the variant composes the body")
+	}
+}
+
+// TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten pins a oneOf of
+// objects and an anyOf of strings with nothing beside them, on one schema and
+// on two allOf entries: each is the Union of the oneOf keeping the anyOf, and
+// draws one warning at the schema that the two share no value, naming the
+// union it lowered as.
+func TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten(t *testing.T) {
+	t.Parallel()
+	const oneOf = "oneOf: [{type: object, properties: {p: {type: string}}}, {type: object, properties: {q: {type: string}}}]"
+	const anyOf = "anyOf: [{type: string}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {`+oneOf+`, `+anyOf+`}
+    TwoEntries: {allOf: [{`+anyOf+`}, {`+oneOf+`}]}
+`))
+	var warned []string
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			assert.Contains(t, d.Message, "share no value")
+			assert.Contains(t, d.Message, "which the union it lowered as cannot state")
+			warned = append(warned, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{"/components/schemas/Flat", "/components/schemas/TwoEntries"}, warned)
+}

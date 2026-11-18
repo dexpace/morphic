@@ -210,8 +210,9 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 // passedApart reports whether a union the position written by s passes over
 // for u shares no kind with the rest of s read without any union: the other
 // combinator u's holder writes, or the union another inline entry of s's allOf
-// writes. It is a conjunct of the rest u's branches are read against, which it
-// leaves admitting nothing, so no branch of u reads as dead though none can be
+// writes, one of null alone among them where the rest admits no null. It is a
+// conjunct of the rest u's branches are read against, which it leaves
+// admitting nothing, so no branch of u reads as dead though none can be
 // inhabited. A read cut short says no.
 func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	w := newAdmissionReader(c)
@@ -238,7 +239,7 @@ func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	if w.incomplete() || !rest.reachable() {
 		return false
 	}
-	return slices.ContainsFunc(passed, func(p admitted) bool { return p.kinds&^kindNull != 0 && rest.kinds&p.kinds == 0 })
+	return slices.ContainsFunc(passed, func(p admitted) bool { return p.kinds != 0 && rest.kinds&p.kinds == 0 })
 }
 
 // routedSubtype reports whether a discriminator on an ancestor of s, written at

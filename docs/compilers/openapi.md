@@ -2433,7 +2433,9 @@ spelling keeps it, and an object bound of a `type` list's object variant as
 [`type-arrays`](#type-arrays) says. The conjunct reads as a voice of the position, what it
 writes that its node has no field for kept there at its own pointer, as any conjunct's is. A `oneOf`
 or `anyOf` a value set writes is among that, since the node holds no union, kept under its keyword
-as the same union beside the `allOf` is. Where the node is a `Union`, a `discriminator` the
+as the same union beside the `allOf` is, and so are the unions conjuncts beside a principal writing
+none write, judged together as two beside the `allOf` are: each kept as `degraded_lowering` where
+one of them declares shape, and as validation logic where none does. Where the node is a `Union`, a `discriminator` the
 conjunct writes is the node's, so the extensions and keys OpenAPI defines for no Discriminator
 Object are kept on it, under `openapi:discriminator/<key>` at the conjunct's pointer, as one
 written at the position is ([`vendor-extensions`](#vendor-extensions)); any other node keeps the
@@ -2522,7 +2524,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
 - Cases: `allof-refinement`, `allof-entry-infers-array`, `union-joined-value-sets`,
   `kept-ref-unrenderable`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
-- Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+- Tests: `e2e.TestElection_TwoUnionsKeptBesideABodyAdmittingNullKeepTheirReasonEverywhere`,
+  `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
   `e2e.TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal`,
   `e2e.TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder`,
   `schema.TestRefinementUndecided_ValueSetsAreTypedByTheMembersTheyShare`,
@@ -3635,7 +3638,9 @@ it as validation logic, is a conjunct too, named by its keyword and admitting wh
 and an `anyOf` written together that the position does not elect
 ([`competing-keywords`](#competing-keywords)): beside the `allOf`, named by its keyword, and on an
 entry, named `allOf/<n>/<keyword>` beside that entry, which is then its own keywords and the union
-it elects. The schema is reported where those sets share no member, every
+it elects. A `oneOf` and an `anyOf` with nothing else conjoining with them are two conjuncts too,
+named where they are written, by their keywords on a schema writing both, which is reported though
+it writes no `allOf`, and the report names the union the position lowered as. The schema is reported where those sets share no member, every
 conjunct admits some value by itself and none is cut short, and they share no null: a null is a
 shared value only where every conjunct admits it, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations, each read as
@@ -3699,6 +3704,8 @@ as above.
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
+  `schema.TestUnion_TwoUnionsAloneSharingNoValueWarnOnceWhereverWritten`,
   `schema.TestAllOf_AnEntryLoweringAsItsValueSetIsReadAsBesideTheAllOf`,
   `schema.TestAllOf_ValueSetsSharingNoMemberWarnOnce`, `schema.TestAllOf_ValueSetsSharingAValueDrawNoWarning`,
   `schema.TestAllOf_ValueSetsSharingNoMemberReportAlikeInEitherOrder`,
@@ -3948,8 +3955,8 @@ one of the shapes below, the node keeps both as that shape keeps a union, with t
 findings alone, on one entry or two alike. Wherever it is written, the union passed over is a
 conjunct of the rest the elected one's branches are read against, for a dead branch (below) and for
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts); one sharing no kind with the rest read
-without either union leaves no instance satisfying the two, whichever branch is taken, so the
-position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
+without either union, a union of null alone beside a rest admitting no null among them, leaves no
+instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
 naming its own keywords and that union. Such a
 variant composes nothing, so beside a body that is a map and nothing else it is that map's `MapT`
 ([containers](../ir/containers.md)), the kept branch and the bounds it takes on it. A variant holds
@@ -4046,7 +4053,12 @@ principal of a refining `allOf` ([`allof-refinement`](#allof-refinement)):
 `{allOf: [{oneOf: [{$ref: X}, {$ref: Y}]}]}` the `Union` of `X` and `Y` ([`union`](#union),
 [`union-null-variant`](#union-null-variant), [`union-null-only`](#union-null-only)), keeping of the
 union what the bare union keeps, and a note, bound or annotation beside it lands where it does
-beside the bare union. A keyword some branch does not say, as `type: object` beside a null branch,
+beside the bare union. A `oneOf` and an `anyOf` standing so together, on one entry or one each on
+two, at any depth, lower as one schema writing both with nothing beside them does, whatever kinds
+their branches admit ([`competing-keywords`](#competing-keywords)): the entry of the one elected is
+the principal, its null branch lifted no more than that schema's, and the other is kept on the node
+it lowers to, a `discriminator` on the other's entry leaving them a composition. A keyword some
+branch does not say, as `type: object` beside a null branch,
 a property set or a `$ref`, written on the union's entry, on another or beside the `allOf`, is what
 a variant carries, so there the union distributes, one variant included, as beside the same
 keywords. It distributes beside a `discriminator` on another entry or beside the `allOf` too: one
@@ -4085,10 +4097,11 @@ reach these shapes:
    the schema through `allOf`, at any depth (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the
    base of a hierarchy the discriminator routes, which a union of composed variants would no longer
    be the base of;
-4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, so
-   no instance satisfies the two together and a variant would hold no value: the position lowers as
-   the rest does ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
-   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union; the unions inline
+4. no branch of a union beside an `allOf` shares a kind with what the rest of the schema admits, a
+   null among them only where the rest admits one too, so no instance satisfies the two together
+   and a variant would hold no value: the position lowers as the rest does
+   ([`allof-refinement`](#allof-refinement)), and the schema draws the warning of
+   [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) naming the union, and no other; the unions inline
    entries write are read together as two beside the `allOf` are, and so are a union and the one
    the position passes over for it (above);
 5. every branch but a null one of a union the body would distribute is dead (above), so no variant
@@ -4328,11 +4341,13 @@ judged as one whose branches declare shape.
   `e2e.TestUnionNullVariant_ADistributedUnionLiftsItsNullBranch`,
   `e2e.TestUnionNullVariant_AUnionAloneOnAnEntryIsTheReferenceItsBareSpellingIs`,
   `e2e.TestUnionAlone_OnAnEntryLowersAsWrittenAtThePosition`,
-  `e2e.TestUnionAlone_ABodyBesideItStillDistributes`
+  `e2e.TestUnionAlone_ABodyBesideItStillDistributes`,
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
+  `e2e.TestElection_AUnionOfNullAloneBesideObjectsLowersAsTheOtherUnsatisfiedPairs`,
+  `e2e.TestElection_UnionsSharingNullAloneWithEachOtherDrawOneWarning`,
+  `e2e.TestElection_AUnionOfNullAloneBesideAnAllOfDrawsOneWarning`
 - Status: partly built: a discriminator routing to the model holding it moves though that route is
-  legal (#1806). With no body, a `oneOf` and an `anyOf` on two entries of an `allOf` distribute the
-  `oneOf`, where one entry writing both, or the schema itself, is the `Union` keeping the `anyOf`
-  (#2011).
+  legal (#1806).
 
 ### `union-beside-ref`
 
@@ -4373,7 +4388,10 @@ collapsing would resolve the position to a shared primitive, which must never ca
 declaration's keywords. The same preference decides between a `oneOf` and an `anyOf` written on two
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
 ([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
-with its entry. Where a *structural* sibling is written as well, beside the two or on another entry
+with its entry; with nothing else conjoining with them, the two lower as one schema writing both
+does, wherever their entries are. Where the two share no value, a null only where both admit it,
+the schema writing them draws the warning of [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)
+once, beside the info, whether or not it writes an `allOf`, and lowers as it would without it. Where a *structural* sibling is written as well, beside the two or on another entry
 of the `allOf` holding them on one entry or two,
 [`union-beside-structure`](#union-beside-structure) applies instead, which distributes the `oneOf`
 and keeps the `anyOf` on each variant, an `allOf` that refines being no such sibling but a
@@ -4402,6 +4420,7 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
   `e2e.TestElection_TwoUnionsOverABodyLowerAlikeWhereverWritten`,
   `e2e.TestElection_TwoUnionsNoInstanceSatisfiesLowerAlikeWhereverWritten`,
+  `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 

@@ -5,6 +5,7 @@ package schema
 
 import (
 	"cmp"
+	"encoding/json/jsontext"
 	"slices"
 	"strconv"
 	"strings"
@@ -144,11 +145,15 @@ func readWords(read admitted) string {
 
 // contradictionShape describes what the refinement r of s, whose conjuncts
 // share no value, lowered as, for diagDisjointConjuncts: the value set elected
-// before them, else what the keywords beside the allOf write, a family or a
-// type, else the top type, where they write neither.
+// before them, else the union an inline principal writes, else what the
+// keywords beside the allOf write, a family or a type, else the top type,
+// where they write neither.
 func contradictionShape(r refinement, s *statement.Schema) string {
 	if won := electedSet(r, s); won != "" {
 		return "the " + won + " it lowered as"
+	}
+	if r.principal != nil && r.principal.schema.Ref == nil && declaresUnion(r.principal.schema.Schema) {
+		return unionShape
 	}
 	if kinds := declaredInstanceTypes(s); kinds != anyInstance {
 		return "the " + instanceWords(kinds) + " it lowered as"
@@ -425,3 +430,22 @@ func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition, shape string) 
 
 // composedShape is the shape a composition lowers to, for diagDisjointConjuncts.
 const composedShape = "a composition"
+
+// unionShape is the shape a position lowering to the union it elects of two
+// standing alone lowers to, for diagDisjointConjuncts.
+const unionShape = "the union it lowered as"
+
+// diagUnionsShareNothing is the warning s, written at pointer and writing a
+// oneOf and an anyOf with nothing conjoining with them, draws where the two
+// share no value, a null only where both may admit it, as the same two on
+// its allOf's entries draw (docs/compilers/openapi.md#allof-disjoint-conjuncts):
+// each named by its keyword.
+func diagUnionsShareNothing(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	choice := s.ChoiceKeywords()
+	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
+		return nil
+	}
+	comp := allOfComposition{pointer: pointer}
+	comp.disjoint = disjointAtoms(c, s, slices.Concat(unionAtoms(c, "oneOf", choice.OneOf), unionAtoms(c, "anyOf", choice.AnyOf)))
+	return diagDisjointConjuncts(c, comp, unionShape)
+}

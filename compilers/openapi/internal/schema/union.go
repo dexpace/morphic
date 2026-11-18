@@ -31,7 +31,7 @@ import (
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, fin finisher,
 	st stand,
 ) (ir.TypeRef, []ir.Diagnostic) {
-	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok {
+	if inner, ip, ok := nullUnionCollapse(c, s, pointer); ok && !pairedPrincipal(c, st) {
 		ref, diags := Ref(c, ts, depth, inner, ip)
 		// The null branches say the null, so the reference admits it whatever
 		// the branch it names says, and declares it where theirs or that
@@ -65,6 +65,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 			return tid, 0, diags
 		})
 	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	if st.of == nil {
+		// A principal's conjunction is reported at the schema writing it (refinedDisjoint).
+		diags = append(diags, diagUnionsShareNothing(c, s, pointer)...)
+	}
 	return ref, slices.Concat(diags, nullDiags, liftedNullFindings(c, s, pointer))
 }
 
@@ -96,6 +100,14 @@ func nullUnionCollapse(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poi
 		return nil, "", false
 	}
 	return nonNull, pointer + ids.Ptr(key, strconv.Itoa(nonNullIdx)), true
+}
+
+// pairedPrincipal reports whether the union lowering where st says is the
+// principal of a refinement passing over another entry's union (unionPair),
+// which conjoins with it as a co-declared anyOf does, so it collapses no more
+// than one schema writing both does.
+func pairedPrincipal(c lowering.Ctx, st stand) bool {
+	return st.of != nil && decisionOf(c, st.of).r.paired
 }
 
 // allNullUnion reports whether every branch of the oneOf/anyOf combinator
