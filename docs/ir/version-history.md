@@ -882,12 +882,11 @@ it sees. Changes made together in one bump are listed together under it.
   reads:
   - **The kind of an `allOf`** ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An
     `allOf` is a `Model` where the kinds its position lowers to are an object alone, null aside. It
-    stays one where the read of what its conjuncts admit is cut short, or passes 256 schemas or
-    4,096 `enum` members unless it weighs one `$ref` alone, and where those kinds share none, so
-    `{allOf: [{type: string}, {type: integer}]}` is still an empty `Model`, with a warning.
-    Anywhere else it is one use of the conjunct that decides it, where a keyword only a `Model`
-    holds, or a `$ref` where an object may be, made it a `Model`:
-    `{allOf: [{type: string}], properties: …}` is a string keeping the
+    stays one where the read of what its conjuncts admit is cut short, at 256 schemas or 4,096
+    `enum` members, and where those kinds share none, so `{allOf: [{type: string}, {type:
+    integer}]}` is still an empty `Model`, with a warning. Anywhere else it is one use of the
+    conjunct that decides it, where a keyword only a `Model` holds, or a `$ref` where an object may
+    be, made it a `Model`: `{allOf: [{type: string}], properties: …}` is a string keeping the
     `properties` with an info, and a component that becomes a use is an alias. A declared kind
     decides before a `$ref` whose target admits every kind, and a `$ref` the kind-inference policy
     reads as kinds leaving out a declared one is kept: `{allOf: [{$ref: P}, {type: string}]}` over
@@ -951,21 +950,12 @@ it sees. Changes made together in one bump are listed together under it.
     a `MapT` where it composes nothing beside a map. Where the rest admits objects alone, a branch
     admitting no object, nor a null the body admits, is dead and no variant: the `Union` keeps it
     under that key with a warning, where a variant over it was a `Model` no value inhabits, and a
-    `mapping` entry routing to it is kept under `openapi:discriminator/mapping/<key>`. A branch
-    admits null where a variant of a union it names does, as the IR holds that null, and the body
-    by all it writes but the union, one whose null lies past 256 schemas read as one that may. A
-    branch is read so however many schemas its read takes in, but one past 256 schemas or 4,096
-    `enum` members beside a body that may admit null, whose null is not read, lives. Where no
+    `mapping` entry routing to it is kept under `openapi:discriminator/mapping/<key>`. A branch is
+    read so however many schemas its read takes in, but one past 256 schemas or 4,096 `enum`
+    members beside a body that may admit null, whose null is not read, lives. Where no
     branch lives, the body lowers as itself keeping the union under `openapi:oneOf` or
     `openapi:anyOf`, and a discriminator mapping to a branch under `openapi:discriminator`. A union
-    on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed. A
-    `oneOf` and an `anyOf` written together over a body, beside its keywords or its `allOf` or on
-    one inline entry of that `allOf`, distribute the one whose branches declare shape against the
-    position, the `oneOf` where both do, each variant keeping the other under its keyword, where the
-    position was a `Model` keeping both, under their keywords or with the entry whole. Wherever it
-    is written, the union passed over is a conjunct of the rest a dead branch is read against and of
-    the conjuncts [`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts)
-    reads, named `allOf/<n>/<keyword>` on an entry.
+    on an `allOf` sharing no kind with the rest is kept under its keyword, not distributed.
   - **`Constraints`** ([constraints](./constraints.md#constraints),
     [`constraints`](../compilers/openapi.md#constraints)). A bound is read by the kinds its home
     lowers from: those of a value set's members, a `type` beside any `$ref` of its chain, and an
@@ -995,11 +985,9 @@ it sees. Changes made together in one bump are listed together under it.
     that kind, so `{allOf: [{items: …}]}` is a use of the marked `List` its entry builds. Beside a
     union kept whole whose branches each declare the kind the keywords speak of, such a schema
     lowers to that kind, unmarked.
-  - **Type IDs and nodes.** The node an inline `allOf` entry the position lowers from builds, a value
-    set's `Enum`, `Literal` or `Union` of `Literal`s, a `Union`, a `List`, a `Tuple` or a `Scalar`,
-    stands at the position's pointer and ID, where it stood at the entry's (`…/allOf/<n>`) behind an
-    alias or a carrier; its children keep their pointers. It holds the bounds written beside it,
-    which the alias, the property or the parameter held, a wrapper's once. The node an `allOf` of one `$ref` hoisted, the
+  - **Type IDs and nodes.** The `Enum`, `Literal` or `Union` of `Literal`s an inline `allOf` entry's
+    value set lowers to stands at the position's pointer and ID, where it stood at the entry's
+    (`…/allOf/<n>`) behind an alias or a carrier. The node an `allOf` of one `$ref` hoisted, the
     alias a `$ref` with notes on an entry hoisted, and each dead variant with its branch's nodes are
     gone; an anonymous `Model` stands where a `$ref` to an object has something beside it. A schema
     a reference lands on beneath a nested Encoding Object (OpenAPI 3.2) lowers to a node, where it
@@ -1044,3 +1032,36 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi/unpreservable-construct` and kept nothing. `openapi/unknown-schema-keyword` is an info
     at each `nullable` kept, and an entry kept whole as `validation_only` draws
     `openapi/validation-only-keyword` where it drew `openapi/degraded-construct`.
+- **0.71.0** — no change of shape. The OpenAPI compiler changes what three conjunctions lower to:
+  - **A `oneOf` and an `anyOf` over a body**
+    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
+    [`competing-keywords`](../compilers/openapi.md#competing-keywords)). Written together beside a
+    body's keywords or its `allOf`, or on one inline entry of that `allOf`, they distribute the one
+    whose branches declare shape against the position, the `oneOf` where both or neither do, each
+    variant keeping the other under its keyword, where the position was a `Model` keeping both,
+    under their keywords or with the entry whole. Wherever it is written, the union passed over is
+    a conjunct of the rest a dead branch is read against and of the conjuncts
+    [`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts) reads, named
+    `allOf/<n>/<keyword>` on an entry.
+  - **A use of one `$ref` past the admission caps**
+    ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An `allOf` whose read passes
+    256 schemas or 4,096 `enum` members but weighs one `$ref` alone, every other conjunct naming no
+    kind and stating no value set, format or `items`, is the use of its target it is within those
+    bounds, where it was a `Model` keeping the `$ref`; with a second conjunct the
+    election weighs, it still composes.
+  - **A union branch's null** ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
+    A branch admits null where a variant of a union it names does, as the IR holds that null, and
+    the body by all it writes but the union, one whose null lies past 256 schemas read as one that
+    may, so such a branch beside a body admitting null is a variant where it was dead.
+
+  - **An inline principal's node** ([`allof-refinement`](../compilers/openapi.md#allof-refinement)).
+    The node an inline `allOf` entry the position lowers from builds, a `Union`, a `type` list's
+    union, a `List`, a `Tuple` or a `Scalar`, stands at the position's pointer and ID, as a value
+    set's node already did, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
+    carrier; its children keep their pointers. It holds the bounds written beside it, which the
+    alias, the property or the parameter held, a wrapper's once. A `$ref` to the entry's own
+    pointer names a node of the entry alone.
+
+  A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
+  keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, or the
+  principal's node at its entry's ID.
