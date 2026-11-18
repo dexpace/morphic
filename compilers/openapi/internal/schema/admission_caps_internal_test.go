@@ -16,13 +16,13 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 )
 
-// TestReading_ACapStopsTheElectionsSummaryAlone pins what each kind of read
+// TestAdmission_ACapStopsTheElectionsSummaryAlone pins what each kind of read
 // leaves its readers: one that finishes, one a cycle of conjunct edges cuts,
 // and one at and past each cap, the members of an allOf's entries summed. A
 // cut leaves no kind known; a cap is no cut, so the kinds stay whole, but past
 // it the summary an election compares admits every kind and the read is no
 // longer within the caps.
-func TestReading_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
+func TestAdmission_ACapStopsTheElectionsSummaryAlone(t *testing.T) {
 	t.Parallel()
 	c := servicetest.Context(t, openapitest.ComponentSpecVer("3.1.0", capsSpec()), service.Policy{})
 	for name, want := range map[string]struct {

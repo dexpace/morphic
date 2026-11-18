@@ -4122,7 +4122,7 @@ judged as one whose branches declare shape.
 - Tests: `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
   `e2e.TestCompile_AReadPastTheAdmissionCapsKeepsItsKinds`,
   `e2e.TestCompile_ABranchPastTheAdmissionCapsBesideANullableBodyLives`,
-  `schema.TestReading_ACapStopsTheElectionsSummaryAlone`,
+  `schema.TestAdmission_ACapStopsTheElectionsSummaryAlone`,
   `schema.TestDeadBranch_ReadsABranchPastTheCapsByItsKinds`,
   `e2e.TestCompile_ARestOfAValueSetIsNotSaidToRefuseABranchItAdmits`,
   `e2e.TestCompile_AUnionBesideAnyRestDrawsOneWarningAtMost`, `schema.TestOneOf_CoDeclaredNotDistributedReasons`, `schema.TestLower_AllOfWithOneOfKeepsBoth`,
