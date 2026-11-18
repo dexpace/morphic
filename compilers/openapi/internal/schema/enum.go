@@ -417,7 +417,8 @@ func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPri
 // lowers to, read of set: the value set, and the type and format its ValueType
 // is selected by (declaredReads), as an Enum's members or a Literal's value
 // fit them. An Enum with no member reads its type too: no value is left for
-// the type to type, so it says nothing the Enum does not.
+// the type to type, so it says nothing the Enum does not; and so does a Literal
+// whose value is the object or the list its type names.
 func valueSetReads(set *statement.Schema, td ir.TypeDef) keySet {
 	read := keySetOf("enum", "const")
 	switch n := td.(type) {
@@ -427,12 +428,26 @@ func valueSetReads(set *statement.Schema, td ir.TypeDef) keySet {
 		}
 		read |= declaredReads(set, func(p ir.PrimKind) bool { return enumMembersAre(n.Members, p) })
 	case *ir.Literal:
+		read |= compositeTypeRead(set, n.Value.Kind)
 		read |= declaredReads(set, func(p ir.PrimKind) bool { return merge.Admits(p, n.Value) })
 	default:
 		// The top type a value set degraded to, or the union of literals a mixed
 		// enum lowers to, types no value.
 	}
 	return read
+}
+
+// compositeTypeRead returns the type set writes where a Literal of a value of
+// kind reads it: an object's or a list's, which no primitive types, read where
+// set's one type names that kind (typeReadAs).
+func compositeTypeRead(set *statement.Schema, kind ir.ValueKind) keySet {
+	if kind == ir.ValueObject {
+		return typeReadAs(set, statement.KindObject)
+	}
+	if kind == ir.ValueList {
+		return typeReadAs(set, statement.KindArray)
+	}
+	return 0
 }
 
 // enumMembersAre reports whether every member's value is a value of prim.

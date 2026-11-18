@@ -25,9 +25,7 @@ import (
 // readDisagreementClasses are the census sites, node kinds, keys and verdicts
 // at which the census and the reads of the builds it judges still disagree,
 // each of which some document under testdata or a core case reaches.
-var readDisagreementClasses = []string{
-	"own\tliteral\ttype\thomed, unread",
-}
+var readDisagreementClasses = []string{}
 
 // TestCensus_AgreesWithWhatTheBuildsRead holds the census, at every site it
 // judges a key of the component schemas of each document under testdata and
