@@ -280,13 +280,13 @@ func statesNothing(s *statement.Schema) bool {
 
 // decide reads what refinementOf remembers. Where the conjuncts share no
 // value, or their kinds, null aside, are an object alone, it composes, unless
-// it first elects a value set a conjunct states
-// (docs/compilers/openapi.md#competing-keywords) or a union nothing else
-// conjoins with (soleUnion); it composes too where the read is cut short, or
-// passes a cap but where it weighs one $ref alone (pastAlone). Value sets
-// sharing no member compose a Model only where those kinds are an object alone;
-// elsewhere the keywords beside the allOf decide. Anything else uses its
-// principal, a use of one target saying nothing more (usesOneRef) too.
+// it first elects a conjunct's value set
+// (docs/compilers/openapi.md#competing-keywords) or, where they share one, a
+// union standing alone (soleUnion); it composes too where the read is cut
+// short, or passes a cap but where it weighs one $ref alone (pastAlone). Value
+// sets sharing no member compose a Model only where those kinds are an object
+// alone; elsewhere the keywords beside the allOf decide. Anything else, a use
+// of one target saying nothing more (usesOneRef) included, uses its principal.
 func decide(c lowering.Ctx, s *statement.Schema) decision {
 	comp := allOfBranches(c, s, "")
 	if !refinableBranches(comp) {
