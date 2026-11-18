@@ -5,6 +5,7 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"reflect"
 	"slices"
 	"testing"
 	"unicode/utf8"
@@ -491,4 +492,40 @@ func TestMergeDiagnostics_TellsFindingsApartByTheirRelatedEntries(t *testing.T) 
 	b := relatedDiagnostic()
 	b.Related = b.Related[:1]
 	assert.Equal(t, []ir.Diagnostic{a, b}, ir.MergeDiagnostics([]ir.Diagnostic{a}, []ir.Diagnostic{relatedDiagnostic(), b}))
+}
+
+// TestDiagnostic_KeyReadsEveryFieldOfARelatedEntry sets each field an entry
+// holds alone, however deep, and requires another key for each: a field
+// Provenance gains is one the key must read, and this fails if it does not.
+func TestDiagnostic_KeyReadsEveryFieldOfARelatedEntry(t *testing.T) {
+	t.Parallel()
+	var leaves [][]int
+	var walk func(typ reflect.Type, at []int)
+	walk = func(typ reflect.Type, at []int) {
+		for i := range typ.NumField() {
+			next := append(slices.Clone(at), i)
+			if typ.Field(i).Type.Kind() == reflect.Struct {
+				walk(typ.Field(i).Type, next)
+				continue
+			}
+			leaves = append(leaves, next)
+		}
+	}
+	walk(reflect.TypeFor[ir.Related](), nil)
+	require.NotEmpty(t, leaves)
+
+	base := ir.Diagnostic{Related: []ir.Related{{}}}
+	for _, at := range leaves {
+		changed := ir.Diagnostic{Related: []ir.Related{{}}}
+		field := reflect.ValueOf(&changed.Related[0]).Elem().FieldByIndex(at)
+		switch field.Kind() {
+		case reflect.String:
+			field.SetString("x")
+		case reflect.Int:
+			field.SetInt(7)
+		default:
+			require.Failf(t, "a kind the test cannot set", "field %v is a %s", at, field.Kind())
+		}
+		assert.NotEqual(t, base.Key(), changed.Key(), "field %v", at)
+	}
 }

@@ -7,8 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -189,21 +189,10 @@ func (d Diagnostic) Key() DiagnosticKey {
 	if len(d.Related) == 0 {
 		return key
 	}
-	var b strings.Builder
-	for _, r := range d.Related {
-		p := r.Provenance
-		// Each text is written with its length, so no two lists spell alike.
-		for _, text := range []string{string(r.Role), string(p.Pointer), p.Node, string(p.Inferred)} {
-			b.WriteString(strconv.Itoa(len(text)))
-			b.WriteByte(':')
-			b.WriteString(text)
-		}
-		for _, n := range []int{p.Source, p.WrittenBy, p.Position.Line, p.Position.Column} {
-			b.WriteString(strconv.Itoa(n))
-			b.WriteByte(';')
-		}
-	}
-	key.related = b.String()
+	// Go's own spelling of the list names every field of an entry and quotes
+	// each string, so a field an entry gains joins the key and no two lists
+	// spell alike.
+	key.related = fmt.Sprintf("%#v", d.Related)
 	return key
 }
 
