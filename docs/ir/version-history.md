@@ -1072,6 +1072,17 @@ it sees. Changes made together in one bump are listed together under it.
     under `openapi:allOf/<n>/discriminator/<key>`. A union that collapses to a reference keeps no
     `openapi:oneOf`, and a null branch writing more than null is kept under `openapi:oneOf/<i>`.
 
+  - **Conjuncts that share no value**
+    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts),
+    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Conjuncts share a
+    null only where every one of them may admit it, so a union none of whose branches admits
+    null, beside an `allOf` whose rest admits null, on an entry of it or beside a `$ref` to it,
+    draws the warning that its conjuncts share no value, where it drew infos only. A `oneOf` and
+    an `anyOf` that no instance satisfies together lower, beside the body, beside its `allOf`, on
+    one entry or on two, to the body's `Model` keeping both as `degraded_lowering` with that one
+    warning, where two entries, and a union passed over that shares no kind with the body,
+    distributed the elected union.
+
   A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
   keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, the
   principal's node at its entry's ID, or a one-variant `Union` over a composed `Model`.
