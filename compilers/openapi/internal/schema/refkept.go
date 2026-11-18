@@ -112,7 +112,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 			residues[i] = unmergedBranchKeys(e.schema.Schema, lessPattern(read, censused && patternBeside(s, e.schema.Schema, homes)))
 		}
 	}
-	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, inlinePrincipal(r))
+	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, r.principal)
 	for i := range k.entries {
 		k.entries[i].numberText = homes.numberText
 	}
@@ -155,14 +155,21 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 	}
 }
 
-// inlinePrincipal returns the index of r's principal among its branches where
-// it is inline, the schema the position lowered from, and -1 where r has none
-// or a $ref.
-func inlinePrincipal(r refinement) int {
-	if r.principal == nil || r.principal.schema.Ref != nil {
-		return -1
+// lowersFrom reports whether e is an entry the position lowers from, principal
+// being its inline principal, nil or a $ref for none: that principal, or a
+// wrapper it is an entry of at any depth, out of whose allOf it is flattened.
+// Each is lowered, the principal as the node and a wrapper as the keywords
+// beside the principal's allOf, so what it keeps that another conjunct writes
+// otherwise is held against the node's keys and never keeps it whole
+// (wholePrincipal).
+func lowersFrom(principal *allOfBranch, e allOfBranch) bool {
+	if principal == nil || principal.schema.Ref != nil {
+		return false
 	}
-	return slices.IndexFunc(r.comp.branches, r.principalIs)
+	if principal.pointer == e.pointer {
+		return true
+	}
+	return e.wrapper && strings.HasPrefix(string(principal.pointer), string(e.pointer)+"/")
 }
 
 // lessPattern returns read, which keys of an inline principal are read, less
@@ -379,31 +386,60 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(k.comp, b)))
 		}
 	}
-	for _, e := range k.entries {
-		if k.principal != nil && k.principal.schema.Ref == nil && e.entry.pointer == k.principal.pointer {
-			var heldDiags []ir.Diagnostic
-			e, heldDiags = wholePrincipal(c, ts, p, s, k.comp, e, held)
-			diags = append(diags, heldDiags...)
+	report := func(e keptEntry) ir.Diagnostic {
+		return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.principal == nil, shape))
+	}
+	// The entries the position lowers from are settled first, outermost
+	// first, each held against what those around it keep; their reports stand
+	// where the entries do.
+	lowered := k.lowered()
+	settled := make([][]ir.Diagnostic, len(lowered))
+	whole := false
+	for j, i := range lowered {
+		e, heldDiags := wholePrincipal(c, ts, p, s, k, k.entries[i], held, whole)
+		whole = whole || e.keptWhole()
+		settled[j] = append(heldDiags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, report)...)
+	}
+	for i, e := range k.entries {
+		if j := slices.Index(lowered, i); j >= 0 {
+			diags = append(diags, settled[j]...)
+			continue
 		}
-		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, func(e keptEntry) ir.Diagnostic {
-			return c.DiagAt(ir.SeverityInfo, wholeCode(e), e.entry.pointer, "%s", keptEntryWhy(k.comp, e, k.principal == nil, shape))
-		})...)
+		diags = append(diags, recordKeptEntry(c, ts, p, k.comp, e, shape, false, report)...)
 	}
 	dropFoldedIntoWhole(c, p)
 	return diags
 }
 
-// wholePrincipal settles e, what the position s keeps of the inline principal
-// it lowered from, an entry of comp, with held, what that principal's readers
-// keep after the position (principalKept). Kept whole, the entry holds what
-// they said: its report names those too, its reason reads them, and held is
-// told, so they keep none. An entry no JSON holds is not kept whole: what it
-// keeps is placed keyword by keyword, as what e keeps that another conjunct
-// writes otherwise is (keptEntry.apart): under its own key where p holds
-// none, else under the entry's (heldAgainst, keepApart).
-func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, comp allOfComposition, e keptEntry,
-	held *principalKept,
+// lowered returns the indices of k's entries the position lowers from
+// (lowersFrom), the outermost first: a wrapper before what its allOf holds.
+func (k outcomeKeeps) lowered() []int {
+	var out []int
+	for i, e := range k.entries {
+		if lowersFrom(k.principal, e.entry) {
+			out = append(out, i)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b int) int {
+		return cmp.Compare(len(k.entries[a].entry.pointer), len(k.entries[b].entry.pointer))
+	})
+	return out
+}
+
+// wholePrincipal settles e, what the position s keeps of an entry it lowers
+// from (lowersFrom), with held, what its principal's readers keep after the
+// position (principalKept). Kept whole, the entry holds the principal and what
+// they said: its report names that too, its reason reads it, and held
+// is told, so they keep none; inside says a wrapper around e is, which holds e.
+// An entry no JSON holds is not kept whole: what it keeps is placed keyword by
+// keyword, as what another conjunct writes otherwise is (keptEntry.apart):
+// under its own key where p holds none, else the entry's.
+func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *statement.Schema, k outcomeKeeps, e keptEntry,
+	held *principalKept, inside bool,
 ) (keptEntry, []ir.Diagnostic) {
+	if inside {
+		return keptEntry{entry: e.entry}, nil
+	}
 	if e.keptWhole() {
 		if _, err := annotation.RawFromNode(e.entry.schema.Node); err != nil {
 			// The keeper of the keyword no JSON holds refuses it, where written.
@@ -416,8 +452,12 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 			return e, nil
 		}
 		held.whole = true
+		for _, key := range held.keys {
+			if !slices.Contains(e.residue, key) {
+				e.residue = append(slices.Clip(e.residue), key)
+			}
+		}
 		if len(held.keys) > 0 {
-			e.residue = slices.Concat(e.residue, held.keys)
 			e.reason = sharedOf(e.reason, held.reason)
 		}
 		return e, nil
@@ -425,13 +465,19 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 	if len(e.apart) == 0 {
 		return e, nil
 	}
-	held = held.saying(keeping{})
+	// The principal's readers add to its entry's object after the position; a
+	// wrapper's holds what the wrapper alone keeps.
+	into := &principalKept{}
+	if e.entry.pointer == k.principal.pointer {
+		held = held.saying(keeping{})
+		into = held
+	}
 	bs := e.entry.schema.Schema
 	plain, apart := heldAgainst(*p, bs, e.apart)
 	own := slices.Concat(e.own, plain)
 	e.own = slices.DeleteFunc(slices.Clone(e.residue), func(key string) bool { return !slices.Contains(own, key) })
-	i := slices.IndexFunc(comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })
-	return e, keepApart(c, ts, comp, held, p, bs, e.entry.pointer, apart, sharedReason(c, s, comp, i, apart))
+	i := slices.IndexFunc(k.comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })
+	return e, keepApart(c, ts, k.comp, into, p, bs, e.entry.pointer, apart, sharedReason(c, s, k.comp, i, apart))
 }
 
 // besideTag splits k's census keywords where standing, the node the position

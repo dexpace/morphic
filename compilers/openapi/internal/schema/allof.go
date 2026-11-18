@@ -172,7 +172,7 @@ func readAllOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) al
 		comp.conjoins = u.at
 	}
 	comp.kept = entryKeeps(c, s, comp, func(i int) []string { return compositionResidue(c, comp, i) },
-		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword, -1)
+		voicing{speaks: comp.speaks, rebased: comp.rebased}, catchAllKeyword, nil)
 	return comp
 }
 

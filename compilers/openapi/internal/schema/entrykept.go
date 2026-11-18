@@ -39,7 +39,7 @@ type keptEntry struct {
 	// validation is what of own is a union of validation logic
 	// (entryUnionReason).
 	validation []string
-	// apart is what the inline principal the position lowered from keeps that
+	// apart is what an entry the position lowers from (lowersFrom) keeps that
 	// another conjunct writes otherwise: under its own key where the position
 	// holds none there, else under the entry's, the rest of it lowered
 	// (wholePrincipal).
@@ -89,11 +89,11 @@ const (
 // nothing a rule does not consume, else the entry whole (wholeCauseOf), where
 // closure names a keyword the position types no closure from, else each
 // keyword apart. v is s's voicing, nil where its allOf does not decide, and
-// lowered the index of the inline principal the position lowered from, -1 for
-// none: a keyword it keeps that another conjunct writes otherwise is kept
-// under its entry's key, the entry not whole for it (keptEntry.apart).
+// principal the inline principal the position lowers from, nil for none: what
+// it or a wrapper around it (lowersFrom) keeps that another conjunct writes
+// otherwise never keeps it whole (keptEntry.apart).
 func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, residueOf func(int) []string,
-	v voicing, closure func(string) bool, lowered int,
+	v voicing, closure func(string) bool, principal *allOfBranch,
 ) []keptEntry {
 	out := make([]keptEntry, len(comp.branches))
 	for i := range comp.branches {
@@ -115,7 +115,7 @@ func entryKeeps(c lowering.Ctx, s *statement.Schema, comp allOfComposition, resi
 			apartHere = apartKept
 		}
 		var otherwise []string
-		if i == lowered {
+		if lowersFrom(principal, k.entry) {
 			otherwise = slices.DeleteFunc(slices.Clone(kept), func(key string) bool { return !apartHere[key] })
 			kept = slices.DeleteFunc(kept, func(key string) bool { return apartHere[key] })
 		}

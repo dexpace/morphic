@@ -547,3 +547,80 @@ func TestPrincipalKept_AVoicesBuildKeepStaysThePositions(t *testing.T) {
 	assert.Equal(t, map[string]string{"openapi:exclusiveMinimum": "true [degraded_lowering]"}, keptOn(t, doc, "Beside"))
 	assert.Equal(t, map[string]string{"openapi:exclusiveMinimum": "true [degraded_lowering]"}, keptOn(t, doc, "Alike"))
 }
+
+// TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce pins an entry naming no
+// type whose own allOf holds the inline principal: a wrapper the position
+// lowers from, its keywords read as written beside the principal's allOf. Each
+// level's keyword is kept once: the outermost writer's under the keyword, each
+// writer inside it under its own entry's key, two allOfs deep and three; a
+// wrapper kept whole for another cause holds the principal, whose readers then
+// keep nothing; and no report names a conjunct that writes nothing.
+func TestPrincipalKept_ANestedPrincipalKeepsEachLevelOnce(t *testing.T) {
+	t.Parallel()
+	inner := "allOf: [{type: string, minimum: 3}]"
+	cases := []keptCase{
+		{name: "Three", schema: "{allOf: [{" + inner + ", minimum: 2}], minimum: 1}", kept: map[string]string{
+			"openapi:minimum":         "1 [degraded_lowering]",
+			"openapi:allOf/0":         `{"minimum":2} [degraded_lowering]`,
+			"openapi:allOf/0/allOf/0": `{"minimum":3} [degraded_lowering]`,
+		}, atEntry: 1, atSelf: 1},
+		{name: "Two", schema: "{allOf: [{" + inner + ", minimum: 2}]}", kept: map[string]string{
+			"openapi:minimum":         "2 [degraded_lowering]",
+			"openapi:allOf/0/allOf/0": `{"minimum":3} [degraded_lowering]`,
+		}, atEntry: 1},
+		{name: "Alike", schema: "{allOf: [{" + inner + ", minimum: 3}]}", kept: map[string]string{
+			"openapi:minimum": "3 [degraded_lowering]",
+		}, atEntry: 1},
+		{name: "Beside", schema: "{allOf: [{" + inner + ", maxItems: 2}], maxItems: 1}", kept: map[string]string{
+			"openapi:maxItems": "1 [degraded_lowering]",
+			"openapi:allOf/0":  `{"maxItems":2} [degraded_lowering]`,
+			"openapi:minimum":  "3 [degraded_lowering]",
+		}, atEntry: 1, atSelf: 1},
+		{name: "Whole", schema: "{allOf: [{" + inner + ", minimum: 2, x-k: 1}], x-k: 2}", kept: map[string]string{
+			"openapi:allOf/0": `{"allOf":[{"minimum":3,"type":"string"}],"minimum":2,"x-k":1} [degraded_lowering]`,
+			"openapi:x-k":     "2 [vendor_extension]",
+		}, atEntry: 1},
+		{name: "Deep", schema: "{allOf: [{allOf: [{allOf: [{type: string, minimum: 4}], minimum: 3}], minimum: 2}], minimum: 1}",
+			kept: map[string]string{
+				"openapi:minimum":                 "1 [degraded_lowering]",
+				"openapi:allOf/0":                 `{"minimum":2} [degraded_lowering]`,
+				"openapi:allOf/0/allOf/0":         `{"minimum":3} [degraded_lowering]`,
+				"openapi:allOf/0/allOf/0/allOf/0": `{"minimum":4} [degraded_lowering]`,
+			}, atEntry: 1, atSelf: 1},
+		{name: "Entry", schema: "{allOf: [{" + inner + ", minimum: 2}, {minimum: 5}]}", kept: map[string]string{
+			"openapi:minimum":         "2 [degraded_lowering]",
+			"openapi:allOf/0/allOf/0": `{"minimum":3} [degraded_lowering]`,
+			"openapi:allOf/1":         `{"minimum":5} [degraded_lowering]`,
+		}, atEntry: 1},
+		{name: "DeepAlone", schema: "{allOf: [{allOf: [{allOf: [{type: string, minimum: 4}], minimum: 3}], minimum: 2}]}",
+			kept: map[string]string{
+				"openapi:minimum":                 "2 [degraded_lowering]",
+				"openapi:allOf/0/allOf/0":         `{"minimum":3} [degraded_lowering]`,
+				"openapi:allOf/0/allOf/0/allOf/0": `{"minimum":4} [degraded_lowering]`,
+			}, atEntry: 1},
+		{name: "WholeAround", schema: "{allOf: [{allOf: [{type: string, foo: 3, minimum: 3}], foo: 2, x-k: 1}], x-k: 2}",
+			kept: map[string]string{
+				"openapi:allOf/0": `{"allOf":[{"foo":3,"minimum":3,"type":"string"}],"foo":2,"x-k":1} [degraded_lowering]`,
+				"openapi:x-k":     "2 [vendor_extension]",
+			}, atEntry: 1},
+		{name: "Key", schema: "{allOf: [{allOf: [{type: string, foo: 3}], foo: 2}], foo: 1}", kept: map[string]string{
+			"openapi:foo":             "1 [out_of_scope]",
+			"openapi:allOf/0":         `{"foo":2} [out_of_scope]`,
+			"openapi:allOf/0/allOf/0": `{"foo":3} [out_of_scope]`,
+		}, atEntry: 1},
+	}
+	diags := assertKept(t, cases)
+	for _, tc := range cases {
+		at := "/components/schemas/" + tc.name
+		for _, msg := range slices.Concat(reportsAt(diags, at+"/allOf/0"), reportsAt(diags, at+"/allOf/0/allOf/0")) {
+			assert.NotContains(t, msg, "another conjunct", "%s: no entry is kept whole for a keyword the position lowers from", tc.name)
+		}
+		if tc.name != "Alike" && tc.name != "Whole" && tc.name != "WholeAround" {
+			assert.Len(t, reportsAt(diags, at+"/allOf/0/allOf/0"), 1, "%s: the principal's keyword is named once, at its entry", tc.name)
+		}
+	}
+	whole := reportsAt(diags, "/components/schemas/Whole/allOf/0")
+	require.Len(t, whole, 1)
+	assert.Contains(t, whole[0], "the branch (minimum, x-k)", "the whole wrapper names what the principal's readers said, once")
+	assert.Empty(t, reportsAt(diags, "/components/schemas/Whole/allOf/0/allOf/0"))
+}
