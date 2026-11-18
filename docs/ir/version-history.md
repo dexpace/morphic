@@ -1032,8 +1032,8 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi/unpreservable-construct` and kept nothing. `openapi/unknown-schema-keyword` is an info
     at each `nullable` kept, and an entry kept whole as `validation_only` draws
     `openapi/validation-only-keyword` where it drew `openapi/degraded-construct`.
-- **0.71.0** — one change of shape, a diagnostic's `related` member, and the OpenAPI compiler
-  changes what these conjunctions lower to:
+- **0.71.0** — the OpenAPI compiler changes what these conjunctions lower to, and a diagnostic
+  gains a `related` member, the one change of shape:
   - **A `oneOf` and an `anyOf` over a body**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
     [`competing-keywords`](../compilers/openapi.md#competing-keywords)). Written together beside a
