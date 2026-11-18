@@ -4220,7 +4220,7 @@ An `allOf` is no rival of an `enum` or a `const` beside it, which is one of its 
 ([`allof-refinement`](#allof-refinement)): the value set is elected before a composition there,
 each conjunct it beats kept as that rule keeps it, a set its own keywords leave no value standing for
 the keyword this election elects of it, each reported apart: the keyword passed over with an info, as
-below, and each conjunct the set beats as that rule reports it, where one info named both. So the
+below, and each conjunct the set beats as that rule reports it. So the
 election passes over the `allOf` only where no value set is elected, keeping it whole where
 it writes an inline entry, and else each `$ref` entry under `openapi:$ref`, as the `$ref` beside it
 is kept. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
