@@ -341,22 +341,23 @@ func unplacedContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer
 // the inline allOf branch the position lowered from writes.
 const (
 	noEncodingField  = "this position lowered to a shape with no Encoding field"
-	encodingOfBranch = "the Encoding of the node this position lowered to holds what its inline allOf branch writes"
+	encodingOfBranch = "the Encoding this position lowered to holds what its inline allOf branch writes"
 )
 
 // principalEncoding returns the inline principal of the allOf s writes at
-// pointer whose Encoding td, the Scalar it built for the position, holds, and
-// nil where td holds none or s lowers from no inline principal.
+// pointer where td, the node it built for the position, holds the content
+// vocabulary it writes (holdsContent): a Scalar's Encoding, or that of a type
+// list's string variant. It is nil where s lowers from no inline principal or
+// td holds none.
 func principalEncoding(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer jsontext.Pointer) *statement.Schema {
-	sc, ok := td.(*ir.Scalar)
-	if !ok || sc.Encoding == nil {
-		return nil
-	}
 	r, refined := refinementOf(c, s, pointer)
 	if !refined || r.principal == nil || r.principal.schema.Ref != nil {
 		return nil
 	}
-	return r.principal.schema.Schema
+	if e := r.principal; holdsContent(c, e.schema.Schema, td, e.pointer) {
+		return e.schema.Schema
+	}
+	return nil
 }
 
 // keepContentKeyword keeps the content keyword s, the schema at pointer,

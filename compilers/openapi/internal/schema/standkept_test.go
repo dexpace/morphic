@@ -256,8 +256,9 @@ func TestPrincipalKept_AKeywordTheNodeReadsIsNotAlsoKept(t *testing.T) {
 			"    ContentFlat: {type: string, contentEncoding: base64}\n"+
 			"    Tag: {allOf: [{oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: k}}], discriminator: {propertyName: k}}\n"+
 			"    TagFlat: {oneOf: [{type: string}, {type: integer}], discriminator: {propertyName: k}}\n"+
-			"    Media: {allOf: [{type: string, contentMediaType: text/plain}], contentMediaType: text/html}\n"))
-	for _, name := range []string{"Content", "ContentFlat", "Tag", "TagFlat"} {
+			"    Media: {allOf: [{type: string, contentMediaType: text/plain}], contentMediaType: text/html}\n"+
+			"    TypeList: {allOf: [{type: [string, boolean], contentEncoding: a}], contentEncoding: a}\n"))
+	for _, name := range []string{"Content", "ContentFlat", "Tag", "TagFlat", "TypeList"} {
 		assert.Empty(t, keptOn(t, doc, name), name)
 		assert.Empty(t, reportsAt(diags, "/components/schemas/"+name), name)
 	}
