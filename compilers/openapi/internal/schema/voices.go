@@ -105,8 +105,7 @@ func allOfDecides(c lowering.Ctx, s *statement.Schema) bool {
 	if dispatchOf(s).won == "allOf" {
 		return true
 	}
-	_, refines := refinementOf(c, s, "")
-	return refines
+	return decisionOf(c, s).refines
 }
 
 // voicesOf keys what voicesAmong read of one schema.

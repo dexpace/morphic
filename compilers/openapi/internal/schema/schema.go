@@ -376,8 +376,7 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 	if !writesConjuncts(s) {
 		return false
 	}
-	_, refines := refinementOf(c, s, "")
-	return !refines
+	return !decisionOf(c, s).refines
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf

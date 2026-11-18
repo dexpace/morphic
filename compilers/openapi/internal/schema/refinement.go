@@ -122,38 +122,66 @@ func unionForm(s *statement.Schema) conjunctForm {
 	}
 }
 
-// refinementAt keys a position's decision: where a schema is read from says where
-// its branches are, so one schema read from two pointers is two answers.
-type refinementAt struct {
-	schema  *statement.Schema
-	pointer jsontext.Pointer
+// decisionAt keys a schema's decision: nothing decide reads turns on where the
+// schema is written, which only prefixes its branches' pointers.
+type decisionAt struct {
+	schema *statement.Schema
 }
 
 // decision is what a position's readers share: a refinement, where it is one,
-// and whether a union written beside the allOf shares no kind with the rest,
-// which the position leaves out and keeps (unionAside).
+// its composition, principal and ref left for refinementOf to read at the
+// pointer asked; the indices of that principal and ref among the branches, -1
+// for none and the principal for the keywords beside the allOf; and whether a
+// union written beside the allOf shares no kind with the rest, which the
+// position leaves out and keeps (unionAside).
 type decision struct {
-	r       refinement
-	refines bool
-	aside   bool
+	r           refinement
+	principalAt int
+	refAt       int
+	refines     bool
+	aside       bool
 }
 
 // refinementOf decides whether s, written at pointer, refines rather than
 // composes (docs/compilers/openapi.md#allof-refinement). It reads the source and
 // the bindings, never the registry, so a decision turns on no lowering order, and
-// each position's many readers share one reading.
+// the many readers of a schema share one reading wherever it is written.
 func refinementOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	d := decisionOf(c, s, pointer)
-	return d.r, d.refines
+	d := decisionOf(c, s)
+	if !d.refines {
+		return refinement{}, false
+	}
+	r := d.r
+	r.comp = allOfBranches(c, s, pointer)
+	r.principal, r.ref = branchAt(r.comp, d.principalAt), branchAt(r.comp, d.refAt)
+	return r, true
 }
 
-// decisionOf returns the decision on s, written at pointer, read once a run,
-// and none where its allOf may not refine.
-func decisionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
+// branchAt returns the branch of comp at index i, nil for -1.
+func branchAt(comp allOfComposition, i int) *allOfBranch {
+	if i < 0 {
+		return nil
+	}
+	return &comp.branches[i]
+}
+
+// entryAt returns the statement of the branch of s's allOf at index i, as
+// allOfBranches reads it, nil for -1: a reader of the decision with no pointer
+// builds no branch list.
+func entryAt(c lowering.Ctx, s *statement.Schema, i int) *statement.Statement {
+	if i < 0 {
+		return nil
+	}
+	return c.Statements().Read(c.Statements().Read(s).Entries[i].Schema)
+}
+
+// decisionOf returns the decision on s, read once a run, and none where its
+// allOf may not refine.
+func decisionOf(c lowering.Ctx, s *statement.Schema) decision {
 	if !allOfMayRefine(s) {
 		return decision{}
 	}
-	return lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
+	return lowering.Remembered(c, decisionAt{s}, func() decision { return decide(c, s) })
 }
 
 // unionAside reports whether the oneOf or anyOf s writes beside its allOf
@@ -161,7 +189,7 @@ func decisionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) d
 // together, so the position lowers as the rest does and keeps the union
 // (docs/compilers/openapi.md#union-beside-structure).
 func unionAside(c lowering.Ctx, s *statement.Schema) bool {
-	return decisionOf(c, s, "").aside
+	return decisionOf(c, s).aside
 }
 
 // usesOneRef reports whether s, whose flattened conjuncts are comp, is a use of
@@ -207,8 +235,8 @@ func statesNothing(s *statement.Schema) bool {
 // first (docs/compilers/openapi.md#competing-keywords); it composes too where
 // the read is cut short. Anything else, and a use of one target saying nothing
 // more (usesOneRef), whatever that target admits, is one use of its principal.
-func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decision {
-	comp := allOfBranches(c, s, pointer)
+func decide(c lowering.Ctx, s *statement.Schema) decision {
+	comp := allOfBranches(c, s, "")
 	if !refinableBranches(comp) {
 		return decision{}
 	}
@@ -234,9 +262,8 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	if principal == nil {
 		principal = w.elect(conjuncts, electable)
 	}
-	r := refinement{comp: comp, principal: principal.branch, votes: votes, joint: joint, held: heldBy(c, principal),
-		contradicts: contradicts}
-	r.ref = readThrough(conjuncts, principal)
+	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts}
+	refAt := readThrough(conjuncts, principal)
 	for _, cj := range electable {
 		switch {
 		case cj != principal && principal.branch != nil && principal.branch.schema.Ref != nil:
@@ -247,8 +274,8 @@ func decide(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) decis
 	}
 	// A use saying nothing more of a reference naming no schema is that
 	// reference, which has nothing for the read to finish.
-	failed := one && r.ref != nil && !namesReferent(c, r.ref.schema)
-	return decision{r: r, refines: failed || !w.incomplete(), aside: aside}
+	failed := one && refAt >= 0 && !namesReferent(c, comp.branches[refAt].schema)
+	return decision{r: r, principalAt: principal.at, refAt: refAt, refines: failed || !w.incomplete(), aside: aside}
 }
 
 // setElected returns the conjunct stating a value set that is elected before
@@ -353,22 +380,22 @@ func voteOf(c lowering.Ctx, kinds kindSet, says bool, ref *conjunct) refVote {
 	}
 }
 
-// readThrough returns the $ref branch a use of the position reads on through:
-// the principal where it is a $ref, else the one $ref written, nil where none
-// or several are.
-func readThrough(conjuncts []conjunct, principal *conjunct) *allOfBranch {
+// readThrough returns the index of the $ref branch a use of the position reads
+// on through: the principal where it is a $ref, else the one $ref written, -1
+// where none or several are.
+func readThrough(conjuncts []conjunct, principal *conjunct) int {
 	if principal.branch != nil && principal.branch.schema.Ref != nil {
-		return principal.branch
+		return principal.at
 	}
-	var ref *allOfBranch
+	ref := -1
 	for _, cj := range conjuncts {
 		if cj.branch == nil || cj.branch.schema.Ref == nil {
 			continue
 		}
-		if ref != nil {
-			return nil
+		if ref >= 0 {
+			return -1
 		}
-		ref = cj.branch
+		ref = cj.at
 	}
 	return ref
 }

@@ -65,28 +65,35 @@ func componentSchema(t *testing.T, l *Lowerer, name string) *oas3.Schema {
 	return js.GetSchema()
 }
 
-// TestRefinementOf_ReadsAPositionOnce pins that a position's decision is read once
-// a run, however many of its readers ask: its own type changes after the first
-// read, which no lowering does, so only a remembered answer stays. Where it is
-// read from is part of the answer, so a pointer not yet asked reads afresh. The
-// note beside the allOf makes it more than a use of its one $ref, which is the
-// reference whatever its kinds.
-func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
+// TestRefinementOf_ReadsASchemaOnce pins that a schema's decision is read once
+// a run, however many of its readers ask and from wherever: its own type
+// changes after the first read, which no lowering does, so only a remembered
+// answer stays. Where it is read from only places its branches, so another
+// pointer, and a reader asking with none, read the same answer, the branches
+// at the pointer asked. The note beside the allOf makes it more than a use of
+// its one $ref, which is the reference whatever its kinds.
+func TestRefinementOf_ReadsASchemaOnce(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Port: {type: integer}
     T: {allOf: [{$ref: '#/components/schemas/Port'}], description: d}
 `))
 	const at = "/components/schemas/T"
 	s := componentSchema(t, l, "T")
-	_, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
+	r, refined := refinementOf(l.Ctx, StatedIn(l, s), at)
 	require.True(t, refined)
+	require.NotNil(t, r.principal)
+	require.Equal(t, jsontext.Pointer(at+"/allOf/0"), r.principal.pointer)
 
 	StatedIn(l, s).Kinds = &statement.Kinds{Types: []statement.Kind{statement.KindObject}}
 	_, refined = refinementOf(l.Ctx, StatedIn(l, s), at)
 	assert.True(t, refined, "the second ask reads what the first read")
 
-	_, refined = refinementOf(l.Ctx, StatedIn(l, s), "/elsewhere")
-	assert.False(t, refined, "another pointer is another answer")
+	r, refined = refinementOf(l.Ctx, StatedIn(l, s), "/elsewhere")
+	require.True(t, refined, "another pointer reads the same answer")
+	require.NotNil(t, r.principal)
+	assert.Equal(t, jsontext.Pointer("/elsewhere/allOf/0"), r.principal.pointer, "its branches stand at the pointer asked")
+	assert.Same(t, r.principal, r.ref, "the principal is the $ref read through")
+	assert.True(t, decisionOf(l.Ctx, StatedIn(l, s)).refines, "a reader with no pointer reads it too")
 }
 
 // TestAdmission_ReadsAValueSetOnce pins that an enum is read once a run however
