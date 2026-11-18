@@ -282,11 +282,11 @@ func statesNothing(s *statement.Schema) bool {
 // no value, or the kinds the position lowers to, null aside, are an object
 // alone, it composes, unless a conjunct states a value set, which is elected
 // first (docs/compilers/openapi.md#competing-keywords); it composes too where
-// the read is cut short. Value sets sharing no member compose a Model only
-// where those kinds are an object alone; elsewhere no conjunct is the
-// principal, so the keywords beside the allOf decide. Anything else, and a use
-// of one target saying nothing more (usesOneRef), whatever that target
-// admits, is one use of its principal.
+// the read is cut short, or passes a cap but where it weighs one $ref alone
+// (pastAlone). Value sets sharing no member compose a Model only where those
+// kinds are an object alone; elsewhere the keywords beside the allOf decide.
+// Anything else, a use of one target saying nothing more (usesOneRef) among
+// it, uses its principal.
 func decide(c lowering.Ctx, s *statement.Schema) decision {
 	comp := allOfBranches(c, s, "")
 	if !refinableBranches(comp) {
@@ -332,8 +332,42 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	// A use saying nothing more of a reference naming no schema is that
 	// reference, which has nothing for the read to finish.
 	failed := one && refAt >= 0 && !namesReferent(c, comp.branches[refAt].schema)
-	return decision{r: r, apart: names, principalAt: principal.at, refAt: refAt, refines: failed || !w.incomplete(),
-		aside: aside}
+	refines := failed || !w.incomplete() || !w.cut && pastAlone(c, conjuncts, one)
+	return decision{r: r, apart: names, principalAt: principal.at, refAt: refAt, refines: refines, aside: aside}
+}
+
+// pastAlone reports whether conjuncts, read past a cap, still refine: the
+// election weighs one $ref and nothing else (soleRef), so it compares no two
+// readings, which is all a cap stops. What it leaves open is whether the
+// conjunction admits a value, read through the target's kinds, whole past a
+// cap, null aside, and not asked of a use saying nothing more (one), as within
+// the caps (docs/compilers/openapi.md#allof-refinement).
+func pastAlone(c lowering.Ctx, conjuncts []conjunct, one bool) bool {
+	ref := soleRef(conjuncts)
+	if ref == nil {
+		return false
+	}
+	kinds, _ := lowersTo(c, ref.branch.schema)
+	return one || kinds != 0
+}
+
+// soleRef returns the one $ref of conjuncts where every other conjunct names
+// no kind and holds an instance to nothing a reading compares
+// (admitsEverything), and nil where none or several are, or another conjunct
+// is weighed.
+func soleRef(conjuncts []conjunct) *conjunct {
+	var ref *conjunct
+	for i := range conjuncts {
+		cj := &conjuncts[i]
+		isRef := cj.branch != nil && cj.branch.schema.Ref != nil
+		switch {
+		case isRef && ref == nil:
+			ref = cj
+		case isRef || cj.says || !cj.read.admitsEverything():
+			return nil
+		}
+	}
+	return ref
 }
 
 // markBeaten marks in votes how each $ref of electable stood once principal

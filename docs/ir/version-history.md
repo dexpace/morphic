@@ -882,11 +882,12 @@ it sees. Changes made together in one bump are listed together under it.
   reads:
   - **The kind of an `allOf`** ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An
     `allOf` is a `Model` where the kinds its position lowers to are an object alone, null aside. It
-    stays one where the read of what its conjuncts admit is cut short, at 256 schemas or 4,096
-    `enum` members, and where those kinds share none, so `{allOf: [{type: string}, {type:
-    integer}]}` is still an empty `Model`, with a warning. Anywhere else it is one use of the
-    conjunct that decides it, where a keyword only a `Model` holds, or a `$ref` where an object may
-    be, made it a `Model`: `{allOf: [{type: string}], properties: …}` is a string keeping the
+    stays one where the read of what its conjuncts admit is cut short, or passes 256 schemas or
+    4,096 `enum` members unless it weighs one `$ref` alone, and where those kinds share none, so
+    `{allOf: [{type: string}, {type: integer}]}` is still an empty `Model`, with a warning.
+    Anywhere else it is one use of the conjunct that decides it, where a keyword only a `Model`
+    holds, or a `$ref` where an object may be, made it a `Model`:
+    `{allOf: [{type: string}], properties: …}` is a string keeping the
     `properties` with an info, and a component that becomes a use is an alias. A declared kind
     decides before a `$ref` whose target admits every kind, and a `$ref` the kind-inference policy
     reads as kinds leaving out a declared one is kept: `{allOf: [{$ref: P}, {type: string}]}` over

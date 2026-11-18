@@ -1777,25 +1777,34 @@ func pointerStrings[P ~string](pointers []P) []string {
 }
 
 // TestRefinement_PastItsBudgetStaysAComposition pins the bounds on the reading: a
-// target it cannot finish reading leaves the position as it was, and one read to
-// the last step refines (docs/compilers/openapi.md#allof-refinement).
+// target it cannot finish reading leaves a position weighing two conjuncts as it
+// was, and one read to the last step refines, while one $ref weighed alone
+// refines alike on both sides of each bound
+// (docs/compilers/openapi.md#allof-refinement).
 func TestRefinement_PastItsBudgetStaysAComposition(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, 256, schema.MaxAdmissionReads, "docs/compilers/openapi.md#allof-refinement says so")
 	assert.Equal(t, 4096, schema.MaxAdmissionMembers, "docs/compilers/openapi.md#allof-refinement says so")
 	assert.Equal(t, 64, schema.MaxRefinedConjuncts, "docs/compilers/openapi.md#allof-refinement says so")
+	// S and F weigh two conjuncts, which a read past a bound cannot compare,
+	// F's naming no kind; One weighs one $ref alone, which it need not.
+	uses := func(target string) string {
+		return "    S: {allOf: [{$ref: '#/components/schemas/" + target + "'}, {type: string}]}\n" +
+			"    F: {allOf: [{$ref: '#/components/schemas/" + target + "'}, {format: uuid}]}\n" +
+			"    One: {allOf: [{$ref: '#/components/schemas/" + target + "'}], maxLength: 3}\n"
+	}
 	enum := func(members int) string {
 		var b strings.Builder
 		b.WriteString("    Big:\n      type: string\n      enum:\n")
 		for i := range members {
 			fmt.Fprintf(&b, "        - m%d\n", i)
 		}
-		return b.String() + "    S: {allOf: [{$ref: '#/components/schemas/Big'}]}\n"
+		return b.String() + uses("Big")
 	}
 	// A link reads the $ref naming it and the schema it lands on.
 	chain := func(links int) string {
 		var b strings.Builder
-		b.WriteString("    S: {allOf: [{$ref: '#/components/schemas/C0'}]}\n")
+		b.WriteString(uses("C0"))
 		for i := range links - 1 {
 			fmt.Fprintf(&b, "    C%d: {allOf: [{$ref: '#/components/schemas/C%d'}]}\n", i, i+1)
 		}
@@ -1809,11 +1818,21 @@ func TestRefinement_PastItsBudgetStaysAComposition(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", tc.within))
-			_, ok := typeByName(doc, "S").(*ir.Scalar)
-			assert.True(t, ok, "at the bound it refines: got %T", typeByName(doc, "S"))
+			for _, name := range []string{"S", "F"} {
+				_, ok := typeByName(doc, name).(*ir.Scalar)
+				assert.True(t, ok, "at the bound %s refines: got %T", name, typeByName(doc, name))
+			}
+			within, ok := typeByName(doc, "One").(*ir.Scalar)
+			require.True(t, ok, "at the bound one $ref refines: got %T", typeByName(doc, "One"))
 			doc, _ = parseFull(t, openapitest.ComponentSpecVer("3.1.0", tc.past))
-			_, ok = typeByName(doc, "S").(*ir.Model)
-			assert.True(t, ok, "past it, it does not: got %T", typeByName(doc, "S"))
+			for _, name := range []string{"S", "F"} {
+				_, ok := typeByName(doc, name).(*ir.Model)
+				assert.True(t, ok, "past it, %s does not: got %T", name, typeByName(doc, name))
+			}
+			past, ok := typeByName(doc, "One").(*ir.Scalar)
+			require.True(t, ok, "past it, one $ref still refines: got %T", typeByName(doc, "One"))
+			assert.Equal(t, within.Base, past.Base)
+			assert.Equal(t, within.Constraints, past.Constraints)
 		})
 	}
 }

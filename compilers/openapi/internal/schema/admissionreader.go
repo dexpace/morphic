@@ -38,8 +38,12 @@ type admissionReader struct {
 	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
 	// elsewhere is read in its own document's (definesNullableAt).
 	nullable bool
-	reads    budget.Budget
-	members  budget.Budget
+	// cut marks a read that met what no cap answers for: a cycle, a $ref
+	// landing on no schema or a value it cannot convert. incomplete holds it
+	// too, and a read past a cap besides.
+	cut     bool
+	reads   budget.Budget
+	members budget.Budget
 	// walked hears how many members each value set comparison of the election
 	// looks up, for a test to hold it to the sets it compares; a compile leaves
 	// it nil.
@@ -73,6 +77,7 @@ func (w *admissionReader) of(js *statement.Statement) admitted {
 	w.reads.Spend(r.reads)
 	w.members.Spend(r.members)
 	if r.cut {
+		w.cut = true
 		w.reads.Exhaust()
 	}
 	return r.admitted
@@ -351,6 +356,7 @@ func (w *admissionReader) valueSet(key valueSetOf, members []*yaml.Node) admitte
 	}
 	set := memberSetOf(w.c, key, members)
 	if set.unread {
+		w.cut = true
 		w.members.Exhaust()
 	}
 	return admitted{kinds: set.kinds, fixed: true, values: set.values}

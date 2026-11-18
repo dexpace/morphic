@@ -2162,8 +2162,9 @@ keyword left out), `{allOf: [{$ref: T}]}` admits exactly what `T` does, whatever
 reference, hoisting no node, and a carrier reads the target's documentation as through a bare `$ref`
 ([`ref-use-site`](#ref-use-site)): over `false` it names `false`'s node, and a reference naming no
 schema lowers to the top type with its one `openapi/unresolved-ref`, read or not. Only a read cut
-short past the bounds of [`allof-refinement`](#allof-refinement), or by a cycle of such `allOf`s,
-still composes. A component, or a position a `$ref` names, still owns a node: over
+short, by a cycle of such `allOf`s or a value no reading converts, still composes: one past the
+bounds of [`allof-refinement`](#allof-refinement) is the reference too, as those bounds stop only
+what an election compares, and this one compares nothing. A component, or a position a `$ref` names, still owns a node: over
 an object alone the `Model` whose `Base` is that object, in this spelling and the bare `$ref`'s;
 over any other target, one admitting null, which a `Base` does not carry, or a reference no node
 answers, the `Scalar` alias. A
@@ -2271,8 +2272,8 @@ kind there ([`shape-applicator`](#shape-applicator)), values comparing as an `en
 that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `enum` members. An
 `allOf` stays the composition it would otherwise be, with nothing lost, where:
 
-1. the read does not finish: a cycle, either bound, a `$ref` landing on no schema, or a value it
-   cannot convert;
+1. the read does not finish: a cycle, a `$ref` landing on no schema or a value it cannot convert,
+   or either bound, unless the election weighs one `$ref` alone (below);
 2. it writes more than 64 conjuncts, which the election below compares pairwise;
 3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
    depth ([`allof-classification`](#allof-classification));
@@ -2286,6 +2287,21 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
    position lowers by the keywords beside the `allOf`, and to the top type keeping each entry
    where those name no kind, `{allOf: [{enum: [a, b]}, {enum: [c, d]}]}` among them, with the one
    warning. A `$ref` among such conjuncts is kept with an info saying so.
+
+A bound stops only what the election compares, the values and formats each conjunct admits, never
+the kinds, which are read whole at any size. Where it weighs one `$ref` alone, every other conjunct
+naming no kind and stating no value set, format or `items`, as in `{$ref: T, description: d}`,
+`{allOf: [{$ref: T}], maxLength: 3}` or `{allOf: [{$ref: T}], properties: …}`, it compares nothing,
+so past a bound the position is the use of `T` it is within them. Whether such a conjunction admits
+a value is then read off the kinds `T` lowers to, null aside, as its values are not read: where
+they are none it composes, as point 4 says within the bounds, a `T` admitting null alone among
+them, which within the bounds is a use, and over a `T` whose value sets alone leave none, which
+within the bounds is the top type keeping the `$ref` (point 4), it is a use. An `allOf` of one
+`$ref` saying nothing more is the reference whatever `T` admits
+([`allof-classification`](#allof-classification)). A second conjunct the election weighs, as in
+`{allOf: [{$ref: T}, {type: string, maxLength: 3}]}` or `{allOf: [{$ref: T}], format: uuid}`, or a
+union beside the `allOf` that past a bound is no longer left out, leaves a read past a bound
+composing (point 1).
 
 A `$dynamicRef` a conjunct writes masks no kind: one the position expands, in what a `$ref` lands on,
 is read as the schema it names, and one it does not admits every kind, as one beside the `allOf` and
@@ -2559,6 +2575,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds`,
   `schema.TestRefinement_FlattensAsItsFlatSpelling`,
   `schema.TestRefinement_PastItsBudgetStaysAComposition`,
+  `e2e.TestCompile_AUseOfOneRefLowersAlikeWhateverItsTargetsSize`,
+  `e2e.TestCompile_AUseOfATargetAdmittingNoKindLowersAlikePastTheCaps`,
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`,
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
