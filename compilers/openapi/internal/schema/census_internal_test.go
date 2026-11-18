@@ -21,7 +21,7 @@ import (
 func TestCensusShared_MissingNode(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	got, diags := censusShared(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "/p", "t/anon/missing", dispatch{}, nil)
+	got, diags := censusShared(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), "/p", "/p", "t/anon/missing", dispatch{}, 0, nil)
 	assert.Equal(t, ir.TypeID("t/anon/missing"), got, "the lowering's own ID still stands")
 	assertInternalInvariant(t, diags)
 }
@@ -34,9 +34,9 @@ func TestVariantsCensus_NeedsAUnionAndItsVariants(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	census := variantsCensus(l.Ctx, l.Types, StandaloneSchema(&oas3.Schema{}), distributedShape, nil, "/p")
-	assertInternalInvariant(t, census(&ir.Scalar{ID: "t/anon/scalar"}))
+	assertInternalInvariant(t, census(&ir.Scalar{ID: "t/anon/scalar"}, 0))
 	assertInternalInvariant(t, census(&ir.Union{ID: "t/anon/union",
-		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/anon/missing"}}}}))
+		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/anon/missing"}}}}, 0))
 }
 
 // TestKeywordHome_AnUnknownKeywordIsHomedNowhere reaches the arm censusKeywords

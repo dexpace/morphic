@@ -68,9 +68,9 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	const at = "/components/schemas/User"
 
 	var built int
-	build := func(common ir.TypeCommon) ir.TypeDef {
+	build := func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		built++
-		return &ir.Model{TypeCommon: common}
+		return &ir.Model{TypeCommon: common}, 0
 	}
 
 	first := internNode(c.Ctx, ts, at, build, nil)
@@ -96,11 +96,11 @@ func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 
 	var finished []ir.TypeDef
 	var stored []bool
-	fin := finisher(func(td ir.TypeDef) {
+	fin := finisher(func(td ir.TypeDef, _ keySet) {
 		_, held := ts.Node(td.Common().ID)
 		finished, stored = append(finished, td), append(stored, held)
 	})
-	build := func(common ir.TypeCommon) ir.TypeDef { return &ir.Model{TypeCommon: common} }
+	build := func(common ir.TypeCommon) (ir.TypeDef, keySet) { return &ir.Model{TypeCommon: common}, 0 }
 	id := internNode(c.Ctx, ts, at, build, fin)
 	internNode(c.Ctx, ts, at, build, fin)
 
@@ -116,12 +116,12 @@ func TestInternNode_FinishesTheNodeItBuildsOnceBeforeStoringIt(t *testing.T) {
 func TestFinisher_ThenRunsBothInOrder(t *testing.T) {
 	t.Parallel()
 	var ran []string
-	first := finisher(func(ir.TypeDef) { ran = append(ran, "first") })
-	second := finisher(func(ir.TypeDef) { ran = append(ran, "second") })
+	first := finisher(func(ir.TypeDef, keySet) { ran = append(ran, "first") })
+	second := finisher(func(ir.TypeDef, keySet) { ran = append(ran, "second") })
 	var none finisher
-	first.then(second)(&ir.Model{})
-	none.then(first)(&ir.Model{})
-	first.then(none)(&ir.Model{})
+	first.then(second)(&ir.Model{}, 0)
+	none.then(first)(&ir.Model{}, 0)
+	first.then(none)(&ir.Model{}, 0)
 	assert.Equal(t, []string{"first", "second", "first", "first"}, ran)
 	assert.Nil(t, none.then(none), "two nil finishers finish nothing")
 }
@@ -197,8 +197,8 @@ func TestUnionVariant_StopsAtTheHopCap(t *testing.T) {
 func TestMarkKindInferred_JoinsWhatTheNodeNames(t *testing.T) {
 	t.Parallel()
 	node := &ir.Model{Provenance: ir.Provenance{Inferred: lowering.NullableInferenceHeuristic}}
-	markKindInferred(node)
-	markKindInferred(node)
+	markKindInferred(node, 0)
+	markKindInferred(node, 0)
 	assert.Equal(t, ir.JoinInferred(lowering.NullableInferenceHeuristic, lowering.KindInferenceHeuristic),
 		node.Provenance.Inferred)
 }

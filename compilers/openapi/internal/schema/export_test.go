@@ -11,6 +11,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -165,4 +166,20 @@ func StatedIn(l *Lowerer, s *oas3.Schema) *statement.Schema {
 		}
 	}
 	panic("schema: StatedIn of a schema no component of the fixture's document declares")
+}
+
+// ReadDisagreements loads src and lowers its component schemas, as LowerSpec
+// does, with each census site recording where it keeps a key the builds it
+// judges read, or homes one none read (readCheck), and returns those, or false
+// where src does not load.
+func ReadDisagreements(t *testing.T, src compilers.Source) ([]string, bool) {
+	t.Helper()
+	loaded, _, err := load.Load(t.Context(), 0, src, load.Options{})
+	if err != nil || loaded == nil || loaded.Doc == nil {
+		return nil, false
+	}
+	l := LowererOver(service.New(0, loaded, service.Policy{}))
+	check := lowering.Remembered(l.Ctx, readCheckOf{}, func() *readCheck { return &readCheck{} })
+	LowerComponentSchemas(t.Context(), l.Ctx, l.Types, l.Schemas())
+	return check.disagreements, true
 }

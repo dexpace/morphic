@@ -52,7 +52,7 @@ func TestHomeDeclaration_HoistsAHomeFinishedWithTheDeclaration(t *testing.T) {
 	l, s, at := lowererDeclaringS(t)
 	var outer []ir.TypeDef
 	ref, diags := homeDeclaration(l.Ctx, l.Types, s, l.Types.PrimRef(ir.PrimString), at, annotation.HomeOwnNode, false,
-		func(td ir.TypeDef) { outer = append(outer, td) })
+		func(td ir.TypeDef, _ keySet) { outer = append(outer, td) })
 
 	assert.Equal(t, l.Ctx.IDs().ForPointer(at), ref.Target, "the position resolves to its own alias")
 	assert.NotEmpty(t, diags, "what the alias keeps is reported")

@@ -351,7 +351,11 @@ func referenceUnhomed(c lowering.Ctx, s *statement.Schema, handled []string) []s
 		}
 		slices.Sort(unhomed)
 	}
-	return append(unhomed, untakenBounds(s, takes)...)
+	unhomed = append(unhomed, untakenBounds(s, takes)...)
+	if rc := readCheckIn(c); rc != nil {
+		rc.compare("reference", "reference", s, referenceReads(c, s)|readElsewhere(s), handled, unhomed, string(s.At.Pointer))
+	}
+	return unhomed
 }
 
 // What a position lowering to a reference lowered to, for the diagnostic
@@ -398,16 +402,16 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *statement.Schema, pointer jsont
 // position's resulting ID and the build's findings, the census's after them,
 // as they always stood. docs/compilers/openapi.md#shape-applicator covers a
 // contradictory schema's dropped half and an untyped applicator such as
-// `items`.
+// `items`. build returns, beside the ID, what a lowering to a shared node read.
 func censused(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, written jsontext.Pointer, d dispatch, fin finisher,
-	build func(fin finisher) (ir.TypeID, []ir.Diagnostic),
+	build func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic),
 ) (ir.TypeID, []ir.Diagnostic) {
 	var census finished
-	id, diags := build(func(td ir.TypeDef) {
+	id, shared, diags := build(func(td ir.TypeDef, read keySet) {
 		census.ran = true
-		census.diags = censusOn(c, ts, s, written, td, d)
+		census.diags = censusOn(c, ts, s, written, td, d, read)
 		if fin != nil {
-			fin(td)
+			fin(td, read)
 		}
 	})
 	if census.ran || LoweredToOwnNode(c, pointer, ir.TypeRef{Target: id}) {
@@ -415,7 +419,7 @@ func censused(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, w
 		// the visit building it.
 		return id, append(diags, census.diags...)
 	}
-	owner, sharedDiags := censusShared(c, ts, s, pointer, written, id, d, fin)
+	owner, sharedDiags := censusShared(c, ts, s, pointer, written, id, d, shared, fin)
 	return owner, append(diags, sharedDiags...)
 }
 
@@ -429,10 +433,15 @@ func censused(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, w
 // A multipart body keys no part for `properties` the node lacks
 // (docs/compilers/openapi.md#multipart-encoding).
 func censusOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, written jsontext.Pointer, td ir.TypeDef, d dispatch,
+	read keySet,
 ) []ir.Diagnostic {
-	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
+	handled := slices.Concat(d.skipped, d.said)
+	unhomed := unhomedKeywords(s, td, handled)
 	if !carriesNumberAsText(td) {
 		unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td}, boundKinds(c, s))...)
+	}
+	if rc := readCheckIn(c); rc != nil {
+		rc.compare("own", string(td.Kind()), s, read|readElsewhere(s), handled, unhomed, string(written))
 	}
 	return keepCensus(c, ts, td, s, d, unhomed, written)
 }
@@ -455,13 +464,18 @@ func keepCensus(c lowering.Ctx, ts *compile.Types, td ir.TypeDef, s *statement.S
 // the position admits take, and only those. It returns id itself, fin
 // unfinished, where nothing is kept.
 func censusShared(c lowering.Ctx, ts *compile.Types, s *statement.Schema, pointer, written jsontext.Pointer, id ir.TypeID, d dispatch,
-	fin finisher,
+	shared keySet, fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	td, diags := censusedNode(c, ts, id, written)
 	if td == nil {
 		return id, diags
 	}
-	unhomed := append(unhomedKeywords(s, td, slices.Concat(d.skipped, d.said)), untakenBounds(s, boundKinds(c, s))...)
+	handled := slices.Concat(d.skipped, d.said)
+	unhomed := append(unhomedKeywords(s, td, handled), untakenBounds(s, boundKinds(c, s))...)
+	if rc := readCheckIn(c); rc != nil {
+		read := shared | boundsRead(s, boundKinds(c, s), nil) | readElsewhere(s)
+		rc.compare("shared", string(td.Kind()), s, read, handled, unhomed, string(written))
+	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
 		return id, diags
 	}
@@ -573,17 +587,17 @@ func taglessShape(m *ir.Model, s *statement.Schema, shape string) string {
 // lowers to, for that same diagnostic.
 const distributedShape = "a union of models conjoining its body with each branch"
 
-// variantsCensus returns the census of the Union a position's own schema s
-// builds the variants of, in hand: a type array's (lowerUnion) and a
+// variantsCensus returns the census of the Union, in hand, that a position's
+// own schema s builds the variants of: a type array's (lowerUnion) and a
 // distributed composition's (composedVariant). It keeps on the Union what s
-// declares that no variant carries, as the Union has no field for what they
-// consume; handled is as unhomedKeywords takes it. A value bound reaches each
-// variant reading it, a type array's whose type takes it and every composed
-// one, so it is kept where none does (unreadBounds). A discriminator the Union
-// holds is homed there, routing its variants. shape describes the Union.
+// declares that no variant carries; handled is as unhomedKeywords takes it. A
+// value bound reaches each variant reading it, a type array's whose type takes
+// it and every composed one, so it is kept where none does (unreadBounds). A
+// discriminator the Union holds is homed there. shape describes the Union;
+// read is what its build and its variants' read.
 func variantsCensus(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shape string, handled []string, pointer jsontext.Pointer,
-) func(td ir.TypeDef) []ir.Diagnostic {
-	return func(td ir.TypeDef) []ir.Diagnostic {
+) func(td ir.TypeDef, read keySet) []ir.Diagnostic {
+	return func(td ir.TypeDef, read keySet) []ir.Diagnostic {
 		u, isUnion := td.(*ir.Union)
 		if !isUnion {
 			return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
@@ -602,6 +616,9 @@ func variantsCensus(c lowering.Ctx, ts *compile.Types, s *statement.Schema, shap
 			}
 		}
 		unhomed := append(unhomedAcross(s, nodes, handled), unreadBounds(s, nodes, boundKinds(c, s))...)
+		if rc := readCheckIn(c); rc != nil {
+			rc.compare("variants", shape, s, read|readElsewhere(s), handled, unhomed, string(pointer))
+		}
 		if len(unhomed) == 0 {
 			return diags
 		}

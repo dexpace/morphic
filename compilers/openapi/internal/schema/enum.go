@@ -38,7 +38,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 	s, written := site.set, site.written
 	members := enumIn(s)
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
+	build := func(common ir.TypeCommon) ir.TypeDef {
 		// The degenerate list first, then the budget. They cannot both hold — a
 		// member count of zero exceeds no positive budget — so the order decides
 		// nothing, but reading the empty case beside the members it lacks is
@@ -70,6 +70,10 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 			Members:    members,
 			Closed:     true,
 		}
+	}
+	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td := build(common)
+		return td, valueSetReads(site.set, td)
 	}, site.finish)
 	return id, diags
 }
@@ -340,8 +344,9 @@ func nullConst(c lowering.Ctx, ts *compile.Types, site valueSetSite) (ir.TypeID,
 // that schema's type and format select, as an enum's is (enumValueType), the
 // top type where they select none, narrowed as the site types it.
 func lowerNullAlone(c lowering.Ctx, ts *compile.Types, site valueSetSite) ir.TypeID {
-	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
-		return &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
+	return internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
+		td := &ir.Enum{TypeCommon: common, ValueType: site.enumType(c, admitsEvery, ir.PrimAny), Closed: true}
+		return td, valueSetReads(site.set, td)
 	}, site.finish)
 }
 
@@ -362,14 +367,15 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, site valueSetSite, node *ya
 	// diagnostic, which Diags.Append drops — so nothing observable rests on this;
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
-	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) ir.TypeDef {
+	id := internNode(c, ts, site.pointer, func(common ir.TypeCommon) (ir.TypeDef, keySet) {
 		val, err := value.FromNode(node)
 		if err != nil {
 			diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, site.written,
 				"unconvertible value lowered as the top type: %s", err.Error()))
-			return &ir.Any{TypeCommon: common}
+			return &ir.Any{TypeCommon: common}, valueSetReads(site.set, nil)
 		}
-		return &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
+		td := &ir.Literal{TypeCommon: common, Value: val, ValueType: site.literalType(c, val)}
+		return td, valueSetReads(site.set, td)
 	}, site.finish)
 	return id, diags
 }
@@ -405,6 +411,24 @@ func enumValueType(s *statement.Schema, admits func(ir.PrimKind) bool, memberPri
 		return prim
 	}
 	return memberPrim
+}
+
+// valueSetReads returns what the build of td, the node the value set set writes
+// lowers to, read of set: the value set, and the type and format its ValueType
+// is selected by (declaredReads), as an Enum's members or a Literal's value
+// fit them.
+func valueSetReads(set *statement.Schema, td ir.TypeDef) keySet {
+	read := keySetOf("enum", "const")
+	switch n := td.(type) {
+	case *ir.Enum:
+		read |= declaredReads(set, func(p ir.PrimKind) bool { return enumMembersAre(n.Members, p) })
+	case *ir.Literal:
+		read |= declaredReads(set, func(p ir.PrimKind) bool { return merge.Admits(p, n.Value) })
+	default:
+		// The top type a value set degraded to, or the union of literals a mixed
+		// enum lowers to, types no value.
+	}
+	return read
 }
 
 // enumMembersAre reports whether every member's value is a value of prim.

@@ -1096,11 +1096,11 @@ func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.S
 	types := undecidedTypes(c, s, pointer)
 	switch len(types) {
 	case 0:
-		return censused(c, ts, s, pointer, pointer, d, fin, func(finisher) (ir.TypeID, []ir.Diagnostic) {
-			return ts.PrimID(ir.PrimAny), nil
+		return censused(c, ts, s, pointer, pointer, d, fin, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
+			return ts.PrimID(ir.PrimAny), 0, nil
 		})
 	case 1:
-		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, []ir.Diagnostic) {
+		return censused(c, ts, s, pointer, pointer, d, fin, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
 			return lowerTyped(c, ts, depth, s, pointer, types[0], fin)
 		})
 	default:
@@ -1273,7 +1273,7 @@ func principalResidue(c lowering.Ctx, s *statement.Schema, pointer jsontext.Poin
 		return nil
 	}
 	principal := r.principal
-	return func(td ir.TypeDef) {
+	return func(td ir.TypeDef, _ keySet) {
 		*into = recordResidue(c, td.Common(), principal.schema.Schema, principal.pointer)
 	}
 }
