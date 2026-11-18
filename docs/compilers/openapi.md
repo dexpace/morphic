@@ -4950,8 +4950,8 @@ leaving out one the declarations name is no principal ([`allof-refinement`](#all
 composed as a model where no conjunct declares a kind, as one over two `$ref`s to schemas writing
 `properties` alone, is marked. Split over entries, a keyword infers as in its flat spelling where the
 claims of one conjunct name every kind the position lowers to: that conjunct is the principal
-([`allof-refinement`](#allof-refinement)), so `{allOf: [{items: …}]}` is a use of the marked `List`
-its entry builds, as `{items: …}` is that `List`, and a bound of another kind beside a `$ref` to it
+([`allof-refinement`](#allof-refinement)), so `{allOf: [{items: …}]}` is the marked `List` its entry
+builds, standing at the position as `{items: …}` is, and a bound of another kind beside a `$ref` to it
 is placed by the `List`. Keywords of both kinds part from their flat
 spelling: `{allOf: [{properties: …}, {items: …}]}` admits an object and an array, so it is no model
 but the top type keeping each entry, where `{properties: …, items: …}` is the marked union. A reader asking whether a position
