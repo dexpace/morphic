@@ -3927,8 +3927,9 @@ declare shape (below), or of several the one written as a `oneOf`, as
 [`competing-keywords`](#competing-keywords) elects the `oneOf` of one schema writing both: each other
 is kept on every variant, whichever is written first. The `discriminator` standing with it is the one its branch writes, else the
 one beside the `allOf`: where both write one, nothing says which routes the union, so it is kept as
-what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword, and the
-`Model` holds the schema's own. It routes the union as one beside it does,
+what a branch writes is ([`allof-inline-residue`](#allof-inline-residue)), under its keyword where
+the two are written alike and with its branch whole, under `openapi:allOf/<i>`, where they differ,
+and the `Model` holds the schema's own. It routes the union as one beside it does,
 a `mapping` entry naming no schema reported at the entry under the schema writing it, and it routes
 by name the schemas the union lists ([`discriminator-value`](#discriminator-value)). Its variants
 take their IDs from the branch's pointers, its `$ref` and inline branches conjoin as above, and the
