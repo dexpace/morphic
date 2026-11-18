@@ -1806,7 +1806,23 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/PatternsAThenB/allOf/0/properties/p"
-      }
+      },
+      "related": [
+        {
+          "role": "kept",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/PatternsAThenB/allOf/1/properties/p"
+          }
+        },
+        {
+          "role": "decided",
+          "provenance": {
+            "source": -1,
+            "node": "p/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p"
+          }
+        }
+      ]
     },
     {
       "severity": "warning",
@@ -1815,7 +1831,23 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/PatternsBThenA/allOf/0/properties/p"
-      }
+      },
+      "related": [
+        {
+          "role": "kept",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/PatternsBThenA/allOf/1/properties/p"
+          }
+        },
+        {
+          "role": "decided",
+          "provenance": {
+            "source": -1,
+            "node": "p/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p"
+          }
+        }
+      ]
     }
   ],
   "sources": [

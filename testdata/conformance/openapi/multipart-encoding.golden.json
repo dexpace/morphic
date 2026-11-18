@@ -1022,7 +1022,23 @@
         "source": 0,
         "pointer": "/components/schemas/UploadForm/properties/file",
         "node": "p/composed/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema/allOf/properties/file"
-      }
+      },
+      "related": [
+        {
+          "role": "kept",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/FileList/properties/file"
+          }
+        },
+        {
+          "role": "decided",
+          "provenance": {
+            "source": -1,
+            "node": "p/composed/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema/allOf/properties/file"
+          }
+        }
+      ]
     }
   ],
   "sources": [

@@ -451,7 +451,23 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Identified/allOf/0/properties/id"
-      }
+      },
+      "related": [
+        {
+          "role": "kept",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Identified/allOf/1/properties/id"
+          }
+        },
+        {
+          "role": "decided",
+          "provenance": {
+            "source": -1,
+            "node": "p/openapi/components/schemas/Identified/allOf/0/properties/id"
+          }
+        }
+      ]
     },
     {
       "severity": "info",
@@ -469,7 +485,23 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Repository/allOf/0/properties/clone_url"
-      }
+      },
+      "related": [
+        {
+          "role": "kept",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Repository/allOf/1/properties/clone_url"
+          }
+        },
+        {
+          "role": "decided",
+          "provenance": {
+            "source": -1,
+            "node": "p/openapi/components/schemas/Repository/allOf/0/properties/clone_url"
+          }
+        }
+      ]
     }
   ],
   "sources": [

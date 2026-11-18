@@ -3264,7 +3264,10 @@ declaration an entry brings sits at that entry, naming the member in its `Proven
 an `openapi/conflicting-redeclaration`, which sits where it names the declaration that lost, in that
 declaration's document: every model composing the two draws it alike, so the run reports it once,
 saying how many models compose both and naming no member, or naming the member where one model
-does. A consumer counting the warnings counts one per pair of declarations, member and outcome, two
+does. It lists what else it concerns ([provenance](../ir/provenance.md#related-places)): the place
+of the declaration it kept, as its message names it, and then every member it decided, one model's
+or each of several, in ascending order of their IDs, a conflict among a model's own declarations
+included. A consumer counting the warnings counts one per pair of declarations, member and outcome, two
 models keeping opposite declarations of one pair reporting one each, where it counted one per model
 composing them, each at the entry bringing the declaration that lost. A member the model declares
 itself keeps the identity of the first of its own declarations, unless another model holds that
@@ -3296,6 +3299,7 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
 - Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestReportOnce_SaysEachConflictOnce`,
   `e2e.TestConflictOnce_IsReportedOncePerPairOfDeclarations`,
+  `e2e.TestConflictOnce_AModelsOwnDeclarationsListTheMember`,
   `e2e.TestConflictOnce_InlineCompositionsAtOperationsAreOneReport`,
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
   `merge.TestFold_ALosingDetailIsKeptAndReported`,

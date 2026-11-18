@@ -124,7 +124,9 @@ protocols give related information, was weighed too: a consumer would key on pro
 ([ir-version](./ir-version.md)). An entry's `Provenance` answers to every rule a finding's own
 does, and one saying `decided` names a node (`ir/related-names-no-node`). Entries come in the
 order of the table, and those of one role in an order their producer states, which is never the
-order a map was read in. An empty list and an absent one say the same, that the finding concerns
+order a map was read in: the OpenAPI compiler lists the members a conflict decided by ascending ID
+([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)), the one report
+filling the list so far. An empty list and an absent one say the same, that the finding concerns
 its own place alone, so the member is left out when empty.
 
 A finding holding a list is not comparable as a Go value, so what dedupes findings keys on

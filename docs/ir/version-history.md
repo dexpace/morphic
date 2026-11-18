@@ -1094,9 +1094,13 @@ it sees. Changes made together in one bump are listed together under it.
   - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
     the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
     `Provenance`, left out when empty. A finding concerning two declarations named the second in
-    its message alone, and one said for several models gave their number. A consumer
-    decoding a diagnostic strictly meets a member it does not know; one comparing two diagnostics
-    as values no longer can, and keys on `Diagnostic.Key`.
+    its message alone, and one said for several models gave their number. The OpenAPI compiler
+    fills it on `openapi/conflicting-redeclaration`
+    ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): the place
+    of the declaration whose say the field kept, then every member the report decided; its
+    message, its place and the node it names are as they were. A consumer decoding a diagnostic
+    strictly meets a member it does not know; one comparing two diagnostics as values no longer
+    can, and keys on `Diagnostic.Key`.
 
   A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
   keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, the
