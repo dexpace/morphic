@@ -1101,7 +1101,16 @@ it sees. Changes made together in one bump are listed together under it.
     `anyOf`, where it was a nullable `Scalar` keeping the `oneOf` as `validation_only` and dropping
     the `anyOf`. A `discriminator` on the entry passed over leaves the composition as it was. Where
     the two share no value, every spelling, the one schema writing both among them, draws the
-    warning that the conjuncts share no value, where the one schema drew an info alone.
+    warning that the conjuncts share no value, where the one schema drew an info alone. Beside a
+    body, a branch of the elected union is read against the union passed over in every spelling:
+    over a body `type: [object, 'null']`, `oneOf: [{type: object}]` beside an `anyOf` naming null is
+    the `Union` of the object branch keeping the null branch under `openapi:anyOf/<i>` with the
+    dead-branch warning, where the one schema writing both built a variant over the null branch with
+    no warning. Neither union of the pair is folded into a refinement's principal as already said:
+    `{allOf: [{type: string}, {oneOf: [{type: string}]}, {anyOf: [{}]}]}` keeps the `anyOf` as
+    `validation_only`, where nothing kept it. Two unions sharing no value beside a body that is no
+    `Model` lower as the body in every spelling, keeping both, with that warning, where two entries
+    gave an empty `Model` keeping both and the body's type.
 
   - **A union of null alone beside an `allOf`**
     ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
