@@ -144,6 +144,31 @@ func TestPrincipalApart_AParameterSchemaHoldsBoth(t *testing.T) {
 	assert.JSONEq(t, `{"minimum":1}`, string(unmodeledEntry(t, held, "openapi:allOf/0").Value))
 }
 
+// TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt pins the report of
+// a principal's keyword kept under its entry's key where the position owns no
+// node: the parameter keeps it beneath its schema's scope, so the report names
+// the entry's path, which that key ends in, and no key the parameter lacks.
+func TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n  /a:\n    get:\n"+
+		"      parameters:\n        - {name: q, in: query, schema: {allOf: [{type: integer, contentEncoding: a}], contentEncoding: b}}\n"+
+		"      responses: {'204': {description: ok}}\n")
+	openapitest.RequireNoErrorDiags(t, diags)
+	raw, err := json.Marshal(doc, json.Deterministic(true))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"openapi:schema/allOf/0":`)
+	assert.NotContains(t, string(raw), `"openapi:allOf/0":`)
+	var said []string
+	for _, d := range diags {
+		if d.Provenance.Pointer == "/paths/~1a/get/parameters/0/schema/allOf/0" {
+			said = append(said, d.Message)
+		}
+	}
+	require.Len(t, said, 1)
+	assert.Contains(t, said[0], "under the key naming its entry, allOf/0,")
+	assert.NotContains(t, said[0], "openapi:allOf/0")
+}
+
 // TestPrincipalApart_AKeptDiscriminatorResolvesItsMapping pins a principal's
 // discriminator kept under its entry's key, apart from the position's or held
 // in the whole entry, in both declaration orders: its mapping is resolved as a

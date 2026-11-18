@@ -177,16 +177,17 @@ func keepApart(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held *p
 			members.Content = append(members.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k.Name}, k.Node)
 		}
 	}
-	key := comp.branchKey(pointer)
-	kept, diags := annotation.PreserveNodeInto(p, key, members, shared, c.Place().At(pointer))
+	kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(pointer), members, shared, c.Place().At(pointer))
 	if !kept {
 		return diags
 	}
 	held.apart, held.apartReason = all, shared
+	// A carrier keeps the key beneath its own scope, so the report names the
+	// entry's path, which every such key ends in.
 	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"the keywords beside %s write %s otherwise than this inline branch, and one entry under a keyword holds "+
-			"one value; the branch's are kept verbatim under Unmodeled under its own key, %s, the rest of it lowered",
-		comp.subject(), strings.Join(apart, ", "), key))
+			"one value; the branch's are kept verbatim under Unmodeled under the key naming its entry, %s, the rest of it lowered",
+		comp.subject(), strings.Join(apart, ", "), comp.branchPath(pointer)))
 	return append(diags, routesKept(c, ts, s, apart, pointer)...)
 }
 
