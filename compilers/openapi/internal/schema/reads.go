@@ -18,22 +18,19 @@ import (
 // the node does not, and the finishing of its node keeps the rest.
 type keySet uint32
 
-// censusDomain lists the keys a keySet holds, each at its bit: the keywords a
-// node's kind decides the home of, then the value bounds.
-var censusDomain = [...]string{
+// nodeKeywords are the keywords whose home a node's kind decides.
+var nodeKeywords = []string{
 	"additionalItems", "additionalProperties", "const", "discriminator", "enum", "format", "items",
 	"maxItems", "minItems", "patternProperties", "prefixItems", "properties", "required", "type", "uniqueItems",
-	"exclusiveMaximum", "exclusiveMinimum", "maxLength", "maxProperties", "maximum", "minLength",
-	"minProperties", "minimum", "multipleOf", "pattern",
 }
 
-// nodeKeywords are censusDomain's keywords before the value bounds, those whose
-// home a node's kind decides.
-var nodeKeywords = censusDomain[:len(censusDomain)-len(valueConstraintKeywords)]
+// censusDomain lists the keys a keySet holds, each at its bit: nodeKeywords,
+// then the value bounds (valueConstraintKeywords).
+var censusDomain = slices.Concat(nodeKeywords, valueConstraintKeywords)
 
 // keyBit returns the bit of name, and none for a key outside censusDomain.
 func keyBit(name string) keySet {
-	i := slices.Index(censusDomain[:], name)
+	i := slices.Index(censusDomain, name)
 	if i < 0 {
 		return 0
 	}

@@ -15,7 +15,7 @@ import (
 // such as a description, has no bit, so no build can say it read it.
 func TestKeySet_HoldsTheCensusDomainAlone(t *testing.T) {
 	t.Parallel()
-	all := keySetOf(censusDomain[:]...)
+	all := keySetOf(censusDomain...)
 	assert.Equal(t, len(censusDomain), bits.OnesCount32(uint32(all)), "each key has a bit of its own")
 	for _, k := range censusDomain {
 		assert.True(t, keySetOf(k).has(k), "%s has a bit", k)
