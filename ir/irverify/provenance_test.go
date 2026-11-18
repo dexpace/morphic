@@ -292,6 +292,40 @@ func TestVerify_ARelatedEntryIsHeldAsAProvenanceIs(t *testing.T) {
 	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance"}, violationPaths(got, "ir/provenance-pointer-malformed"))
 }
 
+// TestVerify_ARelatedEntryNamesSomething holds every related entry to naming a
+// place or a node: one on NoSource naming no node concerns nothing, whatever
+// its role, and a decided one draws its own code beside. An entry naming a
+// source, the whole of it or a pointer, or a node, names something, and a
+// decided entry pointing into a source but naming no node draws only the code
+// of its role.
+func TestVerify_ARelatedEntryNamesSomething(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Sources = oneSource()
+	d := ir.NewDiagnostic(ir.SeverityWarning, "openapi/x", "m", ir.Provenance{})
+	d.Related = []ir.Related{
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: ir.NoSource}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Pointer: "/a"}},
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{}},
+		{Role: ir.RelatedKept, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}},
+		{Role: ir.RelatedDecided, Provenance: ir.Provenance{Source: ir.NoSource, Node: "p/x/a"}},
+	}
+	doc.Diagnostics = []ir.Diagnostic{d}
+
+	got := verifyDeclared(doc)
+
+	assert.Equal(t, []string{"doc.Diagnostics[0].Related[0].Provenance", "doc.Diagnostics[0].Related[1].Provenance"},
+		violationPaths(got, "ir/empty-related"))
+	assert.Equal(t, []string{"doc.Diagnostics[0].Related[1].Provenance", "doc.Diagnostics[0].Related[2].Provenance"},
+		violationPaths(got, "ir/related-names-no-node"))
+	for _, v := range got {
+		if v.Code == "ir/empty-related" {
+			assert.Equal(t, "diagnostic's related entry names no place and no node", v.Message)
+		}
+	}
+}
+
 // TestVerify_ADecidedEntryNamesItsNode holds a related entry saying the
 // finding decided a node to naming one, and leaves every other role and a
 // named one alone.

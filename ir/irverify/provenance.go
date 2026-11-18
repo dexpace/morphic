@@ -25,15 +25,15 @@ var (
 //
 // It is document-wide rather than scoped to one carrier: the defect reads the
 // same on a type, a diagnostic or an Unmodeled entry, and one walk reaches all
-// of them. A diagnostic's related entry is held to naming what its role says it
-// does (appendRelatedViolation).
+// of them. A diagnostic's related entry is held to naming something, and what
+// its role says it does (appendRelatedViolations).
 func checkProvenance(doc *ir.Document) walkCheck {
 	var vs []Violation
 	declared := len(doc.Sources)
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() == reflect.Struct && v.Type() == relatedType {
-				vs = appendRelatedViolation(vs, v, at)
+				vs = appendRelatedViolations(vs, v, at)
 			}
 			if v.Kind() != reflect.Struct || v.Type() != provenanceType {
 				return true
@@ -55,12 +55,24 @@ func checkProvenance(doc *ir.Document) walkCheck {
 	}
 }
 
-// appendRelatedViolation reports a related entry of role ir.RelatedDecided
-// whose Provenance names no node: the role says the finding decided one, and a
-// consumer listing what a finding decided reads the node and nothing else.
-func appendRelatedViolation(vs []Violation, related reflect.Value, at ir.WalkPath) []Violation {
-	role := ir.RelatedRole(related.FieldByName("Role").String())
-	if role != ir.RelatedDecided || related.FieldByName("Provenance").FieldByName("Node").String() != "" {
+// appendRelatedViolations reports a related entry whose Provenance names
+// nothing, whatever its role: no node, on ir.NoSource, where no pointer or
+// position may stand either, so the finding concerns no other place at all;
+// and one of role ir.RelatedDecided naming no node, wherever it points, since
+// the role says the finding decided one, and a consumer listing what a finding
+// decided reads the node and nothing else. An entry of that role naming
+// neither draws both.
+func appendRelatedViolations(vs []Violation, related reflect.Value, at ir.WalkPath) []Violation {
+	prov := related.FieldByName("Provenance")
+	named := prov.FieldByName("Node").String() != ""
+	if !named && int(prov.FieldByName("Source").Int()) == ir.NoSource {
+		vs = append(vs, Violation{
+			Code:    "ir/empty-related",
+			Message: "diagnostic's related entry names no place and no node",
+			Path:    at.String() + ".Provenance",
+		})
+	}
+	if ir.RelatedRole(related.FieldByName("Role").String()) != ir.RelatedDecided || named {
 		return vs
 	}
 	return append(vs, Violation{
