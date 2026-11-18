@@ -940,7 +940,9 @@ it sees. Changes made together in one bump are listed together under it.
   `MapT`, and holds only the bounds the kinds it admits take, its branch's within the body's, where
   it held each the position took. A branch admitting no object, nor a null the body admits, is no
   variant: the `Union` keeps it under that key, the schema warning of it, where a variant over it
-  kept it, and a body none of whose branches lives lowers as itself, keeping the union whole under
+  kept it, a branch read so only where the rest of the conjunction admits objects alone and is read
+  whole, a contradiction with any other rest left to the warning that the conjuncts share no value,
+  so a schema draws one of the two at most, and a body none of whose branches lives lowers as itself, keeping the union whole under
   `openapi:oneOf` or `openapi:anyOf`, the union written beside it or on an entry of its `allOf`,
   where it was a `Union` of variants no value inhabits. A discriminator's route to such a branch keys
   nothing in the union's `Mapping`, a `mapping` entry or a `defaultMapping` kept verbatim under

@@ -1,8 +1,6 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-//go:build pending
-
 package e2e_test
 
 import (
@@ -12,12 +10,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
-
-// Pending, no issue filed yet: a branch of a union on an allOf entry is read
-// as dead against a rest assumed to admit objects alone, so a rest that is a
-// string, a reference naming no schema, or a value set draws a warning naming
-// branches the rest admits, or saying of a read cut short that nothing
-// satisfies the schema (docs/compilers/openapi.md#union-beside-structure).
 
 // TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits holds the
 // dead-branch warning to the rest of the allOf it names: none where the rest

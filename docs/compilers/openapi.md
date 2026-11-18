@@ -3870,7 +3870,13 @@ branch, and it lowers nowhere. Leaving out a branch no instance satisfies change
 object}, {type: array}, {type: string}]}` is a `Union` of one variant, as a union written with one
 branch beside a body is. Where the body's own `allOf` conjuncts share no kind, the entry a union is
 written on aside, the warning of that rule already says no instance satisfies the schema, and no
-branch is read as dead. Where no branch
+branch is read as dead. Nor is one where the rest of the conjunction, what the schema writes but the
+union, an entry's own `type` and value set kept, admits anything but objects, null aside, as that
+report reads its conjuncts, or its read is cut short, as by a `$ref` naming no schema: the union is
+then a conjunct like any other, a contradiction with the rest is that report's to state, and a rest
+whose kinds are not known draws neither, so a schema draws one of the two warnings at most.
+`{allOf: [{$ref: Str}, {oneOf: [{type: boolean}, {$ref: Obj}]}]}` over a string `Str` draws the
+warning that its conjuncts share no value and none naming a dead branch. Where no branch
 lives, the union is shape 6 below. A route the discriminator standing with the union takes to a
 dead branch routes to no variant, and the union keeps none: a `mapping` entry whose value's chain a
 dead branch meets first, as a variant's branch meets one ([`discriminator`](#discriminator)), and a
@@ -4092,7 +4098,9 @@ judged as one whose branches declare shape.
   `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
-- Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`, `schema.TestLower_AllOfWithOneOfKeepsBoth`,
+- Tests: `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
+  `e2e.TestCompile_ARestOfAValueSetIsNotSaidToRefuseABranchItAdmits`,
+  `e2e.TestCompile_AUnionBesideAnyRestDrawsOneWarningAtMost`, `schema.TestOneOf_CoDeclaredNotDistributedReasons`, `schema.TestLower_AllOfWithOneOfKeepsBoth`,
   `e2e.TestAllOfUnion_AUnionSharingNoKindWithTheRestIsKeptNotDistributed`,
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
   `schema.TestOneOf_CoDeclaredTypeReadsNullableByItsDialect`,
