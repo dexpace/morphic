@@ -2169,10 +2169,10 @@ answers, the `Scalar` alias. A
 `$ref` entry composes only where the schema it lands on lowers to an object alone, null aside, or to
 the union of a `type` list holding an object, whose object variant it composes (below): the sole
 such entry becomes `Base`, and of several, of those to a schema taking part in a discriminator
-hierarchy, one whose hierarchy's mapping names the composing schema before one whose does not, then
-the one whose reference text is the least, whichever is written first: one declaring a `discriminator`, or composing through `allOf`, at any
-depth, a schema that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag
-off. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
+hierarchy (one declaring a `discriminator`, or composing through `allOf`, at any depth, a schema
+that does, the ancestors [`discriminator-value`](#discriminator-value) reads a tag off), one whose
+hierarchy's mapping names the composing schema before one whose does not, then the one whose
+reference text is the least. Every other such `$ref` entry becomes a `Mixin`, so a schema composing a subtype of a
 discriminated base beside another `$ref` is a subtype of that base too. A `$ref` entry whose target
 admits every kind, or another kind than an object, composes nothing, so no `Model` names a base or a
 mixin that is no object: its reference is kept under `openapi:$ref`, or `openapi:$ref/<i>` by
