@@ -76,7 +76,7 @@ func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
 	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+subDog) {
 		assertMovedToMap(t, typeByName(doc, "Pet"))
 		assert.Empty(t, unreadReports(doc.Diagnostics, "/components/schemas/Pet"),
-			"the map holds all the keeping of unread keywords asked about, and the move keeps the discriminator itself")
+			"the map holds all that would otherwise be kept unread, and the move keeps the discriminator itself")
 	}
 }
 
@@ -96,7 +96,7 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) 
 		assertMovedToMap(t, doc.Types["t/anon"+at])
 		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
 			"not a subtype", "one move, reported once")
-		assert.Empty(t, unreadReports(doc.Diagnostics, at), "the map homes all the keeping of unread keywords asked about")
+		assert.Empty(t, unreadReports(doc.Diagnostics, at), "the map homes all that would otherwise be kept unread")
 	}
 }
 

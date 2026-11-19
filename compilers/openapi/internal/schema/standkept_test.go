@@ -713,7 +713,7 @@ func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 }
 
 // TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader pins a keyword an
-// inline principal and its position write alike that no keeping of unread keywords reads: a key no
+// inline principal and its position write alike outside readDomain: a key no
 // dialect defines, a default, readOnly, a validation-only keyword, an
 // extension. It is one writing: kept once and reported once, by the position
 // where the principal is lowered, and inside the principal's entry, named by
