@@ -2322,15 +2322,15 @@ the position lowers as the rest does, the union is kept under `openapi:oneOf` or
 distributed into models no instance satisfies ([`union-beside-structure`](#union-beside-structure)).
 
 An `enum` or a `const` beside an `allOf` is one of its conjuncts, the keywords beside the `allOf`
-writing a value set, rather than its rival in the election of
+writing a value set, rather than its rival in the dispatch of
 [`competing-keywords`](#competing-keywords): `{enum: [a], allOf: [{$ref: Level}]}` elects its
 principal from the same set as `{allOf: [{$ref: Level}, {enum: [a]}]}`, its entries fold and its
 `$ref` still lowers. Where the conjuncts would compose, their kinds an object alone or sharing no
-value, a value set is elected before the composition, as that election elects one beside it, in
+value, a value set is elected before the composition, as the dispatch picks one beside it, in
 every spelling and whatever its members: the one lying within every other value set stated, the one
 beside the `allOf` first. A set its own keywords leave no value, a `const` and an `enum` sharing
 none, a `const` outside its own `type`, or a value set beside a union of another kind, stands for
-the keyword the election of [`competing-keywords`](#competing-keywords) lowers it as, its `const`
+the keyword the dispatch of [`competing-keywords`](#competing-keywords) lowers it as, its `const`
 before its `enum`, so `{allOf: [{$ref: Str}, {const: z, enum: [a]}]}` is the `Literal` `z` keeping
 the `$ref` and the `enum`, as `{$ref: Str, const: z, enum: [a]}` is, where it composed a `Model`
 over a string; a set that keyword leaves no value either, as `enum: []`, is elected by none. So
