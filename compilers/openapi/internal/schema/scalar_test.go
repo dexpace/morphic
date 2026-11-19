@@ -778,8 +778,8 @@ func TestRedactionFormat_APropertyOwningNoNodeIsSecret(t *testing.T) {
 }
 
 // TestRedactionFormat_SharedPrimitiveStaysNotSensitive pins that the fact lands
-// on the position's own node and never on t/prim/string, which every other
-// plain string declaration resolves to: a shared node never carries one
+// on the position's own node and never on type/primitive/string, which every
+// other plain string declaration resolves to: a shared node never carries one
 // declaration's annotations (GitHub #116).
 func TestRedactionFormat_SharedPrimitiveStaysNotSensitive(t *testing.T) {
 	t.Parallel()

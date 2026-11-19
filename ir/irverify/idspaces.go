@@ -45,7 +45,9 @@ func idSpaceViolations(doc *ir.Document, decls declarations) []Violation {
 		prefix := kindPrefixes[idDeclaration.Class]
 		space, wellFormed := ir.IDSpace(prefix, idDeclaration.ID)
 		if prefix == "" || !wellFormed || (prefix == ir.IDKindType && space == ir.IDSpacePrimitive) {
-			continue // a class with no prefix and a malformed ID are reported where the shape is checked; IDSpacePrimitive is ir's
+			// A class with no prefix and a malformed ID are reported where the
+			// shape is checked; IDSpacePrimitive is ir's.
+			continue
 		}
 		carried++
 		if len(doc.IDSpaces) > 0 && !declared[prefix][space] {

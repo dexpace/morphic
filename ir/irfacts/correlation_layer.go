@@ -174,8 +174,9 @@ func (c *correlator) callbacks(key string, operation *ir.Operation) {
 	}
 }
 
-// callbackTarget is an operation one of op's callbacks lists, with what keys
-// it: the callback's name, its runtime expression and the operation's method.
+// callbackTarget is an operation one of an operation's callbacks lists, with
+// what keys it: the callback's name, its runtime expression and the
+// operation's method.
 type callbackTarget struct {
 	operation                *ir.Operation
 	name, expression, method string

@@ -446,8 +446,8 @@ func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic
 
 // assertHeaderContentSchema pins that both spellings of a header's type lower
 // alike. The content spelling used to reach lowerHeader with no schema at all —
-// the header became t/prim/any and its constraints and xml hints went with it,
-// without a diagnostic (GitHub #139).
+// the header became type/primitive/any and its constraints and xml hints went
+// with it, without a diagnostic (GitHub #139).
 //
 // The two headers declare the same type deliberately: comparing them against
 // each other, rather than against a written-out expectation, is what makes the

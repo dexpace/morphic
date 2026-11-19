@@ -22,7 +22,7 @@ func TestValidate_DiscriminatorMissingVariant(t *testing.T) {
 		Variants: []ir.Variant{{Type: ir.TypeRef{Target: "type/m"}}},
 		Discriminator: &ir.Discriminator{
 			PropertyName: "kind",
-			// t/prim/string exists but is not one of the union's variants.
+			// type/primitive/string exists but is not one of the union's variants.
 			Mapping: map[string]ir.TypeID{"a": "type/primitive/string"},
 		},
 	}
