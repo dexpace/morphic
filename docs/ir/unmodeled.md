@@ -100,8 +100,9 @@ so it takes the same key, reason and report there, its provenance naming the key
 `openapi:format`, never `openapi:allOf/1`. An inline entry is kept under a path key such as
 `openapi:allOf/1` only where it is kept whole, a keyword of it being read against the rest of it or
 held apart by no one key, or where the position lowers from it, as its inline principal or an entry
-around one, and the keywords beside the `allOf` write a keyword it keeps otherwise: that key then
-holds the keywords so written alone, the rest of the entry lowered
+around one, and a level around it, the keywords beside the `allOf` among them, writes a keyword it
+keeps otherwise: that key, `openapi:allOf/0/allOf/1` for an entry of an entry, then holds the
+keywords so written alone, the rest of the entry lowered
 ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue));
 a `$ref` entry a `Model` does not compose keeps its reference's text under `openapi:$ref`, or
 `openapi:$ref/<i>`, `i` its rank by that text, where one carrier keeps several
