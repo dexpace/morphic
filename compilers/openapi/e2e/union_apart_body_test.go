@@ -79,3 +79,38 @@ func TestElection_AUnionSharingAKindWithAScalarBodyLowersAsBefore(t *testing.T) 
 	assert.Equal(t, ir.KindUnion, entry.Kind())
 	assert.Empty(t, keptOn(entry))
 }
+
+// TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf
+// holds that a type and a oneOf sharing no kind, beside a $ref, beside an
+// allOf of it and on an inline entry of that allOf, in either order of the
+// components, are each a use of the $ref's target keeping both keywords, with
+// the one warning that the conjuncts share no value (GitHub #2063).
+func TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf(t *testing.T) {
+	t.Parallel()
+	for _, reversed := range []bool{false, true} {
+		t.Run(fmt.Sprint(reversed), func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileAnnotationSpec(t, "entry", bothKeywordsDoc("3.1.0", "", reversed,
+				"U: {oneOf: [{type: string}, {type: integer}]}",
+				"Beside: {$ref: '#/components/schemas/U', type: integer, oneOf: [{type: string}, {type: boolean}]}",
+				"Wrap: {allOf: [{$ref: '#/components/schemas/U'}], type: integer, oneOf: [{type: string}, {type: boolean}]}",
+				"Entry: {allOf: [{$ref: '#/components/schemas/U'}, {type: integer, oneOf: [{type: string}, {type: boolean}]}]}"))
+			for _, name := range []string{"Beside", "Wrap", "Entry"} {
+				scalar, ok := kindNode(t, doc, componentID(name)).(*ir.Scalar)
+				require.True(t, ok, "%s is a use of U", name)
+				require.NotNil(t, scalar.Base, name)
+				assert.Equal(t, componentID("U"), scalar.Base.Target, name)
+				assert.Equal(t, map[string]ir.UnmodeledReason{
+					"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:type": ir.ReasonDegradedLowering,
+				}, keptOn(scalar), name)
+				var warned int
+				for _, d := range diags {
+					if d.Severity == ir.SeverityWarning && string(d.Provenance.Pointer) == "/components/schemas/"+name {
+						warned++
+					}
+				}
+				assert.Equal(t, 1, warned, name)
+			}
+		})
+	}
+}

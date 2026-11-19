@@ -4368,6 +4368,7 @@ judged as one whose branches declare shape.
   `openapi/validation-only-keyword`
 - Tests: `e2e.TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody`,
   `e2e.TestElection_AUnionSharingAKindWithAScalarBodyLowersAsBefore`,
+  `e2e.TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf`,
   `e2e.TestCompile_ADeadBranchIsReadAgainstWhatTheRestAdmits`,
   `e2e.TestCompile_AReadPastTheAdmissionCapsKeepsItsKinds`,
   `e2e.TestCompile_ABranchPastTheAdmissionCapsBesideANullableBodyLives`,
