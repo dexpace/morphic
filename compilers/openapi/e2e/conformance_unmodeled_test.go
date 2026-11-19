@@ -88,7 +88,7 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.True(t, ok, "the half that did lower is untouched")
 
 	// The tuple's control beside the array's: a collection bound beside
-	// prefixItems is the Tuple's own, so the census keeps nothing.
+	// prefixItems is the Tuple's own, so nothing is kept unread.
 	boundTuple, ok := doc.Types[componentID("ItemsBoundOnTuple")].(*ir.Tuple)
 	require.True(t, ok)
 	assert.Empty(t, boundTuple.Unmodeled, "the bound reached Tuple.Constraints")
@@ -111,7 +111,7 @@ func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assertElectedLoweringKeywords(t, doc, diags)
 }
 
-// assertRefSiteKeywords pins the census at a $ref site, where it did not run at
+// assertRefSiteKeywords pins the keeping of unread keywords at a $ref site, where it did not run at
 // all (GitHub #283). $ref is an ordinary 2020-12 keyword, so the keywords beside
 // it are a conjunct of the position, lowered as they are beside an allOf of the
 // $ref: each typed on the node the position lowers to, or kept on it once, with
@@ -211,7 +211,7 @@ func assertUnionBesideRef(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 }
 
 // assertElectedLoweringKeywords pins the keywords the *winning* family's
-// lowering never reads (GitHub #268). The census asks the node that was built,
+// lowering never reads (GitHub #268). The keeping of unread keywords asks the node that was built,
 // which is why the two allOf cases differ: a composed Model asserts `object`
 // already and loses nothing, and asserts nothing about `string` at all.
 func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -609,7 +609,7 @@ func assertNarrowingChainsAndScalars(t *testing.T, doc *ir.Document, diags []ir.
 // with the integer declaration first, in the middle and last. Declared after
 // the integer, the default is refused as it arrives; declared before it, it is
 // adopted from a non-first entry and refused when the integer arrives. Either
-// way the entry is keyed at the branch that wrote the default, with one info.
+// way the Unmodeled entry is keyed at the allOf entry that wrote the default, with one info.
 func assertRefusedLateDefault(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	for _, tc := range []struct{ model, entry string }{
@@ -1676,7 +1676,7 @@ func assertKept(t *testing.T, got ir.Unmodeled, want []keptEntry) {
 	}
 }
 
-// assertKeywordsAtEveryOutcome pins that the census runs at each outcome of a
+// assertKeywordsAtEveryOutcome pins that the keeping of unread keywords runs at each outcome of a
 // schema, keeping what the outcome has no field for and reporting what it
 // lowered to, and that what the outcome consumes is neither kept nor reported.
 func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {

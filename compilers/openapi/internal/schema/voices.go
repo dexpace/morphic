@@ -125,7 +125,7 @@ func voicesAmong(c lowering.Ctx, s *statement.Schema) []bool {
 
 // voicing is what a schema's allOf says for the position holding it: whether
 // each entry of the flattened list folds, whether it lends a use what s and
-// the folding entries before it do not, an entry none of them writes, and
+// the folding entries before it do not, a keyword none of them writes, and
 // whether what it folds writes a relative $ref it reads against another base
 // than the position does (readsAtPosition), so nothing it writes folds.
 type voicing struct {
@@ -313,10 +313,10 @@ func voiceAt(c lowering.Ctx, node *statement.Schema, at jsontext.Pointer) annota
 // lendingEntries returns the entries of s that fold, each at its pointer below
 // s, for a use
 // reading what s lends it, but those writing only what s or such an entry before
-// them writes: the writers of an entry a use reads agree (voicesAmong), so a
+// them writes: the writers of a keyword a use reads agree (voicesAmong), so a
 // reader taking the nearest takes the same value from any of them, and a use of s
-// pays for each entry once, not for each entry repeating it. Bounds, which agree
-// by meeting, are no such entry: a use never reads them through its $ref.
+// pays for each keyword once, not for each entry repeating it. Bounds, which agree
+// by meeting, are no such keyword: a use never reads them through its $ref.
 func lendingEntries(c lowering.Ctx, s *statement.Schema) []allOfEntry {
 	if !allOfDecides(c, s) {
 		return nil

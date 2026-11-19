@@ -223,7 +223,7 @@ func TestAllOf_EntryResidueDerivedFromDeclaredKeys(t *testing.T) {
 }
 
 // TestAllOf_EachInlineEntryKeyedSeparately: two entries that both leave residue
-// must not overwrite each other's entry, and each is reported at its own entry.
+// must not overwrite each other's Unmodeled entry, and each is reported at its own entry.
 func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Multi:

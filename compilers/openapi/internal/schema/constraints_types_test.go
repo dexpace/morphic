@@ -310,10 +310,10 @@ func TestConstraints_ABoundAListKeepsIsKeptOnce(t *testing.T) {
 	assert.Len(t, diags, 1)
 }
 
-// TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus pins a count past 64 bits
-// beside a type that takes no count of its kind: the census keeps it once, with
+// TestConstraints_ACountATypeCannotTakeIsKeptUnread pins a count past 64 bits
+// beside a type that takes no count of its kind: it is kept unread once, with
 // its own report, and the reader of the node's bounds keeps and reports nothing.
-func TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
+func TestConstraints_ACountATypeCannotTakeIsKeptUnread(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, atEverySite("3.1.0", "{type: integer, maxLength: 99999999999999999999}"))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -325,11 +325,11 @@ func TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
 	assert.Len(t, diags, 4)
 }
 
-// TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus pins a 3.0 exclusive
+// TestConstraints_AModifierATypeCannotTakeIsKeptUnread pins a 3.0 exclusive
 // modifier with no bound beside a string: no reader of numeric bounds reads it,
-// so it draws no warning that it bounds nothing; the census keeps it once, with
+// so it draws no warning that it bounds nothing; it is kept unread once, with
 // its info.
-func TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus(t *testing.T) {
+func TestConstraints_AModifierATypeCannotTakeIsKeptUnread(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, atEverySite("3.0.3", "{type: string, exclusiveMinimum: true}"))
 	openapitest.RequireNoErrorDiags(t, diags)

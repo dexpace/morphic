@@ -550,7 +550,7 @@ func TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode(t *testing.T) {
 }
 
 // TestParams_RefSiteKeywordsAreKeptOnTheParameter covers the third
-// annotation.HomeCarrier position of the $ref-sibling census (GitHub #283).
+// annotation.HomeCarrier position keeping a $ref's unread siblings (GitHub #283).
 //
 // A parameter whose schema is a $ref resolves straight to the target, so the
 // keywords written beside that $ref have no node of their own and no field on

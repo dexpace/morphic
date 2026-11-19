@@ -445,7 +445,7 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 }
 
 // unmodeledKeys returns p's keys in sorted order, which is what makes an
-// expected key set assertable as a whole: a census that keeps too much fails the
+// expected key set assertable as a whole: keeping too much fails the
 // same test as one that keeps too little.
 func unmodeledKeys(p ir.Unmodeled) []string {
 	return slices.Sorted(maps.Keys(p))

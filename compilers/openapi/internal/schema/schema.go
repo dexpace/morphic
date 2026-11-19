@@ -249,9 +249,9 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *statement.
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer, decl.finish, stand{})
 	diags = append(diags, bodyDiags...)
 	ref := target
-	// A body's census ran where its node was built, the only thing that can
-	// answer it. One lowering to a reference built none, so it takes the census
-	// of a position lowered to one, and its verdict homes an alias.
+	// A body kept its unread keywords where its node was built, the only thing
+	// that can say what was read. One lowering to a reference built none, so it
+	// keeps them as a position lowered to one does, and that verdict homes an alias.
 	if !decl.ran && homesDeclaration(c, schema, target, pointer, home,
 		keepsAtOutcome(c, schema, target, pointer).holdsAny() || declaresScoped(c, declarationVoices(c, schema, target, pointer))) {
 		var homeDiags []ir.Diagnostic
@@ -286,8 +286,8 @@ func (d *declaring) finish(td ir.TypeDef, _ keySet, held *principalKept) {
 }
 
 // keptOn keeps on td, in hand, the node the position s, written at pointer,
-// lowered to target, stands at, what it keeps there: its census of a lowering
-// to a reference and the entries its refinement left (keepsAtOutcome). A
+// lowered to target, stands at, what it keeps there: what a lowering
+// to a reference keeps unread and the entries its refinement left (keepsAtOutcome). A
 // carrier keeps them where the position owns no node (PreserveRefSiteKeywords).
 func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, td ir.TypeDef,
 	held *principalKept,
@@ -386,13 +386,13 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 		// (principalDispatch).
 		return lowerDispatched(c, ts, depth, s, pointer, dispatchOf(s).besideAllOf(), fin, st)
 	}
-	d, elected := dispatchAt(c, s, pointer)
+	d, picked := dispatchAt(c, s, pointer)
 	r, refines := refinementOf(c, s, pointer)
 	if !refines {
 		return lowerDispatched(c, ts, depth, s, pointer, d, fin, st)
 	}
 	// The node the position owns is reported on by the visit building it, as
-	// its census is (keepingUnread); a node it does not own, by each visit.
+	// what it keeps unread is (keepingUnread); a node it does not own, by each visit.
 	var disjoint finished
 	fin = finisher(func(td ir.TypeDef, _ keySet, held *principalKept) {
 		disjoint.ran = true
@@ -408,7 +408,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 		resolveBeaten(c, ts, r)
 		return reported(lowerPrincipalValueSet(c, ts, s, e, pointer, fin))
 	}
-	if elected {
+	if picked {
 		resolveBeaten(c, ts, r)
 		return reported(lowerDispatched(c, ts, depth, s, pointer, d, fin, st))
 	}
@@ -466,8 +466,8 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 	if len(effectiveTypes(s)) < 2 {
 		return false
 	}
-	d, elected := dispatchAt(c, s, pointer)
-	return elected && d.won == ""
+	d, picked := dispatchAt(c, s, pointer)
+	return picked && d.won == ""
 }
 
 // lowerDispatched lowers s, at pointer, by the family d picks, which takes
@@ -476,9 +476,9 @@ func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Point
 // picking a winner is a degradation
 // (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
 // verbatim beside it (recordSkippedFamilies). A keyword the picked lowering
-// never reads, such as `type: string` beside an allOf, goes through the census
+// never reads, such as `type: string` beside an allOf, is kept unread
 // (keepingUnread), which keeps what the build did not read. fin
-// finishes the node built at pointer after the census.
+// finishes the node built at pointer after that keeping.
 func lowerDispatched(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch, fin finisher,
 	st stand,
 ) (ir.TypeID, []ir.Diagnostic) {

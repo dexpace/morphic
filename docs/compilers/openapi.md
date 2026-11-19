@@ -2646,7 +2646,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedEntryStaysAComposition`,
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
-  `schema.TestRefinement_AUnionBranchIsAConjunct`, `schema.TestRefinement_AUnionBesideTheAllOfIsAConjunct`,
+  `schema.TestRefinement_AUnionEntryIsAConjunct`, `schema.TestRefinement_AUnionBesideTheAllOfIsAConjunct`,
   `schema.TestRefinement_AUnionThePrincipalSaysIsConsumed`,
   `schema.TestRefinement_TheKeywordsBesideWithAUnionLowerAsWithNoAllOf`,
   `schema.TestRefinement_AShapelessUnionBesideIsValidationLogic`,
@@ -2790,7 +2790,7 @@ or an `unevaluatedProperties` or `unevaluatedItems`; its own `allOf` is not flat
 the flattening depth or empty; what it folds or keeps writes a relative `$ref` it reads against
 another base than the position does; it writes a keyword that folds and another conjunct writes
 otherwise (above); or it keeps a keyword that another conjunct, the keywords beside the `allOf` among
-them, writes otherwise, where one entry under the keyword holds one value. The whole entry is kept,
+them, writes otherwise, where one `Unmodeled` entry under the keyword holds one value. The whole entry is kept,
 consumed keywords included, so the source stays reconstructable rather than having to be reassembled
 from two places, but for an entry writing a `$ref` beside its keywords: that is two conjuncts, and
 what is kept whole is the rest, the entry less its `$ref`, which lowers or is kept as any `$ref`
@@ -2841,7 +2841,7 @@ validation-only keyword, is kept once, inside it, but for a key the promotion po
 entry keeps or folds alike is that entry's, kept at its keyword, so each is kept once. A keyword
 two entries not kept whole keep alike, and the keywords beside the `allOf` do not write, is kept
 once, its provenance the position's pointer, as no one writer's is the same in every order of the
-entries; one the keywords beside the `allOf` write alike is theirs, kept as they keep it. An entry
+entries; one the keywords beside the `allOf` write alike is theirs, kept as they keep it. A keyword
 two such folding entries write alike is the position's the same way, but `default`, `readOnly`
 and `writeOnly`, kept at the nearest entry writing them.
 
@@ -2886,7 +2886,7 @@ entries: the position lowers from them, and each of their keywords is kept once 
   `schema.TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey`,
   `schema.TestPrincipalKept_EachKeywordHasOneKeeper`,
   `schema.TestPrincipalKept_AKeywordAlikeIsKeptOnce`,
-  `schema.TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey`,
+  `schema.TestPrincipalKept_AKeyOutsideTheReadDomainIsKeptUnderTheEntryKey`,
   `schema.TestPrincipalKept_ADraftsDependenciesBesideAKeyNoDialectDefines`,
   `schema.TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce`,
   `schema.TestPrincipalKept_AValueThatCannotRenderIsRefusedAsWrittenFlat`,
@@ -3287,7 +3287,7 @@ nowhere to sit it would go nowhere at all: a release in which a losing entry's t
 changed would produce no change in the document, which a consumer diffing two versions reads as
 nothing having happened. The losing declaration is therefore kept verbatim, as the document wrote
 it, in `Unmodeled["openapi:conflicting-redeclaration<pointer>"]` under `degraded_lowering`, keyed by
-its own JSON Pointer so a field three entries type three incompatible ways keeps an entry for each
+its own JSON Pointer so a field three entries type three incompatible ways keeps an `Unmodeled` entry for each
 of the two that lose, and with the entry's `Provenance` locating that declaration rather than the
 merged property. The
 source node is kept rather than the IR values the merge dropped:
@@ -3994,7 +3994,7 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
 - Cases: `nullable-union-discriminator`, `nullable-31-ref`, `null-alone`, `enum-null-member`
 - Codes: `openapi/degraded-construct`, `openapi/inferred-nullable`, `openapi/duplicate-enum-value`
 - Tests: `schema.TestUnion_AVariantAdmitsNullOnlyWhereTheRestDoes`,
-  `schema.TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold`,
+  `schema.TestCollapsedUnion_KeepsEveryUnreadKeywordItCannotHold`,
   `schema.TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition`,
   `schema.TestNullAlone_ReadsTheSchemasOwnKeywords`,
   `schema.TestNullBranch_IsTheReferencesInEverySpelling`,
@@ -4441,7 +4441,7 @@ judged as one whose branches declare shape.
   `schema.TestOneOf_ADeadBranchIsReadForTheNullTheBodyAdmits`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
-  `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
+  `schema.TestAllOf_AUnionEntryDistributesAsBesideTheAllOf`,
   `e2e.TestElection_TwoUnionsBesideABodyDistributeTheOneOf`,
   `e2e.TestElection_BothKeywordsOnOneEntryDistributeTheOneOf`,
   `e2e.TestElection_BothKeywordsOnOneEntryKeepWhatTheyKeepBesideTheAllOf`,
@@ -4454,7 +4454,7 @@ judged as one whose branches declare shape.
   `e2e.TestElection_TwoOneOfUnionsBesideABodyDistributeNeither`,
   `schema.TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin`,
   `schema.TestUnion_ARoutedSubtypeSharedByTwoOperationsComposesItsUnionOnce`,
-  `schema.TestComposeMixin_NeedsAModel`, `schema.TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside`,
+  `schema.TestComposeMixin_NeedsAModel`, `schema.TestUnion_AnEntryUnionNoRouteNamesDistributesAsBeside`,
   `schema.TestAllOf_ADiscriminatedEntryUnionDistributesAsBeside`,
   `schema.TestAllOf_ADiscriminatedEntryUnionReportsItsMappingAtTheEntry`,
   `schema.TestAllOf_AnEntryDiscriminatorKeepsWhatNoFieldHolds`,
@@ -4521,10 +4521,10 @@ wins, the `oneOf` where both or neither do; and a parameter's or header's `schem
 its `content`, where `content` wins, since a media-type entry names both a schema and the media type
 serializing it and the IR models both ([`content-parameters`](#content-parameters)). The IR has no
 intersection combinator ([boundaries](../ir/boundaries.md#deliberate-exclusions), as for
-[`union-beside-structure`](#union-beside-structure)), so the position lowers as the elected keyword
-— the most it can express there — and each keyword the election passed over is kept verbatim in
+[`union-beside-structure`](#union-beside-structure)), so the position lowers as the picked keyword
+— the most it can express there — and each keyword passed over is kept verbatim in
 `Unmodeled["openapi:<keyword>"]` under `degraded_lowering` at that keyword's own pointer, reported
-as one `openapi/degraded-construct` naming what was elected and what was kept: an info, and a
+as one `openapi/degraded-construct` naming what was picked and what was kept: an info, and a
 warning where a parameter's or header's `schema` is passed over for its `content`. Two consequences
 are deliberate. The elected combinator still becomes a `Union` rather than degrading to the top
 type, because that `Union` is a shape the IR *can* express and discarding it as well would model
@@ -5272,7 +5272,7 @@ injectable policy may apply, and the entry it is kept under is what such a polic
 keeping of unread keywords reads
 `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside these, so a collection
 bound on an object, a scalar or a position with no type is kept the same way, and a keyword the
-elected lowering of [`competing-keywords`](#competing-keywords) never reads is too. `discriminator`
+lowering [`competing-keywords`](#competing-keywords) picks never reads is too. `discriminator`
 joins the list, homed by a `Model` or `Union` that routes by it and by nothing else, so one beside
 any other node — the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the
 same way, its values still read as references ([`discriminator`](#discriminator)), and so is one
@@ -5774,8 +5774,8 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome`,
   `schema.TestConstraints_AReferenceLandingOnAPropertyReadsItsNode`,
   `e2e.TestStringConstUnion_ABoundBesideTheSetKeepsTheUnion`,
-  `schema.TestConstraints_ACountATypeCannotTakeIsKeptByTheCensus`,
-  `schema.TestConstraints_AModifierATypeCannotTakeIsKeptByTheCensus`,
+  `schema.TestConstraints_ACountATypeCannotTakeIsKeptUnread`,
+  `schema.TestConstraints_AModifierATypeCannotTakeIsKeptUnread`,
   `schema.TestKeywordKinds_ListsEveryValueBoundAndTheContentVocabulary`,
   `schema.TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo`,
   `schema.TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares`,
@@ -7894,8 +7894,8 @@ each reader's own, the mapping's sources and, where grouping is by extension, th
 aliases key [`extension-groups`](#extension-groups) reads, never a second list of them, so owning
 `x-forge` beside the default grouping by extension reports no `x-forge-aliases`. Each node's
 `Unmodeled` is read once the document is whole, under whatever scope its keys are kept; an
-extension inside an entry kept verbatim, such as an `allOf` entry, is a value of that entry and is
-not read.
+extension inside an `Unmodeled` entry kept verbatim, such as a whole `allOf` entry, is a value of
+that `Unmodeled` entry and is not read.
 
 `Deprecation` is filled on an operation, a parameter, a header, a property, a type node or a
 security scheme. A key can state the deprecation itself: the default reads `x-fern-availability`,

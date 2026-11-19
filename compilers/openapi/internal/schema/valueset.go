@@ -128,7 +128,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	var kept, own finished
 	st := stand{of: s, at: pointer}
 	// The position's own keywords type the value set as a conjunct does, and
-	// its census keeps what they leave before the principal's keeps its own.
+	// it keeps unread what they leave before the principal keeps its own.
 	outside := own.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td), stand{}, nil, nil)
 	}).then(fin)
@@ -149,7 +149,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	default:
 		id = lowerNullAlone(c, ts, site)
 	}
-	// The value set is the position's node, which its build censuses.
+	// The value set is the position's node, on which its build keeps what it did not read.
 	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags, heldBack)
 }
 

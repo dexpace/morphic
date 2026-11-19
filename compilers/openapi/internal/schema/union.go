@@ -197,7 +197,7 @@ func allNullUnion(c lowering.Ctx, position, s *statement.Schema) bool {
 // lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches admits
 // null alone (allNullUnion). One such branch or several admit what a schema of
 // null alone at this position admits, so the position lowers as one does
-// (lowerNullAlone), and the census a body's lowering runs keeps what the node
+// (lowerNullAlone), and a body's lowering keeps unread what the node
 // cannot hold. The combinator that produced it, and the other one too when both
 // are declared, carries no shape the node's fields could hold, so it is kept
 // verbatim under Unmodeled instead of dropped

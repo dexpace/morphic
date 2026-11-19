@@ -342,7 +342,7 @@ func deadRoutesOf(c lowering.Ctx, u unionAt) []deadRoute {
 // writes to a dead branch of u, which n's Discriminator leaves out: verbatim,
 // keyed by its path from n's position as the discriminator's extensions are
 // (discriminatorScope), `openapi:discriminator/mapping/<tag>` beside the
-// union. Where n holds no discriminator the census keeps it whole.
+// union. Where n holds no discriminator it is kept whole, unread.
 func keepDeadRoutes(c lowering.Ctx, n *ir.Union, u unionAt) []ir.Diagnostic {
 	if n.Discriminator == nil {
 		return nil

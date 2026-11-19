@@ -82,9 +82,9 @@ func composeModel(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 	return objectNode(m), modelReads(s, m, comp.bounds), diags
 }
 
-// compositionReads names the census keywords an allOf composition
-// reads itself, so neither the census of a $ref entry nor that of the composed
-// position reports them again: lowerAllOf lands every required list on the
+// compositionReads names the readDomain keywords an allOf composition
+// reads itself, so neither the keeping of a $ref entry's unread keywords nor
+// that of the composed position reports them again: lowerAllOf lands every required list on the
 // composed model (requireMembers).
 var compositionReads = keyBit("required")
 

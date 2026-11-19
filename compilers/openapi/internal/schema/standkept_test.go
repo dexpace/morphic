@@ -107,7 +107,7 @@ func TestPrincipalKept_EveryReaderKeepsUnderOneEntryKey(t *testing.T) {
 
 // TestPrincipalKept_AKeywordAlikeIsKeptOnce pins a keyword an inline principal
 // and its position keep with one value: one entry and one report, the
-// principal's for a keyword of the census, one writing of it, and the
+// principal's for a keyword of readDomain, one writing of it, and the
 // position's for another reader's; a number spelt another way is another
 // value, kept apart.
 func TestPrincipalKept_AKeywordAlikeIsKeptOnce(t *testing.T) {
@@ -125,11 +125,11 @@ func TestPrincipalKept_AKeywordAlikeIsKeptOnce(t *testing.T) {
 	})
 }
 
-// TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey pins a keyword
-// outside the census an inline principal and its position keep otherwise, a
+// TestPrincipalKept_AKeyOutsideTheReadDomainIsKeptUnderTheEntryKey pins a keyword
+// outside readDomain an inline principal and its position keep otherwise, a
 // key no dialect defines: the principal is lowered, so it is not kept whole
 // for it, as another entry is.
-func TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey(t *testing.T) {
+func TestPrincipalKept_AKeyOutsideTheReadDomainIsKeptUnderTheEntryKey(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    Principal: {allOf: [{type: string, foo: 1}], foo: 2}\n"+
@@ -145,7 +145,7 @@ func TestPrincipalKept_AKeyNoCensusKeepsIsKeptUnderTheEntryKey(t *testing.T) {
 }
 
 // TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce pins a
-// discriminator the principal's census keeps after the position read the keys
+// discriminator the principal keeps unread after the position read the keys
 // inside it: the entry kept whole holds them, and the node none beside it.
 func TestPrincipalKept_ADiscriminatorKeptPlainHoldsItsKeysOnce(t *testing.T) {
 	t.Parallel()
@@ -337,7 +337,7 @@ func TestPrincipalKept_ThePositionNamesTheNodeAsItsPrincipalDoes(t *testing.T) {
 }
 
 // TestPrincipalKept_EachKeywordHasOneKeeper pins three readers of one inline
-// principal at once, its census, its content reader and what the entry keeps
+// principal at once, its keeping of unread keywords, its content reader and what the entry keeps
 // as residue, each holding a keyword the position writes otherwise: one object
 // under the entry's key holds all three, each keyword is named by one report,
 // its reader's, and no reader keeps another's.
@@ -713,7 +713,7 @@ func TestPrincipalKept_ALevelAlikeWithOneAroundItIsKeptOnce(t *testing.T) {
 }
 
 // TestPrincipalKept_AKeywordAlikeIsOneWritingForEveryReader pins a keyword an
-// inline principal and its position write alike that no census reads: a key no
+// inline principal and its position write alike that no keeping of unread keywords reads: a key no
 // dialect defines, a default, readOnly, a validation-only keyword, an
 // extension. It is one writing: kept once and reported once, by the position
 // where the principal is lowered, and inside the principal's entry, named by

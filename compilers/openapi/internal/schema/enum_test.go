@@ -591,8 +591,8 @@ func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
 // docs/compilers/openapi.md#enum-const for a member the declared type rejects:
 // JSON Schema conjoins the two, so no instance matches it, which is a warning at
 // the member (GitHub #619). The members lower as written, and the Enum's
-// ValueType is theirs, never a type they are not values of, which the census
-// keeps verbatim instead. A YAML !!binary is a string's text to the type and
+// ValueType is theirs, never a type they are not values of, which is kept
+// unread, verbatim, instead. A YAML !!binary is a string's text to the type and
 // bytes to the ValueType, a format of string (GitHub #1453).
 func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 	t.Parallel()

@@ -51,7 +51,7 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *statement.Discrimi
 // model declares it: by any name but the empty one, which PropertyName empty
 // cannot spell, and by that one only as the PropID of a property m declares
 // itself (docs/compilers/openapi.md#discriminator). One it cannot locate is no
-// node's, and the census keeps it verbatim.
+// node's, and it is kept verbatim, unread.
 func tagLocated(d *statement.Discriminator, m *ir.Model) bool {
 	if d.PropertyName != "" {
 		return true
@@ -287,8 +287,8 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 // discriminatorBesideUnion returns the finisher queueing a settlement for the
 // discriminator s writes, which the model in hand holds beside the union holder
 // writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion, or with
-// its allOf entry. A body that lowered to anything else holds none: the census
-// kept its discriminator where it kept the rest, a multi-typed body's on its
+// its allOf entry. A body that lowered to anything else holds none: its
+// discriminator was kept unread where the rest was, a multi-typed body's on its
 // union (lowerTypeVariant).
 func discriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, s, holder *statement.Schema, pointer jsontext.Pointer) finisher {
 	return func(td ir.TypeDef, _ keySet, _ *principalKept) {

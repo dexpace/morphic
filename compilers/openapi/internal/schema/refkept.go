@@ -22,7 +22,7 @@ import (
 )
 
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
-// census keywords it wrote, described by shape where no refinement decided it,
+// unread keywords it wrote, described by shape where no refinement decided it,
 // the value bounds of those a number carried as text holds none of (text), the
 // $ref entries of its allOf its lowering left unread, what its inline entries
 // keep (entryKeeps), the null branches a collapsed union lifts that say more
@@ -57,8 +57,8 @@ func (k outcomeKeeps) holdsAny() bool {
 }
 
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
-// to target: a refinement's census and the entries it left, or the census of
-// any other outcome lowering to a reference (referenceOutcomeKeywords).
+// to target: what a refinement keeps unread and the entries it left, or what
+// any other outcome lowering to a reference keeps unread (referenceOutcomeKeywords).
 func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
 	r, refined := refinementOf(c, s, pointer)
 	if !refined {
@@ -96,7 +96,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	for i, e := range r.comp.entries {
 		// A $ref principal keeps what is written beside it on its alias. An entry
 		// written as the principal is says nothing it does not. An inline
-		// principal standing at the position had its census run on the node,
+		// principal standing at the position had its unread keywords kept on the node,
 		// which keeps the rest as any conjunct's.
 		if r.principalIs(e) && e.schema.Ref != nil || principalTwin(&w, r, e) {
 			continue
@@ -259,7 +259,7 @@ func textBoundsOf(unhomed []string, numberText bool) (text, rest []string) {
 	return text, rest
 }
 
-// refinedUnread returns the census keywords s writes beside an allOf that
+// refinedUnread returns the readDomain keywords s writes beside an allOf that
 // lowered to its principal, but for those the principal already says and the
 // bounds the node the position lowered to reads, which homes says
 // (boundHomes.reads), where a $ref site reads no target and keeps them all
@@ -505,7 +505,7 @@ func apartReason(c lowering.Ctx, s *statement.Schema, comp allOfComposition, i i
 	return shared
 }
 
-// besideTag splits k's census keywords where standing, the node the position
+// besideTag splits k's unread keywords where standing, the node the position
 // owns, is the Union its inline principal built holding that principal's
 // discriminator: the position's own discriminator is kept beside one the node
 // holds, never for want of a home, so it is reported apart (keepTagBeside).

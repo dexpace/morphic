@@ -89,8 +89,8 @@ with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:call
 only after such a keyword. The same gap separates both from the non-extension entries a shared
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
-An entry another entry of its carrier holds whole, lying in the same source beneath it with the value
-found there, is kept once, inside the entry holding it: a `readOnly` read out of an `allOf` entry
+An `Unmodeled` entry another entry of its carrier holds whole, lying in the same source beneath it with the value
+found there, is kept once, inside the `Unmodeled` entry holding it: a `readOnly` read out of an `allOf` entry
 kept whole is `openapi:schema/readOnly` on one parameter and only inside `openapi:schema/allOf/1` on
 another. A key the promotion policy reads is the exception, kept beside what holds it, since a
 promotion reads the kept entries ([promotion](#promotion)).

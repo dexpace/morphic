@@ -350,7 +350,7 @@ func conjunctWithout(w *admissionReader, b *statement.Statement, holder *stateme
 		return writtenLowered(w, holder, w.nullable)
 	case holder != nil && b.BesideRef != nil && holder.WrittenBeside == b.BesideRef:
 		// An entry writing its union beside a $ref is listed as that reference
-		// and the rest of its keywords (statement.Table.besideRefOf), the holder.
+		// and the keywords beside it (statement.Table.besideRefOf), the holder.
 		return lowered(w, w.c.Statements().Read(b.BesideRef)).and(writtenLowered(w, holder, w.nullable))
 	}
 	if holder == nil || !slices.ContainsFunc(b.Entries, func(e statement.Entry) bool { return e.Schema == holder }) {

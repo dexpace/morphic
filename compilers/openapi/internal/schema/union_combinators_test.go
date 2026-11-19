@@ -242,13 +242,13 @@ func TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition(t *testing.T) {
 		"one entry per position, including the parameter and the response, none duplicated")
 }
 
-// TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold pins that the collapse
-// takes the whole census a $ref site takes, not a discriminator rule: a format
+// TestCollapsedUnion_KeepsEveryUnreadKeywordItCannotHold pins that the collapse
+// keeps unread all a $ref site keeps, not a discriminator rule: a format
 // is no more at home on a nullable reference, nor is a collection bound beside
 // a reference to an object, which no array bound reads, while a null type,
 // which the reference's Nullable bit carries, is, so the alias keeps nothing
 // for it.
-func TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold(t *testing.T) {
+func TestCollapsedUnion_KeepsEveryUnreadKeywordItCannotHold(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Cat: {type: object, properties: {kind: {type: string}}}
     Bounded: {` + nullableCat + `, format: uuid, maxItems: 2}
@@ -268,10 +268,10 @@ func TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold(t *testing.T) {
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/NullTyped"))
 }
 
-// TestCollapsedUnion_WithoutACensusKeywordHoistsNothing pins that the same
+// TestCollapsedUnion_WithoutAReadDomainKeywordHoistsNothing pins that the same
 // positions without one stay as they were: no entry, no diagnostic, and no
 // node hoisted for a position that has none.
-func TestCollapsedUnion_WithoutACensusKeywordHoistsNothing(t *testing.T) {
+func TestCollapsedUnion_WithoutAReadDomainKeywordHoistsNothing(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Cat: {type: object, properties: {kind: {type: string}}}
     L: {type: array, items: {` + nullableCat + `}}

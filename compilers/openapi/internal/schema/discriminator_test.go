@@ -334,7 +334,7 @@ components:
 // naming the empty string, a legal member name the IR's PropertyName cannot
 // hold, its empty value meaning none: on a model declaring no property of
 // that name, one inheriting it, a union, plain or distributed, and a routed
-// subtype's, the node holds no discriminator, the census keeps it verbatim and
+// subtype's, the node holds no discriminator, it is kept verbatim, unread, and
 // says why, once, and a union is untagged, nothing inferred though its
 // variants pin a tag. A model
 // declaring the property locates the tag by its PropID. Each holds at every

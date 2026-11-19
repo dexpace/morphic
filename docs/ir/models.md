@@ -377,7 +377,7 @@ The designs this was weighed against:
   object the wire never carries. It also has nothing to collapse into where no `$ref` is written, as
   above, and a narrowed enum has no decorator form, since its value set is what the `$ref` does not
   say.
-- **Rewriting the `Model` once the registry settles**: the census and each carrier have already
+- **Rewriting the `Model` once the registry settles**: the keeping of unread keywords and each carrier have already
   read the position by then, as a node of its own.
 - **An alias per entry**: `readOnly` and `default` bind a use, and an alias has no field that
   reaches a carrier.

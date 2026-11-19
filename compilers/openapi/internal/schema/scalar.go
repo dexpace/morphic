@@ -178,7 +178,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 			switch {
 			case st.held:
 				// A variant of a principal held whole keeps none, nor reads them:
-				// its union's census holds them for the whole entry.
+				// its union keeps them unread for the whole entry.
 			case st.of != nil:
 				text = declaredConstraints(s)
 			default:

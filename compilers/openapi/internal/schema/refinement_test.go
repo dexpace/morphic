@@ -193,7 +193,7 @@ func TestRefinement_PrimitiveEntriesLowerToTheirMeet(t *testing.T) {
 	}
 }
 
-// TestRefinement_AUnionBranchIsAConjunct pins a oneOf or anyOf written as an
+// TestRefinement_AUnionEntryIsAConjunct pins a oneOf or anyOf written as an
 // allOf entry where the conjuncts admit no object, read as
 // docs/compilers/openapi.md#allof-refinement reads any conjunct. Beside a
 // narrower one it lowers to the meet, at a property as at a component, saying
@@ -202,7 +202,7 @@ func TestRefinement_PrimitiveEntriesLowerToTheirMeet(t *testing.T) {
 // says more, so it stays with its branch. Where it is the narrowest, it is the
 // principal, standing at the position, and where it shares no value with the
 // rest, the allOf composes.
-func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
+func TestRefinement_AUnionEntryIsAConjunct(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Value:
       allOf:
@@ -1664,8 +1664,6 @@ func TestRefinement_AnEntryHoldsWhatItsNodeDoes(t *testing.T) {
 	assert.Contains(t, elem.Unmodeled, "openapi:default", "and with no carrier its node keeps it")
 }
 
-// TestRefinement_ARefBranchKeepsItsSiblings pins a $ref entry writing keywords
-// beside itself: the entry hoists its alias, as it does in a composition, and
 // TestRefinement_ARefEntrysSiblingsAreThePositions pins a $ref entry writing
 // keywords beside itself: they are conjuncts of the position, as the same
 // keywords on an entry of their own are, so the carrier holds them and the

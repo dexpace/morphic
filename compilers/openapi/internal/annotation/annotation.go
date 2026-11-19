@@ -216,9 +216,10 @@ type Voice struct {
 	// (Dialect.Dependencies), which an entry naming its own may, whatever the
 	// position's.
 	Dependencies bool
-	// KeptWhole says the position keeps the entry whole, an entry holding what
-	// it writes, so it writes no entry Read keeps beside it but one no other
-	// voice writes (docs/compilers/openapi.md#allof-inline-residue).
+	// KeptWhole says the position keeps the entry whole, an Unmodeled entry
+	// holding what it writes, so it writes no Unmodeled entry Read keeps beside
+	// it but one no other voice writes
+	// (docs/compilers/openapi.md#allof-inline-residue).
 	KeptWhole bool
 	// Beside says Node is the position's own schema, read beside the inline
 	// allOf entry its node is built from: what it writes stands before that

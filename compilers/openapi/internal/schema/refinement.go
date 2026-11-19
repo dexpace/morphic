@@ -102,7 +102,7 @@ func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, pr
 // shape keyword, by the types its allOf, refining electing no entry, admits
 // (undecidedTypes), as a type list naming them lowers, and to the top type
 // where it admits none of a primitive's kinds alone. fin finishes the node
-// standing at pointer after its census.
+// standing at pointer after keeping its unread keywords.
 func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
 	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {

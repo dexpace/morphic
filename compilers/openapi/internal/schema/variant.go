@@ -243,7 +243,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, de
 // The enclosing schema's value constraints, its folding entries' among them,
 // are read as lowerAllOf reads them (GitHub #407), for the kinds the variant
 // admits: those b lowers to among the model's. So a variant over a branch no
-// object satisfies holds none, and the census keeps a bound no variant holds
+// object satisfies holds none, and a bound no variant holds is kept unread
 // on the Union (GitHub #1936).
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, b *statement.Statement,
 	branch ir.TypeID, composes bool, common ir.TypeCommon,

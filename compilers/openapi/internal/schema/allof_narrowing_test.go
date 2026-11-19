@@ -646,7 +646,7 @@ func TestAllOf_ContainerMembersAreJudgedAsFieldsAre(t *testing.T) {
 
 // TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder pins that a redeclaration
 // narrowing a bare primitive (GitHub #598, #446) loses nothing: the narrower
-// target wins in both entry orders, with no diagnostic and no kept entry, and
+// target wins in both entry orders, with no diagnostic and no Unmodeled entry, and
 // the two orders merge to the same type.
 func TestAllOf_PrimitiveNarrowingIsLosslessInEitherOrder(t *testing.T) {
 	t.Parallel()
