@@ -182,7 +182,7 @@ func TestRefinement_PrimitiveEntriesLowerToTheirMeet(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", "    Prim: {allOf: "+entries+"}\n"))
-			assert.Empty(t, diags, "the branches narrow to one kind")
+			assert.Empty(t, diags, "the entries narrow to one kind")
 			alias, ok := typeByName(doc, "Prim").(*ir.Scalar)
 			require.True(t, ok, "Prim is a named scalar, not %T", typeByName(doc, "Prim"))
 			require.NotNil(t, alias.Base)
@@ -253,7 +253,7 @@ func TestRefinement_AUnionEntryIsAConjunct(t *testing.T) {
 	beside, ok := typeByName(doc, "BesideDecides").(*ir.Scalar)
 	require.True(t, ok, "BesideDecides is a scalar, not %T", typeByName(doc, "BesideDecides"))
 	assert.Equal(t, ir.TypeID("t/prim/string"), beside.Base.Target, "the keywords beside the allOf decide it")
-	assert.Empty(t, beside.Unmodeled, "with no principal branch, the anyOf is said all the same")
+	assert.Empty(t, beside.Unmodeled, "with no principal entry, the anyOf is said all the same")
 
 	for _, name := range []string{"SameText", "SameRef"} {
 		assert.Empty(t, typeByName(doc, name).Common().Unmodeled, "%s: a branch written as the principal says nothing more", name)
@@ -384,8 +384,8 @@ func TestRefinement_TheKeywordsBesideWithAUnionLowerAsWithNoAllOf(t *testing.T) 
 // TestRefinement_AShapelessUnionBesideIsValidationLogic pins a union beside an
 // allOf that refines to its principal whose branches declare no shape: it narrows
 // the use, as beside any body, so it is kept under validation_only and reported
-// as such, at a component and at a carrier, where on a branch it stays with its
-// branch (docs/compilers/openapi.md#allof-refinement).
+// as such, at a component and at a carrier, where on an entry it stays with its
+// entry (docs/compilers/openapi.md#allof-refinement).
 func TestRefinement_AShapelessUnionBesideIsValidationLogic(t *testing.T) {
 	t.Parallel()
 	const union = "oneOf: [{minLength: 1}, {maxLength: 2}]"
@@ -404,7 +404,7 @@ func TestRefinement_AShapelessUnionBesideIsValidationLogic(t *testing.T) {
 			assert.Empty(t, diagsAtPointer(doc.Diagnostics, diag.DegradedConstruct, at), at)
 		}
 		assert.Equal(t, ir.ReasonValidationOnly, typeByName(doc, "OnBranch").Common().Unmodeled["openapi:oneOf"].Reason,
-			"on a branch, the union is kept as beside the allOf")
+			"on an entry, the union is kept as beside the allOf")
 	}
 }
 
@@ -502,7 +502,7 @@ func TestRefinement_NamesItsTargetAtEveryPosition(t *testing.T) {
 	}{
 		"bare":              {"{allOf: [{$ref: '#/components/schemas/Str'}]}", "Str"},
 		"a restated type":   {"{allOf: [{$ref: '#/components/schemas/Port'}], type: integer}", "Port"},
-		"a branch restates": {"{allOf: [{$ref: '#/components/schemas/Str'}, {type: string}]}", "Str"},
+		"an entry restates": {"{allOf: [{$ref: '#/components/schemas/Str'}, {type: string}]}", "Str"},
 		"an enum restates":  {"{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [get, set]}]}", "Mode"},
 		"an enum first":     {"{allOf: [{enum: [get, set]}, {$ref: '#/components/schemas/Mode'}]}", "Mode"},
 		"a wider enum":      {"{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [get, set, put]}]}", "Mode"},
@@ -801,7 +801,7 @@ func TestRefinement_KindsBeyondAnObjectAreAUse(t *testing.T) {
 		"a true target": {
 			schemas: "    Yes: true\n    S: {allOf: [{$ref: '#/components/schemas/Yes'}]}\n", base: componentID("Yes"),
 		},
-		"properties in a branch": {
+		"properties in an entry": {
 			schemas: "    S: {allOf: [{type: string, properties: {a: {type: string}}}]}\n",
 			base:    "t/prim/string",
 		},
@@ -1441,7 +1441,7 @@ func TestRefinement_DecidedByTheSetInEveryOrder(t *testing.T) {
 			after, reportsA := compile(tc.a, tc.b, refinementTargets)
 			before, reportsB := compile(tc.b, tc.a, refinementTargets)
 			if diff := cmp.Diff(typeShapes(after), typeShapes(before)); diff != "" {
-				t.Errorf("the branches' order decided the node (-a +b):\n%s", diff)
+				t.Errorf("the entries' order decided the node (-a +b):\n%s", diff)
 			}
 			assert.ElementsMatch(t, reportsA, reportsB)
 
@@ -1583,7 +1583,7 @@ func TestRefinement_TwinsTheRefSpelling(t *testing.T) {
 				"openapi: 3.0.3", "openapi: 3.1.0", 1))
 			for spelling, written := range map[string]string{
 				"beside":   "{allOf: [{" + ref + "}], " + keyword + "}",
-				"a branch": "{allOf: [{" + ref + "}, {" + keyword + "}]}",
+				"an entry": "{allOf: [{" + ref + "}, {" + keyword + "}]}",
 			} {
 				doc, diags := parseFull(t, positionsDoc(refinementTargets, written))
 				if diff := cmp.Diff(twin.Types, doc.Types, options...); diff != "" {
@@ -1945,7 +1945,7 @@ func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
 func TestRefinement_ADynamicRefMasksNoKind(t *testing.T) {
 	t.Parallel()
 	for name, s := range map[string]string{
-		"on a branch": "    S: {allOf: [{$dynamicRef: '#obj'}, {description: d}]}\n",
+		"on an entry": "    S: {allOf: [{$dynamicRef: '#obj'}, {description: d}]}\n",
 		"in a target": "    S: {allOf: [{$ref: '#/components/schemas/D'}, {type: string}]}\n    D: {$dynamicRef: '#node'}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -2099,8 +2099,8 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 // TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant pins a
 // value bound on an entry of an allOf beside a type list: it folds onto the
 // variant whose type takes it, as the same bound beside the allOf does, and the
-// branch is consumed, in either branch order and with branches writing bounds of
-// different groups. A bound no listed type takes stays with its branch, reported.
+// entry is consumed, in either entry order and with entries writing bounds of
+// different groups. A bound no listed type takes stays with its entry, reported.
 // A collection bound there lands on the list variant
 // (TestCollectionBound_OnAnEntryLandsAsItsFlatSpelling).
 func TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant(t *testing.T) {
@@ -2112,7 +2112,7 @@ func TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant(t *test
 		held        [2]*ir.Constraints
 		kept        []string
 	}{
-		{"one branch", "[{maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
+		{"one entry", "[{maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
 		{"after another", "[{description: d}, {maxLength: 2}]", [2]*ir.Constraints{str, nil}, nil},
 		{"two groups", "[{maxLength: 2}, {minimum: 1}]", [2]*ir.Constraints{str, num}, nil},
 		{"two groups reversed", "[{minimum: 1}, {maxLength: 2}]", [2]*ir.Constraints{str, num}, nil},
@@ -2153,7 +2153,7 @@ func TestRefinement_AnEntryBoundBesideATypeListIsReadAtTheEntry(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	u, ok := typeByName(doc, "OnBranch").(*ir.Union)
 	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
-	assert.Empty(t, u.Unmodeled, "the branch folded")
+	assert.Empty(t, u.Unmodeled, "the entry folded")
 	str, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Scalar)
 	require.True(t, ok, "got %T", doc.Types[u.Variants[0].Type.Target])
 	assert.Equal(t, &ir.Constraints{MinLength: new(int64(1))}, str.Constraints)
@@ -2200,7 +2200,7 @@ func TestRefinement_AnAllOfBesideARefJoinsItsConjunction(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	beside := propertyOf(t, doc, "Holder", "beside")
 	assert.Equal(t, componentID("Str"), beside.Type.Target)
-	assert.Equal(t, "branch", beside.Docs.Description, "the branch speaks for the position")
+	assert.Equal(t, "branch", beside.Docs.Description, "the entry speaks for the position")
 	require.NotNil(t, beside.Default)
 	assert.Empty(t, beside.Unmodeled)
 	dynamic := propertyOf(t, doc, "Holder", "dynamic")
@@ -2212,7 +2212,7 @@ func TestRefinement_AnAllOfBesideARefJoinsItsConjunction(t *testing.T) {
 	assert.Contains(t, dynamicRef.Unmodeled, "openapi:$dynamicRef")
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
-	assert.Equal(t, "branch", doc.Types[items.Elem.Target].Common().Docs.Description, "an items beside a $ref reads its branch too")
+	assert.Equal(t, "branch", doc.Types[items.Elem.Target].Common().Docs.Description, "an items beside a $ref reads its entry too")
 }
 
 // TestRefinement_DeclaredBeforeItsTarget pins a use lowered before what it names:

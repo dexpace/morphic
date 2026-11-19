@@ -48,7 +48,7 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			want: readOnlyVisibility,
 		},
 		{
-			name: "both branches agree on the same restriction",
+			name: "both entries agree on the same restriction",
 			dst:  readOnlyVisibility, src: readOnlyVisibility,
 			want: readOnlyVisibility,
 		},

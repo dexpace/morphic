@@ -259,7 +259,7 @@ components:
 
 // TestReadPartFile_AMarkerNamesOnlyAGuess holds the marker to a file only the
 // binary policy reads: a part the merged type makes raw bytes is declared, in
-// either branch order, though another declaration of it leaves its media type
+// either entry order, though another declaration of it leaves its media type
 // to say, so no marker rides on it, while a part declared a string alone is
 // marked.
 func TestReadPartFile_AMarkerNamesOnlyAGuess(t *testing.T) {

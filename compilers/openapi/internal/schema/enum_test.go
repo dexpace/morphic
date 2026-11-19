@@ -684,8 +684,8 @@ func TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder(t *testing.T) {
 		enum  = `{type: object, properties: {f: {type: integer, format: int8, enum: [1]}}}`
 		plain = `{type: object, properties: {f: {type: integer, format: int64}}}`
 	)
-	for name, branches := range map[string]string{"enum first": enum + ", " + plain, "enum last": plain + ", " + enum} {
-		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    M: {allOf: ["+branches+"]}\n"))
+	for name, entries := range map[string]string{"enum first": enum + ", " + plain, "enum last": plain + ", " + enum} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    M: {allOf: ["+entries+"]}\n"))
 		assert.Empty(t, diags, name)
 		model, ok := doc.Types[componentID("M")].(*ir.Model)
 		require.True(t, ok, name)

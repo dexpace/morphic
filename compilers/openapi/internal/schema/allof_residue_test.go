@@ -240,7 +240,7 @@ func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "Multi").(*ir.Model)
 	require.True(t, ok, "Multi should be a model")
-	require.Len(t, m.Properties, 2, "both branches still merge their properties")
+	require.Len(t, m.Properties, 2, "both entries still merge their properties")
 	require.Len(t, m.Unmodeled, 2, "one Unmodeled entry per allOf entry; got %+v", m.Unmodeled)
 	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"additionalProperties":false`)
 	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"patternProperties":`)
@@ -254,8 +254,8 @@ func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 
 // TestAllOf_EntryResidueRidesEveryDistributedVariant covers fillAllOf's second
 // caller: buildComposedVariant re-runs the same merge once per union variant, so
-// the residue, the whole branch, has to land on every variant the composition
-// rides on, while what the branch folds reaches the Union. The diagnostic is
+// the residue, the whole entry, has to land on every variant the composition
+// rides on, while what the entry folds reaches the Union. The diagnostic is
 // announced once even so — the entry is one source construct however many
 // variants carry it.
 func TestAllOf_EntryResidueRidesEveryDistributedVariant(t *testing.T) {
@@ -284,12 +284,12 @@ func TestAllOf_EntryResidueRidesEveryDistributedVariant(t *testing.T) {
 		variant, ok := doc.Types[v.Type.Target].(*ir.Model)
 		require.True(t, ok, "variant %d is a composed model", i)
 		entry, ok := variant.Unmodeled["openapi:allOf/1"]
-		require.True(t, ok, "variant %d carries the branch residue; got %+v", i, variant.Unmodeled)
+		require.True(t, ok, "variant %d carries the entry residue; got %+v", i, variant.Unmodeled)
 		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
 	}
 	assert.Equal(t, "BranchDoc", u.Docs.Description)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
-		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
+		"one entry, one diagnostic, however many variants carry it; got %+v", diags)
 }
 
 // TestAllOf_UnpreservableEntryIsNotAnnounced is

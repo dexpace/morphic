@@ -96,7 +96,7 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	for _, p := range mixed.Properties {
 		wires = append(wires, p.WireName)
 	}
-	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its branches'")
+	assert.Equal(t, []string{"c", "w"}, wires, "the wrapper's own property merges after its entries'")
 
 	closed, ok := doc.Types[componentID("Closed")].(*ir.Model)
 	require.True(t, ok)
@@ -367,7 +367,7 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	decorator, ok := doc.Types[owner.Type.Target].(*ir.Model)
 	require.True(t, ok, "an object target keeps its composition")
 	assert.Equal(t, "The owner", decorator.Docs.Description)
-	assert.Empty(t, decorator.Unmodeled, "nothing is left of the branch")
+	assert.Empty(t, decorator.Unmodeled, "nothing is left of the entry")
 	assert.True(t, owner.Type.Nullable)
 	assert.NotEmpty(t, owner.Type.Inferred, "the policy reads the null")
 	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
@@ -407,7 +407,7 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		"only Disjoint is contradicted, and its conjuncts are reported once")
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint", "/components/schemas/Port80/allOf/1/const",
 		"/components/schemas/Zone/properties/owner/allOf/1/nullable"}, warningPointers(diags),
-		"and a const, which 3.1 added, and a nullable on a branch writing no type, which 3.0 gives no effect")
+		"and a const, which 3.1 added, and a nullable on an entry writing no type, which 3.0 gives no effect")
 }
 
 // assertRefinedOperation covers the positions an operation holds.
