@@ -467,12 +467,13 @@ func ownDispatch(c lowering.Ctx, s *statement.Schema) dispatch {
 }
 
 // lowersTypeArray reports whether s, written at pointer, lowers by its type list
-// (lowerUnion): it lists more than one type, and lower elects no family. Nothing
-// lowerSchemaBody tries first takes such a schema: a type is a shape, so no
-// $dynamicRef expands and no union collapses beside it, and a union beside it or
-// on an allOf branch distributes only over the allOf, which the election elects.
+// (lowerTypeList): its types are those it writes, more than one (typingOf), and
+// lower elects no family. Nothing lowerSchemaBody tries first takes such a
+// schema: a type is a shape, so no $dynamicRef expands and no union collapses
+// beside it, and a union beside it or on an allOf branch distributes only over
+// the allOf, which the election elects.
 func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
-	if len(effectiveTypes(s)) < 2 {
+	if t := typingOf(c, s); t.by != byType || len(t.types) < 2 {
 		return false
 	}
 	d, elected := electionOf(c, s, pointer)
