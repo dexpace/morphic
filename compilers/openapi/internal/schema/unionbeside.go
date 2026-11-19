@@ -335,8 +335,9 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 			return id, diags
 		case pairSharesNoValue(c, s):
 			return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
-		case writesBothUnions(s):
-			// Two sharing only a null the body keeps out share no value with it.
+		case writesBothUnions(s) || !composesAsModel(c, s):
+			// Two sharing only a null the body keeps out share no value with it,
+			// and a union sharing no kind with a body that is no Model none.
 			return id, append(diags, diagUnionApartFromBody(c, s, pointer)...)
 		default:
 			return id, diags

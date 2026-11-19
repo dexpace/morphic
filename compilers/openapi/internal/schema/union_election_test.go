@@ -532,3 +532,22 @@ func TestUnion_TwoUnionsSharingNullAloneBesideAnInlineBodyAdmittingNullAreKept(t
 	_, ok := typeByName(doc, "NoBody").(*ir.Union)
 	assert.True(t, ok, "with no body to use the oneOf is elected")
 }
+
+// TestUnion_AShapelessUnionSharingNoKindWithAScalarWarnsBesideItsKeywords pins
+// a oneOf of null alone beside a string's own keywords: the string keeping the
+// oneOf, with the one warning that the conjuncts share no value, as beside an
+// allOf of the string; beside an object's keywords it draws none, as pinned
+// where a branch restates the object's properties.
+func TestUnion_AShapelessUnionSharingNoKindWithAScalarWarnsBesideItsKeywords(t *testing.T) {
+	t.Parallel()
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {type: string, oneOf: [{type: 'null'}]}
+    Beside: {allOf: [{type: string}], oneOf: [{type: 'null'}]}
+`))
+	warned := map[string]int{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			warned[strings.Split(string(d.Provenance.Pointer), "/")[3]]++
+		}
+	}
+	assert.Equal(t, map[string]int{"Flat": 1, "Beside": 1}, warned)
+}
