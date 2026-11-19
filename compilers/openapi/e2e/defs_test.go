@@ -74,16 +74,16 @@ func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 // own definition rather than a sibling's (GitHub #557). A model property is a
 // CarriedRef position, so a bare $ref (no siblings, as every property here is)
 // resolves directly to the target with no alias in between.
-func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, propertyValue, def, wantProperty string) {
+func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, wireName, def, wantProperty string) {
 	t.Helper()
 	model, ok := doc.Types[owner].(*ir.Model)
 	require.True(t, ok, "%s is a Model", owner)
-	property, ok := propertyByWire(model, propertyValue)
-	require.True(t, ok, "%s declares property %q", owner, propertyValue)
+	property, ok := propertyByWire(model, wireName)
+	require.True(t, ok, "%s declares property %q", owner, wireName)
 
 	wantID := ids.DocumentIDNamespace{}.ForPointer(ownerPointer + ids.Ptr("$defs", def))
 	require.Equal(t, wantID, property.Type.Target,
-		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, propertyValue, def)
+		"%s.%s must resolve to its own $defs/%s, not a sibling's", owner, wireName, def)
 
 	target, ok := doc.Types[property.Type.Target].(*ir.Model)
 	require.True(t, ok, "the definition itself is a Model")

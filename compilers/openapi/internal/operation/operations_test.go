@@ -721,16 +721,16 @@ paths:
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, diags)
 
-	for operationValue, want := range map[string][]string{
+	for operationName, want := range map[string][]string{
 		"emptyItem": nil, "emptyOperation": {"https://path.example"}, "emptyBoth": nil,
 	} {
-		got := openapitest.FindOperation(t, doc, operationValue)
+		got := openapitest.FindOperation(t, doc, operationName)
 		if want == nil {
-			assert.Nil(t, got.Servers, "%s names none, so its service's apply", operationValue)
+			assert.Nil(t, got.Servers, "%s names none, so its service's apply", operationName)
 		} else {
-			assert.Equal(t, want, serversNamed(t, doc, got.Servers), "%s is sent to its path item's", operationValue)
+			assert.Equal(t, want, serversNamed(t, doc, got.Servers), "%s is sent to its path item's", operationName)
 		}
-		assert.Empty(t, got.Unmodeled, "%s keeps nothing of an empty list", operationValue)
+		assert.Empty(t, got.Unmodeled, "%s keeps nothing of an empty list", operationName)
 	}
 	assert.Equal(t, []string{"https://root.example"}, serversNamed(t, doc, doc.Services[0].Servers))
 }

@@ -314,7 +314,7 @@ func assertEncodedFormats(t *testing.T, doc *ir.Document, model *ir.Model) {
 	wire := func(primitiveKind ir.PrimitiveKind) *ir.TypeRef {
 		return &ir.TypeRef{Target: ir.PrimitiveTypeID(primitiveKind)}
 	}
-	for propertyValue, want := range map[string]struct {
+	for wireName, want := range map[string]struct {
 		base ir.PrimitiveKind
 		enc  ir.Encoding
 	}{
@@ -324,8 +324,8 @@ func assertEncodedFormats(t *testing.T, doc *ir.Document, model *ir.Model) {
 		"seenAt":     {ir.PrimitiveDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimitiveNumber)}},
 		"issuedAt":   {ir.PrimitiveDatetimeOffset, ir.Encoding{Name: "unixTimestamp", WireType: wire(ir.PrimitiveString)}},
 	} {
-		t.Run(propertyValue, func(t *testing.T) {
-			property, ok := propertyByWire(model, propertyValue)
+		t.Run(wireName, func(t *testing.T) {
+			property, ok := propertyByWire(model, wireName)
 			require.True(t, ok, "the property is declared")
 			sc, ok := doc.Types[property.Type.Target].(*ir.Scalar)
 			require.True(t, ok, "the format hoists a Scalar")

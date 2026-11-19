@@ -2100,10 +2100,10 @@ components:
       schema: {type: object, properties: {a: {type: string}}}
       encoding: {ghost: ` + pngSource + `}
 `
-	use := func(operationValue, name string) string {
-		return "  /" + operationValue + `:
+	use := func(operationName, name string) string {
+		return "  /" + operationName + `:
     post:
-      operationId: ` + operationValue + `
+      operationId: ` + operationName + `
       requestBody:
         content:
           multipart/form-data: {$ref: 'other.yaml#/components/mediaTypes/` + name + `'}

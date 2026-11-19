@@ -17,15 +17,15 @@ import (
 // partsOf returns a request content's part encodings by the name the last
 // token of each key spells, which is the part's name in these specs, and the
 // content.
-func partsOf(t *testing.T, doc *ir.Document, operationValue string) (map[string]ir.PartEncoding, ir.Content) {
+func partsOf(t *testing.T, doc *ir.Document, operationName string) (map[string]ir.PartEncoding, ir.Content) {
 	t.Helper()
-	operation, ok := operationByName(doc, operationValue)
-	require.True(t, ok, operationValue)
+	operation, ok := operationByName(doc, operationName)
+	require.True(t, ok, operationName)
 	content := requestContent(t, operation)
 	out := make(map[string]ir.PartEncoding, len(content.Encoding))
 	for id, pe := range content.Encoding {
 		name := string(id[strings.LastIndex(string(id), "/")+1:])
-		require.NotContains(t, out, name, "%s: one entry per name", operationValue)
+		require.NotContains(t, out, name, "%s: one entry per name", operationName)
 		out[name] = pe
 	}
 	return out, content
