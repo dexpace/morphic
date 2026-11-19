@@ -85,7 +85,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		k.text, k.keywords = textBoundsOf(refinedUnhomed(c, r, s, typed, homes, standing), homes.numberText)
 		k.keywords, k.validation = append(k.keywords, degraded...), validation
 	}
-	collapsed := collapsedPrincipal(c, r)
+	collapsed := collapsedPrincipal(c, r, s)
 	if collapsed {
 		k.nulls = nullBranchKeeps(c, s, r.principal.schema.Schema, r.principal.pointer)
 	}
@@ -216,9 +216,10 @@ func writesUnionPair(s *statement.Schema, comp allOfComposition) bool {
 // lowered as the nullable reference to its one non-null branch, the outcome
 // the same union written alone at a position has (referenceOutcomeKeywords):
 // the reference says the union, its target the branch and its Nullable the
-// null branches, of which one saying more is kept apart (nullBranchKeeps).
-func collapsedPrincipal(c lowering.Ctx, r refinement) bool {
-	if r.principal == nil || r.principal.schema.Ref != nil || !declaresUnion(r.principal.schema.Schema) {
+// null branches, of which one saying more is kept apart (nullBranchKeeps). A
+// union s elects over the other of a pair does not collapse (pairedPrincipal).
+func collapsedPrincipal(c lowering.Ctx, r refinement, s *statement.Schema) bool {
+	if r.principal == nil || r.principal.schema.Ref != nil || !declaresUnion(r.principal.schema.Schema) || electsOneOfPair(c, s) {
 		return false
 	}
 	_, shape := referenceOutcomeKeywords(c, r.principal.schema.Schema, r.principal.pointer)
@@ -369,7 +370,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 ) []ir.Diagnostic {
 	shape := k.shape
 	if k.refined {
-		shape = refinedShape(c, k.comp, k.principal, standing, held)
+		shape = refinedShape(c, s, k.comp, k.principal, standing, held)
 	}
 	keywords, tagged := k.besideTag(standing)
 	diags := recordUnhomedAt(c, ts, p, s, keywords, shape, pointer)

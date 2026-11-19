@@ -397,3 +397,25 @@ func TestUnion_TwoUnionsSharingNoMemberBesideAScalarLowerAsTheBody(t *testing.T)
 		assert.Contains(t, warned[0], "share no value", name)
 	}
 }
+
+// TestUnion_AnElectedUnionOfAPairIsReportedAsTheUnionItLowersTo pins the report
+// of an anyOf kept on the second entry of an allOf whose first elects a oneOf
+// of a string and null: the position is the Union of the oneOf, not collapsed,
+// as one schema writing both is, and the report names that Union, never a
+// nullable reference to the oneOf's one non-null branch.
+func TestUnion_AnElectedUnionOfAPairIsReportedAsTheUnionItLowersTo(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Two: {allOf: [{oneOf: [{type: string}, {type: 'null'}]}, {anyOf: [{type: string}]}]}
+`))
+	_, ok := typeByName(doc, "Two").(*ir.Union)
+	require.True(t, ok, "the position is the Union of its oneOf")
+	var reported []string
+	for _, d := range diags {
+		if d.Provenance.Pointer == "/components/schemas/Two/allOf/1" {
+			reported = append(reported, d.Message)
+		}
+	}
+	require.Len(t, reported, 1)
+	assert.Contains(t, reported[0], "lowered to the Union of its oneOf")
+	assert.NotContains(t, reported[0], "nullable reference")
+}

@@ -68,7 +68,9 @@ func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 // reference it collapses or expands to (referenceOutcomeKeywords), its node as
 // its builder names it (held), else the node standing or the
 // shared primitive.
-func refinedShape(c lowering.Ctx, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef, held *principalKept) string {
+func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, principal *allOfBranch, standing ir.TypeDef,
+	held *principalKept,
+) string {
 	switch {
 	case principal == nil:
 		return undecidedShape
@@ -77,7 +79,14 @@ func refinedShape(c lowering.Ctx, comp allOfComposition, principal *allOfBranch,
 	case principal.schema.Ref != nil:
 		return "a use of one of its allOf conjuncts"
 	}
-	if _, shape := referenceOutcomeKeywords(c, principal.schema.Schema, principal.pointer); shape != "" {
+	if electsOneOfPair(c, s) {
+		// The union passed over conjoins, so the elected one collapses no more
+		// than one schema writing both does (pairedPrincipal).
+		if _, ok := standing.(*ir.Union); ok {
+			_, key, _ := unionBranches(c, s, principal.schema.Schema)
+			return "the Union of its " + key
+		}
+	} else if _, shape := referenceOutcomeKeywords(c, principal.schema.Schema, principal.pointer); shape != "" {
 		return shape
 	}
 	if named := held.named(); named != "" {

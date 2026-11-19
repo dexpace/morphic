@@ -421,7 +421,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, po
 // conjuncts sharing no value, standing being the node the position owns, nil
 // where it owns none, and held how its builder names it (refinedShape).
 func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement, standing ir.TypeDef, held *principalKept) []ir.Diagnostic {
-	shape := refinedShape(c, r.comp, r.principal, standing, held)
+	shape := refinedShape(c, s, r.comp, r.principal, standing, held)
 	switch {
 	case unionAside(c, s):
 	case r.contradicts:
