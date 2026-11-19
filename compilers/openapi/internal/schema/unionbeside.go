@@ -155,6 +155,11 @@ const (
 	// elect, sharing no kind with the body (passedApart): no instance satisfies
 	// the two together, whichever branch it takes.
 	unionPassedApart
+	// unionPassedNull marks a union beside another the position does not
+	// elect, the two leaving the body null alone (passedSharesNull): the
+	// position admits that null and nothing else, so it lowers as the body
+	// keeping both.
+	unionPassedNull
 	// unionPairApart marks a oneOf and an anyOf sharing no value with each
 	// other (pairSharesNoValue) beside a body that is not a Model: no instance
 	// satisfies them, whatever it admits.
@@ -204,6 +209,9 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 	if passedApart(c, s, u) {
 		return unionPassedApart
 	}
+	if passedSharesNull(c, s, u) {
+		return unionPassedNull
+	}
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
 	}
@@ -234,6 +242,15 @@ func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	// Left null alone, the rest admits no object for deadBranch to read u's
 	// branches against (restAdmitsObjects).
 	return r.nullLeft() && r.union.kinds&kindNull == 0
+}
+
+// passedSharesNull reports whether the unions the position written by s
+// passes over for u leave the rest of s null alone (readPassed), which u
+// admits: the position admits that null and nothing else, as on the entries
+// of its allOf (docs/compilers/openapi.md#union-beside-structure).
+func passedSharesNull(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
+	r, ok := readPassed(c, s, u)
+	return ok && r.nullLeft() && r.union.kinds&kindNull != 0
 }
 
 // passedRead is what the position written by s admits beside u: the rest of
@@ -406,6 +423,10 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		// A schema writing conjuncts beside them refines past them (entryUnionsApart).
 		id, diags := beside(ir.ReasonDegradedLowering, "its oneOf and anyOf share no value, so no instance satisfies them together")
 		return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
+	case unionPassedNull:
+		_, passed := passedOver(c, s, s)
+		return beside(ir.ReasonDegradedLowering, "the "+passed+" beside it leaves the body null alone, which this "+
+			"union admits, so the position admits that null and no variant would hold a value")
 	case unionPassedApart:
 		_, passed := passedOver(c, s, s)
 		id, diags := beside(ir.ReasonDegradedLowering, "the "+passed+" beside it leaves the body no value this union "+

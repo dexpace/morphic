@@ -257,9 +257,7 @@ var pairExcused = map[string]string{
 // neither union alone does, each by a mechanism an open issue holds for one
 // union too: a pair beside a scalar body, whose node #2108 decides, and a
 // pair's null beside a $ref, which the nullable-inference policy widens
-// beside the $ref alone (#2109). Each cites its issue and must still split. A
-// row citing #2011 is a split that issue's decisions settle and this test
-// does not yet see settled: while one stands, #2011 does not close.
+// beside the $ref alone (#2109). Each cites its issue and must still split.
 var pairOpen = map[[2]string]string{
 	{"ref to an object", "null through a ref and inline"}: "#2109: the flat spelling's $ref is widened to admit null, the others' not",
 	{"string", "refs on both"}:                            "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
@@ -269,8 +267,6 @@ var pairOpen = map[[2]string]string{
 	{"string", "a branch that is a union"}:                "#2108: the flat spelling is the body's Scalar, the others a Union of the union",
 	{"string or null", "a branch that is a union"}: "#2108: the flat spelling is the body's Scalar, the others a Union " +
 		"of the union",
-	{"object or null", "sharing null alone"}: "#2011: the flat spelling distributes the oneOf, the others are a use of " +
-		"the body, both unions admitting null alone with it",
 }
 
 // singleSpellings are the spellings a union written alone has.
@@ -356,8 +352,8 @@ func sameFacets(view func(int, string) pairView, i int, keyword string) bool {
 func TestElection_AUnionPairLowersAlikeInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for group, why := range pairOpen {
-		if !strings.HasPrefix(why, "#2108: ") && !strings.HasPrefix(why, "#2109: ") && !strings.HasPrefix(why, "#2011: ") {
-			t.Errorf("%v is open for no question #2108, #2109 or #2011 holds: %s", group, why)
+		if !strings.HasPrefix(why, "#2108: ") && !strings.HasPrefix(why, "#2109: ") {
+			t.Errorf("%v is open for no question #2108 or #2109 holds: %s", group, why)
 		}
 	}
 	for _, body := range pairBodies {

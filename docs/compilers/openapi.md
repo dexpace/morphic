@@ -4072,7 +4072,10 @@ rest keeps null out, kept and warned as below; one sharing no kind with the rest
 without either union, a union of null alone beside a rest admitting no null among them, leaves no
 instance satisfying the two, whichever branch is taken, so the position keeps both as shape 4 does, and a schema writing no `allOf` draws that rule's warning
 naming its own keywords and that union. One leaving that rest null alone does the same where no
-branch of the elected union admits null. A union none of whose branches shares a kind with a body
+branch of the elected union admits null; where one does, the position admits that null and nothing
+else, so it lowers as the body keeping both as `degraded_lowering`, with no warning, and an `allOf`
+of an inline object admitting null composes it, its `Model` standing at the position as the schema
+writing all three flat does. A union none of whose branches shares a kind with a body
 that is no `Model` (a scalar, a `type` list of scalars, an array) admits nothing with it, so the
 position lowers as that body keeping the union as `degraded_lowering`, with that rule's one warning,
 beside the body's keywords, beside an `allOf` of it and on an entry alike. Such a

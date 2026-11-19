@@ -654,3 +654,14 @@ func TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten(t *
 		assert.Contains(t, warned[name][0], "share no value", name)
 	}
 }
+
+// TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten
+// pins a oneOf of an object or null and an anyOf of a string or null beside
+// an object admitting null, all three sharing null alone: the position is the
+// body's Model keeping both, with no warning, in each spelling.
+func TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten(t *testing.T) {
+	t.Parallel()
+	warned := keepsBothOnItsModel(t, "oneOf: [{type: object, properties: {x: {type: string}}}, {type: 'null'}]",
+		"anyOf: [{type: string}, {type: 'null'}]")
+	assert.Empty(t, warned)
+}

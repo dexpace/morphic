@@ -339,7 +339,8 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 		return ref, append(unionDiags, nullDiags...)
 	}
-	if how == unionHierarchyBase || how == unionNoLiveBranch || how == unionSharesNoKind || how == unionPassedApart {
+	if how == unionHierarchyBase || how == unionNoLiveBranch || how == unionSharesNoKind || how == unionPassedApart ||
+		how == unionPassedNull {
 		// The union stays with its branch, and the discriminator standing with it
 		// on the model, held to its routes as one beside the union is.
 		fin = discriminatorBesideUnion(c, ts, schema, u.holder, pointer).then(fin)
