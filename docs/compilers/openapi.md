@@ -4385,6 +4385,9 @@ judged as one whose branches declare shape.
   `openapi/validation-only-keyword`
 - Tests: `e2e.TestElection_ANullBranchIsDeadWhereTheUnionPassedOverKeepsNullOut`,
   `schema.TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut`,
+  `schema.TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten`,
+  `schema.TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten`,
+  `schema.TestUnion_APairSharingNullAloneWithANullableBodyIsItsModelWhereverWritten`,
   `e2e.TestElection_AUnionSharingNoKindWithABodyThatIsNoModelLowersAsTheBody`,
   `e2e.TestElection_AUnionSharingAKindWithAScalarBodyLowersAsBefore`,
   `e2e.TestElection_AnEntryTypeSharingNoKindWithItsUnionLowersAsBesideTheAllOf`,
@@ -4570,7 +4573,8 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
 
 - Status: partly built: whether a pair beside a scalar body lowers to the elected `Union` or to the
   body's `Scalar` keeping both is #2108's, as for one union: beside the body's own keywords it is the
-  `Scalar`, where the `allOf` spellings give a `Union`.
+  `Scalar`, where the `allOf` spellings give a `Union`. A pair written one union beside the body's
+  keywords and the other on an `allOf` entry is #2110's.
 - Cases: `codeclared-keywords`, `codeclared-schema-content`, `allof-value-set-beside-entry`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestCoDeclaredFamily_EveryPassedOverKeywordIsKept`,

@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -244,14 +245,21 @@ func facets(a, b pairView) []string {
 }
 
 // pairExcused are the bodies beside which a union written alone lowers apart
-// in its own spellings, each naming that mechanism. A pair beside one of them
-// is excused where its split is one of its unions' (singleExplains); each body
-// must still excuse one, so a fix elsewhere names it stale.
+// in its own spellings, each naming that mechanism and the open issue holding
+// it (pairIssues). A pair beside one of them is excused where its split is
+// one of its unions' (singleExplains); each body must still excuse one, so a
+// fix elsewhere names it stale.
 var pairExcused = map[string]string{
-	"object or null": "a union beside a type list with properties lowers apart beside the list's keywords",
+	"object or null": "#2111, #2112: a union of null alone beside a type list holding an object is its Model, an " +
+		"Enum of null beside an allOf of the list (#2111), and the list on an allOf entry is kept where beside the " +
+		"union it is read (#2112)",
 	"string or null": "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
 	"string":         "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
 }
+
+// pairIssues matches the reason of an excuse or an open group: the open issues
+// holding the mechanism, each a question #2011 leaves to another, then why.
+var pairIssues = regexp.MustCompile(`^#(2108|2109|2111|2112)(, #(2108|2109|2111|2112))*: `)
 
 // pairOpen are the groups, by body and pair, whose spellings split where
 // neither union alone does, each by a mechanism an open issue holds for one
@@ -349,11 +357,17 @@ func sameFacets(view func(int, string) pairView, i int, keyword string) bool {
 // entries, the branches, the keywords and the components: the same kind of
 // node, the same variants, each as what it is, the same keys kept with the
 // same reasons and the same findings, wherever each stands (GitHub #2011).
+// A spelling writing one union flat and the other on an entry is #2110's.
 func TestElection_AUnionPairLowersAlikeInEverySpelling(t *testing.T) {
 	t.Parallel()
 	for group, why := range pairOpen {
-		if !strings.HasPrefix(why, "#2108: ") && !strings.HasPrefix(why, "#2109: ") {
-			t.Errorf("%v is open for no question #2108 or #2109 holds: %s", group, why)
+		if !pairIssues.MatchString(why) {
+			t.Errorf("%v is open for no question an open issue holds: %s", group, why)
+		}
+	}
+	for body, why := range pairExcused {
+		if !pairIssues.MatchString(why) {
+			t.Errorf("%s is excused by no mechanism an open issue holds: %s", body, why)
 		}
 	}
 	for _, body := range pairBodies {
