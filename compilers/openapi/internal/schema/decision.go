@@ -307,7 +307,7 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	}
 	principal := unionPair(c, s, conjuncts)
 	one := usesOneRef(c, s, comp)
-	contradicts := !one && disjoint(joint, conjuncts)
+	contradicts := !one && disjoint(joint, conjuncts, pairEntries(s, conjuncts))
 	apart := contradicts && joint.fixed && joint.kinds&^kindNull != 0 && kinds != kindObject
 	var names []string
 	if contradicts {
@@ -855,14 +855,17 @@ func saysKind(s *statement.Schema) bool {
 }
 
 // disjoint reports whether the conjuncts share no value. A null they all admit
-// is no value a type is left to describe, unless a conjunct admits nothing else.
-// Such an allOf stays a composition, and
+// is no value a type is left to describe, unless a conjunct admits nothing else,
+// the two entries of a pair (pairEntries) read together as one schema writing
+// both is. Such an allOf stays a composition, and
 // docs/compilers/openapi.md#allof-refinement says which report each
 // contradiction gets.
-func disjoint(joint admitted, conjuncts []conjunct) bool {
+func disjoint(joint admitted, conjuncts []conjunct, pair []*conjunct) bool {
 	if !joint.reachable() {
 		return true
 	}
-	return joint.kinds == kindNull &&
-		!slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.read.kinds == kindNull })
+	if joint.kinds != kindNull || len(pair) == 2 && pair[0].read.and(pair[1].read).kinds == kindNull {
+		return false
+	}
+	return !slices.ContainsFunc(conjuncts, func(cj conjunct) bool { return cj.read.kinds == kindNull })
 }

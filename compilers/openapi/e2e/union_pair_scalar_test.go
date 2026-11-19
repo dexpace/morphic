@@ -172,3 +172,42 @@ func TestElection_AnEntryWritingBothElectsAgainstThePosition(t *testing.T) {
 		}
 	}
 }
+
+// TestElection_TwoUnionsSharingNullAloneBesideABodyAdmittingNullAreKept holds
+// that a oneOf of an object and null and an anyOf of a string and null, which
+// share null alone, beside a $ref to an object or null, lower alike beside the
+// allOf, on one entry, on two in either order and one allOf deeper, in either
+// order of the branches and the components: a use of the body keeping both
+// unions as degraded_lowering, distributing neither, with no warning, as null
+// is a value every conjunct admits (GitHub #2011).
+func TestElection_TwoUnionsSharingNullAloneBesideABodyAdmittingNullAreKept(t *testing.T) {
+	t.Parallel()
+	const body = "{$ref: '#/components/schemas/TN'}"
+	const tn = "TN: {type: [object, 'null'], properties: {a: {type: string}}}"
+	sites := []bothKeywordsSite{
+		{"component", "/components/schemas/P", func(version, schema string, reversed bool) string {
+			return bothKeywordsDoc(version, "", reversed, tn, "P: "+schema)
+		}},
+		{"property", "/components/schemas/C/properties/p", func(version, schema string, reversed bool) string {
+			return bothKeywordsDoc(version, "", reversed, tn, "C: {type: object, properties: {p: "+schema+"}}")
+		}},
+	}
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		for _, site := range sites {
+			for _, reversed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/%t", version, site.name, reversed), func(t *testing.T) {
+					t.Parallel()
+					one, anyOf := "[{type: object, properties: {x: {type: string}}}, {type: 'null'}]", "[{type: string}, {type: 'null'}]"
+					if reversed {
+						one, anyOf = reversedBranches(t, one), reversedBranches(t, anyOf)
+					}
+					doc, diags := compileSpellingsAlike(t, site, version, unionPairSpellings(body, one, anyOf))
+					requireErrorsAndWarnings(t, diags, nil)
+					assert.Equal(t, map[string]ir.UnmodeledReason{
+						"openapi:oneOf": ir.ReasonDegradedLowering, "openapi:anyOf": ir.ReasonDegradedLowering,
+					}, keptAtUse(t, doc, site), "the position keeps both unions")
+				})
+			}
+		}
+	}
+}

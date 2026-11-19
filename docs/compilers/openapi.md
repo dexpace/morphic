@@ -2279,10 +2279,11 @@ that `1` and `1.0` are one, and the read takes in at most 256 schemas and 4096 `
 3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
    depth ([`allof-classification`](#allof-classification));
 4. the conjuncts share no value, a null they all admit being no shared value unless a conjunct
-   admits nothing else, no value set is elected (below), and the kinds they admit share none or
-   are an object alone. A warning says so at the schema where their instance types share none
-   ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), or their value sets no member, and
-   otherwise at a branch writing a `type` that excludes an object
+   admits nothing else, a `oneOf` and an `anyOf` written one each on two entries read as the one
+   conjunct a schema writing both is, no value set is elected (below), and the kinds they admit
+   share none or are an object alone. A warning says so at the schema where their instance types
+   share none ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), or their value sets no
+   member, and otherwise at a branch writing a `type` that excludes an object
    ([`allof-inline-residue`](#allof-inline-residue)). Value sets sharing no member whose kinds
    share one that is no object alone compose nothing: no conjunct is the principal, so the
    position lowers by the keywords beside the `allOf`, and to the top type keeping each entry
@@ -2548,6 +2549,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `kept-ref-unrenderable`
 - Codes: `openapi/degraded-construct`, `openapi/validation-only-keyword`
 - Tests: `e2e.TestElection_TwoUnionsKeptBesideABodyAdmittingNullKeepTheirReasonEverywhere`,
+  `e2e.TestElection_TwoUnionsSharingNullAloneBesideABodyAdmittingNullAreKept`,
   `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
   `e2e.TestKindInference_AnEntryClaimingThePositionsKindIsItsPrincipal`,
   `e2e.TestKindInference_AnEntryClaimingTheKindIsPickedInEitherOrder`,
