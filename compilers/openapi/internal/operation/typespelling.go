@@ -122,7 +122,7 @@ func contentSpelling(c service.Ctx, media *soa.MediaType, mt string, mediaPtr js
 // records nothing and says nothing.
 //
 // The reason is ReasonDegradedLowering, as schema.recordSkippedFamilies uses for
-// the keyword families its own election passes over. The severity is warning,
+// the keyword families its own dispatch passes over. The severity is warning,
 // not the info announcing a conjunction JSON Schema allows, because OpenAPI
 // forbids this one; it matches passedOverEntries'. It is not an error: the
 // document lowers as well as an election can make it.

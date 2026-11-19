@@ -404,7 +404,7 @@ components:
 }
 
 // TestBodyParts_RedeclaredNameIsOnePart pins that a part named by two allOf
-// branches yields one entry rather than depending on which branch was walked
+// entries yields one encoding entry rather than depending on which allOf entry was walked
 // last. The encoding entry describes one part on the wire either way.
 func TestBodyParts_RedeclaredNameIsOnePart(t *testing.T) {
 	t.Parallel()
@@ -480,7 +480,7 @@ components:
 }
 
 // TestPartEncoding_FlagsComeFromTheMergedType holds a part's Multi and Filename
-// to the type the allOf merge settled on, not to whichever branch declared the
+// to the type the allOf merge settled on, not to whichever entry declared the
 // name first. The merge keeps the narrower declaration in either order, so a
 // flag read from the first declaration differs between the two orders.
 func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
@@ -518,7 +518,7 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 
 // TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration holds a
 // part whose merged type the type walk cannot answer for to the flags every
-// declaration of its name gives, in either branch order, and a redeclared part
+// declaration of its name gives, in either entry order, and a redeclared part
 // that is not the first to its own entry.
 func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *testing.T) {
 	t.Parallel()
@@ -798,7 +798,7 @@ components:
 // TestPartEncodings_CappedEntryReachedByAnotherPath nests an entry under more
 // inline allOf wrappers than the lowering flattens, and reaches what it names a
 // second time by another path: an object, by a JSON Pointer $ref to it, and a
-// $ref entry of the branch the cap stops at, by the same $ref written at the
+// $ref entry of the entry the cap stops at, by the same $ref written at the
 // top, whose target the cap's record must follow as the walk does. Whichever
 // the body names first, both parts are keyed, so no cap is reported.
 func TestPartEncodings_CappedEntryReachedByAnotherPath(t *testing.T) {
@@ -1062,7 +1062,7 @@ func nestedPartSpec(n int, residue bool, shape, media string, parts, encoding []
 }
 
 // How nestedPartSpec places the wrappers: inline at the body, behind an allOf
-// $ref branch, or beside a part the body declares itself.
+// $ref entry, or beside a part the body declares itself.
 const (
 	shapeInline     = ""
 	shapeViaRef     = "ref"
@@ -1515,7 +1515,7 @@ components:
 // anyOf branch declares to a Content.Encoding key naming the variant declaring
 // it, with its entry's fields and its own flags, and no record or finding for
 // the entry, in each spelling: a union body, an anyOf, a $ref to one and a
-// $ref branch, a union on an allOf branch or beside properties, and a union
+// $ref branch, a union on an allOf entry or beside properties, and a union
 // nested in a branch. A name two branches declare is keyed under each, its
 // flags and default content type read off that declaration alone, whatever
 // the other's kind.

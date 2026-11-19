@@ -56,10 +56,10 @@ func lowerTypeList(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sc
 	if t.by == byType {
 		read = keyBit("type")
 	}
-	var census finished
+	var kept finished
 	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: t.types, mark: mark},
-		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), read, pointer, st, &census, fin)), st)
-	return id, append(diags, census.diags...)
+		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), read, pointer, st, &kept, fin)), st)
+	return id, append(diags, kept.diags...)
 }
 
 // claimedKinds returns the kinds c's kind-inference policy reads off the

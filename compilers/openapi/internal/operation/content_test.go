@@ -299,7 +299,7 @@ components:
 // TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
 // allOf changes what a body is no more than a $ref does: a refinement is a use of
 // the schema it names, in either spelling, of the narrower of two it names, or
-// the value set of the branch an enum beside it narrows to, standing at the
+// the value set of the entry an enum beside it narrows to, standing at the
 // position, and one over no binary schema is a plain body.
 func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 	t.Parallel()

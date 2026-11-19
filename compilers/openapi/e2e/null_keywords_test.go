@@ -27,7 +27,7 @@ import (
 // exactly as it does with the key removed, whatever node the keyword sits on and
 // wherever the schema is written, and the load phase's warning for it is the
 // only report. It reads the keywords off the table, so one the table gains is
-// held too. An allOf branch is asked only where nothing else makes it residue,
+// held too. An allOf entry is asked only where nothing else makes it residue,
 // since residue keeps the whole branch as written, the null included.
 func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
@@ -44,7 +44,7 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	}{
 		{"component", noPaths, "{%s}", []string{"", "type: object, ", "type: string, ", "type: array, items: {}, ", "const: null, "}},
 		{"property", noPaths, "{type: object, properties: {p: {%s}}}", []string{"", "const: null, ", "nullable: true, "}},
-		{"allOf branch", noPaths, "{allOf: [{%s}]}", []string{"", "type: object, "}},
+		{"allOf entry", noPaths, "{allOf: [{%s}]}", []string{"", "type: object, "}},
 		{"parameter", parameter, "{}", []string{"", "type: string, "}},
 	}
 	versions := []struct {

@@ -12,10 +12,10 @@ import (
 )
 
 // boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there: the value bounds that apply to
+// for, so that an entry writing one folds there: the value bounds that apply to
 // a value of the kinds value (keywordKinds), and the collection bounds; and
-// whether the node it owns carries a number as text, which holds none of a
-// branch's value bounds (keepTextBounds).
+// whether the node it owns carries a number as text, which holds none of an
+// entry's value bounds (keepTextBounds).
 type boundHomes struct {
 	value      kindSet
 	collection bool
@@ -39,7 +39,7 @@ func (h boundHomes) reads(s *statement.Schema) keySet {
 }
 
 // homesAt returns which bounds the position s is written at, lowered to target,
-// holds for its voices, as the census asks of those written beside its allOf. A
+// holds for its voices, as the keeping of unread keywords asks of those written beside its allOf. A
 // carrier or an alias holds the value bounds the types the position admits take
 // (boundKinds), and collection bounds where it is a use of the principal, a
 // reference (referenceReads), where those types admit an array. A node the position
@@ -66,7 +66,7 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 		}
 		return nodeHomes(c, e.schema.Schema, principalDispatch(*e), takes)
 	}
-	d, _ := electionOf(c, s, pointer)
+	d, _ := dispatchAt(c, s, pointer)
 	return nodeHomes(c, s, d, takes)
 }
 

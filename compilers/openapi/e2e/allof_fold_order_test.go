@@ -107,7 +107,7 @@ func TestAllOfFold_AnEncodedFormatIsJudgedAsByteIsBesideBinary(t *testing.T) {
 	}
 }
 
-// foldedField compiles a model whose two inline allOf branches declare its
+// foldedField compiles a model whose two inline allOf entries declare its
 // field b as first and second, and returns what the field's type is, as its
 // primitive or a Scalar's base, encoding and wire type, and the codes reported
 // at the first declaration.

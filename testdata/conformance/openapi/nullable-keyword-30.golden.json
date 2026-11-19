@@ -494,7 +494,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-inference policy, though an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-inference policy, though an allOf entry of this schema excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/typedComposed/nullable"
@@ -505,7 +505,7 @@
     {
       "format": "openapi@3.0",
       "path": "nullable-keyword-30.yaml",
-      "hash": "af03dd2e7c345948978d549a0c8295b0ac7f21e89bb93af200a1fca7dac983d8"
+      "hash": "1379c222ed3cf6a8d84562e7ee648048b4abc1a0c3348a5748c65587ec17a465"
     }
   ]
 }

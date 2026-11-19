@@ -226,9 +226,9 @@ func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
 // TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect pins that a schema
 // reached from another document is read in its own document's dialect,
 // whichever document's content the lowering reads: draft 7's `dependencies` in
-// other.yaml folds from an inline allOf branch the source's G names, a draft 7
+// other.yaml folds from an inline allOf entry the source's G names, a draft 7
 // source's `definitions`, as `$defs`, leaves a body other.yaml declares a file,
-// an alias of other.yaml folds a branch under a draft 4 root alone, and a
+// an alias of other.yaml folds an entry under a draft 4 root alone, and a
 // body's $ref into a draft 4 document of schemas reads its `id` as `$id`.
 func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 	t.Parallel()

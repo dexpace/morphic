@@ -280,9 +280,9 @@ func propertyOf(t *testing.T, doc *ir.Document, model, wire string) ir.Property 
 	return p
 }
 
-// keywordCensusSpec wraps the two $ref targets every ref-site row aliases in a
+// unreadKeywordSpec wraps the two $ref targets every ref-site row aliases in a
 // component block, so a row states only what it declares beside its $ref.
-func keywordCensusSpec(schemas string) string {
+func unreadKeywordSpec(schemas string) string {
 	return openapitest.ComponentSpec("    BaseStr: {type: string}\n" +
 		"    BaseObj: {type: object, properties: {a: {type: string}}}\n" + schemas)
 }
@@ -308,7 +308,7 @@ func marshalForTest(t *testing.T, doc *ir.Document) string {
 	return string(out)
 }
 
-// allOfConflictSpec builds a component whose two inline allOf branches each
+// allOfConflictSpec builds a component whose two inline allOf entries each
 // declare field v with the given flow-style schemas, for exercising per-keyword
 // redeclaration conflict detection.
 func allOfConflictSpec(schemaA, schemaB string) string {

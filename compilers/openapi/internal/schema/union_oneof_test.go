@@ -495,7 +495,7 @@ func TestOneOf_CoDeclaredBranchReadCutShortIsComposed(t *testing.T) {
 // would otherwise half-distribute — the variant carrying the body while its
 // branch vanished — so all of them keep the verbatim lowering, and each still
 // reports the broken reference, an inline branch beside it reporting none. On
-// an allOf branch, such a union stays with its branch.
+// an allOf entry, such a union stays with its entry.
 //
 // It drives the lowering alone (lowerSpecOnly), so the report checked is the
 // lowering's own, at the branch pointer, with the reason the bindings give. A

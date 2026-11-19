@@ -74,8 +74,8 @@ func underPointer(p, at string) bool {
 // requireKeptKeywords holds got to exactly the keys of want, each once, each
 // with its reason (an empty reason in want accepts any), and each written at
 // or under entry: the pointer of the schema object that writes it, which is
-// the entry's for a keyword of an entry. A kept branch (whole) names the entry
-// itself.
+// the entry's for a keyword of an entry. An entry kept whole names that
+// pointer itself.
 func requireKeptKeywords(
 	t *testing.T, name string, got map[string][]keptKeywordEntry,
 	want map[string]ir.UnmodeledReason, entry string, whole bool,

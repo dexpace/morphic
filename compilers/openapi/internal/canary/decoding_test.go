@@ -153,11 +153,11 @@ func aliasExpansion(t *testing.T) {
 
 	paths := 1<<(doublings+1) - 1
 	models := distinct(last.GetSchema(), func(s *oas3.Schema) []*oas3.Schema {
-		branches := make([]*oas3.Schema, 0, len(s.GetAllOf()))
+		entries := make([]*oas3.Schema, 0, len(s.GetAllOf()))
 		for _, js := range s.GetAllOf() {
-			branches = append(branches, js.GetSchema())
+			entries = append(entries, js.GetSchema())
 		}
-		return branches
+		return entries
 	})
 	assert.Equal(t, paths, models, "schemas: %s", revisit(t, result{}))
 	cores := distinct(last.GetCore(), func(c oas3core.JSONSchema) []oas3core.JSONSchema {

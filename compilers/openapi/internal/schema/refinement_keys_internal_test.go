@@ -17,14 +17,14 @@ import (
 
 // keptRefEntry is a $ref entry at pointer naming #/T beside x-a, whose value is
 // the scalar value.
-func keptRefEntry(pointer jsontext.Pointer, value string) keptBranch {
+func keptRefEntry(pointer jsontext.Pointer, value string) wholeRefEntry {
 	const text = "#/T"
 	node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
 		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "$ref"}, {Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
 		{Kind: yaml.ScalarNode, Tag: "!!str", Value: "x-a"}, {Kind: yaml.ScalarNode, Tag: "!!str", Value: value},
 	}}
 	st := &statement.Statement{Schema: &statement.Schema{Node: node, Ref: &statement.Reference{Keyword: "$ref", Text: text}}}
-	return keptBranch{entry: allOfBranch{schema: st, pointer: pointer}}
+	return wholeRefEntry{entry: allOfEntry{schema: st, pointer: pointer}}
 }
 
 // TestKeptRefKeys_AnEntryThatCannotRenderIsAlikeToNoOther pins the rank of a
@@ -38,13 +38,13 @@ func TestKeptRefKeys_AnEntryThatCannotRenderIsAlikeToNoOther(t *testing.T) {
 	_, err := annotation.RawFromNode(keptRefEntry("", bad).entry.schema.Node)
 	require.Error(t, err, "the entry must be one that does not render")
 
-	keys := keptRefKeys([]keptBranch{keptRefEntry("/S/allOf/0", bad), keptRefEntry("/S/allOf/1", bad)}, "/S")
+	keys := keptRefKeys([]wholeRefEntry{keptRefEntry("/S/allOf/0", bad), keptRefEntry("/S/allOf/1", bad)}, "/S")
 	assert.Equal(t, map[jsontext.Pointer]keptRef{
 		"/S/allOf/0": {key: "openapi:$ref/0", at: "/S/allOf/0"},
 		"/S/allOf/1": {key: "openapi:$ref/1", at: "/S/allOf/1"},
 	}, keys)
 
-	keys = keptRefKeys([]keptBranch{keptRefEntry("/S/allOf/0", "ok"), keptRefEntry("/S/allOf/1", "ok")}, "/S")
+	keys = keptRefKeys([]wholeRefEntry{keptRefEntry("/S/allOf/0", "ok"), keptRefEntry("/S/allOf/1", "ok")}, "/S")
 	assert.Equal(t, map[jsontext.Pointer]keptRef{
 		"/S/allOf/0": {key: "openapi:$ref", at: "/S"},
 		"/S/allOf/1": {key: "openapi:$ref", at: "/S"},

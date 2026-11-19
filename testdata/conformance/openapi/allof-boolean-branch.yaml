@@ -3,12 +3,12 @@ info: {title: AllOfBooleanBranch, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # A boolean branch declares no keywords, so the residue derivation has
+    # A boolean entry declares no keywords, so the residue derivation has
     # nothing to rescue and the question is what the composed node should be.
     # `false` admits nothing, so the composition admits nothing: the composed
     # model closes, matching what
     # docs/compilers/openapi.md#whole-schema-fallbacks already says a bare
-    # `false` schema lowers to, and the branch is kept verbatim beside it.
+    # `false` schema lowers to, and the entry is kept verbatim beside it.
     Never:
       allOf:
         - false

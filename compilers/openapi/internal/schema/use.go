@@ -28,7 +28,7 @@ import (
 const maxLentHops = 64
 
 // Use is what speaks for one position beside the schema written there: the
-// branches of its allOf read as written beside it, then what it falls back to.
+// entries of its allOf read as written beside it, then what it falls back to.
 type Use struct {
 	Voices []annotation.Voice
 	// Referents is what the position falls back to, nearest first
@@ -221,7 +221,7 @@ func passageOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (p
 // nothing. It reads the source and its bindings alone, since a chain asks it of
 // every link.
 func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
-	refs := slices.Collect(allOfRefBranches(c, s))
+	refs := slices.Collect(allOfRefEntries(c, s))
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		if len(refs) != 1 {
 			return nil
@@ -229,7 +229,7 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 		return refs[0]
 	}
 	if d := decisionOf(c, s); d.refines {
-		return branchStatement(c, s, d.refAt)
+		return entryStatement(c, s, d.refAt)
 	}
 	if len(refs) != 1 || !allOfMayRefine(s) || declaresUnion(s) || !decoratesOnly(c, s) {
 		return nil
@@ -242,11 +242,11 @@ func throughRef(c lowering.Ctx, s *statement.Schema) *statement.Statement {
 // (shapeKinds), and no entry the composition reads apart, a `false` or one
 // nested past the flattening depth.
 func decoratesOnly(c lowering.Ctx, s *statement.Schema) bool {
-	comp := allOfBranches(c, s, "")
-	if shapeKinds(s)&kindObject != 0 || !refinableBranches(comp) {
+	comp := allOfEntries(c, s, "")
+	if shapeKinds(s)&kindObject != 0 || !refinableEntries(comp) {
 		return false
 	}
-	return !slices.ContainsFunc(comp.branches, func(e allOfBranch) bool {
+	return !slices.ContainsFunc(comp.entries, func(e allOfEntry) bool {
 		return e.schema.Ref == nil && shapeKinds(e.schema.Schema)&kindObject != 0
 	})
 }
@@ -261,7 +261,7 @@ func (p passage) speakers(c lowering.Ctx) Use {
 }
 
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
-// t (readUse), its voices marked where the outcome keeps their branch whole
+// t (readUse), its voices marked where the outcome keeps their entry whole
 // (markKeptWhole).
 func UseOf(c lowering.Ctx, js *statement.Statement, t ir.TypeRef, pointer jsontext.Pointer) Use {
 	u := readUse(c, js, t, pointer)
@@ -323,10 +323,10 @@ type lentOf struct {
 
 // lentBy reads what js, the schema a $ref lands on, lends a use of it, nearest
 // first: each hop of the chain of $refs from js that writes more than its $ref,
-// the schema the chain ends on, the branches of its allOf that fold
-// (lendingBranches), and past a refinement, a decorator or a narrowing enum
+// the schema the chain ends on, the entries of its allOf that fold
+// (lendingEntries), and past a refinement, a decorator or a narrowing enum
 // whatever its own $ref lends in turn. Only that end is read for what it admits,
-// so the narrowing starts past its branches. Every $ref landing on js asks, so it
+// so the narrowing starts past its entries. Every $ref landing on js asks, so it
 // is read once a run.
 func lentBy(c lowering.Ctx, js *statement.Statement) Use {
 	return lowering.Remembered(c, lentOf{js.Schema}, func() Use { return readLent(c, js) })
@@ -356,7 +356,7 @@ func readLent(c lowering.Ctx, js *statement.Statement) Use {
 
 // lendRun appends to u.Referents each alias of the run of $refs js starts that
 // writes more than its $ref, then the schema the run ends on and its lending
-// branches, and returns that schema. It is false, the run lending nothing past
+// entries, and returns that schema. It is false, the run lending nothing past
 // what it appended, where the run ends on no schema, as a chain that loops or
 // fails does. The table's count of the chain's hops bounds the run.
 func (u *Use) lendRun(c lowering.Ctx, js *statement.Statement) (*statement.Schema, bool) {
@@ -374,12 +374,12 @@ func (u *Use) lendRun(c lowering.Ctx, js *statement.Statement) (*statement.Schem
 		at := placeOf(c, js)
 		if js.Ref == nil {
 			u.lend(js.Schema, at)
-			u.lendBranches(c, js.Schema, at)
+			u.lendEntries(c, js.Schema, at)
 			return js.Schema, true
 		}
 		if writesMoreThanRef(js.Schema) {
 			u.lend(js.Schema, at)
-			u.lendBranches(c, js.Schema, at)
+			u.lendEntries(c, js.Schema, at)
 		}
 		js = declared(c, js)
 	}
@@ -410,10 +410,10 @@ func (u *Use) lendAll(from Use) {
 	u.places = append(u.places, from.places...)
 }
 
-// lendBranches appends the lending branches of s, written at, each placed
+// lendEntries appends the lending entries of s, written at, each placed
 // beneath it.
-func (u *Use) lendBranches(c lowering.Ctx, s *statement.Schema, at referentPlace) {
-	for _, b := range lendingBranches(c, s) {
+func (u *Use) lendEntries(c lowering.Ctx, s *statement.Schema, at referentPlace) {
+	for _, b := range lendingEntries(c, s) {
 		u.lend(b.schema.Schema, at.beneath(b.pointer))
 	}
 }
@@ -450,14 +450,14 @@ func (p referentPlace) beneath(below jsontext.Pointer) referentPlace {
 
 // DecidingSchema returns the schema deciding what s lowers to, s itself or, past
 // a refinement, its principal's, for a reader of the shape alone. A principal
-// owning a node, a $ref or a narrower inline branch, is what the position is.
+// owning a node, a $ref or a narrower inline entry, is what the position is.
 func DecidingSchema(c lowering.Ctx, s *statement.Schema) *statement.Schema {
 	for range maxLentHops {
 		d := decisionOf(c, s)
 		if !d.refines || d.principalAt < 0 {
 			break
 		}
-		principal := branchStatement(c, s, d.principalAt)
+		principal := entryStatement(c, s, d.principalAt)
 		s = principal.Schema
 		if principal.Ref != nil {
 			s = refBranchTarget(c, principal)

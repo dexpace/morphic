@@ -88,11 +88,11 @@ func TestTaken_AKeywordTheTableDoesNotListAppliesToEveryKind(t *testing.T) {
 	assert.True(t, taken(kindInteger, "minimum"))
 }
 
-// TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch pins when a schema's
+// TestWritesBound_FindsABoundOnTheSchemaOrAnInlineEntry pins when a schema's
 // bounds are read at all: a value or collection bound on the schema, on an inline
-// branch or on a branch of a nested allOf counts, wherever the branch sits. One
-// beside a branch's own $ref is that branch's, and does not.
-func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineBranch(t *testing.T) {
+// entry or on an entry of a nested allOf counts, wherever the entry sits. One
+// beside an entry's own $ref is that entry's, and does not.
+func TestWritesBound_FindsABoundOnTheSchemaOrAnInlineEntry(t *testing.T) {
 	t.Parallel()
 	const obj = "{$ref: '#/components/schemas/Obj'}"
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Obj: {type: object}\n"))

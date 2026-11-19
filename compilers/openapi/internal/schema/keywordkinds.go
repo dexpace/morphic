@@ -52,9 +52,9 @@ func boundKinds(c lowering.Ctx, s *statement.Schema) kindSet {
 	return r.kinds
 }
 
-// writesBound reports whether s, or an inline branch of its flattened allOf,
+// writesBound reports whether s, or an inline entry of its flattened allOf,
 // writes a value or collection bound: where none does, no reader asks its types.
-// A bound beside a branch's own $ref is that branch's.
+// A bound beside an entry's own $ref is that entry's.
 func writesBound(c lowering.Ctx, s *statement.Schema) bool {
 	if declaresBound(s) {
 		return true
@@ -73,8 +73,8 @@ func declaresBound(s *statement.Schema) bool {
 }
 
 // writerTakes returns the kinds whose value bounds a reader of the kinds takes
-// reads of w, a position's schema or an allOf branch folding there: those w's
-// own types admit too, as a branch declaring a type bounds no value of another
+// reads of w, a position's schema or an allOf entry folding there: those w's
+// own types admit too, as an entry declaring a type bounds no value of another
 // kind. A reader's kinds are those its position admits (boundKinds), within
 // what the position's own schema declares, so that schema leaves them as they
 // are.

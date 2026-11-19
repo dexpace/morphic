@@ -19,12 +19,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAllOf_InlineBranchResidueKeptVerbatim covers GitHub #123: what an inline
-// allOf branch writes that neither the merge nor the position reads used to be
-// dropped without a diagnostic. The branch now survives whole beside the composed
+// TestAllOf_InlineEntryResidueKeptVerbatim covers GitHub #123: what an inline
+// allOf entry writes that neither the merge nor the position reads used to be
+// dropped without a diagnostic. The entry now survives whole beside the composed
 // model, and what the position does read lands where it would beside the allOf,
-// what it would keep verbatim kept once, inside the branch.
-func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
+// what it would keep verbatim kept once, inside the entry.
+func TestAllOf_InlineEntryResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
       allOf:
@@ -58,24 +58,24 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 		assert.Contains(t, string(entry.Value), kept, "the whole branch is preserved")
 	}
 	assert.True(t, slices.ContainsFunc(diagsAtPointer(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/allOf/0"),
-		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the branch (unevaluatedProperties)") }),
+		func(d ir.Diagnostic) bool { return strings.Contains(d.Message, "the entry (unevaluatedProperties)") }),
 		"the diagnostic names what nothing read: %+v", diags)
 	assert.Equal(t, "BranchDoc", m.Docs.Description)
 	require.NotNil(t, m.Constraints)
 	assert.Equal(t, new(int64(2)), m.Constraints.MinProps)
-	// What the branch kept whole folds is kept once, inside it.
+	// What the entry kept whole folds is kept once, inside it.
 	assert.NotContains(t, m.Unmodeled, "openapi:x-vendor")
 	assert.NotContains(t, m.Unmodeled, "openapi:not")
 }
 
-// TestAllOf_InlineBranchNonObjectTypeWarns is the worse half of #123: a scalar
-// branch beside an object entry, the two sharing only null, contradicts the
-// ir.Model they compose, which asserts the value is an object the branch says
+// TestAllOf_InlineEntryNonObjectTypeWarns is the worse half of #123: a scalar
+// entry beside an object entry, the two sharing only null, contradicts the
+// ir.Model they compose, which asserts the value is an object the entry says
 // is a string, and no report of conjuncts sharing no value is drawn, since a
-// shared null is a value. Preserving the branch keeps the source recoverable,
+// shared null is a value. Preserving the entry keeps the source recoverable,
 // and the severity says the IR states something wrong rather than merely
 // incomplete.
-func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
+func TestAllOf_InlineEntryNonObjectTypeWarns(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    T:
       allOf:
@@ -100,14 +100,14 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 		"a contradicted model is a warning, not the info a merely narrowed one gets")
 }
 
-// TestAllOf_BranchWrittenByReferenceStillDerivesResidue pins the residue against
-// the two ways YAML lets a branch be written by reference rather than in place.
-// A branch spelled `*anchor` writes no keys of its own and one spelled
+// TestAllOf_EntryWrittenByReferenceStillDerivesResidue pins the residue against
+// the two ways YAML lets an entry be written by reference rather than in place.
+// An entry spelled `*anchor` writes no keys of its own and one spelled
 // `<<: *anchor` writes only `<<`, so reading the literal text reports either no
-// residue at all — merging a branch that declares plenty to an empty model, in
-// silence, which is exactly the loss #123 closed for branches written in place —
+// residue at all — merging an entry that declares plenty to an empty model, in
+// silence, which is exactly the loss #123 closed for entries written in place —
 // or a residue named `<<`, which names nothing a reader can act on.
-func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
+func TestAllOf_EntryWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    O: {type: object, properties: {o: {type: string}}}
     Shared: &br {unevaluatedProperties: false, type: string, maxLength: 3}
@@ -140,21 +140,21 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
 					"/components/schemas/"+tc.name+"/allOf/1"),
-				"the branch ("+tc.wantKeys+")",
+				"the entry ("+tc.wantKeys+")",
 				"the keywords the branch effectively declares are named, not `<<`")
 		})
 	}
 }
 
-// TestAllOf_MergedBranchKeywordsAreNotResidue guards the opposite direction: the
+// TestAllOf_MergedEntryKeywordsAreNotResidue guards the opposite direction: the
 // keywords the merge does consume must not be preserved, or every allOf in the
 // corpus would grow an Unmodeled entry restating what the composed model already
 // holds. `type: object` counts as consumed because the composed node is a Model
 // already. TypedBranch is the shape allof-inline-merge.yaml writes and
-// RequiredOnlyBranch is allof-required-only.yaml's last branch; UntypedBranch —
+// RequiredOnlyBranch is allof-required-only.yaml's last entry; UntypedBranch —
 // properties with no `type` at all — is written out here rather than borrowed
-// from the corpus, which writes no such branch.
-func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
+// from the corpus, which writes no such entry.
+func TestAllOf_MergedEntryKeywordsAreNotResidue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     TypedBranch:
@@ -185,13 +185,13 @@ func TestAllOf_MergedBranchKeywordsAreNotResidue(t *testing.T) {
 		"a branch the merge fully consumes announces nothing; got %+v", diags)
 }
 
-// TestAllOf_BranchResidueDerivedFromDeclaredKeys pins that the residue is derived
-// from the branch's own declared keys rather than from a list of keywords worth
+// TestAllOf_EntryResidueDerivedFromDeclaredKeys pins that the residue is derived
+// from the entry's own declared keys rather than from a list of keywords worth
 // keeping — a keyword this compiler models nothing for still counts, so a keyword
 // a later dialect adds needs no change here to survive. The `[object, "null"]`
 // case is the same rule from the other side: `type` is consumed only when it is
 // exactly `object`, so the null a set also declares stays recoverable.
-func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
+func TestAllOf_EntryResidueDerivedFromDeclaredKeys(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Unknown:
       allOf:
@@ -222,9 +222,9 @@ func TestAllOf_BranchResidueDerivedFromDeclaredKeys(t *testing.T) {
 	}
 }
 
-// TestAllOf_EachInlineBranchKeyedSeparately: two branches that both leave residue
-// must not overwrite each other's entry, and each is reported at its own branch.
-func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
+// TestAllOf_EachInlineEntryKeyedSeparately: two entries that both leave residue
+// must not overwrite each other's Unmodeled entry, and each is reported at its own entry.
+func TestAllOf_EachInlineEntryKeyedSeparately(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Multi:
       allOf:
@@ -251,13 +251,13 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 	}
 }
 
-// TestAllOf_BranchResidueRidesEveryDistributedVariant covers fillAllOf's second
+// TestAllOf_EntryResidueRidesEveryDistributedVariant covers fillAllOf's second
 // caller: buildComposedVariant re-runs the same merge once per union variant, so
 // the residue, the whole branch, has to land on every variant the composition
 // rides on, while what the branch folds reaches the Union. The diagnostic is
 // announced once even so — the branch is one source construct however many
 // variants carry it.
-func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
+func TestAllOf_EntryResidueRidesEveryDistributedVariant(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
     A: {type: object, properties: {a: {type: string}}}
@@ -291,12 +291,12 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }
 
-// TestAllOf_UnpreservableBranchIsNotAnnounced is
+// TestAllOf_UnpreservableEntryIsNotAnnounced is
 // TestUnhomedApplicator_UnpreservableKeywordIsNotAnnounced's pairing on the
-// composition path: a branch the merge does not consume whole is normally kept
+// composition path: an entry the merge does not consume whole is normally kept
 // beside the model and reported, and when the keeping fails the report must not
 // happen either.
-func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
+func TestAllOf_UnpreservableEntryIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
       allOf:
@@ -335,10 +335,10 @@ func TestAllOf_AnUnpreservableUncomposedRefIsNotAnnounced(t *testing.T) {
 	assert.Len(t, openapitest.PreservationClaims(diags), 1, "only the reference is announced")
 }
 
-// TestAllOf_ANullTypeExcludesNoObject pins that a branch's `type: null` is the
+// TestAllOf_ANullTypeExcludesNoObject pins that an entry's `type: null` is the
 // keyword left out, so what it keeps as residue is reported as an info, not as
 // the warning a type excluding object draws. A branch writing properties keeps
-// the allOf a composition, where a branch's type is weighed against an object.
+// the allOf a composition, where an entry's type is weighed against an object.
 func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {allOf: [{type: null, minItems: 1}, {properties: {p: {}}}]}
@@ -352,21 +352,21 @@ func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severities)
 }
 
-// rebasedBranchTargets declares the two schemas `n.json` names under the two
+// rebasedEntryTargets declares the two schemas `n.json` names under the two
 // bases the rebased-branch cases write.
-const rebasedBranchTargets = `    A: {$id: 'https://ex.test/a/n.json', type: string}
+const rebasedEntryTargets = `    A: {$id: 'https://ex.test/a/n.json', type: string}
     B: {$id: 'https://ex.test/b/n.json', type: integer}
 `
 
-// TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing holds an inline branch
+// TestAllOf_AnEntryReadAgainstAnotherBaseFoldsNothing holds an inline entry
 // under an $id naming another URI to keeping what it writes, wherever the $id
 // is written: `n.json` names A there and B at the position, so folding its `not`
-// would read it as B's. Spelled shows the outer branch folding as it does when
+// would read it as B's. Spelled shows the outer entry folding as it does when
 // its $ref names B outright, and Annotated that the rule holds for a keyword
 // with no $ref in it.
-func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
+func TestAllOf_AnEntryReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 	t.Parallel()
-	// code is the report's: a branch holding validation logic alone is kept as
+	// code is the report's: an entry holding validation logic alone is kept as
 	// that, and reported so.
 	for name, tc := range map[string]struct{ schema, kept, folded, code string }{
 		"Wrapped": {`      $id: 'https://ex.test/b/s.json'
@@ -388,7 +388,7 @@ func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+"    S:\n"+tc.schema))
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedEntryTargets+"    S:\n"+tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
 			um := typeByName(doc, "S").Common().Unmodeled
 
@@ -404,15 +404,15 @@ func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 	}
 }
 
-// TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase pins that an $id
-// naming another URI keeps a branch whole only where what it folds writes a
+// TestAllOf_AnEntryWritingNoRelativeReferenceFoldsUnderAnyBase pins that an $id
+// naming another URI keeps an entry whole only where what it folds writes a
 // relative $ref: text naming none reads the same at the position, so the bounds
-// and the `not` of branches under two other bases fold as they would with no
+// and the `not` of entries under two other bases fold as they would with no
 // $id, and so do M's description beside a $ref its property resolves where it
 // is written, and N's beside an absolute $ref.
-func TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) {
+func TestAllOf_AnEntryWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) {
 	t.Parallel()
-	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+`    S:
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedEntryTargets+`    S:
       type: string
       allOf:
         - {$id: 'https://ex.test/a/x.json', minLength: 1, not: {const: q}}

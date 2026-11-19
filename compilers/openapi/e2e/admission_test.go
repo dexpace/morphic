@@ -417,7 +417,7 @@ func TestCompile_ANullAliasConjunctIsReadAsTheNullItAliases(t *testing.T) {
 
 // TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema holds that an
 // allOf of an enum of integers and a string type is reported once, at the
-// schema, where the contradiction completes, and that the branch writing the
+// schema, where the contradiction completes, and that the entry writing the
 // type is an info and no warning of its own.
 func TestCompile_AnEnumAndATypeSharingNoKindAreReportedAtTheSchema(t *testing.T) {
 	t.Parallel()
@@ -493,9 +493,9 @@ func redeclaredField(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, id, 
 }
 
 // TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict holds
-// that a field declared integer in one allOf branch and in the other as a
+// that a field declared integer in one allOf entry and in the other as a
 // structure over a schema stating no type, which admits every integer, keeps
-// integer with nothing reported, in both branch orders, while a structure
+// integer with nothing reported, in both entry orders, while a structure
 // refusing only strings through a not stays reported as before.
 func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *testing.T) {
 	t.Parallel()
@@ -524,7 +524,7 @@ func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *t
 }
 
 // TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind holds
-// that a field declared integer in one allOf branch and in the other as an
+// that a field declared integer in one allOf entry and in the other as an
 // allOf naming a union of an object and an integer, with properties beside it,
 // keeps integer with nothing reported, in both branch orders: that declaration
 // is no structure but a use of the union (docs/compilers/openapi.md#allof-refinement),
@@ -549,7 +549,7 @@ func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *tes
 	}
 }
 
-// redeclaredAsStructure is an allOf declaring f integer in one branch and as
+// redeclaredAsStructure is an allOf declaring f integer in one entry and as
 // declaration in the other, the integer first unless swapped.
 func redeclaredAsStructure(declaration string, swapped bool) string {
 	a, b := "{properties: {f: {type: integer}}}", "{properties: {f: "+declaration+"}}"

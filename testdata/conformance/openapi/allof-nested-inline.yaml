@@ -3,8 +3,8 @@ info: {title: AllOfNestedInline, version: "1.0.0"}
 paths: {}
 components:
   schemas:
-    # allOf is associative, so a branch that wraps another allOf classifies as
-    # if its branches were written beside it
+    # allOf is associative, so an entry that wraps another allOf classifies as
+    # if its entries were written beside it
     # (docs/compilers/openapi.md#allof-classification): two refs, so no Base
     # and both are Mixins, as the flat spelling gives.
     M:
@@ -12,7 +12,7 @@ components:
         - allOf:
             - {$ref: '#/components/schemas/A'}
             - {$ref: '#/components/schemas/B'}
-    # Two wrappers deep. The sole ref is the Base, and the inline branch's
+    # Two wrappers deep. The sole ref is the Base, and the inline entry's
     # property keeps the pointer it was written at, not a flat index.
     Nested2:
       allOf:
@@ -22,8 +22,8 @@ components:
             - type: object
               properties:
                 c: {type: string}
-    # A wrapper's own required list attaches to a property a branch inside it
-    # declares, and the wrapper's own property merges after its branches.
+    # A wrapper's own required list attaches to a property an entry inside it
+    # declares, and the wrapper's own property merges after its entries.
     Mixed:
       allOf:
         - required: [c]

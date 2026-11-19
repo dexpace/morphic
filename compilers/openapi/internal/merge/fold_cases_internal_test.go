@@ -77,7 +77,7 @@ func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 // adopt-if-absent fields. Each of them once took one declaration's value and
 // dropped a present, different value from the other with nothing said and
 // nothing kept — a consumer diffing two revisions that change the losing
-// branch's default saw no change. Now the merge keeps the later declaration's
+// entry's default saw no change. Now the merge keeps the later declaration's
 // value, says which detail disagreed, and keeps the losing declaration
 // verbatim, under the same key a losing type is kept under, since it is the
 // same event: a declaration the merge could not fold whole.
@@ -133,7 +133,7 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 }
 
 // TestFold_AnIdenticalDetailIsNotADisagreement is the other half:
-// two branches writing the same default have not disagreed, and reporting or
+// two entries writing the same default have not disagreed, and reporting or
 // keeping one would be noise. The source is unread, which is the proof.
 func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 	t.Parallel()

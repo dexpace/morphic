@@ -77,8 +77,8 @@ func (st stand) takes(c lowering.Ctx, s *statement.Schema) kindSet {
 }
 
 // standsAtPosition reports whether r's principal is inline and built the node
-// the position written at pointer owns, having lowered to target: its census ran
-// on that node (keepsAtOutcome), and what that node holds is the principal's
+// the position written at pointer owns, having lowered to target: its unread keywords
+// were kept on that node (keepsAtOutcome), and what that node holds is the principal's
 // (ownHomes).
 func standsAtPosition(c lowering.Ctx, r refinement, target ir.TypeRef, pointer jsontext.Pointer) bool {
 	return r.principal != nil && r.principal.schema.Ref == nil && LoweredToOwnNode(c, pointer, target)

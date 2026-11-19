@@ -206,8 +206,8 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // bound the whole instance whether it lowers to a List or a Tuple, and nil
 // where it states none. Only the integer and boolean bounds are read here, as
 // the statement holds the model's, each count where the model holds the
-// number its literal states (annotation.ExactCount); the census keeps one it
-// does not (keptCount).
+// number its literal states (annotation.ExactCount); one it does not
+// is kept unread (keptCount).
 func ownCollectionConstraints(s *statement.Schema) *ir.Constraints {
 	array := s.ArrayKeywords()
 	minItems, maxItems := annotation.ExactCount(s, "minItems", array.MinItems), annotation.ExactCount(s, "maxItems", array.MaxItems)

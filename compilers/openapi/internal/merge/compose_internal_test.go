@@ -63,7 +63,7 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 }
 
 // declaredAt is where the nth declaration of a field is written, each in an
-// allOf branch of one schema, so the second names the field (fieldSpan).
+// allOf entry of one schema, so the second names the field (fieldSpan).
 func declaredAt(n int) jsontext.Pointer {
 	return jsontext.Pointer(fmt.Sprintf("/s/allOf/%d/properties/data", n))
 }

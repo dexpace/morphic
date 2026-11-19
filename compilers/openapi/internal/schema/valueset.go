@@ -76,15 +76,15 @@ func (vs valueSetSite) valueType(c lowering.Ctx, own ir.PrimKind, fits func(ir.P
 // valueSetPrincipal returns the inline principal of r that lowers to a value
 // set, an enum, a const or a type of null alone, whose node stands at the
 // position, and false where r's principal is none, a $ref, or another schema.
-func valueSetPrincipal(r refinement) (allOfBranch, bool) {
+func valueSetPrincipal(r refinement) (allOfEntry, bool) {
 	e := r.principal
 	if e == nil || e.schema.Ref != nil {
-		return allOfBranch{}, false
+		return allOfEntry{}, false
 	}
 	if won := principalDispatch(*e).won; won == "const" || won == "enum" || won == "" && nullAlone(e.schema.Schema) {
 		return *e, true
 	}
-	return allOfBranch{}, false
+	return allOfEntry{}, false
 }
 
 // nullAlone reports whether s writes a type naming null alone, which lowers
@@ -103,10 +103,10 @@ func electedSet(r refinement, s *statement.Schema) string {
 	return dispatchOf(s).besideAllOf().won
 }
 
-// principalDispatch is the election of the inline principal e's own keywords:
+// principalDispatch is the dispatch of the inline principal e's own keywords:
 // a flattened wrapper's allOf is no rival of its value set, its entries being
-// conjuncts of the position (allOfBranches).
-func principalDispatch(e allOfBranch) dispatch {
+// conjuncts of the position (allOfEntries).
+func principalDispatch(e allOfEntry) dispatch {
 	d := dispatchOf(e.schema.Schema)
 	if e.wrapper {
 		return d.besideAllOf()
@@ -120,7 +120,7 @@ func principalDispatch(e allOfBranch) dispatch {
 // What e writes beside its set that the node has no field for is kept on it,
 // each keyword at its own pointer, as on any node a schema lowers to, before
 // fin finishes it.
-func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, e allOfBranch, pointer jsontext.Pointer,
+func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Schema, e allOfEntry, pointer jsontext.Pointer,
 	fin finisher,
 ) (ir.TypeID, []ir.Diagnostic) {
 	bs := e.schema.Schema
@@ -128,7 +128,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	var kept, own finished
 	st := stand{of: s, at: pointer}
 	// The position's own keywords type the value set as a conjunct does, and
-	// its census keeps what they leave before the principal's keeps its own.
+	// it keeps unread what they leave before the principal keeps its own.
 	outside := own.on(func(td ir.TypeDef) []ir.Diagnostic {
 		return keepUnread(c, ts, s, pointer, td, dispatchOf(s).besideAllOf(), valueSetReads(s, td), stand{}, nil, nil)
 	}).then(fin)
@@ -149,7 +149,7 @@ func lowerPrincipalValueSet(c lowering.Ctx, ts *compile.Types, s *statement.Sche
 	default:
 		id = lowerNullAlone(c, ts, site)
 	}
-	// The value set is the position's node, which its build censuses.
+	// The value set is the position's node, on which its build keeps what it did not read.
 	return id, slices.Concat(built, missingArrayItems(c, bs, e.pointer), kept.diags, own.diags, heldBack)
 }
 
@@ -237,7 +237,7 @@ func valueTypeHoldsFormat(prim ir.PrimKind, s *statement.Schema) bool {
 // conjunctPrim returns, of own and the primitive each conjunct of r selects
 // (declaredPrim), the one narrowing every other, and own where none does: two
 // formats neither of which narrows the other say no one primitive. The conjuncts
-// are s, each inline branch, and what decides what a $ref branch lands on
+// are s, each inline entry, and what decides what a $ref entry lands on
 // (conjunctSchemas). own is "" for a value no primitive types, which none fits,
 // so it stands.
 func conjunctPrim(c lowering.Ctx, r refinement, s *statement.Schema, own ir.PrimKind, fits func(ir.PrimKind) bool) ir.PrimKind {
@@ -256,11 +256,11 @@ func conjunctPrim(c lowering.Ctx, r refinement, s *statement.Schema, own ir.Prim
 }
 
 // conjunctSchemas returns the schemas whose keywords r's conjuncts write: s, the
-// keywords beside the allOf, then each branch, a $ref's being what decides what
+// keywords beside the allOf, then each entry, a $ref's being what decides what
 // it lands on, read past a chain of $refs and refinements (DecidingSchema).
 func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*statement.Schema {
 	out := []*statement.Schema{s}
-	for _, e := range r.comp.branches {
+	for _, e := range r.comp.entries {
 		bs := e.schema.Schema
 		if e.schema.Ref != nil {
 			bs = DecidingSchema(c, refBranchTarget(c, e.schema))

@@ -178,7 +178,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sche
 			switch {
 			case st.held:
 				// A variant of a principal held whole keeps none, nor reads them:
-				// its union's census holds them for the whole entry.
+				// its union keeps them unread for the whole entry.
 			case st.of != nil:
 				text = declaredConstraints(s)
 			default:
@@ -331,7 +331,7 @@ func unplacedContentKeys(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, poi
 	why = noEncodingField
 	bs := principalEncoding(c, s, td, pointer)
 	if bs != nil {
-		why = encodingOfBranch
+		why = encodingOfEntry
 	}
 	for _, keyword := range contentKeywords {
 		if hasKey(s, keyword) && (bs == nil || !keyWrittenAlike(s, bs, keyword)) {
@@ -353,10 +353,10 @@ func keepContentKeywords(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, k
 
 // Why a content keyword reaches no ir.Encoding, for the report
 // keepContentKeyword draws: the node has no such field, or its field holds what
-// the inline allOf branch the position lowered from writes.
+// the inline allOf entry the position lowered from writes.
 const (
-	noEncodingField  = "this position lowered to a shape with no Encoding field"
-	encodingOfBranch = "the Encoding this position lowered to holds what its inline allOf branch writes"
+	noEncodingField = "this position lowered to a shape with no Encoding field"
+	encodingOfEntry = "the Encoding this position lowered to holds what its inline allOf entry writes"
 )
 
 // principalEncoding returns the inline principal of the allOf s writes at
@@ -399,7 +399,7 @@ func holdsContent(c lowering.Ctx, s *statement.Schema, td ir.TypeDef, pointer js
 	}
 	switch n := td.(type) {
 	case *ir.Scalar:
-		// An inline principal's node reads the Encoding of its branch alone, so
+		// An inline principal's node reads the Encoding of its entry alone, so
 		// it holds none that s writes beside its allOf.
 		r, refined := refinementOf(c, s, pointer)
 		return n.Encoding != nil && (!refined || r.principal == nil)

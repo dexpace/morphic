@@ -230,7 +230,7 @@ func TestUnderlayAdd_TheSiteOwnsWhatSeveralWrite(t *testing.T) {
 }
 
 // TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne pins that a voice kept whole,
-// whose branch holds what it folds, counts as no writer: it fills a key alone,
+// whose entry holds what it folds, counts as no writer: it fills a key alone,
 // gives it up to a voice kept apart in either order, and leaves one two voices
 // kept apart write at the site.
 func TestUnderlayAdd_AVoiceKeptWholeWritesForNoOne(t *testing.T) {

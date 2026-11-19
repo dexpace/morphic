@@ -44,7 +44,7 @@ components:
       unevaluatedProperties: false
     NoObjectVariant: {type: [string, integer], unevaluatedProperties: false}
     Anything: {unevaluatedProperties: false}
-    # A false branch closes the model outright, so it holds the keyword no more.
+    # A false entry closes the model outright, so it holds the keyword no more.
     ClosedByABranch:
       type: object
       properties: {k: {type: string}}

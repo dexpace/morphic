@@ -242,7 +242,7 @@ func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 		{"a union beside its allOf, pinning one", str, "    Cat:\n      allOf: [{$ref: '#/components/schemas/Pet'}]\n" +
 			"      oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]\n" +
 			breeds("{kind: {enum: [tabby]}}", "{kind: {const: tabby}}"), map[string]string{"Cat": "tabby"}, `only "tabby"`},
-		{"a union on an allOf branch", str, "    Cat:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
+		{"a union on an allOf entry", str, "    Cat:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
 			"        - oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]\n" +
 			breeds("{kind: {const: tabby}}", "{kind: {const: siamese}}"), map[string]string{"Cat": ""}, `only "siamese", "tabby"`},
 		{"its name among them", str, petSubtype("Cat", "{kind: {enum: [Cat, cat]}}"), map[string]string{"Cat": "Cat"}, ""},

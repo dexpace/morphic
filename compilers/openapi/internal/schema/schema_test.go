@@ -445,7 +445,7 @@ func TestCoDeclaredFamily_UnpreservableIsNotAnnounced(t *testing.T) {
 }
 
 // unmodeledKeys returns p's keys in sorted order, which is what makes an
-// expected key set assertable as a whole: a census that keeps too much fails the
+// expected key set assertable as a whole: keeping too much fails the
 // same test as one that keeps too little.
 func unmodeledKeys(p ir.Unmodeled) []string {
 	return slices.Sorted(maps.Keys(p))
@@ -482,7 +482,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			},
 		},
 		{
-			name: "an allOf branch",
+			name: "an allOf entry",
 			null: "    A:\n      allOf:\n        - null\n        - {type: object, properties: {q: {type: string}}}\n",
 			twin: "    A:\n      allOf:\n        - true\n        - {type: object, properties: {q: {type: string}}}\n",
 			shape: func(t *testing.T, td ir.TypeDef) {
@@ -643,7 +643,7 @@ func TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut(t *testing.T) {
 			kept: map[string]string{"openapi:contains": `{"minContains":2}`},
 		},
 		{
-			name: "an allOf branch beside one admitting null",
+			name: "an allOf entry beside one admitting null",
 			null: "    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +
 				"            - null\n            - {type: [string, 'null']}\n",
 			twin: "    A:\n      type: object\n      properties:\n        p:\n          allOf:\n" +

@@ -15,7 +15,7 @@ import (
 )
 
 // TestRefinement_AnOwnedNodeHoldsTheBoundsItsLoweringFolds pins which bounds an
-// allOf branch writes land on the node the position owns where no entry decides
+// allOf entry writes land on the node the position owns where no entry decides
 // what it lowers to, and which are kept verbatim: each is read off what builds
 // the node, the position's types, and never off the node it built. A union of
 // types holds a value bound in the node built for the type that takes it, and
@@ -115,7 +115,7 @@ func TestRefinement_AnOwnedNodeOfAnUntypedShapeKeepsNothingItHolds(t *testing.T)
 // TestRefinement_AnOwnedNodeHoldsTheSameWhicheverIsDeclaredFirst compiles the
 // positions of the cases above twice, the schema that uses each declared before
 // and after it, which is what visits it first, and holds the two registries
-// equal: what a position's node holds of its branches' bounds is a fact of what
+// equal: what a position's node holds of its entries' bounds is a fact of what
 // it writes, not of which lowering reached it.
 func TestRefinement_AnOwnedNodeHoldsTheSameWhicheverIsDeclaredFirst(t *testing.T) {
 	t.Parallel()

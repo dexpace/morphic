@@ -125,11 +125,11 @@ func noDegradation(t *testing.T, diags []ir.Diagnostic) {
 	assert.Empty(t, withCode(diags, diag.InferredNullable), "and nothing read in")
 }
 
-// TestRefinement_AnAnnotationOnlyBranchLandsTyped is what GitHub #660 asks: the
-// branch of an allOf refining a $ref lands where the sibling spelling lands, on
+// TestRefinement_AnAnnotationOnlyEntryLandsTyped is what GitHub #660 asks: the
+// entry of an allOf refining a $ref lands where the sibling spelling lands, on
 // a model decorator where the target is an object, and on the reference itself
 // where it is not.
-func TestRefinement_AnAnnotationOnlyBranchLandsTyped(t *testing.T) {
+func TestRefinement_AnAnnotationOnlyEntryLandsTyped(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Holder:
       type: object
@@ -168,11 +168,11 @@ func TestRefinement_AnAnnotationOnlyBranchLandsTyped(t *testing.T) {
 	assert.Empty(t, zone.Unmodeled)
 }
 
-// TestRefinement_PrimitiveBranchesLowerToTheirMeet is GitHub #1043: every
-// branch a kind, the position is the narrowest of them, in either order.
-func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
+// TestRefinement_PrimitiveEntriesLowerToTheirMeet is GitHub #1043: every
+// entry a kind, the position is the narrowest of them, in either order.
+func TestRefinement_PrimitiveEntriesLowerToTheirMeet(t *testing.T) {
 	t.Parallel()
-	for name, branches := range map[string]string{
+	for name, entries := range map[string]string{
 		"narrowest last":      "[{type: integer}, {type: integer, format: int32}]",
 		"narrowest first":     "[{type: integer, format: int32}, {type: integer}]",
 		"beside number":       "[{type: number}, {type: integer, format: int32}]",
@@ -181,7 +181,7 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", "    Prim: {allOf: "+branches+"}\n"))
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", "    Prim: {allOf: "+entries+"}\n"))
 			assert.Empty(t, diags, "the branches narrow to one kind")
 			alias, ok := typeByName(doc, "Prim").(*ir.Scalar)
 			require.True(t, ok, "Prim is a named scalar, not %T", typeByName(doc, "Prim"))
@@ -193,8 +193,8 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 	}
 }
 
-// TestRefinement_AUnionBranchIsAConjunct pins a oneOf or anyOf written as an
-// allOf branch where the conjuncts admit no object, read as
+// TestRefinement_AUnionEntryIsAConjunct pins a oneOf or anyOf written as an
+// allOf entry where the conjuncts admit no object, read as
 // docs/compilers/openapi.md#allof-refinement reads any conjunct. Beside a
 // narrower one it lowers to the meet, at a property as at a component, saying
 // nothing more where a branch says nothing that conjunct does not and, for a
@@ -202,7 +202,7 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 // says more, so it stays with its branch. Where it is the narrowest, it is the
 // principal, standing at the position, and where it shares no value with the
 // rest, the allOf composes.
-func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
+func TestRefinement_AUnionEntryIsAConjunct(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Value:
       allOf:
@@ -293,11 +293,11 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 }
 
 // TestRefinement_AUnionBesideTheAllOfIsAConjunct pins that a union written beside
-// an allOf is one of its conjuncts, as the same union on a branch is: at a
+// an allOf is one of its conjuncts, as the same union on an entry is: at a
 // component and at a property, in either declaration order, the two spellings
 // lower alike, but for the key a union the principal does not say is kept under,
 // and none composes a model (GitHub #1685). The union's branch is written first,
-// as the election's tie goes to the keywords beside the allOf before any branch.
+// as the election's tie goes to the keywords beside the allOf before any entry.
 func TestRefinement_AUnionBesideTheAllOfIsAConjunct(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -469,7 +469,7 @@ func conjunctShape(doc *ir.Document, ref ir.TypeRef, cons *ir.Constraints, kept 
 }
 
 // TestRefinement_DisjointConjunctsStayAComposition pins what GitHub #1043 keeps:
-// no value satisfies both branches, so the warnings stand on the model.
+// no value satisfies both entries, so the warnings stand on the model.
 func TestRefinement_DisjointConjunctsStayAComposition(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -541,7 +541,7 @@ func TestRefinement_NamesItsTargetAtEveryPosition(t *testing.T) {
 
 // TestRefinement_KeywordsLandAtEveryPosition pins where what a refinement says
 // lands: on the carrier that holds the position, else on an alias it hoists,
-// whether it is written beside the allOf or in a branch.
+// whether it is written beside the allOf or in an entry.
 func TestRefinement_KeywordsLandAtEveryPosition(t *testing.T) {
 	t.Parallel()
 	for name, written := range map[string]string{
@@ -586,7 +586,7 @@ func TestRefinement_KeywordsLandAtEveryPosition(t *testing.T) {
 }
 
 // TestRefinement_ACollectionBoundLandsAtEveryPosition pins where a refinement's
-// collection bound lands, beside the allOf or in a branch: on the carrier that
+// collection bound lands, beside the allOf or in an entry: on the carrier that
 // holds the position, else on the alias it hoists, as one beside a $ref does.
 func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
 	t.Parallel()
@@ -621,7 +621,7 @@ func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
 }
 
 // TestRefinement_KeptKeywordsLandAtEveryPosition pins what no reference can
-// hold: a narrower keyword beside the allOf or in a branch, kept verbatim under
+// hold: a narrower keyword beside the allOf or in an entry, kept verbatim under
 // its own key where the position keeps what it writes, with one report.
 func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 	t.Parallel()
@@ -639,23 +639,23 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 		},
 		"a format in a branch": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Port'}, {type: integer, format: int32}]}",
-			key:    "openapi:format", report: "no home for format written on this inline branch",
+			key:    "openapi:format", report: "no home for format written on this inline entry",
 		},
 		"a type narrowing a number": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Num'}, {type: integer}]}",
-			key:    "openapi:type", report: "no home for type written on this inline branch",
+			key:    "openapi:type", report: "no home for type written on this inline entry",
 		},
 		"items narrowing a list": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Names'}, {type: array, items: {type: string, minLength: 1}}]}",
-			key:    "openapi:items", report: "no home for items written on this inline branch",
+			key:    "openapi:items", report: "no home for items written on this inline entry",
 		},
 		"a collection bound no field states": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Names'}, {uniqueItems: false}]}",
-			key:    "openapi:uniqueItems", report: "no home for uniqueItems written on this inline branch",
+			key:    "openapi:uniqueItems", report: "no home for uniqueItems written on this inline entry",
 		},
 		"an overlapping enum": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set, put]}]}",
-			key:    "openapi:enum", report: "no home for enum written on this inline branch",
+			key:    "openapi:enum", report: "no home for enum written on this inline entry",
 		},
 		"an unknown keyword": {
 			schema: "{allOf: [{$ref: '#/components/schemas/Str'}, {fancy: 1}]}",
@@ -756,7 +756,7 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 			schemas: "    No: false\n    S: {allOf: [{$ref: '#/components/schemas/No'}, {type: string}]}\n",
 		},
 		"a type no schema defines": {schemas: "    S: {allOf: [{type: file}]}\n", errs: true},
-		"a false branch":           {schemas: "    S: {allOf: [{type: string}, false]}\n"},
+		"a false entry":            {schemas: "    S: {allOf: [{type: string}, false]}\n"},
 		"a cycle":                  {schemas: "    S: {allOf: [{$ref: '#/components/schemas/S'}], type: string}\n"},
 		"a cycle of two": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/R'}]}\n    R: {allOf: [{$ref: '#/components/schemas/S'}]}\n",
@@ -822,7 +822,7 @@ func TestRefinement_KindsBeyondAnObjectAreAUse(t *testing.T) {
 
 // TestRefinement_NothingSaidIsTheTopType pins an allOf with no conjunct saying
 // what a value is: nothing makes it an object, so it is the top type a schema
-// saying as little is, and what its branches do say lands beside it.
+// saying as little is, and what its entries do say lands beside it.
 func TestRefinement_NothingSaidIsTheTopType(t *testing.T) {
 	t.Parallel()
 	for name, written := range map[string]string{
@@ -846,7 +846,7 @@ func TestRefinement_NothingSaidIsTheTopType(t *testing.T) {
 
 // TestRefinement_ATypeBesideTheAllOfIsThePosition pins an allOf whose only
 // statement of a kind is the type beside it: that type decides what the
-// position lowers to, as if no allOf were written, and each branch folds.
+// position lowers to, as if no allOf were written, and each entry folds.
 func TestRefinement_ATypeBesideTheAllOfIsThePosition(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Holder:
@@ -888,7 +888,7 @@ func TestRefinement_ATypeBesideTheAllOfIsThePosition(t *testing.T) {
 }
 
 // TestRefinement_AValueSetNarrowsTheRefItBeats is GitHub #1042's position-level
-// half: a branch's enum is the position's value set, and the $ref it narrows
+// half: an entry's enum is the position's value set, and the $ref it narrows
 // still speaks for the field and stays verbatim.
 func TestRefinement_AValueSetNarrowsTheRefItBeats(t *testing.T) {
 	t.Parallel()
@@ -972,7 +972,7 @@ func firstDocs(doc *ir.Document, p ir.Property) ir.Docs {
 
 // TestRefinement_ANarrowingKeepsItsTargetOnANode pins the narrowing at a
 // position no carrier holds: the enum standing at the position holds the
-// $ref's verbatim branch and what the $ref says of the position too.
+// $ref's verbatim entry and what the $ref says of the position too.
 func TestRefinement_ANarrowingKeepsItsTargetOnANode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, positionsDoc(refinementTargets, "{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set]}]}"))
@@ -1018,7 +1018,7 @@ func TestRefinement_ANarrowedRefStillLowersItsTarget(t *testing.T) {
 // conjunct declares, as one schema writing them all gives it, and keeps none of
 // them. Two formats neither of which narrows the other select no one primitive,
 // nor does one the value is not of or one written with no type, so each stays
-// with its branch.
+// with its entry.
 func TestRefinement_AValueSetIsTypedByEveryConjunct(t *testing.T) {
 	t.Parallel()
 	const uuid = `"0b5c6f4e-6b9e-4a77-9f0f-5b0b8d5c1a11"`
@@ -1099,8 +1099,8 @@ func TestRefinement_ARefToAPrincipalNamesItsTypedNode(t *testing.T) {
 // TestRefinement_AValueSetBesideTheAllOfIsAConjunct pins GitHub #1309: an enum or
 // a const beside an allOf that refines is one of its conjuncts, not its rival. It
 // lowers as if no allOf were written where it is the principal, with what the
-// branches say folded as written beside it, and a narrower branch is the
-// principal. A branch writing what the enum has no field for stays whole, though
+// entries say folded as written beside it, and a narrower entry is the
+// principal. An entry writing what the enum has no field for stays whole, though
 // the enum holds its format. Beside an allOf that composes, the enum still wins
 // and keeps the allOf.
 func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
@@ -1136,14 +1136,14 @@ func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
 	assert.Equal(t, ir.PrimInt64, bounded.ValueType)
 	assert.Equal(t, []string{"openapi:maximum"}, unmodeledKeys(bounded.Unmodeled))
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Bounded/allOf/0"), "no home for maximum written on this inline branch")
+		"/components/schemas/Bounded/allOf/0"), "no home for maximum written on this inline entry")
 
 	composes, ok := typeByName(doc, "Composes").(*ir.Enum)
 	require.True(t, ok)
 	assert.Equal(t, []string{"openapi:properties", "openapi:type"}, unmodeledKeys(composes.Unmodeled),
 		"the election's loser is kept keyword by keyword")
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-		"/components/schemas/Composes/allOf/0"), "no home for type, properties written on this inline branch")
+		"/components/schemas/Composes/allOf/0"), "no home for type, properties written on this inline entry")
 }
 
 // TestRefinement_ACarrierReadsThroughARefinement pins GitHub #1029's sibling: a
@@ -1178,7 +1178,7 @@ func TestRefinement_ACarrierReadsThroughARefinement(t *testing.T) {
 	assert.Equal(t, "a scan", nested.Docs.Description)
 
 	beside := propertyOf(t, doc, "Holder", "beside")
-	assert.Equal(t, "written beside", beside.Docs.Description, "what a $ref branch writes speaks too")
+	assert.Equal(t, "written beside", beside.Docs.Description, "what a $ref entry writes speaks too")
 
 	lent := propertyOf(t, doc, "Holder", "lent")
 	assert.Equal(t, "lent doc", lent.Docs.Description)
@@ -1263,10 +1263,10 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			for _, branches := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for _, entries := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
-					"      properties:\n        f: {allOf: ["+branches[0]+", "+branches[1]+"]}\n"))
-				assert.Empty(t, withCode(diags, diag.DegradedConstruct), branches)
+					"      properties:\n        f: {allOf: ["+entries[0]+", "+entries[1]+"]}\n"))
+				assert.Empty(t, withCode(diags, diag.DegradedConstruct), entries)
 				p := propertyOf(t, doc, "Holder", "f")
 				tc.want(t, doc, p.Type.Target)
 				assert.Empty(t, p.Unmodeled, "the wider branch says nothing the narrower does not")
@@ -1311,14 +1311,14 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
 // they admit together, or the top type where those are an array, keeping both
 // with a report at each: whole where they write one keyword apart, else each
 // keyword under its own key. Beside the allOf, the keywords there decide, as
-// they do wherever no branch is elected.
+// they do wherever no entry is elected.
 func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		a, b string
 		// prim is what the position is.
 		prim ir.PrimKind
-		// keys are what it keeps, both branches whole where nil.
+		// keys are what it keeps, both entries whole where nil.
 		keys []string
 	}{
 		"two hoisting formats": {"{type: string, format: email}", "{type: string, format: hostname}", ir.PrimString, nil},
@@ -1334,20 +1334,20 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			for _, branches := range []string{tc.a + ", " + tc.b, tc.b + ", " + tc.a} {
+			for _, entries := range []string{tc.a + ", " + tc.b, tc.b + ", " + tc.a} {
 				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
-					"      properties:\n        f: {allOf: ["+branches+"]}\n"))
+					"      properties:\n        f: {allOf: ["+entries+"]}\n"))
 				openapitest.RequireNoErrorDiags(t, diags)
 				p := propertyOf(t, doc, "Holder", "f")
-				assert.Equal(t, ir.PrimTypeID(tc.prim), p.Type.Target, branches)
+				assert.Equal(t, ir.PrimTypeID(tc.prim), p.Type.Target, entries)
 				keys := tc.keys
 				if keys == nil {
 					keys = []string{"openapi:allOf/0", "openapi:allOf/1"}
 				}
-				assert.Equal(t, keys, slices.Sorted(maps.Keys(p.Unmodeled)), branches)
+				assert.Equal(t, keys, slices.Sorted(maps.Keys(p.Unmodeled)), entries)
 				assert.Equal(t, []jsontext.Pointer{
 					"/components/schemas/Holder/properties/f/allOf/0", "/components/schemas/Holder/properties/f/allOf/1",
-				}, openapitest.PointersOf(diags, diag.DegradedConstruct), branches)
+				}, openapitest.PointersOf(diags, diag.DegradedConstruct), entries)
 			}
 		})
 	}
@@ -1367,8 +1367,8 @@ func TestRefinement_ATieOfKindsNeitherWithinTheOtherElectsNone(t *testing.T) {
 // conjuncts admitting alike, in either order: the one writing a keyword its
 // node reads from it alone is the principal, keeping nothing; two writing such
 // keywords otherwise elect neither, the string both admit keeping both; a union written
-// twice is one, kept nowhere; and words beside the allOf tying with a branch
-// stand for the position, the branch folding, so a value set there is the
+// twice is one, kept nowhere; and words beside the allOf tying with an entry
+// stand for the position, the entry folding, so a value set there is the
 // position's own node.
 func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 	t.Parallel()
@@ -1383,7 +1383,7 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 	}{
 		"one writes content": {"", "{type: string}", "{type: string, contentEncoding: base64}", 0, false, "", 0},
 		// The type both write alike is kept once; each content keyword is
-		// reported at itself, and each branch's type at the branch.
+		// reported at itself, and each entry's type at the entry.
 		"each writes other": {"", "{type: string, contentEncoding: base64}", "{type: string, contentMediaType: text/plain}",
 			3, false, ir.PrimTypeID(ir.PrimString), 4},
 		"a union written twice":  {"", union, union, 0, false, "", 0},
@@ -1393,23 +1393,23 @@ func TestRefinement_AlikeConjunctsPartOnWhatTheirNodeReads(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			for _, branches := range []string{tc.a + ", " + tc.b, tc.b + ", " + tc.a} {
+			for _, entries := range []string{tc.a + ", " + tc.b, tc.b + ", " + tc.a} {
 				doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
-					"      properties:\n        f: {"+tc.beside+"allOf: ["+branches+"]}\n"))
+					"      properties:\n        f: {"+tc.beside+"allOf: ["+entries+"]}\n"))
 				openapitest.RequireNoErrorDiags(t, diags)
 				p := propertyOf(t, doc, "Holder", "f")
-				assert.Equal(t, tc.top, p.Type.Target == ir.PrimTypeID(ir.PrimAny), branches)
-				assert.Len(t, p.Unmodeled, tc.kept, branches)
-				assert.Len(t, withCode(diags, diag.DegradedConstruct), max(tc.kept, tc.reports), branches)
+				assert.Equal(t, tc.top, p.Type.Target == ir.PrimTypeID(ir.PrimAny), entries)
+				assert.Len(t, p.Unmodeled, tc.kept, entries)
+				assert.Len(t, withCode(diags, diag.DegradedConstruct), max(tc.kept, tc.reports), entries)
 				if tc.node != "" {
-					assert.Equal(t, tc.node, p.Type.Target, branches)
+					assert.Equal(t, tc.node, p.Type.Target, entries)
 				}
 			}
 		})
 	}
 }
 
-// TestRefinement_DecidedByTheSetInEveryOrder pins that the branches' order and
+// TestRefinement_DecidedByTheSetInEveryOrder pins that the entries' order and
 // where a target is declared decide nothing, by two whole documents.
 func TestRefinement_DecidedByTheSetInEveryOrder(t *testing.T) {
 	t.Parallel()
@@ -1472,13 +1472,13 @@ func TestRefinement_ANoKindConjunctIsNeverThePrincipal(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			for _, branches := range []string{tc.kinded + ", " + tc.unkinded, tc.unkinded + ", " + tc.kinded} {
-				doc, diags := parseFull(t, openapitest.ComponentSpec("    T: {allOf: ["+branches+"]}\n"))
+			for _, entries := range []string{tc.kinded + ", " + tc.unkinded, tc.unkinded + ", " + tc.kinded} {
+				doc, diags := parseFull(t, openapitest.ComponentSpec("    T: {allOf: ["+entries+"]}\n"))
 				alias, ok := doc.Types[componentID("T")].(*ir.Scalar)
-				require.True(t, ok, "%s: %#v", branches, doc.Types[componentID("T")])
-				assert.Equal(t, tc.want, alias.Base.Target, branches)
-				assert.Len(t, alias.Unmodeled, 1, "the conjunct naming no kind is kept: %s", branches)
-				assert.Len(t, diags, 1, "and reported once: %s", branches)
+				require.True(t, ok, "%s: %#v", entries, doc.Types[componentID("T")])
+				assert.Equal(t, tc.want, alias.Base.Target, entries)
+				assert.Len(t, alias.Unmodeled, 1, "the conjunct naming no kind is kept: %s", entries)
+				assert.Len(t, diags, 1, "and reported once: %s", entries)
 			}
 		})
 	}
@@ -1487,7 +1487,7 @@ func TestRefinement_ANoKindConjunctIsNeverThePrincipal(t *testing.T) {
 // TestRefinement_BooleanItemsReadAsWhatTheyAdmit pins `items: true`, which says
 // nothing, so a list saying more beats it, and `items: false`, which admits no
 // element, so it beats a list saying less. Each element type stands in either
-// order, and the other branch keeps nothing, since nothing it says is left unsaid.
+// order, and the other entry keeps nothing, since nothing it says is left unsaid.
 func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
@@ -1500,13 +1500,13 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			for _, branches := range []string{tc.list + ", " + tc.other, tc.other + ", " + tc.list} {
-				doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    T: {allOf: ["+branches+"]}\n"))
+			for _, entries := range []string{tc.list + ", " + tc.other, tc.other + ", " + tc.list} {
+				doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    T: {allOf: ["+entries+"]}\n"))
 				list, ok := doc.Types[componentID("T")].(*ir.List)
-				require.True(t, ok, "%s: %#v", branches, doc.Types[componentID("T")])
-				assert.Equal(t, tc.elem, doc.Types[list.Elem.Target].Kind(), branches)
-				assert.NotEqual(t, ir.TypeID("t/prim/any"), list.Elem.Target, branches)
-				assert.Empty(t, list.Unmodeled, branches)
+				require.True(t, ok, "%s: %#v", entries, doc.Types[componentID("T")])
+				assert.Equal(t, tc.elem, doc.Types[list.Elem.Target].Kind(), entries)
+				assert.NotEqual(t, ir.TypeID("t/prim/any"), list.Elem.Target, entries)
+				assert.Empty(t, list.Unmodeled, entries)
 			}
 		})
 	}
@@ -1514,7 +1514,7 @@ func TestRefinement_BooleanItemsReadAsWhatTheyAdmit(t *testing.T) {
 
 // TestRefinement_NoConjunctNamingAKindLeavesTheTopType pins the same rule where
 // nothing names a kind: no conjunct decides, so the position admits what the
-// keywords do and the branch's format is kept under its own key.
+// keywords do and the entry's format is kept under its own key.
 func TestRefinement_NoConjunctNamingAKindLeavesTheTopType(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpec("    T: {allOf: [{format: int32}]}\n"))
@@ -1525,7 +1525,7 @@ func TestRefinement_NoConjunctNamingAKindLeavesTheTopType(t *testing.T) {
 }
 
 // typeShapes renders what the first property of Holder says and the kind of what
-// it refers to, every position of an allOf branch spelled alike, so two orders of
+// it refers to, every position of an allOf entry spelled alike, so two orders of
 // one list compare equal. Which branch of two orders holds a kept keyword differs
 // by its index alone, so only the count of them is compared.
 func typeShapes(doc *ir.Document) string {
@@ -1552,7 +1552,7 @@ func typeShapes(doc *ir.Document) string {
 // TestRefinement_TwinsTheRefSpelling holds a 3.0 allOf refining a $ref to the
 // 3.1 $ref writing the same keywords beside it: for annotations and value
 // bounds the two are one document, at every position. Provenance differs only
-// in the pointer a keyword kept in a branch is read at, and a decorator's own
+// in the pointer a keyword kept in an entry is read at, and a decorator's own
 // hint, which no emitter renders, by what docs/compilers/openapi.md#union says.
 func TestRefinement_TwinsTheRefSpelling(t *testing.T) {
 	t.Parallel()
@@ -1619,11 +1619,11 @@ func TestRefinement_StructuralKeywordsBesideARefAreConsumedAsBesideTheAllOf(t *t
 	}
 }
 
-// TestRefinement_ABranchHoldsWhatItsNodeDoes pins an inline principal: a value
-// set's node stands at the position, holding what the branch writes as any
-// conjunct's voice, a keyword nothing reads kept with the branch whole, and one
+// TestRefinement_AnEntryHoldsWhatItsNodeDoes pins an inline principal: a value
+// set's node stands at the position, holding what the entry writes as any
+// conjunct's voice, a keyword nothing reads kept with the entry whole, and one
 // that reduces to a shared primitive speaks at the position.
-func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
+func TestRefinement_AnEntryHoldsWhatItsNodeDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
       type: object
@@ -1664,8 +1664,6 @@ func TestRefinement_ABranchHoldsWhatItsNodeDoes(t *testing.T) {
 	assert.Contains(t, elem.Unmodeled, "openapi:default", "and with no carrier its node keeps it")
 }
 
-// TestRefinement_ARefBranchKeepsItsSiblings pins a $ref branch writing keywords
-// beside itself: the branch hoists its alias, as it does in a composition, and
 // TestRefinement_ARefEntrysSiblingsAreThePositions pins a $ref entry writing
 // keywords beside itself: they are conjuncts of the position, as the same
 // keywords on an entry of their own are, so the carrier holds them and the
@@ -1730,11 +1728,11 @@ func TestRefinement_FlattensAsItsFlatSpelling(t *testing.T) {
 	assert.Equal(t, "mine", typed.Docs.Description)
 }
 
-// TestRefinement_ANullOnlyBranchIsTheNull pins `type: "null"` refining a
+// TestRefinement_ANullOnlyEntryIsTheNull pins `type: "null"` refining a
 // nullable string, in either order: the Enum with no member a schema of null
 // alone lowers to (docs/compilers/openapi.md#null-alone), nullable, not the
 // empty object nor the string.
-func TestRefinement_ANullOnlyBranchIsTheNull(t *testing.T) {
+func TestRefinement_ANullOnlyEntryIsTheNull(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
       type: object
@@ -1753,11 +1751,11 @@ func TestRefinement_ANullOnlyBranchIsTheNull(t *testing.T) {
 	}
 }
 
-// TestRefinement_MissingItemsIsAskedOfTheBranchThatLowers pins
-// docs/compilers/openapi.md#missing-array-items beside a refinement: the branch
+// TestRefinement_MissingItemsIsAskedOfTheEntryThatLowers pins
+// docs/compilers/openapi.md#missing-array-items beside a refinement: the entry
 // a list lowers from is held to the rule, and one that only restates a $ref's
 // type lowers nothing.
-func TestRefinement_MissingItemsIsAskedOfTheBranchThatLowers(t *testing.T) {
+func TestRefinement_MissingItemsIsAskedOfTheEntryThatLowers(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Lowers: {allOf: [{type: array}]}
     Restates: {allOf: [{$ref: '#/components/schemas/Names'}, {type: array}]}
@@ -1839,20 +1837,20 @@ func TestRefinement_PastItsBudgetStaysAComposition(t *testing.T) {
 // election, which compares every pair of conjuncts.
 func TestRefinement_PastItsConjunctBoundStaysAComposition(t *testing.T) {
 	t.Parallel()
-	branches := func(n int) string {
+	entries := func(n int) string {
 		return "[" + strings.TrimSuffix(strings.Repeat("{type: string}, ", n), ", ") + "]"
 	}
-	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: "+branches(schema.MaxRefinedConjuncts)+"}\n"))
+	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: "+entries(schema.MaxRefinedConjuncts)+"}\n"))
 	_, ok := typeByName(doc, "S").(*ir.Scalar)
 	assert.True(t, ok, "at the bound it refines: got %T", typeByName(doc, "S"))
-	doc, _ = parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: "+branches(schema.MaxRefinedConjuncts+1)+"}\n"))
+	doc, _ = parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: "+entries(schema.MaxRefinedConjuncts+1)+"}\n"))
 	_, ok = typeByName(doc, "S").(*ir.Model)
 	assert.True(t, ok, "past it, it does not: got %T", typeByName(doc, "S"))
 }
 
-// TestRefinement_ACappedBranchStaysAComposition pins a wrapper past the
+// TestRefinement_ACappedEntryStaysAComposition pins a wrapper past the
 // flattening depth, whose own allOf the reading does not reach.
-func TestRefinement_ACappedBranchStaysAComposition(t *testing.T) {
+func TestRefinement_ACappedEntryStaysAComposition(t *testing.T) {
 	t.Parallel()
 	body := "{type: string}"
 	for range statement.MaxFlattenDepth + 2 {
@@ -1864,10 +1862,10 @@ func TestRefinement_ACappedBranchStaysAComposition(t *testing.T) {
 	assert.True(t, ok, "got %T", typeByName(doc, "S"))
 }
 
-// TestRefinement_AKeptBranchTheIRCannotHoldIsNotAnnounced pins the report to what
-// was kept: a branch that does not convert is reported as lost, and nothing says it
+// TestRefinement_AKeptEntryTheIRCannotHoldIsNotAnnounced pins the report to what
+// was kept: an entry that does not convert is reported as lost, and nothing says it
 // was preserved.
-func TestRefinement_AKeptBranchTheIRCannotHoldIsNotAnnounced(t *testing.T) {
+func TestRefinement_AKeptEntryTheIRCannotHoldIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+`    Holder:
       type: object
@@ -1911,7 +1909,7 @@ components:
 
 // TestRefinement_RawTextIsComparedAgainstOneBase pins restated items within one
 // document: under an $id naming another URI, `item.json` names another schema,
-// so g's second branch says what h's spells out and is kept as h's is. Text
+// so g's second entry says what h's spells out and is kept as h's is. Text
 // writing no $ref reads alike under any base, so k's restates its target's, and
 // so does text writing only an absolute $ref, m's.
 func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
@@ -1941,8 +1939,8 @@ func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
 
 // TestRefinement_ADynamicRefMasksNoKind pins that a $dynamicRef masks no kind:
 // one in what a $ref lands on, which that position expands, is read as the
-// string it names, so beside a string the allOf is no model, and one on a
-// branch, which no position expands, admits every kind, so the object its
+// string it names, so beside a string the allOf is no model, and one on an
+// entry, which no position expands, admits every kind, so the object its
 // anchor names makes no model of a description beside it.
 func TestRefinement_ADynamicRefMasksNoKind(t *testing.T) {
 	t.Parallel()
@@ -2026,7 +2024,7 @@ func TestRefinement_AConstUnreadableStaysAComposition(t *testing.T) {
 
 // TestRefinement_DecidingSchemaIsAskedOfAWholeChain pins the reader of a body's
 // shape through two refinements, one a $ref's and one inline, and past an enum,
-// one beside the allOf among them, to the narrower branch it refines to.
+// one beside the allOf among them, to the narrower entry it refines to.
 func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
 	t.Parallel()
 	l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Blob: {type: string, format: binary}
@@ -2052,11 +2050,11 @@ func TestRefinement_ItemsItCannotRenderRestateNothing(t *testing.T) {
 	t.Parallel()
 	bad := "{type: array, items: {type: string, x-t: " + unpreservableValue + "}}"
 	good := "{type: array, items: {type: string}}"
-	for i, branches := range []string{bad + ", " + good, good + ", " + bad} {
-		doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+branches+"]}\n"))
+	for i, entries := range []string{bad + ", " + good, good + ", " + bad} {
+		doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+entries+"]}\n"))
 		list, ok := typeByName(doc, "S").(*ir.List)
 		require.True(t, ok, "got %T", typeByName(doc, "S"))
-		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/S/allOf/%d/items", i)), list.Elem.Target, branches)
+		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/S/allOf/%d/items", i)), list.Elem.Target, entries)
 	}
 }
 
@@ -2076,7 +2074,7 @@ func TestRefinement_ANullKeywordRestatesNothingMore(t *testing.T) {
 // principal that lowers as a type array: what none of its variants holds, a
 // bound no listed type takes, is kept on the union it lowers to, standing at the
 // position, as a type array written alone keeps it, whether the keyword sits on
-// the branch or beside the allOf, and a bound one takes lands on that variant.
+// the entry or beside the allOf, and a bound one takes lands on that variant.
 func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
@@ -2098,14 +2096,14 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	}
 }
 
-// TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant pins a
-// value bound on a branch of an allOf beside a type list: it folds onto the
+// TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant pins a
+// value bound on an entry of an allOf beside a type list: it folds onto the
 // variant whose type takes it, as the same bound beside the allOf does, and the
 // branch is consumed, in either branch order and with branches writing bounds of
 // different groups. A bound no listed type takes stays with its branch, reported.
 // A collection bound there lands on the list variant
-// (TestCollectionBound_OnABranchLandsAsItsFlatSpelling).
-func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *testing.T) {
+// (TestCollectionBound_OnAnEntryLandsAsItsFlatSpelling).
+func TestRefinement_AValueBoundOnAnEntryBesideATypeListLandsOnItsVariant(t *testing.T) {
 	t.Parallel()
 	str := &ir.Constraints{MaxLength: new(int64(2))}
 	num := &ir.Constraints{Min: new(ir.BigVal("1"))}
@@ -2136,7 +2134,7 @@ func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *test
 			}
 			if tc.kept != nil {
 				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-					"/components/schemas/OnBranch/allOf/1"), "no home for minProperties written on this inline branch")
+					"/components/schemas/OnBranch/allOf/1"), "no home for minProperties written on this inline entry")
 				return
 			}
 			assert.Empty(t, diags)
@@ -2144,11 +2142,11 @@ func TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant(t *test
 	}
 }
 
-// TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch pins where a type
-// array's variant reads what a folding branch writes: at the branch's own
+// TestRefinement_AnEntryBoundBesideATypeListIsReadAtTheEntry pins where a type
+// array's variant reads what a folding entry writes: at the entry's own
 // pointer, so a count past 64 bits the variant keeps is kept and reported where
-// the branch writes it, beside the count it states.
-func TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch(t *testing.T) {
+// the entry writes it, beside the count it states.
+func TestRefinement_AnEntryBoundBesideATypeListIsReadAtTheEntry(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
 		"    OnBranch: {type: [string, integer], allOf: [{maxLength: 99999999999999999999, minLength: 1}]}\n"))
@@ -2166,9 +2164,9 @@ func TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/schemas/OnBranch/allOf/0"), diags[0].Provenance.Pointer)
 }
 
-// TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:
+// TestRefinement_AnEmptyAllOfOnAnEntryIsKept pins an entry writing `allOf: []`:
 // nothing flattens it, so its keyword stays, as in a composition.
-func TestRefinement_AnEmptyAllOfOnABranchIsKept(t *testing.T) {
+func TestRefinement_AnEmptyAllOfOnAnEntryIsKept(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Holder:
       type: object
@@ -2179,10 +2177,10 @@ func TestRefinement_AnEmptyAllOfOnABranchIsKept(t *testing.T) {
 }
 
 // TestRefinement_KeywordsBesideARefAreNotConjuncts pins where a refinement stops:
-// an allOf beside a $ref, or beside a $dynamicRef, is no refinement, and a branch
+// an allOf beside a $ref, or beside a $dynamicRef, is no refinement, and an entry
 // TestRefinement_AnAllOfBesideARefJoinsItsConjunction pins that an allOf
 // beside a $ref adds its entries to the conjunction the $ref is one conjunct
-// of, so a branch speaks for the position as it would beside no $ref, and that
+// of, so an entry speaks for the position as it would beside no $ref, and that
 // a $dynamicRef the position does not expand, kept on its carrier, masks no
 // kind: the conjuncts beside it decide, and nothing makes a model of a string.
 func TestRefinement_AnAllOfBesideARefJoinsItsConjunction(t *testing.T) {
@@ -2237,20 +2235,20 @@ func TestRefinement_DeclaredBeforeItsTarget(t *testing.T) {
 // either order, what holds it consumed and the one overlapping it kept.
 func TestRefinement_TheValueSetWithinMostOthersWins(t *testing.T) {
 	t.Parallel()
-	for branches, overlapping := range map[string]string{
+	for entries, overlapping := range map[string]string{
 		"{enum: [a, b, c]}, {enum: [a, b]}, {enum: [b, c, d]}": "openapi:allOf/2",
 		"{enum: [b, c, d]}, {enum: [a, b]}, {enum: [a, b, c]}": "openapi:allOf/0",
 	} {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    Holder:\n      type: object\n"+
-			"      properties:\n        f: {allOf: ["+branches+"]}\n"))
+			"      properties:\n        f: {allOf: ["+entries+"]}\n"))
 		openapitest.RequireNoErrorDiags(t, diags)
 		p := propertyOf(t, doc, "Holder", "f")
 		en, ok := doc.Types[p.Type.Target].(*ir.Enum)
-		require.True(t, ok, "%s: got %T", branches, doc.Types[p.Type.Target])
-		assert.Len(t, en.Members, 2, branches)
-		assert.Empty(t, p.Unmodeled, "%s: the node the position owns keeps what it keeps", branches)
+		require.True(t, ok, "%s: got %T", entries, doc.Types[p.Type.Target])
+		assert.Len(t, en.Members, 2, entries)
+		assert.Empty(t, p.Unmodeled, "%s: the node the position owns keeps what it keeps", entries)
 		assert.Equal(t, []string{overlapping}, slices.Sorted(maps.Keys(en.Unmodeled)),
-			"%s: it holds the narrower set, and keeps the one overlapping it", branches)
+			"%s: it holds the narrower set, and keeps the one overlapping it", entries)
 	}
 }
 
@@ -2269,10 +2267,10 @@ func TestRefinement_ANullBothConjunctsAdmitIsAValue(t *testing.T) {
 	}
 }
 
-// TestRefinement_ABranchDisagreeingStaysWhole pins the fold in a refinement: two
-// branches disagreeing keep every keyword whole, on the carrier and on a node, and
+// TestRefinement_AnEntryDisagreeingStaysWhole pins the fold in a refinement: two
+// entries disagreeing keep every keyword whole, on the carrier and on a node, and
 // neither reaches a typed field, in either order.
-func TestRefinement_ABranchDisagreeingStaysWhole(t *testing.T) {
+func TestRefinement_AnEntryDisagreeingStaysWhole(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Str'}"
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", refinementTargets+`    Holder:
@@ -2304,10 +2302,10 @@ func TestRefinement_ABranchDisagreeingStaysWhole(t *testing.T) {
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/2")
 }
 
-// TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing pins a refinement's
-// inline branch under an $id naming another URI: its `not` names A there, so it
+// TestRefinement_AnEntryReadAgainstAnotherBaseFoldsNothing pins a refinement's
+// inline entry under an $id naming another URI: its `not` names A there, so it
 // is kept whole, with the reason, rather than folded onto the use.
-func TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
+func TestRefinement_AnEntryReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/n.json', type: string}
     Str: {type: string}

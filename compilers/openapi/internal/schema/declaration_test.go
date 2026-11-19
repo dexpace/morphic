@@ -740,7 +740,7 @@ func TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType(t *testing.T) {
 		{"a plain union of a model closed on its own", "{oneOf: [{$ref: " + live + "}], unevaluatedProperties: false}", false},
 		{"a type array with no object", "{type: [string, integer], unevaluatedProperties: false}", false},
 		{"the top type", "{unevaluatedProperties: false}", false},
-		{"a model a false branch closed", "{type: object, properties: {k: {type: string}}, allOf: [false], unevaluatedProperties: false}", false},
+		{"a model a false entry closed", "{type: object, properties: {k: {type: string}}, allOf: [false], unevaluatedProperties: false}", false},
 		{"a model", "{type: object, properties: {k: {type: string}}, unevaluatedProperties: false}", true},
 		{"a composition", "{allOf: [{$ref: " + live + "}, {type: object, properties: {k: {type: string}}}], unevaluatedProperties: false}", true},
 		{"a type array with an object", "{type: [object, string], properties: {k: {type: string}}, unevaluatedProperties: false}", true},
@@ -810,17 +810,17 @@ func unevaluatedEntries(doc *ir.Document) map[jsontext.Pointer][]string {
 	return out
 }
 
-// TestClosureTyped_ReadsAlikeInEitherBranchOrder pins that where an allOf's
-// branches stand changes nothing of where its `unevaluatedProperties: false`
-// goes: a composition holds it as its closure, a false branch closes the model
-// and leaves it kept, and a branch's own stays with that branch, in either
-// order, but for the index in the kept branch's key.
-func TestClosureTyped_ReadsAlikeInEitherBranchOrder(t *testing.T) {
+// TestClosureTyped_ReadsAlikeInEitherEntryOrder pins that where an allOf's
+// entries stand changes nothing of where its `unevaluatedProperties: false`
+// goes: a composition holds it as its closure, a false entry closes the model
+// and leaves it kept, and an entry's own stays with that entry, in either
+// order, but for the index in the kept entry's key.
+func TestClosureTyped_ReadsAlikeInEitherEntryOrder(t *testing.T) {
 	t.Parallel()
 	const live, closes = "{$ref: '#/components/schemas/Live'}", ", unevaluatedProperties: false"
 	for name, tc := range map[string]struct{ other, beside string }{
 		"a composition":        {"{type: object, properties: {k: {type: string}}}", closes},
-		"a false branch":       {"false", closes},
+		"a false entry":        {"false", closes},
 		"a branch's own false": {"{type: object, properties: {k: {type: string}}" + closes + "}", ""},
 	} {
 		t.Run(name, func(t *testing.T) {

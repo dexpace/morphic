@@ -409,7 +409,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this allOf lowered to a node of kind \"model\", which has no home for type written on this inline branch; kept verbatim under Unmodeled",
+      "message": "this allOf lowered to a node of kind \"model\", which has no home for type written on this inline entry; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Inline/allOf/1"
@@ -429,7 +429,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-disjoint-conjuncts.yaml",
-      "hash": "6b922a7b7d94e17392622ee218c7097c4cbad0f53f60b9b9e29f658171ada076"
+      "hash": "3f427829d58c4759ac8938e5eaddf24edf00e8a9d7855e9d5783c30de789978b"
     }
   ]
 }

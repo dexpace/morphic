@@ -273,7 +273,7 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 		{
 			// Two inline copies of one node, each owning the type of its own
 			// position: the types are told apart by what they say.
-			name: "identical inline declarations in two branches",
+			name: "identical inline declarations in two entries",
 			src: schemas("Copies: {allOf: [{type: object, properties: {owner: {type: object, properties: {name: {type: string}}}, a: {type: string}}}, " +
 				"{type: object, properties: {owner: {type: object, properties: {name: {type: string}}}, b: {type: string}}}]}"),
 			want: passed(OracleSequenceOrder),
@@ -306,8 +306,8 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want: passed(OracleSequenceOrder),
 		},
 		{
-			// The kept branch is named by its index, which reversing moves.
-			name:  "a false branch kept under a name carrying its index",
+			// The kept entry is named by its index, which reversing moves.
+			name:  "a false entry kept under a name carrying its index",
 			src:   schemas("Never: {allOf: [{type: object, properties: {a: {type: string}}}, false]}"),
 			kept:  []string{`"openapi:allOf/1"`},
 			codes: map[string]string{"openapi/false-schema": s + "/Never/allOf/1"},
@@ -315,13 +315,13 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 		},
 		{
 			// Two members whose names are one once their indices are erased.
-			name: "two branches kept under names that differ by index alone",
+			name: "two entries kept under names that differ by index alone",
 			src:  schemas("Inline: {allOf: [{type: string}, {type: integer}]}"),
 			kept: []string{`"openapi:allOf/0"`, `"openapi:allOf/1"`},
 			want: passed(OracleSequenceOrder),
 		},
 		{
-			// A reference names the first branch, so the sequence is left as it
+			// A reference names the first entry, so the sequence is left as it
 			// is and the oracle has nothing to swap.
 			name: "a sequence a reference points into is not permuted",
 			src: schemas("N: {allOf: [{type: object, properties: {p: {type: number}}}, {type: object, properties: {p: {type: integer}}}]}",
@@ -414,10 +414,10 @@ func TestCheck_SequenceOrderOracleHoldsOnTheRealCompiler(t *testing.T) {
 			want: passed(OracleSequenceOrder),
 		},
 		{
-			// The two branches name each other through their $id, which no
+			// The two entries name each other through their $id, which no
 			// pointer spells, so the allOf is reversed. Which of the two the
 			// comparison meets first decides their digests, and reversing the
-			// branches changes which, so each order found the other different.
+			// entries changes which, so each order found the other different.
 			name: "two nodes beneath an allOf naming each other",
 			src: schemas("X: {allOf: [{$id: 'https://example.test/a', type: object, properties: " +
 				"{toB: {$ref: 'https://example.test/b'}, x: {type: string}}}, " +
@@ -465,8 +465,8 @@ func listsOfModels(xq, yq string) string {
 
 // TestCheck_SequenceOrderOracleDeclinesASpecOfTwoFiles pins that a source
 // whose compile reads another file is declined: that file names the first
-// branch of N's allOf by its index, which the walk does not read, so reversing
-// the branches would change what the reference names, not only their order.
+// entry of N's allOf by its index, which the walk does not read, so reversing
+// the entries would change what the reference names, not only their order.
 func TestCheck_SequenceOrderOracleDeclinesASpecOfTwoFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -509,7 +509,7 @@ func TestSequenceOrderInvariant_GivesOneVerdictOnEveryRun(t *testing.T) {
 	}
 }
 
-// anchorChain is a spec whose allOf's first branch names the first of n+1
+// anchorChain is a spec whose allOf's first entry names the first of n+1
 // schemas it defines, each but the last an object whose property names the
 // next by its $anchor.
 func anchorChain(n int) string {
@@ -571,10 +571,10 @@ func plant(t *testing.T, edit planted) {
 // Fixtures of the detection rows, each passing the oracle as the real
 // compiler lowers it.
 var (
-	// fixtureX: two branches declaring different members.
+	// fixtureX: two entries declaring different members.
 	fixtureX = schemas("AB: {allOf: [{type: object, properties: {alpha: {type: string}}}, " +
 		"{type: object, properties: {beta: {type: integer}}}]}")
-	// fixtureY: both branches declare p, the same way.
+	// fixtureY: both entries declare p, the same way.
 	fixtureY = schemas("AB: {allOf: [{type: object, properties: {p: {type: string}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: string}, beta: {type: integer}}}]}")
 	// fixtureMixins: two named conjuncts, which the model composes as mixins.
@@ -582,7 +582,7 @@ var (
 		"alpha: {type: object, properties: {x: {type: string}}}", "beta: {type: object, properties: {y: {type: string}}}")
 	// fixtureKept: an allOf the model keeps verbatim, under not.
 	fixtureKept = schemas("AB: {type: object, not: {allOf: [{required: [alpha]}, {required: [beta]}]}}")
-	// fixtureZ: both branches declare p, as an object of their own.
+	// fixtureZ: both entries declare p, as an object of their own.
 	fixtureZ = schemas("AB: {allOf: [{type: object, properties: {p: {type: object, properties: {x: {type: string}}}, alpha: {type: string}}}, " +
 		"{type: object, properties: {p: {type: object, properties: {y: {type: string}}}, beta: {type: string}}}]}")
 	// fixtureBeneath: AB's p ties alpha's string and an object AB writes, a
@@ -827,8 +827,8 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			contains: []string{"document depends on sequence order"},
 		},
 		{
-			// A kept allOf compares as a multiset of its branches.
-			name: "a branch of a kept allOf listed twice in one order",
+			// A kept allOf compares as a multiset of its entries.
+			name: "an entry of a kept allOf listed twice in one order",
 			src:  fixtureKept,
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				m, ok := doc.Types[abID].(*ir.Model)
@@ -846,7 +846,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 		},
 		{
 			// The two reports differ in which member they name, not only in
-			// which branch, so they are no tie.
+			// which entry, so they are no tie.
 			name: "a report moving to another member",
 			src:  fixtureY,
 			edit: func(_ *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
@@ -869,7 +869,7 @@ func TestSequenceOrderInvariant_FindsWhatDiffers(t *testing.T) {
 			edit: func(t *testing.T, reversed bool, doc *ir.Document, diags []ir.Diagnostic) (*ir.Document, []ir.Diagnostic, error) {
 				m, ok := doc.Types["t/openapi/components/schemas/X"].(*ir.Model)
 				require.True(t, ok, "the fixture must lower X to a model")
-				require.Len(t, m.Properties, 1, "the fixture must fold X's one branch into it")
+				require.Len(t, m.Properties, 1, "the fixture must fold X's one entry into it")
 				if reversed {
 					m.Properties[0].Type.Target = "t/prim/integer"
 				}
@@ -1455,7 +1455,7 @@ func TestSequenceOrderInvariant_DeclinesWhatItCannotPermute(t *testing.T) {
 		{"a source that is no YAML", "\t- a: [\n", DeclineNotYAML},
 		{"an anchor given twice", schemas("A: &a {type: string}", "B: &a {type: integer}",
 			"AB: {allOf: [{title: a}, {title: b}]}"), DeclineAnchorRedefined},
-		{"two branches alike", schemas("AB: {allOf: [{title: a}, {title: a}]}"), DeclineNothingToPermute},
+		{"two entries alike", schemas("AB: {allOf: [{title: a}, {title: a}]}"), DeclineNothingToPermute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := sequenceOrderInvariant(context.Background(), "spec.yaml", []byte(tc.src), true)

@@ -199,7 +199,7 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 }
 
 // classifyConjoined is how s, written at pointer, lowers the union u it
-// conjoins with a composing body, beside it or on a branch of its allOf, once
+// conjoins with a composing body, beside it or on an entry of its allOf, once
 // u's own shape allows distribution: kept whole where the discriminator standing
 // with u routes to branches composing s (composedByBranch), composed as a mixin
 // where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion), kept
@@ -282,13 +282,13 @@ func readPassed(c lowering.Ctx, s *statement.Schema, u unionAt) (passedRead, boo
 		r.passed = append(r.passed, w.union(set))
 	}
 	r.rest = w.written(s, w.nullable)
-	for _, e := range allOfBranches(c, s, "").branches {
+	for _, e := range allOfEntries(c, s, "").entries {
 		bs := e.schema.Schema
 		switch {
 		case !stated(bs):
 		case e.schema.Ref != nil:
 			r.rest = r.rest.and(w.of(e.schema))
-		case bs == u.holder || u.branch && declaresUnion(bs):
+		case bs == u.holder || u.entry && declaresUnion(bs):
 			r.rest = r.rest.and(w.written(bs, w.nullable))
 			if bs != u.holder {
 				r.passed = append(r.passed, unionsIn(&w, bs))
