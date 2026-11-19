@@ -63,9 +63,10 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 					})
 				diags = append(diags, unionDiags...)
 				if u.dead != nil {
-					// The report names an entry's union by the entry it is written on.
+					// The report names an entry's union by the entry it is written on,
+					// and a dead branch by the null the rest keeps out, not by a body.
 					reported := u
-					reported.branch = st.of != nil
+					reported.branch, reported.nulls = st.of != nil, true
 					diags = append(diags, keepDeadBranches(c, &def.Unmodeled, at, reported, st.pointer(pointer))...)
 				}
 				cons, consDiags := ConstraintsOf(c, &def.Unmodeled, s, st.voices(c, s, pointer), pointer, st.takes(c, s))
@@ -494,6 +495,9 @@ type unionAt struct {
 	discAt jsontext.Pointer
 	// branch marks a holder that is an allOf branch, no schema at a position.
 	branch bool
+	// nulls marks a union whose dead branches admit nothing but a null the
+	// rest of the position keeps out (pairDeadNulls), beside any body.
+	nulls bool
 	// distributed marks a union a body is distributed across, each of whose
 	// variants keeps the combinator it does not elect (buildComposedVariant).
 	distributed bool

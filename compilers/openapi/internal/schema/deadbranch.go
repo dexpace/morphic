@@ -170,7 +170,7 @@ func diagDeadBranches(c lowering.Ctx, body *statement.Schema, u unionAt, dead []
 		}
 		names = append(names, pathFrom(pointer, d.at)+": "+word)
 	}
-	r := deadReport{listed: strings.Join(names, ", "), dead: len(found)}
+	r := deadReport{listed: strings.Join(names, ", "), dead: len(found), nulls: u.nulls}
 	r.branches, r.key, _ = u.branches(c)
 	if u.branch {
 		r.on = pathFrom(pointer, u.at)
@@ -196,6 +196,7 @@ type deadReport struct {
 	listed   string
 	routes   string
 	dead     int
+	nulls    bool
 }
 
 // subject opens a report of a union beside its body, which admits objects
@@ -226,6 +227,10 @@ func (r deadReport) some(forbids, kept bool) string {
 	if r.on != "" {
 		return fmt.Sprintf("%d of the %d branches of the %s on %s %s no value the rest of the allOf admits (%s), "+
 			"so no instance satisfies %s: %s", r.dead, len(r.branches), r.key, r.on, verb, r.listed, pronoun, rest)
+	}
+	if r.nulls {
+		return fmt.Sprintf("%d of the %d branches of this %s %s nothing but null, which the rest of this schema keeps "+
+			"out (%s), so no instance satisfies %s: %s", r.dead, len(r.branches), r.key, verb, r.listed, pronoun, rest)
 	}
 	opening, _, neither := r.subject(forbids)
 	return fmt.Sprintf("%s %d of its branches %s %s (%s), so no instance satisfies %s: %s",

@@ -444,6 +444,33 @@ func TestUnion_ANullBranchOfAPairIsDeadWhereTheOtherKeepsNullOut(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Dead"))
 }
 
+// TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut holds that the
+// warning for a branch of a pair admitting nothing but a null the rest keeps
+// out says so, beside a body of strings or none, where no body admits objects.
+func TestUnion_ADeadNullBranchOfAPairIsReportedByTheNullKeptOut(t *testing.T) {
+	t.Parallel()
+	const pair = "oneOf: [{type: string}], anyOf: [{type: string, minLength: 1}, {$ref: '#/components/schemas/Null'}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Null: {type: 'null'}
+    Flat: {oneOf: [{$ref: '#/components/schemas/Null'}, {type: string}], anyOf: [{type: string, minLength: 1}]}
+    Body: {type: [string, 'null'], `+pair+`}
+    Beside: {allOf: [{type: [string, 'null']}], `+pair+`}
+`))
+	for name, want := range map[string]string{
+		"Flat":   "1 of the 2 branches of this oneOf admits nothing but null, which the rest of this schema keeps out (oneOf/0",
+		"Body":   "1 of the 2 branches of this anyOf admits nothing but null, which the rest of this schema keeps out (anyOf/1",
+		"Beside": "1 of the 2 branches of this anyOf admits nothing but null, which the rest of this schema keeps out (anyOf/1",
+	} {
+		var messages []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				messages = append(messages, d.Message)
+			}
+		}
+		require.Len(t, messages, 1, name)
+		assert.Contains(t, messages[0], want, name)
+	}
+}
+
 // TestUnion_APairWhoseElectedVariantsAllAdmitNullAloneKeepsThem holds that
 // where every variant of the union a position elects admits null alone and
 // the other union keeps null out, none is read as dead: the two share no
