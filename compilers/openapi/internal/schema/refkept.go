@@ -101,15 +101,15 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		if r.principalIs(e) && e.schema.Ref != nil || principalTwin(&w, r, e) {
 			continue
 		}
-		setWrittenHere := standing && r.principalIs(e)
+		standsHere := standing && r.principalIs(e)
 		switch {
 		case e.schema.Ref != nil:
 			k.refEntries = append(k.refEntries, wholeRefEntry{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
 			// The principal's node keeps what it passes over (preserveUnusedCombinator).
-			read := residueRead(c, &w, r, typed, e, voices.speaks[i], setWrittenHere, collapsed && r.principalIs(e), homes,
+			read := residueRead(c, &w, r, typed, e, voices.speaks[i], standsHere, collapsed && r.principalIs(e), homes,
 				pair && !r.principalIs(e))
-			residues[i] = unmergedEntryKeys(e.schema.Schema, lessPattern(read, setWrittenHere && patternBeside(s, e.schema.Schema, homes)))
+			residues[i] = unmergedEntryKeys(e.schema.Schema, lessPattern(read, standsHere && patternBeside(s, e.schema.Schema, homes)))
 		}
 	}
 	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, r.principal)
@@ -123,12 +123,12 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // position lowered, leaving no residue: a wrapper's allOf, what folds where e
 // speaks, what the principal says (said) but a union of a pair (pair,
 // writesUnionPair), and a key of readDomain the principal standing at the
-// position, e where setWrittenHere says so, reads or keeps on its node (keepUnread).
+// position, e where standsHere says so, reads or keeps on its node (keepUnread).
 // A value set's union and content vocabulary are kept, as its node holds
 // neither; another principal's union is its node's, or the collapsed
 // reference's (collapsedPrincipal), and its content vocabulary its own
 // reading's (unplacedContent).
-func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfEntry, speaks, setWrittenHere, collapsed bool,
+func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfEntry, speaks, standsHere, collapsed bool,
 	homes boundHomes, pair bool,
 ) func(string) bool {
 	bs := e.schema.Schema
@@ -141,13 +141,13 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 			// A union of a pair is kept whatever the principal says, as one
 			// schema writing both keeps the one it passes over.
 			return false
-		case setWrittenHere && unionKeyword(key):
+		case standsHere && unionKeyword(key):
 			return !set
-		case setWrittenHere && slices.Contains(contentKeywords, key):
+		case standsHere && slices.Contains(contentKeywords, key):
 			// The principal's own reading keeps what its node holds no
 			// Encoding for (lowerPrincipal), so the entry keeps none again.
 			return !set
-		case setWrittenHere:
+		case standsHere:
 			return keyBit(key) != 0 || said(w, r, typed, bs, key)
 		default:
 			return said(w, r, typed, bs, key)
