@@ -14,7 +14,7 @@ import (
 )
 
 // defaultDiagLimit is how many findings of one code and severity the text
-// format writes when --diag-limit is not given: enough to show what the code
+// format writes when --diagnostics-per-code-limit is not given: enough to show what the code
 // reports and where, few enough that a spec drawing thousands of findings
 // fits on a screen, its counts beside them.
 const defaultDiagLimit = 3
@@ -29,7 +29,7 @@ func readTriage(ctx context.Context, path string) ([]triage.Rule, error) {
 
 // writeFindings writes res's findings to stderr in the format opts names: one
 // JSON report, the verdict, held and any warning about the run's cache in it,
-// or text, as many as --show and --diag-limit admit, then that warning.
+// or text, as many as --min-severity and --diagnostics-per-code-limit admit, then that warning.
 func writeFindings(stderr io.Writer, opts specOptions, res *engine.Result, held []error) error {
 	r := report.Report{Failed: res.Failed, Sources: res.Sources, Findings: res.Findings, UnusedRules: res.UnusedRules}
 	if opts.format == formatJSON {
@@ -41,7 +41,7 @@ func writeFindings(stderr io.Writer, opts specOptions, res *engine.Result, held 
 		}
 		return report.WriteJSON(stderr, r)
 	}
-	textOpts := report.TextOptions{Least: ir.Severity(opts.show), PerCode: int(opts.limit)}
+	textOpts := report.TextOptions{Least: ir.Severity(opts.minSeverity), PerCode: int(opts.limit)}
 	if err := report.WriteText(stderr, r, textOpts); err != nil {
 		return err
 	}

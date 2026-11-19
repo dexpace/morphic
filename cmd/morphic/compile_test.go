@@ -128,7 +128,7 @@ func TestRun_UsageErrors(t *testing.T) {
 			`invalid argument "" for "--fail-on" flag`, "morphic compile"},
 		{"explain with output", []string{"compile", spec, "--explain", "", "-o", "ir.json"},
 			"--explain writes no document, so --output has nothing to write", "morphic compile"},
-		{"repeated option", []string{"compile", spec, "--opt", "a=1", "--opt", "a=2"},
+		{"repeated option", []string{"compile", spec, "--compiler-option", "a=1", "--compiler-option", "a=2"},
 			`option "a" set more than once`, "morphic compile"},
 	}
 
@@ -192,7 +192,7 @@ func TestRun_CompilerOptionReachesTheCompiler(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", groupingSpec)
 
 	assert.Equal(t, "zoo", groupNameOf(t, spec), "the default groups by tag")
-	assert.Equal(t, "a", groupNameOf(t, spec, "--opt", "grouping=path-prefix"),
+	assert.Equal(t, "a", groupNameOf(t, spec, "--compiler-option", "grouping=path-prefix"),
 		"the compiler option must reach the compiler")
 }
 
@@ -229,7 +229,7 @@ actions:
 `), 0o644))
 
 	var stdout, stderr bytes.Buffer
-	code := run(t.Context(), []string{"compile", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	code := run(t.Context(), []string{"compile", spec, "--compiler-option", "overlay=" + overlay}, &stdout, &stderr)
 	require.Equal(t, 0, code, "stderr: %s", stderr.String())
 
 	var doc ir.Document
@@ -246,14 +246,14 @@ func TestRun_BudgetOptionReachesTheCompiler(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
 	var stdout, stderr bytes.Buffer
-	code := run(t.Context(), []string{"validate", spec, "--opt", "max-source-bytes=8"}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--compiler-option", "max-source-bytes=8"}, &stdout, &stderr)
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "openapi/budget-exceeded")
 	assert.Contains(t, stderr.String(), "past the 8-byte budget")
 
 	stdout.Reset()
 	stderr.Reset()
-	code = run(t.Context(), []string{"validate", spec, "--opt", "max-source-bytes=-1"}, &stdout, &stderr)
+	code = run(t.Context(), []string{"validate", spec, "--compiler-option", "max-source-bytes=-1"}, &stdout, &stderr)
 	assert.Equal(t, 0, code, "stderr: %s", stderr.String())
 }
 
@@ -268,7 +268,7 @@ func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 		{"unusable value", "grouping=alphabetical", `want "tags", "path-prefix" or "extension"`},
 		// A fourth class: the pair is well-formed and the name is known, and the
 		// value is still unusable. Read as "no overlay" it would exit 0 having
-		// applied none, which is the one outcome --opt exists to rule out.
+		// applied none, which is the one outcome --compiler-option exists to rule out.
 		{"empty value", "overlay=", `"overlay": want a file path`},
 		{"non-integer budget", "max-source-bytes=lots", `"max-source-bytes": want an integer`},
 	}
@@ -276,7 +276,7 @@ func TestRun_BadCompilerOptionIsRefused(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var stdout, stderr bytes.Buffer
-			code := run(t.Context(), []string{"compile", spec, "--opt", tc.arg}, &stdout, &stderr)
+			code := run(t.Context(), []string{"compile", spec, "--compiler-option", tc.arg}, &stdout, &stderr)
 			assert.Equal(t, 2, code)
 			assert.Contains(t, stderr.String(), tc.wantErr)
 			assert.Empty(t, stdout.String(), "a refused option must write no document")

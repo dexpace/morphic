@@ -196,16 +196,16 @@ class SweepTest(unittest.TestCase):
         self.assertIn(sweep.__doc__.strip(), out.getvalue())
 
     def test_flags_after_a_double_dash_reach_the_compile(self):
-        args = sweep.parse(["-b", "x", "testdata", "--", "--opt", "a=b"])
+        args = sweep.parse(["-b", "x", "testdata", "--", "--compiler-option", "a=b"])
         got = (args.base, args.corpus, args.flags)
-        self.assertEqual(got, ("x", ["testdata"], ["--opt", "a=b"]))
+        self.assertEqual(got, ("x", ["testdata"], ["--compiler-option", "a=b"]))
         # A build that prints the command line it was given, as its IR.
         echo = self.root / "echo"
         echo.write_text(f"#!{sys.executable}\nimport sys\nprint(' '.join(sys.argv[1:]))\n")
         echo.chmod(0o755)
         spec = self.corpus / "same.yaml"
         got = sweep.compile_one(echo, spec, args.flags, 20)
-        self.assertEqual(got, (0, f"compile --opt a=b -- {spec}\n".encode(), b""))
+        self.assertEqual(got, (0, f"compile --compiler-option a=b -- {spec}\n".encode(), b""))
 
     def test_only_a_spec_that_differs_keeps_its_outputs(self):
         self.sweep(sweep.find_specs([self.corpus]))

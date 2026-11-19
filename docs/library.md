@@ -51,7 +51,7 @@ document behind.
 
 ## Options
 
-Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--opt` vocabulary, or
+Options go in either as text through `RunOptions.CompilerOptions`, the CLI's `--compiler-option` vocabulary, or
 as a typed value such as an `openapi.Options` through `RunOptions.FormatOptions`; set one or the
 other, not both.
 

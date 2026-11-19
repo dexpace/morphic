@@ -985,7 +985,7 @@ by its own spelling, so what the default reads depends on no order references ar
 mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
 reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
 read as that file. The caller may map a URI prefix to a location, a directory or an http(s) URL
-(`Options.Locations`, `--opt locate=<uri-prefix>=<location>`); nothing is mapped by inference. A
+(`Options.Locations`, `--compiler-option locate=<uri-prefix>=<location>`); nothing is mapped by inference. A
 prefix that is no absolute URI ending in `/`, or holds a query or a fragment, a prefix mapped twice,
 and a URL location ending in no `/` are refused as an option error. The
 mapping is applied where a document a URL names is opened, once the URL is spelled one way, before
@@ -6467,7 +6467,7 @@ groups to the remount was weighed and rejected: an ID is opaque to a consumer
 ([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not hold.
 
 So the aliases extension has two readers, which must name the same key: `GroupingExtension.Aliases`
-(`--opt grouping-aliases`), for the groups an alias names, and the key an embedded-policy mapping
+(`--compiler-option grouping-aliases`), for the groups an alias names, and the key an embedded-policy mapping
 reads into an operation's `AlsoMount` ([embedded policy](../emitters/contract/embedded-policy.md)),
 for the mounts in them, which the mapping names as `Unmodeled` holds it, `openapi:x-forge-aliases`
 for the default. A mapping has no default key, so the two pair only where its configuration names

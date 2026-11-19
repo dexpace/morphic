@@ -310,7 +310,7 @@ These all exist already — extend them rather than building a parallel mechanis
   `kind-inference` is excused: that policy, on by default, narrows a schema naming no kind to one,
   and the suite's groups compile under it). The gate checks the core cases, each axis value whose
   `Like` is empty, in `go test ./internal/harness/openapicases`; `make cases` checks every case, as
-  the nightly job does, and `go run ./cmd/morphic-harness -cases full -at N` reproduces one by
+  the nightly job does, and `go run ./cmd/morphic-harness -cases full -case-index N` reproduces one by
   index. A case is written to compile: an oracle declining one for an error diagnostic, the spelling oracle where
   neither side compiled, has made a finding its record must list. The same tests also compile each
   core case, and at each version outside the core the first case writing each other axis value,

@@ -81,12 +81,12 @@ func TestFull_EveryCaseHoldsTheRecords(t *testing.T) {
 }
 
 // products are the products of schema cases in the order morphic-harness
-// counts their cases for -at: the schema cases, then the suite groups.
+// counts their cases for -case-index: the schema cases, then the suite groups.
 func products() []harness.Cases { return []harness.Cases{openapicases.New(), openapicases.Groups()} }
 
 // report fails t once per line, each on a line of its own starting with the
 // case it names, as the nightly run's report reads them, and ending with the
-// -at index that writes the case's documents and verdicts.
+// -case-index index that writes the case's documents and verdicts.
 func report(t *testing.T, path, why string, lines []string) {
 	t.Helper()
 	ps := products()
@@ -95,11 +95,11 @@ func report(t *testing.T, path, why string, lines []string) {
 		name, _, _ = strings.Cut(name, ": listed ")
 		at, ok := caseIndex(ps, name)
 		require.True(t, ok, "%s names no case", name)
-		t.Errorf("%s\t%s: %s; morphic-harness -cases full -at %d", line, path, why, at)
+		t.Errorf("%s\t%s: %s; morphic-harness -cases full -case-index %d", line, path, why, at)
 	}
 }
 
-// caseIndex returns the index -at takes for the case name names across
+// caseIndex returns the index -case-index takes for the case name names across
 // products, counted one product after another, and false for a name no case
 // has.
 func caseIndex(products []harness.Cases, name string) (int, bool) {

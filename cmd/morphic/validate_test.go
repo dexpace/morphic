@@ -262,11 +262,11 @@ func TestValidate_CompilerOptionReachesThePipeline(t *testing.T) {
 		cleanErr.String())
 
 	var stdout, stderr bytes.Buffer
-	code := run(t.Context(), []string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--compiler-option", "overlay=" + overlay}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), "openapi/overlay-failed",
-		"the overlay must have been applied, which only --opt can have done")
+		"the overlay must have been applied, which only --compiler-option can have done")
 	assert.Empty(t, stdout.String(), "validate writes no document")
 }
 
@@ -339,7 +339,7 @@ func TestRun_ValidateReportsAnOverlayRefusalWithTheOverlaysFile(t *testing.T) {
 	want := fmt.Sprintf("%s:5:%d (#/actions/0/update/p/0):", overlay, col)
 
 	var stdout, stderr bytes.Buffer
-	code := run(t.Context(), []string{"validate", spec, "--opt", "overlay=" + overlay}, &stdout, &stderr)
+	code := run(t.Context(), []string{"validate", spec, "--compiler-option", "overlay=" + overlay}, &stdout, &stderr)
 
 	assert.Equal(t, 1, code, "stderr: %s", stderr.String())
 	assert.Contains(t, stderr.String(), want, "the overlay's own file, not the spec's")

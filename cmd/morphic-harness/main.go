@@ -27,31 +27,31 @@ func main() {
 // run parses args and runs what they ask for, writing what it finds to stdout,
 // and returns the process exit code: 0 when nothing is found, 1 when anything
 // is, 2 on a usage or filesystem error. Paths are swept (sweep); -cases checks
-// the schema cases of fmts instead, and -at one of them. It exists so tests
+// the schema cases of fmts instead, and -case-index one of them. It exists so tests
 // can drive the CLI without a subprocess, over formats of their own; only main
 // calls os.Exit.
 func run(ctx context.Context, fmts []format, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("morphic-harness", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	mode := fs.String("cases", "", "")
-	at := fs.Int("at", 0, "")
+	caseIndex := fs.Int("case-index", 0, "")
 	if err := fs.Parse(args); err != nil {
 		return usageError(stderr, err.Error())
 	}
-	atSet := false
-	fs.Visit(func(f *flag.Flag) { atSet = atSet || f.Name == "at" })
+	caseIndexSet := false
+	fs.Visit(func(f *flag.Flag) { caseIndexSet = caseIndexSet || f.Name == "case-index" })
 
 	switch {
-	case *mode == "" && atSet:
-		return usageError(stderr, "-at names a case of -cases")
+	case *mode == "" && caseIndexSet:
+		return usageError(stderr, "-case-index names a case of -cases")
 	case *mode == "":
 		return sweep(ctx, fs.Args(), stdout, stderr)
 	case fs.NArg() > 0:
 		return usageError(stderr, "-cases checks the cases, not paths")
 	case *mode != "core" && *mode != "full":
 		return usageError(stderr, fmt.Sprintf("-cases is core or full, not %q", *mode))
-	case atSet:
-		return checkOne(ctx, fmts, *at, stdout, stderr)
+	case caseIndexSet:
+		return checkOne(ctx, fmts, *caseIndex, stdout, stderr)
 	default:
 		return checkCases(ctx, fmts, *mode == "core", stdout, stderr)
 	}
@@ -98,7 +98,7 @@ type format struct {
 }
 
 // formats returns every product of schema cases -cases checks, in the order
-// -at counts their cases: the OpenAPI schema cases, then the test suite's
+// -case-index counts their cases: the OpenAPI schema cases, then the test suite's
 // groups written as OpenAPI defaults.
 func formats() []format {
 	return []format{
@@ -160,7 +160,7 @@ func checkOne(ctx context.Context, fmts []format, n int, stdout, stderr io.Write
 		}
 		first += count
 	}
-	emitf(stderr, "morphic-harness: -at %d names none of the %d cases\n", n, first)
+	emitf(stderr, "morphic-harness: -case-index %d names none of the %d cases\n", n, first)
 	return 2
 }
 
@@ -214,7 +214,7 @@ func emitf(w io.Writer, layout string, args ...any) {
 
 const usage = `usage:
   morphic-harness <path>...
-  morphic-harness -cases core|full [-at N]
+  morphic-harness -cases core|full [-case-index N]
 
 Each path is a spec file or a directory of specs: every file in it a registered
 compiler claims, to compile, as a format it names, or as its own and broken,
@@ -234,12 +234,12 @@ first two against its neighbours. A finding a format's records list at its case
 or, alike, at the core case it projects to is explained, and so is a spelling
 at a case writing two keywords that differs only where a spelling of the case
 writing either alone does; the rest are a line each, and a summary
-counts, per case oracle, the cases it asked and declined. With -at N, the case
+counts, per case oracle, the cases it asked and declined. With -case-index N, the case
 at index N alone is checked, whichever of core or full is named, and its name,
 its sources and each verdict are written. N counts the cases of one product
 after another: the OpenAPI schema cases, then the JSON Schema Test Suite's
 groups, each written as defaults. A case is written to compile, so an oracle
 declining one for an error diagnostic is reported as a finding is. Exit status
 is 0 when nothing is left to report, 1 when anything is, 2 on a usage error or
-an index naming no case. -at reads no record: it exits 1 on any finding the
+an index naming no case. -case-index reads no record: it exits 1 on any finding the
 case holds, and its output does not say whether a record lists one.`
