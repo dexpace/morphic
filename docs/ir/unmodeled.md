@@ -90,7 +90,7 @@ only after such a keyword. The same gap separates both from the non-extension en
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
 An entry another entry of its carrier holds whole, lying in the same source beneath it with the value
-found there, is kept once, inside the entry holding it: a `readOnly` read out of an `allOf` branch
+found there, is kept once, inside the entry holding it: a `readOnly` read out of an `allOf` entry
 kept whole is `openapi:schema/readOnly` on one parameter and only inside `openapi:schema/allOf/1` on
 another. A key the promotion policy reads is the exception, kept beside what holds it, since a
 promotion reads the kept entries ([promotion](#promotion)).
@@ -125,8 +125,8 @@ document's contract, and who chose it decides what holds it still:
   renames `x-rate-limit`, and its entry's reason is `vendor_extension` for as long as it is kept.
   So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`, and so
   is a coordinate, a declaration's pointer, which moves with the declaration ([keys](#keys)).
-- **An array index in a key is the source's position.** A key passing through an array, as a
-  branch's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
+- **An array index in a key is the source's position.** A key passing through an array, as an
+  entry's `openapi:allOf/1` does, moves when the array is reordered, and can then name another
   construct's entry, as an ID through an index does ([across
   revisions](./identity.md#across-revisions)).
 - **A chain position is the source's too.** The `<i>` of `openapi:reference/<i>/` counts from the

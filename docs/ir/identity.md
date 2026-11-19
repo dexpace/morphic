@@ -61,7 +61,7 @@ in opposite ways:
   position in it, so an entry inserted before it moves the next revision's entity onto the old
   index: `t/anon/paths/~1things/get/parameters/0/schema` is the `sort` parameter's enum in one
   revision and the `color` parameter's in the next, once `color` is listed first. The same holds
-  for every other array a pointer passes through: `allOf`, `anyOf` and `oneOf` branches,
+  for every other array a pointer passes through: `allOf` entries, `anyOf` and `oneOf` branches,
   `prefixItems`, a list of `type`s, an `enum`'s values and a list of `servers`. A consumer
   comparing by ID then attaches one entity's state to another, a wrong match rather than a missing
   one, and nothing about either ID shows it. The golden spec's own history holds a case

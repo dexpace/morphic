@@ -337,7 +337,7 @@ or a mixin known to be no object: one whose own read is cut short, as over `$ref
 loop, composes as written. In JSON Schema any schema may be a conjunct: `allOf: [{$ref: Pet},
 {$ref: Tags}]` is legal and, `Tags` being a list, admits no instance, so it composes `Pet` and keeps
 the `$ref` to `Tags` verbatim under `openapi:$ref` with an info, as it keeps one to a `Scalar`, an
-`Enum`, a union admitting another kind or the top type: no branch the source wrote is dropped,
+`Enum`, a union admitting another kind or the top type: no entry the source wrote is dropped,
 against invariant 2. They are typed `TypeRef` rather than "reference to a `Model`" because a union
 of objects ([below](#a-union-a-composition-names)) and the node a position owns over one are
 referents too. What is *shaped* like `allOf` is the composition itself: one referent per
@@ -353,10 +353,10 @@ kind, which admits strings a `Model` excludes. An `allOf` whose kinds are not an
 one of whose conjuncts states a value set, which is elected before a composition as beside the
 `allOf`, lowers to one use of the conjunct that decides it, short of the cases the OpenAPI
 compiler's rule [`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing: a
-reference to its `$ref`, of several the one lying within more conjuncts, the node an inline branch
+reference to its `$ref`, of several the one lying within more conjuncts, the node an inline entry
 lowers to, a value set's or any other, standing at the position's own pointer and holding the
 bounds of the conjunction, and an alias only where the position writes what no carrier holds. A union written beside the
-`allOf` is one more conjunct, as one on a branch is, unless it shares no kind with the rest, when it
+`allOf` is one more conjunct, as one on an entry is, unless it shares no kind with the rest, when it
 is kept beside what the rest lowers to.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
@@ -379,7 +379,7 @@ The designs this was weighed against:
   say.
 - **Rewriting the `Model` once the registry settles**: the census and each carrier have already
   read the position by then, as a node of its own.
-- **An alias per branch**: `readOnly` and `default` bind a use, and an alias has no field that
+- **An alias per entry**: `readOnly` and `default` bind a use, and an alias has no field that
   reaches a carrier.
 - **The field merge over conjuncts**
   ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): `items` and a
@@ -408,7 +408,7 @@ named none, else a `Mixin`), and so only where the branch is an object
 names no `Base`, and the OpenAPI compiler keeps that branch verbatim on it, so where `S` is a map
 and nothing else that variant is the map's `MapT` ([containers](containers.md)), as such a `Model`
 always is. The composition rides on every variant rather than being merged into one or dropped, so
-no `allOf` branch is flattened. A property `S` declares appears on each variant under its single
+no `allOf` entry is flattened. A property `S` declares appears on each variant under its single
 source-derived `PropID`, since the source declares it once.
 
 A branch admitting no object, nor a null `S` admits, conjoins with `S`, which admits objects alone,
@@ -427,7 +427,7 @@ use binds, is said once, on the `Union` that stands there and the carriers using
 bound, which constrains both sides of the disjunction, on each variant whose kinds it bounds: a
 property count on each variant, each admitting an object, and a string's bound on none, which `S`
 beside `type: object` leaves no instance of. That holds whether `S` writes it beside the `allOf` or on an
-inline branch of it, which conjoins the same way. Keeping such a branch whole on each variant
+inline entry of it, which conjoins the same way. Keeping such an entry whole on each variant
 instead would let the source be rebuilt from any one variant, but it would copy one fact onto as
 many nodes as there are variants, none of them where a reader of the position looks, and tell apart
 two spellings that mean the same.
@@ -464,23 +464,23 @@ Where a discriminator on an ancestor routes to `S`, the route names what `S` low
 `Union` of composed variants would be no subtype of. `S` then stays the `Model` its composition
 lowers to and composes the union by reference, as [below](#a-union-a-composition-names): its last
 `Mixin` names a `Union` of the branches, each the node the branch lowers to alone. No schema
-occupies that `Union`, so it is minted, at the keyword writing the union rather than the branch's
-pointer, which keeps naming the branch's own node. The designs this was weighed against:
+occupies that `Union`, so it is minted, at the keyword writing the union rather than the entry's
+pointer, which keeps naming the entry's own node. The designs this was weighed against:
 
 - **A mapping naming a `Union` of subtypes**, each variant a subtype of the ancestor: a schema
   composing `S` would have a `Union` for its `Base` and leave the hierarchy, and every emitter would
   route one tag to several subtypes.
 - **Distributing and retargeting the route to every variant**: one tag would name several types,
   where a `Mapping` keys one.
-- **Lowering an `allOf` branch writing the union at its own pointer** and naming that node: the
-  branch would be a referent to every reader of the composition, its own keywords on the union rather
+- **Lowering an `allOf` entry writing the union at its own pointer** and naming that node: the
+  entry would be a referent to every reader of the composition, its own keywords on the union rather
   than on `S`, while the same union written beside the `allOf` keeps them on `S`, two shapes for one
   conjunction.
 
 ## A union a composition names
 
 A union of objects a composition names by reference, rather than writing it beside the `allOf` or on
-one of its inline branches, composes as any other referent does
+one of its inline entries, composes as any other referent does
 ([composition entries](#composition-entries)), and one a `oneOf` or `anyOf` writes admitting another
 kind is kept as any conjunct that is no object is:
 the `Model` names it as its `Base` or a `Mixin`, declares what the schema writes itself, and
@@ -514,7 +514,7 @@ takes, and the tag a route to it. It was rejected on input the compiler must low
   `Cat: {allOf: [{$ref: Pet}, {$ref: Breeds}, …]}`, `Pet` routing `Cat` by its name, `Breeds` must
   stay a `Mixin`. Whether a schema distributed would turn on what another schema declares, as
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lets it for a union
-  written beside the `allOf` or on one of its branches.
+  written beside the `allOf` or on one of its entries.
 - **A shared union would be copied.** Each schema composing a union would carry its own copy of the
   union's variants and discriminator, the golden spec's most shared union ten times over, each
   composed variant a node minted per pair of schema and variant, and no node would say that the
