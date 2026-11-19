@@ -328,8 +328,11 @@ func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
 		return "", false
 	}
 	in, placed := lowering.InDocument(c, at.Doc)
-	i := slices.Index(effectiveTypes(target.Schema), statement.KindObject)
-	if !placed || i < 0 || !lowersTypeArray(in, target.Schema, at.Pointer) {
+	if !placed || !lowersTypeArray(in, target.Schema, at.Pointer) {
+		return "", false
+	}
+	i := slices.Index(typingOf(in, target.Schema).types, statement.KindObject)
+	if i < 0 {
 		return "", false
 	}
 	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true
