@@ -427,15 +427,15 @@ func TestConstraints_ABoundBesideAValueSetOrAUnionHasOneHome(t *testing.T) {
 	}
 }
 
-// TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes pins a value bound on an
-// allOf branch folding at a position, where the branch declares a type the bound
-// does not apply to: no Constraints in the document holds it, whichever branch
-// the position lowers by, so the IR does not turn on the branches' order, and
-// the branch keeps it. Neither a type array's variant whose type takes the bound
+// TestConstraints_AnEntryReadsTheBoundsItsOwnTypeTakes pins a value bound on an
+// allOf entry folding at a position, where the entry declares a type the bound
+// does not apply to: no Constraints in the document holds it, whichever entry
+// the position lowers by, so the IR does not turn on the entries' order, and
+// the entry keeps it. Neither a type array's variant whose type takes the bound
 // nor a composed Model reads it.
-func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
+func TestConstraints_AnEntryReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ schema, keyword, branch string }{
+	for _, tc := range []struct{ schema, keyword, entry string }{
 		{"{allOf: [{type: string, minimum: 1}, {type: string, minimum: 2}]}", "minimum", "openapi:allOf/1"},
 		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
 		{"{type: [string, integer], format: x-mine, allOf: [{type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
@@ -450,15 +450,15 @@ func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
 		for _, site := range sitesOf(t, doc) {
 			assert.False(t, site.holds(tc.keyword), "%s: %s", tc.schema, site.pointer)
 		}
-		assert.Contains(t, marshalForTest(t, doc), `"`+tc.branch+`"`, tc.schema)
+		assert.Contains(t, marshalForTest(t, doc), `"`+tc.entry+`"`, tc.schema)
 	}
 }
 
-// TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
-// bits on a folding allOf branch declaring a type that takes no count of its
+// TestConstraints_AnEntryCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
+// bits on a folding allOf entry declaring a type that takes no count of its
 // kind: kept under its own key, once, with the report of a keyword with no
 // home, and not kept again as a count no field states.
-func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
+func TestConstraints_AnEntryCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    Num: {type: number}\n"+
 		"    C: {allOf: [{$ref: '#/components/schemas/Num'}, {type: number, maxLength: 99999999999999999999}]}\n"))

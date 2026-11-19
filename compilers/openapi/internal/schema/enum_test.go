@@ -676,7 +676,7 @@ func TestEnum_ReportsWhyAFormatStayedVerbatim(t *testing.T) {
 
 // TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder holds the allOf judge's reading
 // of ValueType: a field redeclared as an enum whose format the members fit narrows
-// the primitive it restates, whichever branch declares it. With the format left
+// the primitive it restates, whichever entry declares it. With the format left
 // verbatim the two orders kept different declarations.
 func TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder(t *testing.T) {
 	t.Parallel()

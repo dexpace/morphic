@@ -13,10 +13,10 @@ import (
 )
 
 // boundHomes says which bounds the position an allOf is written at has a field
-// for, so that a branch writing one folds there: the value bounds that apply to
+// for, so that an entry writing one folds there: the value bounds that apply to
 // a value of the kinds value (keywordKinds), and the collection bounds; and
-// whether the node it owns carries a number as text, which holds none of a
-// branch's value bounds (keepTextBounds).
+// whether the node it owns carries a number as text, which holds none of an
+// entry's value bounds (keepTextBounds).
 type boundHomes struct {
 	value      kindSet
 	collection bool

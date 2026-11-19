@@ -104,7 +104,7 @@ func baseOf(td ir.TypeDef) ir.TypeID {
 }
 
 // keptAt is an entry a position keeps under Unmodeled["openapi:"+key]. A key
-// naming an allOf branch is reported at the branch, any other at the position.
+// naming an allOf entry is reported at the entry, any other at the position.
 type keptAt struct {
 	key   string
 	value string // the entry's JSON, "" where the row does not say
@@ -449,10 +449,10 @@ func TestCollectionBound_IsReadByTheTypesItsSchemaNames(t *testing.T) {
 	}
 }
 
-// TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames pins a bound
-// written on an inline allOf branch beside a branch naming a type: the bound is
-// kept under its own key where the type cannot take it, in either branch order.
-func TestConstraints_ABranchBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
+// TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames pins a bound
+// written on an inline allOf entry beside an entry naming a type: the bound is
+// kept under its own key where the type cannot take it, in either entry order.
+func TestConstraints_AnEntryBoundIsReadByTheTypesItsSchemaNames(t *testing.T) {
 	t.Parallel()
 	for i, order := range [][]string{{refTo("Arr"), "{minLength: 1}"}, {"{minLength: 1}", refTo("Arr")}} {
 		at := []int{1, 0}[i]
@@ -819,12 +819,12 @@ func TestConstraints_ABoundBesideAUnionItsTypeExcludesIsKept(t *testing.T) {
 	}
 }
 
-// TestAllOf_ABoundBesideABranchsOwnRefIsThePositions pins a bound written
+// TestAllOf_ABoundBesideAnEntrysOwnRefIsThePositions pins a bound written
 // beside the $ref of an allOf entry: a conjunct of the position, as the same
 // bound on an entry of its own is, read by what the position lowers to. One
 // its node takes is held there; one it cannot take keeps the entry, with a
 // report at it; and no node stands at the entry.
-func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
+func TestAllOf_ABoundBesideAnEntrysOwnRefIsThePositions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, schema, kept string
@@ -868,7 +868,7 @@ func TestAllOf_ABoundBesideABranchsOwnRefIsThePositions(t *testing.T) {
 // beside a type list an allOf narrows: the Union's variants and the census
 // beside them both read the kinds the position admits, so a bound only an
 // excluded variant would take is held by none and kept once, whether it is
-// written on a branch or beside the allOf, while the variant the position
+// written on an entry or beside the allOf, while the variant the position
 // admits holds its own.
 func TestConstraints_ATypeListReadsWhatThePositionAdmits(t *testing.T) {
 	t.Parallel()
@@ -939,29 +939,29 @@ func TestConstraints_ANamedSchemasDynamicReferenceIsReadThrough(t *testing.T) {
 	}
 }
 
-// TestConstraints_AnInlineBranchIsReadAtItsOwnPointer pins that an inline
-// branch is read where it is written: its dynamic reference resolves in its own
+// TestConstraints_AnInlineEntryIsReadAtItsOwnPointer pins that an inline
+// entry is read where it is written: its dynamic reference resolves in its own
 // schema resource, so one under an identifier of its own names no anchor of the
 // document's, which makes it the $ref it spells, resolving nowhere, so the
 // position stays a model holding the property count, while one in the
 // document's resource names the array's anchor, which no entry expands, so it
 // masks no kind and the top type the position lowers to holds the count.
-func TestConstraints_AnInlineBranchIsReadAtItsOwnPointer(t *testing.T) {
+func TestConstraints_AnInlineEntryIsReadAtItsOwnPointer(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name, branch string
-		held         *ir.Constraints
-		model        bool
-		errs         []string
+		name, entry string
+		held        *ir.Constraints
+		model       bool
+		errs        []string
 	}{
-		{name: "in the document's resource", branch: "{$dynamicRef: '#list'}", held: &ir.Constraints{MinProps: new(int64(1))}},
-		{name: "in a resource of its own", branch: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
+		{name: "in the document's resource", entry: "{$dynamicRef: '#list'}", held: &ir.Constraints{MinProps: new(int64(1))}},
+		{name: "in a resource of its own", entry: "{$id: 'https://example.com/inner', $dynamicRef: '#list'}",
 			held: &ir.Constraints{MinProps: new(int64(1))}, model: true,
 			errs: []string{"openapi/unresolved-ref at /components/schemas/S/allOf/0"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.branch+"], minProperties: 1}\n"+
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", "    S: {allOf: ["+tc.entry+"], minProperties: 1}\n"+
 				"    List: {$dynamicAnchor: list, type: array, items: {type: string}}\n"))
 			var errs []string
 			for _, d := range diags {

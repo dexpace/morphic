@@ -41,9 +41,9 @@ func TestEntryKept_ContentTwoEntriesWriteApartIsKeptWholeAsItsReason(t *testing.
 
 // TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt pins how a
 // report names what an allOf entry writes beside a $ref that resolves: as
-// written beside that $ref, never as an inline branch, whether each keyword is
+// written beside that $ref, never as an inline entry, whether each keyword is
 // kept under its own key or what it writes is kept whole (#2068). An inline
-// entry writing the same keyword is still named an inline branch.
+// entry writing the same keyword is still named an inline entry.
 func TestEntryKept_WhatARefEntryWritesBesideItsRefIsReportedAsBesideIt(t *testing.T) {
 	t.Parallel()
 	const head = "    T: {type: object, properties: {a: {type: string}}}\n" +

@@ -45,8 +45,8 @@ func TestAllOf_NestedLowersAsFlat(t *testing.T) {
 // TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares pins that the projection
 // sees the distinctions the pairs rely on, so a pair that agrees does so for a
 // reason: a distributed union has variants, the discriminated subtype has its
-// tag, a false branch closes the model, and a required name the base declares
-// is held in Requires. The residue and the false branch are also kept, which
+// tag, a false entry closes the model, and a required name the base declares
+// is held in Requires. The residue and the false entry are also kept, which
 // only a positive Kept shows.
 func TestAllOf_NestedLowersAsFlat_ReachesWhatItCompares(t *testing.T) {
 	t.Parallel()
@@ -169,7 +169,7 @@ func TestAllOf_NestedInlineWrapperFlattens(t *testing.T) {
 
 // TestAllOf_NestedWrapperRequiredAttaches pins that a required list inside a
 // wrapper is read like one at the top: it attaches to a property a flattened
-// branch declares, and a name none declares is listed in Model.Requires.
+// entry declares, and a name none declares is listed in Model.Requires.
 func TestAllOf_NestedWrapperRequiredAttaches(t *testing.T) {
 	t.Parallel()
 	t.Run("wrapper required and nested-nested required attach", func(t *testing.T) {
@@ -286,9 +286,9 @@ func TestAllOf_NestedWrapperBaseSelection(t *testing.T) {
 	}
 }
 
-// TestAllOf_NestedFalseBranchClosesModel pins that a `false` inside a wrapper
+// TestAllOf_NestedFalseEntryClosesModel pins that a `false` inside a wrapper
 // still closes the composition, and is kept at the pointer it was written at.
-func TestAllOf_NestedFalseBranchClosesModel(t *testing.T) {
+func TestAllOf_NestedFalseEntryClosesModel(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
@@ -405,7 +405,7 @@ func TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice(t *testing.T) {
 	}
 }
 
-// TestAllOf_NestedEmptyAllOfKeptVerbatim pins that a branch wrapping an empty
+// TestAllOf_NestedEmptyAllOfKeptVerbatim pins that an entry wrapping an empty
 // allOf is not flattened: it is kept verbatim and reported, never dropped. The
 // source breaks the schema's minItems, so the one error the load reports for it
 // is expected and nothing else.
@@ -443,10 +443,10 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 		"declaration order must not change the types")
 }
 
-// TestAllOf_NestedInlineBranchKeyedByPointer pins that an inline branch inside
+// TestAllOf_NestedInlineEntryKeyedByPointer pins that an inline entry inside
 // a wrapper is kept under a key spelling its path, so it can collide with
-// neither a sibling nor a top-level branch of the same index.
-func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
+// neither a sibling nor a top-level entry of the same index.
+func TestAllOf_NestedInlineEntryKeyedByPointer(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:
@@ -482,12 +482,12 @@ func TestAllOf_NestedInlineBranchKeyedByPointer(t *testing.T) {
 	}
 }
 
-// TestAllOf_ABranchNamingNothingIsNamedForItsSchema pins the name of a $ref
-// branch inside a wrapper whose target names nothing: the schema holding the
+// TestAllOf_AnEntryNamingNothingIsNamedForItsSchema pins the name of a $ref
+// entry inside a wrapper whose target names nothing: the schema holding the
 // list, in either declaration order, as an outside $ref to that pointer lowers
 // it from the other side. Only a target that names nothing lets it through, since
-// a branch holding a $ref takes its target's name first.
-func TestAllOf_ABranchNamingNothingIsNamedForItsSchema(t *testing.T) {
+// an entry holding a $ref takes its target's name first.
+func TestAllOf_AnEntryNamingNothingIsNamedForItsSchema(t *testing.T) {
 	t.Parallel()
 	m := `    M:
       allOf:

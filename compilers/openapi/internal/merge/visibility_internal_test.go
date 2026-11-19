@@ -18,7 +18,7 @@ import (
 //
 // The first three cases cannot catch a plain append, since concatenating an
 // empty Only is a no-op. The five below them do: appending duplicates when both
-// branches agree, unions where allOf intersects, and cannot spell the empty
+// entries agree, unions where allOf intersects, and cannot spell the empty
 // set.
 func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	t.Parallel()
@@ -36,8 +36,8 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 			want: unrestricted,
 		},
 		{
-			// The issue's own reproduction: a first branch that leaves the
-			// field unrestricted must not shadow a later branch's readOnly.
+			// The issue's own reproduction: a first entry that leaves the
+			// field unrestricted must not shadow a later entry's readOnly.
 			name: "only the redeclaration restricts visibility",
 			dst:  unrestricted, src: readOnlyVisibility,
 			want: readOnlyVisibility,
@@ -55,7 +55,7 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 		{
 			// readOnly admits {read, delete, query}; writeOnly admits
 			// {create, update} — disjoint sets whose intersection is empty,
-			// meaning the field can satisfy no lifecycle both branches
+			// meaning the field can satisfy no lifecycle both entries
 			// admit. None is the IR's existing shape for "visible in no
 			// lifecycle" (TypeSpec @invisible), so the empty intersection is
 			// recorded exactly rather than read as unrestricted.
@@ -98,16 +98,16 @@ func TestMergeVisibility_IntersectsUnderAllOfSemantics(t *testing.T) {
 	}
 }
 
-// TestMergeVisibility_ReorderedBranchesAgree pins the one way two branches can
+// TestMergeVisibility_ReorderedEntriesAgree pins the one way two entries can
 // disagree that the table above cannot express: they admit lifecycles that
 // overlap, but list them in different orders. Every case in the table names its
 // operands in one order, so a merge that read the surviving order off dst alone
 // would satisfy all of them and still answer two different slices here.
 //
 // The exact order the merge settles on is not pinned — a set has no preferred
-// spelling — only that both branch orders reach the same one, which is what
+// spelling — only that both entry orders reach the same one, which is what
 // keeps the composition's spelling out of the IR.
-func TestMergeVisibility_ReorderedBranchesAgree(t *testing.T) {
+func TestMergeVisibility_ReorderedEntriesAgree(t *testing.T) {
 	t.Parallel()
 	first := readOnlyVisibility
 	second := ir.Visibility{Only: []ir.Lifecycle{ir.LifecycleQuery, ir.LifecycleRead}}

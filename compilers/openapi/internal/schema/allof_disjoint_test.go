@@ -62,7 +62,7 @@ func disjointReports(diags []ir.Diagnostic) []ir.Diagnostic {
 // TestAllOf_DisjointConjunctsReportOnceAtTheSchema holds every spelling of an
 // allOf whose conjuncts share no value to one warning at the schema, naming
 // each conjunct that narrows the instance types, and to no other warning of
-// the code in the document: an inline branch's own report is an info there.
+// the code in the document: an inline entry's own report is an info there.
 func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 	t.Parallel()
 	// own counts the warnings an entry draws of itself, apart from the report.
@@ -272,23 +272,23 @@ func TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport(t *testing.T) {
 	assert.Equal(t, "/components/schemas/Mid", string(reports[0].Provenance.Pointer))
 }
 
-// TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo holds an inline branch
+// TestAllOf_DisjointInlineEntryReportsItsResidueAsInfo holds an inline entry
 // the schema's report covers to its residue alone: an info that names what is
 // kept, each keyword under its own key, since the warning is the schema's. The
-// residue is the type and the bound the object beside the branch cannot take.
-func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
+// residue is the type and the bound the object beside the entry cannot take.
+func TestAllOf_DisjointInlineEntryReportsItsResidueAsInfo(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, disjointSpec(`{allOf: [`+refObj+`, {type: string, maxLength: 3}]}`, ""))
 
-	var atBranch []ir.Diagnostic
+	var atEntry []ir.Diagnostic
 	for _, d := range doc.Diagnostics {
 		if d.Provenance.Pointer == "/components/schemas/S/allOf/1" {
-			atBranch = append(atBranch, d)
+			atEntry = append(atEntry, d)
 		}
 	}
-	require.Len(t, atBranch, 1, "%+v", doc.Diagnostics)
-	assert.Equal(t, ir.SeverityInfo, atBranch[0].Severity)
-	assert.Contains(t, atBranch[0].Message, "no home for type, maxLength written on this inline branch")
+	require.Len(t, atEntry, 1, "%+v", doc.Diagnostics)
+	assert.Equal(t, ir.SeverityInfo, atEntry[0].Severity)
+	assert.Contains(t, atEntry[0].Message, "no home for type, maxLength written on this inline branch")
 
 	s, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)

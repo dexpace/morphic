@@ -11,7 +11,7 @@ import (
 
 // fieldSpan returns the narrowest schema holding every declaration of a field,
 // and the declaration that names the field: the last to widen that schema, so
-// the first outside the branch holding decls[0]. A model and a wrapper it
+// the first outside the entry holding decls[0]. A model and a wrapper it
 // flattens can share a first or a last declaration while folding different sets,
 // but not this one: a wrapper's is never its own first, and an enclosing fold's
 // is at most the wrapper's first. Folds of one set reach the same declaration.
@@ -33,13 +33,13 @@ func fieldSpan(decls []declaration) (schema, field jsontext.Pointer) {
 	return schema, field
 }
 
-// schemaOf returns the schema a property or an allOf branch at pointer is
+// schemaOf returns the schema a property or an allOf entry at pointer is
 // written in, two tokens above either.
 func schemaOf(pointer jsontext.Pointer) jsontext.Pointer { return pointer.Parent().Parent() }
 
 // identify gives merged an identity of its own, named for field, where a model
 // holding its first declaration without the others would otherwise share it: a
-// $ref to an allOf branch makes one. That is a minted identity, so it takes a
+// $ref to an allOf entry makes one. That is a minted identity, so it takes a
 // namespace of its own (docs/ir/identity.md#the-id-grammar). Otherwise the field
 // keeps the first declaration's, which the walk has already handed out. schema
 // holds every declaration (fieldSpan).

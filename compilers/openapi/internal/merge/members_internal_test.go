@@ -320,7 +320,7 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 // TestPropIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
 // of a member the model declares beside an entry's declaration: its own
 // declaration's, where that is written, unless another model holds that
-// declaration too, as a node interned at the allOf branch writing it does, or
+// declaration too, as a node interned at the allOf entry writing it does, or
 // it is written outside the model's schema, as the body a distributed variant
 // shares is; then one in the composed namespace. The conflict over the entry's
 // declaration sits where that is written either way, naming the member.
@@ -832,7 +832,7 @@ func TestTakenOutside_LeavesOutTheComposingModelsOwn(t *testing.T) {
 // whose Table holds the model's own declaration: it is the model's, so the
 // model brings nothing from that part, folds nothing, and keeps the member's
 // identity, which a fold would move to the composed namespace, as an interned
-// branch writes the declaration.
+// entry writes the declaration.
 func TestPropIndex_ReadsItsOwnDeclarationBackAsItsOwn(t *testing.T) {
 	t.Parallel()
 	reg := membersRegistry()

@@ -62,7 +62,7 @@ func (p position) heldByAnother(i int) bool {
 // members settle in that order too. Only the target is carried. A conjunct says
 // nothing of null, which the reference to the model says (position.null). The
 // pointer is the declaration last to widen the field (fieldSpan), so swapping
-// two branches renames the model, and moves a report on a member it settles
+// two entries renames the model, and moves a report on a member it settles
 // (GitHub #1921, #1992).
 func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int

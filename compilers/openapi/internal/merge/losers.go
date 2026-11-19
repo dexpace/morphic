@@ -14,7 +14,7 @@ import (
 // losingDeclarationKey prefixes the Unmodeled entry a redeclaration the merge could not
 // fold whole is kept under. The "openapi:" namespace is what keeps two source
 // formats' keys from colliding on one node (docs/ir/unmodeled.md#keys); the
-// redeclaration's own pointer completes it, the way an allOf branch's index
+// redeclaration's own pointer completes it, the way an allOf entry's index
 // completes the composition's keys.
 const losingDeclarationKey = "openapi:conflicting-redeclaration"
 

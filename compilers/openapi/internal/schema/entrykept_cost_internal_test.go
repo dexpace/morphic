@@ -42,9 +42,9 @@ func keptOfShape(t *testing.T, src string) (lowering.Ctx, *statement.Schema, all
 		if name != "X" {
 			continue
 		}
-		comp := allOfBranches(l.Ctx, st.Schema, "/components/schemas/X")
-		kepts := make([][]string, len(comp.branches))
-		for i, e := range comp.branches {
+		comp := allOfEntries(l.Ctx, st.Schema, "/components/schemas/X")
+		kepts := make([][]string, len(comp.entries))
+		for i, e := range comp.entries {
 			kepts[i] = keptOf(l.Ctx, keptEntry{entry: e, residue: compositionResidue(l.Ctx, comp, i)})
 		}
 		return l.Ctx, st.Schema, comp, kepts
@@ -108,7 +108,7 @@ func writtenApartOf(c lowering.Ctx, s *statement.Schema, comp allOfComposition, 
 		}
 		raws = append(raws, raw)
 	}
-	for i, e := range comp.branches {
+	for i, e := range comp.entries {
 		if (e.schema.Ref != nil && !failedRef(c, e)) || !stated(e.schema.Schema) || !hasKey(e.schema.Schema, key) ||
 			(kepts != nil && !slices.Contains(kepts[i], key)) {
 			continue
@@ -152,7 +152,7 @@ func TestWrittenApartKeys_AnswersWhatTheirWritersWrite(t *testing.T) {
 				for i, kept := range kepts {
 					for _, key := range kept {
 						wantWriters[key] = writtenApartOf(c, s, comp, key, nil)
-						if failedRef(c, comp.branches[i]) {
+						if failedRef(c, comp.entries[i]) {
 							wantKeepers[key] = writtenApartOf(c, s, comp, key, kepts)
 						}
 					}

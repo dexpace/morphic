@@ -118,11 +118,11 @@ func internOwnNode(c lowering.Ctx, ts *compile.Types, js *statement.Statement, p
 		_, diags := internAlias(c, ts, js.Schema, pointer, ref, fin, stand{})
 		return diags
 	}
-	comp := allOfComposition{pointer: pointer, branches: []allOfBranch{{schema: js, pointer: pointer}}}
+	comp := allOfComposition{pointer: pointer, entries: []allOfEntry{{schema: js, pointer: pointer}}}
 	if js.Ref == nil {
 		comp = readAllOf(c, js.Schema, pointer)
 	}
-	if !slices.ContainsFunc(comp.branches, func(e allOfBranch) bool {
+	if !slices.ContainsFunc(comp.entries, func(e allOfEntry) bool {
 		if e.schema.Ref == nil {
 			return false
 		}

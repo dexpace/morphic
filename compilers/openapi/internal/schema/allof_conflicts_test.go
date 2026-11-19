@@ -19,9 +19,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
+func TestAllOf_OverlappingInlineEntriesReconcile(t *testing.T) {
 	t.Parallel()
-	// Two inline allOf branches redeclare the same fields — the shape GitHub's
+	// Two inline allOf entries redeclare the same fields — the shape GitHub's
 	// webhook `forkee` uses (a documented object plus a doc-stripped duplicate
 	// that marks some fields required). allOf is an intersection, so each wire
 	// name must reconcile to a single property, not append a duplicate.
@@ -65,7 +65,7 @@ func TestAllOf_OverlappingInlineBranchesReconcile(t *testing.T) {
 func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	t.Parallel()
 	// The bare declaration comes first and the richer one second: reconciliation
-	// must still surface every optional detail, so branch order never loses
+	// must still surface every optional detail, so entry order never loses
 	// information (the reverse of the forkee documented-first shape).
 	spec := openapitest.ComponentSpec(`    Tokenish:
       allOf:
@@ -103,7 +103,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder(t *testing.T) {
 	require.Len(t, tok.Examples, 1, "examples adopted from the richer branch")
 }
 
-// TestAllOf_RedeclarationOrsSecret pins that a redaction one branch writes
+// TestAllOf_RedeclarationOrsSecret pins that a redaction one entry writes
 // survives the fold in both declaration orders, and that it costs the fold
 // nothing else: `format: password` names no shape, so both declarations share
 // the bare string's target and every detail folds rather than the losing one
@@ -112,7 +112,7 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 	t.Parallel()
 	secret := "            token: {type: string, format: password}\n"
 	bounded := "            token: {type: string, minLength: 3, description: the token}\n"
-	branch := "        - type: object\n          properties:\n"
+	entry := "        - type: object\n          properties:\n"
 	for _, tc := range []struct{ name, first, second string }{
 		{"password first", secret, bounded},
 		{"password second", bounded, secret},
@@ -120,7 +120,7 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
-				branch + tc.first + branch + tc.second)
+				entry + tc.first + entry + tc.second)
 			doc, diags := schema.LowerSpec(t, spec)
 			assert.Empty(t, diags, "nothing conflicts")
 			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
@@ -149,7 +149,7 @@ func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 	keyed := "            token: {type: string, x-sensitive: true}\n"
 	deprecated := "            token: {type: string, deprecated: true}\n"
 	dated := "            token: {type: string, format: password, deprecated: true, x-sunset: \"2030-01-01\"}\n"
-	branch := "        - type: object\n          properties:\n"
+	entry := "        - type: object\n          properties:\n"
 	for _, tc := range []struct {
 		name, first, second string
 		want                ir.Inferred
@@ -161,7 +161,7 @@ func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
-				branch + tc.first + branch + tc.second)
+				entry + tc.first + entry + tc.second)
 			doc, _ := schema.LowerSpec(t, spec)
 			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
 			require.True(t, ok, "Tokenish should be a model")
@@ -174,7 +174,7 @@ func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
 
 func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Two branches describe the same field differently. The later declaration in
+	// Two entries describe the same field differently. The later declaration in
 	// source order wins the description, and the dropped one is surfaced as an
 	// info diagnostic rather than vanishing silently.
 	spec := openapitest.ComponentSpec(`    Clashish:
@@ -199,10 +199,10 @@ func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 
 func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 	t.Parallel()
-	// allOf is an intersection, so a field one branch types `string` and another
+	// allOf is an intersection, so a field one entry types `string` and another
 	// types `integer` describes an unsatisfiable schema. Reconciliation keeps the
 	// later declaration's shape, where a spec writes the specialization, but must
-	// not swallow the conflict — it names the field and both branch sites so the
+	// not swallow the conflict — it names the field and both entry sites so the
 	// author can find and fix them.
 	spec := openapitest.ComponentSpec(`    Conflictish:
       allOf:
@@ -244,7 +244,7 @@ func TestAllOf_ConflictingRedeclaredTypeDiagnosedAndKept(t *testing.T) {
 // TestAllOf_OverlappingPrimitivesAreReportedNotConflicting pins that two
 // formats whose kinds share values draw one info at the declaration that loses,
 // instead of the unsatisfiable-type warning, keep the later declaration's kind
-// and keep the earlier one, in either branch order.
+// and keep the earlier one, in either entry order.
 func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 	t.Parallel()
 	const at = "/components/schemas/Overlapish/allOf/0/properties/n"
@@ -375,7 +375,7 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
 
 func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Same target type, but the two branches pin a keyword with no order to
+	// Same target type, but the two entries pin a keyword with no order to
 	// different values. The chosen winner is arbitrary source order, so the
 	// dropped pattern is surfaced rather than silently discarded.
 	spec := openapitest.ComponentSpec(`    Boundish:
@@ -407,7 +407,7 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 
 func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
 	t.Parallel()
-	// The reconcilable case: identical target type, the second branch only adds
+	// The reconcilable case: identical target type, the second entry only adds
 	// `required`. This must stay silent — a redeclaration is not by itself a
 	// conflict, only an incompatible one is.
 	spec := openapitest.ComponentSpec(`    Compatish:
@@ -434,7 +434,7 @@ func TestAllOf_CompatibleRedeclarationStaysSilent(t *testing.T) {
 func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 	t.Parallel()
 	// A property declared directly on the allOf schema redeclares a field an inline
-	// branch already contributed; the sibling and the branch declaration reconcile
+	// entry already contributed; the sibling and the entry declaration reconcile
 	// into one property instead of colliding on the wire.
 	spec := openapitest.ComponentSpec(`    Mixish:
       required: [id]
@@ -465,7 +465,7 @@ func TestAllOf_PropertyAlongsideAllOfReconciles(t *testing.T) {
 
 // TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat is
 // TestAllOf_ReconcileAccumulatesRicherDetailWhateverTheOrder with a format that
-// hoists, in the richer branch.
+// hoists, in the richer entry.
 func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Tokenish:
@@ -509,7 +509,7 @@ func TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat(t *testing.T) 
 	assert.Empty(t, tok.Unmodeled)
 }
 
-// TestObject_MapRedeclaredAsAModelIsNoConflict pins that an allOf branch
+// TestObject_MapRedeclaredAsAModelIsNoConflict pins that an allOf entry
 // declaring a property as a map and another declaring it as a model is no
 // conflicting redeclaration: both are objects, and one instance can satisfy
 // both. Comparing node kinds alone reported it, and only in the order where
@@ -530,7 +530,7 @@ func TestObject_MapRedeclaredAsAModelIsNoConflict(t *testing.T) {
 
 func TestAllOf_UntypedRedeclarationDoesNotConflict(t *testing.T) {
 	t.Parallel()
-	// One branch leaves the field schemaless (the top type), the other types it.
+	// One entry leaves the field schemaless (the top type), the other types it.
 	// `any` intersects with everything under allOf, so this is a narrowing, not a
 	// contradiction — it must not be reported.
 	spec := openapitest.ComponentSpec(`    Anyish:
@@ -572,7 +572,7 @@ func TestAllOf_EquivalentNumericBoundsDoNotConflict(t *testing.T) {
 
 func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
 	t.Parallel()
-	// A scalar in one branch and a structural type in the other cannot both hold.
+	// A scalar in one entry and a structural type in the other cannot both hold.
 	spec := openapitest.ComponentSpec(`    Mixed:
       allOf:
         - type: object
@@ -594,7 +594,7 @@ func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
 
 func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
 	t.Parallel()
-	// Two branches redeclare the field as distinct inline objects. Each hoists its
+	// Two entries redeclare the field as distinct inline objects. Each hoists its
 	// own model at its own pointer, so the targets differ — but two objects of the
 	// same kind are not provably contradictory, and conflict detection never
 	// guesses.
@@ -621,14 +621,14 @@ func TestAllOf_DistinctInlineObjectsDoNotConflict(t *testing.T) {
 
 func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Each way a redeclaration can contradict across branches: a differing
+	// Each way a redeclaration can contradict across entries: a differing
 	// minimum, exclusiveMinimum, pattern or multipleOf, a bound and a multipleOf
 	// that differ past the magnitude a rational will build, and two
 	// format-derived primitives (uuid vs date-time).
 	// Each keeps the first declaration but surfaces exactly one conflict naming
-	// the field, both branch sites, and — for the constraint cases — the
+	// the field, both entry sites, and — for the constraint cases — the
 	// offending keyword with both of its conflicting values, so the author
-	// never has to diff both branches by hand.
+	// never has to diff both entries by hand.
 	cases := []struct {
 		name, a, b, wantDetail string
 	}{
@@ -666,7 +666,7 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 	t.Parallel()
 	// The false-positive guards for the constraint path: a keyword present on
-	// only one branch (both branches still carry constraints) is intersected,
+	// only one entry (both entries still carry constraints) is intersected,
 	// not a conflict — and the merge must genuinely carry both keywords
 	// forward on the reconciled property, not just stay quiet about the one it
 	// used to drop; one magnitude spelled two ways is one value, whether or not
@@ -703,8 +703,8 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 			},
 		},
 		{
-			// minimum and exclusiveMinimum are two keywords, so a branch
-			// declaring one and a branch declaring the other intersect to a
+			// minimum and exclusiveMinimum are two keywords, so an entry
+			// declaring one and an entry declaring the other intersect to a
 			// field carrying both — not to whichever the merge picked.
 			name: "minimum and exclusiveMinimum adopted side by side",
 			a:    "{type: number, minimum: 1}",
@@ -720,7 +720,7 @@ func TestAllOf_CompatibleConstraintRedeclarationsStaySilent(t *testing.T) {
 		},
 		{name: "equivalent multipleOf", a: "{type: number, multipleOf: 2}", b: "{type: number, multipleOf: 2.0}"},
 		// Both BigVal keywords at a magnitude math/big will not build as a
-		// rational. The value is the same on either branch, so there is nothing
+		// rational. The value is the same on either entry, so there is nothing
 		// to report; a comparison that gave up on the magnitude instead would
 		// call one value two and fail a --fail-on warning build.
 		{
@@ -773,7 +773,7 @@ func TestAllOf_OpaqueScalarVsPrimitiveNoConflict(t *testing.T) {
 
 func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
 	t.Parallel()
-	// Three branches typing one field differently fold as one set: the first
+	// Three entries typing one field differently fold as one set: the first
 	// declaration wins, and each other is reported against it, so two
 	// diagnostics, though all three pairs are incompatible.
 	spec := openapitest.ComponentSpec(`    ThreeWay:
@@ -796,7 +796,7 @@ func TestAllOf_ThreeWayRedeclarationProducesTwoDiagnostics(t *testing.T) {
 
 func TestAllOf_ThreeWayCompatibleRedeclarationStaysSilent(t *testing.T) {
 	t.Parallel()
-	// When three allOf branches declare the same field with compatible types
+	// When three allOf entries declare the same field with compatible types
 	// (all the same), no conflict is reported.
 	spec := openapitest.ComponentSpec(`    ThreeWayCompat:
       allOf:
@@ -869,9 +869,9 @@ func TestAllOf_TypeConflictMessageNamesBothTypes(t *testing.T) {
 func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 	t.Parallel()
 	// A property declared directly on the schema alongside allOf redeclares a
-	// field the inline branch also declares. The co-declared property is read
+	// field the inline entry also declares. The co-declared property is read
 	// after the allOf, as a schema's own properties are, so it wins the tie and
-	// the branch is reported, and the message must not claim "allOf branches
+	// the entry is reported, and the message must not claim "allOf entries
 	// redeclare" — it must read correctly for a co-declared sibling property too
 	// (merge.PropIndex's MergeProperty folds both cases the same way).
 	spec := openapitest.ComponentSpec(`    Along:
@@ -914,7 +914,7 @@ const redeclaredModelsSpec = `    Meeting:
 
 // composedField returns the model the field wire of the component name composes
 // to, and asserts its ID is the pointer of the declaration naming the field, the
-// component's second allOf branch here, in the composed space, and that it is
+// component's second allOf entry here, in the composed space, and that it is
 // anonymous and points back at that declaration.
 func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model {
 	t.Helper()
@@ -930,9 +930,9 @@ func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model 
 }
 
 // TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem pins GitHub #1085 in both
-// branch orders: the field names one minted model holding both declarations, so
+// entry orders: the field names one minted model holding both declarations, so
 // neither the component's properties nor the inline object's are lost, and the
-// branch order decides nothing but the order inline nodes are named in. The
+// entry order decides nothing but the order inline nodes are named in. The
 // component stays the Base as the sole $ref does in a written allOf, and each
 // declaration keeps the node its own pointer denotes.
 func TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem(t *testing.T) {
@@ -991,7 +991,7 @@ func TestAllOf_AComposedFieldKeepsADiscriminatedBase(t *testing.T) {
 
 // TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes pins a field declared
 // as Plain and as a member of a hierarchy whose discriminator a union holds: one
-// standing with a union on its allOf branch, or an ancestor's beside its oneOf.
+// standing with a union on its allOf entry, or an ancestor's beside its oneOf.
 // The minted model's Base is the one a written allOf of the two elects, in
 // either declaration order.
 func TestAllOf_AComposedFieldElectsTheBaseAWrittenAllOfDoes(t *testing.T) {
@@ -1211,12 +1211,12 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
         - {type: object, properties: {v: %s}}
 `
 	model := "{$ref: '#/components/schemas/A'}"
-	inline := func(branch int) ir.TypeID {
-		return ir.TypeID(fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", branch))
+	inline := func(entry int) ir.TypeID {
+		return ir.TypeID(fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", entry))
 	}
 	for _, tc := range []struct {
 		name, decl string
-		says       func(branch int) ir.TypeID
+		says       func(entry int) ir.TypeID
 	}{
 		{"a constrained alias", "{$ref: '#/components/schemas/MinTwo'}", func(int) ir.TypeID { return componentID("MinTwo") }},
 		{"a title", "{type: object, title: Held}", inline},
@@ -1226,7 +1226,7 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 		{"an XML name", "{type: object, xml: {name: held}}", inline},
 		{"an example", "{type: object, example: {a: held}}", inline},
 	} {
-		for branch, order := range [][2]string{{tc.decl, model}, {model, tc.decl}} {
+		for entry, order := range [][2]string{{tc.decl, model}, {model, tc.decl}} {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, diags, tc.name)
@@ -1236,7 +1236,7 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 			if m.Base != nil {
 				parts = append(slices.Clip(parts), *m.Base)
 			}
-			assert.ElementsMatch(t, []ir.TypeRef{{Target: componentID("A")}, {Target: tc.says(branch)}}, parts, tc.name)
+			assert.ElementsMatch(t, []ir.TypeRef{{Target: componentID("A")}, {Target: tc.says(entry)}}, parts, tc.name)
 		}
 	}
 }
@@ -1317,7 +1317,7 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
 
 // TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart pins a declaration
 // written as the schema another declaration names: an $id at the copy's
-// branch, or at the resource holding the schema, gives the two different
+// entry, or at the resource holding the schema, gives the two different
 // bases, so `#n` names A in one and B in the other, and the copy is kept and
 // reported. Without a $ref the copy says what the schema says, so that schema
 // is the field's type and nothing is kept.
@@ -1442,7 +1442,7 @@ func TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct(t *testing.T) {
 }
 
 // TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind pins GitHub #1391 in
-// both branch orders: a schema writing `properties` and no `type` constrains
+// both entry orders: a schema writing `properties` and no `type` constrains
 // objects and admits a string, so a scalar or an array declared beside it is
 // the narrower, and the field takes it with nothing kept or reported. A schema
 // stating `object`, directly or through its allOf, still conflicts with one,
@@ -1603,7 +1603,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 
 // TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
 // stating no instance type that holds docs or a deprecation, beside a string,
-// in both branch orders. Reached through a $ref, the reference carries them
+// in both entry orders. Reached through a $ref, the reference carries them
 // down to the property, so the string takes the field and the property keeps
 // them. Written at the declaration, alone or composing what it reaches, they
 // are the structure's own, which a string would lose, so the two overlap: the
@@ -1716,7 +1716,7 @@ func TestAllOf_ModelsAlikeAreOneType(t *testing.T) {
 	assert.Equal(t, componentID("Owner"), m.Base.Target, "a copy differing in a nested member composes")
 }
 
-// TestAllOf_AModelComposesWithAMapOrAUnion pins GitHub #1182 in both branch
+// TestAllOf_AModelComposesWithAMapOrAUnion pins GitHub #1182 in both entry
 // orders: a field declared as a model and as a map, or as a model and as a
 // union, names one minted model composing both, as a written allOf of them
 // does, with nothing kept or reported. The component is the Base as the sole
@@ -1752,7 +1752,7 @@ func TestAllOf_AModelComposesWithAMapOrAUnion(t *testing.T) {
 }
 
 // TestAllOf_ContainersOfDifferentModelsComposeTheirMembers pins GitHub #1180 in
-// both branch orders: lists, maps or tuples of two different models stand on
+// both entry orders: lists, maps or tuples of two different models stand on
 // one container whose member is a model composing both, each minted at a
 // position of its own, so both models' properties are reached, with nothing
 // kept or reported.
@@ -1796,7 +1796,7 @@ func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
 }
 
 // TestAllOf_AMemberBehindAnAliasIsJudgedByWhatItStandsFor pins GitHub #1365 in
-// both branch orders: a list's or a map's member written as an enum or a const
+// both entry orders: a list's or a map's member written as an enum or a const
 // beside a bound is an alias of it, judged by its members, so against a uuid no
 // member is, beside a container never empty, the field draws the conflict its
 // direct spelling draws.

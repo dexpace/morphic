@@ -17,7 +17,7 @@ import (
 
 // TestFold_ANarrowerPrimitiveWinsInEitherOrder pins the refinement
 // rule: a redeclaration that narrows a bare primitive loses nothing, so the
-// narrower target wins whichever branch is written first, with no diagnostic
+// narrower target wins whichever entry is written first, with no diagnostic
 // and no kept declaration.
 func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 	t.Parallel()
@@ -56,7 +56,7 @@ func TestFold_ANarrowerPrimitiveWinsInEitherOrder(t *testing.T) {
 
 // TestFold_AUint8NarrowsInt16InEitherOrder pins a containment the
 // old chain omitted: every uint8 is an int16, so int16 declared beside uint8
-// keeps uint8 whichever branch is written first, with nothing reported or kept.
+// keeps uint8 whichever entry is written first, with nothing reported or kept.
 func TestFold_AUint8NarrowsInt16InEitherOrder(t *testing.T) {
 	t.Parallel()
 	var merged [2]ir.TypeRef

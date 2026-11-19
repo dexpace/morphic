@@ -283,7 +283,7 @@ func assertInlineBranchHint(t *testing.T, doc *ir.Document) {
 // assertAllOfDisjointConjuncts pins docs/compilers/openapi.md#allof-disjoint-conjuncts:
 // an allOf whose conjuncts share no value draws one warning at the schema
 // however the contradiction is spelled, a `type` beside the allOf against a
-// $ref, two $refs, or an inline branch against a $ref. The inline branch keeps
+// $ref, two $refs, or an inline entry against a $ref. The inline entry keeps
 // its residue as an info, so one contradiction is one warning; a pair that
 // shares a null draws nothing; and no lowering changes, since the report is all
 // the case adds.
@@ -602,7 +602,7 @@ func assertDiscriminatorInlineSubtype(t *testing.T, doc *ir.Document, _ []ir.Dia
 }
 
 // assertDiscriminatorTransitive covers a hierarchy deeper than the two levels
-// discriminator-inheritance reaches: the subtype's own allOf branch names an
+// discriminator-inheritance reaches: the subtype's own allOf entry names an
 // intermediate schema that declares no discriminator, so the tag value can only
 // come from an ancestor further up (GitHub #305). What each subtype composes is
 // pinned beside its tag, since depth is the point. The undiscriminated chain
@@ -617,7 +617,7 @@ func assertDiscriminatorTransitive(t *testing.T, doc *ir.Document, _ []ir.Diagno
 	assert.Equal(t, componentID("Puppy"), pet.Discriminator.Mapping["puppy"],
 		"the base maps a wire value straight onto its grandchild")
 
-	// base is the schema each subtype's own allOf branch names, which is the only
+	// base is the schema each subtype's own allOf entry names, which is the only
 	// thing a one-hop reading of the chain could see.
 	for _, tc := range []struct{ name, base, value string }{
 		{"Dog", "Pet", "dog"},
@@ -1062,7 +1062,7 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Empty(t, maybe.Unmodeled)
 }
 
-// assertAllOfUnionBranch pins a union written as an allOf branch, distributed
+// assertAllOfUnionBranch pins a union written as an allOf entry, distributed
 // across the rest of the composition as the same union beside the allOf is,
 // and one that only narrows the body or sits on a subtype a route names, which
 // stays with its branch (docs/compilers/openapi.md#union-beside-structure).

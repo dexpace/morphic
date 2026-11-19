@@ -70,7 +70,7 @@ func NewPropIndex(m *ir.Model) *PropIndex {
 }
 
 // MergeProperty appends p to the model, or records it as one more declaration
-// of the field that already carries its wire name: overlapping allOf branches
+// of the field that already carries its wire name: overlapping allOf entries
 // (and properties co-declared alongside allOf) redeclare one logical field
 // under allOf's intersection semantics
 // (docs/compilers/openapi.md#allof-redeclared-property). Callers must set

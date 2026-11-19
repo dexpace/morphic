@@ -62,8 +62,8 @@ func (a *agreement) write(conjunct *statement.Schema) []string {
 		if !read {
 			// A bound no decimal spells, or in the other form than the dialect's,
 			// is the rule table's to report (docs/compilers/openapi.md#constraints).
-			// What else it warns of and keeps, the lowering does where it reads a
-			// branch that folds; a branch kept apart is kept whole instead.
+			// What else it warns of and keeps, the lowering does where it reads an
+			// entry that folds; an entry kept apart is kept whole instead.
 			// Nothing this reading places is kept, so it places at the zero Doc.
 			cons, _, _ = annotation.Constraints(conjunct, annotation.AllBounds, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
 			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
@@ -125,7 +125,7 @@ type boundReading struct {
 // add records one writer's reading of the bound. A writer whose keyword fills no
 // field, a 3.0 exclusive modifier with no bound beside it, one of false, or a
 // value the reader refused, states nothing a value needs to meet, so it parts no
-// writer: where its branch folds, its own reading is reported and kept there.
+// writer: where its entry folds, its own reading is reported and kept there.
 func (b *boundReading) add(bound ir.Constraints) {
 	switch {
 	case bound == ir.Constraints{}:

@@ -112,7 +112,7 @@ func keepAround(c lowering.Ctx, ts *compile.Types, st stand, td ir.TypeDef, read
 	}
 	held = held.saying(k)
 	fin.run(td, read, held)
-	return keepStanding(c, ts, allOfBranches(c, st.of, st.at), held, p, s, pointer, k)
+	return keepStanding(c, ts, allOfEntries(c, st.of, st.at), held, p, s, pointer, k)
 }
 
 // keepStanding keeps k, what one reader keeps of s, the inline principal of
@@ -176,11 +176,11 @@ func heldAgainst(p ir.Unmodeled, comp allOfComposition, s *statement.Schema, poi
 // them holds alike is that wrapper's writing, the outermost standing.
 func aroundOf(p ir.Unmodeled, comp allOfComposition, pointer jsontext.Pointer) []map[string]ir.RawValue {
 	var out []map[string]ir.RawValue
-	for _, b := range comp.branches {
+	for _, b := range comp.entries {
 		if !b.wrapper || !strings.HasPrefix(string(pointer), string(b.pointer)+"/") {
 			continue
 		}
-		if entry, kept := p[comp.branchKey(b.pointer)]; kept {
+		if entry, kept := p[comp.entryKey(b.pointer)]; kept {
 			out = append(out, keptMembers(entry.Value))
 		}
 	}
@@ -252,7 +252,7 @@ func keepApart(c lowering.Ctx, ts *compile.Types, comp allOfComposition, held *p
 	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"the keywords beside %s write %s otherwise than this inline branch, and one entry under a keyword holds "+
 			"one value; the branch's are kept verbatim under Unmodeled under the key naming its entry, %s, the rest of it lowered",
-		comp.subject(), strings.Join(apart, ", "), comp.branchPath(pointer)))
+		comp.subject(), strings.Join(apart, ", "), comp.entryPath(pointer)))
 	return append(diags, routesKept(c, ts, s, apart, pointer)...)
 }
 
@@ -273,7 +273,7 @@ func holdApart(c lowering.Ctx, comp allOfComposition, held *principalKept, p *ir
 			members.Content = append(members.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k.Name}, k.Node)
 		}
 	}
-	kept, diags := annotation.PreserveNodeInto(p, comp.branchKey(pointer), members, shared, c.Place().At(pointer))
+	kept, diags := annotation.PreserveNodeInto(p, comp.entryKey(pointer), members, shared, c.Place().At(pointer))
 	if kept {
 		held.apart, held.apartReason = all, shared
 	}
@@ -297,7 +297,7 @@ func keepBuiltAround(c lowering.Ctx, st stand, td ir.TypeDef, read keySet, held 
 		held.built = sharedOf(cmp.Or(held.built, entry.Reason), entry.Reason)
 	}
 	fin.run(td, read, held)
-	return keepBuilt(c, allOfBranches(c, st.of, st.at), held, p, s, pointer, built)
+	return keepBuilt(c, allOfEntries(c, st.of, st.at), held, p, s, pointer, built)
 }
 
 // takeBuilt removes from p, and returns, the entries written at pointer or

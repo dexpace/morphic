@@ -55,7 +55,7 @@ func TestCompile_AParserPanicIsADiagnostic(t *testing.T) {
 
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef pins the once-per-site
 // promise (#235's acceptance) at the compiler's public surface: a schema $ref
-// to nothing, whether written directly, as an allOf branch, or as a oneOf
+// to nothing, whether written directly, as an allOf entry, or as a oneOf
 // branch, is reported exactly once, by the load phase, naming the reference and
 // why it does not resolve, and the lowering's own report at that position is
 // dropped as the duplicate it is (withoutRereported). In another document the

@@ -810,12 +810,12 @@ func unevaluatedEntries(doc *ir.Document) map[jsontext.Pointer][]string {
 	return out
 }
 
-// TestClosureTyped_ReadsAlikeInEitherBranchOrder pins that where an allOf's
-// branches stand changes nothing of where its `unevaluatedProperties: false`
-// goes: a composition holds it as its closure, a false branch closes the model
-// and leaves it kept, and a branch's own stays with that branch, in either
-// order, but for the index in the kept branch's key.
-func TestClosureTyped_ReadsAlikeInEitherBranchOrder(t *testing.T) {
+// TestClosureTyped_ReadsAlikeInEitherEntryOrder pins that where an allOf's
+// entries stand changes nothing of where its `unevaluatedProperties: false`
+// goes: a composition holds it as its closure, a false entry closes the model
+// and leaves it kept, and an entry's own stays with that entry, in either
+// order, but for the index in the kept entry's key.
+func TestClosureTyped_ReadsAlikeInEitherEntryOrder(t *testing.T) {
 	t.Parallel()
 	const live, closes = "{$ref: '#/components/schemas/Live'}", ", unevaluatedProperties: false"
 	for name, tc := range map[string]struct{ other, beside string }{

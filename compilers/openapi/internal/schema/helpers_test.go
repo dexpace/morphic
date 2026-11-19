@@ -308,7 +308,7 @@ func marshalForTest(t *testing.T, doc *ir.Document) string {
 	return string(out)
 }
 
-// allOfConflictSpec builds a component whose two inline allOf branches each
+// allOfConflictSpec builds a component whose two inline allOf entries each
 // declare field v with the given flow-style schemas, for exercising per-keyword
 // redeclaration conflict detection.
 func allOfConflictSpec(schemaA, schemaB string) string {

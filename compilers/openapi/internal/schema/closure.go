@@ -42,7 +42,7 @@ func closerOf(c lowering.Ctx, s *statement.Schema, comp allOfComposition) closur
 	var entry, declarer closure
 	entries, declarers := 0, 0
 	distributes := unionDeclares(c, s)
-	for _, e := range comp.branches {
+	for _, e := range comp.entries {
 		if e.schema.Truth != statement.Stated {
 			continue
 		}

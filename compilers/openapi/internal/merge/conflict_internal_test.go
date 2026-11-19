@@ -212,8 +212,8 @@ func TestConstraintsConflict_UniqueItemsNeverConflicts(t *testing.T) {
 
 func TestConstraints_UniqueItemsIntersectsToTrue(t *testing.T) {
 	t.Parallel()
-	// allOf is an intersection: a collection satisfying both branches must be
-	// unique whenever either branch requires it, so the merge always adopts
+	// allOf is an intersection: a collection satisfying both entries must be
+	// unique whenever either entry requires it, so the merge always adopts
 	// true and never downgrades true back to false.
 	dst := Constraints(&ir.Constraints{UniqueItems: false}, &ir.Constraints{UniqueItems: true})
 	require.NotNil(t, dst)

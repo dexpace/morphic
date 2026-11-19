@@ -23,9 +23,9 @@ import (
 func TestAllOf_ACollisionPastTheFlatteningDepthIsRefused(t *testing.T) {
 	t.Parallel()
 	spec := func(depth int) string {
-		branch := "{type: object, properties: {data: {$ref: '#/components/schemas/C'}}}"
+		entry := "{type: object, properties: {data: {$ref: '#/components/schemas/C'}}}"
 		for range depth {
-			branch = "{allOf: [" + branch + "]}"
+			entry = "{allOf: [" + entry + "]}"
 		}
 		return openapitest.ComponentSpec(fmt.Sprintf(`    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
@@ -37,7 +37,7 @@ func TestAllOf_ACollisionPastTheFlatteningDepthIsRefused(t *testing.T) {
             - {type: object, properties: {data: {$ref: '#/components/schemas/A'}}}
             - {type: object, properties: {data: {$ref: '#/components/schemas/B'}}}
             - %s
-`, branch))
+`, entry))
 	}
 	refused := func(diags []ir.Diagnostic) int {
 		n := 0

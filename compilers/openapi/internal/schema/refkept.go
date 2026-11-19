@@ -24,7 +24,7 @@ import (
 // outcomeKeeps is what a position that lowered to a reference keeps verbatim: the
 // census keywords it wrote, described by shape where no refinement decided it,
 // the value bounds of those a number carried as text holds none of (text), the
-// $ref branches of its allOf its lowering left unread, what its inline branches
+// $ref entries of its allOf its lowering left unread, what its inline entries
 // keep (entryKeeps), the null branches a collapsed union lifts that say more
 // than their null (nullBranchKeeps), and the union keywords beside the allOf it
 // keeps as validation logic, their branches declaring no shape (keptUnion).
@@ -33,31 +33,31 @@ type outcomeKeeps struct {
 	text       []string
 	shape      string
 	comp       allOfComposition
-	branches   []keptBranch
+	refEntries []wholeRefEntry
 	entries    []keptEntry
 	nulls      []keptNullBranch
 	validation []string
 	// refined marks a refinement deciding the position, which electing
 	// principal, nil for none, describes it (refinedShape).
 	refined   bool
-	principal *allOfBranch
+	principal *allOfEntry
 }
 
-// keptBranch is one $ref branch of an allOf a refinement keeps whole, the
+// wholeRefEntry is one $ref entry of an allOf a refinement keeps whole, the
 // position having lost it, and how it stood in the election (voteOf).
-type keptBranch struct {
-	entry allOfBranch
+type wholeRefEntry struct {
+	entry allOfEntry
 	vote  refVote
 }
 
 // holdsAny reports whether k keeps anything.
 func (k outcomeKeeps) holdsAny() bool {
-	return len(k.keywords) > 0 || len(k.text) > 0 || len(k.branches) > 0 || len(k.nulls) > 0 || len(k.validation) > 0 ||
+	return len(k.keywords) > 0 || len(k.text) > 0 || len(k.refEntries) > 0 || len(k.nulls) > 0 || len(k.validation) > 0 ||
 		slices.ContainsFunc(k.entries, keptEntry.keeps)
 }
 
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
-// to target: a refinement's census and the branches it left, or the census of
+// to target: a refinement's census and the entries it left, or the census of
 // any other outcome lowering to a reference (referenceOutcomeKeywords).
 func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
 	r, refined := refinementOf(c, s, pointer)
@@ -92,9 +92,9 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 	voices := voicingOf(c, s)
 	w := newAdmissionReader(c)
 	pair := writesUnionPair(s, r.comp)
-	residues := make([][]string, len(r.comp.branches))
-	for i, e := range r.comp.branches {
-		// A $ref principal keeps what is written beside it on its alias. A branch
+	residues := make([][]string, len(r.comp.entries))
+	for i, e := range r.comp.entries {
+		// A $ref principal keeps what is written beside it on its alias. An entry
 		// written as the principal is says nothing it does not. An inline
 		// principal standing at the position had its census run on the node,
 		// which keeps the rest as any conjunct's.
@@ -104,12 +104,12 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 		censused := standing && r.principalIs(e)
 		switch {
 		case e.schema.Ref != nil:
-			k.branches = append(k.branches, keptBranch{entry: e, vote: r.votes[i]})
+			k.refEntries = append(k.refEntries, wholeRefEntry{entry: e, vote: r.votes[i]})
 		case stated(e.schema.Schema):
 			// The principal's node keeps what it passes over (preserveUnusedCombinator).
 			read := residueRead(c, &w, r, typed, e, voices.speaks[i], censused, collapsed && r.principalIs(e), homes,
 				pair && !r.principalIs(e))
-			residues[i] = unmergedBranchKeys(e.schema.Schema, lessPattern(read, censused && patternBeside(s, e.schema.Schema, homes)))
+			residues[i] = unmergedEntryKeys(e.schema.Schema, lessPattern(read, censused && patternBeside(s, e.schema.Schema, homes)))
 		}
 	}
 	k.entries = entryKeeps(c, s, r.comp, func(i int) []string { return residues[i] }, voices, isAdditionalProperties, r.principal)
@@ -128,7 +128,7 @@ func keepsAtOutcome(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, poin
 // neither; another principal's union is its node's, or the collapsed
 // reference's (collapsedPrincipal), and its content vocabulary its own
 // reading's (unplacedContent).
-func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfBranch, speaks, censused, collapsed bool,
+func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType, e allOfEntry, speaks, censused, collapsed bool,
 	homes boundHomes, pair bool,
 ) func(string) bool {
 	bs := e.schema.Schema
@@ -162,7 +162,7 @@ func residueRead(c lowering.Ctx, w *admissionReader, r refinement, typed setType
 // beside the principal's allOf, so what it keeps that another conjunct writes
 // otherwise is held against the node's keys and never keeps it whole
 // (wholePrincipal).
-func lowersFrom(principal *allOfBranch, e allOfBranch) bool {
+func lowersFrom(principal *allOfEntry, e allOfEntry) bool {
 	if principal == nil || principal.schema.Ref != nil {
 		return false
 	}
@@ -204,7 +204,7 @@ func writesUnionPair(s *statement.Schema, comp allOfComposition) bool {
 		oneOf, anyOf = oneOf || len(choice.OneOf) > 0, anyOf || len(choice.AnyOf) > 0
 	}
 	note(s)
-	for _, e := range comp.branches {
+	for _, e := range comp.entries {
 		if e.schema.Ref == nil {
 			note(e.schema.Schema)
 		}
@@ -233,10 +233,10 @@ func unionKeyword(keyword string) bool { return keyword == "oneOf" || keyword ==
 // closure no use of a conjunct types, which reads the keywords beside it.
 func isAdditionalProperties(keyword string) bool { return keyword == "additionalProperties" }
 
-// principalTwin reports whether e, a branch of r other than its principal, is
+// principalTwin reports whether e, an entry of r other than its principal, is
 // written as the principal is (sameText): one schema written twice,
 // whose first copy the election takes for both.
-func principalTwin(w *admissionReader, r refinement, e allOfBranch) bool {
+func principalTwin(w *admissionReader, r refinement, e allOfEntry) bool {
 	return r.principal != nil && !r.principalIs(e) && sameText(w.c, r.principal.schema, e.schema)
 }
 
@@ -380,9 +380,9 @@ func (k outcomeKeeps) record(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, key, pointer, c.Place())...)
 	}
 	diags = append(diags, recordNullBranches(c, p, k.nulls)...)
-	kept, keptDiags := keepRefConjuncts(c, p, k.branches, pointer)
+	kept, keptDiags := keepRefConjuncts(c, p, k.refEntries, pointer)
 	diags = append(diags, keptDiags...)
-	for _, b := range k.branches {
+	for _, b := range k.refEntries {
 		if kept[b.entry.pointer] {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(k.comp, b)))
 		}
@@ -481,7 +481,7 @@ func wholePrincipal(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *state
 	plain, apart := heldAgainst(view, k.comp, bs, e.entry.pointer, e.apart)
 	own := slices.Concat(e.own, plain)
 	e.own = slices.DeleteFunc(slices.Clone(e.residue), func(key string) bool { return !slices.Contains(own, key) })
-	i := slices.IndexFunc(k.comp.branches, func(b allOfBranch) bool { return b.pointer == e.entry.pointer })
+	i := slices.IndexFunc(k.comp.entries, func(b allOfEntry) bool { return b.pointer == e.entry.pointer })
 	return e, keepApart(c, ts, k.comp, into, p, bs, e.entry.pointer, apart, apartReason(c, s, k.comp, i, e, apart))
 }
 
@@ -539,14 +539,14 @@ type keptRef struct {
 	at  jsontext.Pointer
 }
 
-// keptRefKeys returns, by its pointer, the key each $ref of branches is kept
+// keptRefKeys returns, by its pointer, the key each $ref of refEntries is kept
 // under: openapi:$ref where one is kept, else openapi:$ref/<i>, i its rank by
 // reference text, then by the entry as written, so no order of the entries
 // decides (docs/compilers/openapi.md#allof-refinement). Entries written alike
 // are one entry, at pointer, the position writing them.
-func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.Pointer]keptRef {
+func keptRefKeys(refEntries []wholeRefEntry, pointer jsontext.Pointer) map[jsontext.Pointer]keptRef {
 	alike := map[[2]string][]jsontext.Pointer{}
-	for _, b := range branches {
+	for _, b := range refEntries {
 		raw, err := annotation.RawFromNode(b.entry.schema.Node)
 		if err != nil {
 			// An entry that cannot render is alike to no other: its pointer,
@@ -559,7 +559,7 @@ func keptRefKeys(branches []keptBranch, pointer jsontext.Pointer) map[jsontext.P
 	written := slices.SortedFunc(maps.Keys(alike), func(a, b [2]string) int {
 		return cmp.Or(strings.Compare(a[0], b[0]), strings.Compare(a[1], b[1]))
 	})
-	out := make(map[jsontext.Pointer]keptRef, len(branches))
+	out := make(map[jsontext.Pointer]keptRef, len(refEntries))
 	for i, w := range written {
 		key := "openapi:$ref"
 		if len(written) > 1 {
@@ -593,23 +593,23 @@ func keptEntryWhy(comp allOfComposition, e keptEntry, undecided bool, shape stri
 		"adds; " + n.kept + " (" + strings.Join(e.residue, ", ") + ") is kept verbatim under Unmodeled"
 }
 
-// keepRefConjuncts keeps on p each $ref conjunct of branches, one a
+// keepRefConjuncts keeps on p each $ref conjunct of refEntries, one a
 // refinement, a composition or a failed read leaves unlowered: the reference
 // as written, its text alone, under the key keptRefKeys ranks it by, at the
 // entry writing it. What an entry writes beside its $ref is kept apart, as an
 // inline entry's keywords are. It reports which it kept, by pointer.
-func keepRefConjuncts(c lowering.Ctx, p *ir.Unmodeled, branches []keptBranch, pointer jsontext.Pointer,
+func keepRefConjuncts(c lowering.Ctx, p *ir.Unmodeled, refEntries []wholeRefEntry, pointer jsontext.Pointer,
 ) (map[jsontext.Pointer]bool, []ir.Diagnostic) {
 	var keys map[jsontext.Pointer]keptRef
-	if len(branches) == 1 {
+	if len(refEntries) == 1 {
 		// One kept $ref is openapi:$ref at its entry, as keptRefKeys ranks it.
-		keys = map[jsontext.Pointer]keptRef{branches[0].entry.pointer: {key: "openapi:$ref", at: branches[0].entry.pointer}}
+		keys = map[jsontext.Pointer]keptRef{refEntries[0].entry.pointer: {key: "openapi:$ref", at: refEntries[0].entry.pointer}}
 	} else {
-		keys = keptRefKeys(branches, pointer)
+		keys = keptRefKeys(refEntries, pointer)
 	}
-	kept := make(map[jsontext.Pointer]bool, len(branches))
+	kept := make(map[jsontext.Pointer]bool, len(refEntries))
 	var diags []ir.Diagnostic
-	for _, b := range branches {
+	for _, b := range refEntries {
 		_, text := refSpelling(b.entry.schema)
 		ref := keys[b.entry.pointer]
 		ok, keptDiags := annotation.PreserveNodeInto(p, ref.key, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: text},
@@ -620,9 +620,9 @@ func keepRefConjuncts(c lowering.Ctx, p *ir.Unmodeled, branches []keptBranch, po
 	return kept, diags
 }
 
-// keptWhy words why a refinement keeps a $ref branch, naming the schema
+// keptWhy words why a refinement keeps a $ref entry, naming the schema
 // writing its conjuncts as comp's subject does.
-func keptWhy(comp allOfComposition, b keptBranch) string {
+func keptWhy(comp allOfComposition, b wholeRefEntry) string {
 	of := comp.subject()
 	switch b.vote {
 	case refInferredApart:
@@ -678,8 +678,8 @@ func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer
 		return written, named, keptDiags
 	}
 	if s.BesideRef != nil {
-		e := allOfBranch{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
-		kept, keptDiags := keepRefConjuncts(c, p, []keptBranch{{entry: e}}, pointer)
+		e := allOfEntry{schema: c.Statements().Read(s.BesideRef), pointer: pointer}
+		kept, keptDiags := keepRefConjuncts(c, p, []wholeRefEntry{{entry: e}}, pointer)
 		diags = append(diags, keptDiags...)
 		if kept[pointer] {
 			written, named = append(written, "$ref"), append(named, "$ref")
@@ -695,14 +695,14 @@ func keepConjuncts(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, pointer
 
 // refConjuncts returns the conjuncts s, written at pointer, writes beside its
 // own keywords, each a $ref, and false where one is not.
-func refConjuncts(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) ([]keptBranch, bool) {
-	branches := allOfBranches(c, s, pointer).branches
-	refs := make([]keptBranch, 0, len(branches))
-	for _, e := range branches {
+func refConjuncts(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) ([]wholeRefEntry, bool) {
+	entries := allOfEntries(c, s, pointer).entries
+	refs := make([]wholeRefEntry, 0, len(entries))
+	for _, e := range entries {
 		if e.schema.Ref == nil {
 			return nil, false
 		}
-		refs = append(refs, keptBranch{entry: e})
+		refs = append(refs, wholeRefEntry{entry: e})
 	}
 	return refs, len(refs) > 0
 }

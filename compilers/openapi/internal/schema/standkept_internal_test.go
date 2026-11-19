@@ -24,9 +24,9 @@ func TestKeepApart_AnObjectThatCannotRenderIsReportedAndClaimsNothing(t *testing
 	decl, ok := l.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
 	s := l.Ctx.Statements().Of(decl).Schema
-	comp := allOfBranches(l.Ctx, s, "/components/schemas/S")
-	require.Len(t, comp.branches, 1)
-	e := comp.branches[0]
+	comp := allOfEntries(l.Ctx, s, "/components/schemas/S")
+	require.Len(t, comp.entries, 1)
+	e := comp.entries[0]
 	held := &principalKept{apart: []string{"type"}, apartReason: ir.ReasonNoIRHome}
 	var p ir.Unmodeled
 
@@ -48,8 +48,8 @@ func TestKeepBuilt_AKeyNoKeywordNamesHeldOtherwiseIsAnInvariantBroken(t *testing
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    S: {allOf: [{type: string}]}\n"))
 	decl, ok := l.Doc.Components.Schemas.Get("S")
 	require.True(t, ok)
-	comp := allOfBranches(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
-	e := comp.branches[0]
+	comp := allOfEntries(l.Ctx, l.Ctx.Statements().Of(decl).Schema, "/components/schemas/S")
+	e := comp.entries[0]
 	p := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`1`), Reason: ir.ReasonNoIRHome}}
 	built := ir.Unmodeled{"openapi:oneOf/0": {Value: ir.RawValue(`2`), Reason: ir.ReasonNoIRHome}}
 

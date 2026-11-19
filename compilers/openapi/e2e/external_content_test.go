@@ -946,7 +946,7 @@ Z: {type: object, properties: {bin: {type: string, format: binary}}}
 // that the copy rule reads a hoisted node's document as well as its pointer. A
 // field redeclared as a $ref to an enum another document writes inline, at the
 // very pointer the root writes its own copy at, and as that copy inline: the
-// referenced enum was declared apart, so it wins in either branch order, with
+// referenced enum was declared apart, so it wins in either entry order, with
 // nothing reported or kept.
 func TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne(t *testing.T) {
 	t.Parallel()
@@ -984,10 +984,10 @@ components:
 }
 
 // TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart pins that a
-// refinement's branch written as its target in another document writes it is
+// refinement's entry written as its target in another document writes it is
 // no restatement, though it writes no $ref: what another document says is read
 // in that document, whose dialect may differ
-// (docs/compilers/openapi.md#openapi-versions). In the source, the same branch
+// (docs/compilers/openapi.md#openapi-versions). In the source, the same entry
 // restates its target and is consumed.
 func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.T) {
 	t.Parallel()
@@ -1176,7 +1176,7 @@ components:
 
 // TestExternalContent_AFieldCarriedApartIsReadInItsDocument pins whose nodes
 // decide a field's identity: its own document's. Only other.yaml holds a $ref to
-// a branch of F, so its field takes a minted identity, while the root's field at
+// an entry of F, so its field takes a minted identity, while the root's field at
 // the same pointer keeps its first declaration's.
 func TestExternalContent_AFieldCarriedApartIsReadInItsDocument(t *testing.T) {
 	t.Parallel()

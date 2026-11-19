@@ -23,7 +23,7 @@ import (
 // need a node of their own, target itself where the position declares none.
 //
 // It is the one statement of that step, so its two callers, a $ref site
-// (refSiteRef) and an allOf branch's $ref (fillRefBranch), keep a declaration
+// (refSiteRef) and an allOf entry's $ref (fillRefEntry), keep a declaration
 // the same way; a position skipping it would drop what was written at it
 // without a word (GitHub #116, #143). The alias's build writes the
 // declaration (declarationOn), then fin.
@@ -236,7 +236,7 @@ func stated(s *statement.Schema) bool {
 // `unevaluatedProperties: false` as a model's openness, so no entry keeps it:
 // the keyword is live (annotation.ClosesAfterComposition), and td is a Model
 // closed after composition, or a Union whose variants s builds itself
-// (buildsVariants), one of them such a Model. A `false` allOf branch that
+// (buildsVariants), one of them such a Model. A `false` allOf entry that
 // closed the model outright leaves it holding the keyword no longer.
 func closureTyped(c lowering.Ctx, ts *compile.Types, s *statement.Schema, td ir.TypeDef) bool {
 	if !annotation.ClosesAfterComposition(s) {

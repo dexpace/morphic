@@ -16,7 +16,7 @@ import (
 )
 
 // TestFold_DifferingDescriptionsKeepTheLater pins a merge outcome
-// that is reported without being a conflict: two branches describing the same
+// that is reported without being a conflict: two entries describing the same
 // field differently cannot both be kept, so the later wins, the loss is
 // announced rather than silent, and the losing declaration is kept whole.
 func TestFold_DifferingDescriptionsKeepTheLater(t *testing.T) {
@@ -38,7 +38,7 @@ func TestFold_DifferingDescriptionsKeepTheLater(t *testing.T) {
 }
 
 // TestFold_AnIdenticalDescriptionIsNotADisagreement pins the other
-// side of that check: repeating the same description in both branches is one
+// side of that check: repeating the same description in both entries is one
 // construct written twice, not two that disagree.
 func TestFold_AnIdenticalDescriptionIsNotADisagreement(t *testing.T) {
 	t.Parallel()

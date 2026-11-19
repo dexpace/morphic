@@ -693,11 +693,11 @@ components:
 		"the other mount keeps the declaration's own description")
 }
 
-// TestParameter_ABranchSpeaksAsItsSchemaDoes pins a parameter's schema refining a
-// $ref: what its branches write lands as what the schema writes does, a redaction
+// TestParameter_AnEntrySpeaksAsItsSchemaDoes pins a parameter's schema refining a
+// $ref: what its entries write lands as what the schema writes does, a redaction
 // on Secret, and what ir.Parameter has no field for is kept verbatim at the
 // keyword that wrote it.
-func TestParameter_ABranchSpeaksAsItsSchemaDoes(t *testing.T) {
+func TestParameter_AnEntrySpeaksAsItsSchemaDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
     get:
@@ -734,7 +734,7 @@ components:
 }
 
 // TestParameter_APrincipalOwningANodeKeepsItsVisibility pins readOnly and writeOnly
-// on the branch a refinement lowers from: a node holds neither, so the parameter
+// on the entry a refinement lowers from: a node holds neither, so the parameter
 // keeps them as it does written on its schema, at the keyword that wrote them.
 func TestParameter_APrincipalOwningANodeKeepsItsVisibility(t *testing.T) {
 	t.Parallel()
@@ -767,7 +767,7 @@ components:
 
 // TestParameter_AnEntrySeveralWriteIsTheNearest pins what a parameter keeps of one
 // keyword written twice, as a node's residue does: the schema written at the
-// position over its branches, and the first branch over a later one.
+// position over its entries, and the first entry over a later one.
 func TestParameter_AnEntrySeveralWriteIsTheNearest(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:

@@ -287,7 +287,7 @@ func (d *declaring) finish(td ir.TypeDef, _ keySet, held *principalKept) {
 
 // keptOn keeps on td, in hand, the node the position s, written at pointer,
 // lowered to target, stands at, what it keeps there: its census of a lowering
-// to a reference and the branches its refinement left (keepsAtOutcome). A
+// to a reference and the entries its refinement left (keepsAtOutcome). A
 // carrier keeps them where the position owns no node (PreserveRefSiteKeywords).
 func keptOn(c lowering.Ctx, ts *compile.Types, s *statement.Schema, target ir.TypeRef, pointer jsontext.Pointer, td ir.TypeDef,
 	held *principalKept,
@@ -321,7 +321,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
 		return ref, append([]ir.Diagnostic{dynamicExpanded(c, schema, pointer, target)}, nullDiags...)
 	}
-	if declaresUnion(schema) && (st.of != nil || !refinesToBranch(c, schema, pointer)) {
+	if declaresUnion(schema) && (st.of != nil || !refinesToEntry(c, schema, pointer)) {
 		if hasUnionSiblings(c, schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer, fin, st)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
@@ -329,7 +329,7 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer, fin, st)
 	}
-	u, how, ok := branchUnion(c, schema, pointer)
+	u, how, ok := entryUnion(c, schema, pointer)
 	if ok {
 		lowerUnion := lowerDistributedUnion
 		if how == unionRoutedSubtype {
@@ -353,10 +353,10 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *state
 	return ref, append(bodyDiags, nullDiags...)
 }
 
-// refinesToBranch reports whether s, written at pointer, refines to one of its
-// allOf branches, which then decides the position, a union beside the allOf
+// refinesToEntry reports whether s, written at pointer, refines to one of its
+// allOf entries, which then decides the position, a union beside the allOf
 // being one of the conjuncts it refines (docs/compilers/openapi.md#allof-refinement).
-func refinesToBranch(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
+func refinesToEntry(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	r, refines := refinementOf(c, s, pointer)
 	return refines && r.principal != nil
 }
@@ -372,7 +372,7 @@ func allOfComposes(c lowering.Ctx, s *statement.Schema) bool {
 
 // lower interns the inline schema at pointer and returns its TypeID. An allOf
 // that refines decides the position (docs/compilers/openapi.md#allof-refinement):
-// its principal, or where no branch is one, the keywords beside it as if no allOf
+// its principal, or where no entry is one, the keywords beside it as if no allOf
 // were written, an enum or a const there being one of its conjuncts rather than
 // its rival. A value set an inline principal writes stands at the position, as
 // one written beside the allOf does, and either is typed by every conjunct
@@ -461,7 +461,7 @@ func electionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (
 // (lowerUnion): it lists more than one type, and lower elects no family. Nothing
 // lowerSchemaBody tries first takes such a schema: a type is a shape, so no
 // $dynamicRef expands and no union collapses beside it, and a union beside it or
-// on an allOf branch distributes only over the allOf, which the election elects.
+// on an allOf entry distributes only over the allOf, which the election elects.
 func lowersTypeArray(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bool {
 	if len(effectiveTypes(s)) < 2 {
 		return false
@@ -503,7 +503,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Sch
 		})
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
-	// with no branch deciding what the position is, so the type set decides.
+	// with no entry deciding what the position is, so the type set decides.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
@@ -644,7 +644,7 @@ func (d dispatch) handled() keySet {
 
 // besideAllOf returns the election lower() makes of the keywords beside s's
 // allOf, d being s's own: the one of a schema writing no allOf, as a refinement
-// whose principal is no branch lowers. allOf is the last of familyOrder, so it
+// whose principal is no entry lowers. allOf is the last of familyOrder, so it
 // wins only where no other family is written.
 func (d dispatch) besideAllOf() dispatch {
 	out := dispatch{skipped: slices.DeleteFunc(slices.Clone(d.skipped), func(f string) bool { return f == "allOf" })}

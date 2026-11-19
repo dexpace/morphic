@@ -220,8 +220,8 @@ func TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs(t *testing.T) {
 
 // TestOlderDrafts_DependenciesAreValidationOnly pins `dependencies` in each
 // draft that defines it, 4, 6 and 7, kept as a validation-only keyword, and
-// folded from an inline allOf branch as its 2020-12 twins are, and in 2019-09
-// and 2020-12, which split it, as an unknown keyword, on a branch as beside it.
+// folded from an inline allOf entry as its 2020-12 twins are, and in 2019-09
+// and 2020-12, which split it, as an unknown keyword, on an entry as beside it.
 func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 	t.Parallel()
 	for draft, want := range map[string]ir.UnmodeledReason{
@@ -397,8 +397,8 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 // TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader pins
 // a node an alias places under a draft 4 root and a 2020-12 schema, read in
 // each place's dialect by the readers that hold the schema and not where it
-// is: an allOf branch's `dependencies` folds as validation-only under the
-// draft and stays in its branch at the other, a body schema writing `id` is a
+// is: an allOf entry's `dependencies` folds as validation-only under the
+// draft and stays in its entry at the other, a body schema writing `id` is a
 // file under the draft alone, and a boolean exclusive bound bounds under the
 // draft and is dropped, reported by the rule table's check, at the other. The roots' names, which order
 // them, decide only where a shared node's finding is placed.

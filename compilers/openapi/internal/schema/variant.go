@@ -30,7 +30,7 @@ func buildsVariants(c lowering.Ctx, s *statement.Schema) bool {
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
 // own properties (docs/ir/models.md#composition-beside-a-union) alongside its
 // branch, so the composition is carried on every variant rather than merged
-// into one or dropped. A union an allOf branch writes is the branch's to give,
+// into one or dropped. A union an allOf entry writes is the entry's to give,
 // not residue each variant keeps (allOfComposition.conjoins).
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, u unionAt, pointer jsontext.Pointer,
 	fin finisher,
@@ -66,7 +66,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *stat
 }
 
 // lowerSubtypeUnion lowers s, a subtype a discriminator on an ancestor routes to,
-// with the union u it conjoins, beside its allOf or on a branch: s stays the
+// with the union u it conjoins, beside its allOf or on an entry: s stays the
 // Model its composition lowers to, a subtype of that ancestor, and names as its
 // last Mixin a Union minted for u (mintUnion), as an allOf naming a component
 // holding u composes it (docs/ir/models.md#a-union-a-composition-names). A
@@ -141,7 +141,7 @@ func composeMixin(c lowering.Ctx, ts *compile.Types, depth int, td ir.TypeDef, u
 type composedBody struct {
 	schema *statement.Schema
 	comp   allOfComposition   // schema's flattened allOf, built once for every variant
-	voices []annotation.Voice // what comp's folding branches say of the position, read once too
+	voices []annotation.Voice // what comp's folding entries say of the position, read once too
 	// inferred marks a schema the kind-inference policy made the model its
 	// variants compose (bodyKindInferred), so a variant over a branch that
 	// declares no object names the policy.
@@ -240,7 +240,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *statement.Schema, de
 // enclosing schema at its pointer, so the properties, their PropIDs and any
 // shared additionalProperties node are the one set the source declared.
 //
-// The enclosing schema's value constraints, its folding branches' among them,
+// The enclosing schema's value constraints, its folding entries' among them,
 // are read as lowerAllOf reads them (GitHub #407), for the kinds the variant
 // admits: those b lowers to among the model's. So a variant over a branch no
 // object satisfies holds none, and the census keeps a bound no variant holds
@@ -257,12 +257,12 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 		// read after it, as a model's own declarations follow what it composes.
 		fields.compose(branch, m.Provenance.Pointer)
 	}
-	base, hasBase := selectAllOfBase(c, body.comp.branches, m.ID)
+	base, hasBase := selectAllOfBase(c, body.comp.entries, m.ID)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp, base, hasBase)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(body.schema.ObjectKeywords().Required, body.comp))
 	diags = append(diags, fillComposedAdditional(c, ts, depth, m, body.schema, body.comp)...)
-	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
+	diags = append(diags, applyFalseEntries(c, m, body.comp)...)
 	_, key, _ := body.union.branches(c)
 	diags = append(diags, preserveUnusedCombinator(c, &m.Unmodeled, body.union, key)...)
 	if !composes {

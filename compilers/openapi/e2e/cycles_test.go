@@ -276,11 +276,11 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 }
 
 // TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop pins the gates that keep an
-// allOf or union branch on a loop the compiler reads from being reported
-// twice: removing the gate in fillRefBranch, diagUnresolvedBranches or
+// allOf entry or union branch on a loop the compiler reads from being reported
+// twice: removing the gate in fillRefEntry, diagUnresolvedBranches or
 // refTypeRef adds an unresolved-ref beside the cyclic-ref. Where load
 // reports the loop at the branch, its least member, withoutRereported drops that
-// error, so each gate, and fillRefBranch's two routes through a distributed
+// error, so each gate, and fillRefEntry's two routes through a distributed
 // union, has a row whose loop runs through L, which sorts first. A loop past
 // the merge bound goes unread (#1570). A union beside structural
 // keywords reaches diagUnresolvedBranches only as case 2 of

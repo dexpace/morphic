@@ -594,10 +594,10 @@ components:
 `
 
 // TestAt_NamesASchemaByItsTitle pins that a schema writing a title with a word
-// in it, itself or in the inline branches of its allOf, is named by the
+// in it, itself or in the inline entries of its allOf, is named by the
 // title's words wherever the grammar reads a schema, an owner's or a branch's
 // included, the positions beneath composing from it, and that one a key names,
-// an allOf branch and a title with no word keep the name they have without it.
+// an allOf entry and a title with no word keep the name they have without it.
 // A title is read as the parser reads a string.
 func TestAt_NamesASchemaByItsTitle(t *testing.T) {
 	t.Parallel()

@@ -54,8 +54,8 @@ func TestKeepLosingDeclaration_RecordsTheDiscardedDeclaration(t *testing.T) {
 }
 
 // TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings pins the key's namespacing.
-// A field three branches type three incompatible ways discards two
-// declarations, and a fixed key would leave only whichever branch ran last —
+// A field three entries type three incompatible ways discards two
+// declarations, and a fixed key would leave only whichever entry ran last —
 // the same silent overwrite the entry exists to prevent.
 func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	t.Parallel()

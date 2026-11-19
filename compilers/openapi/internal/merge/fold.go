@@ -199,7 +199,7 @@ func (g *Merger) foldAt(decls []declaration, field jsontext.Pointer, assembled [
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
 // (styleguide bounded-everything rule). Judging every pair costs the square of
-// their number, which a document of many allOf branches redeclaring one field
+// their number, which a document of many allOf entries redeclaring one field
 // could drive past any time budget; a real one declares a field a handful of
 // times.
 const maxFoldDeclarations = 64
@@ -368,8 +368,8 @@ func (f *folding) drop(i int) {
 // disagree notes the conflicting-redeclaration warning at decls[i], which says
 // something of the field, detail, that decls[kept] says otherwise, and marks it
 // lost. Warning, not info: the two cannot both hold, or no one value states
-// them. It says "declarations", since one can sit beside allOf, not in a
-// branch. A keyword a position writes on its node and its property is met
+// them. It says "declarations", since one can sit beside allOf, not in an
+// entry. A keyword a position writes on its node and its property is met
 // twice, and said once. It sits where decls[i] is written, not at the entry
 // bringing it, so every model composing the two says it alike (ReportOnce),
 // and it carries where decls[kept] is written, the place its message names.

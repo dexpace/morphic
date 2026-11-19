@@ -171,18 +171,18 @@ func routesByName(c lowering.Ctx, a, s *statement.Schema) bool {
 }
 
 // standingUnion returns the schema writing the union the discriminator a
-// declares stands with: a where it writes one, else the branch of a's allOf
-// whose union a lowers (findBranchUnion), which writes no discriminator of its
+// declares stands with: a where it writes one, else the entry of a's allOf
+// whose union a lowers (findEntryUnion), which writes no discriminator of its
 // own beside a's, and nil for none, a hierarchy's base.
 func standingUnion(c lowering.Ctx, a *statement.Schema) *statement.Schema {
 	if declaresUnion(a) {
 		return a
 	}
-	at := branchUnionIndexOf(c, a)
+	at := entryUnionIndexOf(c, a)
 	if !at.ok {
 		return nil
 	}
-	return allOfBranches(c, a, "").branches[at.index].schema.Schema
+	return allOfEntries(c, a, "").entries[at.index].schema.Schema
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels
@@ -246,7 +246,7 @@ type composedByOf struct {
 // which a union of its subtypes would no longer be
 // (docs/compilers/openapi.md#union-beside-structure). Such a branch finds s's
 // discriminator among its ancestors' (discriminatedAncestors). Where s writes
-// one, it is the one standing with u (findBranchUnion). Every reader of the
+// one, it is the one standing with u (findEntryUnion). Every reader of the
 // position asks, so it is read once a run.
 func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	d := s.Discriminator()
@@ -273,7 +273,7 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 // schema two branches both name from being queued, and walked, twice.
 func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*statement.Schema]bool) []*statement.Schema {
 	var out []*statement.Schema
-	for b := range allOfRefBranches(c, s) {
+	for b := range allOfRefEntries(c, s) {
 		target := refBranchTarget(c, b)
 		if !stated(target) || visited[target] {
 			continue
@@ -287,7 +287,7 @@ func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*state
 // discriminatorBesideUnion returns the finisher queueing a settlement for the
 // discriminator s writes, which the model in hand holds beside the union holder
 // writes, kept verbatim: beside the model by lowerBesideUnmodeledUnion, or with
-// its allOf branch. A body that lowered to anything else holds none: the census
+// its allOf entry. A body that lowered to anything else holds none: the census
 // kept its discriminator where it kept the rest, a multi-typed body's on its
 // union (lowerTypeVariant).
 func discriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, s, holder *statement.Schema, pointer jsontext.Pointer) finisher {
