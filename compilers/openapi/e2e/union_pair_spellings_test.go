@@ -155,18 +155,18 @@ func viewOfPair(doc *ir.Document, diags []ir.Diagnostic, name string) pairView {
 var pairExcused = map[string]string{
 	"object":         "a union sharing no kind with the body warns beside an allOf of it, not beside its keywords",
 	"object or null": "a union beside a type list with properties lowers apart beside the list's keywords",
-	"string or null": "a union beside a scalar body lowers apart beside its keywords, beside an allOf and on its entries",
-	"array":          "a union beside an array body lowers apart beside its keywords, beside an allOf and on its entries",
-	"string":         "a union beside a scalar body lowers apart beside its keywords, beside an allOf and on its entries",
+	"string or null": "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
+	"array":          "#2108: a union beside an array body is the body's node beside its keywords, a Union beside an allOf",
+	"string":         "#2108: a union beside a scalar body is the body's Scalar beside its keywords, a Union beside an allOf",
 }
 
 // pairOpen are the groups, by body and pair, whose spellings split where
-// neither union alone does, each saying how; each must still split. While one
-// stands, a oneOf and an anyOf lower apart by spelling (GitHub #2011).
+// neither union alone does: a pair beside a scalar body, whose node #2108
+// decides as it does one union's. Each cites it and must still split.
 var pairOpen = map[[2]string]string{
-	{"string", "refs on both"}:           "the flat spelling is the body's Scalar, the others a Union of the oneOf",
-	{"string or null", "refs on both"}:   "the flat spelling is the body's Scalar, the others a Union of the oneOf",
-	{"string or null", "null and a ref"}: "the flat spelling is the body's Scalar, the others a Union of the $ref",
+	{"string", "refs on both"}:           "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
+	{"string or null", "refs on both"}:   "#2108: the flat spelling is the body's Scalar, the others a Union of the oneOf",
+	{"string or null", "null and a ref"}: "#2108: the flat spelling is the body's Scalar, the others a Union of the $ref",
 }
 
 // singleSpellings are the spellings a union written alone has.
@@ -236,6 +236,11 @@ func singleExplains(view func(int, string) pairView, i int) bool {
 // same reasons and the same findings, wherever each stands (GitHub #2011).
 func TestElection_AUnionPairLowersAlikeInEverySpelling(t *testing.T) {
 	t.Parallel()
+	for group, why := range pairOpen {
+		if !strings.Contains(why, "#2108") {
+			t.Errorf("%v is open for no question #2108 holds: %s", group, why)
+		}
+	}
 	for _, body := range pairBodies {
 		t.Run(body.name, func(t *testing.T) {
 			t.Parallel()
