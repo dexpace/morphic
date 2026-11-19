@@ -608,3 +608,49 @@ func TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten(t *testing.T) {
 		assert.Contains(t, warned[name][0], "share no value", name)
 	}
 }
+
+// nullableBodySpellings writes a oneOf and an anyOf beside an object admitting
+// null flat, beside an allOf of it, on one entry and on two.
+func nullableBodySpellings(oneOf, anyOf string) string {
+	const body = "type: [object, 'null'], properties: {a: {type: string}}"
+	return `    Flat: {` + body + `, ` + oneOf + `, ` + anyOf + `}
+    Beside: {allOf: [{` + body + `}], ` + oneOf + `, ` + anyOf + `}
+    OneEntry: {allOf: [{` + body + `}, {` + oneOf + `, ` + anyOf + `}]}
+    TwoEntries: {allOf: [{` + body + `}, {` + oneOf + `}, {` + anyOf + `}]}
+`
+}
+
+// keepsBothOnItsModel asserts that each spelling nullableBodySpellings writes
+// is the body's Model keeping both unions, and returns its warnings by name.
+func keepsBothOnItsModel(t *testing.T, oneOf, anyOf string) map[string][]string {
+	t.Helper()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(nullableBodySpellings(oneOf, anyOf)))
+	warned := map[string][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			name := strings.Split(string(d.Provenance.Pointer), "/")[3]
+			warned[name] = append(warned[name], d.Message)
+		}
+	}
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		model, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s is the body's Model", name)
+		assert.Contains(t, model.Unmodeled, "openapi:oneOf", name)
+		assert.Contains(t, model.Unmodeled, "openapi:anyOf", name)
+	}
+	return warned
+}
+
+// TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten
+// pins an anyOf of a string or null, which leaves an object admitting null
+// null alone, passed over for a oneOf of a union admitting no null: the
+// position is the body keeping both, with one warning in each spelling.
+func TestUnion_AUnionPassedOverLeavingTheBodyNullAloneIsApartWhereverWritten(t *testing.T) {
+	t.Parallel()
+	warned := keepsBothOnItsModel(t, "oneOf: [{oneOf: [{type: string}, {type: integer}]}]",
+		"anyOf: [{type: string}, {type: 'null'}]")
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		require.Len(t, warned[name], 1, name)
+		assert.Contains(t, warned[name][0], "share no value", name)
+	}
+}

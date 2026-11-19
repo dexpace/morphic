@@ -271,8 +271,6 @@ var pairOpen = map[[2]string]string{
 		"of the union",
 	{"object or null", "sharing null alone"}: "#2011: the flat spelling distributes the oneOf, the others are a use of " +
 		"the body, both unions admitting null alone with it",
-	{"object or null", "a branch that is a union"}: "#2011: the flat spelling distributes the oneOf over a branch no " +
-		"object or null satisfies, the others are a use of the body",
 }
 
 // singleSpellings are the spellings a union written alone has.

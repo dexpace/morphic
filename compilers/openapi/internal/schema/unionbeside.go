@@ -217,38 +217,72 @@ func classifyConjoined(c lowering.Ctx, s *statement.Schema, u unionAt, pointer j
 }
 
 // passedApart reports whether a union the position written by s passes over
-// for u shares no kind with the rest of s read without any union: the other
-// combinator u's holder writes, or the union another inline entry of s's allOf
-// writes, one of null alone among them where the rest admits no null. It is a
-// conjunct of the rest u's branches are read against, which it leaves
-// admitting nothing, so no branch of u reads as dead though none can be
-// inhabited. A read cut short says no.
+// for u leaves no value u admits beside the rest of s (readPassed): one
+// shares no kind with that rest, one of null alone among them where the rest
+// admits no null, or together they leave the rest null alone and no branch of
+// u admits null. It is a conjunct of the rest u's branches are read against,
+// so no branch of u reads as dead though none can be inhabited. A read cut
+// short says no.
 func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
-	w := newAdmissionReader(c)
-	var passed []admitted
-	if set, _ := passedOver(c, s, u.holder); set != nil {
-		passed = append(passed, w.union(set))
+	r, ok := readPassed(c, s, u)
+	if !ok {
+		return false
 	}
-	rest := w.written(s, w.nullable)
+	if slices.ContainsFunc(r.passed, func(p admitted) bool { return p.kinds != 0 && r.rest.kinds&p.kinds == 0 }) {
+		return true
+	}
+	// Left null alone, the rest admits no object for deadBranch to read u's
+	// branches against (restAdmitsObjects).
+	return r.nullLeft() && r.union.kinds&kindNull == 0
+}
+
+// passedRead is what the position written by s admits beside u: the rest of
+// s read without any union, each union the position passes over for u, and
+// what u's branches admit.
+type passedRead struct {
+	rest, union admitted
+	passed      []admitted
+}
+
+// nullLeft reports whether the rest, with every union passed over, admits
+// null alone.
+func (r passedRead) nullLeft() bool {
+	left := r.rest
+	for _, p := range r.passed {
+		left = left.and(p)
+	}
+	return len(r.passed) > 0 && left.reachable() && left.kinds == kindNull
+}
+
+// readPassed reads passedRead for u: the other combinator u's holder writes
+// and the union another inline entry of s's allOf writes are passed over, each
+// other entry a conjunct of the rest. ok is false where a read is cut short
+// or the rest admits nothing.
+func readPassed(c lowering.Ctx, s *statement.Schema, u unionAt) (passedRead, bool) {
+	w := newAdmissionReader(c)
+	var r passedRead
+	if set, _ := passedOver(c, s, u.holder); set != nil {
+		r.passed = append(r.passed, w.union(set))
+	}
+	r.rest = w.written(s, w.nullable)
 	for _, e := range allOfBranches(c, s, "").branches {
 		bs := e.schema.Schema
 		switch {
 		case !stated(bs):
 		case e.schema.Ref != nil:
-			rest = rest.and(w.of(e.schema))
+			r.rest = r.rest.and(w.of(e.schema))
 		case bs == u.holder || u.branch && declaresUnion(bs):
-			rest = rest.and(w.written(bs, w.nullable))
+			r.rest = r.rest.and(w.written(bs, w.nullable))
 			if bs != u.holder {
-				passed = append(passed, unionsIn(&w, bs))
+				r.passed = append(r.passed, unionsIn(&w, bs))
 			}
 		default:
-			rest = rest.and(inlineConjunct(&w, bs))
+			r.rest = r.rest.and(inlineConjunct(&w, bs))
 		}
 	}
-	if w.incomplete() || !rest.reachable() {
-		return false
-	}
-	return slices.ContainsFunc(passed, func(p admitted) bool { return p.kinds != 0 && rest.kinds&p.kinds == 0 })
+	branches, _, _ := u.branches(c)
+	r.union = w.union(branches)
+	return r, !w.incomplete() && r.rest.reachable()
 }
 
 // pairSharesNoValue reports whether s writes a oneOf and an anyOf that share
@@ -374,8 +408,8 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 		return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
 	case unionPassedApart:
 		_, passed := passedOver(c, s, s)
-		id, diags := beside(ir.ReasonDegradedLowering, "the "+passed+" beside it shares no kind with the body, so no "+
-			"instance satisfies them together")
+		id, diags := beside(ir.ReasonDegradedLowering, "the "+passed+" beside it leaves the body no value this union "+
+			"admits, so no instance satisfies them together")
 		return id, append(diags, diagUnionsApart(c, s, pointer)...)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
