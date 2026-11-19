@@ -79,7 +79,7 @@ func TestReferenceExpansionSize_CountsEachNodeAndEachByteOfAScalar(t *testing.T)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, service.WeightOf(tc.root, raw, budget.Unbounded()))
+			assert.Equal(t, tc.want, service.ReferenceExpansionSize(tc.root, raw, budget.Unbounded()))
 		})
 	}
 }
@@ -119,10 +119,10 @@ func TestReferenceExpansionSize_CountsASchemaAsOneNode(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, service.WeightOf(tc.root, tc.at, budget.Unbounded()))
+			assert.Equal(t, tc.want, service.ReferenceExpansionSize(tc.root, tc.at, budget.Unbounded()))
 		})
 	}
-	assert.Greater(t, service.WeightOf(withSchema(big), raw, budget.Unbounded()), asOne,
+	assert.Greater(t, service.ReferenceExpansionSize(withSchema(big), raw, budget.Unbounded()), asOne,
 		"read as raw YAML, the same tree holds no schema")
 
 	headers := ynode.Map(ynode.Scalar("headers"), ynode.Map(ynode.Scalar("H"), withSchema(big)))
@@ -131,9 +131,9 @@ func TestReferenceExpansionSize_CountsASchemaAsOneNode(t *testing.T) {
 			ynode.Map(ynode.Scalar("encoding"), ynode.Map(ynode.Scalar("f"), encoding))))
 	}
 	outer, nested := inContent(headers), inContent(ynode.Map(ynode.Scalar("encoding"), ynode.Map(ynode.Scalar("g"), headers)))
-	assert.Less(t, service.WeightOf(outer, param, budget.Unbounded()), service.WeightOf(outer, raw, budget.Unbounded()),
+	assert.Less(t, service.ReferenceExpansionSize(outer, param, budget.Unbounded()), service.ReferenceExpansionSize(outer, raw, budget.Unbounded()),
 		"a header's schema beneath an Encoding Object is one node")
-	assert.Equal(t, service.WeightOf(nested, raw, budget.Unbounded()), service.WeightOf(nested, param, budget.Unbounded()),
+	assert.Equal(t, service.ReferenceExpansionSize(nested, raw, budget.Unbounded()), service.ReferenceExpansionSize(nested, param, budget.Unbounded()),
 		"beneath one another nests, which a copy keeps verbatim, it is weighed in full")
 }
 
@@ -143,7 +143,7 @@ func TestReferenceExpansionSize_CountsASchemaAsOneNode(t *testing.T) {
 func TestReferenceExpansionSize_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 	t.Parallel()
 	const within = 1000
-	got := service.WeightOf(doubling(22), raw, budget.AtMost(within))
+	got := service.ReferenceExpansionSize(doubling(22), raw, budget.AtMost(within))
 	assert.Greater(t, got, within, "a declaration past what is left weighs past it")
 	assert.LessOrEqual(t, got, 2*(within+1), "no more than one node past it is visited, each weighing 2 at most")
 }

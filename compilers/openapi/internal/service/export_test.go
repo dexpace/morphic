@@ -34,8 +34,8 @@ func (e *expansion) Spent() int { return e.spent.Spent() }
 // Weighed counts the declarations weighed so far, once for each reading.
 func (e *expansion) Weighed() int { return len(e.weights) }
 
-// WeightOf exposes referenceExpansionSize.
-func WeightOf(root *yaml.Node, at reftable.Reading, within budget.Limit) int {
+// ReferenceExpansionSize exposes referenceExpansionSize.
+func ReferenceExpansionSize(root *yaml.Node, at reftable.Reading, within budget.Limit) int {
 	return referenceExpansionSize(root, at, within)
 }
 
