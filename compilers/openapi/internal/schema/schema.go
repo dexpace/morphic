@@ -446,15 +446,24 @@ func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement, standing
 // instead: the keywords beside the allOf, as if none were written, for one
 // refining with none.
 func electionOf(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (dispatch, bool) {
-	r, refines := refinementOf(c, s, pointer)
-	switch {
-	case !refines:
-		return dispatchOf(s), true
-	case r.principal != nil:
+	if r, refines := refinementOf(c, s, pointer); refines && r.principal != nil {
 		return dispatch{}, false
-	default:
-		return dispatchOf(s).besideAllOf(), true
 	}
+	return ownDispatch(c, s), true
+}
+
+// ownDispatch returns the dispatch among the keywords s writes itself: its
+// own (dispatchOf), or, where its allOf refines, that of the keywords beside
+// the allOf, as if none were written (besideAllOf). It is what lower lowers s
+// by where no entry of the allOf decides the position (electionOf), so a
+// reader asking ahead of the build what those keywords build asks it too
+// (buildsModel).
+func ownDispatch(c lowering.Ctx, s *statement.Schema) dispatch {
+	d := dispatchOf(s)
+	if decisionOf(c, s).refines {
+		return d.besideAllOf()
+	}
+	return d
 }
 
 // lowersTypeArray reports whether s, written at pointer, lowers by its type list
@@ -684,6 +693,16 @@ type dispatch struct {
 // the branches say.
 func (d dispatch) handled() keySet {
 	return keySetOf(d.skipped...) | keySetOf(d.said...)
+}
+
+// buildsModel reports whether lowerElected, lowering s by d, builds a Model,
+// the only node with composition fields for a union to distribute across: d
+// elects an allOf, which composes one (lowerAllOf), or no family, and s lowers
+// as one object (typingOf). So a bare property set, `required`, closure or
+// catch-all beside branches each declaring an object builds one, as beside
+// `type: object`.
+func (d dispatch) buildsModel(c lowering.Ctx, s *statement.Schema) bool {
+	return d.won == "allOf" || d.won == "" && typingOf(c, s).object()
 }
 
 // besideAllOf returns the election lower() makes of the keywords beside s's

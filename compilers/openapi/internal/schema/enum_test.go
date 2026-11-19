@@ -433,9 +433,9 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 // holding no member and lowering the union alone would state the opposite of
 // the source.
 //
-// It is a second case rather than a second row because shapeKeywords and
-// composesAsModel test the keyword themselves, through enumWritten, and a union
-// reaches lower()'s dispatch only through them.
+// It is a second case rather than a second row because shapeKeywords and the
+// dispatch (declaresFamily) test the keyword themselves, through enumWritten,
+// and a union beside it is classified by them before lower() runs.
 func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
