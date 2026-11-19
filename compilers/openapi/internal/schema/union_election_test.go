@@ -581,3 +581,30 @@ func TestUnion_TwoUnionsApartAreNamedTheOneOfFirst(t *testing.T) {
 		assert.Contains(t, warned[0], names, name)
 	}
 }
+
+// TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten pins a oneOf of
+// const null and an anyOf admitting no null, beside a $ref to an object,
+// beside an allOf of it, on one entry and on two: each draws the one warning
+// that the conjuncts share no value.
+func TestUnion_AConstNullPairBesideARefWarnsOnceWhereverWritten(t *testing.T) {
+	t.Parallel()
+	const one = "oneOf: [{const: null}]"
+	const anyOf = "anyOf: [{type: integer}, {type: object, properties: {p: {type: string}}, required: [p]}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    T: {type: object, properties: {a: {type: string}}}
+    Flat: {$ref: '#/components/schemas/T', `+one+`, `+anyOf+`}
+    Beside: {allOf: [{$ref: '#/components/schemas/T'}], `+one+`, `+anyOf+`}
+    OneEntry: {allOf: [{$ref: '#/components/schemas/T'}, {`+one+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{$ref: '#/components/schemas/T'}, {`+one+`}, {`+anyOf+`}]}
+`))
+	warned := map[string][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			name := strings.Split(string(d.Provenance.Pointer), "/")[3]
+			warned[name] = append(warned[name], d.Message)
+		}
+	}
+	for _, name := range []string{"Flat", "Beside", "OneEntry", "TwoEntries"} {
+		require.Len(t, warned[name], 1, name)
+		assert.Contains(t, warned[name][0], "share no value", name)
+	}
+}

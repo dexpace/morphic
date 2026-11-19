@@ -4233,7 +4233,9 @@ reach these shapes:
    ([`allof-inline-residue`](#allof-inline-residue)). Its entry is a conjunct sharing no kind with
    the rest, so the schema draws that rule's warning, a null the rest admits and no branch does
    being no value they share; where a null branch takes it, the schema draws the warning naming
-   the dead branches instead, which says that no instance but null satisfies it. A dead branch beside a live one on an entry is named as admitting
+   the dead branches instead, which says that no instance but null satisfies it. An elected
+   union of null alone has no branch to mark dead, so where it and the union passed over share no
+   value, the schema draws the warning of shape 4 naming the two instead. A dead branch beside a live one on an entry is named as admitting
    no value the rest of the `allOf` admits, which may hold kinds beside an object that no branch
    holds.
 

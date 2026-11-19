@@ -361,7 +361,13 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 	case unionNoLiveBranch:
 		id, diags := beside(ir.ReasonDegradedLowering,
 			"none of its branches admits an object its body admits, so no variant conjoining the two would hold a value")
-		return id, append(diags, diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)...)
+		dead := diagDeadBranches(c, s, besideUnion(s, pointer), deadBranches(c, s, s), pointer, false)
+		if len(dead) == 0 && pairSharesNoValue(c, s) {
+			// A union of null alone has no branch to mark dead, and the
+			// conjuncts' report names no union: the pair says it.
+			dead = diagUnionsShareNothing(c, s, pointer, "its body alone")
+		}
+		return id, append(diags, dead...)
 	case unionPairApart:
 		// A schema writing conjuncts beside them refines past them (entryUnionsApart).
 		id, diags := beside(ir.ReasonDegradedLowering, "its oneOf and anyOf share no value, so no instance satisfies them together")
