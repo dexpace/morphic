@@ -1032,204 +1032,177 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi/unpreservable-construct` and kept nothing. `openapi/unknown-schema-keyword` is an info
     at each `nullable` kept, and an entry kept whole as `validation_only` draws
     `openapi/validation-only-keyword` where it drew `openapi/degraded-construct`.
-- **0.71.0** — the OpenAPI compiler changes what these conjunctions lower to, and a diagnostic
-  gains a `related` member, the one change of shape:
-  - **A `oneOf` and an `anyOf` over a body**
-    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
-    [`competing-keywords`](../compilers/openapi.md#competing-keywords)). Written together beside a
-    body's keywords or its `allOf`, or on one inline entry of that `allOf`, they distribute the one
-    whose branches declare shape against the position, the `oneOf` where both do, each variant
-    keeping the other under its keyword, where one entry writing both was a `Model` keeping both
-    and the `oneOf` was distributed whatever its branches declared; where neither does, both are
-    kept as validation logic, as before. Wherever it is written, the union passed over is a
-    conjunct of the rest a dead branch is read against and of the conjuncts
-    [`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts) reads, named
-    `allOf/<n>/<keyword>` on the entry writing both.
-  - **A use of one `$ref` past the admission caps**
-    ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). An `allOf` whose read passes
-    256 schemas or 4,096 `enum` members but weighs one `$ref` alone, every other conjunct naming no
-    kind and stating no value set, format or `items`, is the use of its target it is within those
-    bounds, where it was a `Model` keeping the `$ref`; with a second conjunct the
-    election weighs, it still composes.
-  - **A union branch's null** ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
-    A branch admits null where a variant of a union it names does, as the IR holds that null, and
-    the body by all it writes but the union, one whose null lies past 256 schemas read as one that
-    may, so such a branch beside a body admitting null is a variant where it was dead.
-
-  - **An inline principal's node** ([`allof-refinement`](../compilers/openapi.md#allof-refinement)).
-    The node an inline `allOf` entry the position lowers from builds, a `Union`, a `type` list's
-    union, a `List`, a `Tuple` or a `Scalar`, stands at the position's pointer and ID, as a value
-    set's node already did, where it stood at the entry's (`…/allOf/<n>`) behind an alias or a
-    carrier; its children keep their pointers. A `type` list's variants, which no pointer of the
-    source names, and the nodes beneath them stand under the position's (`<position>/type/<i>`),
-    where they stood under the entry's, where the same keywords written flat at the position put
-    them. It holds
-    the bounds, notes and kept keywords written beside it, which the alias, the property or the
-    parameter held, a wrapper's once: a `type` list's variant each bound its type takes, its array
-    variant the collection bounds, and a bound no part of the node reads, a collection bound
-    beside a `oneOf` or an object bound beside a `type` list, kept on the node under its keyword
-    with a report. A `$ref` to the entry's own pointer names a node of the entry alone, a `type`
-    list's variants under the entry's pointer built from what the entry writes.
-
+- **0.71.0** — `Diagnostic.Related` is the one change of shape. The OpenAPI compiler changes where
+  the node of an inline `allOf` principal stands, what a `oneOf` and an `anyOf` written together
+  lower to, which nulls conjuncts share, what a schema no instance satisfies lowers to and draws,
+  and what a node keeps beside an inline principal; a consumer pinned to 0.70.0 refuses the
+  document. By what a consumer meets:
+  - **`Diagnostic.Related`**, new ([provenance](./provenance.md#related-places)): the other places
+    and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a `Provenance`, left out
+    when empty. A consumer decoding a diagnostic strictly meets a member it does not know, and one
+    comparing two diagnostics as values no longer can and keys on `Diagnostic.Key`. `irverify`
+    reports an entry of another role (`ir/unknown-related-role`), one naming no place and no node
+    (`ir/empty-related`), and a `decided` one naming no node (`ir/related-names-no-node`). The
+    OpenAPI compiler fills it on `openapi/conflicting-redeclaration`
+    ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): the place of
+    the declaration whose say the field kept, then every member the report decided, where the
+    message alone named the second declaration and a report said for several models gave their
+    number. Its message, its place and the node it names are as they were.
+  - **Type IDs move to the position**
+    ([`allof-refinement`](../compilers/openapi.md#allof-refinement)). The node an inline `allOf`
+    entry the position lowers from builds, a `Union`, a `type` list's union, a `List`, a `Tuple` or
+    a `Scalar`, stands at the position's pointer and ID, as a value set's already did, where it
+    stood at the entry's (`…/allOf/<n>`) behind an alias or a carrier; its children keep their
+    pointers. A `type` list's variants, which no pointer of the source names, and the nodes beneath
+    them stand under the position's (`<position>/type/<i>`), where the same keywords written flat
+    put them, where they stood under the entry's. The node holds the bounds, notes and kept keywords
+    written beside the `allOf`, which the alias, the property or the parameter held, a wrapper's
+    once: each variant of a `type` list the bounds its type takes, its array variant the collection
+    bounds, and a bound no part of the node reads, a collection bound beside a `oneOf` or an object
+    bound beside a `type` list, kept on the node under its keyword with a report. So `{allOf:
+    [{type: [string, integer]}], minLength: 1, minimum: 2}` is a `Union` of a string `…/type/0`
+    holding `minLength` and an integer `…/type/1` holding `minimum`, where an alias of the entry's
+    `Union` held both. A `$ref` to the entry's own pointer names a node of the entry alone, a `type`
+    list's variants under the entry's pointer, built from what the entry writes.
   - **A union alone on an inline `allOf` entry**
-    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). A `oneOf` or
-    `anyOf` on an entry, beside nothing a variant would carry, lowers as the union written at the
-    position: `{allOf: [{oneOf: [{$ref: X}, {type: 'null'}]}]}` is the nullable reference to `X`,
-    where it was a nullable `Union` of one `Model` composed over `X`, with an info; several
-    branches give the `Union` of the branches' own nodes. Such a union's discriminator keys the
-    compiler does not read are kept under `openapi:discriminator/<key>`, where an entry's stood
-    under `openapi:allOf/<n>/discriminator/<key>`. A union that collapses to a reference keeps no
-    `openapi:oneOf`, and a null branch writing more than null is kept under `openapi:oneOf/<i>`.
-
-  - **Conjuncts that share no value**
-    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts),
-    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Conjuncts share a
-    null only where every one of them may admit it, so a union none of whose branches admits
-    null, beside an `allOf` whose rest admits null, on an entry of it or beside a `$ref` to it,
-    draws the warning that its conjuncts share no value, where it drew infos only. A `oneOf` and
-    an `anyOf` that no instance satisfies together lower, beside the body, beside its `allOf`, on
-    one entry or on two, to the body's `Model` keeping both, as `degraded_lowering` where one of
-    them declares shape against the body and as validation logic where neither does, with that one
-    warning, where two entries, and a union passed over that shares no kind with the body,
-    distributed the elected union.
-
-  - **A `oneOf` and an `anyOf` with nothing beside them**
-    ([`competing-keywords`](../compilers/openapi.md#competing-keywords)).
-    Written on one `allOf` entry or one each on two, at any depth, with no other conjunct, they
-    lower as the same two written on one schema: the `Union` of the one the election picks, keeping
-    the other. `{allOf: [{oneOf: [P, Q]}, {anyOf: [X, Y]}]}` over objects is the `Union` of `P` and
-    `Q` keeping the `anyOf`, where it was a `Union` of composed `Model`s each keeping it; with
-    string and null branches against a string branch it is a one-variant `Union` keeping the
-    `anyOf`, where it was a nullable `Scalar` keeping the `oneOf` as `validation_only` and dropping
-    the `anyOf`. A `discriminator` on the entry passed over leaves the composition as it was. Where
-    the two share no value, every spelling, the one schema writing both among them, draws the
-    warning that the conjuncts share no value, where the one schema drew an info alone. Beside a
-    body, a branch of the elected union is read against the union passed over in every spelling:
-    over a body `type: [object, 'null']`, `oneOf: [{type: object}]` beside an `anyOf` of an object
-    declaring shape and a `$ref` to null is the `Union` of the `anyOf`'s object branch keeping the
-    null branch under `openapi:anyOf/<i>` with the dead-branch warning, where the one schema writing
-    both distributed the `oneOf`, keeping the `anyOf` on its one variant, with no warning. Neither union of the pair is folded into a refinement's principal as already said:
-    `{allOf: [{type: string}, {oneOf: [{type: string}]}, {anyOf: [{}]}]}` keeps the `anyOf` as
-    `validation_only`, where nothing kept it. Two unions sharing no value beside a body that is no
-    `Model` lower as the body in every spelling, keeping both, with that warning, where two entries
-    gave an empty `Model` keeping both and the body's type.
-
-  - **A union of null alone beside an `allOf`**
-    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
-    A union every branch of which admits null alone shares no kind with a rest admitting no null:
-    `{allOf: [T], oneOf: [{$ref: Null}]}`, `Null` being `{type: 'null'}`, over an object `T` is the
-    `Model` of `T` keeping the `oneOf` with one warning naming it, where it was a one-variant `Union`
-    of a composed `Model` and the warning named the schema's `type: null`.
-    Two unions whose branches share null alone are that `Model` keeping both with one warning, in
-    every spelling. Passed over for a union of objects, such a union is kept with the other on the
-    body's `Model` as `degraded_lowering`, and beside a body admitting null it is kept as
-    `degraded_lowering` on entries too, where two entries kept it as `validation_only`.
-
-  - **A `oneOf` and an `anyOf` on `allOf` entries beside a body**
+    ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)), beside nothing a
+    variant would carry, lowers as the union written at the position, its variants the branches' own
+    nodes, where each was a `Model` composed over its branch with an `openapi/composition-lowering`
+    info: `{allOf: [{oneOf: [{$ref: X}, {type: 'null'}]}]}` is the nullable reference to `X`, where
+    it was a nullable `Union` of one `Model` composed over `X`. The discriminator keys the compiler
+    does not read are kept under `openapi:discriminator/<key>`, where they stood under
+    `openapi:allOf/<n>/discriminator/<key>`. A union that collapses to a reference keeps no
+    `openapi:oneOf`, and a null branch writing more than null is still kept under
+    `openapi:oneOf/<i>`.
+  - **A `oneOf` and an `anyOf` written together**
     ([`competing-keywords`](../compilers/openapi.md#competing-keywords),
-    [`allof-refinement`](../compilers/openapi.md#allof-refinement)).
-    On one entry, on two in either order, or one `allOf` deeper, the two lower as they do beside the
-    `allOf`. Which declares shape is judged against the position, so `{allOf: [{type: [string,
-    'null']}, {oneOf: [{type: string}], anyOf: [{type: object, properties: {x}}, {type: string}]}]}`
-    is the `Union` of the object branch and string keeping the `oneOf` as `validation_only`, where
-    it was a nullable use of the entry keeping nothing. Between two union entries of an `allOf` that
-    refines, that preference elects whatever the kinds of the other entries: beside a string entry,
-    `oneOf: [{type: object, properties: {x}}, {$ref: S}]` on one entry and `anyOf: [{$ref: S}]` on
-    another are the `Union` of both `oneOf` branches keeping the `anyOf`, where the position was a
-    use of the `anyOf`'s entry keeping the `oneOf`. A union elected on a second entry collapses no
-    more than beside the `allOf`: with `oneOf: [{required: [a]}]` on one entry and `anyOf: [{type:
-    'null'}, {$ref: S}]` on another, `S` a string, the position is a `Union` of `S` keeping the
-    `oneOf`, where it was a `Scalar` keeping both. Each of null alone beside a body admitting null,
-    they are null alone keeping both as `degraded_lowering`, where a nullable use of the entry kept
-    nothing; sharing null alone beside such a body, they are a use of the body keeping both, with no
-    warning, where the `oneOf` was distributed.
-
-  - **The null of a `oneOf` and an `anyOf`**
-    ([`nullable`](../compilers/openapi.md#nullable),
-    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
-    The two admit null only where each may, as conjuncts do: a reference to `{$ref: T, oneOf:
-    [{type: object, properties: {x}}], anyOf: [{type: object}, {type: 'null'}]}` over an object `T`
-    is not nullable and draws no `openapi/inferred-nullable`, and one to `{oneOf: [{type: string},
-    {type: 'null'}], anyOf: [{type: string}]}` is not nullable, where each was. A variant of a
-    distributed union keeps its null only where the rest of the position does not keep null out:
-    `{allOf: [{type: string}], anyOf: [{type: string, enum: [b]}, {type: [string, 'null']}]}` is a
-    `Union` whose variants are not nullable, where the second was a nullable string.
-
-  - **A union sharing no value with a body that is no `Model`**
-    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts)).
-    A union none of whose branches shares a kind with a scalar or array body lowers as the body
-    keeping the union, with the warning that the conjuncts share no value, in every spelling:
-    `{type: string, oneOf: [{type: object, properties: {x}}]}` draws the warning, where it drew
-    none, and `{allOf: [{type: string}, {oneOf: [{type: object, properties: {x}}]}]}` is the string
-    keeping the `oneOf`, where it was a `Union` of one composed `Model`. A `oneOf` and an `anyOf`
-    sharing no value, by their kinds or by their `enum` members, lower so too: `{type: string,
-    oneOf: [{type: string, enum: [a]}], anyOf: [{type: string, enum: [b]}]}` is the string keeping
-    both, warned, where it was the `Enum` of `a` keeping the `anyOf` with no warning; `{type:
-    string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}` draws the warning, where it drew
-    none; and on `allOf` entries such a pair is the string keeping both as `validation_only`, where
-    it was a `Model` keeping both and the body's `type`. The warning names an entry electing a union
-    of null alone by what it admits, `allOf/1: null`, and its other union apart. A `oneOf` and an
-    `anyOf` sharing only a null the body beside them keeps out share no value with it: `{type:
-    string, oneOf: [{type: 'null'}], anyOf: [{type: 'null'}]}` draws the warning, where it drew
-    none, and beside an `allOf` of the string it is the string keeping both, where it was a `Model`
-    keeping both and the body's `type`.
-
-  - **Keywords beside an inline principal**
+    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)) lower alike on one
+    schema, beside an `allOf`, on one of its inline entries, one each on two in either order and one
+    `allOf` deeper, so kinds and variants change where they are written on entries. With nothing
+    beside them they are the `Union` of the one the election picks, keeping the other: `{allOf:
+    [{oneOf: [P, Q]}, {anyOf: [X, Y]}]}` over objects is the `Union` of `P` and `Q` keeping the
+    `anyOf`, where it was a `Union` of composed `Model`s each keeping it, and a `oneOf` of a string
+    and null on one entry beside an `anyOf` of a string on another is a one-variant `Union` keeping
+    the `anyOf`, where it was a nullable `Scalar` keeping the `oneOf` as `validation_only` and
+    dropping the `anyOf`. A `discriminator` on the entry passed over leaves the composition as it
+    was. Beside a body, they distribute the one whose branches declare shape against the position,
+    the `oneOf` where both do, each variant keeping the other under its keyword, as
+    `validation_only` where its branches declare no shape, where one entry writing both was a
+    `Model` keeping both and the `oneOf` beside the body was distributed whatever its branches
+    declared; where neither declares shape, both are kept as validation logic, as before. Shape is
+    judged against the position, and between two union entries of an `allOf` that refines, that
+    preference elects whatever the kinds of the other entries: beside a string entry, `oneOf:
+    [{type: object, properties: {x}}, {$ref: S}]` on one entry and `anyOf: [{$ref: S}]` on another
+    are the `Union` of both `oneOf` branches keeping the `anyOf`, where the position was a use of
+    the `anyOf`'s entry keeping the `oneOf`. An elected union collapses no more on an entry than on
+    one schema writing both: `oneOf: [{required: [a]}]` on one entry and `anyOf: [{type: 'null'},
+    {$ref: S}]` on another, `S` a string, are a `Union` of `S` behind a nullable reference keeping
+    the `oneOf`, where they were a `Scalar` keeping both. Neither union is folded into a
+    refinement's principal: `{allOf: [{type: string}, {oneOf: [{type: string}]}, {anyOf: [{}]}]}`
+    keeps the `anyOf` as `validation_only`, where nothing kept it. The union passed over is a
+    conjunct of the rest wherever it is written (below).
+  - **Nulls** ([`nullable`](../compilers/openapi.md#nullable),
+    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). `TypeRef.Nullable`
+    is false at positions it was true at, and a union branch dropped as dead is a variant: conjuncts
+    share a null only where every one of them may admit it. A `oneOf` and an `anyOf` admit null only
+    where each may: a reference to `{oneOf: [{type: string}, {type: 'null'}], anyOf: [{type:
+    string}]}` is not nullable, nor is one to `{$ref: T, oneOf: [{type: object, properties: {x}}],
+    anyOf: [{type: object}, {type: 'null'}]}` over an object `T`, which draws no
+    `openapi/inferred-nullable`, where each was. A variant of a distributed union keeps its own null
+    only where the rest of the position does not keep null out, so the variants of `{allOf: [{type:
+    string}], anyOf: [{type: string, enum: [b]}, {type: [string, 'null']}]}` are not nullable, where
+    the second was. A branch admits null where a variant of a union it names does, as the IR holds
+    that null, and the body by all it writes but the union, one whose read passes 256 schemas as one
+    that may, so such a branch beside a body admitting null is a variant, where it was dead: beside
+    `{type: [object, 'null'], properties: {u: …}}`, a branch `{$ref: TT}` over `TT: {anyOf: [{$ref:
+    Str}, {$ref: Null}]}` lives. A `oneOf` and an `anyOf` sharing null alone beside an object body
+    admitting null are a use of the body keeping both, with no warning, on two entries as elsewhere,
+    where two entries distributed the `oneOf`.
+  - **Schemas no instance satisfies**
+    ([`allof-disjoint-conjuncts`](../compilers/openapi.md#allof-disjoint-conjuncts),
+    [`union-beside-structure`](../compilers/openapi.md#union-beside-structure)) draw one
+    `openapi/degraded-construct` warning in every spelling, that their conjuncts share no value or
+    that a branch is dead, where many drew none, and many that were a `Union` or an empty `Model`
+    lower as their body. A union none of whose branches admits null, beside an `allOf` whose rest
+    admits null, on an entry of it or beside a `$ref` to it, draws the warning, where it drew no
+    such warning. A union none of whose branches shares a kind with a body that is no `Model` (a
+    scalar, a `type` list of scalars, an array) is the body keeping the union, warned: `{type:
+    string, oneOf: [{type: object, properties: {x}}]}` draws the warning, where it drew none, and
+    the same two on `allOf` entries are the string keeping the `oneOf`, where they were a `Union` of
+    one composed `Model`. So is a `oneOf` and an `anyOf` sharing no value beside such a body, by
+    their kinds, by their `enum` members or by sharing only a null the body keeps out: `{type:
+    string, oneOf: [{type: string, enum: [a]}], anyOf: [{type: string, enum: [b]}]}` is the string
+    keeping both, where it was the `Enum` of `a` keeping the `anyOf` with no warning; `{type:
+    string, oneOf: [{type: 'null'}], anyOf: [{type: string}]}` and the same with `anyOf: [{type:
+    'null'}]` draw the warning, where they drew none; and beside an `allOf` of the string or on its
+    entries, each is the string keeping both, the two pairs holding a null as `validation_only`,
+    where it was an empty `Model` keeping both and the body's `type`, the `enum` pair the top type
+    keeping them on entries and the `Enum` of `a` beside the `allOf`. The warning names an entry
+    electing a union of null alone by what it admits, `allOf/1: null`, and its other union apart.
+    With nothing beside them, such a pair draws the warning on the one schema writing both too,
+    where that drew an info alone. Over a `Model`, a union of null alone beside a rest admitting no
+    null shares no kind with it: `{allOf: [T], oneOf: [{$ref: Null}]}`, `Null` being `{type:
+    'null'}`, over an object `T` is the `Model` of `T` keeping the `oneOf`, with one warning naming
+    it, where it was a one-variant `Union` of a composed `Model` and the warning named the schema's
+    `type: null`, and two unions whose branches share null alone are that `Model` keeping both with
+    one warning. Where the union a pair passes over shares no kind with the body so, a union of null
+    alone among them, the pair lowers, beside the body, beside its `allOf` or on its entries, to the
+    body's `Model` keeping both, as `degraded_lowering` where one of them declares shape against the
+    body and as validation logic where neither does, where two entries, and such a pair beside the
+    body, distributed the elected union; beside a body admitting null, the other is still
+    distributed, the union of null alone kept on each variant, now with the warning. Two unions each
+    of null alone beside a body admitting null are null alone keeping both as `degraded_lowering`,
+    where a nullable alias of the entry's member-less `Enum` kept the `oneOf` and dropped the
+    `anyOf`. The union a pair passes over is a conjunct of the rest wherever it is written, read for
+    a dead branch and by the conjuncts' warning, which names it `allOf/<n>/<keyword>` on the entry
+    writing both: over a body `{type: [object, 'null'], properties: {a: …}}`, an `anyOf` of an
+    object declaring shape and a `$ref` to null beside `oneOf: [{type: object}]` is the `Union` of
+    the object branch keeping the null branch under `openapi:anyOf/1` with the dead-branch warning,
+    where the `oneOf` was distributed, its one variant keeping the `anyOf`, with no warning.
+  - **What a node keeps beside an inline principal**
     ([`allof-refinement`](../compilers/openapi.md#allof-refinement),
-    [`dialect-keywords`](../compilers/openapi.md#dialect-keywords)).
-    An inline entry naming a draft before 2019-09 by its own `$id` and `$schema` keeps the
-    `dependencies` it writes under `openapi:dependencies` on the node the position lowers to, as the
-    schema written flat in that draft does, where a list, a `type` list and a `oneOf` kept it on
-    `…/allOf/<n>` and a scalar and an object dropped it. A keyword kept beside an inline principal
-    is reported as kept on the node its position lowered to, by kind; "a use of one of its allOf
-    conjuncts" is said of a `$ref` principal alone. A bound beside a principal carrying a number as
-    text is kept as `no_ir_home` with the report the flat spelling draws, where the alias held a
-    length bound in its `Constraints` and kept a value bound as `degraded_lowering`. Where an inline
-    principal and the keywords beside the `allOf` both write a keyword no field reads, with
-    different values, the position's node keeps the position's under `openapi:<keyword>` and the
-    principal's under the entry's key, `openapi:allOf/<n>`, one object holding every such keyword
-    whichever reading of the principal keeps it, each reading naming its own in one report: `{allOf:
-    [{type: string, format: int64, minimum: 1, required: [a]}], minimum: 2, required: [b]}` holds
-    `openapi:allOf/0: {"minimum": 1, "required": ["a"]}`, where both stood on the entry's node
-    `…/allOf/0`. What the principal's build keeps beside a field it could not fill is held the same
-    way: `{allOf: [{type: string, format: byte, contentEncoding: base64url}], format: uuid}` holds
-    `openapi:format: "uuid"` and `openapi:allOf/0: {"format": "byte"}`, where `byte` stood on
-    `…/allOf/0`. An entry naming no kind whose own `allOf` holds the principal is lowered from as
-    well, each level's keyword kept once: `{allOf: [{allOf: [{type: string, minimum: 3}], minimum:
-    2}], minimum: 1}` holds `openapi:minimum: 1`, `openapi:allOf/0: {"minimum": 2}` and
-    `openapi:allOf/0/allOf/0: {"minimum": 3}`, where the outer entry was kept whole and `3` stood on
-    `…/allOf/0/allOf/0` too. A level writing a keyword as an entry around it does, or as the
-    position does, is that one writing, kept once under the outermost key holding it: with `minimum:
-    2` at both levels and `minimum: 1` at the position the node holds `openapi:minimum: 1` and
-    `openapi:allOf/0: {"minimum": 2}`. A draft entry's `dependencies` and a key no dialect defines
-    are kept so too, where the entry's was dropped unreported or the principal was kept whole.
-    Written alike on both, a keyword is one writing whichever reading keeps it: read once, or kept
-    once and reported once. One the principal's census or its bounds on a number carried as text
-    keeps is kept at the entry, where it was kept on two nodes, and so is one its build keeps; a
-    content keyword the node's `Encoding` holds is read there, where the position kept it too; a
+    [`dialect-keywords`](../compilers/openapi.md#dialect-keywords), [keys](./unmodeled.md#keys)):
+    `openapi:allOf/<n>` holds part of an entry and `openapi:allOf/<n>/allOf/<m>` part of a nested
+    one, and keys and reasons move. Where the principal and the keywords beside the `allOf` both
+    write a keyword no field reads, with different values, the position's node keeps the position's
+    under `openapi:<keyword>` and the principal's under the entry's key, one object holding every
+    such keyword whichever reading of the principal keeps it, each reading naming its own in one
+    report: `{allOf: [{type: string, format: int64, minimum: 1, required: [a]}], minimum: 2,
+    required: [b]}` holds `openapi:allOf/0: {"minimum": 1, "required": ["a"]}`, where both stood on
+    the entry's node `…/allOf/0`. What the principal's build keeps beside a field it could not fill
+    is held the same way, as `openapi:allOf/0: {"format": "byte"}` beside `openapi:format: "uuid"`
+    for `{allOf: [{type: string, format: byte, contentEncoding: base64url}], format: uuid}`, and so
+    are a draft entry's `dependencies` and a key no dialect defines, where the entry's was dropped
+    unreported or the principal was kept whole. An entry naming no kind whose own `allOf` holds the
+    principal is lowered from as well, each level's keyword kept once, the inner one's under
+    `openapi:allOf/0/allOf/0`, where the outer entry was kept whole and the inner node kept its own;
+    a level writing a keyword as an entry around it does, or as the position does, is that one
+    writing, kept under the outermost key holding it. Written alike on both, a keyword is one
+    writing whichever reading keeps it, read once, or kept once and reported once: one the
+    principal's census, its build or its bounds on a number carried as text keeps is kept at the
+    entry's pointer, where it stood on the entry's node and, but the build's, on the position's too;
+    a content keyword the node's `Encoding` holds is read there, where the position kept it too; a
     `default`, `readOnly`, `writeOnly` or validation-only keyword is kept at the position, where the
     entry reported it too; and where the position keeps the principal whole the entry holds it
     alone, where it was kept there and under its own key. Of two patterns the node's field holds the
-    position's, and the principal is kept whole under its entry's key. A principal the position
-    keeps whole under `openapi:allOf/<n>`, for a disagreeing extension or a closure, holds every
-    keyword of it, each once, and takes the reason those the node does not read share, else
-    `degraded_lowering`: `{allOf: [{type: string, minimum: 1, x-k: 1}], x-k: 2}` keeps it as
-    `degraded_lowering`, where the entry's own node kept `minimum` as `degraded_lowering` and `x-k`
-    as `vendor_extension`; one whose entry no JSON holds is kept keyword by keyword. A
-    `discriminator` beside a principal whose `Union` holds its own is reported as kept beside the
-    one the `Union` holds.
-
-  - **`Diagnostic` gained `Related`** ([provenance](./provenance.md#related-places)), a list of
-    the other places and nodes a finding concerns, each a `Role` (`kept`, `decided`) and a
-    `Provenance`, left out when empty. A finding concerning two declarations named the second in
-    its message alone, and one said for several models gave their number. The OpenAPI compiler
-    fills it on `openapi/conflicting-redeclaration`
-    ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): the place
-    of the declaration whose say the field kept, then every member the report decided; its
-    message, its place and the node it names are as they were. A consumer decoding a diagnostic
-    strictly meets a member it does not know; one comparing two diagnostics as values no longer
-    can, and keys on `Diagnostic.Key`.
-
-  A consumer pinned to 0.70.0 refuses the document; one reading such a position found a `Model`
-  keeping both unions, an empty `Model` keeping the `$ref`, no variant for such a branch, the
-  principal's node at its entry's ID, or a one-variant `Union` over a composed `Model`.
+    position's and the principal is kept whole under its entry's key, as before. A principal kept
+    whole under `openapi:allOf/<n>`, for a disagreeing extension or a closure, holds every keyword
+    of it, each once, under the reason those the node does not read share, else `degraded_lowering`:
+    `{allOf: [{type: string, minimum: 1, x-k: 1}], x-k: 2}` keeps it as `degraded_lowering`, where
+    the entry's own node kept `minimum` as `degraded_lowering` and `x-k` as `vendor_extension`; one
+    whose entry no JSON holds is kept keyword by keyword. A bound beside a principal carrying a
+    number as text is kept as `no_ir_home` with the report the flat spelling draws, where the alias
+    held a length bound in its `Constraints` and kept a value bound as `degraded_lowering`. An
+    inline entry naming a draft before 2019-09 by its own `$id` and `$schema` keeps its
+    `dependencies` under `openapi:dependencies` on the position's node, as the schema written flat
+    in that draft does, where a list, a `type` list and a `oneOf` kept it on `…/allOf/<n>` and a
+    scalar and an object dropped it. A keyword kept beside an inline principal is reported as kept
+    on the node its position lowered to, by kind, "a use of one of its allOf conjuncts" being said
+    of a `$ref` principal alone, and a `discriminator` beside a principal whose `Union` holds its
+    own is reported as kept beside the one the `Union` holds.
+  - **A use of one `$ref` past the admission caps**
+    ([`allof-refinement`](../compilers/openapi.md#allof-refinement)) is that use, where it was a
+    `Model` keeping the `$ref`: an `allOf` whose read passes 256 schemas or 4,096 `enum` members but
+    weighs one `$ref` alone, every other conjunct naming no kind and stating no value set, format or
+    `items`, is the use of its target it is within those bounds; with a second conjunct the election
+    weighs, it still composes.
