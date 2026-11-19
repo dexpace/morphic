@@ -44,9 +44,9 @@ type ResponseKey struct {
 type CompiledDocumentView struct {
 	// Types is the document's registry, which is whole.
 	Types ir.TypeRegistry
-	// Operations is every operation of every service, those of nested groups included
-	// to ir.MaxGroupDepth, as pointers into the document, a service's before
-	// the next's.
+	// Operations is every operation of every service, those of nested groups
+	// included to ir.MaxGroupDepth, as pointers into the document, a service's
+	// before the next's.
 	Operations []*ir.Operation
 	// Auth is the document's security schemes, the map the document holds.
 	Auth map[ir.AuthID]ir.AuthScheme

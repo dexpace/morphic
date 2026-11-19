@@ -112,9 +112,9 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingOperationID))
 }
 
-// pathItemRefOperationIDSpec has the operation written beside the $ref repeat the
-// referent's operationId, which is two declarations of one id rather than one
-// declaration mounted twice (GitHub #502).
+// pathItemRefOperationIDSpec has the operation written beside the $ref repeat
+// the referent's operationId, which is two declarations of one id rather than
+// one declaration mounted twice (GitHub #502).
 const pathItemRefOperationIDSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:

@@ -259,8 +259,8 @@ func itemParams(layers []layer) []sourcedParam {
 	return params
 }
 
-// layerOperation is one operation a mount lowers and the index of the layer declaring
-// it.
+// layerOperation is one operation a mount lowers and the index of the layer
+// declaring it.
 type layerOperation struct {
 	layer     int
 	operation pathOperation

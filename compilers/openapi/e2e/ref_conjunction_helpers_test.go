@@ -198,7 +198,8 @@ func requireOneOfDistributed(t *testing.T, doc *ir.Document) {
 	}
 }
 
-// holderWirePropertyType is the type the property named of the component Holder names.
+// holderWirePropertyType is the type the property named of the component Holder
+// names.
 func holderWirePropertyType(t *testing.T, doc *ir.Document, name string) ir.TypeID {
 	t.Helper()
 	property, ok := propertyByWire(requireModelOf(t, doc, "Holder"), name)

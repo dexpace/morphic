@@ -134,7 +134,8 @@ func service(doc *ir.Document) *ir.Service {
 	return &doc.Services[0]
 }
 
-// firstOperation returns the document's single operation, creating it on first use.
+// firstOperation returns the document's single operation, creating it on first
+// use.
 func firstOperation(doc *ir.Document) *ir.Operation {
 	return &service(doc).Groups[0].Operations[0]
 }
@@ -551,7 +552,8 @@ func serverRefSites() []idRefSite {
 	}
 }
 
-// operationRefSites are the fields referencing an operation the document declares.
+// operationRefSites are the fields referencing an operation the document
+// declares.
 //
 // An operation is declared inside the Service→OperationGroup tree rather than in
 // an ID-keyed map on Document, so no map-keyed registry exists for the class and
@@ -724,10 +726,10 @@ func TestValidate_ResolvedTypedIDRefsAreClean(t *testing.T) {
 	assert.Empty(t, validated(t, doc))
 }
 
-// TestValidate_DanglingOperationRefWithNoOperationDeclared drives the case the cases
-// above cannot: a document that declares no operation at all. A Smithy resource
-// names its lifecycle operations, so the reference exists whether or not any
-// ir.Operation does.
+// TestValidate_DanglingOperationRefWithNoOperationDeclared drives the case the
+// cases above cannot: a document that declares no operation at all. A Smithy
+// resource names its lifecycle operations, so the reference exists whether or
+// not any ir.Operation does.
 //
 // Which classes resolve has to come from the IR's shape rather than from the
 // declarations a document happens to carry. Read off the declarations, a class

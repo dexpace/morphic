@@ -158,15 +158,15 @@ func callbackOperations(doc *ir.Document) map[ir.OperationID]bool {
 	return callbacks
 }
 
-// isInbound reports whether a binding of operation marks it a request the API sends:
-// a webhook or a callback. Its WebhookName may be empty, since an empty
+// isInbound reports whether a binding of operation marks it a request the API
+// sends: a webhook or a callback. Its WebhookName may be empty, since an empty
 // webhooks key is legal.
 func isInbound(operation *ir.Operation) bool {
 	return slices.ContainsFunc(operation.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
-// operation records what operation sends and what comes back. The client writes a
-// request and reads a response, and the two swap when the API starts the
+// operation records what operation sends and what comes back. The client writes
+// a request and reads a response, and the two swap when the API starts the
 // operation, as it does a webhook or a callback.
 func (r usageRoots) operation(doc *ir.Document, operation *ir.Operation, inbound bool) {
 	request, response := UsageInput, UsageOutput

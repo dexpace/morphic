@@ -305,8 +305,9 @@ func assertSecurityRootOptional(t *testing.T, doc *ir.Document, _ []ir.Diagnosti
 }
 
 // assertSecurityStates holds the document's list to root and each operation's,
-// by name, to operations, on the compiled document and on the one its JSON reads back
-// to, so neither the lowering nor the encoding folds two states into one.
+// by name, to operations, on the compiled document and on the one its JSON
+// reads back to, so neither the lowering nor the encoding folds two states into
+// one.
 func assertSecurityStates(t *testing.T, doc *ir.Document, root []ir.AuthRequirement, operations map[string][]ir.AuthRequirement) {
 	t.Helper()
 	encoded, err := json.Marshal(doc)

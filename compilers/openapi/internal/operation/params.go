@@ -428,8 +428,8 @@ func appendSourced(b *typed.Bindings, dst []sourcedParam, params []*soa.Referenc
 	return dst
 }
 
-// shadowedKeys returns the (in, name) identities declared by operationParams, so a
-// path-item parameter sharing one is left out of the merge as a duplicate.
+// shadowedKeys returns the (in, name) identities declared by operationParams,
+// so a path-item parameter sharing one is left out of the merge as a duplicate.
 func shadowedKeys(b *typed.Bindings, operationParams []*soa.ReferencedParameter) map[ids.ParamSlot]bool {
 	shadowed := make(map[ids.ParamSlot]bool, len(operationParams))
 	for _, p := range operationParams {

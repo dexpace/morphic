@@ -432,8 +432,8 @@ func forbidRest(model *ir.Model) {
 	}
 }
 
-// patternProperties lowers patternProperties into pattern/value bindings in source
-// order.
+// patternProperties lowers patternProperties into pattern/value bindings in
+// source order.
 func patternProperties(loweringContext lowering.Ctx, ts *compile.Types, depth int, schema *statement.Schema, pointer jsontext.Pointer) ([]ir.PatternProperties, []ir.Diagnostic) {
 	pp := schema.ObjectKeywords().PatternProperties
 	if len(pp) == 0 {

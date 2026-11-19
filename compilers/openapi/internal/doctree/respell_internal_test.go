@@ -316,8 +316,8 @@ func restored(text []byte, respellingValue respelling) (*yaml.Node, string) {
 	return doc, ""
 }
 
-// stringValues lists every string of a tree that text can hold: values, tags, anchors
-// and the three comments.
+// stringValues lists every string of a tree that text can hold: values, tags,
+// anchors and the three comments.
 func stringValues(doc *yaml.Node) []string {
 	var out []string
 	walk(doc, func(node *yaml.Node) {

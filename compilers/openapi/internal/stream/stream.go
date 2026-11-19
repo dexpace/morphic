@@ -39,10 +39,10 @@ type keyed struct {
 	st      promotion.TextStatement
 }
 
-// terminator fills operation's terminator, all or none: from the operation's key
-// where it states one and no streaming content states another, else from the
-// streaming contents of its success responses where every one states the same
-// text. Where they disagree, one report names the later key by pointer.
+// terminator fills operation's terminator, all or none: from the operation's
+// key where it states one and no streaming content states another, else from
+// the streaming contents of its success responses where every one states the
+// same text. Where they disagree, one report names the later key by pointer.
 func terminator(promoter promotion.Promoter, operation *ir.Operation) []ir.Diagnostic {
 	own, diags := promoter.TextOf(promotion.TargetStreamTerminator, operation.Unmodeled)
 	if operation.ResponseStream == nil {
@@ -137,8 +137,8 @@ func fromContents(operation *ir.Operation, contents []keyed) []ir.Diagnostic {
 	return nil
 }
 
-// fillTerminator sets operation's terminator to text and marks each content whose key states
-// it.
+// fillTerminator sets operation's terminator to text and marks each content
+// whose key states it.
 func fillTerminator(operation *ir.Operation, text string, contents []keyed) {
 	operation.ResponseStream.Terminator = &text
 	for _, keyed := range contents {
@@ -150,8 +150,8 @@ func fillTerminator(operation *ir.Operation, text string, contents []keyed) {
 
 // condition fills operation's stream condition from the operation's key: an
 // expression naming a boolean input of the request, which asks for the stream
-// when true, where operation streams a success response that also offers a content
-// that does not stream. Any other key is reported and fills nothing.
+// when true, where operation streams a success response that also offers a
+// content that does not stream. Any other key is reported and fills nothing.
 func condition(promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) []ir.Diagnostic {
 	st, diags := promoter.TextOf(promotion.TargetStreamCondition, operation.Unmodeled)
 	if st.Text == "" {
@@ -179,8 +179,8 @@ func namesBoolean(compiledDocumentView *compileddoc.CompiledDocumentView, id ir.
 	return ok && primitive.PrimitiveKind == ir.PrimitiveBool
 }
 
-// choosesStream reports whether operation streams a response and a success response
-// offers a content that does not stream beside one that does.
+// choosesStream reports whether operation streams a response and a success
+// response offers a content that does not stream beside one that does.
 func choosesStream(operation *ir.Operation) bool {
 	if operation.ResponseStream == nil {
 		return false

@@ -126,8 +126,8 @@ func TestCheckDuplicateIDs_RepeatedPropertyIDIsClean(t *testing.T) {
 	assert.Empty(t, duplicateViolations(doc))
 }
 
-// modelWithProperty wraps one property in a model of its own, so two of them collide
-// on the PropertyID and on nothing else.
+// modelWithProperty wraps one property in a model of its own, so two of them
+// collide on the PropertyID and on nothing else.
 func modelWithProperty(id ir.TypeID, property ir.Property) *ir.Model {
 	return &ir.Model{ID: id, Properties: []ir.Property{property}}
 }
@@ -257,9 +257,9 @@ func TestCheckDuplicateIDs_VisitingCostsNoAllocation(t *testing.T) {
 	assert.Empty(t, duplicateViolations(doc), "the header's copies are one property")
 }
 
-// TestPropertyIDs_AreDeclaredByPropertiesAlone pins what checkDuplicateIDs leans on
-// when it lets a repeated PropertyID through: every node declaring one is an
-// ir.Property, the one node it fingerprints. A second node declaring a
+// TestPropertyIDs_AreDeclaredByPropertiesAlone pins what checkDuplicateIDs
+// leans on when it lets a repeated PropertyID through: every node declaring one
+// is an ir.Property, the one node it fingerprints. A second node declaring a
 // PropertyID would repeat it unfingerprinted and pass for a copy, so adding one
 // reddens this, for the check to decide what tells two of them apart.
 func TestPropertyIDs_AreDeclaredByPropertiesAlone(t *testing.T) {

@@ -257,11 +257,11 @@ func TestIDReferences_TruncatedWalkClaimsNoDeclaredClass(t *testing.T) {
 	assert.Empty(t, refs.Unresolved(false), "within the cap the same shape resolves")
 }
 
-// TestIDReferences_PropertyIDIsDeclaredButNeverKept pins the one class no registry
-// resolves. A PropertyID names a position inside its model, so a document-wide
-// answer would report one defect twice where a tighter check knows the model;
-// the declarations are still answered, for the check that holds a PropertyID to
-// a declared property.
+// TestIDReferences_PropertyIDIsDeclaredButNeverKept pins the one class no
+// registry resolves. A PropertyID names a position inside its model, so a
+// document-wide answer would report one defect twice where a tighter check
+// knows the model; the declarations are still answered, for the check that
+// holds a PropertyID to a declared property.
 func TestIDReferences_PropertyIDIsDeclaredButNeverKept(t *testing.T) {
 	t.Parallel()
 	doc := docWithRef("type/x/Holder")

@@ -174,8 +174,8 @@ func TestValidate_HostParamBoundMultipleTimesIsLegal(t *testing.T) {
 	assert.NotContains(t, irtest.DiagCodes(validated(t, docWithOperation(operation))), "pass/param-binding-mismatch")
 }
 
-// paramRefOperation returns an operation declaring one parameter and pointing its
-// pagination cursor, limit and idempotency token at the given IDs.
+// paramRefOperation returns an operation declaring one parameter and pointing
+// its pagination cursor, limit and idempotency token at the given IDs.
 func paramRefOperation(id ir.OperationID, own ir.ParameterID, cursor, limit, token ir.ParameterID) ir.Operation {
 	return ir.Operation{
 		ID:     id,

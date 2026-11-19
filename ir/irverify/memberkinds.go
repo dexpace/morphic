@@ -40,8 +40,9 @@ var memberKinds = func() map[ir.PrimitiveKind][]ir.ValueKind {
 
 // checkEnumMemberKinds asserts every member of an enum whose ValueType is
 // declared holds a value of a kind that value type admits, so a consumer
-// rendering the member as its enum's type is never handed another. An undeclared
-// ValueType has no row: checkPrimitiveKinds reports it, and the members are left.
+// rendering the member as its enum's type is never handed another. An
+// undeclared ValueType has no row: checkPrimitiveKinds reports it, and the
+// members are left.
 func checkEnumMemberKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {

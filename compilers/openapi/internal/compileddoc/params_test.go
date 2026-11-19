@@ -12,9 +12,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// paramsOperation is an operation declaring id in its path and its query, a header
-// X-Up bound twice, a parameter named q.x with a dot in it, a parameter b bound
-// in its query and its headers, and a host label.
+// paramsOperation is an operation declaring id in its path and its query, a
+// header X-Up bound twice, a parameter named q.x with a dot in it, a parameter
+// b bound in its query and its headers, and a host label.
 func paramsOperation() *ir.Operation {
 	return &ir.Operation{
 		Params: []ir.Parameter{

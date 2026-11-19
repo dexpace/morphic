@@ -20,9 +20,9 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// propertyPathOperation returns an operation whose HTTP binding walks path through
-// the response body — one of the PropertyID carriers the reference walk sees
-// and no registry can resolve.
+// propertyPathOperation returns an operation whose HTTP binding walks path
+// through the response body — one of the PropertyID carriers the reference walk
+// sees and no registry can resolve.
 func propertyPathOperation(path []ir.PropertyID) ir.Operation {
 	return ir.Operation{
 		ID: "operation/o", Name: ir.Naming{Source: "o"},
@@ -35,9 +35,9 @@ func propertyPathOperation(path []ir.PropertyID) ir.Operation {
 
 // TestValidate_PropertyPathSegmentResolves accepts a segment naming a declared
 // property and rejects one naming nothing, which is the whole of what was
-// checked by nothing before: PropertyPath.Segments is a reference the type-driven
-// walk classifies as unresolvable, because a property lives inside its model
-// rather than in a document-level registry.
+// checked by nothing before: PropertyPath.Segments is a reference the
+// type-driven walk classifies as unresolvable, because a property lives inside
+// its model rather than in a document-level registry.
 func TestValidate_PropertyPathSegmentResolves(t *testing.T) {
 	t.Parallel()
 	ok := validated(t, docWithOperation(propertyPathOperation([]ir.PropertyID{"property/m/a"})))
@@ -58,8 +58,8 @@ func TestValidate_APropertyIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
 	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-property-ref")
 }
 
-// TestValidate_DanglingPropertyIDsAreReportedByLocation holds the diagnostics to
-// the order of their locations, which is not the walk's: eleven segments are
+// TestValidate_DanglingPropertyIDsAreReportedByLocation holds the diagnostics
+// to the order of their locations, which is not the walk's: eleven segments are
 // walked [0] to [10], and "[10]" sorts between "[0]" and "[1]".
 func TestValidate_DanglingPropertyIDsAreReportedByLocation(t *testing.T) {
 	t.Parallel()
@@ -98,8 +98,8 @@ func TestValidate_ParamPathSegmentResolves(t *testing.T) {
 	assert.Contains(t, irtest.DiagCodes(validated(t, docWithOperation(operation))), "ir/dangling-property-ref")
 }
 
-// TestValidate_PropertyIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion. A
-// PropertyID reached as a map key is a Content.Encoding key, and
+// TestValidate_PropertyIDMapKeyIsLeftToTheEncodingCheck pins the one exclusion.
+// A PropertyID reached as a map key is a Content.Encoding key, and
 // checkEncodingKeys resolves it against the properties of the model the content
 // names — a tighter claim about the same defect. One defect must read as one
 // location, so the membership check stays out of that map.

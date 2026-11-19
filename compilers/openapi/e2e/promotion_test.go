@@ -246,9 +246,9 @@ func assertPromotionDeclined(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 		"declining a value the policy cannot read is reported; got %+v", diags)
 }
 
-// deprecatedOperationSpec is one deprecated operation carrying the two extensions the
-// default mapping reads, for the tests that vary the policy rather than the
-// document.
+// deprecatedOperationSpec is one deprecated operation carrying the two
+// extensions the default mapping reads, for the tests that vary the policy
+// rather than the document.
 const deprecatedOperationSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:

@@ -383,11 +383,11 @@ func hoistLiteral(loweringContext lowering.Ctx, ts *compile.Types, site valueSet
 }
 
 // literalValueType picks a Literal's ValueType as enumValueType picks an
-// Enum's, for its one value: the primitive the declared type and format
-// select, else the declared type's, where the value is one of it (declaredPrimitive);
+// Enum's, for its one value: the primitive the declared type and format select,
+// else the declared type's, where the value is one of it (declaredPrimitive);
 // else the primitive the value's own kind declares, and none for a list or an
-// object, which no primitive types. A refinement's value set is then typed
-// by every conjunct (valueSetSite.valueType).
+// object, which no primitive types. A refinement's value set is then typed by
+// every conjunct (valueSetSite.valueType).
 func literalValueType(schema *statement.Schema, val ir.Value) ir.PrimitiveKind {
 	if primitive, ok := declaredPrimitive(schema, func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) }); ok {
 		return primitive
@@ -404,9 +404,9 @@ func literalValueType(schema *statement.Schema, val ir.Value) ir.PrimitiveKind {
 // enumValueType picks an Enum's ValueType as literalValueType picks a
 // Literal's: the primitive the schema's declared type and format select, as a
 // scalar's are read, else the declared type's, where every member is a value of
-// it (declaredPrimitive); else the primitive its members classified to. A type or a
-// format the members do not fit is one no target could back the enum with, so
-// it stays verbatim. It does not re-derive memberPrimitive from a ValueKind:
+// it (declaredPrimitive); else the primitive its members classified to. A type
+// or a format the members do not fit is one no target could back the enum with,
+// so it stays verbatim. It does not re-derive memberPrimitive from a ValueKind:
 // enumMemberForm decided it once, for the same members.
 func enumValueType(schema *statement.Schema, admits func(ir.PrimitiveKind) bool, memberPrimitive ir.PrimitiveKind) ir.PrimitiveKind {
 	if primitive, ok := declaredPrimitive(schema, admits); ok {

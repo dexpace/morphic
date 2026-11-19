@@ -75,8 +75,8 @@ func TestValidate_AStoppedWalkIsReportedOnce(t *testing.T) {
 	assert.Equal(t, 1, countCode(t, diags, "ir/walk-truncated"), "%v", irtest.DiagCodes(diags))
 }
 
-// propertyPathDocument returns a document whose operation names a property in its
-// response body path, which the walk reaches in Services before the model
+// propertyPathDocument returns a document whose operation names a property in
+// its response body path, which the walk reaches in Services before the model
 // declaring it in Types, or one naming nothing when ghost is set.
 func propertyPathDocument(ghost bool) *ir.Document {
 	segment := ir.PropertyID("property/m/a")

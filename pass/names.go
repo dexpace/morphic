@@ -116,9 +116,9 @@ func (r *nameReader) params(operation ir.OperationID, params []ir.Parameter) {
 	}
 }
 
-// choices reads the parameter choices of the operation operation as one scope, and
-// each choice's variants as one of its own. Neither holds an ID, so a party is
-// named by its index, and a target tells two named alike apart by position.
+// choices reads the parameter choices of the operation operation as one scope,
+// and each choice's variants as one of its own. Neither holds an ID, so a party
+// is named by its index, and a target tells two named alike apart by position.
 func (r *nameReader) choices(operation ir.OperationID, choices []ir.ParamChoice) {
 	if r.readScope(byWords, len(choices), func(i int) ir.Naming { return choices[i].Name }) {
 		r.report(scope{in: "operation", id: string(operation), one: "parameter choice", many: "parameter choices",

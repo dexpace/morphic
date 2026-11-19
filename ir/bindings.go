@@ -3,10 +3,10 @@
 
 package ir
 
-// OperationBindings holds the concrete-protocol mappings of an Operation's neutral core
-// (docs/ir/bindings.md). An operation has at least one binding; more than one
-// is legal (a Smithy service exposed over both HTTP and RPC; gRPC with HTTP
-// transcoding).
+// OperationBindings holds the concrete-protocol mappings of an Operation's
+// neutral core (docs/ir/bindings.md). An operation has at least one binding;
+// more than one is legal (a Smithy service exposed over both HTTP and RPC; gRPC
+// with HTTP transcoding).
 type OperationBindings struct {
 	// HTTP holds the HTTP mappings (OpenAPI/Swagger ops, TypeSpec @route, Smithy
 	// http traits). A slice: one operation may carry several HTTP mappings — gRPC

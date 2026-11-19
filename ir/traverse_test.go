@@ -79,8 +79,8 @@ func TestForEachOperation_TruncationSkipsOnlyTheDeepGroups(t *testing.T) {
 	assert.Equal(t, []ir.OperationID{"sibling", "later"}, got, "the cut skips only the groups past the cap")
 }
 
-// operationIDs collects the operations ForEachOperation visits, in order, and whether
-// it reported a cut.
+// operationIDs collects the operations ForEachOperation visits, in order, and
+// whether it reported a cut.
 func operationIDs(doc *ir.Document) ([]ir.OperationID, bool) {
 	var got []ir.OperationID
 	truncated := ir.ForEachOperation(doc, func(operation ir.Operation) { got = append(got, operation.ID) })

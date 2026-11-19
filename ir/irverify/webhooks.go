@@ -108,8 +108,9 @@ func checkCallbacks(*ir.Document) walkCheck {
 	}
 }
 
-// noteCallbacks records where operation, at path, is first marked a callback, and
-// where each operation its bindings list among their Callbacks is first listed.
+// noteCallbacks records where operation, at path, is first marked a callback,
+// and where each operation its bindings list among their Callbacks is first
+// listed.
 func noteCallbacks(operation *ir.Operation, path ir.WalkPath, marked, listed map[ir.OperationID]string) {
 	for i, b := range operation.Bindings.HTTP {
 		if _, seen := marked[operation.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {

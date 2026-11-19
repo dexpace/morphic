@@ -22,8 +22,8 @@ func DanglingRefs(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
 	return checkDanglingRefs(walked.refs, walked.truncated)
 }
 
-// KeptPropertyIDs returns where the PropertyID references one walk of doc keeps for
-// checkPropertyIDRefs to settle sit, in walk order, for the external tests.
+// KeptPropertyIDs returns where the PropertyID references one walk of doc keeps
+// for checkPropertyIDRefs to settle sit, in walk order, for the external tests.
 func KeptPropertyIDs(tb testing.TB, doc *ir.Document) []string {
 	tb.Helper()
 	properties := walkedFor(tb, doc).properties
@@ -112,8 +112,8 @@ func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
 	return testing.AllocsPerRun(5, func() { _ = walkedFor(tb, doc) })
 }
 
-// PropertyIDRefs returns checkPropertyIDRefs over what one walk of doc reads, as
-// validate runs it, for the external tests to measure.
+// PropertyIDRefs returns checkPropertyIDRefs over what one walk of doc reads,
+// as validate runs it, for the external tests to measure.
 func PropertyIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	walked := walkedFor(tb, doc)

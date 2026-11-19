@@ -37,7 +37,8 @@ type EnvelopeRead struct {
     Flag     *ir.PropertyPath // the member saying whether the call succeeded; nil = none
     Succeeds []ir.Value       // the Flag values meaning it succeeded
     Failures []ir.TypeRef     // what a failing body may decode into: the first whose flag admits
-                              // the value read (below); none admitting it = the target's untyped JSON
+                              // the value read (below); none admitting it = the target's untyped
+                              // JSON
 }
 
 // BodyShape is how a body reaches its reader, a small closed enum:

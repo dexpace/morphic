@@ -65,8 +65,9 @@ func operationNamed(names ...string) ir.Service {
 	return ir.Service{Groups: []ir.OperationGroup{{Operations: operations}}}
 }
 
-// TestFindOperation_FindsTheOperationBySourceName covers both outcomes: the match, and
-// the miss that must fail the test rather than return a zero operation quietly.
+// TestFindOperation_FindsTheOperationBySourceName covers both outcomes: the
+// match, and the miss that must fail the test rather than return a zero
+// operation quietly.
 func TestFindOperation_FindsTheOperationBySourceName(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Services: []ir.Service{operationNamed("getA", "getB")}}
@@ -78,8 +79,8 @@ func TestFindOperation_FindsTheOperationBySourceName(t *testing.T) {
 	assert.Contains(t, recorderValue.fatalf[0], `operation "absent" not found`)
 }
 
-// TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup pins the shorthand the
-// single-operation fixtures use.
+// TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup pins the shorthand
+// the single-operation fixtures use.
 func TestFirstOperation_ReturnsTheFirstOperationOfTheFirstGroup(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "getA", openapitest.FirstOperation(t, operationNamed("getA", "getB")).Name.Source)
@@ -101,8 +102,8 @@ func TestParamBySource_FindsTheParameterBySourceName(t *testing.T) {
 	assert.False(t, ok)
 }
 
-// TestIndexBy_KeysEveryItem covers the generic lookup and PropertiesByWire, the one
-// keying it is used for often enough to have a name.
+// TestIndexBy_KeysEveryItem covers the generic lookup and PropertiesByWire, the
+// one keying it is used for often enough to have a name.
 func TestIndexBy_KeysEveryItem(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[int]string{1: "a", 2: "bb"},

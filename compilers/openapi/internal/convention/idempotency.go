@@ -19,13 +19,14 @@ const idempotencyKeyHeader = "Idempotency-Key"
 // names no constant for.
 const methodQuery = "QUERY"
 
-// idempotency names operation's idempotency token, and marks operation, under the idempotency
-// policy, where operation states no idempotency, is bound to HTTP once, by a method
-// RFC 9110 does not define as safe, and binds exactly one header parameter
-// under idempotencyKeyHeader, compared without case. A safe method states operation's
-// idempotency itself, so the header is not read there; a method whose safety
-// the compiler does not know, and the header bound twice, are reported as
-// undecided. compiledDocumentView is the document holding operation. The rule is
+// idempotency names operation's idempotency token, and marks operation, under
+// the idempotency policy, where operation states no idempotency, is bound to
+// HTTP once, by a method RFC 9110 does not define as safe, and binds exactly
+// one header parameter under idempotencyKeyHeader, compared without case. A
+// safe method states operation's idempotency itself, so the header is not read
+// there; a method whose safety the compiler does not know, and the header bound
+// twice, are reported as undecided. compiledDocumentView is the document
+// holding operation. The rule is
 // docs/compilers/openapi.md#idempotency-inference.
 func idempotency(policy IdempotencyInference, compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) []ir.Diagnostic {
 	if !policy.Honours() || operation.Idempotency.Kind != ir.IdempotencyUnknown ||
@@ -52,8 +53,8 @@ func idempotency(policy IdempotencyInference, compiledDocumentView *compileddoc.
 	return nil
 }
 
-// undecidedToken reports why operation takes no token, formatted from format and
-// args, at operation: the declaration its Provenance names.
+// undecidedToken reports why operation takes no token, formatted from format
+// and args, at operation: the declaration its Provenance names.
 func undecidedToken(operation *ir.Operation, format string, args ...any) []ir.Diagnostic {
 	at := operation.Provenance
 	at.Inferred = ""

@@ -149,8 +149,8 @@ func resolveLink(ix operationIndex, compiledDocumentView *compileddoc.CompiledDo
 	return link, nil
 }
 
-// operationIndex finds the operations of a service by ID, by operationId, and by
-// where the source declares them.
+// operationIndex finds the operations of a service by ID, by operationId, and
+// by where the source declares them.
 type operationIndex struct {
 	byID   map[ir.OperationID]*ir.Operation
 	byName map[string][]*ir.Operation
@@ -169,7 +169,8 @@ func indexOperations(serviceContext service.Ctx, operations []*ir.Operation) ope
 	return ix
 }
 
-// add indexes operation, declared in source's document when its provenance says so.
+// add indexes operation, declared in source's document when its provenance says
+// so.
 func (ix operationIndex) add(operation *ir.Operation, source int) {
 	ix.byID[operation.ID] = operation
 	if name := operation.Name.Source; name != "" {
@@ -219,7 +220,8 @@ func (ix operationIndex) byReference(linkDraftValue *linkDraft) (*ir.Operation, 
 	return one(declared, "operationRef", ref)
 }
 
-// one returns the one operation of operations, which a link's field names by spelled.
+// one returns the one operation of operations, which a link's field names by
+// spelled.
 func one(operations []*ir.Operation, field, spelled string) (*ir.Operation, *linkFailure) {
 	switch len(operations) {
 	case 1:

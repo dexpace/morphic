@@ -29,7 +29,8 @@ type Operations struct {
 	Mark   func(name string, atime, mtime time.Time) error
 }
 
-// UseOperations makes dir call the operations operations sets in place of the system's.
+// UseOperations makes dir call the operations operations sets in place of the
+// system's.
 func UseOperations(dir *Dir, operations Operations) {
 	if operations.List != nil {
 		dir.operations.list = operations.List

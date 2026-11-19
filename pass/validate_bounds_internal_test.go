@@ -13,9 +13,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestPrimitiveShapes_EveryPrimitiveKindHasARow holds primitiveShape to the kinds ir declares:
-// a kind added there with no case here would be judged by no check, and
-// nothing else would say so.
+// TestPrimitiveShapes_EveryPrimitiveKindHasARow holds primitiveShape to the
+// kinds ir declares: a kind added there with no case here would be judged by no
+// check, and nothing else would say so.
 func TestPrimitiveShapes_EveryPrimitiveKindHasARow(t *testing.T) {
 	t.Parallel()
 	loadedPackage, err := decls.Load("github.com/dexpace/morphic/ir")

@@ -94,11 +94,11 @@ func own(wire string, target ir.TypeID, n string) func(idx *ModelPropertyDeclara
 	}
 }
 
-// TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart pins a member two entries
-// declare apart, in either entry order: the model declares the later's at
-// <model>/allOf/properties/<name> in the composed namespace, reports where the
-// one that lost is written, naming the property, and keeps nothing, the loser
-// staying declared on its model.
+// TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart pins a member two
+// entries declare apart, in either entry order: the model declares the later's
+// at <model>/allOf/properties/<name> in the composed namespace, reports where
+// the one that lost is written, naming the property, and keeps nothing, the
+// loser staying declared on its model.
 func TestPropertyIndex_SettlesAMemberItsEntriesDeclareApart(t *testing.T) {
 	t.Parallel()
 	id := ids.DocumentIDNamespace{}.ComposedProperty("/M/allOf/properties/p")
@@ -214,9 +214,9 @@ func TestPropertyIndex_PlacesADeclarationAtTheEntryBringingIt(t *testing.T) {
 	assert.Len(t, diags, 1)
 }
 
-// TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the order
-// members only entries declare are appended in: by wire name, not as an entry
-// lists them.
+// TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName pins the
+// order members only entries declare are appended in: by wire name, not as an
+// entry lists them.
 func TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName(t *testing.T) {
 	t.Parallel()
 	model, _ := settled(t, membersRegistry(), composes("type/C", "0"), composes("type/D", "1"))
@@ -224,9 +224,9 @@ func TestPropertyIndex_SettlesTheMembersOnlyEntriesDeclareByWireName(t *testing.
 	assert.Equal(t, []string{"y", "z"}, []string{model.Properties[0].WireName, model.Properties[1].WireName})
 }
 
-// TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder pins an entry
-// whose declaration a promotion made secret beside one declaring nothing: the
-// field is secret and carries the promotion's marker whichever is written
+// TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder pins an
+// entry whose declaration a promotion made secret beside one declaring nothing:
+// the field is secret and carries the promotion's marker whichever is written
 // later.
 func TestPropertyIndex_APromotedRedactionBringsItsMarkerInEitherOrder(t *testing.T) {
 	t.Parallel()
@@ -317,9 +317,9 @@ func TestFold_ABroughtDeclarationPastTheBoundStaysOnItsModel(t *testing.T) {
 	assert.NotContains(t, got.Unmodeled, losingDeclarationKey+"/B/data")
 }
 
-// TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the identity
-// of a member the model declares beside an entry's declaration: its own
-// declaration's, where that is written, unless another model holds that
+// TestPropertyIndex_KeepsTheIdentityOfTheDeclarationItHoldsAlone pins the
+// identity of a member the model declares beside an entry's declaration: its
+// own declaration's, where that is written, unless another model holds that
 // declaration too, as a node interned at the allOf branch writing it does, or
 // it is written outside the model's schema, as the body a distributed variant
 // shares is; then one in the composed namespace. The conflict over the entry's

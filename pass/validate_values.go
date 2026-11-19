@@ -82,10 +82,10 @@ func exampleLabel(ex *ir.Example, i int) string {
 	return strconv.Itoa(i)
 }
 
-// appendScenarioValues reports the values of operation's scenarios the type of what
-// they stand for does not admit: each input parameter, against the parameter
-// of its ID, and the content of the error a scenario ends in, against the
-// error's type. params holds the sorted IDs of one input.
+// appendScenarioValues reports the values of operation's scenarios the type of
+// what they stand for does not admit: each input parameter, against the
+// parameter of its ID, and the content of the error a scenario ends in, against
+// the error's type. params holds the sorted IDs of one input.
 func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir.Operation, params *[]ir.ParameterID) []ir.Diagnostic {
 	for i := range operation.Examples {
 		ex := &operation.Examples[i]
@@ -103,10 +103,10 @@ func appendScenarioValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir
 	return diags
 }
 
-// appendInputValues reports each parameter of scenario ex, the ith of operation, whose
-// value the parameter's type does not admit, in the order of their IDs. An input
-// naming a parameter operation does not declare is skipped: pass/param-binding-mismatch
-// has it.
+// appendInputValues reports each parameter of scenario ex, the ith of
+// operation, whose value the parameter's type does not admit, in the order of
+// their IDs. An input naming a parameter operation does not declare is skipped:
+// pass/param-binding-mismatch has it.
 func appendInputValues(diags []ir.Diagnostic, doc *ir.Document, operation *ir.Operation, ex *ir.Example, i int,
 	params *[]ir.ParameterID,
 ) []ir.Diagnostic {

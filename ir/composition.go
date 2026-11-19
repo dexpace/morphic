@@ -175,10 +175,10 @@ func ExposedProperties(doc *Document, root TypeID) map[PropertyID]bool {
 }
 
 // ExposesWithin answers whether [ExposedProperties] holds property by the same
-// walk, which stops at the first type declaring property, in at most limit steps:
-// one for root and for each part source it follows, and one for each property
-// it reads. spent is the steps it took, and ok is false when the walk needed
-// more than limit and stopped without an answer.
+// walk, which stops at the first type declaring property, in at most limit
+// steps: one for root and for each part source it follows, and one for each
+// property it reads. spent is the steps it took, and ok is false when the walk
+// needed more than limit and stopped without an answer.
 func ExposesWithin(doc *Document, root TypeID, property PropertyID, limit int) (exposed bool, spent int, ok bool) {
 	left := limit
 	ok = exposedWalk(doc, root, &left, func(propertyID PropertyID) bool {

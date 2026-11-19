@@ -98,15 +98,15 @@ func byLocation(sites []ir.IDReference) []ir.IDReference {
 	return sites
 }
 
-// propertyIDType is the reflect.Type of ir.PropertyID. A PropertyID references no
-// document-level registry — a property is a position inside its model — so both
-// halves of resolving one come from the walk itself: the sites that carry a
-// PropertyID, and the nodes that declare them.
+// propertyIDType is the reflect.Type of ir.PropertyID. A PropertyID references
+// no document-level registry — a property is a position inside its model — so
+// both halves of resolving one come from the walk itself: the sites that carry
+// a PropertyID, and the nodes that declare them.
 var propertyIDType = reflect.TypeFor[ir.PropertyID]()
 
-// propertyIDSites gathers, as an ir.Visitor, the ir.PropertyID references a walk
-// reaches that may not resolve, each with its path kept unspelled. One naming
-// a property refs has already read, the property's own ID among them,
+// propertyIDSites gathers, as an ir.Visitor, the ir.PropertyID references a
+// walk reaches that may not resolve, each with its path kept unspelled. One
+// naming a property refs has already read, the property's own ID among them,
 // resolves, so it is not kept.
 //
 // A PropertyID reached as a map key is left out. The one PropertyID-keyed map

@@ -160,9 +160,9 @@ func indexOver(model *ir.Model, stubbedValue *stubbed) (idx *ModelPropertyDeclar
 	}
 }
 
-// TestPropertyIndex_ARedeclarationFoldsOnceTheRegistryIsWhole pins what frees the
-// fold from declaration order (GitHub #898): the walk lands a wire name's first
-// declaration and records every later one, the model hands its folds over
+// TestPropertyIndex_ARedeclarationFoldsOnceTheRegistryIsWhole pins what frees
+// the fold from declaration order (GitHub #898): the walk lands a wire name's
+// first declaration and records every later one, the model hands its folds over
 // once, and the fold reads the registry it settles against, which holds nodes
 // the walk had not built when it met the declarations.
 func TestPropertyIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
@@ -207,9 +207,9 @@ func TestPropertyIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	assert.Equal(t, ir.TypeID("type/str"), model.Properties[1].Type.Target, "a field declared once is left as declared")
 }
 
-// TestPropertyIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common path:
-// a model whose properties are each declared once has nothing to fold, so it
-// hands no settlement over.
+// TestPropertyIndex_AModelDeclaringEachNameOnceQueuesNothing pins the common
+// path: a model whose properties are each declared once has nothing to fold, so
+// it hands no settlement over.
 func TestPropertyIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	t.Parallel()
 	model := &ir.Model{ID: "type/m"}

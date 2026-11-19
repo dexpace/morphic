@@ -32,9 +32,9 @@ const (
 // aliases ends.
 const maxAliasHops = 64
 
-// primitiveShape is the shape of a primitive of kind primitiveKind. Every kind has
-// one: TestPrimitiveShapes_EveryPrimitiveKindHasARow holds the cases to the kinds ir
-// declares.
+// primitiveShape is the shape of a primitive of kind primitiveKind. Every kind
+// has one: TestPrimitiveShapes_EveryPrimitiveKindHasARow holds the cases to the
+// kinds ir declares.
 func primitiveShape(primitiveKind ir.PrimitiveKind) shape {
 	switch primitiveKind {
 	case ir.PrimitiveFloat32, ir.PrimitiveFloat64, ir.PrimitiveFloat, ir.PrimitiveNumber, ir.PrimitiveDecimal, ir.PrimitiveDecimal128:

@@ -349,10 +349,10 @@ func hasCycle(nodes []graphNode) bool {
 	return false
 }
 
-// unfoldedConstructors counts the constructors met in reading nodes as the tree the
-// document's JSON encodes, one for each way in, except that a node met again from
-// inside itself is not entered: the count a traversal that ends at cycles must
-// reach, worked out on the graph as drawn.
+// unfoldedConstructors counts the constructors met in reading nodes as the tree
+// the document's JSON encodes, one for each way in, except that a node met
+// again from inside itself is not entered: the count a traversal that ends at
+// cycles must reach, worked out on the graph as drawn.
 func unfoldedConstructors(nodes []graphNode) int {
 	onPath := make([]bool, len(nodes))
 	var count func(i int) int

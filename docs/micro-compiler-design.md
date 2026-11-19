@@ -205,11 +205,11 @@ produced by a compiler outside this tree, or rewritten by a pass is held by `irv
 `irverify` can only check what `ir` can compute.
 
 The gap that leaves is not hypothetical. `checkIDs` asks an ID to agree with the pointer recorded
-beside it, and a primitive records none, so before `ir/primitive-id-not-derived` a `string` primitive
-interned at `t/openapi/components/schemas/Name` passed clean — and so did one at `t/prim/int32`, an
-ID contradicting the node it keys. `ir/primitive-space-reserved` closes the converse: the space is
-reserved, so a node there that is not a primitive is a collision waiting for the kind whose name it
-took.
+beside it, and a primitive records none, so before `ir/primitive-id-not-derived` a `string`
+primitive interned at `t/openapi/components/schemas/Name` passed clean — and so did one at
+`t/prim/int32`, an ID contradicting the node it keys. `ir/primitive-space-reserved` closes the
+converse: the space is reserved, so a node there that is not a primitive is a collision waiting for
+the kind whose name it took.
 
 ## 4. The micro-compiler contract
 

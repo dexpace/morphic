@@ -46,7 +46,8 @@ func recKept(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
 	return out
 }
 
-// recElementBase returns the type the scalar at id, a list's element, is based on.
+// recElementBase returns the type the scalar at id, a list's element, is based
+// on.
 func recElementBase(t *testing.T, doc *ir.Document, list ir.TypeID) ir.TypeID {
 	t.Helper()
 	irList, ok := doc.Types[list].(*ir.List)

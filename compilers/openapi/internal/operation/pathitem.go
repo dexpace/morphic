@@ -154,9 +154,9 @@ func lowerPathItem(serviceContext service.Ctx, loweringState operationLoweringSt
 	return diags
 }
 
-// keepFragment keeps on operation's HTTP binding the fragment the key at ptr carries,
-// which its URI template leaves out, verbatim and without its "#". It is text
-// whatever it spells, as a quoted scalar is, so "123" stays no number.
+// keepFragment keeps on operation's HTTP binding the fragment the key at ptr
+// carries, which its URI template leaves out, verbatim and without its "#". It
+// is text whatever it spells, as a quoted scalar is, so "123" stays no number.
 func keepFragment(serviceContext service.Ctx, operation *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
 	text := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: fragment}
 	_, diags := annotation.PreserveNodeInto(&operation.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
@@ -255,13 +255,14 @@ func chosen(taken bool, weight int) int {
 	return 0
 }
 
-// keepOn writes onto operation a copy of each entry its mount's layers keep, and the
-// path's documentation, docs, into the PathDocs of each of operation's HTTP bindings.
-// Both are computed once a mount, since nothing in them depends on the
-// operation; only the writing repeats (GitHub #414). An entry operation already holds
-// is never replaced (annotation.CopyEntriesInto), though none should be: every
-// kept key sits beneath pathItemScope, which none of operation's own writers spells,
-// its census escaping a "/" in a key it keeps (GitHub #1323).
+// keepOn writes onto operation a copy of each entry its mount's layers keep,
+// and the path's documentation, docs, into the PathDocs of each of operation's
+// HTTP bindings. Both are computed once a mount, since nothing in them depends
+// on the operation; only the writing repeats (GitHub #414). An entry operation
+// already holds is never replaced (annotation.CopyEntriesInto), though none
+// should be: every kept key sits beneath pathItemScope, which none of
+// operation's own writers spells, its census escaping a "/" in a key it keeps
+// (GitHub #1323).
 func keepOn(operation *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
 	for i := range operation.Bindings.HTTP {
 		operation.Bindings.HTTP[i].PathDocs = docs

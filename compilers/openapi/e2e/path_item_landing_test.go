@@ -49,8 +49,8 @@ func sharedItemSpec(itemFirst bool) string {
 	return head + paths + shared
 }
 
-// operationWithID returns the operation of doc with the ID, failing the test where
-// there is none.
+// operationWithID returns the operation of doc with the ID, failing the test
+// where there is none.
 func operationWithID(t *testing.T, doc *ir.Document, id ir.OperationID) ir.Operation {
 	t.Helper()
 	i := slices.IndexFunc(allOperations(doc), func(operation ir.Operation) bool { return operation.ID == id })

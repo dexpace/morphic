@@ -16,13 +16,13 @@ import (
 // runtime expression naming a value of the request: a dotted chain of names.
 const shorthandRequest = "$" + SourceRequest + "."
 
-// RequestValue resolves text, an expression naming a value of operation's request: a
-// runtime expression reading a parameter or the body, or the shorthand
-// `$request.` and a dotted chain of names, the first a parameter's name or,
-// where no parameter carries it, a member of the body. It returns the value,
-// the type of the parameter or member it names, "" for the body whole, which
-// no one declaration types, and why it resolves nothing. Every step reading
-// an expression of the request reads it here, so they read it alike.
+// RequestValue resolves text, an expression naming a value of operation's
+// request: a runtime expression reading a parameter or the body, or the
+// shorthand `$request.` and a dotted chain of names, the first a parameter's
+// name or, where no parameter carries it, a member of the body. It returns the
+// value, the type of the parameter or member it names, "" for the body whole,
+// which no one declaration types, and why it resolves nothing. Every step
+// reading an expression of the request reads it here, so they read it alike.
 func RequestValue(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, text string) (*ir.InputPath, ir.TypeID, string) {
 	if expression, isExpression, err := Parse(text); isExpression && err == nil {
 		if expression.Source != SourceRequest {
@@ -54,8 +54,8 @@ func RequestValue(compiledDocumentView *compileddoc.CompiledDocumentView, operat
 	}
 }
 
-// bodyInput is the member of operation's request body tokens walk to, the body whole
-// for none, and its type.
+// bodyInput is the member of operation's request body tokens walk to, the body
+// whole for none, and its type.
 func bodyInput(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, tokens []string) (*ir.InputPath, ir.TypeID, string) {
 	segments, why, ok := BodyPath(compiledDocumentView, operation.Request, tokens, "request")
 	if !ok {

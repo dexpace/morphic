@@ -118,8 +118,8 @@ func TestCheckReferentialIntegrity_DanglingOperationRef(t *testing.T) {
 	assert.Contains(t, got[0].Message, "does not resolve in operation declarations")
 }
 
-// TestCheckReferentialIntegrity_ResolvedOperationRefIsClean is the other half: an
-// operation's own ID resolves against its own declaration, and so does a
+// TestCheckReferentialIntegrity_ResolvedOperationRefIsClean is the other half:
+// an operation's own ID resolves against its own declaration, and so does a
 // reference naming it.
 func TestCheckReferentialIntegrity_ResolvedOperationRefIsClean(t *testing.T) {
 	assert.Empty(t, refViolations(docWithOverload("operation/x/Get")))
@@ -145,12 +145,12 @@ func TestCheckReferentialIntegrity_ResolvedServiceRefIsClean(t *testing.T) {
 	assert.Empty(t, refViolations(doc))
 }
 
-// TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared drives the
-// class no node in the document declares. A Smithy resource names its lifecycle
-// operations, so an OperationID reference exists in a document holding no
-// ir.Operation at all — and a registry set read off the declarations rather
-// than off the IR's shape would have no entry for the class, which is not
-// "nothing declares this ID" but "this is no reference", the silence GitHub #50
+// TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared
+// drives the class no node in the document declares. A Smithy resource names
+// its lifecycle operations, so an OperationID reference exists in a document
+// holding no ir.Operation at all — and a registry set read off the declarations
+// rather than off the IR's shape would have no entry for the class, which is
+// not "nothing declares this ID" but "this is no reference", the silence GitHub #50
 // is about.
 func TestCheckReferentialIntegrity_DanglingOperationRefWithNoOperationDeclared(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
@@ -185,10 +185,11 @@ func TestCheckReferentialIntegrity_TruncatedWalkClaimsNoDeclarations(t *testing.
 	assert.Empty(t, refViolations(shallow))
 }
 
-// TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk pins the one class left
-// out of the registries. A PropertyID names a position inside its model, and
-// pass.Validate resolves one against the properties a document declares; adding a
-// document-wide answer here would report one defect twice, under two codes.
+// TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk pins the one class
+// left out of the registries. A PropertyID names a position inside its model,
+// and pass.Validate resolves one against the properties a document declares;
+// adding a document-wide answer here would report one defect twice, under two
+// codes.
 func TestCheckReferentialIntegrity_PropertyIDStaysOutOfTheWalk(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{
 		ID: "service/x",

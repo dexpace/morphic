@@ -51,17 +51,17 @@ paths:
 `, params, body)
 }
 
-// listOperation compiles src under opts and returns its listThings operation, the
-// document and every diagnostic.
+// listOperation compiles src under opts and returns its listThings operation,
+// the document and every diagnostic.
 func listOperation(t *testing.T, src string, opts openapi.Options) (ir.Operation, *ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	doc, diags := compile(t, src, opts)
 	return openapitest.FindOperation(t, doc, "listThings"), doc, diags
 }
 
-// describe renders operation's Pagination by the names it reads, a path as the wire
-// names of its members joined by dots, so a case states what a walk reads in
-// the document's own words: "-" for no Pagination.
+// describe renders operation's Pagination by the names it reads, a path as the
+// wire names of its members joined by dots, so a case states what a walk reads
+// in the document's own words: "-" for no Pagination.
 func describe(doc *ir.Document, operation ir.Operation) string {
 	pg := operation.Pagination
 	if pg == nil {

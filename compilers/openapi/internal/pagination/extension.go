@@ -87,10 +87,10 @@ type pageFields struct {
 	written bool
 }
 
-// operation fills operation's pagination from what its extensions state, if they
-// state any, and reports whether they speak of it at all: whether a source's
-// key is written where it is read, whatever its value, filling a pagination,
-// failing to or stating nothing.
+// operation fills operation's pagination from what its extensions state, if
+// they state any, and reports whether they speak of it at all: whether a
+// source's key is written where it is read, whatever its value, filling a
+// pagination, failing to or stating nothing.
 func (pg *pager) operation(operation *ir.Operation) (bool, []ir.Diagnostic) {
 	fields := pageFields{inputs: map[promotion.ExtensionTarget]*ir.InputPath{},
 		outputs: map[promotion.ExtensionTarget]*ir.PropertyPath{}}
@@ -132,7 +132,8 @@ func (pg *pager) operation(operation *ir.Operation) (bool, []ir.Diagnostic) {
 	return fields.written, diags
 }
 
-// report is a finding at operation about what its extensions state of its pagination.
+// report is a finding at operation about what its extensions state of its
+// pagination.
 func (pg *pager) report(operation *ir.Operation, format string, args ...any) ir.Diagnostic {
 	return diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, operation.Provenance, "operation %q: "+format,
 		append([]any{operation.ID}, args...)...)

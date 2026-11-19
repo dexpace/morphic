@@ -81,9 +81,9 @@ func appendPrefixBindingViolation(vs []Violation, types ir.TypeRegistry, operati
 	return vs
 }
 
-// wholeParamType returns the type of the parameter of operation pb binds, where pb
-// binds it whole. It is false for a binding of a member, and for one naming no
-// parameter of operation, which pass/validate reports.
+// wholeParamType returns the type of the parameter of operation pb binds, where
+// pb binds it whole. It is false for a binding of a member, and for one naming
+// no parameter of operation, which pass/validate reports.
 func wholeParamType(operation *ir.Operation, pb *ir.HTTPParamBinding) (ir.TypeRef, bool) {
 	if len(pb.ParamPath) > 0 {
 		return ir.TypeRef{}, false

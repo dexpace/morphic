@@ -51,8 +51,8 @@ func sentinel(text string) string { return sentinelKey + ": " + quoted(text) }
 func quoted(text string) string { return `"` + text + `"` }
 
 // chat is a document of one operation, chat, whose request body has a boolean
-// stream member and a string prompt, whose own keys are operationKeys, a block of
-// lines indented as the operation's, and whose success response holds
+// stream member and a string prompt, whose own keys are operationKeys, a block
+// of lines indented as the operation's, and whose success response holds
 // contents.
 func chat(operationKeys string, contents ...string) string {
 	return `openapi: 3.1.0

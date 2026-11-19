@@ -30,8 +30,8 @@ func inferred(target ir.TypeID) ir.TypeRef {
 // primitive is the shared primitive of kind primitiveKind.
 func primitive(primitiveKind ir.PrimitiveKind) ir.TypeID { return ir.PrimitiveTypeID(primitiveKind) }
 
-// holderProperties returns the properties of the component schema Holder by wire
-// name.
+// holderProperties returns the properties of the component schema Holder by
+// wire name.
 func holderProperties(t *testing.T, doc *ir.Document) map[string]ir.Property {
 	t.Helper()
 	model, ok := doc.Types[componentID("Holder")].(*ir.Model)

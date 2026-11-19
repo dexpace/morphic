@@ -18,15 +18,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerRequestBody lowers an operation's request body onto operation.Request and the
-// binding's RequestContentTypes. Payload.Required is always set, because an
-// undeclared `required` means false by the specification's own default, and nil
-// would report the format as unable to express optionality.
+// lowerRequestBody lowers an operation's request body onto operation.Request
+// and the binding's RequestContentTypes. Payload.Required is always set,
+// because an undeclared `required` means false by the specification's own
+// default, and nil would report the format as unable to express optionality.
 //
-// operationDeclPtr is the operation's own declaration pointer. A $ref'd body interns
-// its content once at its declaration, not once per mount site, under the
-// component's name rather than the operationId hint (issue #107). A body $ref'd
-// from another operation has no component name, so it is named for the
+// operationDeclPtr is the operation's own declaration pointer. A $ref'd body
+// interns its content once at its declaration, not once per mount site, under
+// the component's name rather than the operationId hint (issue #107). A body
+// $ref'd from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
 func lowerRequestBody(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, operationDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := operationDeclPtr + ids.Ptr("requestBody")

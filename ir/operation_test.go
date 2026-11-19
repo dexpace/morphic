@@ -593,8 +593,8 @@ func TestPagination_JSONContract(t *testing.T) {
 	})
 }
 
-// TestPropertyPath_JSONContract pins PropertyPath's omitempty contract (every field
-// is optional; nil Root = context-determined, per the source comment) and
+// TestPropertyPath_JSONContract pins PropertyPath's omitempty contract (every
+// field is optional; nil Root = context-determined, per the source comment) and
 // that a fully populated PropertyPath — rooted at an explicit type, addressed
 // into a header — round-trips with its segments in walk order.
 func TestPropertyPath_JSONContract(t *testing.T) {

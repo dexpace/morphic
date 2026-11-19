@@ -238,7 +238,8 @@ func applyExclusiveFlag(constraints *ir.Constraints, schema *statement.Schema, s
 	return nil
 }
 
-// boundProperties names the inclusive and exclusive keyword that bound one side.
+// boundProperties names the inclusive and exclusive keyword that bound one
+// side.
 func boundProperties(side boundSide) (inclProperty, exclProperty string) {
 	if side == minBound {
 		return "minimum", "exclusiveMinimum"

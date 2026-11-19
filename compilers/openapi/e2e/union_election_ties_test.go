@@ -116,8 +116,8 @@ func TestElection_WordsAdmittingAlikePartOnWhatTheirNodeReads(t *testing.T) {
 		name, a, b string
 		elected    ir.TypeKind
 		kept       map[string]ir.UnmodeledReason
-		// primitive is the primitive a position electing neither is, where elected
-		// is a primitive.
+		// primitive is the primitive a position electing neither is, where
+		// elected is a primitive.
 		primitive ir.PrimitiveKind
 	}{
 		{"Content", "{type: string}", "{type: string, contentEncoding: base64}", ir.KindScalar, nil, ""},

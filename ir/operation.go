@@ -320,9 +320,9 @@ type Response struct {
 	Headers []Header `json:"headers,omitempty"`
 	// Links are the requests the response leads to, in source order.
 	Links []OperationLink `json:"links,omitempty"`
-	// StatusCodeProperty is the output member populated from the runtime HTTP status
-	// line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode); the
-	// member is suppressed from the body.
+	// StatusCodeProperty is the output member populated from the runtime HTTP
+	// status line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
+	// the member is suppressed from the body.
 	StatusCodeProperty *PropertyPath `json:"statusCodeProperty,omitzero"`
 	// Docs is the response's documentation.
 	Docs Docs `json:"docs"`
@@ -353,10 +353,10 @@ type StatusRange struct {
 // the failure classification below them is what separates the two nodes.
 //
 // The sharing is those four fields, not everything [Response] holds:
-// StatusCodeProperty stays success-only, because the formats that populate an output
-// member from the status line (Smithy @httpResponseCode, TypeSpec's non-literal
-// @statusCode) classify errors by @httpError instead, so an error case has no
-// runtime status to bind a member to.
+// StatusCodeProperty stays success-only, because the formats that populate an
+// output member from the status line (Smithy @httpResponseCode, TypeSpec's
+// non-literal @statusCode) classify errors by @httpError instead, so an error
+// case has no runtime status to bind a member to.
 type ErrorCase struct {
 	// Name is the error naming for formats with named errors; Hint elsewhere —
 	// for OpenAPI, the responses-map key as declared and then neutralized ("404",

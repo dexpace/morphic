@@ -110,9 +110,9 @@ type operationLoweringState struct {
 	links   *Links
 }
 
-// operationPointers pairs the two pointers every operation lowering needs. mount is
-// where the operation is mounted and fixes its identity — OperationID, its
-// parameters' IDs, and the root its callback operations hang from. decl is
+// operationPointers pairs the two pointers every operation lowering needs.
+// mount is where the operation is mounted and fixes its identity — OperationID,
+// its parameters' IDs, and the root its callback operations hang from. decl is
 // where its body is declared, which its provenance names: the same node for an
 // inline operation, the component's own pointer when the operation was reached
 // through a $ref'd path item or callback (issue #107). Passing them as one
@@ -123,11 +123,11 @@ type operationPointers struct {
 	decl  jsontext.Pointer
 }
 
-// operationContext carries the per-operation lowering inputs that do not come from the
-// source Operation itself: its own two pointers, its HTTP binding shape,
-// grouping provenance, and the path-item-merged parameter list — each entry
-// still carrying the pointer of its own declaration site rather than a position
-// in the merged list.
+// operationContext carries the per-operation lowering inputs that do not come
+// from the source Operation itself: its own two pointers, its HTTP binding
+// shape, grouping provenance, and the path-item-merged parameter list — each
+// entry still carrying the pointer of its own declaration site rather than a
+// position in the merged list.
 type operationContext struct {
 	// method is the method as sent on the wire — a fixed field's name upper-cased,
 	// or an additionalOperations key exactly as the source spelled it — so nothing
@@ -289,10 +289,11 @@ func fillOperationDocs(docs *ir.Docs, src *soa.Operation) {
 	}
 }
 
-// promoteOperation fills what operation's keys state of its deprecation and its tier,
-// once its path item's are on it beside its own, since that is what it reads:
-// a deprecation where operation or its path item states one, and the tier operation states,
-// else its path item's (docs/compilers/openapi.md#extension-promotion).
+// promoteOperation fills what operation's keys state of its deprecation and its
+// tier, once its path item's are on it beside its own, since that is what it
+// reads: a deprecation where operation or its path item states one, and the
+// tier operation states, else its path item's
+// (docs/compilers/openapi.md#extension-promotion).
 func promoteOperation(promoter promotion.Promoter, operation *ir.Operation) []ir.Diagnostic {
 	own := promotion.Carried(promoter, operation.Unmodeled, pathItemScope)
 	diags := promoter.Deprecation(own, promoter.WithOwnCarriedState(promotion.Referent{}, operation.Unmodeled, pathItemScope), &operation.Deprecation,

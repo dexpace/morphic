@@ -110,8 +110,9 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	assert.ElementsMatch(t, []string{"a", "a/x-b"}, names, "each callback keeps the name it is mapped by, verbatim")
 }
 
-// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOperationIDs is the core scenario
-// for a referenced callback (issue #107): two parent operations $ref'ing one
+// TestCallbacks_RefSharedAcrossParentsKeepsDistinctOperationIDs is the core
+// scenario for a referenced callback (issue #107): two parent operations
+// $ref'ing one
 // #/components/callbacks/Shared must keep distinct callback operation
 // identities per parent while the callback's own request schema interns once,
 // at the shared component's own pointer.
@@ -143,9 +144,10 @@ func TestCallbacks_RefSharedAcrossParentsKeepsDistinctOperationIDs(t *testing.T)
 }
 
 // operationsByID collects the operations matching any of ids into a lookup. It
-// exists because openapitest.FindOperation disambiguates by Name.Source, which two mounts of one
-// $ref'd path item or callback share (they are the same declared operationId
-// mounted twice); OperationID is the only thing that still tells them apart.
+// exists because openapitest.FindOperation disambiguates by Name.Source, which
+// two mounts of one $ref'd path item or callback share (they are the same
+// declared operationId mounted twice); OperationID is the only thing that still
+// tells them apart.
 func operationsByID(t *testing.T, doc *ir.Document, operationIDs ...ir.OperationID) map[ir.OperationID]ir.Operation {
 	t.Helper()
 	require.NotEmpty(t, doc.Services, "the spec lowers to at least one service")
@@ -184,10 +186,10 @@ components:
         responses: {"200": {description: ok}}
 `
 
-// TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOperationIDs is the webhook
-// arm of issue #107, which the paths arm does not reach: lowerWebhooks resolves
-// its own path items, so a component path item mounted as two webhooks must
-// keep one operation identity per hook name while its parameter and body
+// TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOperationIDs is the
+// webhook arm of issue #107, which the paths arm does not reach: lowerWebhooks
+// resolves its own path items, so a component path item mounted as two webhooks
+// must keep one operation identity per hook name while its parameter and body
 // schemas intern once, at the component's own pointer.
 func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOperationIDs(t *testing.T) {
 	t.Parallel()

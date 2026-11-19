@@ -55,8 +55,8 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 	return m.marks(common.Unmodeled, &common.Provenance)
 }
 
-// markedInput resolves where src marks a value of operation's request: a parameter, or
-// a member of its body.
+// markedInput resolves where src marks a value of operation's request: a
+// parameter, or a member of its body.
 func (pg *pager) markedInput(operation *ir.Operation, target promotion.ExtensionTarget, src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
 	markerValue := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
@@ -373,8 +373,8 @@ func (pg *pager) isModel(id ir.TypeID) bool {
 	return ok
 }
 
-// paramMediaTypes returns the media type each binding of operation serializes its
-// parameter in, by the parameter's ID: none for one its schema states.
+// paramMediaTypes returns the media type each binding of operation serializes
+// its parameter in, by the parameter's ID: none for one its schema states.
 func paramMediaTypes(operation *ir.Operation) map[ir.ParameterID]string {
 	out := map[ir.ParameterID]string{}
 	for _, hb := range operation.Bindings.HTTP {

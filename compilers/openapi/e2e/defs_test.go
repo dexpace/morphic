@@ -70,8 +70,8 @@ func TestCompile_DefsPointerRelativeToItsOwnSchema(t *testing.T) {
 
 // assertOwnDefsProperty requires that the owner's own property (by wire name)
 // resolves directly to a Model interned at that SAME schema's own "$defs/<def>"
-// position, carrying wantProperty — proof the reference landed on the schema's own
-// definition rather than a sibling's (GitHub #557). A model property is a
+// position, carrying wantProperty — proof the reference landed on the schema's
+// own definition rather than a sibling's (GitHub #557). A model property is a
 // CarriedRef position, so a bare $ref (no siblings, as every property here is)
 // resolves directly to the target with no alias in between.
 func assertOwnDefsProperty(t *testing.T, doc *ir.Document, owner ir.TypeID, ownerPointer jsontext.Pointer, propertyValue, def, wantProperty string) {

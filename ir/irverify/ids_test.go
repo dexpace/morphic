@@ -167,11 +167,11 @@ func TestVerify_KindlessPrimitiveIsReportedOnItsOwnTerms(t *testing.T) {
 	assert.Equal(t, "ir/unknown-primitive-kind", got[1].Code)
 }
 
-// TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation covers the other direction.
-// The space is reserved rather than conventional: a node there either collides
-// with the primitive of that kind outright, or squats a name the next
-// PrimitiveKind takes — and either way which node is reached depends on what
-// was interned first, which is invariant 3's corollary.
+// TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation covers the other
+// direction. The space is reserved rather than conventional: a node there
+// either collides with the primitive of that kind outright, or squats a name
+// the next PrimitiveKind takes — and either way which node is reached depends
+// on what was interned first, which is invariant 3's corollary.
 func TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -194,10 +194,10 @@ func TestVerify_NonPrimitiveInThePrimitiveSpaceIsAViolation(t *testing.T) {
 	}
 }
 
-// TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind is the control for both
-// checks above: every primitive at the ID its kind derives, beside ordinary
-// types in a format's own space, reports nothing. Without it a check that fired
-// on everything would pass both tables.
+// TestVerify_PrimitiveIDChecksAreScopedToTheSpaceAndTheKind is the control for
+// both checks above: every primitive at the ID its kind derives, beside
+// ordinary types in a format's own space, reports nothing. Without it a check
+// that fired on everything would pass both tables.
 //
 // "prim" appears in one model as a path segment and in the other inside a name,
 // and neither is in the reserved space, which only reading the space segment

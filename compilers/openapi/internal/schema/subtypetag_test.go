@@ -163,7 +163,8 @@ func breeds(tabby, siamese string) string {
 		"    Siamese: {type: object, properties: " + siamese + "}\n"
 }
 
-// petSubtype declares a subtype of Pet named name, adding the properties properties.
+// petSubtype declares a subtype of Pet named name, adding the properties
+// properties.
 func petSubtype(name, properties string) string {
 	return "    " + name + ":\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
 		"        - {type: object, properties: " + properties + "}\n"

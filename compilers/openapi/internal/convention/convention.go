@@ -34,9 +34,9 @@ func Apply(policy Policy, promoter promotion.Promoter, compiledDocumentView *com
 	return diags
 }
 
-// operation fills what irOperation's names imply: its idempotency token, the redaction
-// of its parameters and of every header it declares, and the text of each of
-// its header parameters and its responses' headers.
+// operation fills what irOperation's names imply: its idempotency token, the
+// redaction of its parameters and of every header it declares, and the text of
+// each of its header parameters and its responses' headers.
 func operation(policy Policy, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView, irOperation *ir.Operation) []ir.Diagnostic {
 	reg := compiledDocumentView.Types
 	diags := idempotency(policy.Idempotency, compiledDocumentView, irOperation)
@@ -59,9 +59,9 @@ func operation(policy Policy, promoter promotion.Promoter, compiledDocumentView 
 	return diags
 }
 
-// responseHeaders returns the header lists of operation's responses, error cases and
-// default, each sharing its array with operation, so a write to an element lands
-// there.
+// responseHeaders returns the header lists of operation's responses, error
+// cases and default, each sharing its array with operation, so a write to an
+// element lands there.
 func responseHeaders(operation *ir.Operation) [][]ir.Header {
 	lists := make([][]ir.Header, 0, len(operation.Responses)+len(operation.Errors)+1)
 	for i := range operation.Responses {
@@ -76,10 +76,10 @@ func responseHeaders(operation *ir.Operation) [][]ir.Header {
 	return lists
 }
 
-// partHeaders returns the header lists the encodings of operation's bodies give a part
-// or a stream's items, in the order of their contents and, within one, of their
-// parts' IDs. A part's encoding is a map value whose Headers still share their
-// array with operation.
+// partHeaders returns the header lists the encodings of operation's bodies give
+// a part or a stream's items, in the order of their contents and, within one,
+// of their parts' IDs. A part's encoding is a map value whose Headers still
+// share their array with operation.
 func partHeaders(operation *ir.Operation) [][]ir.Header {
 	payloads := []*ir.Payload{operation.Request}
 	for i := range operation.Responses {

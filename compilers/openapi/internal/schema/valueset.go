@@ -55,9 +55,9 @@ func (vs valueSetSite) pointer() jsontext.Pointer {
 }
 
 // valueType types the node vs lowers to: own, what its set's schema selects,
-// narrowed by every conjunct where its position refines (conjunctPrimitive), fits
-// saying which primitives the values are of. The position is the stand's, else
-// the set's own; a member has none.
+// narrowed by every conjunct where its position refines (conjunctPrimitive),
+// fits saying which primitives the values are of. The position is the stand's,
+// else the set's own; a member has none.
 func (vs valueSetSite) valueType(loweringContext lowering.Ctx, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	if vs.member {
 		return own
@@ -212,9 +212,9 @@ func constSetType(loweringContext lowering.Ctx, site valueSetSite) setType {
 	return setType{primitive: site.literalType(loweringContext, val), ok: err == nil}
 }
 
-// enumType is the ValueType an Enum of members classified as memberPrimitive takes
-// at vs (enumValueType), admits saying whether every member is a value of a
-// primitive, narrowed where its position refines.
+// enumType is the ValueType an Enum of members classified as memberPrimitive
+// takes at vs (enumValueType), admits saying whether every member is a value of
+// a primitive, narrowed where its position refines.
 func (vs valueSetSite) enumType(loweringContext lowering.Ctx, admits func(ir.PrimitiveKind) bool, memberPrimitive ir.PrimitiveKind) ir.PrimitiveKind {
 	return vs.valueType(loweringContext, enumValueType(vs.set, admits, memberPrimitive), admits)
 }
@@ -229,20 +229,20 @@ func (vs valueSetSite) literalType(loweringContext lowering.Ctx, val ir.Value) i
 	return vs.valueType(loweringContext, literalValueType(vs.set, val), func(primitiveKind ir.PrimitiveKind) bool { return merge.Admits(primitiveKind, val) })
 }
 
-// valueTypeHoldsFormat reports whether a value set typed primitive holds the format
-// schema pairs with its type: primitive is that format's primitive or a narrower
-// one.
+// valueTypeHoldsFormat reports whether a value set typed primitive holds the
+// format schema pairs with its type: primitive is that format's primitive or a
+// narrower one.
 func valueTypeHoldsFormat(primitive ir.PrimitiveKind, schema *statement.Schema) bool {
 	paired, ok := formatPrimitive(schema)
 	return ok && narrowsOrIs(primitive, paired)
 }
 
 // conjunctPrimitive returns, of own and the primitive each conjunct of
-// refinementValue selects (declaredPrimitive), the one narrowing every other, and
-// own where none does: two formats neither of which narrows the other say no
-// one primitive. The conjuncts are schema, each inline branch, and what decides
-// what a $ref branch lands on (conjunctSchemas). own is "" for a value no
-// primitive types, which none fits, so it stands.
+// refinementValue selects (declaredPrimitive), the one narrowing every other,
+// and own where none does: two formats neither of which narrows the other say
+// no one primitive. The conjuncts are schema, each inline branch, and what
+// decides what a $ref branch lands on (conjunctSchemas). own is "" for a value
+// no primitive types, which none fits, so it stands.
 func conjunctPrimitive(loweringContext lowering.Ctx, refinementValue refinement, schema *statement.Schema, own ir.PrimitiveKind, fits func(ir.PrimitiveKind) bool) ir.PrimitiveKind {
 	primitives := []ir.PrimitiveKind{own}
 	for _, cs := range conjunctSchemas(loweringContext, refinementValue, schema) {
@@ -282,9 +282,10 @@ func narrowsOrIs(primitiveKind, irPrimitiveKind ir.PrimitiveKind) bool {
 	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
-// declaredPrimitive returns the primitive schema's type and format select, else its
-// type alone, where fits says its values are of it, as a value set's own schema
-// types it (literalValueType), and false where schema selects none they fit.
+// declaredPrimitive returns the primitive schema's type and format select, else
+// its type alone, where fits says its values are of it, as a value set's own
+// schema types it (literalValueType), and false where schema selects none they
+// fit.
 func declaredPrimitive(schema *statement.Schema, fits func(ir.PrimitiveKind) bool) (ir.PrimitiveKind, bool) {
 	if primitive, paired := formatPrimitive(schema); paired && fits(primitive) {
 		return primitive, true

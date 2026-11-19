@@ -204,8 +204,8 @@ func methodsOf(operation ir.Operation) []string {
 	return methods
 }
 
-// operationByID returns the operation carrying id, which is what tells two mounts of
-// one $ref'd declaration apart where a source name cannot.
+// operationByID returns the operation carrying id, which is what tells two
+// mounts of one $ref'd declaration apart where a source name cannot.
 func operationByID(t *testing.T, doc *ir.Document, id string) ir.Operation {
 	t.Helper()
 	for _, operationGroup := range doc.Services[0].Groups {

@@ -99,8 +99,8 @@ func staleReadings(kept, fresh *compileddoc.CompiledDocumentView) []string {
 	return stale
 }
 
-// responseHeaders returns the headers of each response operation holds, by the key a
-// step reads them under.
+// responseHeaders returns the headers of each response operation holds, by the
+// key a step reads them under.
 func responseHeaders(operation *ir.Operation) map[compileddoc.ResponseKey][]ir.Header {
 	out := map[compileddoc.ResponseKey][]ir.Header{}
 	for i := range operation.Responses {

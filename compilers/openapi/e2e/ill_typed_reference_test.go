@@ -283,9 +283,9 @@ func TestCompile_APathItemRefThatIsNoStringIsTheItemsOwnField(t *testing.T) {
 	assert.Empty(t, byCode(diags, diag.UnknownObjectKey), "$ref is a declared key of the item")
 }
 
-// additionalOperations is a 3.2 document writing extra at its root, before its paths,
-// whose path item writes an additionalOperations entry entry, beside LINK,
-// which is well formed.
+// additionalOperations is a 3.2 document writing extra at its root, before its
+// paths, whose path item writes an additionalOperations entry entry, beside
+// LINK, which is well formed.
 func additionalOperations(extra, entry string) string {
 	return "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\n" + extra +
 		"paths:\n  /a:\n    get: {responses: {\"200\": {description: ok}}}\n" +

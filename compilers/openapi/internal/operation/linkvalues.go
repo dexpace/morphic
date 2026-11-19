@@ -137,8 +137,8 @@ func (ex exchange) response(expression runtimeexpr.Expression) (ir.LinkValue, *l
 	}
 }
 
-// targetParam returns the parameter of operation that a link's parameters key names
-// (compileddoc.ParamIndex.Named), which must name one parameter only.
+// targetParam returns the parameter of operation that a link's parameters key
+// names (compileddoc.ParamIndex.Named), which must name one parameter only.
 func targetParam(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, key string) (ir.ParameterID, *linkFailure) {
 	id, matched := compiledDocumentView.Params(operation).Named(key)
 	switch matched {

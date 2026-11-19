@@ -18,9 +18,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// operationsByGroup indexes each group's operation IDs, sorted, by the group's ID. It
-// is the whole observable shape of a grouping that does not depend on the order
-// groups were met in.
+// operationsByGroup indexes each group's operation IDs, sorted, by the group's
+// ID. It is the whole observable shape of a grouping that does not depend on
+// the order groups were met in.
 func operationsByGroup(t *testing.T, groups []ir.OperationGroup) map[ir.GroupID][]ir.OperationID {
 	t.Helper()
 	out := make(map[ir.GroupID][]ir.OperationID, len(groups))

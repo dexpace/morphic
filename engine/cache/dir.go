@@ -45,8 +45,8 @@ type Dir struct {
 	operations fileOperations
 }
 
-// fileOperations are the calls a Dir makes on its directory's files beyond writing an
-// entry, a field each so a test can fail one.
+// fileOperations are the calls a Dir makes on its directory's files beyond
+// writing an entry, a field each so a test can fail one.
 type fileOperations struct {
 	list   func(dir string) ([]fs.DirEntry, error)
 	remove func(name string) error

@@ -18,10 +18,10 @@ func scalar(tag, value string) *yaml.Node {
 	return &yaml.Node{Kind: yaml.ScalarNode, Tag: tag, Value: value}
 }
 
-// TestEnumMemberPrimitive_ReadsWhatEnumMembersGives pins enumMemberPrimitive, the reading
-// a position asking only its ValueType takes, to enumMembers' under a type's
-// ID: one PrimitiveKind and one refusal for each list, members of one kind, of
-// two, of a kind no Enum holds, and none.
+// TestEnumMemberPrimitive_ReadsWhatEnumMembersGives pins enumMemberPrimitive,
+// the reading a position asking only its ValueType takes, to enumMembers' under
+// a type's ID: one PrimitiveKind and one refusal for each list, members of one
+// kind, of two, of a kind no Enum holds, and none.
 func TestEnumMemberPrimitive_ReadsWhatEnumMembersGives(t *testing.T) {
 	t.Parallel()
 	for name, nodes := range map[string][]*yaml.Node{
@@ -43,8 +43,8 @@ func TestEnumMemberPrimitive_ReadsWhatEnumMembersGives(t *testing.T) {
 	}
 }
 
-// TestEnumMemberPrimitive_BuildsNoMember pins that a ValueType's reading of a set
-// allocates nothing however many members it holds: no member, ID or name is
+// TestEnumMemberPrimitive_BuildsNoMember pins that a ValueType's reading of a
+// set allocates nothing however many members it holds: no member, ID or name is
 // minted for a position that only asks its type.
 func TestEnumMemberPrimitive_BuildsNoMember(t *testing.T) {
 	nodes := make([]*yaml.Node, 0, 200)

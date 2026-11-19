@@ -28,8 +28,8 @@ func emptyRefViolations(doc *ir.Document) []irverify.Violation {
 	return out
 }
 
-// singleOperationDocument wraps operation in one service and group, the shape every operation-scoped
-// case below needs.
+// singleOperationDocument wraps operation in one service and group, the shape
+// every operation-scoped case below needs.
 func singleOperationDocument(operation ir.Operation) *ir.Document {
 	return &ir.Document{Services: []ir.Service{{
 		ID:     "service/x/S",

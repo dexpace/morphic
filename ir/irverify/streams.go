@@ -65,8 +65,8 @@ func checkContentStreams(*ir.Document) walkCheck {
 	}
 }
 
-// appendUnsummarizedStreams reports each content of operation, the operation at at,
-// that streams in its request or a success response while that side carries
+// appendUnsummarizedStreams reports each content of operation, the operation at
+// at, that streams in its request or a success response while that side carries
 // no StreamDetail.
 func appendUnsummarizedStreams(vs []Violation, operation *ir.Operation, at ir.WalkPath) []Violation {
 	if operation.RequestStream == nil && operation.Request != nil {

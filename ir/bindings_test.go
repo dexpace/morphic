@@ -13,12 +13,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestOperationBindings_JSONContract pins OperationBindings' omitempty contract — every
-// protocol binding is a pointer or slice that is nil when the operation does
-// not speak that protocol, so the zero value (no bindings at all) marshals to
-// an empty object — and that an OperationBindings carrying every protocol binding
-// simultaneously — legal per the source comment ("a Smithy service exposed
-// over both HTTP and RPC") — round-trips.
+// TestOperationBindings_JSONContract pins OperationBindings' omitempty contract
+// — every protocol binding is a pointer or slice that is nil when the operation
+// does not speak that protocol, so the zero value (no bindings at all) marshals
+// to an empty object — and that an OperationBindings carrying every protocol
+// binding simultaneously — legal per the source comment ("a Smithy service
+// exposed over both HTTP and RPC") — round-trips.
 func TestOperationBindings_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.OperationBindings{}, `{}`, ir.OperationBindings{

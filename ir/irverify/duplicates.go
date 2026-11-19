@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	// propertyIDType is the reflect.Type of the one ID class checkDuplicateIDs holds
-	// to a weaker claim than "declared once"; see there for why.
+	// propertyIDType is the reflect.Type of the one ID class checkDuplicateIDs
+	// holds to a weaker claim than "declared once"; see there for why.
 	propertyIDType = reflect.TypeFor[ir.PropertyID]()
 	// propertyType is the node that class identifies, which is what has to be
 	// fingerprinted to make that weaker claim.

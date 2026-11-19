@@ -23,7 +23,8 @@ type OpPlan struct {
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Effects         Effects           // what calling it may change: declared, else by what its
                                       // binding defines (policy.md)
-    Bindings        BindingView       // per-protocol param/request/response view from OperationBindings
+    Bindings        BindingView       // per-protocol param/request/response view from
+                                      // OperationBindings
     Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6), by path:
                                               // "Page.FirstPage" (policy.md)
 }

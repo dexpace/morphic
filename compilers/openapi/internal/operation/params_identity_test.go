@@ -54,8 +54,8 @@ components:
         responses: {"200": {description: ok}}
 `
 
-// paramIDs returns the IDs of operation's parameters, keyed by the location each one
-// binds.
+// paramIDs returns the IDs of operation's parameters, keyed by the location
+// each one binds.
 func paramIDs(operation ir.Operation) map[ir.HTTPLocation]ir.ParameterID {
 	out := map[ir.HTTPLocation]ir.ParameterID{}
 	for _, pb := range operation.Bindings.HTTP[0].ParamBindings {
@@ -544,8 +544,8 @@ webhooks:
 	assert.Equal(t, jsontext.Pointer("/webhooks/petEvent/parameters/0/schema"), typeDef.Common().Provenance.Pointer)
 }
 
-// TestParameters_CallbackPathItemParameterPointer covers the same merge
-// through lowerCallbackOperations: a callback path-item-level parameter must hoist at
+// TestParameters_CallbackPathItemParameterPointer covers the same merge through
+// lowerCallbackOperations: a callback path-item-level parameter must hoist at
 // the callback path item's own pointer, nested under the parent operation and
 // callback expression.
 func TestParameters_CallbackPathItemParameterPointer(t *testing.T) {

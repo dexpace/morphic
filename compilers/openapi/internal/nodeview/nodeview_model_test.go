@@ -135,8 +135,8 @@ func titleOf(schema *yaml.Node) string {
 	return ""
 }
 
-// propertiesGen writes random properties mappings and the anchors they merge. Every
-// title is unique, so a pair the view reads from the wrong copy or source
+// propertiesGen writes random properties mappings and the anchors they merge.
+// Every title is unique, so a pair the view reads from the wrong copy or source
 // shows in what it presents.
 type propertiesGen struct {
 	rng    *rand.Rand

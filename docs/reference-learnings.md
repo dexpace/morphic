@@ -131,8 +131,8 @@ operation; `extractModelName` walks the TypeRef collapsing nullable→inner, arr
 model variant (a lossy ergonomic shortcut correctly made *in the plan layer*, not the IR). TypeSpec/
 TCGC keep paging as *metadata* (property **paths** from response root, not top-level names) so next-
 links/items can live inside envelopes. **Recommendation:** Morphic's `Pagination` (path-based
-`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropertyPath`s, multiple strategies) is richer than
-all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
+`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropertyPath`s, multiple strategies) is richer
+than all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
 pre-flatten in IR. Add oagen's two plan predicates Morphic's §2.3 list omits:
 **`pathParamsInOptions`** (positional-vs-options-bag:
 `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and **`isArrayResponse`** (unpaginated

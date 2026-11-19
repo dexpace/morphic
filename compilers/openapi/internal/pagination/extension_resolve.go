@@ -36,8 +36,8 @@ type resolved[T any] struct {
 }
 
 // firstResolved returns what the first of target's sources to state anything on
-// operation resolves to, written where any source's key is, and true where a source
-// stated a value that does not resolve, which is reported and fills no
+// operation resolves to, written where any source's key is, and true where a
+// source stated a value that does not resolve, which is reported and fills no
 // pagination. A later source naming another value is reported and loses, as it
 // does for every target.
 func firstResolved[T any](pg *pager, operation *ir.Operation, target promotion.ExtensionTarget,
@@ -68,7 +68,8 @@ func firstResolved[T any](pg *pager, operation *ir.Operation, target promotion.E
 	return kept, false, diags
 }
 
-// input resolves what operation's extensions state of target, a value of its request.
+// input resolves what operation's extensions state of target, a value of its
+// request.
 func (pg *pager) input(operation *ir.Operation, target promotion.ExtensionTarget) (resolved[*ir.InputPath], bool, []ir.Diagnostic) {
 	return firstResolved(pg, operation, target, func(src promotion.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
 		if len(src.Values) > 0 {
@@ -86,7 +87,8 @@ func (pg *pager) input(operation *ir.Operation, target promotion.ExtensionTarget
 	}, sameInput)
 }
 
-// output resolves what operation's extensions state of target, a value of a page.
+// output resolves what operation's extensions state of target, a value of a
+// page.
 func (pg *pager) output(operation *ir.Operation, target promotion.ExtensionTarget) (resolved[*ir.PropertyPath], bool, []ir.Diagnostic) {
 	return firstResolved(pg, operation, target, func(src promotion.ExtensionSource) (resolved[*ir.PropertyPath], string, []ir.Diagnostic) {
 		if len(src.Values) > 0 {
@@ -116,9 +118,9 @@ func sameOutput(a, b *ir.PropertyPath) bool {
 }
 
 // responseValue resolves text, an expression naming a value every success
-// response of operation carries: a runtime expression reading the body or a header,
-// or the shorthand `$response.` and a dotted chain of the body's members. It
-// returns why it resolves nothing.
+// response of operation carries: a runtime expression reading the body or a
+// header, or the shorthand `$response.` and a dotted chain of the body's
+// members. It returns why it resolves nothing.
 func (pg *pager) responseValue(operation *ir.Operation, text string) (*ir.PropertyPath, string) {
 	if expression, isExpression, err := runtimeexpr.Parse(text); isExpression && err == nil {
 		switch {
@@ -141,8 +143,8 @@ func (pg *pager) responseValue(operation *ir.Operation, text string) (*ir.Proper
 }
 
 // bodyOutput is the member tokens walk to in the page body of every success
-// response of operation declaring one (pageBody), which must be the same member in
-// each.
+// response of operation declaring one (pageBody), which must be the same member
+// in each.
 func (pg *pager) bodyOutput(operation *ir.Operation, tokens []string) (*ir.PropertyPath, string) {
 	var out *ir.PropertyPath
 	for i := range operation.Responses {
@@ -166,10 +168,10 @@ func (pg *pager) bodyOutput(operation *ir.Operation, tokens []string) (*ir.Prope
 	return out, ""
 }
 
-// headerOutput is the header name, which every success response of operation must
-// declare once: what an extension's expression reads, and what the inference
-// reads a next cursor from (headerCursor). compiledDocumentView is the
-// document.
+// headerOutput is the header name, which every success response of operation
+// must declare once: what an extension's expression reads, and what the
+// inference reads a next cursor from (headerCursor). compiledDocumentView is
+// the document.
 func headerOutput(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, name string) (*ir.PropertyPath, string) {
 	if len(operation.Responses) == 0 {
 		return nil, "reads response header " + strconv.Quote(name) + ", and the operation declares no success response"
@@ -189,8 +191,8 @@ func headerOutput(compiledDocumentView *compileddoc.CompiledDocumentView, operat
 	return out, ""
 }
 
-// pageContents returns the contents of operation's success responses that can be a
-// page, response by response (pageBody): what a walk reads its page from,
+// pageContents returns the contents of operation's success responses that can
+// be a page, response by response (pageBody): what a walk reads its page from,
 // whether a promotion states it or an inference reads it.
 func pageContents(operation *ir.Operation) iter.Seq[*ir.Content] {
 	return func(yield func(*ir.Content) bool) {

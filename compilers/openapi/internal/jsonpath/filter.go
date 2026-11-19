@@ -275,8 +275,8 @@ func (p *parser) paren() (logical, error) {
 	return inner, nil
 }
 
-// compareOrTest reads a comparison whose left side is operator, written at start,
-// or takes operator as a test where no comparison operator follows.
+// compareOrTest reads a comparison whose left side is operator, written at
+// start, or takes operator as a test where no comparison operator follows.
 func (p *parser) compareOrTest(operator operand, start int) (logical, error) {
 	save := p.pos
 	p.blank()
@@ -300,7 +300,8 @@ func (p *parser) compareOrTest(operator operand, start int) (logical, error) {
 	return comparison{left: operator, right: right, operator: cmpOperator}, nil
 }
 
-// comparisonOperator reads a comparison operator, and reports whether one is next.
+// comparisonOperator reads a comparison operator, and reports whether one is
+// next.
 func (s *scanner) comparisonOperator() (compareOperator, bool) {
 	for _, o := range []struct {
 		text     string
@@ -326,7 +327,8 @@ func comparableOperand(operator operand, at int) error {
 	}
 }
 
-// testOf returns operator as a test: a query, or a function returning LogicalType.
+// testOf returns operator as a test: a query, or a function returning
+// LogicalType.
 func testOf(operator operand, at int) (logical, error) {
 	switch {
 	case operator.kind == operatorQuery:

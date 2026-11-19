@@ -1163,7 +1163,8 @@ func requestMedia(mt string) string {
 	return string(ids.Ptr("paths", "/u", "post", "requestBody", "content", mt))
 }
 
-// partProperty is the PropertyID of the property name of the schema at mediaPtr.
+// partProperty is the PropertyID of the property name of the schema at
+// mediaPtr.
 func partProperty(mediaPtr, name string) ir.PropertyID {
 	return ir.PropertyID("property/openapi" + mediaPtr + string(ids.Ptr("schema", "properties", name)))
 }

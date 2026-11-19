@@ -60,8 +60,8 @@ func appendResponseIndexViolations(vs []Violation, entryReaderValue *entryReader
 }
 
 // responseIndexViolation reports the SuccessStatus key index, on the binding-th
-// HTTP binding of the operation at operation, as addressing none of its declared
-// responses.
+// HTTP binding of the operation at operation, as addressing none of its
+// declared responses.
 func responseIndexViolation(index, declared int, operation ir.WalkPath, binding int) Violation {
 	return Violation{
 		Code: "ir/response-index-out-of-range",

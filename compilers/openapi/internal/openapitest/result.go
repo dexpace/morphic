@@ -29,9 +29,9 @@ func FindOperation(tb TB, doc *ir.Document, source string) ir.Operation {
 	return ir.Operation{}
 }
 
-// FirstOperation returns the operation at svc.Groups[0].Operations[0], requiring both
-// to be non-empty first rather than letting a malformed fixture fail with a bare
-// index-out-of-range panic.
+// FirstOperation returns the operation at svc.Groups[0].Operations[0],
+// requiring both to be non-empty first rather than letting a malformed fixture
+// fail with a bare index-out-of-range panic.
 func FirstOperation(tb TB, svc ir.Service) ir.Operation {
 	tb.Helper()
 	require.NotEmpty(tb, svc.Groups, "service has no operation groups")

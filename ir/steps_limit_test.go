@@ -89,9 +89,9 @@ func TestForEachOperation_ChargesOperationsAndGroups(t *testing.T) {
 	}
 }
 
-// constructorFork returns a literal whose constructors nest depth levels, each taking
-// the level below twice as arguments, so it holds 2^(depth+1)-1 constructors
-// and yields as many edges.
+// constructorFork returns a literal whose constructors nest depth levels, each
+// taking the level below twice as arguments, so it holds 2^(depth+1)-1
+// constructors and yields as many edges.
 func constructorFork(depth int) *ir.Literal {
 	constructorValue := &ir.ConstructorValue{Scalar: "type/s"}
 	for range depth {

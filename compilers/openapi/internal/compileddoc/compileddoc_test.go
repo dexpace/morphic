@@ -19,16 +19,17 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// wholeOf is a Document over a document whose one service holds operation in its one
-// group, and the operation as it holds it, which is the one Params reads.
+// wholeOf is a Document over a document whose one service holds operation in
+// its one group, and the operation as it holds it, which is the one Params
+// reads.
 func wholeOf(operation ir.Operation) (*compileddoc.CompiledDocumentView, *ir.Operation) {
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{operation}}}}}}
 	compiledDocumentView := compileddoc.New(doc)
 	return compiledDocumentView, &doc.Services[0].Groups[0].Operations[0]
 }
 
-// property is a member of a model with the ID id, the wire name wire and the type
-// at target.
+// property is a member of a model with the ID id, the wire name wire and the
+// type at target.
 func property(id ir.PropertyID, wire string, target ir.TypeID) ir.Property {
 	return ir.Property{ID: id, WireName: wire, Type: ir.TypeRef{Target: target}}
 }

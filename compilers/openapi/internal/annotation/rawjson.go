@@ -134,9 +134,9 @@ func appendScalar(dst jsontext.Value, node *yaml.Node) (jsontext.Value, error) {
 	}
 }
 
-// spliceNumber appends number, an already-validated number value.Classify read, to
-// dst as raw JSON, refusing it if it is not a JSON number. appendScalar is the
-// one caller that splices a numeric literal straight into a document rather
+// spliceNumber appends number, an already-validated number value.Classify read,
+// to dst as raw JSON, refusing it if it is not a JSON number. appendScalar is
+// the one caller that splices a numeric literal straight into a document rather
 // than an ir.Value field, so BigVal's contract (its text always renders as a
 // JSON-valid number) is checked here.
 //

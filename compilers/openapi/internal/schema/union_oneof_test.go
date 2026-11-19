@@ -328,10 +328,10 @@ func TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue(t *te
 	}
 }
 
-// TestOneOf_CoDeclaredAdditionalPropertiesHintNamesTheBody covers the naming of the
-// one node every variant shares. additionalProperties is declared once, on the
-// enclosing schema, and lowers at its pointer — so the first variant to reach it
-// must not stamp its own branch name on the shared node.
+// TestOneOf_CoDeclaredAdditionalPropertiesHintNamesTheBody covers the naming of
+// the one node every variant shares. additionalProperties is declared once, on
+// the enclosing schema, and lowers at its pointer — so the first variant to
+// reach it must not stamp its own branch name on the shared node.
 func TestOneOf_CoDeclaredAdditionalPropertiesHintNamesTheBody(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}

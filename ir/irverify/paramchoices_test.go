@@ -41,8 +41,8 @@ func choiceOf(name string, variants ...[]ir.ParameterID) ir.ParamChoice {
 	return ir.ParamChoice{Name: named(name), Variants: vs}
 }
 
-// choiceFindings returns what Verify reports about operation as code at path, for the
-// codes a choice among parameters can draw.
+// choiceFindings returns what Verify reports about operation as code at path,
+// for the codes a choice among parameters can draw.
 func choiceFindings(operation ir.Operation) []string {
 	var out []string
 	for _, violation := range irverify.Verify(singleOperationDocument(operation)) {
@@ -120,8 +120,8 @@ func TestVerify_ParamChoicesAreHeldToTheirMeaning(t *testing.T) {
 	}
 }
 
-// allFindings returns every violation Verify reports about operation as code and
-// path.
+// allFindings returns every violation Verify reports about operation as code
+// and path.
 func allFindings(operation ir.Operation) []string {
 	vs := irverify.Verify(singleOperationDocument(operation))
 	out := make([]string, 0, len(vs))

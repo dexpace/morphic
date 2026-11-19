@@ -118,9 +118,9 @@ func TestTypes_RegisterTakesNoCoordinate(t *testing.T) {
 	assert.False(t, coordinated, "a minted node claims no coordinate")
 }
 
-// TestTypes_PrimitiveRefInternsOnceAndNamesNoSource pins that primitives are interned
-// by kind rather than by position, and that one shared by every position of its
-// kind claims no source (GitHub #528).
+// TestTypes_PrimitiveRefInternsOnceAndNamesNoSource pins that primitives are
+// interned by kind rather than by position, and that one shared by every
+// position of its kind claims no source (GitHub #528).
 func TestTypes_PrimitiveRefInternsOnceAndNamesNoSource(t *testing.T) {
 	t.Parallel()
 	types := compile.NewTypes()

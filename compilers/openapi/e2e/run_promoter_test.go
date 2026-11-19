@@ -72,8 +72,9 @@ func runPromoterPolicy() openapi.ExtensionPromotions {
 	}
 }
 
-// runPromoterOperations compiles runPromoterSpec under promotions and returns its
-// operations by ID, its api_key parameter, and its unread-extension reports.
+// runPromoterOperations compiles runPromoterSpec under promotions and returns
+// its operations by ID, its api_key parameter, and its unread-extension
+// reports.
 func runPromoterOperations(t *testing.T, promotions openapi.ExtensionPromotions) (map[ir.OperationID]ir.Operation, ir.Parameter, int) {
 	t.Helper()
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(runPromoterSpec)},

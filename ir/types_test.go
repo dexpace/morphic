@@ -255,10 +255,11 @@ func TestAny_PopulatedRoundTrip(t *testing.T) {
 	assertTypeDefRoundTrip(t, want)
 }
 
-// primitiveKindSpellings is the whole primitive vocabulary and its on-disk spelling.
-// It is a package-level fixture rather than a literal inside the test below
-// because the ID tests walk the same vocabulary, and a second list of the kinds
-// would be one more thing to keep in step with ir.PrimitiveKind's constants.
+// primitiveKindSpellings is the whole primitive vocabulary and its on-disk
+// spelling. It is a package-level fixture rather than a literal inside the test
+// below because the ID tests walk the same vocabulary, and a second list of the
+// kinds would be one more thing to keep in step with ir.PrimitiveKind's
+// constants.
 var primitiveKindSpellings = map[ir.PrimitiveKind]string{
 	ir.PrimitiveBool:           "bool",
 	ir.PrimitiveString:         "string",

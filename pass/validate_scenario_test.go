@@ -13,8 +13,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// scenarioOperationPath is where the walk reaches the first operation of a document
-// docWithOperations builds.
+// scenarioOperationPath is where the walk reaches the first operation of a
+// document docWithOperations builds.
 const scenarioOperationPath = "document.Services[0].Groups[0].Operations[0]"
 
 // scenarioDoc returns a document with two operations, each declaring and

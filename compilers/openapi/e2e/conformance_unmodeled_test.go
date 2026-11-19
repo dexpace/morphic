@@ -1305,8 +1305,8 @@ func linkParam(t *testing.T, operation ir.Operation, name string) ir.ParameterID
 	return ""
 }
 
-// componentProperty is the ID of the property a component schema declares at the
-// path under components/schemas.
+// componentProperty is the ID of the property a component schema declares at
+// the path under components/schemas.
 func componentProperty(path string) ir.PropertyID {
 	return ir.PropertyID("property/openapi/components/schemas/" + path)
 }

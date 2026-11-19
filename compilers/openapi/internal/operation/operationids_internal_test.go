@@ -37,8 +37,8 @@ const writtenFixture = `paths:
   /s: [1, 2]
 `
 
-// writtenOperation parses writtenFixture, returning its root and the node declaring
-// its one operation.
+// writtenOperation parses writtenFixture, returning its root and the node
+// declaring its one operation.
 func writtenOperation(t *testing.T) (root, operation *yaml.Node) {
 	t.Helper()
 	root = openapitest.YAMLNode(t, writtenFixture)

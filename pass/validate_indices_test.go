@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// operationWithSuccessStatus builds a document whose single operation declares one
-// response and one HTTP binding carrying the given SuccessStatus map.
+// operationWithSuccessStatus builds a document whose single operation declares
+// one response and one HTTP binding carrying the given SuccessStatus map.
 func operationWithSuccessStatus(status map[int]int) *ir.Document {
 	return docWithOperation(ir.Operation{
 		ID:        "op",

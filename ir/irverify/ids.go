@@ -21,8 +21,8 @@ import (
 // named "anonaddr". The recorded pointer catches it (GitHub #141).
 //
 // Agreement is asked only of entities that record a pointer. A primitive
-// derives from no source position, so checkPrimitiveIDs holds it to the ID its kind
-// derives.
+// derives from no source position, so checkPrimitiveIDs holds it to the ID its
+// kind derives.
 func checkIDs(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
@@ -148,9 +148,9 @@ func recordedPointer(node reflect.Value) jsontext.Pointer {
 	return jsontext.Pointer(prov.FieldByName("Pointer").String())
 }
 
-// checkPrimitiveIDs asserts the one TypeID ir can derive is the one the document
-// carries: every primitive is interned at ir.PrimitiveTypeID of its kind, and
-// nothing else occupies the space those IDs live in.
+// checkPrimitiveIDs asserts the one TypeID ir can derive is the one the
+// document carries: every primitive is interned at ir.PrimitiveTypeID of its
+// kind, and nothing else occupies the space those IDs live in.
 //
 // checkIDs cannot reach this. A primitive records no pointer, so shape alone
 // accepts a string primitive at type/openapi/components/schemas/Name or at
@@ -186,8 +186,8 @@ func checkPrimitiveIDs(doc *ir.Document) []Violation {
 	return vs
 }
 
-// namesSource reports whether primitive is credited to a source. A primitive is one
-// node every source shares, so it is on ir.NoSource; the zero Provenance is
+// namesSource reports whether primitive is credited to a source. A primitive is
+// one node every source shares, so it is on ir.NoSource; the zero Provenance is
 // admitted only where the document declares no sources, as a node built without
 // one carries it.
 func namesSource(doc *ir.Document, primitive *ir.Primitive) bool {

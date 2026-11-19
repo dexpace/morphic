@@ -85,10 +85,10 @@ func agreed(pages []page, of func(page) []ir.PropertyID) []ir.PropertyID {
 
 // headerCursor returns the response header carrying the next cursor of a walk
 // sending cursor, a canonical name, and its wire name: the one header every
-// success response of operation declares once (headerOutput) whose canonical name, a
-// leading x_ aside, is next_<cursor>, else the cursor's own, and the least of
-// its spellings. It returns nil where none is, or where two headers, as HTTP
-// compares their names, are so named.
+// success response of operation declares once (headerOutput) whose canonical
+// name, a leading x_ aside, is next_<cursor>, else the cursor's own, and the
+// least of its spellings. It returns nil where none is, or where two headers,
+// as HTTP compares their names, are so named.
 func headerCursor(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, cursor string) (*ir.PropertyPath, string) {
 	for _, name := range [...]string{"next_" + cursor, cursor} {
 		spellings := map[string][]string{} // by the name as HTTP compares it
@@ -119,14 +119,14 @@ func isURL(td ir.TypeDef) bool {
 	return ok && primitive.PrimitiveKind == ir.PrimitiveURL
 }
 
-// linkWalk returns the walk operation's response alone continues, where no place
-// names a continuation (docs/compilers/openapi.md#pagination-policy): a
+// linkWalk returns the walk operation's response alone continues, where no
+// place names a continuation (docs/compilers/openapi.md#pagination-policy): a
 // next_link walk where a GET's or a QUERY's every page content is a page
-// (reader.linkPage) stating a next link, and a link_header walk where each is
-// a page or a list stating none and every success response with a body
-// declares a Link header. A response that is no page triggers nothing and
-// draws nothing. why says what stops it where the contents hold their pages
-// apart or state two continuations.
+// (reader.linkPage) stating a next link, and a link_header walk where each is a
+// page or a list stating none and every success response with a body declares a
+// Link header. A response that is no page triggers nothing and draws nothing.
+// why says what stops it where the contents hold their pages apart or state two
+// continuations.
 func (r *reader) linkWalk(operation *ir.Operation) (*ir.Pagination, string) {
 	if _, kind := methodOf(operation); kind != methodSafe {
 		return nil, ""
@@ -248,9 +248,9 @@ func (r *reader) linkPage(id ir.TypeID) page {
 		totalPages: pageTotal(r.models, body, "total_pages")}
 }
 
-// linkHeader reports whether every success response of operation declaring a page
-// body declares one Link header of a plain string type, the header RFC 8288
-// names, and one does.
+// linkHeader reports whether every success response of operation declaring a
+// page body declares one Link header of a plain string type, the header RFC
+// 8288 names, and one does.
 func linkHeader(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) bool {
 	declared := false
 	for i := range operation.Responses {

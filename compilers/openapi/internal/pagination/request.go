@@ -64,11 +64,11 @@ func (in inputs) readsNextCursor() bool {
 
 // requestInputs returns the inputs the places of operation's request name
 // (docs/compilers/openapi.md#pagination-policy). named reports whether one
-// names where a walk continues under what operation's method admits; where one does
-// and they give no walk, why says what stops it: a method no walk is read
+// names where a walk continues under what operation's method admits; where one
+// does and they give no walk, why says what stops it: a method no walk is read
 // for, two places naming a continuation or a page size, a POST failing a
-// condition that tells it from a create, one of a type a walk cannot send, or
-// a page sent as a string no number shows it counts.
+// condition that tells it from a create, one of a type a walk cannot send, or a
+// page sent as a string no number shows it counts.
 func requestInputs(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation) (in inputs, why string, named bool) {
 	name, kind := methodOf(operation)
 	continuations, limits := places(compiledDocumentView, operation, kind)
@@ -278,8 +278,8 @@ const (
 	methodOther
 )
 
-// methodOf returns the method of operation's first HTTP binding that is no GET or
-// QUERY, and what it admits.
+// methodOf returns the method of operation's first HTTP binding that is no GET
+// or QUERY, and what it admits.
 func methodOf(operation *ir.Operation) (string, methodKind) {
 	for _, b := range operation.Bindings.HTTP {
 		switch b.Method {
@@ -293,11 +293,12 @@ func methodOf(operation *ir.Operation) (string, methodKind) {
 	return "", methodSafe
 }
 
-// places returns the places of operation's request naming where a walk continues and
-// those naming the page size, under what kind admits: any method's query
-// parameters and members of object query parameters, and, but for a method
-// that is no GET, QUERY or POST, the request body's members. A POST's body
-// offset is no place: a body offset is often an identifier a create takes.
+// places returns the places of operation's request naming where a walk
+// continues and those naming the page size, under what kind admits: any
+// method's query parameters and members of object query parameters, and, but
+// for a method that is no GET, QUERY or POST, the request body's members. A
+// POST's body offset is no place: a body offset is often an identifier a create
+// takes.
 func places(compiledDocumentView *compileddoc.CompiledDocumentView, operation *ir.Operation, kind methodKind) (continuations, limits []place) {
 	continuations, limits = paramPlaces(compiledDocumentView, operation)
 	if kind == methodOther || operation.Request == nil || len(operation.Request.Contents) == 0 {

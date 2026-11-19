@@ -15,8 +15,8 @@ import (
 // ir.ExposedProperties answers it: id, or a type its composition or its alias
 // scalars lead to, declares property. Its first questions are walked, as
 // [DocumentFacts.IsSubtype]'s are. After that a question is a few comparisons
-// when one model declares property, unless the comparisons leave the pair open as
-// IsSubtype's may be. A property several models declare and an open pair are
+// when one model declares property, unless the comparisons leave the pair open
+// as IsSubtype's may be. A property several models declare and an open pair are
 // walked.
 func (x *DocumentFacts) Exposes(id ir.TypeID, property ir.PropertyID) bool {
 	if limit := x.exposureWalks.Load(); limit > 0 {
@@ -118,8 +118,8 @@ func (e *exposure) read(dst []ir.TypeID, i int, td ir.TypeDef) []ir.TypeID {
 	return dst
 }
 
-// own records that vertex i declares property, which another declaring it too makes
-// shared.
+// own records that vertex i declares property, which another declaring it too
+// makes shared.
 func (e *exposure) own(property ir.PropertyID, i int) {
 	if owner, owned := e.owner[property]; owned && owner != i {
 		e.owner[property] = sharedProperty
@@ -129,8 +129,8 @@ func (e *exposure) own(property ir.PropertyID, i int) {
 }
 
 // exposes answers [DocumentFacts.Exposes] from the intervals, with settled
-// false when they cannot: several models declare property, or the intervals leave
-// open whether id reaches the one that does.
+// false when they cannot: several models declare property, or the intervals
+// leave open whether id reaches the one that does.
 func (e *exposure) exposes(id ir.TypeID, property ir.PropertyID) (exposed, settled bool) {
 	v, declared := e.vertex[id]
 	owner, owned := e.owner[property]

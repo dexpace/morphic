@@ -15,8 +15,8 @@ import (
 // when it has something to keep.
 type DeclarationConstructRenderer func() (ir.RawValue, error)
 
-// WireNameIndex maps each property's wire name to its position in properties, so a
-// lookup by name is one map read rather than a rescan of a wide model.
+// WireNameIndex maps each property's wire name to its position in properties,
+// so a lookup by name is one map read rather than a rescan of a wide model.
 func WireNameIndex(properties []ir.Property) map[string]int {
 	idx := make(map[string]int, len(properties))
 	for i := range properties {

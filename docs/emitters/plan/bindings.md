@@ -1,9 +1,9 @@
 # BindingView — the per-protocol request/response projection
 
 `Parameter`s carry no protocol location ([operations](../../ir/operations.md)). The plan derives,
-from `OperationBindings`, a neutral per-protocol view a refiner turns into a request builder: which params
-are path/query/ header/cookie/body, their style/explode/prefix, escaping, empty value and media
-type, RPC message folding, message channel + reply, the GraphQL entry point, the OTP call/cast
+from `OperationBindings`, a neutral per-protocol view a refiner turns into a request builder: which
+params are path/query/ header/cookie/body, their style/explode/prefix, escaping, empty value and
+media type, RPC message folding, message channel + reply, the GraphQL entry point, the OTP call/cast
 shape. One operation may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC);
 all are represented, in the order below. This resolves [open question 6](../../ir/open-questions.md)
 on the emitter side: status conditions and `StatusCodeProperty` are read through the HTTP binding a
@@ -55,19 +55,19 @@ through `Message`; a messaging target consumes them the same way an HTTP target 
 view copying the message binding's fields, as `MsgView` once did, was dropped: it restructured the
 one binding and left out its `Unmodeled`, which a refiner reads (below).
 
-A `Protocol` names the `OperationBindings` field a binding comes from, never the system speaking it: `rpc`
-is every `RPCBinding`, gRPC, Connect, JSON-RPC and Smithy RPC alike, and its `RPC.System` says which
-([RPC binding](../../ir/rpc-binding.md)). A label for each system was rejected: `System` is an open
-string, so the vocabulary would be open too and no switch over `Protocol` could be complete, while
-labelling every system `grpc`, as the vocabulary once did, handed a gRPC target a JSON-RPC method to
-lower as gRPC.
+A `Protocol` names the `OperationBindings` field a binding comes from, never the system speaking it:
+`rpc` is every `RPCBinding`, gRPC, Connect, JSON-RPC and Smithy RPC alike, and its `RPC.System` says
+which ([RPC binding](../../ir/rpc-binding.md)). A label for each system was rejected: `System` is an
+open string, so the vocabulary would be open too and no switch over `Protocol` could be complete,
+while labelling every system `grpc`, as the vocabulary once did, handed a gRPC target a JSON-RPC
+method to lower as gRPC.
 
 **The order.** The IR orders an operation's HTTP mappings, the primary first, and nothing across
-`OperationBindings`' fields, which hold one RPC, message, GraphQL and OTP binding each. So `All` is a rule
-over the fields: `RPC`, then `HTTP` in its order, then `Message`, `GraphQL` and `OTP`, whatever
-order the source wrote them in. "The binding the source states first" was rejected as underivable: a
-Protobuf method states its RPC binding and its transcoding in one declaration, and no field records
-which of a Smithy service's protocol traits came first.
+`OperationBindings`' fields, which hold one RPC, message, GraphQL and OTP binding each. So `All` is
+a rule over the fields: `RPC`, then `HTTP` in its order, then `Message`, `GraphQL` and `OTP`,
+whatever order the source wrote them in. "The binding the source states first" was rejected as
+underivable: a Protobuf method states its RPC binding and its transcoding in one declaration, and no
+field records which of a Smithy service's protocol traits came first.
 
 **The binding a target lowers** is the first of `All` its
 [capabilities](../contract/registry.md#capabilities) cover, an RPC binding only where `RPCSystems`

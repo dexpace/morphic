@@ -69,8 +69,8 @@ func asMisuse(cmd *cobra.Command, err error) error {
 	return &usageError{path: cmd.CommandPath(), err: err}
 }
 
-// misuse reports a misuse of cmd. message is a finished string, not a format, so a
-// value echoed back from the user cannot be read as a verb.
+// misuse reports a misuse of cmd. message is a finished string, not a format,
+// so a value echoed back from the user cannot be read as a verb.
 func misuse(cmd *cobra.Command, message string) error {
 	return asMisuse(cmd, errors.New(message))
 }

@@ -509,8 +509,8 @@ type factsAnswers struct {
 	keyed     string // the entity that key names
 }
 
-// factsConcurrentProperties are the properties the concurrency test asks each type
-// about.
+// factsConcurrentProperties are the properties the concurrency test asks each
+// type about.
 var factsConcurrentProperties = []ir.PropertyID{"property/kind", "property/side", "property/ghost"}
 
 // factsAsk collects everything facts says about id, asking IsSubtype of each

@@ -106,12 +106,13 @@ func appendInputViolation(vs []Violation, in ir.InputPath, bodyless bool, at ir.
 	})
 }
 
-// appendScenarioViolations reports each scenario of operation, the operation at at,
-// whose Body operation cannot take: one on an operation that sends no request, which
-// has no content for it to be the value of (ir/input-body-absent), and one on
-// an operation binding a parameter into its body, whole or by property, where
-// the parameters state the body, so a Body states part of it twice
-// (ir/input-body-twice). A path is spelled only for a report.
+// appendScenarioViolations reports each scenario of operation, the operation at
+// at, whose Body operation cannot take: one on an operation that sends no
+// request, which has no content for it to be the value of
+// (ir/input-body-absent), and one on an operation binding a parameter into its
+// body, whole or by property, where the parameters state the body, so a Body
+// states part of it twice (ir/input-body-twice). A path is spelled only for a
+// report.
 func appendScenarioViolations(vs []Violation, operation *ir.Operation, at ir.WalkPath) []Violation {
 	twice := bindsIntoBody(operation)
 	for i, ex := range operation.Examples {
@@ -137,8 +138,8 @@ func appendScenarioViolations(vs []Violation, operation *ir.Operation, at ir.Wal
 	return vs
 }
 
-// bindsIntoBody reports whether any HTTP binding of operation binds a parameter into
-// the request body, whole or by property.
+// bindsIntoBody reports whether any HTTP binding of operation binds a parameter
+// into the request body, whole or by property.
 func bindsIntoBody(operation *ir.Operation) bool {
 	for _, b := range operation.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {

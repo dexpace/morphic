@@ -148,10 +148,10 @@ func (r paramRef) where(operation ir.OperationID) string {
 	return string(operation) + "/" + r.field
 }
 
-// appendParamRefs appends to dst the parameter references operation carries besides
-// its bindings: the pagination inputs, the inputs that select a stream, the
-// idempotency token, the parameters its choices name, the request values its
-// links read and the keys of each scenario's input, each input's in sorted
+// appendParamRefs appends to dst the parameter references operation carries
+// besides its bindings: the pagination inputs, the inputs that select a stream,
+// the idempotency token, the parameters its choices name, the request values
+// its links read and the keys of each scenario's input, each input's in sorted
 // order so no map order reaches a report. An absent input is no reference, and
 // neither is one into the request body, nor an empty token, which is how an
 // operation that is not token-keyed spells having none. An input with an empty

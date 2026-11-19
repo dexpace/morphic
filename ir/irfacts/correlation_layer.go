@@ -71,9 +71,9 @@ func (c *correlator) seedGroups() []*ir.Operation {
 	return operations
 }
 
-// operationKey is operation's own key: its route, unless no HTTP binding places operation or
-// another operation shares the route, as routes counts them, and then its
-// declared name. An operation with neither has none.
+// operationKey is operation's own key: its route, unless no HTTP binding places
+// operation or another operation shares the route, as routes counts them, and
+// then its declared name. An operation with neither has none.
 func operationKey(operation *ir.Operation, routes map[string]int) string {
 	if route := routeKey(operation); route != "" && routes[route] == 1 {
 		return route
@@ -81,8 +81,9 @@ func operationKey(operation *ir.Operation, routes map[string]int) string {
 	return named("op", operation.Name)
 }
 
-// routeKey is operation's method and route, each variable written {}, a webhook's
-// event name standing for the route, and "" when no HTTP binding places operation.
+// routeKey is operation's method and route, each variable written {}, a
+// webhook's event name standing for the route, and "" when no HTTP binding
+// places operation.
 func routeKey(operation *ir.Operation) string {
 	if len(operation.Bindings.HTTP) == 0 {
 		return ""
@@ -115,7 +116,8 @@ func eraseVariables(template string) string {
 	return b.String()
 }
 
-// offerOperation offers key to operation, and, when operation takes it, keys what operation names.
+// offerOperation offers key to operation, and, when operation takes it, keys
+// what operation names.
 func (c *correlator) offerOperation(key string, operation *ir.Operation) {
 	c.offer(key, string(operation.ID), func(correlatorValue *correlator, key string) { correlatorValue.operation(key, operation) })
 }
@@ -152,11 +154,11 @@ func (c *correlator) operation(key string, operation *ir.Operation) {
 	c.callbacks(key, operation)
 }
 
-// callbacks offers each operation operation declares as a callback its key: operation's,
-// then the callback's name and the method, whether or not the operation has a
-// name of its own. The runtime expression is a detail of where the request
-// goes, so a rewritten one keeps the key, unless the name keys two operations
-// of one method, which only their expressions tell apart.
+// callbacks offers each operation operation declares as a callback its key:
+// operation's, then the callback's name and the method, whether or not the
+// operation has a name of its own. The runtime expression is a detail of where
+// the request goes, so a rewritten one keeps the key, unless the name keys two
+// operations of one method, which only their expressions tell apart.
 func (c *correlator) callbacks(key string, operation *ir.Operation) {
 	targets := c.callbackTargets(operation)
 	shared := make(map[[2]string]int, len(targets))
@@ -179,8 +181,8 @@ type callbackTarget struct {
 	name, expression, method string
 }
 
-// callbackTargets returns the operations operation's callbacks list that the document
-// declares with an HTTP binding, in the order operation lists them.
+// callbackTargets returns the operations operation's callbacks list that the
+// document declares with an HTTP binding, in the order operation lists them.
 func (c *correlator) callbackTargets(operation *ir.Operation) []callbackTarget {
 	var targets []callbackTarget
 	for _, b := range operation.Bindings.HTTP {
@@ -197,10 +199,10 @@ func (c *correlator) callbackTargets(operation *ir.Operation) []callbackTarget {
 	return targets
 }
 
-// params offers each parameter of operation its key: operation's, then where the parameter
-// travels and its wire name, or its prefix under one, a header's in lower
-// case, or its name where no binding places it. A parameter offers its type the
-// key of its schema.
+// params offers each parameter of operation its key: operation's, then where
+// the parameter travels and its wire name, or its prefix under one, a header's
+// in lower case, or its name where no binding places it. A parameter offers its
+// type the key of its schema.
 func (c *correlator) params(key string, operation *ir.Operation) {
 	for i := range operation.Params {
 		parameter := &operation.Params[i]
@@ -211,12 +213,12 @@ func (c *correlator) params(key string, operation *ir.Operation) {
 	}
 }
 
-// paramKey is the key of parameter, a parameter of operation keyed key. A host binding
-// is passed over: it fills a host-prefix label in addition to the binding at
-// the parameter's modeled location (docs/ir/http-binding.md), which places it.
-// A binding under a prefix names no field of its own, so it is keyed by where
-// it travels and its prefix, in a segment of another kind than a wire name's
-// (docs/ir/http-binding.md#prefix-bindings).
+// paramKey is the key of parameter, a parameter of operation keyed key. A host
+// binding is passed over: it fills a host-prefix label in addition to the
+// binding at the parameter's modeled location (docs/ir/http-binding.md), which
+// places it. A binding under a prefix names no field of its own, so it is keyed
+// by where it travels and its prefix, in a segment of another kind than a wire
+// name's (docs/ir/http-binding.md#prefix-bindings).
 func paramKey(key string, operation *ir.Operation, parameter *ir.Parameter) string {
 	for _, b := range operation.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {

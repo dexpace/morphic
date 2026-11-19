@@ -42,8 +42,8 @@ func appendLinks(dst []linkSite, from ir.OperationID, links []ir.OperationLink, 
 	return dst
 }
 
-// appendLinkInputRefs appends to dst the parameters operation's links read from the
-// request their response answers, which are operation's own.
+// appendLinkInputRefs appends to dst the parameters operation's links read from
+// the request their response answers, which are operation's own.
 func appendLinkInputRefs(dst []paramRef, operation *ir.Operation) []paramRef {
 	for _, site := range appendLinkSites(nil, operation) {
 		for k := range site.link.Params {

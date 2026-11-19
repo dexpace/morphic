@@ -48,8 +48,8 @@ func foreignBounds(td ir.TypeDef) (string, bool) {
 	}
 }
 
-// beyondProperties reports whether constraints holds a bound other than the property
-// counts.
+// beyondProperties reports whether constraints holds a bound other than the
+// property counts.
 func beyondProperties(constraints *ir.Constraints) bool {
 	if constraints == nil {
 		return false

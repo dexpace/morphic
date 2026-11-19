@@ -402,9 +402,9 @@ func sourceAdmits(walk FieldDeclarationContext, at ir.Provenance, kind JSONInsta
 	return admits && exact
 }
 
-// primitiveInstance returns the kind of JSON instance a value of primitiveKind is: a
-// boolean, an integer, a number, or a string, which every other primitive is
-// written as.
+// primitiveInstance returns the kind of JSON instance a value of primitiveKind
+// is: a boolean, an integer, a number, or a string, which every other primitive
+// is written as.
 func primitiveInstance(primitiveKind ir.PrimitiveKind) JSONInstanceKind {
 	switch {
 	case primitiveKind == ir.PrimitiveBool:

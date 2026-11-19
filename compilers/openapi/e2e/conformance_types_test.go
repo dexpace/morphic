@@ -320,8 +320,8 @@ func inlineHoistPositionRefs(t *testing.T, doc *ir.Document) map[string]ir.TypeI
 	}
 }
 
-// inlinePropertyTarget returns the type the named property of the model at id refers
-// to — the body-property positions, one level inside a body root.
+// inlinePropertyTarget returns the type the named property of the model at id
+// refers to — the body-property positions, one level inside a body root.
 func inlinePropertyTarget(t *testing.T, doc *ir.Document, id ir.TypeID, wire string) ir.TypeID {
 	t.Helper()
 	model, ok := doc.Types[id].(*ir.Model)

@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// treeOperation returns an operation whose summary is its ID and whose one parameter
-// is named after it.
+// treeOperation returns an operation whose summary is its ID and whose one
+// parameter is named after it.
 func treeOperation(id ir.OperationID) ir.Operation {
 	return ir.Operation{ID: id, Docs: ir.Docs{Summary: string(id)}, Params: []ir.Parameter{{ID: ir.ParameterID(id + "/p")}}}
 }

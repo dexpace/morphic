@@ -221,9 +221,9 @@ func TestPathItemRefSiblings_ItemConstructsReachEveryOperation(t *testing.T) {
 }
 
 // assertPathItemSiblingConstructs requires the full item-level construct set a
-// use site writes beside a $ref to have reached operation, each under the use site's
-// own pointer: the summary, the servers, an x-* extension, an undeclared key,
-// and the item parameter drawn from the use site's YAML.
+// use site writes beside a $ref to have reached operation, each under the use
+// site's own pointer: the summary, the servers, an x-* extension, an undeclared
+// key, and the item parameter drawn from the use site's YAML.
 //
 // It is shared by the paths, webhook and callback route tests so the three
 // cannot assert different constructs: what one route forgets is what all three

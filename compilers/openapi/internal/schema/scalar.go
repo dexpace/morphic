@@ -255,9 +255,9 @@ func contentOverridesFormat(schema *statement.Schema, formatName string) bool {
 
 // contentSchemaRef lowers contentSchema — the shape the encoded value has once
 // decoded — to Encoding.Schema. Its value is a schema, so it lowers like every
-// other sub-schema position (fillAdditional, patternProperties): hoisted at its own
-// pointer and referenced by ID, never carried beside the encoding as a raw blob
-// a consumer would have to re-parse.
+// other sub-schema position (fillAdditional, patternProperties): hoisted at its
+// own pointer and referenced by ID, never carried beside the encoding as a raw
+// blob a consumer would have to re-parse.
 //
 // The pointer it hoists at is the one the source wrote it at, which only this
 // declaration can name, so the node needs no namespace of its own

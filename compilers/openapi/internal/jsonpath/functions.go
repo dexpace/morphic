@@ -136,8 +136,8 @@ func (p *parser) argument(fn function, i int) (operand, error) {
 	return arg, nil
 }
 
-// argumentFrom returns operator as an argument, or the logical expression it starts
-// where an operator follows it.
+// argumentFrom returns operator as an argument, or the logical expression it
+// starts where an operator follows it.
 func (p *parser) argumentFrom(operator operand, start int) (operand, error) {
 	save := p.pos
 	p.blank()

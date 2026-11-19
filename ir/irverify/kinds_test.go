@@ -13,9 +13,10 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// primitiveKindDocument interns one primitive of kind at the ID that kind derives, so the
-// document is sound in every way except the kind itself — checkPrimitiveIDs has
-// nothing to say about it and only the new claim can fire.
+// primitiveKindDocument interns one primitive of kind at the ID that kind
+// derives, so the document is sound in every way except the kind itself —
+// checkPrimitiveIDs has nothing to say about it and only the new claim can
+// fire.
 func primitiveKindDocument(kind ir.PrimitiveKind) *ir.Document {
 	id := ir.PrimitiveTypeID(kind)
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{id: &ir.Primitive{
@@ -25,9 +26,10 @@ func primitiveKindDocument(kind ir.PrimitiveKind) *ir.Document {
 	}}}
 }
 
-// TestVerify_UndeclaredPrimitiveKindIsAViolation is the case checkPrimitiveIDs is blind
-// to: the ID is derived from the kind, so it agrees with it — consistently, and
-// wrongly. An emitter switching on PrimitiveKind has no arm for any of these.
+// TestVerify_UndeclaredPrimitiveKindIsAViolation is the case checkPrimitiveIDs
+// is blind to: the ID is derived from the kind, so it agrees with it —
+// consistently, and wrongly. An emitter switching on PrimitiveKind has no arm
+// for any of these.
 func TestVerify_UndeclaredPrimitiveKindIsAViolation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -51,8 +53,8 @@ func TestVerify_UndeclaredPrimitiveKindIsAViolation(t *testing.T) {
 	}
 }
 
-// TestVerify_NilTypeBesideAPrimitiveDoesNotPanic holds checkPrimitiveKinds to the
-// report-only guarantee, at the nil shape that can actually break it.
+// TestVerify_NilTypeBesideAPrimitiveDoesNotPanic holds checkPrimitiveKinds to
+// the report-only guarantee, at the nil shape that can actually break it.
 //
 // An untyped nil fails the *ir.Primitive assertion, so a check with no guard at
 // all skips it and looks safe; a typed nil satisfies the assertion, and the kind
@@ -81,10 +83,10 @@ func TestVerify_NilTypeBesideAPrimitiveDoesNotPanic(t *testing.T) {
 	}
 }
 
-// TestVerify_DeclaredPrimitiveKindIsClean is the other half of the proof: a check
-// that cannot stay silent is no better than one that cannot fire. The documents
-// differ from the ones above only in the kind, so nothing but the kind can be
-// what the check reads.
+// TestVerify_DeclaredPrimitiveKindIsClean is the other half of the proof: a
+// check that cannot stay silent is no better than one that cannot fire. The
+// documents differ from the ones above only in the kind, so nothing but the
+// kind can be what the check reads.
 func TestVerify_DeclaredPrimitiveKindIsClean(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []ir.PrimitiveKind{ir.PrimitiveString, ir.PrimitiveFloat64, ir.PrimitiveDatetimeOffset, ir.PrimitiveAny} {

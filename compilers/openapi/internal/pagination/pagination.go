@@ -39,10 +39,10 @@ func InferWalks(policy Inference, compiledDocumentView *compileddoc.CompiledDocu
 	return diags
 }
 
-// infer fills operation's Pagination where the names it uses settle one. It reports
-// undecided, with why, where its request names an input, or its response a
-// continuation, and the names settle none; an operation holding a Pagination,
-// or one the API sends, is left alone.
+// infer fills operation's Pagination where the names it uses settle one. It
+// reports undecided, with why, where its request names an input, or its
+// response a continuation, and the names settle none; an operation holding a
+// Pagination, or one the API sends, is left alone.
 func (r *reader) infer(operation *ir.Operation) (why string, undecided bool) {
 	if operation.Pagination != nil || inbound(operation) {
 		return "", false
@@ -55,8 +55,8 @@ func (r *reader) infer(operation *ir.Operation) (why string, undecided bool) {
 	return why, why != ""
 }
 
-// walk returns the walk operation's places and pages name, or, where no place names
-// where a walk continues, the link walk its response alone continues
+// walk returns the walk operation's places and pages name, or, where no place
+// names where a walk continues, the link walk its response alone continues
 // (reader.linkWalk), and why it settles none where they name one.
 func (r *reader) walk(operation *ir.Operation) (*ir.Pagination, string) {
 	in, why, named := requestInputs(r.w, operation)
@@ -73,8 +73,8 @@ func (r *reader) walk(operation *ir.Operation) (*ir.Pagination, string) {
 	return build(in, pg), ""
 }
 
-// inbound reports whether the API sends operation rather than the client: a webhook
-// or a callback, whose receiver walks no pages.
+// inbound reports whether the API sends operation rather than the client: a
+// webhook or a callback, whose receiver walks no pages.
 func inbound(operation *ir.Operation) bool {
 	return slices.ContainsFunc(operation.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
@@ -124,9 +124,9 @@ func pathTo(segments []ir.PropertyID) *ir.PropertyPath {
 	return &ir.PropertyPath{Segments: slices.Clone(segments)}
 }
 
-// undecidedAt reports why operation gets no Pagination, at operation: the declaration its
-// Provenance names, which every mount of it shares, so a path item mounted
-// twice is reported once.
+// undecidedAt reports why operation gets no Pagination, at operation: the
+// declaration its Provenance names, which every mount of it shares, so a path
+// item mounted twice is reported once.
 func undecidedAt(operation *ir.Operation, why string) ir.Diagnostic {
 	at := operation.Provenance
 	at.Inferred = ""

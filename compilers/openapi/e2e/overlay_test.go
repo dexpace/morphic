@@ -465,8 +465,8 @@ func TestCompile_WithoutAnOverlayRecordsOneSource(t *testing.T) {
 	assert.Equal(t, 0, propertyProvenance(t, doc, "Pet", "name").Source)
 }
 
-// primitiveKindsSpec declares properties of several primitive kinds, so the rule is
-// held across kinds rather than for one.
+// primitiveKindsSpec declares properties of several primitive kinds, so the
+// rule is held across kinds rather than for one.
 const primitiveKindsSpec = `openapi: 3.1.0
 info:
   title: Prims

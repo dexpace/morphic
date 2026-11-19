@@ -96,11 +96,11 @@ func lowerResponses(serviceContext service.Ctx, loweringState operationLoweringS
 }
 
 // lowerDefaultResponse lowers the responses map's default, if it declares one,
-// to operation.Default, whose conditions are the catch-all. OpenAPI says it answers
-// every status no other key names, which takes in successes and failures alike
-// (docs/ir/responses.md), so the compiler classes it as neither: whether it is
-// the success response, an error, or both is a reading of the API, which the
-// plan makes under its policy.
+// to operation.Default, whose conditions are the catch-all. OpenAPI says it
+// answers every status no other key names, which takes in successes and
+// failures alike (docs/ir/responses.md), so the compiler classes it as neither:
+// whether it is the success response, an error, or both is a reading of the
+// API, which the plan makes under its policy.
 func lowerDefaultResponse(serviceContext service.Ctx, loweringState operationLoweringState, operation *ir.Operation,
 	resps *soa.Responses, operationDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {

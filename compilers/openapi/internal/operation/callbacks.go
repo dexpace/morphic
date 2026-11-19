@@ -24,10 +24,11 @@ import (
 // exchange of several callbacks in turn.
 const maxCallbackNesting = 4
 
-// operationCallbacks lowers src's callbacks for the operation operationCtx describes
-// (lowerCallbacks) while it is nested in fewer than maxCallbackNesting
-// callbacks. Past that the map is kept verbatim, beside the callbacks' own
-// extensions, and reported (docs/compilers/openapi.md#callbacks).
+// operationCallbacks lowers src's callbacks for the operation operationCtx
+// describes (lowerCallbacks) while it is nested in fewer than
+// maxCallbackNesting callbacks. Past that the map is kept verbatim, beside the
+// callbacks' own extensions, and reported
+// (docs/compilers/openapi.md#callbacks).
 func operationCallbacks(serviceContext service.Ctx, loweringState operationLoweringState, src *soa.Operation, operationCtx operationContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	if src.GetCallbacks().Len() == 0 {
 		return nil, nil, nil, nil
@@ -100,12 +101,12 @@ func lowerCallbacks(serviceContext service.Ctx, loweringState operationLoweringS
 	return callbacks, operations, ext, diags
 }
 
-// lowerCallbackOperations lowers the operations of a callback expression's path-item
-// layers on route, each with the callbacks it declares in turn, one level
-// deeper (operationCallbacks), the deeper callbacks' operations listed after
-// the one declaring them. at.ptr is the expression's identity base, distinct
-// per parent operation, while each layer keeps its declaration base, shared
-// when the callback or its path item is $ref'd (issue #107).
+// lowerCallbackOperations lowers the operations of a callback expression's
+// path-item layers on route, each with the callbacks it declares in turn, one
+// level deeper (operationCallbacks), the deeper callbacks' operations listed
+// after the one declaring them. at.ptr is the expression's identity base,
+// distinct per parent operation, while each layer keeps its declaration base,
+// shared when the callback or its path item is $ref'd (issue #107).
 //
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the

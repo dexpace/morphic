@@ -204,9 +204,9 @@ func (d DocumentIDNamespace) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }
 
-// ComposedProperty returns the stable ID of a field the declaration at pointer in d
-// names, where another model carries the field's first declaration, so that no
-// declaration's own ID is taken.
+// ComposedProperty returns the stable ID of a field the declaration at pointer
+// in d names, where another model carries the field's first declaration, so
+// that no declaration's own ID is taken.
 func (d DocumentIDNamespace) ComposedProperty(pointer jsontext.Pointer) ir.PropertyID {
 	return compile.PropertyID(d.space(ComposedSpace), string(pointer))
 }

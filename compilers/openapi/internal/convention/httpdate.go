@@ -40,12 +40,12 @@ func httpDate(policy HTTPDateInference, promoter promotion.Promoter, reg ir.Type
 			"rather than in RFC 3339's text, which its format names", header.EffectiveWireName(), httpDateEncoding)}
 }
 
-// httpDateParam gives each header parameter of operation the text httpDate gives a
-// response header, under the HTTP-date policy, where the name its binding
-// places it under is one httpDateField names, it writes no encoding of its own,
-// and its type reads as an instant: on the parameter itself, as its type may be
-// one a $ref shares. A parameter in any other location is not read, whatever
-// its name. The rule is docs/compilers/openapi.md#http-date-inference.
+// httpDateParam gives each header parameter of operation the text httpDate
+// gives a response header, under the HTTP-date policy, where the name its
+// binding places it under is one httpDateField names, it writes no encoding of
+// its own, and its type reads as an instant: on the parameter itself, as its
+// type may be one a $ref shares. A parameter in any other location is not read,
+// whatever its name. The rule is docs/compilers/openapi.md#http-date-inference.
 func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, compiledDocumentView *compileddoc.CompiledDocumentView,
 	operation *ir.Operation,
 ) []ir.Diagnostic {
