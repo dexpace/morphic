@@ -314,3 +314,30 @@ func TestUnion_AVariantAdmitsNullOnlyWhereTheRestDoes(t *testing.T) {
 		assert.Equal(t, nullable, union.Variants[1].Type.Nullable, name)
 	}
 }
+
+// TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten pins a oneOf and
+// an anyOf whose enums share no member, on one schema, on one allOf entry, on
+// two and beside an object body they compose with: each draws one warning
+// that the conjuncts share no value, naming the two by their value sets.
+func TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten(t *testing.T) {
+	t.Parallel()
+	const one, anyOf = "oneOf: [{type: string, enum: [a]}]", "anyOf: [{type: string, enum: [b]}]"
+	const objOne, objAny = "oneOf: [{type: object, enum: [{a: 1}]}]", "anyOf: [{type: object, enum: [{b: 2}]}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {`+one+`, `+anyOf+`}
+    OneEntry: {allOf: [{`+one+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{`+one+`}, {`+anyOf+`}]}
+    Composed: {allOf: [{type: object}, {`+objOne+`}, {`+objAny+`}]}
+`))
+	for _, name := range []string{"Flat", "OneEntry", "TwoEntries", "Composed"} {
+		var warned []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				warned = append(warned, d.Message)
+			}
+		}
+		require.Len(t, warned, 1, name)
+		assert.Contains(t, warned[0], "share no value", name)
+		assert.Contains(t, warned[0], "anyOf: 1 value", name)
+		assert.Contains(t, warned[0], "oneOf: 1 value", name)
+	}
+}

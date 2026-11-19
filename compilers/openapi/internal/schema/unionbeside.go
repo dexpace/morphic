@@ -250,14 +250,9 @@ func passedApart(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 }
 
 // pairSharesNoValue reports whether s writes a oneOf and an anyOf that share
-// no value, a null only where both admit it, as an admissionReader reads the
-// two together (unionsIn); a read cut short says no.
+// no value, as every spelling of the two reads it (pairApart).
 func pairSharesNoValue(c lowering.Ctx, s *statement.Schema) bool {
-	if !writesBothUnions(s) {
-		return false
-	}
-	w := newAdmissionReader(c)
-	return !unionsIn(&w, s).reachable() && !w.incomplete()
+	return writesBothUnions(s) && pairApart(c, s) != nil
 }
 
 // routedSubtype reports whether a discriminator on an ancestor of s, written at

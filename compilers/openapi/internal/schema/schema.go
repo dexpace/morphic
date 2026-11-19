@@ -431,6 +431,9 @@ func refinedDisjoint(c lowering.Ctx, s *statement.Schema, r refinement, standing
 	}
 	comp := r.comp
 	comp.disjoint = disjointAtoms(c, s, refinedAtoms(c, s, r))
+	if len(comp.disjoint) == 0 {
+		comp.disjoint = pairApart(c, s)
+	}
 	if len(comp.disjoint) == 0 && r.contradicts {
 		comp.disjoint = conjunctsApart(c, s)
 	}

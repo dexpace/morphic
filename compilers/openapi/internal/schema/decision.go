@@ -746,7 +746,7 @@ func (w *admissionReader) conjuncts(s *statement.Schema, comp allOfComposition) 
 	for _, cj := range out[1:] {
 		rest = rest.and(cj.read)
 	}
-	if rest.reachable() && (pairApartBeside(s, union, rest) || union.kinds != 0 && rest.kinds&union.kinds == 0) {
+	if rest.reachable() && (pairSharesNoValue(w.c, s) && pairApartBeside(rest) || union.kinds != 0 && rest.kinds&union.kinds == 0) {
 		return out, true
 	}
 	out[0].read, out[0].says, out[0].form = out[0].read.and(union), true, unionForm(s)
@@ -763,7 +763,7 @@ func (w *admissionReader) entryPairApart(s *statement.Schema, comp allOfComposit
 	if !writesUnionPair(s, comp) {
 		return false
 	}
-	unions, rest := admitted{kinds: kindAny}, out[0].read
+	rest := out[0].read
 	var holders []int
 	for i := 1; i < len(out); i++ {
 		cj := &out[i]
@@ -771,11 +771,10 @@ func (w *admissionReader) entryPairApart(s *statement.Schema, comp allOfComposit
 			rest = rest.and(cj.read)
 			continue
 		}
-		unions = unions.and(unionsIn(w, cj.schema))
 		rest = rest.and(w.written(cj.schema, w.nullable))
 		holders = append(holders, i)
 	}
-	if w.incomplete() || !rest.reachable() || !pairApartBeside(nil, unions, rest) {
+	if w.incomplete() || !rest.reachable() || pairApart(w.c, s) == nil || !pairApartBeside(rest) {
 		return false
 	}
 	for _, i := range holders {
@@ -785,15 +784,12 @@ func (w *admissionReader) entryPairApart(s *statement.Schema, comp allOfComposit
 	return true
 }
 
-// pairApartBeside reports whether a oneOf and an anyOf, s's own where s is
-// given, admitting union together, share no value beside a rest admitting
-// rest that is neither every kind, where the two stand alone (unionPair), nor
-// objects alone, null aside, where the allOf composes the Model keeping both.
-func pairApartBeside(s *statement.Schema, union, rest admitted) bool {
-	if s != nil && !writesBothUnions(s) {
-		return false
-	}
-	return !union.reachable() && rest.kinds != kindAny && rest.kinds&^kindNull != kindObject
+// pairApartBeside reports whether a oneOf and an anyOf sharing no value
+// (pairApart) lower apart from a rest admitting rest: one neither every kind,
+// where the two stand alone (unionPair), nor objects alone, null aside, where
+// the allOf composes the Model keeping both.
+func pairApartBeside(rest admitted) bool {
+	return rest.kinds != kindAny && rest.kinds&^kindNull != kindObject
 }
 
 // inferredClaims returns the kinds s lowers to, null aside, where the

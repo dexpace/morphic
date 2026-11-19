@@ -446,17 +446,78 @@ const unionShape = "the union it lowered as"
 // keyword, and the position lowered as shape.
 func diagUnionsShareNothing(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, shape string) []ir.Diagnostic {
 	comp := allOfComposition{pointer: pointer}
-	comp.disjoint = pairApartNames(c, s)
+	if comp.disjoint = pairApartNames(c, s); len(comp.disjoint) == 0 {
+		comp.disjoint = pairApart(c, s)
+	}
 	return diagDisjointConjuncts(c, comp, shape)
 }
 
-// pairApartNames names the oneOf and the anyOf s writes, by their keywords,
-// where the two share no value, a null only where both may admit it, and is
-// nil where they share one or s writes but one of them.
+// pairApartNames names the oneOf and the anyOf s writes by the kinds each
+// admits where those share none, and is nil where they share one or s
+// writes but one of them; pairApart names them otherwise.
 func pairApartNames(c lowering.Ctx, s *statement.Schema) []string {
 	choice := s.ChoiceKeywords()
 	if len(choice.OneOf) == 0 || len(choice.AnyOf) == 0 {
 		return nil
 	}
 	return disjointAtoms(c, s, slices.Concat(unionAtoms(c, "oneOf", choice.OneOf), unionAtoms(c, "anyOf", choice.AnyOf)))
+}
+
+// pairApartOf keys what pairApart read of a position.
+type pairApartOf struct{ s *statement.Schema }
+
+// pairApart names the oneOf and the anyOf written for the position s, beside
+// its allOf or on its inline entries at any depth, where they share no value
+// as an admissionReader reads them, value sets included and a null only where
+// both admit it: each by where it is written and what it admits (readWords).
+// It is nil where they share one, the read is cut short, one admits nothing
+// alone, or s and its entries write no oneOf and anyOf. Read once a run, so
+// every spelling's lowering and report read one answer
+// (docs/compilers/openapi.md#competing-keywords).
+func pairApart(c lowering.Ctx, s *statement.Schema) []string {
+	return lowering.Remembered(c, pairApartOf{s}, func() []string {
+		comp := allOfBranches(c, s, "")
+		if !writesUnionPair(s, comp) {
+			return nil
+		}
+		w := newAdmissionReader(c)
+		w.nullable = definesNullableAt(c, c.Statements().Read(s))
+		p := pairReads{joint: admitted{kinds: kindAny}}
+		p.read(&w, "", s)
+		for _, e := range comp.branches {
+			if e.schema.Ref == nil && declaresUnion(e.schema.Schema) {
+				p.read(&w, comp.branchPath(e.pointer), e.schema.Schema)
+			}
+		}
+		if p.joint.reachable() || p.alone || w.incomplete() || len(p.names) < 2 {
+			return nil
+		}
+		slices.Sort(p.names)
+		return p.names
+	})
+}
+
+// pairReads is what pairApart has read of a position's unions: what they
+// admit together, each named by what it admits, and whether one admits
+// nothing alone, which its own schema reports.
+type pairReads struct {
+	joint admitted
+	names []string
+	alone bool
+}
+
+// read adds the oneOf and the anyOf x writes, at the path at from the
+// position, as w reads each.
+func (p *pairReads) read(w *admissionReader, at string, x *statement.Schema) {
+	choice := x.ChoiceKeywords()
+	for key, branches := range map[string][]statement.Sub{"oneOf": choice.OneOf, "anyOf": choice.AnyOf} {
+		if len(branches) == 0 {
+			continue
+		}
+		read := w.union(branches)
+		p.joint, p.alone = p.joint.and(read), p.alone || !read.reachable()
+		if word := readWords(read); word != "" {
+			p.names = append(p.names, strings.TrimPrefix(at+"/"+key, "/")+": "+word)
+		}
+	}
 }
