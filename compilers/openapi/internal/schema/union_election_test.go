@@ -551,3 +551,33 @@ func TestUnion_AShapelessUnionSharingNoKindWithAScalarWarnsBesideItsKeywords(t *
 	}
 	assert.Equal(t, map[string]int{"Flat": 1, "Beside": 1}, warned)
 }
+
+// TestUnion_TwoUnionsApartAreNamedTheOneOfFirst pins the order the warning
+// that a oneOf and an anyOf share no value names them in: the keywords beside
+// the allOf before its entries, the oneOf before the anyOf, a union admitting
+// nothing alone named so.
+func TestUnion_TwoUnionsApartAreNamedTheOneOfFirst(t *testing.T) {
+	t.Parallel()
+	const a, b = "[{type: string, enum: [a]}]", "[{type: string, enum: [b]}]"
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Flat: {anyOf: `+b+`, oneOf: `+a+`}
+    Mixed: {allOf: [{anyOf: `+b+`}], oneOf: `+a+`}
+    Entries: {allOf: [{anyOf: `+b+`}, {oneOf: `+a+`}]}
+    False: {anyOf: [{type: integer}], oneOf: [false]}
+`))
+	want := map[string]string{
+		"Flat":    "(oneOf: 1 value, anyOf: 1 value)",
+		"Mixed":   "(oneOf: 1 value, allOf/0/anyOf: 1 value)",
+		"Entries": "(allOf/0/anyOf: 1 value, allOf/1/oneOf: 1 value)",
+		"False":   "(oneOf: no value, anyOf: integer)",
+	}
+	for name, names := range want {
+		var warned []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityWarning && strings.HasSuffix(string(d.Provenance.Pointer), "/"+name) {
+				warned = append(warned, d.Message)
+			}
+		}
+		require.Len(t, warned, 1, name)
+		assert.Contains(t, warned[0], names, name)
+	}
+}
