@@ -18,11 +18,11 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir/irtest"
 )
@@ -227,21 +227,21 @@ func TestRead_AKeyTheDialectDoesNotDefineIsUnknown(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		version, key, value string
-		slot                oas.Slot
+		slot                specrules.Slot
 		later               bool
 		read                func(*statement.Statement) bool
 	}{
-		{"3.1.0", "nullable", "true", oas.SlotUnknown, false, func(st *statement.Statement) bool {
+		{"3.1.0", "nullable", "true", specrules.SlotUnknown, false, func(st *statement.Statement) bool {
 			return st.Kinds != nil && st.Kinds.Nullable != nil && *st.Kinds.Nullable
 		}},
-		{"3.1.0", "additionalItems", "false", oas.SlotUnknown, false, func(st *statement.Statement) bool {
+		{"3.1.0", "additionalItems", "false", specrules.SlotUnknown, false, func(st *statement.Statement) bool {
 			return st.Array != nil && text(st.Array.AdditionalItems) == "false"
 		}},
-		{"3.1.0", "x-a", "1", oas.SlotUnknown, false, func(st *statement.Statement) bool {
+		{"3.1.0", "x-a", "1", specrules.SlotUnknown, false, func(st *statement.Statement) bool {
 			return st.Kinds == nil && st.Values == nil && st.Format == nil && st.Number == nil && st.Text == nil &&
 				st.Array == nil && st.Object == nil && st.Choice == nil && st.Logic == nil && st.Notes == nil
 		}},
-		{"3.0.3", "prefixItems", "[{}]", oas.SlotArray, true, func(st *statement.Statement) bool {
+		{"3.0.3", "prefixItems", "[{}]", specrules.SlotArray, true, func(st *statement.Statement) bool {
 			return st.Array != nil && len(st.Array.PrefixItems) == 1
 		}},
 	} {
@@ -406,7 +406,7 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 
 	absent := table.At(component(c, "Nothing"))
 	assert.Equal(t, statement.Unwritten, absent.Truth)
-	assert.Equal(t, bind.DocumentPointer{}, absent.At)
+	assert.Equal(t, reftable.DocumentPointer{}, absent.At)
 	assert.Same(t, absent, table.Read(nil))
 
 	empty := table.At(component(c, "Empty"))
@@ -445,15 +445,15 @@ func TestRead_ReadsWhatAValueStates(t *testing.T) {
 
 	js := c.Bindings().At(component(c, "Disc"))
 	unknown := statement.NewTable(statement.Source{Rules: everywhere(rulesAt(t, "3.1.0", ""))}).Of(js)
-	assert.Equal(t, bind.DocumentPointer{}, unknown.At, "a value the bindings do not know has no position")
+	assert.Equal(t, reftable.DocumentPointer{}, unknown.At, "a value the bindings do not know has no position")
 	require.NotNil(t, unknown.Object.Discriminator)
 	assert.Equal(t, "a", unknown.Object.Discriminator.PropertyName)
 	assert.Nil(t, unknown.Object.Discriminator.Mapping)
-	assert.Equal(t, bind.DocumentPointer{}, unknown.Object.Discriminator.At, "nor has its discriminator")
+	assert.Equal(t, reftable.DocumentPointer{}, unknown.Object.Discriminator.At, "nor has its discriminator")
 
 	unruled := statement.NewTable(statement.Source{Bindings: c.Bindings()}).Of(js)
 	k, _ := unruled.Key("discriminator")
-	assert.Equal(t, oas.SlotUnknown, k.Slot, "no rows place a key")
+	assert.Equal(t, specrules.SlotUnknown, k.Slot, "no rows place a key")
 	require.NotNil(t, unruled.Object, "its value is read all the same")
 	assert.Equal(t, "a", unruled.Object.Discriminator.PropertyName)
 }

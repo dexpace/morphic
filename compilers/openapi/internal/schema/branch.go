@@ -4,8 +4,8 @@
 package schema
 
 import (
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -31,7 +31,7 @@ func refBranchTarget(c lowering.Ctx, b *statement.Statement) *statement.Schema {
 // where a hop before it lands on no schema, and for a loop of $refs, which
 // maxChainHops ends.
 func runEnd(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bool) {
-	if e := st.Ref.Entry; st.Ref.Bound && e.Chain.Status == bind.Resolved && e.Chain.Hops == 1 {
+	if e := st.Ref.Entry; st.Ref.Bound && e.Chain.Status == reftable.Resolved && e.Chain.Hops == 1 {
 		return c.Statements().At(e.Chain.End), true // the one hop is the run
 	}
 	for range maxChainHops {
@@ -51,9 +51,9 @@ func runEnd(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bool
 // lands, as the bindings resolved its first hop (typed.Bindings.DeclaredAt),
 // and the position it lands at; nil and the zero position where it lands on
 // none.
-func declaredOf(c lowering.Ctx, st *statement.Statement) (*statement.Statement, bind.DocumentPointer) {
-	if st.Ref == nil || !st.Ref.Bound || st.Ref.Entry.Hop.Status != bind.Resolved {
-		return nil, bind.DocumentPointer{}
+func declaredOf(c lowering.Ctx, st *statement.Statement) (*statement.Statement, reftable.DocumentPointer) {
+	if st.Ref == nil || !st.Ref.Bound || st.Ref.Entry.Hop.Status != reftable.Resolved {
+		return nil, reftable.DocumentPointer{}
 	}
 	return c.Statements().At(st.Ref.Entry.Hop.Target), st.Ref.Entry.Hop.Target
 }
@@ -70,9 +70,9 @@ func declared(c lowering.Ctx, x *statement.Statement) *statement.Statement {
 
 // siteOf returns the position the bindings read s at, and false for a schema
 // they do not place, which the statement reads at the zero position.
-func siteOf(s *statement.Schema) (bind.DocumentPointer, bool) {
-	if s == nil || s.At == (bind.DocumentPointer{}) {
-		return bind.DocumentPointer{}, false
+func siteOf(s *statement.Schema) (reftable.DocumentPointer, bool) {
+	if s == nil || s.At == (reftable.DocumentPointer{}) {
+		return reftable.DocumentPointer{}, false
 	}
 	return s.At, true
 }

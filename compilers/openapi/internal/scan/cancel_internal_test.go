@@ -13,7 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
@@ -69,7 +69,7 @@ func TestDeepSites_MeasuresUnderItsContext(t *testing.T) {
 	const n = 4 * nodeview.AskEvery
 	root, _ := wideTree(n)
 	whole := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
-	sourceindex.NewMeasure(sourceindex.MaxIndexedNodes).Of(whole, root)
+	sourcetreestats.NewMeasure(sourcetreestats.MaxIndexedNodes).Of(whole, root)
 	ctx := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
 
 	sites := deepSites(ctx, root, 1)

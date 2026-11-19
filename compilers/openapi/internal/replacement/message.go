@@ -10,9 +10,9 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,7 +23,7 @@ import (
 // every promotion (docs/compilers/openapi.md#policies), and reads nothing
 // while policy is off. p is the run's promoter, and w the document, which is
 // whole.
-func Infer(policy Inference, p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Diagnostic {
+func Infer(policy Inference, p promotion.Promoter, w *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	if !policy.Honours() {
 		return nil
 	}

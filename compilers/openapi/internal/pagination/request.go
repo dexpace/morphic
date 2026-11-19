@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -69,7 +69,7 @@ func (in inputs) readsNextCursor() bool {
 // for, two places naming a continuation or a page size, a POST failing a
 // condition that tells it from a create, one of a type a walk cannot send, or
 // a page sent as a string no number shows it counts.
-func requestInputs(w *whole.CompiledDocumentView, op *ir.Operation) (in inputs, why string, named bool) {
+func requestInputs(w *compileddoc.CompiledDocumentView, op *ir.Operation) (in inputs, why string, named bool) {
 	name, kind := methodOf(op)
 	continuations, limits := places(w, op, kind)
 	switch {
@@ -109,7 +109,7 @@ func requestInputs(w *whole.CompiledDocumentView, op *ir.Operation) (in inputs, 
 // sendsItsInputs reads the primitive of in's cursor into in, and returns why
 // in's places are no values a walk sends: a type it cannot send, or a page
 // sent as a string no number shows it counts.
-func sendsItsInputs(w *whole.CompiledDocumentView, in *inputs) string {
+func sendsItsInputs(w *compileddoc.CompiledDocumentView, in *inputs) string {
 	prim, ok := sendable(w, in.cursor.typeID())
 	if !ok {
 		return notSendable(in.cursor, "where a walk continues")
@@ -130,7 +130,7 @@ func sendsItsInputs(w *whole.CompiledDocumentView, in *inputs) string {
 // queryPlaced returns where placements put a parameter in the query, as one
 // parameter or as the query string whole, the first that does, and false
 // where none does.
-func queryPlaced(placements []whole.Placement) (ir.HTTPLocation, bool) {
+func queryPlaced(placements []compileddoc.Placement) (ir.HTTPLocation, bool) {
 	for _, at := range placements {
 		if at.Location == ir.HTTPLocationQuery || at.Location == ir.HTTPLocationQuerystring {
 			return at.Location, true
@@ -141,7 +141,7 @@ func queryPlaced(placements []whole.Placement) (ir.HTTPLocation, bool) {
 
 // sendable returns the primitive the type id stands for, read through alias
 // scalars, when a walk can send it or count with it (sendableAs).
-func sendable(w *whole.CompiledDocumentView, id ir.TypeID) (ir.PrimKind, bool) {
+func sendable(w *compileddoc.CompiledDocumentView, id ir.TypeID) (ir.PrimKind, bool) {
 	return sendableAs(w.Stands(id))
 }
 
@@ -298,7 +298,7 @@ func methodOf(op *ir.Operation) (string, methodKind) {
 // parameters and members of object query parameters, and, but for a method
 // that is no GET, QUERY or POST, the request body's members. A POST's body
 // offset is no place: a body offset is often an identifier a create takes.
-func places(w *whole.CompiledDocumentView, op *ir.Operation, kind methodKind) (continuations, limits []place) {
+func places(w *compileddoc.CompiledDocumentView, op *ir.Operation, kind methodKind) (continuations, limits []place) {
 	continuations, limits = paramPlaces(w, op)
 	if kind == methodOther || op.Request == nil || len(op.Request.Contents) == 0 {
 		return continuations, limits
@@ -327,7 +327,7 @@ func places(w *whole.CompiledDocumentView, op *ir.Operation, kind methodKind) (c
 // model, is read through its members, one level down, where one of them
 // names a role, a continuation or a page size, its own name then giving it
 // none; otherwise a parameter bound in the query is read by its own name.
-func paramPlaces(w *whole.CompiledDocumentView, op *ir.Operation) (continuations, limits []place) {
+func paramPlaces(w *compileddoc.CompiledDocumentView, op *ir.Operation) (continuations, limits []place) {
 	if len(op.Params) == 0 {
 		return nil, nil
 	}
@@ -357,7 +357,7 @@ func paramPlaces(w *whole.CompiledDocumentView, op *ir.Operation) (continuations
 
 // memberPlaces returns the places the members of p name, where p's type
 // stands for a model, and none otherwise.
-func memberPlaces(w *whole.CompiledDocumentView, p *ir.Parameter) (continuations, limits []place) {
+func memberPlaces(w *compileddoc.CompiledDocumentView, p *ir.Parameter) (continuations, limits []place) {
 	for _, m := range w.Members(p.Type.Target) {
 		switch r := roleOf(m.Name.Canonical); {
 		case r == (role{}):

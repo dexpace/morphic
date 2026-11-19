@@ -20,12 +20,12 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -387,7 +387,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
 			doc, diags, err := run(ctx, servicetest.Context(t, openapitest.EmptySpec, service.Policy{}), inferences{},
-				compile.NewTypes(), whole.New)
+				compile.NewTypes(), compileddoc.New)
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
@@ -424,7 +424,7 @@ components:
 		require.NoError(t, err)
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: live}
 		_, diags, err := run(ctx, service.New(rootSrcIndex, loaded, loweringPolicy(Options{}.withDefaults())), inferencesOf(Options{}.withDefaults()),
-			compile.NewTypes(), whole.New)
+			compile.NewTypes(), compileddoc.New)
 		return ctx.Calls, diags, err
 	}
 	moved := func(diags []ir.Diagnostic) bool {

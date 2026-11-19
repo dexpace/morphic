@@ -14,10 +14,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -295,7 +295,7 @@ func promoteStated(t *testing.T, spec string, policy promotion.ExtensionPromotio
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	p := promotion.New(policy)
-	stated, diags := pagination.Promote(p, whole.New(doc), nil)
+	stated, diags := pagination.Promote(p, compileddoc.New(doc), nil)
 	reports := make([]string, 0, len(diags))
 	for _, d := range diags {
 		require.Equal(t, ir.SeverityInfo, d.Severity, "%+v", d)
@@ -309,7 +309,7 @@ func promoteStated(t *testing.T, spec string, policy promotion.ExtensionPromotio
 	slices.Sort(reports)
 	ops := map[string]*ir.Operation{}
 	var spoke []string
-	for _, op := range whole.New(doc).Ops {
+	for _, op := range compileddoc.New(doc).Ops {
 		ops[op.Name.Source] = op
 		if stated[op.ID] {
 			spoke = append(spoke, op.Name.Source)
@@ -366,7 +366,7 @@ func TestPromote_ReadsNoOperationHoldingOne(t *testing.T) {
 	require.NotNil(t, op.Pagination)
 	held := doc.Services[0].Groups[0].Operations[0].Pagination
 	p := promotion.New(pagePolicy())
-	stated, diags := pagination.Promote(p, whole.New(doc), nil)
+	stated, diags := pagination.Promote(p, compileddoc.New(doc), nil)
 	assert.Empty(t, stated)
 	assert.Empty(t, diags)
 	assert.Same(t, held, doc.Services[0].Groups[0].Operations[0].Pagination)
@@ -386,7 +386,7 @@ func TestPromote_StatesNothingOffPolicy(t *testing.T) {
 		spoke, _, _ := promoteStated(t, statedSpec(t, statedPaths), policy)
 		assert.Empty(t, spoke, name)
 	}
-	stated, diags := pagination.Promote(promotion.New(promotion.ExtensionPromotions{}), whole.New(&ir.Document{}),
+	stated, diags := pagination.Promote(promotion.New(promotion.ExtensionPromotions{}), compileddoc.New(&ir.Document{}),
 		nil)
 	assert.Empty(t, stated, "no operation, nothing read")
 	assert.Empty(t, diags)

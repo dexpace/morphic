@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -119,10 +119,10 @@ func unheldLowerer(t *testing.T) *Lowerer {
 		"    A: {$ref: '#/components/schemas/H/properties/p'}\n    H: {properties: {p: {type: object}}}\n"
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec))
 	require.NoError(t, err)
-	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd := typed.NewBuilder(reftable.Bind(t.Context(), doc.GetRootNode(), reftable.Config{Self: "spec.yaml"}))
 	a, ok := doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
-	bd.Schema(a, bind.DocumentPointer{Pointer: "/components/schemas/A"})
+	bd.Schema(a, reftable.DocumentPointer{Pointer: "/components/schemas/A"})
 	return LowererOver(service.New(0, &load.LoadedOpenAPIDocument{Doc: doc, Bindings: bd.Bindings()}, service.Policy{}))
 }
 

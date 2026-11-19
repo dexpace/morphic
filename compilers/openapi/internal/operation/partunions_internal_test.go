@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -91,7 +91,7 @@ func TestPartUnions_ReadADefaultContentTypeOncePerRun(t *testing.T) {
 	t.Parallel()
 	reg, models := unionRegistry()
 	reg["t/list"] = &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/u"}}
-	rules := oas.Table().EncodingRules("3.1.0")
+	rules := specrules.Table().EncodingRules("3.1.0")
 	partOf := func(id ir.TypeID) func(*partUnions, func(ir.TypeID) (ir.TypeDef, bool)) {
 		return func(unions *partUnions, node func(ir.TypeID) (ir.TypeDef, bool)) {
 			pe := withDefaultContentType(unions, node, rules, &ir.Property{Type: ir.TypeRef{Target: id}}, unencoded, ir.PartEncoding{})
@@ -151,8 +151,8 @@ func TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn(t *testing.T) {
 		td, ok := reg[id]
 		return td, ok
 	}
-	v31, v32 := oas.Table().EncodingRules("3.1.0"), oas.Table().EncodingRules("3.2.0")
-	part := func(of ir.TypeID, rules oas.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
+	v31, v32 := specrules.Table().EncodingRules("3.1.0"), specrules.Table().EncodingRules("3.2.0")
+	part := func(of ir.TypeID, rules specrules.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
 		return func(t *testing.T, u *partUnions) []string {
 			t.Helper()
 			types, ok := u.partDefault(node, rules, &ir.Property{Type: ir.TypeRef{Target: of}}, by)
@@ -160,7 +160,7 @@ func TestPartUnions_KeepsADefaultContentTypeByAllItTurnsOn(t *testing.T) {
 			return types
 		}
 	}
-	item := func(of ir.TypeID, rules oas.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
+	item := func(of ir.TypeID, rules specrules.EncodingRules, by contentEncoding) func(*testing.T, *partUnions) []string {
 		return func(_ *testing.T, u *partUnions) []string {
 			return u.itemDefault(node, rules, ir.TypeRef{Target: of}, by)
 		}

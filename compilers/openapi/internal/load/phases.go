@@ -13,13 +13,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -256,7 +256,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 // judgeLate judges the Schema Objects the bindings give a dialect
 // (judgeSchemas) with the anchors readyForModel cleared named again, since
 // whether another place may read a node is read off them
-// (oas.Options.Judged), and turns what that leaves refused (turnRefused),
+// (specrules.Options.Judged), and turns what that leaves refused (turnRefused),
 // reporting whether it turned any.
 func (l *loading) judgeLate(ctx context.Context) bool {
 	for _, a := range l.anchors {
@@ -273,7 +273,7 @@ func (l *loading) judgeLate(ctx context.Context) bool {
 // what the load places and lowers by: the other documents a reference read,
 // where a finding is placed, and the dialect each schema is read in, with
 // what that reading could not read.
-func (l *loading) readTable(ctx context.Context) (*bind.ReferenceTargetTable, []ir.Diagnostic) {
+func (l *loading) readTable(ctx context.Context) (*reftable.ReferenceTargetTable, []ir.Diagnostic) {
 	table := bindTable(ctx, l.doc, l.self, l.reader, refusedByName(l.opts, l.self.path, l.places), l.dialects)
 	l.bound.others = Others{}
 	if l.reader != nil {
@@ -311,7 +311,7 @@ func (l *loading) reread(ctx context.Context) error {
 // judgments and the source's left it (settle): what they refuse and no reading
 // accepts is turned, and the shapes the model faults on are set aside. It
 // returns the context's error where that cut the judging short.
-func (l *loading) judgeLandings(ctx context.Context, table *bind.ReferenceTargetTable) error {
+func (l *loading) judgeLandings(ctx context.Context, table *reftable.ReferenceTargetTable) error {
 	var (
 		j   judgment
 		cut error

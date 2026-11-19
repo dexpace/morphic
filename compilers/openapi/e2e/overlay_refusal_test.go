@@ -62,7 +62,7 @@ paths:
 // pointer, an error still failing the compile, under an overlay writing into the
 // mapping, writing or removing a member, writing inside one, or copying the
 // mapping, merging or not. The rows are written by hand from what
-// oas.CheckFormat, oas.CheckRepeatedKeys and the load phase's tagged-mapping and
+// specrules.CheckFormat, specrules.CheckRepeatedKeys and the load phase's tagged-mapping and
 // anchor-cycle refusals report of a mapping's YAML, so a report added there
 // needs its row. A key's text is judged on the overlaid tree, so four rules of
 // it stand for the rest.

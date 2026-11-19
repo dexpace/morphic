@@ -4,8 +4,8 @@
 package operation
 
 import (
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,7 +42,7 @@ func (k partKeys) settleCatchAlls(reg ir.TypeRegistry, node func(ir.TypeID) (ir.
 type catchAllReading struct {
 	unions    *partUnions
 	node      func(ir.TypeID) (ir.TypeDef, bool)
-	rules     oas.EncodingRules
+	rules     specrules.EncodingRules
 	encodedBy contentEncoding
 	multipart bool
 }

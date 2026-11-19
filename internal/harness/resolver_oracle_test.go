@@ -5,7 +5,7 @@ package harness_test
 
 // The differential oracle for the compiler's reading of references.
 //
-// The compiler binds every $ref itself (compilers/openapi/internal/bind), a
+// The compiler binds every $ref itself (compilers/openapi/internal/reftable), a
 // schema's and a reference object's, never through speakeasy's resolver, which
 // overflows the stack on a cycle of schemas
 // (docs/parser-library.md#schema-cycle-overflow) and answers a loop of

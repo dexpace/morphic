@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -25,7 +25,7 @@ func TestAliases_RefusesTheTextAliasesAddPastTheByteBudget(t *testing.T) {
 	t.Parallel()
 	var doc yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("a: &t twelve-chars\nb: *t\nc: *t\n"), &doc))
-	idx := sourceindex.Build(t.Context(), &doc, 1000)
+	idx := sourcetreestats.Build(t.Context(), &doc, 1000)
 	require.Equal(t, 24, idx.AliasText(), "two aliases add the anchored text twice")
 	whole := ir.Provenance{Source: 0}
 

@@ -3,7 +3,7 @@
 
 // Package statement reads what a schema position writes into one value: the
 // schema object there, every key it writes in the slot its keyword speaks of
-// (oas.Slot), each slot's values typed, and its inline allOf entries
+// (specrules.Slot), each slot's values typed, and its inline allOf entries
 // flattened as the lowering flattens them
 // (docs/compilers/openapi.md#allof-classification). A Table reads each schema
 // object once and remembers what it read.

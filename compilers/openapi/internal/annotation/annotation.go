@@ -194,9 +194,9 @@ type SchemaPositionAnnotationSources struct {
 
 // Dialect is what a schema's dialect spells otherwise than JSON Schema
 // 2020-12, as the readers here need it: the Identifier keyword
-// (oas.SchemaRules.Identifier), "" for `$id`, whether the identifier is
+// (specrules.SchemaRules.Identifier), "" for `$id`, whether the identifier is
 // IdentifierIgnored, as the drafts before 2019-09 ignore every keyword beside
-// a `$ref` (oas.SchemaRules.IgnoresRefFields), whether it defines
+// a `$ref` (specrules.SchemaRules.IgnoresRefFields), whether it defines
 // Dependencies, the drafts' validation-only keyword 2019-09 split in two, and
 // whether it reads a ListedTuple, an `items` list whose rest is the
 // `additionalItems` beside it, as the drafts before 2020-12 spell a tuple.

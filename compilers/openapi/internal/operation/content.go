@@ -13,10 +13,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -61,7 +61,7 @@ type mediaDecl struct {
 	ctx      service.Ctx
 	media    *soa.MediaType
 	pointer  jsontext.Pointer
-	use      *resolve.ReferencedMediaType
+	use      *componentlookup.ReferencedMediaType
 	entryCtx service.Ctx
 	entryPtr jsontext.Pointer
 }
@@ -100,7 +100,7 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 		d.ctx.Place(), d.pointer, "")
 	docs := ir.Docs{Description: description}
 	if d.use != nil {
-		docs = resolve.UseDocs[soa.MediaType](d.entryCtx.Bindings(), d.use, docs)
+		docs = componentlookup.UseDocs[soa.MediaType](d.entryCtx.Bindings(), d.use, docs)
 	}
 	if !read {
 		return docs, nil, diags

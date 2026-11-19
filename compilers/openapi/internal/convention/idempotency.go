@@ -6,8 +6,8 @@ package convention
 import (
 	"net/http"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,7 +27,7 @@ const methodQuery = "QUERY"
 // whose safety the compiler does not know, and the header bound twice, are
 // reported as undecided. w is the document holding op. The rule is
 // docs/compilers/openapi.md#idempotency-inference.
-func idempotency(policy IdempotencyInference, w *whole.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
+func idempotency(policy IdempotencyInference, w *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
 	if !policy.Honours() || op.Idempotency.Kind != ir.IdempotencyUnknown ||
 		len(op.Bindings.HTTP) != 1 {
 		return nil

@@ -21,10 +21,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -128,7 +128,7 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 
 	data, err := newExternal(Options{}, read, &aside{}).prepare(t.Context(), "k", "k", []byte("a: [\n"))
 
-	var unparsable *bind.UnparsableError
+	var unparsable *reftable.UnparsableError
 	require.ErrorAs(t, err, &unparsable)
 	assert.Equal(t, "yaml: line 1: did not find expected node content", unparsable.Err.Error())
 	assert.Nil(t, data)
@@ -161,7 +161,7 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 				assert.True(t, recorded)
 				return
 			}
-			require.ErrorIs(t, err, bind.ErrEmptyDocument)
+			require.ErrorIs(t, err, reftable.ErrEmptyDocument)
 			assert.False(t, recorded)
 		})
 	}

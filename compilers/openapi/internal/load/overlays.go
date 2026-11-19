@@ -12,12 +12,12 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,7 +36,7 @@ func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, e
 	if opts.Overlay.Path == "" {
 		return opts, nil, errors.New("openapi: the overlay holds no bytes and names no file to read")
 	}
-	if bind.OverNetwork(opts.Overlay.Path) {
+	if reftable.OverNetwork(opts.Overlay.Path) {
 		return opts, nil, fmt.Errorf("openapi: overlay %s names a URL; an overlay is read from a local file",
 			opts.Overlay.Path)
 	}
@@ -167,7 +167,7 @@ func overlayRefusals(ctx context.Context, opts Options) (doctree.ParsedYAMLDocum
 	if idx.Truncated() {
 		return doc, append(found, diag.Newf(ir.SeverityError, diag.SourceTooLarge, placed.Node(nil),
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
-			sourceindex.MaxIndexedNodes))
+			sourcetreestats.MaxIndexedNodes))
 	}
 	return doc, append(found, shapeRefusals(ctx, placed, placed.Node(nil), idx, opts, false)...)
 }

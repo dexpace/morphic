@@ -6,7 +6,7 @@ package statement
 import (
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // The slots' values, one struct per slot and one field per keyword, each
@@ -14,7 +14,7 @@ import (
 // and an instance as its node. A numeric bound, and a keyword the parser's
 // model does not hold, is the node it was written as, nil for a null, since
 // the lowering reads a bound as the decimal its text spells
-// (oas.Field.Decimal).
+// (specrules.Field.Decimal).
 
 // Kinds is what `type` and `nullable` say.
 type Kinds struct {
@@ -112,7 +112,7 @@ type Discriminator struct {
 	Mapping        []MappingEntry
 	DefaultMapping string
 	Node           *yaml.Node
-	At             bind.DocumentPointer
+	At             reftable.DocumentPointer
 	Unknown        []string
 	Extensions     []Extension
 }

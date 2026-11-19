@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -49,8 +49,8 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	}
 	versions := []struct {
 		name  string
-		minor oas.Minor
-	}{{"3.0.3", oas.V30}, {"3.1.0", oas.V31}, {"3.2.0", oas.V32}}
+		minor specrules.Minor
+	}{{"3.0.3", specrules.V30}, {"3.1.0", specrules.V31}, {"3.2.0", specrules.V32}}
 	for _, version := range versions {
 		for _, keyword := range nullableKeywords(t, version.minor) {
 			for _, position := range positions {
@@ -134,13 +134,13 @@ components:
 
 // nullableKeywords returns the keywords the table gives a Schema Object at
 // minor, but those whose value is an instance, of which a null is one.
-func nullableKeywords(t *testing.T, minor oas.Minor) []string {
+func nullableKeywords(t *testing.T, minor specrules.Minor) []string {
 	t.Helper()
-	schema, ok := oas.Table().Object(oas.Schema)
+	schema, ok := specrules.Table().Object(specrules.Schema)
 	require.True(t, ok)
 	var out []string
 	for _, f := range schema.Fields {
-		if f.Defined.Holds(minor) && f.Shape != oas.AnyShapeUnchecked {
+		if f.Defined.Holds(minor) && f.Shape != specrules.AnyShapeUnchecked {
 			out = append(out, f.Name)
 		}
 	}

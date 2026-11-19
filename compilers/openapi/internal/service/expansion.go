@@ -9,11 +9,11 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,7 +36,7 @@ type expansion struct {
 // chain, weighed for what it writes beside its $ref (weightBeside).
 type measuredDeclaration struct {
 	node   *yaml.Node
-	at     bind.Reading
+	at     reftable.Reading
 	beside bool
 }
 
@@ -50,7 +50,7 @@ func newExpansion(l budget.Limit) *expansion {
 // far are within the budget: end is weighed whole, and a hop for what a use
 // copies of it (weightBeside). Once they are not it admits nothing, so no later
 // $ref lowers. An unbounded one admits every copy without weighing it.
-func (e *expansion) admit(at bind.Reading, end *yaml.Node, hops ...*yaml.Node) bool {
+func (e *expansion) admit(at reftable.Reading, end *yaml.Node, hops ...*yaml.Node) bool {
 	if _, bounded := e.spent.Limit().Max(); !bounded {
 		return true
 	}
@@ -113,33 +113,33 @@ func ExpansionCrossed(c Ctx) bool {
 }
 
 // chainable is a reference-or-inline entry whose chain Declared reads: the
-// component aliases it passes through (resolve.Hops), each written as a node
+// component aliases it passes through (componentlookup.Hops), each written as a node
 // of its own (marshaller.Model.GetCoreAny).
 type chainable[T, S any] interface {
 	*S
-	resolve.Referenced[T]
+	componentlookup.Referenced[T]
 	GetCoreAny() any
 }
 
 // readingOf returns how the grammar reads what a $ref written at usePtr in c's
 // document names: as the object it reads there, or as raw YAML, weighed whole,
 // where c holds no table or reads there no object a $ref can name.
-func readingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading {
+func readingOf(c Ctx, usePtr jsontext.Pointer) reftable.Reading {
 	if at := c.Bindings().Table().ReadingAt(c.Position(usePtr)); at.Referable() {
 		return at
 	}
-	return bind.Reading{}
+	return reftable.Reading{}
 }
 
 // copied returns the hops a copy of what ref names is lowered from, beside the
 // declaration its chain ends at: ref's own mapping, then each component alias
 // the chain passes through, whose fields beside its own $ref lower at every use
-// too (resolve.UseDocs, and a path item's every field). What ref writes beside
+// too (componentlookup.UseDocs, and a path item's every field). What ref writes beside
 // its $ref is kept on each node the use lowers to, so it is charged as a hop's
 // is, and a bare ref one node. A hop whose core holds no node, as the library's
 // own GetRootNode reads one, adds none.
 func copied[T, S any, R chainable[T, S]](c Ctx, ref R) []*yaml.Node {
-	hops := resolve.Hops[T, S](c.Bindings(), ref)
+	hops := componentlookup.Hops[T, S](c.Bindings(), ref)
 	nodes := appendRoot(make([]*yaml.Node, 0, 1+len(hops)), ref.GetCoreAny())
 	for _, hop := range hops {
 		nodes = appendRoot(nodes, hop.Ref.GetCoreAny())
@@ -173,7 +173,7 @@ func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 // frame is a node referenceExpansionSize has yet to weigh, and how the grammar reads it.
 type frame struct {
 	node *yaml.Node
-	at   bind.Reading
+	at   reftable.Reading
 }
 
 // referenceExpansionSize returns what a copy of the declaration under root, read as at,
@@ -183,7 +183,7 @@ type frame struct {
 // A schema beneath a merge key weighs in full. It visits at most one node past
 // within, so a weight past within is all it says. No alias leads back up:
 // lowering never sees an anchor naming its own ancestor.
-func referenceExpansionSize(root *yaml.Node, at bind.Reading, within budget.Limit) int {
+func referenceExpansionSize(root *yaml.Node, at reftable.Reading, within budget.Limit) int {
 	return weigh([]frame{{node: root, at: at}}, within.Past())
 }
 
@@ -192,7 +192,7 @@ func referenceExpansionSize(root *yaml.Node, at bind.Reading, within budget.Limi
 // as referenceExpansionSize weighs them. The $ref is read, not copied, so it is charged
 // nothing; one merged in through `<<` is weighed as written, beneath the merge
 // key. A hop that is no mapping, or one read as a schema, is weighed whole.
-func weightBeside(hop *yaml.Node, at bind.Reading, within budget.Limit) int {
+func weightBeside(hop *yaml.Node, at reftable.Reading, within budget.Limit) int {
 	n := expanded(hop)
 	if n == nil || n.Kind != yaml.MappingNode || at.Schema() {
 		return referenceExpansionSize(hop, at, within)
@@ -245,7 +245,7 @@ func expanded(n *yaml.Node) *yaml.Node {
 // beneath returns stack with a frame pushed onto it for each position directly
 // below n, read as at: a key as raw YAML, and its value as the grammar reads
 // the key's position.
-func beneath(stack []frame, n *yaml.Node, at bind.Reading) []frame {
+func beneath(stack []frame, n *yaml.Node, at reftable.Reading) []frame {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for i := 0; i+1 < len(n.Content); i += 2 {
@@ -262,7 +262,7 @@ func beneath(stack []frame, n *yaml.Node, at bind.Reading) []frame {
 
 // pair returns stack with a frame pushed onto it for key, as raw YAML, and one
 // for value, read as the grammar reads the position key names below at.
-func pair(stack []frame, key, value *yaml.Node, at bind.Reading) []frame {
+func pair(stack []frame, key, value *yaml.Node, at reftable.Reading) []frame {
 	token := ""
 	if k := expanded(key); k != nil {
 		token = k.Value

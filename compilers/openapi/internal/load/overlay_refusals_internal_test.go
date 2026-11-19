@@ -17,7 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -138,9 +138,9 @@ func TestLoad_AnOverlayUsingAnchorsModestlyStillApplies(t *testing.T) {
 func TestLoad_AnOverlayTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
 	opts := overlayOf("overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n  - target: $.info\n    update: {description: d}\n")
-	opts.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
+	opts.buildIndex = func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
 		if content := root.Content; len(content) == 1 && len(content[0].Content) > 0 && content[0].Content[0].Value == "overlay" {
-			return sourceindex.Build(ctx, root, 1)
+			return sourcetreestats.Build(ctx, root, 1)
 		}
 		return defaultIndex(ctx, root)
 	}

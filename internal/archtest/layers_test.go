@@ -66,7 +66,7 @@ func (l layer) String() string {
 var layers = map[string]layer{
 	"diag":        layerInference,
 	"ids":         layerInference,
-	"whole":       layerInference,
+	"compileddoc": layerInference,
 	"runtimeexpr": layerInference,
 	"promotion":   layerInference,
 	"pagination":  layerInference,
@@ -75,30 +75,30 @@ var layers = map[string]layer{
 	"stream":      layerInference,
 	"paramchoice": layerInference,
 
-	"budget":      layerDocument,
-	"nodeview":    layerDocument,
-	"doctree":     layerDocument,
-	"sourceindex": layerDocument,
-	"scan":        layerDocument,
-	"provenance":  layerDocument,
-	"value":       layerDocument,
-	"jsonpath":    layerDocument,
-	"overlay":     layerDocument,
+	"budget":          layerDocument,
+	"nodeview":        layerDocument,
+	"doctree":         layerDocument,
+	"sourcetreestats": layerDocument,
+	"scan":            layerDocument,
+	"provenance":      layerDocument,
+	"value":           layerDocument,
+	"jsonpath":        layerDocument,
+	"overlay":         layerDocument,
 
-	"fragment": layerGrammar,
-	"oas":      layerGrammar,
-	"bind":     layerGrammar,
-	"dialect":  layerGrammar,
+	"fragment":  layerGrammar,
+	"specrules": layerGrammar,
+	"reftable":  layerGrammar,
+	"dialect":   layerGrammar,
 
-	"bind/typed": layerSchema,
-	"annotation": layerSchema,
-	"resolve":    layerSchema,
-	"naming":     layerSchema,
-	"spelling":   layerSchema,
-	"merge":      layerSchema,
-	"lowering":   layerSchema,
-	"statement":  layerSchema,
-	"schema":     layerSchema,
+	"reftable/typed":  layerSchema,
+	"annotation":      layerSchema,
+	"componentlookup": layerSchema,
+	"naming":          layerSchema,
+	"typeformat":      layerSchema,
+	"merge":           layerSchema,
+	"lowering":        layerSchema,
+	"statement":       layerSchema,
+	"schema":          layerSchema,
 
 	"load":      layerService,
 	"detect":    layerService,
@@ -180,10 +180,10 @@ func TestLayerViolations_NamesEachCrossing(t *testing.T) {
 	}{
 		{"inference reaching document", "pagination", internal("nodeview"),
 			fmt.Sprintf(f+": pagination (inference) imports nodeview (document), a layer above its own", "pagination")},
-		{"document reaching grammar", "nodeview", internal("bind"),
-			fmt.Sprintf(f+": nodeview (document) imports bind (grammar), a layer above its own", "nodeview")},
-		{"grammar reaching schema", "oas", internal("bind/typed"),
-			fmt.Sprintf(f+": oas (grammar) imports bind/typed (schema), a layer above its own", "oas")},
+		{"document reaching grammar", "nodeview", internal("reftable"),
+			fmt.Sprintf(f+": nodeview (document) imports reftable (grammar), a layer above its own", "nodeview")},
+		{"grammar reaching schema", "specrules", internal("reftable/typed"),
+			fmt.Sprintf(f+": specrules (grammar) imports reftable/typed (schema), a layer above its own", "specrules")},
 		{"schema reaching service", "lowering", internal("load"),
 			fmt.Sprintf(f+": lowering (schema) imports load (service), a layer above its own", "lowering")},
 		{"schema reaching a package of no layer", "schema", internal("openapitest"),
@@ -193,14 +193,14 @@ func TestLayerViolations_NamesEachCrossing(t *testing.T) {
 		{"document reaching the parser library", "nodeview", "github.com/speakeasy-api/openapi/yml",
 			fmt.Sprintf(f+": nodeview (document) imports \"github.com/speakeasy-api/openapi/yml\", "+
 				"a library its layer may not reach", "nodeview")},
-		{"grammar reaching the parser's schema model", "bind", "github.com/speakeasy-api/openapi/jsonschema/oas3",
-			fmt.Sprintf(f+": bind (grammar) imports \"github.com/speakeasy-api/openapi/jsonschema/oas3\", "+
-				"a library its layer may not reach", "bind")},
+		{"grammar reaching the parser's schema model", "reftable", "github.com/speakeasy-api/openapi/jsonschema/oas3",
+			fmt.Sprintf(f+": reftable (grammar) imports \"github.com/speakeasy-api/openapi/jsonschema/oas3\", "+
+				"a library its layer may not reach", "reftable")},
 
-		{"a package of its own layer", "bind", internal("fragment"), ""},
+		{"a package of its own layer", "reftable", internal("fragment"), ""},
 		{"a layer below", "operation", internal("nodeview"), ""},
 		{"the YAML library from the document layer", "nodeview", "go.yaml.in/yaml/v3", ""},
-		{"the parser library from the schema layer", "resolve", "github.com/speakeasy-api/openapi/openapi", ""},
+		{"the parser library from the schema layer", "componentlookup", "github.com/speakeasy-api/openapi/openapi", ""},
 		{"any library from the service layer", "load", "example.com/any/library", ""},
 		{"the module's ir from the lowest layer", "diag", module + "/ir", ""},
 		{"the standard library", "diag", "net/http", ""},
@@ -233,13 +233,13 @@ func TestLayerImports_ReadsProductionFilesOfOnePackage(t *testing.T) {
 	root := t.TempDir()
 	base := filepath.Join(root, compilerInternal)
 	writeImporter(t, filepath.Join(base, "pagination", "plant_test.go"), module+"/"+compilerInternal+"/load")
-	writeImporter(t, filepath.Join(base, "bind", "typed", "plant.go"), module+"/"+compilerInternal+"/load")
-	writeImporter(t, filepath.Join(base, "bind", "plant.go"), module+"/"+compilerInternal+"/fragment")
+	writeImporter(t, filepath.Join(base, "reftable", "typed", "plant.go"), module+"/"+compilerInternal+"/load")
+	writeImporter(t, filepath.Join(base, "reftable", "plant.go"), module+"/"+compilerInternal+"/fragment")
 
-	sites, err := layerImports(root, []string{"bind", "pagination", "nowhere"})
+	sites, err := layerImports(root, []string{"reftable", "pagination", "nowhere"})
 
 	require.NoError(t, err)
-	assert.Equal(t, []importSite{{"bind", compilerInternal + "/bind/plant.go", module + "/" + compilerInternal + "/fragment"}}, sites)
+	assert.Equal(t, []importSite{{"reftable", compilerInternal + "/reftable/plant.go", module + "/" + compilerInternal + "/fragment"}}, sites)
 }
 
 // TestLayerCoverage_NamesAMissingAndAStaleRow plants a tree of two packages

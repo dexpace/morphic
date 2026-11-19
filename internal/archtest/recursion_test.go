@@ -709,7 +709,7 @@ func TestLoweringCallGraph_ReadsEveryPackageThatLowers(t *testing.T) {
 func TestWholeDocumentReaders_DoNotRecurse(t *testing.T) {
 	t.Parallel()
 	var readers []string
-	for _, dir := range packagesTaking(t, "*whole.CompiledDocumentView") {
+	for _, dir := range packagesTaking(t, "*compileddoc.CompiledDocumentView") {
 		if !slices.Contains(loweringPackages, dir) {
 			readers = append(readers, dir)
 		}

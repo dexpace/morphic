@@ -6,10 +6,10 @@ package lowering
 import (
 	"encoding/json/jsontext"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -21,7 +21,7 @@ import (
 type DocumentPlacement struct {
 	place provenance.Doc
 	ids   ids.DocumentIDNamespace
-	doc   bind.DocID
+	doc   reftable.DocID
 }
 
 // Place returns where the site places a pointer of its document: in another
@@ -51,6 +51,6 @@ func (s DocumentPlacement) IDs() ids.DocumentIDNamespace { return s.ids }
 
 // Position returns where pointer of the site's document is in the bindings'
 // table.
-func (s DocumentPlacement) Position(pointer jsontext.Pointer) bind.DocumentPointer {
-	return bind.DocumentPointer{Doc: s.doc, Pointer: pointer}
+func (s DocumentPlacement) Position(pointer jsontext.Pointer) reftable.DocumentPointer {
+	return reftable.DocumentPointer{Doc: s.doc, Pointer: pointer}
 }

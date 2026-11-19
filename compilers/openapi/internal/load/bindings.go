@@ -14,12 +14,12 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -35,7 +35,7 @@ type bound struct {
 	others   Others
 }
 
-// bindTable resolves every $ref of the source in the compiler (internal/bind),
+// bindTable resolves every $ref of the source in the compiler (internal/reftable),
 // never through the parser's resolver, which overflows the stack on a cycle of
 // schemas (docs/parser-library.md#schema-cycle-overflow) and reads a Reference
 // Object otherwise than RFC 6901 and the model do, by declaration order
@@ -46,15 +46,15 @@ type bound struct {
 // (dialectRuleOf).
 func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reader *external, refuse func(uri string) error,
 	d *dialects,
-) *bind.ReferenceTargetTable {
+) *reftable.ReferenceTargetTable {
 	opened := map[string]*yaml.Node{}
-	cfg := bind.Config{Self: self.path, Locate: self.locate, Map: self.mapTo, Refuse: refuse,
-		Limit: budget.AtMost(bind.MaxSteps),
+	cfg := reftable.Config{Self: self.path, Locate: self.locate, Map: self.mapTo, Refuse: refuse,
+		Limit: budget.AtMost(reftable.MaxSteps),
 		// Read off the model, as the lowering reads the names a mapping value
 		// may spell (lowering.Ctx.DeclaresSchema), so the two cannot disagree.
 		Components:      slices.Collect(doc.Components.GetSchemas().Keys()),
 		SecuritySchemes: slices.Collect(doc.Components.GetSecuritySchemes().Keys()),
-		Dialect: func(name, dialect string) bind.DialectRule {
+		Dialect: func(name, dialect string) reftable.DialectRule {
 			_, _, rows := d.of(declaredIn(doc, opened, self, name), dialect)
 			return dialectRuleOf(rows.Schema, dialect)
 		},
@@ -71,16 +71,16 @@ func bindTable(ctx context.Context, doc *soa.OpenAPI, self sourceDocument, reade
 			return tree, err
 		}
 	}
-	return bind.Bind(ctx, self.root, cfg)
+	return reftable.Bind(ctx, self.root, cfg)
 }
 
 // bindAll indexes the model's schemas and wrappers where table places them,
 // then builds an object or a schema for each landing. doc is the source's
 // model, and media yields the media types the parser does not model.
-func bindAll(ctx context.Context, table *bind.ReferenceTargetTable, doc *soa.OpenAPI, sibs *Siblings, media MediaTypes) bound {
+func bindAll(ctx context.Context, table *reftable.ReferenceTargetTable, doc *soa.OpenAPI, sibs *Siblings, media MediaTypes) bound {
 	bd := typed.NewBuilder(table)
 	faults := mediaFaults{}
-	indexWalk(bd, walkSource(ctx, doc, *sibs, media), bind.DocumentPointer{}, faults)
+	indexWalk(bd, walkSource(ctx, doc, *sibs, media), reftable.DocumentPointer{}, faults)
 	objects := buildObjects(ctx, bd, table, media, faults, sibs)
 	return bound{bindings: bd.Bindings(), objects: objects, built: bd.Build(ctx), faults: faults}
 }
@@ -98,9 +98,9 @@ func declaredIn(doc *soa.OpenAPI, opened map[string]*yaml.Node, self sourceDocum
 // items was read: at base, where the walk starts, followed by the item's
 // location. It notes in faults where it meets each content entry the
 // parser faulted building a reference from.
-func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base bind.DocumentPointer, faults mediaFaults) {
+func indexWalk(bd *typed.Builder, items iter.Seq[soa.WalkItem], base reftable.DocumentPointer, faults mediaFaults) {
 	for item := range items {
-		at := bind.DocumentPointer{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
+		at := reftable.DocumentPointer{Doc: base.Doc, Pointer: base.Pointer + typed.PointerOf(item.Location)}
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{
 			Schema: func(js *schemaRef) error { bd.Schema(js, at); return nil },
@@ -124,20 +124,20 @@ type mediaFaults map[*yaml.Node]placedFault
 
 // placedFault is a fault, and where it is reported.
 type placedFault struct {
-	at  bind.DocumentPointer
+	at  reftable.DocumentPointer
 	err error
 }
 
 // note records f at at, unless a walk met its mapping before.
-func (m mediaFaults) note(at bind.DocumentPointer, f mediaFault) {
+func (m mediaFaults) note(at reftable.DocumentPointer, f mediaFault) {
 	if _, met := m[f.node]; !met {
 		m[f.node] = placedFault{at: at, err: f.err}
 	}
 }
 
 // diags reports each fault once, where it was first met, in order of position.
-func (m mediaFaults) diags(sites places, table *bind.ReferenceTargetTable) []ir.Diagnostic {
-	order := bind.PositionOrder(table)
+func (m mediaFaults) diags(sites places, table *reftable.ReferenceTargetTable) []ir.Diagnostic {
+	order := reftable.PositionOrder(table)
 	faults := slices.SortedFunc(maps.Values(m), func(x, y placedFault) int { return order(x.at, y.at) })
 	diags := make([]ir.Diagnostic, 0, len(faults))
 	for _, f := range faults {
@@ -147,8 +147,8 @@ func (m mediaFaults) diags(sites places, table *bind.ReferenceTargetTable) []ir.
 	return diags
 }
 
-// locate is bind.Config.Locate for the source: the document uri names when
-// written in the one named base (resolve.Locate), named as bind names the
+// locate is reftable.Config.Locate for the source: the document uri names when
+// written in the one named base (componentlookup.Locate), named as bind names the
 // source when it is the source. A URL keeps its URL here, as an identifier
 // does: a caller's mapping is applied where the document is opened (mapTo).
 func (s sourceDocument) locate(uri, base string) (string, bool) {
@@ -159,7 +159,7 @@ func (s sourceDocument) locate(uri, base string) (string, bool) {
 	return s.nameOf(named), true
 }
 
-// mapTo is bind.Config.Map for the source: where the document a located name
+// mapTo is reftable.Config.Map for the source: where the document a located name
 // names is read, put where the caller mapped its URL (mapped) before anything
 // judges or reads it, or name itself. A URL a mapping puts at no location is
 // kept, and its read refused (external.unnamed).
@@ -188,22 +188,22 @@ func (s sourceDocument) nameOf(name string) string {
 
 // bindingDiags reports what the table found: each $ref whose own hop fails, a
 // Reference Object's and then a schema's, at the $ref, in whichever document,
-// worded with the keyword it is written under (bind.ReferenceSite.Keyword), so a chain
+// worded with the keyword it is written under (reftable.ReferenceSite.Keyword), so a chain
 // failing past its first hop is reported once, where it fails; each loop
 // of $refs once, where the table places it; and the budget or the merge
 // bound, if either stopped the reading.
-func bindingDiags(sites places, table *bind.ReferenceTargetTable) []ir.Diagnostic {
+func bindingDiags(sites places, table *reftable.ReferenceTargetTable) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, r := range table.References() {
 		// A requirement key that resolves to nothing is the security
 		// lowering's to report (auth.Registry.Requirements).
-		if r.Hop.Status == bind.Unresolved && !r.IsSecurityRequirementKey {
+		if r.Hop.Status == reftable.Unresolved && !r.IsSecurityRequirementKey {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(r.Site),
 				"unresolved $ref %q: %s", r.Hop.Ref, r.Hop.Why()))
 		}
 	}
 	for _, e := range table.Entries() {
-		if e.Hop.Status == bind.Unresolved {
+		if e.Hop.Status == reftable.Unresolved {
 			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(e.Site),
 				"unresolved %s %q: %s", e.Keyword, e.Hop.Ref, e.Hop.Why()))
 		}
@@ -213,7 +213,7 @@ func bindingDiags(sites places, table *bind.ReferenceTargetTable) []ir.Diagnosti
 			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches %s",
 			spellLoop(l, table), reachesNone(l.Kind)))
 	}
-	at := sites.position(bind.DocumentPointer{})
+	at := sites.position(reftable.DocumentPointer{})
 	if table.Exhausted() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 			"resolving the $refs takes more than %d steps; the $refs past them are left unresolved",
@@ -230,7 +230,7 @@ func bindingDiags(sites places, table *bind.ReferenceTargetTable) []ir.Diagnosti
 
 // reachesNone names what a loop of $refs read as kind never reaches: a schema,
 // for a loop of schema $refs, or an object of that kind.
-func reachesNone(kind bind.RefKind) string {
+func reachesNone(kind reftable.RefKind) string {
 	if kind == 0 {
 		return "a schema"
 	}
@@ -258,7 +258,7 @@ func buildFailures(sites places, built []typed.Built, objects []builtObject) []i
 
 // buildFailure reports, at site, that no object of kind could be built at at,
 // in the document named name, with why.
-func buildFailure(sites places, at, site bind.DocumentPointer, name, kind string, err error) ir.Diagnostic {
+func buildFailure(sites places, at, site reftable.DocumentPointer, name, kind string, err error) ir.Diagnostic {
 	where := "#" + string(at.Pointer)
 	if at.Doc != site.Doc {
 		where += " in " + name
@@ -270,7 +270,7 @@ func buildFailure(sites places, at, site bind.DocumentPointer, name, kind string
 // spellLoop names l's members, in order: one in the document l is reported in
 // by its pointer, and another document's by its pointer in that document's
 // name.
-func spellLoop(l bind.Loop, table *bind.ReferenceTargetTable) string {
+func spellLoop(l reftable.Loop, table *reftable.ReferenceTargetTable) string {
 	parts := make([]string, len(l.Members))
 	for i, m := range l.Members {
 		parts[i] = "#" + string(m.Pointer)
@@ -281,11 +281,11 @@ func spellLoop(l bind.Loop, table *bind.ReferenceTargetTable) string {
 	return strings.Join(parts, ", ")
 }
 
-// document is bind.Config.Open: the tree of the document named name, as a
+// document is reftable.Config.Open: the tree of the document named name, as a
 // reference in the document named from reads it, read once in the compile,
 // under its budgets (see externalReads.once), and prepared as the source is.
 // A name that is a URL (refscope.IsURL), spelled as it is located
-// (resolve.Locate), is read at that name; any other is read as the file it
+// (componentlookup.Locate), is read at that name; any other is read as the file it
 // names (see fileNamed).
 func (e external) document(ctx context.Context, name, from string) (*yaml.Node, error) {
 	var a answer

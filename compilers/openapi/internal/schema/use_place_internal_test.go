@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -73,7 +73,7 @@ func TestUseOf_ARunEndingUnresolvedFallsBackToNothing(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {$ref: '#/components/schemas/U'}\n"+
 		"    U: {$ref: '#/components/schemas/Missing'}\n"))
-	st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: "/components/schemas/T"})
+	st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/components/schemas/T"})
 	require.NotNil(t, st.Ref)
 	var u Use
 	s, ok := u.appendFallbackChainRun(l.Ctx, st)

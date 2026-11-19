@@ -15,10 +15,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 )
 
 // pageSpec is a document of n operations, each reading its cursor, the next
@@ -85,11 +85,11 @@ func promoteBytes(t *testing.T, src string, operations int) float64 {
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		_, diags := pagination.Promote(p, whole.New(doc), nil)
+		_, diags := pagination.Promote(p, compileddoc.New(doc), nil)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0
-		for _, op := range whole.New(doc).Ops {
+		for _, op := range compileddoc.New(doc).Ops {
 			if op.Pagination != nil {
 				filled++
 			}

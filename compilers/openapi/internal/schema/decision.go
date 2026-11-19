@@ -9,8 +9,8 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -248,7 +248,7 @@ func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
 	}
 	p := at.Pointer
 	if p.Parent().LastToken() == "properties" {
-		owner := c.Statements().At(bind.DocumentPointer{Doc: at.Doc, Pointer: p.Parent().Parent()})
+		owner := c.Statements().At(reftable.DocumentPointer{Doc: at.Doc, Pointer: p.Parent().Parent()})
 		return owner.Truth == statement.Stated && slices.ContainsFunc(owner.ObjectKeywords().Properties, func(sub statement.Subschema) bool {
 			return sub.Name == p.LastToken() && c.Statements().Subschema(sub).Schema == s
 		})
@@ -256,11 +256,11 @@ func carriedAt(c lowering.Ctx, s *statement.Schema) bool {
 	if p.LastToken() != "schema" {
 		return false
 	}
-	holder := bind.DocumentPointer{Doc: at.Doc, Pointer: p.Parent()}
+	holder := reftable.DocumentPointer{Doc: at.Doc, Pointer: p.Parent()}
 	if holder.Pointer.Parent().LastToken() == "content" {
 		holder.Pointer = holder.Pointer.Parent().Parent()
 	}
-	return c.Bindings().ObjectAt(holder, bind.RefParameter) != nil || c.Bindings().ObjectAt(holder, bind.RefHeader) != nil
+	return c.Bindings().ObjectAt(holder, reftable.RefParameter) != nil || c.Bindings().ObjectAt(holder, reftable.RefHeader) != nil
 }
 
 // statesNothing reports whether s states nothing of the instance: `true`, a

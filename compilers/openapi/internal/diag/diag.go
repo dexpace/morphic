@@ -22,7 +22,7 @@ const (
 	UnsupportedVersion = "openapi/unsupported-version"
 	// UnresolvedRef reports a $ref, a schema's or a reference object's, whose
 	// own hop resolves to nothing, at the $ref, in whichever document writes
-	// it, with why (bind.Hop.Why); a $ref whose chain ends on it reports nothing
+	// it, with why (reftable.Hop.Why); a $ref whose chain ends on it reports nothing
 	// of its own (docs/compilers/openapi.md#references). The lowering reports a
 	// $ref it cannot follow at its position too, kept only where the load phase
 	// reported none there (openapi.withoutRereported).
@@ -67,7 +67,7 @@ const (
 	// proceeds.
 	CycleScanFailed = "openapi/cycle-scan-failed"
 	// SourceTooLarge reports a document with more YAML nodes than the pre-parse
-	// scan indexes (sourceindex.MaxIndexedNodes). Every answer the index gives
+	// scan indexes (sourcetreestats.MaxIndexedNodes). Every answer the index gives
 	// about such a document is a partial one, including the node count the
 	// alias-expansion allowance is derived from, so the document is refused rather
 	// than scanned against a bound computed from a count that stopped early.

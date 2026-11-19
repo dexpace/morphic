@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -27,10 +27,10 @@ const maxChainHops = 64
 
 // link is one position of a mapping value's chain, the schema held there,
 // which a reference object the position's $ref passes may have the bindings
-// read in another document (bind.Hop.Target), and the ID of the type
+// read in another document (reftable.Hop.Target), and the ID of the type
 // declared there (declaredAt).
 type link struct {
-	at   bind.DocumentPointer
+	at   reftable.DocumentPointer
 	decl *statement.Statement
 	id   ir.TypeID
 }
@@ -50,14 +50,14 @@ func (v valueChain) end() link { return v.links[len(v.links)-1] }
 // chainFrom keys the chain read from a position and the schema held there
 // (follow).
 type chainFrom struct {
-	at   bind.DocumentPointer
+	at   reftable.DocumentPointer
 	decl *statement.Statement
 }
 
 // chainOf reads value, a value of d's mapping or its defaultMapping, as
 // docs/compilers/openapi.md#discriminator does: the schema component of the
 // entry document it names, whatever its characters, else the position it
-// names as a URI reference written at d (resolve.Scope.MappingTarget). It is
+// names as a URI reference written at d (componentlookup.Scope.MappingTarget). It is
 // false for a value that resolves to no schema, which the caller reports. The
 // chain from a position is read once a run, as many values may name it.
 func chainOf(c lowering.Ctx, d *statement.Discriminator, value string) (valueChain, bool) {
@@ -77,9 +77,9 @@ func chainOf(c lowering.Ctx, d *statement.Discriminator, value string) (valueCha
 // valuePosition is the position value, a value of d's mapping, names, and the
 // schema held there: the entry document's component it is the name of, else
 // where it lands read as a URI reference, false where it lands on no schema.
-func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (bind.DocumentPointer, *statement.Statement, bool) {
+func valuePosition(c lowering.Ctx, d *statement.Discriminator, value string) (reftable.DocumentPointer, *statement.Statement, bool) {
 	if c.DeclaresSchema(value) {
-		at := bind.DocumentPointer{Doc: bind.Source, Pointer: ids.Ptr("components", "schemas", value)}
+		at := reftable.DocumentPointer{Doc: reftable.Source, Pointer: ids.Ptr("components", "schemas", value)}
 		return at, c.Statements().At(at), true
 	}
 	at, ok := c.RefScope().MappingTarget(d.At, value)
@@ -115,12 +115,12 @@ func follow(c lowering.Ctx, start link) valueChain {
 }
 
 // landsAt returns where the $ref st writes lands, as the compiler resolved
-// it: the position its hop reaches (bind.Hop.Target). It is false for a
+// it: the position its hop reaches (reftable.Hop.Target). It is false for a
 // statement writing no $ref the table read, one landing on no schema and one
 // on a loop of $refs, which lands nowhere a type can be read.
-func landsAt(st *statement.Statement) (bind.DocumentPointer, bool) {
+func landsAt(st *statement.Statement) (reftable.DocumentPointer, bool) {
 	if st.Ref == nil || !st.Ref.Bound || !st.Ref.Entry.Lands() {
-		return bind.DocumentPointer{}, false
+		return reftable.DocumentPointer{}, false
 	}
 	return st.Ref.Entry.Hop.Target, true
 }
@@ -129,7 +129,7 @@ func landsAt(st *statement.Statement) (bind.DocumentPointer, bool) {
 // route can name, as resolveAt resolves it without promising it (declaredIn):
 // a component the source declares, by its name, or a schema the compile can
 // hoist, in a document it read, by the ID its pointer derives there.
-func declaredAt(c lowering.Ctx, at bind.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
+func declaredAt(c lowering.Ctx, at reftable.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
 	in, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false

@@ -28,12 +28,12 @@ import (
 // each selects a member of the parser library's schema types outside the
 // statement adapter (statement's model.go), or names a bridge (bridgeKey). It
 // holds the two modelHolders besides the adapter that read the model's fields:
-// the operation walk, and bind/typed, which builds the bindings from the model
+// the operation walk, and reftable/typed, which builds the bindings from the model
 // before any statement is read. A count rising is a second reading beside the
 // statement, and one falling asks for the map to be lowered, so it only
 // shrinks (GitHub #1991).
 var modelReadBaseline = map[string]map[string]int{
-	"compilers/openapi/internal/bind/typed": {
+	"compilers/openapi/internal/reftable/typed": {
 		"GetCore":   1,
 		"GetSchema": 1,
 		"IsBool":    3,
@@ -81,7 +81,7 @@ var modelReadRatchet = ratchet{
 // an entry cannot outlive its reason.
 var modelHolders = map[string]string{
 	"compilers/openapi": "ranges the document's component schemas to name them",
-	"compilers/openapi/internal/bind/typed": "builds the bindings from the model before " +
+	"compilers/openapi/internal/reftable/typed": "builds the bindings from the model before " +
 		"any statement is read",
 	"compilers/openapi/internal/load": "builds the bindings from the model before " +
 		"any statement is read",

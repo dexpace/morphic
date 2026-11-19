@@ -11,11 +11,11 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -86,7 +86,7 @@ type reading struct {
 // to the document budget, reads it with read, and refuses it unread past the
 // budget; every later ask gets the same answer, so a document is read and
 // charged once however many references name it. A read refused to its asker
-// alone (bind.BarredError) is no answer: an asker the refusal covers, bounded
+// alone (reftable.BarredError) is no answer: an asker the refusal covers, bounded
 // no wider, is refused again unread, for its own reach, and a wider one reads.
 func (r *externalReads) once(key string, reach compilers.AddressSpace, read func() answer) answer {
 	rd := r.reading(key)
@@ -109,7 +109,7 @@ func (r *externalReads) once(key string, reach compilers.AddressSpace, read func
 		}
 	}
 	a := read()
-	if barred := (*bind.BarredError)(nil); errors.As(a.err, &barred) {
+	if barred := (*reftable.BarredError)(nil); errors.As(a.err, &barred) {
 		rd.done, rd.barred, rd.barredAt = false, a.refusal, reach
 		return a
 	}
@@ -224,7 +224,7 @@ func (r *externalReads) recordTree(key string, doc doctree.ParsedYAMLDocument, d
 
 // preparedFor returns the tree prepared for the document name names, or false
 // for none. A URL is named as it is located, one spelling for every way a
-// reference writes it (resolve.Locate), so it is read under that name.
+// reference writes it (componentlookup.Locate), so it is read under that name.
 func (r *externalReads) preparedFor(name string) (*yaml.Node, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

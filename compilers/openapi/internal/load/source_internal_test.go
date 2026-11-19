@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -41,7 +41,7 @@ func TestWalkedFrom_AnswersAtTheLastNodeItReaches(t *testing.T) {
 	root := decodeRoot(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n")
 	tree := treeOf(t.Context(), provenance.Doc{}, root)
 
-	for _, locate := range []oas.Locator{walkedFrom(root, tree.Node), reachedLocator(tree, root)} {
+	for _, locate := range []specrules.Locator{walkedFrom(root, tree.Node), reachedLocator(tree, root)} {
 		got := locate("/info/nowhere/at/all")
 		assert.Equal(t, jsontext.Pointer("/info"), got.Pointer, "placed at /info, the last node the pointer reached")
 	}

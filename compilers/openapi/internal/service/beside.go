@@ -10,9 +10,9 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -26,7 +26,7 @@ func Beside[T, S any, R chainable[T, S]](c Ctx, ref R, usePtr jsontext.Pointer, 
 	}
 	var out ir.Unmodeled
 	diags := keepBeside(&out, c, writtenRoot(ref.GetCoreAny()), usePtr, 0, folds)
-	for i, hop := range resolve.Hops[T, S](c.Bindings(), ref) {
+	for i, hop := range componentlookup.Hops[T, S](c.Bindings(), ref) {
 		in, _ := InDocument(c, hop.At.Doc)
 		diags = append(diags, keepBeside(&out, in, writtenRoot(hop.Ref.GetCoreAny()), hop.At.Pointer, i+1, folds)...)
 	}

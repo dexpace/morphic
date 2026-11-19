@@ -16,7 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -104,9 +104,9 @@ func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *statement.Schema, bounds
 // dialect's, which a schema can name, so it is asked of the rows of where s is
 // (rulesOf), as the agreement reads a conjunct's bounds where it has s alone.
 // The exclusiveMaximum row agrees in every row set, so one answer reads both
-// (oas.TestSchemaRules_AnswerAsTheTableDoes).
+// (specrules.TestSchemaRules_AnswerAsTheTableDoes).
 func exclusiveIsBoolean(c lowering.Ctx, s *statement.Schema) bool {
-	return rulesOf(c, s).Takes("exclusiveMinimum", oas.Boolean)
+	return rulesOf(c, s).Takes("exclusiveMinimum", specrules.Boolean)
 }
 
 // constraintsAt reads what s, written at pointer, bounds of the groups take
@@ -264,19 +264,19 @@ func plus(n string, offset int64) string {
 
 // keptCount reports whether keyword, a count s writes, is one the lowering keeps
 // verbatim rather than in Constraints: a non-negative integer, as the check
-// reads one (oas.Natural), that the parser's model does not hold exactly, as it
+// reads one (specrules.Natural), that the parser's model does not hold exactly, as it
 // does not one past int64 (annotation.CountIsExact). Any other literal the model
 // misreads is the load phase's to report, and reaches no field.
 func keptCount(s *statement.Schema, keyword string, model *int64) bool {
 	node := keyNode(s, keyword)
-	return node != nil && oas.Natural.Admits(node) && !annotation.CountIsExact(s, keyword, model)
+	return node != nil && specrules.Natural.Admits(node) && !annotation.CountIsExact(s, keyword, model)
 }
 
 // refusedCount reports whether keyword is a count s writes that is no
 // non-negative integer, which the load phase reports and no reader holds.
 func refusedCount(s *statement.Schema, keyword string) bool {
 	node := keyNode(s, keyword)
-	return isCount(keyword) && node != nil && !oas.Natural.Admits(node)
+	return isCount(keyword) && node != nil && !specrules.Natural.Admits(node)
 }
 
 // isCount reports whether keyword is one of the six counts.

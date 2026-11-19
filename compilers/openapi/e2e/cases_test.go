@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/internal/harness/openapicases"
 )
@@ -28,13 +28,13 @@ func notCases() map[string]string { return map[string]string{} }
 // at that version.
 func TestCases_CoverTheRuleTable(t *testing.T) {
 	t.Parallel()
-	schema, ok := oas.Table().Object(oas.Schema)
+	schema, ok := specrules.Table().Object(specrules.Schema)
 	require.True(t, ok)
 	written := writtenConstructs(t, openapicases.New())
 	require.NotEmpty(t, written)
 
 	for version, constructs := range written {
-		minor, ok := oas.ParseMinor(version)
+		minor, ok := specrules.ParseMinor(version)
 		require.True(t, ok, "%s is a version the rule table covers", version)
 		for _, f := range schema.Fields {
 			if !f.IsJSONSchemaKeyword || !f.Defined.Holds(minor) {
@@ -46,7 +46,7 @@ func TestCases_CoverTheRuleTable(t *testing.T) {
 					"construct row of openapicases, or say in notCases why not", version, f.Name)
 		}
 		for name := range constructs {
-			assert.True(t, slices.ContainsFunc(schema.Fields, func(f oas.Field) bool {
+			assert.True(t, slices.ContainsFunc(schema.Fields, func(f specrules.Field) bool {
 				return f.Name == name && f.Defined.Holds(minor)
 			}), "%s: construct %s names no field the Schema Object defines there", version, name)
 		}

@@ -12,15 +12,15 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/doctree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
 // external reads the documents a reference names beside the source, when
-// Options.Reader lets a reference leave the source (bind.Config.Open): each
+// Options.Reader lets a reference leave the source (reftable.Config.Open): each
 // through that reader, once in the compile however it is spelled, and prepared
 // as Load prepares the source: the same budgets and pre-parse refusals, then
 // readyForModel. Anchors are released only behind the refusals, which reject a
@@ -74,7 +74,7 @@ func (e external) readAs(ctx context.Context, id, key, location, from string) an
 // where it stated none, or where from is a source located at a URL, whose
 // dial the compile was not told of (docs/compilers/openapi.md#references).
 func (e external) reachOf(from string) compilers.AddressSpace {
-	if !bind.OverNetwork(from) {
+	if !reftable.OverNetwork(from) {
 		return compilers.SpaceUnstated
 	}
 	if space := e.read.spaceOf(e.documentID(from)); space != compilers.SpaceUnstated {
@@ -92,7 +92,7 @@ func (e external) reachOf(from string) compilers.AddressSpace {
 // the reader did not say.
 func (e external) admits(ctx context.Context, id, location string, a answer, reach compilers.AddressSpace) error {
 	switch {
-	case reach == compilers.SpaceUnstated, !bind.OverNetwork(id):
+	case reach == compilers.SpaceUnstated, !reftable.OverNetwork(id):
 		return nil
 	case a.err != nil && (!a.read || !wider(a.reach, reach)):
 		return nil
@@ -160,9 +160,9 @@ func spaceNamed(space compilers.AddressSpace) string {
 }
 
 // documentRefusal is the refusal of the document under key to one asker alone,
-// for reason (bind.BarredError).
+// for reason (reftable.BarredError).
 func documentRefusal(key, reason string) error {
-	return &bind.BarredError{Why: refused(key, reason).Error()}
+	return &reftable.BarredError{Why: refused(key, reason).Error()}
 }
 
 // fileNamed returns the file the path name names: its dot segments removed, as
@@ -223,12 +223,12 @@ func (e external) request(ctx context.Context, location string, reach compilers.
 
 // unnamed returns the refusal of the document under key, read at location,
 // unread, or nil: a location a source read over the network may not reach
-// (bind.Reachable), as every document it reads is read over it too. A file
+// (reftable.Reachable), as every document it reads is read over it too. A file
 // URI a confined read refuses is refused by the reference's spelling
 // (refusedByName), since a file is read at its path however it is named.
 func (e external) unnamed(key, location string) error {
-	if !bind.Reachable(e.read.self.path, location) {
-		return refused(key, bind.OffNetwork)
+	if !reftable.Reachable(e.read.self.path, location) {
+		return refused(key, reftable.OffNetwork)
 	}
 	if _, mapped, err := e.read.self.mapped(location); mapped && err != nil {
 		return err
@@ -278,7 +278,7 @@ func refusedByName(opts Options, self string, places *refscope.Places) func(uri 
 }
 
 // namesSource reports whether uri, a $ref's document part, names the source
-// at self, read as every reference is (resolve.Locate), where the files lie in
+// at self, read as every reference is (componentlookup.Locate), where the files lie in
 // places.
 func namesSource(places *refscope.Places, self, uri string) bool {
 	named, ok := refscope.Locate(uri, self)
@@ -298,7 +298,7 @@ func readFailure(opts Options, key string, err error, reach compilers.AddressSpa
 	switch {
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
 		return refused(key, fmt.Sprintf("it is past the %d-byte budget", opts.MaxSourceBytes.Cap()))
-	case errors.Is(err, compilers.ErrOutsideWithin) && bind.OverNetwork(key):
+	case errors.Is(err, compilers.ErrOutsideWithin) && reftable.OverNetwork(key):
 		return refused(key, "it is on the network, which a read reaches only when external references are allowed; "+
 			"a locate option maps its URL to a location")
 	case errors.Is(err, compilers.ErrOutsideWithin):
@@ -311,7 +311,7 @@ func readFailure(opts Options, key string, err error, reach compilers.AddressSpa
 
 // barredFor returns the refusal of the document under key to an asker bounded
 // by reach, worded for that asker, where err, the reader's failure, refuses the
-// read to it alone (bind.BarredError): an address past reach, or a read the
+// read to it alone (reftable.BarredError): an address past reach, or a read the
 // reader cannot bound; else nil. One reader's failure may answer askers at
 // several reaches (externalReads.once).
 func barredFor(key string, err error, reach compilers.AddressSpace) error {
@@ -348,8 +348,8 @@ func directoryNamed(dir string) string {
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set. The
 // node budget holds the read as it holds the source's. Unparsable or empty
-// bytes are refused as such, the parser's reason kept (bind.UnparsableError,
-// bind.ErrEmptyDocument).
+// bytes are refused as such, the parser's reason kept (reftable.UnparsableError,
+// reftable.ErrEmptyDocument).
 func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]byte, error) {
 	if !e.opts.MaxSourceBytes.Admits(len(data)) {
 		return nil, refused(id, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
@@ -361,9 +361,9 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 	case errors.As(err, &past):
 		return nil, refused(id, "it "+pastNodesReason(past))
 	case err != nil:
-		return nil, stopped(ctx, &bind.UnparsableError{Err: err})
-	case bind.IsEmpty(doc.Root):
-		return nil, bind.ErrEmptyDocument
+		return nil, stopped(ctx, &reftable.UnparsableError{Err: err})
+	case reftable.IsEmpty(doc.Root):
+		return nil, reftable.ErrEmptyDocument
 	}
 	if err := e.admit(ctx, id, doc); err != nil {
 		return nil, err
@@ -410,7 +410,7 @@ func nowhere() provenance.Tree {
 
 // refused returns the error the read of the document under key fails with,
 // refused for reason, which the binder reports as the reason each reference
-// naming it could not be resolved (bind.Unreadable).
+// naming it could not be resolved (reftable.Unreadable).
 func refused(key, reason string) error {
 	return fmt.Errorf("external document %s refused: %s", key, reason)
 }

@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -87,14 +87,14 @@ func spacedReads() *spacedReader {
 
 // spacedExternal reads through r beside a source at self.
 func spacedExternal(r *spacedReader, self string) *external {
-	src := sourceDocument{path: self, judged: judgment{checker: oas.NewChecker()}}
+	src := sourceDocument{path: self, judged: judgment{checker: specrules.NewChecker()}}
 	return newExternal(Options{Reader: r}, newExternalReads(src, budget.Unbounded()), &aside{})
 }
 
 // barredWith asserts err refuses to its asker alone, for why.
 func barredWith(t *testing.T, err error, why string) {
 	t.Helper()
-	var barred *bind.BarredError
+	var barred *reftable.BarredError
 	require.ErrorAs(t, err, &barred)
 	assert.Contains(t, barred.Error(), why)
 }

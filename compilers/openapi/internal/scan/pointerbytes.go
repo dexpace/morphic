@@ -7,12 +7,12 @@ import (
 	"math"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
 // maxPointerAmplification bounds how many times the bytes a document writes
-// the pointers naming its nodes may total (sourceindex.Measurements.PointerBytes). A
+// the pointers naming its nodes may total (sourcetreestats.Measurements.PointerBytes). A
 // node's pointer holds every key above it, and a compile spells one for each
 // node it reads, so long keys nested deep cost gigabytes inside every other
 // bound (GitHub #931).
@@ -37,14 +37,14 @@ const minPointerBytes = 1 << 26 // 64 MiB
 // finds is left to the anchor-cycle refusal, as Nesting leaves it. Every node
 // counts, values kept verbatim among them; the load phase weighs a closed
 // document past it again by what a compile names (GitHub #1499).
-func PointerAmplification(whole ir.Provenance, idx sourceindex.Measurements) (ir.Diagnostic, bool) {
+func PointerAmplification(whole ir.Provenance, idx sourcetreestats.Measurements) (ir.Diagnostic, bool) {
 	return pointerAmplificationWithin(whole, idx, PointerAllowance(idx.Written()))
 }
 
 // pointerAmplificationWithin is PointerAmplification under an allowance of
 // allowance bytes, so a test can cross it without a document spelling the
 // floor.
-func pointerAmplificationWithin(whole ir.Provenance, idx sourceindex.Measurements, allowance int) (ir.Diagnostic, bool) {
+func pointerAmplificationWithin(whole ir.Provenance, idx sourcetreestats.Measurements, allowance int) (ir.Diagnostic, bool) {
 	if idx.PointerBytes() <= allowance || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
@@ -56,7 +56,7 @@ func pointerAmplificationWithin(whole ir.Provenance, idx sourceindex.Measurement
 // PointerAllowance is the pointer bytes a document writing written bytes may
 // spell: maxPointerAmplification times them, floored at minPointerBytes and
 // held at math.MaxInt. The load phase holds a closed document's named total
-// to it too (bind.NamedPointerBytes).
+// to it too (reftable.NamedPointerBytes).
 func PointerAllowance(written int) int {
 	if written > math.MaxInt/maxPointerAmplification {
 		return math.MaxInt

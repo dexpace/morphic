@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkMessageBindings reports operations whose message binding uses a message
@@ -23,7 +23,7 @@ import (
 // It inherits ir.ForEachOperation's bounds, whose stop Validate reports.
 func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var carried reuse.Map[ir.MessageID, bool]
+	var carried scratchstate.Map[ir.MessageID, bool]
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		diags = append(diags, checkBoundMessages(doc, op, &carried)...)
 	})
@@ -39,7 +39,7 @@ func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 // A reply with no channel of its own is left alone: its address is dynamic, so
 // there is no declared message set to hold it to (docs/ir/messaging.md). Each
 // channel's messages are read through carried.
-func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *reuse.Map[ir.MessageID, bool]) []ir.Diagnostic {
+func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *scratchstate.Map[ir.MessageID, bool]) []ir.Diagnostic {
 	b := op.Bindings.Message
 	if b == nil {
 		return nil
@@ -69,7 +69,7 @@ type messagesAt struct {
 // defect rather than add a claim. An empty channel or message names none at
 // all, which checkEmptyRefs reports.
 func appendUncarriedMessageDiags(dst []ir.Diagnostic, doc *ir.Document,
-	channel ir.ChannelID, used []ir.MessageID, at messagesAt, carried *reuse.Map[ir.MessageID, bool]) []ir.Diagnostic {
+	channel ir.ChannelID, used []ir.MessageID, at messagesAt, carried *scratchstate.Map[ir.MessageID, bool]) []ir.Diagnostic {
 	ch, declared := doc.Channels[channel]
 	if !declared {
 		return dst

@@ -15,9 +15,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 )
 
 // searchSpec is a document of n POSTs, each sending a request body of its own
@@ -56,11 +56,11 @@ func inferBytes(t *testing.T, src string, operations int) float64 {
 	for range 3 {
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		diags := pagination.InferWalks(pagination.Inference{}, whole.New(doc), nil)
+		diags := pagination.InferWalks(pagination.Inference{}, compileddoc.New(doc), nil)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size fills its paginations alike")
 		filled := 0
-		for _, op := range whole.New(doc).Ops {
+		for _, op := range compileddoc.New(doc).Ops {
 			if op.Pagination != nil {
 				filled++
 			}

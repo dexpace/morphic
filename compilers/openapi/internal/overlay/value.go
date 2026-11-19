@@ -103,7 +103,7 @@ func (g *grafter) flatten(ctx context.Context, m *yaml.Node) error {
 }
 
 // refusedMerge reports whether the `<<` value val reaches what the source's
-// format check refuses in a merge (oas.CheckFormat), which no copy of a member
+// format check refuses in a merge (specrules.CheckFormat), which no copy of a member
 // it brings in carries: a merge naming no mapping, or a key that is no scalar
 // in a mapping a merge brings in, at any depth. Each mapping is read once.
 func refusedMerge(val *yaml.Node) bool {

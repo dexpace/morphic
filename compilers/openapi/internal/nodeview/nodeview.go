@@ -381,7 +381,7 @@ func IsMergeKey(raw *yaml.Node) bool {
 // which the parser reads as the empty string
 // (docs/parser-library.md#non-scalar-key). Such an entry is left out by every
 // reader, since "" would be one pointer for every such key of a mapping, and
-// oas.CheckFormat reports it. The view and every reader of a mapping's raw
+// specrules.CheckFormat reports it. The view and every reader of a mapping's raw
 // pairs ask KeyOf, so none can disagree about a pair's key.
 func KeyOf(raw *yaml.Node) (string, bool) {
 	if raw == nil || IsMergeKey(raw) {
@@ -426,7 +426,7 @@ func RepeatedKeys(n *yaml.Node) []string {
 // order flatten settles them: a mapping is a single merge source, and a
 // sequence is several, its mapping elements in order. Anything else merges
 // nothing, as for the library (docs/parser-library.md#merge-keys), and
-// oas.CheckFormat reports it.
+// specrules.CheckFormat reports it.
 //
 // The height of a sequence is its tallest element's: the elements are
 // alternatives at one level, not links in a chain.

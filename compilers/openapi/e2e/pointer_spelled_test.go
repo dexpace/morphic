@@ -17,28 +17,28 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // spelledHop is one step from an object of the rule table to an object it
 // holds: what a document writes before and after the object held.
 type spelledHop struct {
 	open, shut string
-	to         oas.Kind
+	to         specrules.Kind
 }
 
 // spelledHops lists the steps from o to each object it holds: under a field or
 // a patterned key, in place, as a map's entry or as a list's item.
-func spelledHops(o oas.Object) []spelledHop {
-	held := func(key string, shape oas.Shape, of oas.Kind) (spelledHop, bool) {
+func spelledHops(o specrules.Object) []spelledHop {
+	held := func(key string, shape specrules.Shape, of specrules.Kind) (spelledHop, bool) {
 		switch shape {
-		case oas.Nested:
+		case specrules.Nested:
 			return spelledHop{"{" + key + ": ", "}", of}, true
-		case oas.Map:
+		case specrules.Map:
 			return spelledHop{"{" + key + ": {k: ", "}}", of}, true
-		case oas.List:
+		case specrules.List:
 			return spelledHop{"{" + key + ": [", "]}", of}, true
 		default:
 			return spelledHop{}, false
@@ -53,7 +53,7 @@ func spelledHops(o oas.Object) []spelledHop {
 	for _, p := range o.Patterned {
 		key := "k"
 		switch {
-		case o.Kind == oas.Responses:
+		case o.Kind == specrules.Responses:
 			key = "'200'"
 		case strings.HasPrefix(p.Name, "/"):
 			key = "/p"
@@ -69,12 +69,12 @@ func spelledHops(o oas.Object) []spelledHop {
 
 // spelledReach returns the steps from the object of kind start to each object
 // the rule table reaches from it, the fewest to each.
-func spelledReach(start oas.Kind) map[oas.Kind][]spelledHop {
-	out := map[oas.Kind][]spelledHop{start: {}}
-	for queue := []oas.Kind{start}; len(queue) > 0; queue = queue[1:] {
-		o, _ := oas.Table().Object(queue[0])
+func spelledReach(start specrules.Kind) map[specrules.Kind][]spelledHop {
+	out := map[specrules.Kind][]spelledHop{start: {}}
+	for queue := []specrules.Kind{start}; len(queue) > 0; queue = queue[1:] {
+		o, _ := specrules.Table().Object(queue[0])
 		for _, h := range spelledHops(o) {
-			if _, seen := out[h.to]; seen || h.to == oas.Reference {
+			if _, seen := out[h.to]; seen || h.to == specrules.Reference {
 				continue
 			}
 			out[h.to] = append(slices.Clone(out[queue[0]]), h)
@@ -126,7 +126,7 @@ const (
 // spelledShapes lists the values a field is given, by name: as its shape reads
 // it first, then every other, so a field is held whatever a document writes
 // there.
-func spelledShapes(shape oas.Shape, all bool) map[string]string {
+func spelledShapes(shape specrules.Shape, all bool) map[string]string {
 	of := map[string]string{
 		"a map of strings": spelledMany(spelledEntries, true, "s"), "a map of objects": spelledMany(spelledEntries, true, "{}"),
 		"a list of strings": spelledMany(spelledEntries, false, "s"), "a list of objects": spelledMany(spelledEntries, false, "{}"),
@@ -137,11 +137,11 @@ func spelledShapes(shape oas.Shape, all bool) map[string]string {
 	}
 	name := "a map of strings"
 	switch shape {
-	case oas.List:
+	case specrules.List:
 		name = "a list of objects"
-	case oas.Map:
+	case specrules.Map:
 		name = "a map of objects"
-	case oas.StringList, oas.RawList:
+	case specrules.StringList, specrules.RawList:
 		name = "a list of strings"
 	default:
 	}
@@ -189,13 +189,13 @@ var spelledRawSpots = map[string]string{
 func spelledCases(version string, all bool) []spelledCase {
 	head := "openapi: " + version + "\ninfo: {title: t, version: '1'}\n"
 	var cases []spelledCase
-	components, _ := oas.Table().Object(oas.Components)
+	components, _ := specrules.Table().Object(specrules.Components)
 	fielded := map[string]bool{}
 	for _, c := range components.Fields {
 		for kind, hops := range spelledReach(c.Of) {
-			o, _ := oas.Table().Object(kind)
+			o, _ := specrules.Table().Object(kind)
 			for _, f := range o.Fields {
-				if c.Shape != oas.Map || fielded[o.Name+" "+f.Name] {
+				if c.Shape != specrules.Map || fielded[o.Name+" "+f.Name] {
 					continue
 				}
 				fielded[o.Name+" "+f.Name] = true
@@ -209,11 +209,11 @@ func spelledCases(version string, all bool) []spelledCase {
 			}
 		}
 	}
-	for kind, hops := range spelledReach(oas.Document) {
-		o, _ := oas.Table().Object(kind)
+	for kind, hops := range spelledReach(specrules.Document) {
+		o, _ := specrules.Table().Object(kind)
 		names := []string{"x-e", "zz"}
 		for _, f := range o.Fields {
-			if f.Shape == oas.AnyShapeUnchecked || f.Shape == oas.RawMap || f.Shape == oas.RawList {
+			if f.Shape == specrules.AnyShapeUnchecked || f.Shape == specrules.RawMap || f.Shape == specrules.RawList {
 				names = append(names, f.Name)
 			}
 		}
@@ -289,8 +289,8 @@ func spellsWithinTheTotal(t *testing.T, cases []spelledCase) {
 	taken := 0
 	for _, c := range cases {
 		narrow, wide := c.doc(short), c.doc(long)
-		low, whole := bind.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, narrow), 1<<22)
-		high, alsoWhole := bind.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, wide), 1<<22)
+		low, whole := reftable.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, narrow), 1<<22)
+		high, alsoWhole := reftable.NamedPointerBytes(t.Context(), openapitest.YAMLDocument(t, wide), 1<<22)
 		if !whole || !alsoWhole {
 			continue
 		}

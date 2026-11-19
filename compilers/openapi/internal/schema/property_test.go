@@ -445,7 +445,7 @@ type carrierDocKeyword struct {
 // beside a $ref binds the property, not the referent, because a $ref position
 // hoists no node, so fillPropertyAnnotations records it on the property.
 // Property f's $ref targets a named component (Target), so
-// resolve.Scope.ComponentRef resolves it directly without ever calling
+// componentlookup.Scope.ComponentRef resolves it directly without ever calling
 // hoistSubSchema. TestSchemaSiblings_RefdSubSchemaKeepsThem covers the
 // analogous hoistSubSchema path, where the $ref target is an internal
 // sub-schema pointer rather than a named component.

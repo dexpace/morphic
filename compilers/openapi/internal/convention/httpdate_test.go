@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -72,7 +72,7 @@ func TestHTTPDate_AFieldItsRFCDefinesAsADate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := responding(tc.h, reg)
-			diags := convention.Apply(convention.Policy{}, defaults(), whole.New(doc))
+			diags := convention.Apply(convention.Policy{}, defaults(), compileddoc.New(doc))
 			h := operationOf(doc).Responses[0].Headers[0]
 			if !tc.encoded {
 				assert.Empty(t, diags)
@@ -124,11 +124,11 @@ func TestHTTPDate_ReadsEveryResponseAndNoPart(t *testing.T) {
 	}
 
 	on := build()
-	assert.Len(t, convention.Apply(convention.Policy{}, defaults(), whole.New(on)), 3)
+	assert.Len(t, convention.Apply(convention.Policy{}, defaults(), compileddoc.New(on)), 3)
 	assert.Equal(t, []ir.PropID{"p/response", "p/error", "p/default"}, encoded(on))
 
 	off := build()
 	assert.Empty(t, convention.Apply(convention.Policy{HTTPDate: convention.HTTPDateInference{Disabled: true}}, defaults(),
-		whole.New(off)))
+		compileddoc.New(off)))
 	assert.Empty(t, encoded(off))
 }

@@ -9,12 +9,12 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -81,11 +81,11 @@ func (r *Registry) requirement(c service.Ctx, req *soa.SecurityRequirement, poin
 // scheme returns the ID of the scheme key names in a requirement c lowers at
 // pointer, and what reading it reported. Where the document's minor reads a key
 // as a URI and it names no entry of the source, the table reads it as a
-// reference, against the document writing it (bind.Config.KeysByURI); any other
+// reference, against the document writing it (reftable.Config.KeysByURI); any other
 // key is the name of an entry of the source.
 func (r *Registry) scheme(c service.Ctx, key string, pointer jsontext.Pointer) (ir.AuthID, []ir.Diagnostic) {
 	if t := c.Bindings().Table(); t != nil {
-		if ref, isRef := t.Reference(c.Position(pointer.AppendToken(key)), bind.RefSecurityScheme); isRef {
+		if ref, isRef := t.Reference(c.Position(pointer.AppendToken(key)), reftable.RefSecurityScheme); isRef {
 			return r.referenced(c, key, ref, pointer)
 		}
 	}
@@ -112,9 +112,9 @@ func (r *Registry) named(c service.Ctx, key, name string, pointer jsontext.Point
 // that entry's, and any other Security Scheme Object lowered once where it is
 // declared (landed). One landing on none is minted from the key and the
 // document writing it, so one key in two documents is two schemes.
-func (r *Registry) referenced(c service.Ctx, key string, ref bind.Reference, pointer jsontext.Pointer,
+func (r *Registry) referenced(c service.Ctx, key string, ref reftable.Reference, pointer jsontext.Pointer,
 ) (ir.AuthID, []ir.Diagnostic) {
-	if ref.Chain.Status != bind.Resolved {
+	if ref.Chain.Status != reftable.Resolved {
 		if name, ok := sourceEntry(c, key); ok {
 			return r.named(c, key, name, pointer, whyNot(ref))
 		}
@@ -122,7 +122,7 @@ func (r *Registry) referenced(c service.Ctx, key string, ref bind.Reference, poi
 		return id, []ir.Diagnostic{unresolvedDiag(c, pointer, key, unresolvedClauses(near, whyNot(ref)))}
 	}
 	end := ref.Chain.End
-	if kind, name, ok := ids.ComponentEntry(end.Pointer); ok && end.Doc == bind.Source && kind == "securitySchemes" {
+	if kind, name, ok := ids.ComponentEntry(end.Pointer); ok && end.Doc == reftable.Source && kind == "securitySchemes" {
 		return r.named(c, key, name, pointer, "")
 	}
 	return r.landed(c, end)
@@ -142,8 +142,8 @@ func sourceEntry(c service.Ctx, key string) (string, bool) {
 
 // whyNot says why ref, a requirement key's reference whose chain does not
 // resolve, names no Security Scheme Object.
-func whyNot(ref bind.Reference) string {
-	if ref.Hop.Status != bind.Resolved {
+func whyNot(ref reftable.Reference) string {
+	if ref.Hop.Status != reftable.Resolved {
 		return ref.Hop.Why()
 	}
 	return "the chain of references it starts ends on no Security Scheme Object"
@@ -155,14 +155,14 @@ func whyNot(ref bind.Reference) string {
 // first decides nothing. One naming no mechanism, or that nothing could be
 // built for, is minted in the space ir reserves for that kind, at its position
 // in its document, as a key naming nothing is (ids.DocumentIDNamespace.UnresolvedAuth).
-func (r *Registry) landed(c service.Ctx, end bind.DocumentPointer) (ir.AuthID, []ir.Diagnostic) {
+func (r *Registry) landed(c service.Ctx, end reftable.DocumentPointer) (ir.AuthID, []ir.Diagnostic) {
 	dc, read := service.InDocument(c, end.Doc)
 	id := dc.IDs().Auth(end.Pointer)
 	if _, lowered := r.byID[id]; lowered {
 		return id, nil
 	}
-	rs, _ := c.Bindings().ObjectAt(end, bind.RefSecurityScheme).(*soa.ReferencedSecurityScheme)
-	ss := resolve.Object[soa.SecurityScheme](c.Bindings(), rs)
+	rs, _ := c.Bindings().ObjectAt(end, reftable.RefSecurityScheme).(*soa.ReferencedSecurityScheme)
+	ss := componentlookup.Object[soa.SecurityScheme](c.Bindings(), rs)
 	missing, name := dc.IDs().UnresolvedAuth(string(end.Pointer)), landingName(dc, end)
 	if !read || ss == nil {
 		// The load phase reports a landing it could build nothing at.
@@ -183,7 +183,7 @@ func (r *Registry) landed(c service.Ctx, end bind.DocumentPointer) (ir.AuthID, [
 // landingName returns the name of the Security Scheme Object at end: the key it
 // is declared under, and at a document's root, which no key names, the
 // document's name, as a schema there is named (lowering.NameOfDocument).
-func landingName(c service.Ctx, end bind.DocumentPointer) string {
+func landingName(c service.Ctx, end reftable.DocumentPointer) string {
 	if end.Pointer == "" {
 		return lowering.NameOfDocument(c.Ctx, end.Doc)
 	}

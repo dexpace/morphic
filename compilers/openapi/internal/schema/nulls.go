@@ -10,11 +10,11 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -156,7 +156,7 @@ func (s nullSite) child(tokens ...string) nullSite {
 type nulls struct {
 	c lowering.Ctx
 	// nullable reports whether the dialect of the schema being read defines the
-	// nullable keyword (oas.SchemaRules.Defines), the one question of the
+	// nullable keyword (specrules.SchemaRules.Defines), the one question of the
 	// version this read asks.
 	nullable bool
 	// variants marks a read of whether a schema admits null wherever the IR
@@ -250,7 +250,7 @@ func (n *nulls) usage(s *statement.Schema, target nullReading, site nullSite) nu
 // bounds, then read backward, each once, so n sites of one chain cost n
 // readings, not n squared over two.
 func (n *nulls) lands(js *statement.Statement) nullReading {
-	if js.Ref == nil || !js.Ref.Bound || js.Ref.Entry.Chain.Status != bind.Resolved {
+	if js.Ref == nil || !js.Ref.Bound || js.Ref.Entry.Chain.Status != reftable.Resolved {
 		return nullReadingAlikeUnderBothPolicies(nullUnconstrained)
 	}
 	e := js.Ref.Entry
@@ -330,7 +330,7 @@ type nullHop struct {
 
 // definesNullableIn reports whether the dialect the schemas of document doc
 // are read in defines the nullable keyword.
-func definesNullableIn(c lowering.Ctx, doc bind.DocID) bool {
+func definesNullableIn(c lowering.Ctx, doc reftable.DocID) bool {
 	return c.Rules().In(doc).Defines("nullable")
 }
 

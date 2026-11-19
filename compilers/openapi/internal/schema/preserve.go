@@ -9,7 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -49,7 +49,7 @@ func unknownTaken(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer)
 		taken = append(taken, "additionalItems")
 	}
 	rules := c.Rules().At(c.Position(pointer))
-	if rules.Takes("definitions", oas.Map) {
+	if rules.Takes("definitions", specrules.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")
 	}

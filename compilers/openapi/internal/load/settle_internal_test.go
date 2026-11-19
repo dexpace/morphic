@@ -12,10 +12,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 )
 
 // readAside parses text into its first document's mapping.
@@ -216,8 +216,8 @@ func TestAside_WhileWrittenReadsTheTreeAsWrittenThenSetsItAsideAgain(t *testing.
 func TestBuildObjects_AShapeTheModelFaultsOnIsAFailedBuild(t *testing.T) {
 	t.Parallel()
 	root := readAside(t, "openapi: 3.1.0\npaths:\n  /a:\n    get:\n      parameters: [{$ref: '#/x-p'}]\nx-p: {$ref: ~}\n")
-	table := bind.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
-		bind.Config{Self: "spec.yaml"})
+	table := reftable.Bind(t.Context(), &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}},
+		reftable.Config{Self: "spec.yaml"})
 	require.NotEmpty(t, table.ObjectLandings())
 
 	failed := buildObjects(t.Context(), typed.NewBuilder(table), table, MediaTypes{}, mediaFaults{}, &Siblings{})

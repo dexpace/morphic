@@ -15,7 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -56,7 +56,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // is the table's to report (docs/compilers/openapi.md#tuples).
 func listedTuple(c lowering.Ctx, s *statement.Schema) (int, bool) {
 	n, listed := listedItems(s)
-	return n, listed && rulesOf(c, s).Takes("items", oas.List)
+	return n, listed && rulesOf(c, s).Takes("items", specrules.List)
 }
 
 // listedItems returns how many schemas s writes `items` as a list of, a tuple
@@ -84,7 +84,7 @@ func itemsSchema(s *statement.Schema) statement.Subschema {
 // Tuple's Elems, the `additionalItems` beside them into its Rest, its
 // Constraints being cons. The parser's model holds none of
 // them, so each is the schema the load phase built at its position
-// (bind.Landing). An absent additionalItems leaves every element past them
+// (reftable.Landing). An absent additionalItems leaves every element past them
 // unconstrained, as `true` does, and `false` admits none. An entry or rest
 // written as a number, a string or a list lowers as `false` does, and a `null`
 // as one left out, as 2020-12's are, which the load phase reports.

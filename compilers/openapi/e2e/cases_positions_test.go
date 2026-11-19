@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/internal/harness/openapicases"
 	"github.com/dexpace/morphic/ir"
 )
 
 // schemaHolders are the objects of the rule table whose fields hold a schema.
-func schemaHolders() []oas.Kind {
-	return []oas.Kind{oas.Components, oas.Parameter, oas.MediaType, oas.Header, oas.Schema}
+func schemaHolders() []specrules.Kind {
+	return []specrules.Kind{specrules.Components, specrules.Parameter, specrules.MediaType, specrules.Header, specrules.Schema}
 }
 
 // casePositions names, for each field of the rule table holding a schema, the
@@ -80,10 +80,10 @@ func TestCases_WritePositionsOfTheRuleTable(t *testing.T) {
 	}
 	var fields []string
 	for _, kind := range schemaHolders() {
-		object, ok := oas.Table().Object(kind)
+		object, ok := specrules.Table().Object(kind)
 		require.True(t, ok)
 		for _, f := range object.Fields {
-			if f.Of == oas.Schema && slices.Contains([]oas.Shape{oas.Nested, oas.Map, oas.List}, f.Shape) {
+			if f.Of == specrules.Schema && slices.Contains([]specrules.Shape{specrules.Nested, specrules.Map, specrules.List}, f.Shape) {
 				fields = append(fields, object.Name+"."+f.Name)
 			}
 		}

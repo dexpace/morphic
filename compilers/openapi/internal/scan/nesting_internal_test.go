@@ -15,7 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
@@ -125,7 +125,7 @@ func TestNesting_CountsTheExpandedTree(t *testing.T) {
 	}
 	idx := indexOf(t, []byte(b.String()))
 	require.Equal(t, 13, idx.Nesting())
-	require.Less(t, sourceindex.Build(t.Context(), idx.Root(), sourceindex.MaxIndexedNodes).Nodes(), 40)
+	require.Less(t, sourcetreestats.Build(t.Context(), idx.Root(), sourcetreestats.MaxIndexedNodes).Nodes(), 40)
 
 	d, refused := placedNesting(t, b.String(), 10)
 	require.True(t, refused)

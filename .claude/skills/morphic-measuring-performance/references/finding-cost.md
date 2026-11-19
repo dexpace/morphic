@@ -330,7 +330,7 @@ how to measure so the number means what the claim says.
 `clear-never-shrinks`
 
 - **Rule.** Clearing a non-empty map costs more the more it ever held. Clear a map reused across
-  collections until one fills it past a bound, then replace it, through `reuse.Map`, which
+  collections until one fills it past a bound, then replace it, through `scratchstate.Map`, which
   `ir/irverify` and `pass` share, and a source test in each refusing any other `clear` and every
   `delete`: the map's length check reads what the last collection left, which a collection that
   deletes can hide (#1155, #1152).

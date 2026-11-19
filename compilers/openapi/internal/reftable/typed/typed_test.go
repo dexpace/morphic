@@ -1,0 +1,336 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package typed_test
+
+import (
+	"encoding/json/jsontext"
+	"fmt"
+	"math"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/walk"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
+)
+
+const spec = `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+x-lib:
+  S: {type: object, properties: {inner: {$ref: '#/components/schemas/A'}, x: {type: string}}, discriminator: {propertyName: k}}
+  T: true
+components:
+  schemas:
+    A: {type: object, properties: {p: {type: integer}}}
+    R: {$ref: '#/x-lib/S'}
+    Q: {$ref: '#/components/schemas/R'}
+    B: {$ref: '#/x-lib/T'}
+    U: {$ref: '#/components/schemas/Missing'}
+    D: {discriminator: {propertyName: k, mapping: {s: '#/x-lib/S'}}}
+    X: {$ref: '#/x-lib/S/properties/x'}
+`
+
+// bindings decodes spec, binds it, and builds its bindings as the load phase
+// does: every schema of the model recorded where the walk reads it, then a
+// schema built for each landing.
+func bindings(t *testing.T) (*typed.Bindings, *soa.OpenAPI, []typed.Built) {
+	t.Helper()
+	return bindingsOf(t, spec)
+}
+
+// bindingsOf is bindings for the document text.
+func bindingsOf(t *testing.T, text string) (*typed.Bindings, *soa.OpenAPI, []typed.Built) {
+	t.Helper()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(text))
+	require.NoError(t, err)
+	bd := typed.NewBuilder(reftable.Bind(t.Context(), doc.GetRootNode(), reftable.Config{Self: "spec.yaml"}))
+	for item := range soa.Walk(t.Context(), doc) {
+		at := reftable.DocumentPointer{Pointer: typed.PointerOf(item.Location)}
+		require.NoError(t, item.Match(soa.Matcher{
+			Schema: func(js *oas3.JSONSchema[oas3.Referenceable]) error { bd.Schema(js, at); return nil },
+		}))
+	}
+	built := bd.Build(t.Context())
+	return bd.Bindings(), doc, built
+}
+
+// component returns the component schema name declares.
+func component(t *testing.T, doc *soa.OpenAPI, name string) *oas3.JSONSchema[oas3.Referenceable] {
+	t.Helper()
+	js, ok := doc.Components.Schemas.Get(name)
+	require.True(t, ok, name)
+	return js
+}
+
+// TestBindings_AnswerByTheSchemaTheLoweringHolds pins what a schema's own
+// object answers: where it was read, its $ref's entry, the schema written
+// where that lands, the one its chain ends on, the model's own for a schema of
+// the model and the one built for raw YAML, and nothing for a $ref that lands
+// on none or a schema the bindings never met.
+func TestBindings_AnswerByTheSchemaTheLoweringHolds(t *testing.T) {
+	t.Parallel()
+	b, doc, _ := bindings(t)
+	a, r, q, u := component(t, doc, "A"), component(t, doc, "R"), component(t, doc, "Q"), component(t, doc, "U")
+
+	site, ok := b.Site(q)
+	require.True(t, ok)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/schemas/Q"}, site)
+	assert.Same(t, r, b.Declared(q), "Q lands on R, the model's own schema")
+	s := b.End(q)
+	require.NotNil(t, s, "Q's chain ends on the schema built for /x-lib/S")
+	assert.Same(t, s, b.At(reftable.DocumentPointer{Pointer: "/x-lib/S"}))
+	assert.Same(t, s, b.Declared(r))
+	inner, ok := s.GetSchema().GetProperties().Get("inner")
+	require.True(t, ok)
+	assert.Same(t, a, b.End(inner), "a $ref inside a built schema is bound too")
+
+	assert.Nil(t, b.Declared(u))
+	assert.Nil(t, b.End(u))
+	_, ok = b.Entry(a)
+	assert.False(t, ok, "a schema writing no $ref has no entry")
+	stranger := oas3.NewJSONSchemaFromReference("#/components/schemas/A")
+	_, ok = b.Site(stranger)
+	assert.False(t, ok, "a schema the bindings never met")
+	assert.Nil(t, b.Declared(stranger))
+	assert.NotNil(t, b.Table())
+}
+
+// TestBindings_RefSiteIsWhereTheTableReadsAReference pins RefKeyword: a $ref,
+// an empty one included, and a $dynamicRef naming no $dynamicAnchor, which the
+// table reads as the $ref it spells, are reference sites; a body, a boolean, a
+// $dynamicRef landing on a $dynamicAnchor and nil are not, and RefSite
+// agrees. A nil Bindings knows the model's $ref alone.
+func TestBindings_RefSiteIsWhereTheTableReadsAReference(t *testing.T) {
+	t.Parallel()
+	b, doc, _ := bindingsOf(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$dynamicAnchor: node, type: string}
+    Ref: {$ref: '#/components/schemas/A'}
+    Empty: {$ref: ''}
+    Static: {$dynamicRef: '#/components/schemas/A'}
+    Dynamic: {$dynamicRef: '#node'}
+    Bool: true
+`)
+	for name, want := range map[string]string{"A": "", "Ref": "$ref", "Empty": "$ref", "Static": "$dynamicRef",
+		"Dynamic": "", "Bool": ""} {
+		js := component(t, doc, name)
+		assert.Equal(t, want, b.RefKeyword(js), name)
+		assert.Equal(t, want != "", b.RefSite(js), name)
+	}
+	assert.False(t, b.RefSite(nil))
+
+	var none *typed.Bindings
+	assert.True(t, none.RefSite(component(t, doc, "Ref")), "the model writes a $ref")
+	assert.False(t, none.RefSite(component(t, doc, "Static")), "only the table reads a $dynamicRef")
+}
+
+// TestBindings_AnswerAMappingValueByItsDiscriminator pins Mapping: a value of
+// the discriminator read at a position, and nothing where the table read none.
+func TestBindings_AnswerAMappingValueByItsDiscriminator(t *testing.T) {
+	t.Parallel()
+	b, _, _ := bindings(t)
+	m, ok := b.Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/S")
+	require.True(t, ok)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-lib/S"}, m.Hop.Target)
+	_, ok = b.Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x-lib/T")
+	assert.False(t, ok, "a value the mapping does not write")
+	_, ok = b.Mapping(reftable.DocumentPointer{}, "#/x-lib/S")
+	assert.False(t, ok, "the position of a schema the bindings do not know")
+	_, ok = b.Mapping(reftable.DocumentPointer{Pointer: "/x-lib/S/discriminator"}, "#/x-lib/S")
+	assert.False(t, ok, "a discriminator that maps nothing")
+}
+
+// TestBuilder_BuildsEachLandingOnce pins Build: a schema for each landing, in
+// order, with what decoding it found, a boolean one included, and none built
+// twice for a position a schema is held at.
+func TestBuilder_BuildsEachLandingOnce(t *testing.T) {
+	t.Parallel()
+	b, _, built := bindings(t)
+	require.Len(t, built, 3)
+	assert.Equal(t, jsontext.Pointer("/x-lib/S"), built[0].Landing.At.Pointer)
+	assert.Equal(t, jsontext.Pointer("/x-lib/S/properties/x"), built[1].Landing.At.Pointer)
+	assert.Equal(t, jsontext.Pointer("/x-lib/T"), built[2].Landing.At.Pointer)
+	for _, x := range built {
+		require.NoError(t, x.Err)
+		assert.Same(t, x.Schema, b.At(x.Landing.At))
+	}
+	x, ok := built[0].Schema.GetSchema().GetProperties().Get("x")
+	require.True(t, ok)
+	assert.Same(t, x, built[1].Schema, "a landing inside one built before holds that one's schema")
+	assert.True(t, built[2].Schema.IsBool())
+}
+
+// TestBindings_ANilOneKnowsNothing pins what the nil Bindings answers: none,
+// whatever is asked.
+func TestBindings_ANilOneKnowsNothing(t *testing.T) {
+	t.Parallel()
+	var b *typed.Bindings
+	js := oas3.NewJSONSchemaFromReference("#/x")
+	_, ok := b.Site(js)
+	assert.False(t, ok)
+	assert.Nil(t, b.Declared(js))
+	assert.Nil(t, b.End(js))
+	assert.Nil(t, b.At(reftable.DocumentPointer{}))
+	assert.Nil(t, b.Table())
+	_, ok = b.Mapping(reftable.DocumentPointer{Pointer: "/components/schemas/D/discriminator"}, "#/x")
+	assert.False(t, ok)
+	_, _, ok = b.ObjectSite(&soa.ReferencedParameter{})
+	assert.False(t, ok)
+	_, ok = b.Reference(&soa.ReferencedParameter{})
+	assert.False(t, ok)
+	assert.Nil(t, b.ObjectAt(reftable.DocumentPointer{}, reftable.RefParameter))
+	bd := typed.NewBuilder(nil)
+	bd.Schema(nil, reftable.DocumentPointer{})
+	assert.Nil(t, bd.Bindings().At(reftable.DocumentPointer{}), "recording no schema holds none")
+}
+
+// TestBindings_HoldsTheFirstObjectRecordedAtAPosition pins the object index:
+// where each wrapper was read and as which kind, the first recorded of a kind
+// held at a position, another kind held there beside it, and no wrapper or
+// kind recorded for none.
+func TestBindings_HoldsTheFirstObjectRecordedAtAPosition(t *testing.T) {
+	t.Parallel()
+	bd := typed.NewBuilder(nil)
+	p := reftable.DocumentPointer{Pointer: "/components/parameters/P"}
+	first, second, header := &soa.ReferencedParameter{}, &soa.ReferencedParameter{}, &soa.ReferencedHeader{}
+	bd.Object(first, reftable.RefParameter, p)
+	bd.Object(second, reftable.RefParameter, p)
+	bd.Object(header, reftable.RefHeader, p)
+	bd.Object(nil, reftable.RefParameter, reftable.DocumentPointer{Pointer: "/x"})
+	bd.Object(&soa.ReferencedLink{}, 0, reftable.DocumentPointer{Pointer: "/y"})
+	b := bd.Bindings()
+
+	assert.Same(t, first, b.ObjectAt(p, reftable.RefParameter), "the first recorded is held")
+	assert.Same(t, header, b.ObjectAt(p, reftable.RefHeader), "another kind beside it")
+	assert.True(t, bd.HoldsObject(p, reftable.RefParameter))
+	assert.False(t, bd.HoldsObject(p, reftable.RefLink))
+	at, kind, ok := b.ObjectSite(second)
+	require.True(t, ok, "a wrapper not held is placed all the same")
+	assert.Equal(t, p, at)
+	assert.Equal(t, reftable.RefParameter, kind)
+	assert.Nil(t, b.ObjectAt(reftable.DocumentPointer{Pointer: "/x"}, reftable.RefParameter), "no wrapper, none held")
+	assert.Nil(t, b.ObjectAt(reftable.DocumentPointer{Pointer: "/y"}, 0), "no kind, none held")
+}
+
+// TestBindings_ReadsTheReferenceAtAWrappersSite pins Reference: the table's
+// entry for the Reference Object written where a wrapper was read, as the kind
+// it was read as, and none for an inline object, a wrapper read as another
+// kind, or one never recorded.
+func TestBindings_ReadsTheReferenceAtAWrappersSite(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  parameters:
+    P: {$ref: '#/components/parameters/Q'}
+    Q: {name: q, in: query}
+`))
+	require.NoError(t, err)
+	bd := typed.NewBuilder(reftable.Bind(t.Context(), doc.GetRootNode(), reftable.Config{Self: "spec.yaml"}))
+	params := doc.Components.GetParameters()
+	p, q := params.GetOrZero("P"), params.GetOrZero("Q")
+	bd.Object(p, reftable.RefParameter, reftable.DocumentPointer{Pointer: "/components/parameters/P"})
+	bd.Object(q, reftable.RefParameter, reftable.DocumentPointer{Pointer: "/components/parameters/Q"})
+	other := &soa.ReferencedHeader{}
+	bd.Object(other, reftable.RefHeader, reftable.DocumentPointer{Pointer: "/components/parameters/P"})
+	b := bd.Bindings()
+
+	r, ok := b.Reference(p)
+	require.True(t, ok)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/parameters/Q"}, r.Chain.End)
+	_, ok = b.Reference(q)
+	assert.False(t, ok, "an inline object writes no reference")
+	_, ok = b.Reference(other)
+	assert.False(t, ok, "read as another kind, the table read none")
+	_, ok = b.Reference(&soa.ReferencedParameter{})
+	assert.False(t, ok, "a wrapper never recorded")
+}
+
+// TestPointerOf pins the pointer a walk location spells: none for the walk's
+// own start, a field, a key escaped as RFC 6901 escapes it, and an index,
+// where the library's own rendering writes a lone '/' and '//' before a key.
+func TestPointerOf(t *testing.T) {
+	t.Parallel()
+	type loc = walk.LocationContext[any]
+	assert.Equal(t, jsontext.Pointer(""), typed.PointerOf(walk.Locations[any]{}))
+	assert.Equal(t, jsontext.Pointer("/a~1b/~0c"), typed.PointerOf(walk.Locations[any]{{ParentKey: new("a/b")},
+		{ParentKey: new("~c")}}))
+	assert.Equal(t, jsontext.Pointer("/properties/p/allOf/2"), typed.PointerOf(walk.Locations[any]{
+		{ParentField: "properties", ParentKey: new("p")}, loc{ParentField: "allOf", ParentIndex: new(2)}}))
+}
+
+// TestPointerOf_CostsItsLength pins that a location is spelled once: one twice
+// as deep allocates about twice the bytes, where extending the pointer a token
+// at a time copied it at each token and cost four times. Bytes count the work,
+// since they do not depend on the machine. It is not parallel, as the count is
+// the process's.
+func TestPointerOf_CostsItsLength(t *testing.T) {
+	deep := func(levels int) walk.Locations[any] {
+		out := make(walk.Locations[any], levels)
+		for i := range out {
+			out[i] = walk.LocationContext[any]{ParentField: "properties", ParentKey: new("p")}
+		}
+		return out
+	}
+	short, long := deep(500), deep(1000)
+	require.Equal(t, jsontext.Pointer(strings.Repeat("/properties/p", 1000)), typed.PointerOf(long))
+	shortBytes := allocated(func() { _ = typed.PointerOf(short) })
+	longBytes := allocated(func() { _ = typed.PointerOf(long) })
+	assert.Less(t, longBytes, 3*shortBytes, "twice the depth, about twice the bytes")
+}
+
+// TestBuild_CostsLinearInItsLandings pins that the landings of one wide mapping
+// read their paths through one view: twice the landings allocate about twice
+// the bytes, where a view built for each landing expanded the mapping again
+// each time and cost four times. It is not parallel, as the count is the
+// process's.
+func TestBuild_CostsLinearInItsLandings(t *testing.T) {
+	cost := func(n int) uint64 {
+		var b strings.Builder
+		b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n")
+		for i := range n {
+			fmt.Fprintf(&b, "    S%d: {$ref: '#/x-lib/T%d'}\n", i, i)
+		}
+		b.WriteString("x-lib:\n")
+		for i := range n {
+			fmt.Fprintf(&b, "  T%d: {type: string}\n", i)
+		}
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(b.String()), &root))
+		table := reftable.Bind(t.Context(), &root, reftable.Config{Self: "spec.yaml"})
+		require.Len(t, table.Landings(), n)
+		return allocated(func() { typed.NewBuilder(table).Build(t.Context()) })
+	}
+	assert.Less(t, cost(2_000), 3*cost(1_000), "twice the landings, about twice the bytes")
+}
+
+// allocated is the fewest bytes five runs of f allocate on the heap, over
+// three tries: whatever else the process allocates meanwhile only adds to a
+// count, so the least is the one f alone accounts for.
+func allocated(f func()) uint64 {
+	var stats runtime.MemStats
+	least := uint64(math.MaxUint64)
+	for range 3 {
+		runtime.ReadMemStats(&stats)
+		before := stats.TotalAlloc
+		for range 5 {
+			f()
+		}
+		runtime.ReadMemStats(&stats)
+		least = min(least, stats.TotalAlloc-before)
+	}
+	return least
+}

@@ -9,8 +9,8 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // MaxFlattenDepth bounds how many allOf lists a statement flattens one inside
@@ -55,7 +55,7 @@ type AllOfConjunct struct {
 // node is its key's. A slot is nil where neither holds a keyword of it.
 // Whether the rows read a key is its Slot.
 type Schema struct {
-	At   bind.DocumentPointer
+	At   reftable.DocumentPointer
 	Node *yaml.Node
 	Keys []Key
 	// Unknown lists the keys the parser's model holds no field for, read
@@ -140,14 +140,14 @@ func (s *Schema) find(name string) (place, compared int) {
 
 // Key is one key a schema object writes: its name, its value with its alias
 // followed, the slot the rows it is read with place it in and whether they
-// define it only later (oas.SchemaRules.Slot), whether its value is null, and
+// define it only later (specrules.SchemaRules.Slot), whether its value is null, and
 // whether the parser's model holds it. The census of unknown keywords reads
 // Schema.Unknown and not this, as a key merged in past
 // nodeview.MergeDepthLimit is no Key.
 type Key struct {
 	Name                    string
 	Node                    *yaml.Node
-	Slot                    oas.Slot
+	Slot                    specrules.Slot
 	DefinedOnlyInLaterMinor bool
 	Null                    bool
 	Modeled                 bool
@@ -155,7 +155,7 @@ type Key struct {
 
 // Defined reports whether the rows the schema is read with define the key, as
 // they do not for an extension or a keyword of another dialect.
-func (k Key) Defined() bool { return k.Slot != oas.SlotUnknown }
+func (k Key) Defined() bool { return k.Slot != specrules.SlotUnknown }
 
 // read reports whether the key's value is read: any but a null, which is
 // read only where the keyword holds an instance.
@@ -201,7 +201,7 @@ type Subschema struct {
 // it, Bound false where they hold none.
 type Reference struct {
 	Keyword, Text string
-	Entry         bind.ReferenceSite
+	Entry         reftable.ReferenceSite
 	Bound         bool
 }
 

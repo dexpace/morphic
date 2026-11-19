@@ -15,10 +15,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
@@ -108,7 +108,7 @@ func TestCompile_ASelfURIMovesNoFetchedDocumentOntoAFile(t *testing.T) {
 	bad := unresolvedRefs(diags)
 	require.Len(t, bad, 1, "%+v", diags)
 	assert.Equal(t, 1, bad[0].Provenance.Source, "in far.yaml's entry")
-	assert.Contains(t, bad[0].Message, bind.OffNetwork)
+	assert.Contains(t, bad[0].Message, reftable.OffNetwork)
 	assert.Equal(t, []string{srv.URL + "/far.yaml"}, rec.locations())
 }
 

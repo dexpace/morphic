@@ -26,7 +26,7 @@ func Pairs(n *yaml.Node) []Pair {
 // It builds no view, and allocates nothing for a mapping that merges nothing,
 // which is what lets every reader of a schema keyword ask it. Its work is the
 // merge structure's, which the alias scans bound; the load phase reports a
-// chain past MergeDepthLimit (bind.ReferenceTargetTable.Truncated).
+// chain past MergeDepthLimit (reftable.ReferenceTargetTable.Truncated).
 func Child(n *yaml.Node, key string) *yaml.Node {
 	v, _ := childIn(Deref(DocumentRoot(n)), key, lastCopy, nil)
 	return v
@@ -81,7 +81,7 @@ func childOfSource(val *yaml.Node, key string, path []*yaml.Node) (*yaml.Node, b
 }
 
 // Strings returns the text of each item of the sequence n, and whether n is a
-// list of strings as oas.Checker reads one: scalars, none null, aliases followed.
+// list of strings as specrules.Checker reads one: scalars, none null, aliases followed.
 // A scalar's tag does not matter, as it does to the model
 // (docs/parser-library.md#undecoded-scalar).
 func Strings(n *yaml.Node) ([]string, bool) {

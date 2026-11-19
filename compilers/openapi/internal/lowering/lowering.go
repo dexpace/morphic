@@ -8,15 +8,15 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -48,8 +48,8 @@ type Ctx struct {
 
 	// schemas is the set of component-schema names the document declares, read
 	// through DeclaresSchema and handed to each scope RefScope builds. Every copy
-	// shares it, and a resolve.Names lets none write to it.
-	schemas resolve.Names
+	// shares it, and a componentlookup.Names lets none write to it.
+	schemas componentlookup.Names
 
 	// NullableInference is the nullable-inference policy,
 	// DiscriminatorInference the discriminator-inference policy, and
@@ -68,7 +68,7 @@ type Ctx struct {
 	// source. Copies share it on purpose: only the document's lowering reads it,
 	// once every other lowering has returned (Reached), so it cannot change their
 	// answers.
-	reached *resolve.Reached
+	reached *componentlookup.Reached
 }
 
 // shared holds what every copy of a context reads of the load phase (see
@@ -89,14 +89,14 @@ type shared struct {
 	// the one table it built, so no context builds another. Copies share them
 	// on purpose: nothing writes either after the load, so no lowering changes
 	// what another reads.
-	documents map[bind.DocID]BoundDocument
+	documents map[reftable.DocID]BoundDocument
 	dialects  dialect.SchemaDialectRows
 	// sources is the compile's input files, in the order Provenance.Source
 	// indexes them (Sources).
 	sources []ir.SourceInfo
 	// reads holds those readings in the scope fields they fill: SelfPath, and
 	// Bindings over every $ref.
-	reads resolve.Scope
+	reads componentlookup.Scope
 	// readings remembers each answer Remembered read, in a map per type of key
 	// and answer (memo). Copies share it on purpose: an answer reads only the
 	// documents and their bindings, which no lowering changes, so what one copy
@@ -140,20 +140,20 @@ type BoundDocument struct {
 // below: where the source lies and where the compile's files lie, as its
 // references are read against; where each $ref lands; the component schemas
 // the source declares; each document of the bindings' table the compile read,
-// the source at bind.Source; the rows each schema is read with; and the
+// the source at reftable.Source; the rows each schema is read with; and the
 // compile's input files, in the order Provenance.Source indexes them.
 type Loaded struct {
 	Location  string
-	Places    *resolve.Places
+	Places    *componentlookup.Places
 	Bindings  *typed.Bindings
-	Declares  resolve.Names
-	Documents map[bind.DocID]BoundDocument
+	Declares  componentlookup.Names
+	Documents map[reftable.DocID]BoundDocument
 	Rules     dialect.SchemaDialectRows
 	Sources   []ir.SourceInfo
 }
 
 // New derives the context for in under p, reading the source's own content:
-// in.Documents holds the source at bind.Source.
+// in.Documents holds the source at reftable.Source.
 //
 // The schema-name index arrives built, not built on first use, so every reader
 // sees the same set whatever the source order: a $ref resolved mid-lowering
@@ -162,7 +162,7 @@ type Loaded struct {
 func New(in Loaded, p Policy) Ctx {
 	promoter := promotion.New(p.Promotions)
 	return Ctx{
-		DocumentPlacement:      siteOf(bind.Source, in.Documents[bind.Source]),
+		DocumentPlacement:      siteOf(reftable.Source, in.Documents[reftable.Source]),
 		Limits:                 p.Limits,
 		schemas:                in.Declares,
 		promoter:               &promoter,
@@ -172,15 +172,15 @@ func New(in Loaded, p Policy) Ctx {
 
 		shared: &shared{documents: maps.Clone(in.Documents), dialects: in.Rules, sources: slices.Clone(in.Sources),
 			names:    naming.New(in.Bindings.Table(), p.TitleNames.Honours()),
-			reads:    resolve.Scope{SelfPath: in.Location, Places: in.Places, Bindings: in.Bindings},
+			reads:    componentlookup.Scope{SelfPath: in.Location, Places: in.Places, Bindings: in.Bindings},
 			readings: map[any]any{}, settled: map[any]any{},
 			statements: statement.NewTable(statement.Source{Bindings: in.Bindings, Rules: in.Rules})},
-		reached: resolve.NewReached(),
+		reached: componentlookup.NewReached(),
 	}
 }
 
 // siteOf returns the site of document id, which d is.
-func siteOf(id bind.DocID, d BoundDocument) DocumentPlacement {
+func siteOf(id reftable.DocID, d BoundDocument) DocumentPlacement {
 	return DocumentPlacement{place: d.Place, ids: d.IDs, doc: id}
 }
 
@@ -279,7 +279,7 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 // minor decides, such as a required `items` or the effect `nullable` has, asks
 // these rather than the version; a keyword's shape, which a schema's dialect
 // decides, asks Rules.
-func (c Ctx) SchemaRules() oas.SchemaRules { return c.Rules().In(c.doc) }
+func (c Ctx) SchemaRules() specrules.SchemaRules { return c.Rules().In(c.doc) }
 
 // Rules returns the rows each schema of the compile is read with, which the
 // load phase read off the one table it judged the documents against.
@@ -292,11 +292,11 @@ func (c Ctx) Rules() dialect.SchemaDialectRows { return c.shared.dialects }
 // would be a second place the same facts live, free to disagree with the
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
-func (c Ctx) RefScope() resolve.Scope {
+func (c Ctx) RefScope() componentlookup.Scope {
 	r := c.shared.reads
-	scope := resolve.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Reached: c.reached,
+	scope := componentlookup.Scope{SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas, Reached: c.reached,
 		Bindings: r.Bindings}
-	if c.doc != bind.Source {
+	if c.doc != reftable.Source {
 		scope.Foreign, scope.Holder = true, c.shared.documents[c.doc].Name
 	}
 	return scope
@@ -324,7 +324,7 @@ func NameThrough(c Ctx, pointer jsontext.Pointer) string {
 
 // NameOfDocument returns the hint what is declared at the root of document doc
 // of the bindings' table is named by (naming.Namer.Document).
-func NameOfDocument(c Ctx, doc bind.DocID) string {
+func NameOfDocument(c Ctx, doc reftable.DocID) string {
 	return c.shared.names.Document(doc)
 }
 
@@ -334,7 +334,7 @@ func NameOfDocument(c Ctx, doc bind.DocID) string {
 // own, so each Provenance names it, and whose IDs it qualifies. It is the one
 // way to another document, or back to the source. It is false, c unchanged,
 // for a document the compile did not read beside the source.
-func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
+func InDocument(c Ctx, id reftable.DocID) (Ctx, bool) {
 	d, ok := c.shared.documents[id]
 	if !ok {
 		return c, false
@@ -344,7 +344,7 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 }
 
 // DynamicAnchor returns what c's document's declarations of the
-// $dynamicAnchor name say (bind.ReferenceTargetTable.DynamicAnchor).
-func (c Ctx) DynamicAnchor(name string) bind.DynamicAnchor {
+// $dynamicAnchor name say (reftable.ReferenceTargetTable.DynamicAnchor).
+func (c Ctx) DynamicAnchor(name string) reftable.DynamicAnchor {
 	return c.Bindings().Table().DynamicAnchor(c.doc, name)
 }

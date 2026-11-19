@@ -11,11 +11,11 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -40,7 +40,7 @@ func LowerSecuritySchemes(c service.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diag
 		diags = append(diags, schemeDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
-		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](c.Bindings(), rs, scheme.Docs)
+		scheme.Docs = componentlookup.UseDocs[soa.SecurityScheme](c.Bindings(), rs, scheme.Docs)
 		beside, besideDiags := service.Beside[soa.SecurityScheme](c, rs, ids.Ptr("components", "securitySchemes", name), true)
 		scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, beside)
 		diags = append(diags, besideDiags...)

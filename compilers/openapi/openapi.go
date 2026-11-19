@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/document"
@@ -33,7 +34,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/stream"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -125,7 +125,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	// assembles Document
 	out, lowerDiags, err := run(ctx, service.New(rootSrcIndex, loadedDoc, loweringPolicy(formatOpts)),
 		inferencesOf(formatOpts), compile.NewTypes(),
-		whole.New)
+		compileddoc.New)
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
 	if err != nil {
@@ -191,7 +191,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // §2.1) and assembles the Document. Order matters: named component schemas
 // first, so operations' refs find interned IDs; then security schemes, which
 // requirements reference; then the service walk and deferred settlements; then
-// the steps reading whole.CompiledDocumentView.
+// the steps reading compileddoc.CompiledDocumentView.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
 // document is wrong, the caller stopped asking. It drops the document, since
@@ -199,7 +199,7 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // interned or settled, but returns the diagnostics gathered before the stop.
 // It refuses a document past Limits.MaxReferenceExpansion without error.
 func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
-	newWhole func(*ir.Document) *whole.CompiledDocumentView,
+	newWhole func(*ir.Document) *compileddoc.CompiledDocumentView,
 ) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
@@ -249,7 +249,7 @@ func run(ctx context.Context, c service.Ctx, inf inferences, ts *compile.Types,
 	// A replacement may be declared after what it replaces, and what a name
 	// implies turns on the type a $ref names, built in any order. Each step
 	// reads the document through w, which lists and indexes it once for all;
-	// newWhole is whole.New, which a test counts.
+	// newWhole is compileddoc.New, which a test counts.
 	w := newWhole(out)
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, w, srv))

@@ -19,10 +19,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -435,7 +435,7 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 	if d.other != "" {
 		files["other.yaml"] = d.other
 	}
-	cfg := bind.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
+	cfg := reftable.Config{Self: "spec.yaml", Open: func(name, _ string) (*yaml.Node, error) {
 		text, ok := files[name]
 		if !ok {
 			return nil, errors.New("no such document")
@@ -444,10 +444,10 @@ func twinAnswers(t *testing.T, p twinPlace, d twinDoc, nested string) []string {
 		return &n, yaml.Unmarshal([]byte(text), &n)
 	}}
 	root := openapitest.YAMLDocument(t, src)
-	table := bind.Bind(t.Context(), root, cfg)
+	table := reftable.Bind(t.Context(), root, cfg)
 	lines := bindAnswers(table)
 	// An incomplete total is never read, so its count says nothing.
-	if named, complete := bind.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
+	if named, complete := reftable.NamedPointerBytes(t.Context(), nodeview.DocumentRoot(root), 1<<20); complete {
 		lines = append(lines, fmt.Sprintf("named pointer bytes %d", named))
 	}
 
@@ -522,12 +522,12 @@ func irAnswers(t *testing.T, doc *ir.Document) []string {
 // bindAnswers is what table says of every reference it read: each schema
 // $ref's hop and chain, each landing, each reference object's hop and chain,
 // and each object landing.
-func bindAnswers(table *bind.ReferenceTargetTable) []string {
-	at := func(p bind.DocumentPointer) string { return table.Document(p.Doc).Name + "#" + string(p.Pointer) }
-	hop := func(h bind.Hop) string {
+func bindAnswers(table *reftable.ReferenceTargetTable) []string {
+	at := func(p reftable.DocumentPointer) string { return table.Document(p.Doc).Name + "#" + string(p.Pointer) }
+	hop := func(h reftable.Hop) string {
 		return fmt.Sprintf("hop %s %d %s %s %s | ", h.Status, h.Reason, h.Role, at(h.Target), h.Detail)
 	}
-	chain := func(c bind.Chain) string { return fmt.Sprintf("chain %s %s %d", c.Status, at(c.End), c.Hops) }
+	chain := func(c reftable.Chain) string { return fmt.Sprintf("chain %s %s %d", c.Status, at(c.End), c.Hops) }
 	lines := make([]string, 0, len(table.Entries())+len(table.Landings())+len(table.References())+
 		len(table.ObjectLandings()))
 	for _, e := range table.Entries() {

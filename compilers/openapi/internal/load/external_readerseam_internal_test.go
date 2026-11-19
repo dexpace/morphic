@@ -265,7 +265,7 @@ func TestExternal_DocumentServesWhatTheReaderReturned(t *testing.T) {
 // TestExternal_AReadRefusesByHowItIsNamed pins that a read refuses no key by
 // its spelling: a file URI, confined or not, a path that reads like a URL and
 // a relative path are each read. A refusal by how the $ref spells its document
-// part is the binder's (bind.Config.Refuse, refusedByName), made before it
+// part is the binder's (reftable.Config.Refuse, refusedByName), made before it
 // asks, so it depends on no order of reading (GitHub #1886).
 func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 	t.Parallel()

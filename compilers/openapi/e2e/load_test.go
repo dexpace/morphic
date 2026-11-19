@@ -23,10 +23,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -527,7 +527,7 @@ func TestCompile_AnUnusableDocumentIsReportedAlikeOnEitherRoute(t *testing.T) {
 // would read "foo:b.yaml" as a path against it. A file whose name holds a
 // colon, written "./foo:b.yaml", is read, the spec named relatively too,
 // where the parser library's join would make it that same "foo:b.yaml"
-// (resolve.Locate keeps the "./"). Both routes word the refusal alike.
+// (componentlookup.Locate keeps the "./"). Both routes word the refusal alike.
 func TestCompile_AURLNoReaderReadsIsRefusedUnread(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -909,7 +909,7 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 				}
 				if strings.Contains(tc.name, "file URI") {
 					require.Len(t, diags, 1, "%+v", diags)
-					assert.Contains(t, diags[0].Message, bind.OffNetwork, "a $self moves no fetched read onto a file")
+					assert.Contains(t, diags[0].Message, reftable.OffNetwork, "a $self moves no fetched read onto a file")
 					return
 				}
 				// The path the $self names is on the source's host, which this
@@ -933,7 +933,7 @@ func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
 // though the two spell its URL apart in ways RFC 3986 reads as one: a host in
 // upper case, an unreserved character percent-encoded, a dot segment. Nothing
 // is fetched, and the parameter is the source's own. Only the binder's own
-// comparison of the URLs (bind.resources.names) matches these spellings: the
+// comparison of the URLs (reftable.resources.names) matches these spellings: the
 // table of documents read, keyed by name, matches none of them.
 func TestCompile_ASourceReadOverTheNetworkIsNamedHoweverItsURLIsSpelled(t *testing.T) {
 	t.Parallel()
@@ -1067,7 +1067,7 @@ func assertNoLocalRead(t *testing.T, got networkCompile, other string, refused b
 	}
 	require.NotEmpty(t, why)
 	for _, w := range why {
-		assert.Contains(t, w, bind.OffNetwork, "the reference is refused where it is written")
+		assert.Contains(t, w, reftable.OffNetwork, "the reference is refused where it is written")
 	}
 }
 

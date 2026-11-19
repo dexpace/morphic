@@ -10,9 +10,9 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
@@ -38,7 +38,7 @@ func lowerHeaders(c service.Ctx, w operationLoweringState, headers *sequencedmap
 		diags = append(diags, headerDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this header rather than the declaration it names (GitHub #610).
-		lowered.Docs = resolve.UseDocs[soa.Header](c.Bindings(), rh, lowered.Docs)
+		lowered.Docs = componentlookup.UseDocs[soa.Header](c.Bindings(), rh, lowered.Docs)
 		beside, besideDiags := service.Beside[soa.Header](c, rh, hptr, true)
 		lowered.Unmodeled = annotation.MergeUnmodeled(lowered.Unmodeled, beside)
 		diags = append(diags, besideDiags...)

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // paramIDType is the reflect.Type of ir.ParamID, the class of identity a
@@ -60,9 +60,9 @@ func checkParamBindings(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic
 // bindingMaps are what checkParamBindings reads an operation and each of its
 // HTTP bindings through.
 type bindingMaps struct {
-	names       reuse.Map[ir.ParamID, string]
-	bound       reuse.Map[ir.ParamID, int]
-	perLocation reuse.Map[paramLocation, int]
+	names       scratchstate.Map[ir.ParamID, string]
+	bound       scratchstate.Map[ir.ParamID, int]
+	perLocation scratchstate.Map[paramLocation, int]
 }
 
 // paramLocation keys the per-location bound-once count: a parameter is
@@ -212,7 +212,7 @@ func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
 // so none costs one of its own.
 func checkParamReferences(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var declared reuse.Map[ir.ParamID, bool]
+	var declared scratchstate.Map[ir.ParamID, bool]
 	var carried []paramRef
 	ir.ForEachOperation(doc, func(op ir.Operation) {
 		own := declared.Emptied()

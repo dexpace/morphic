@@ -10,25 +10,25 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
 // everywhere returns the rows table reading every position with rules.
-func everywhere(rules oas.SchemaRules) dialect.SchemaDialectRows {
+func everywhere(rules specrules.SchemaRules) dialect.SchemaDialectRows {
 	return dialect.NewBuilder(rules).Table()
 }
 
 // rulesAt returns the Schema Object's rows at version in the dialect named.
-func rulesAt(t *testing.T, version, named string) oas.SchemaRules {
+func rulesAt(t *testing.T, version, named string) specrules.SchemaRules {
 	t.Helper()
-	r, unread := oas.Table().SchemaRules(version, named)
+	r, unread := specrules.Table().SchemaRules(version, named)
 	require.False(t, unread, "%s %s", version, named)
 	return r
 }
@@ -41,14 +41,14 @@ func document(version string, schemas ...string) string {
 
 // tableOver loads spec and returns a table reading its bindings with rules,
 // and the context positions in its document are taken from.
-func tableOver(t *testing.T, spec string, rules oas.SchemaRules) (*statement.MemoizingSchemaReader, lowering.Ctx) {
+func tableOver(t *testing.T, spec string, rules specrules.SchemaRules) (*statement.MemoizingSchemaReader, lowering.Ctx) {
 	t.Helper()
 	c := servicetest.Context(t, spec, service.Policy{})
 	return statement.NewTable(statement.Source{Bindings: c.Bindings(), Rules: everywhere(rules)}), c.Ctx
 }
 
 // component returns the position of the component schema name.
-func component(c lowering.Ctx, name string) bind.DocumentPointer {
+func component(c lowering.Ctx, name string) reftable.DocumentPointer {
 	return c.Position(jsontext.Pointer("/components/schemas/" + name))
 }
 

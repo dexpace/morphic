@@ -11,11 +11,11 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -74,13 +74,13 @@ func landingRepeats(ctx context.Context, sites places, sibs Siblings, b *typed.B
 		if ctx.Err() != nil {
 			return nil
 		}
-		rp, built := b.ObjectAt(l.At, bind.RefPathItem).(*soa.ReferencedPathItem)
-		if l.Kind != bind.RefPathItem || !l.Reached || !built {
+		rp, built := b.ObjectAt(l.At, reftable.RefPathItem).(*soa.ReferencedPathItem)
+		if l.Kind != reftable.RefPathItem || !l.Reached || !built {
 			continue
 		}
 		doc := l.At.Doc
 		at := func(p jsontext.Pointer) ir.Provenance {
-			return sites.position(bind.DocumentPointer{Doc: doc, Pointer: p})
+			return sites.position(reftable.DocumentPointer{Doc: doc, Pointer: p})
 		}
 		items := sibs.interleaved(ctx, locatedWalk(walk(ctx, rp), l.At.Pointer))
 		diags = append(diags, listRepeats(at, sibs, b, items)...)

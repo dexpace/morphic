@@ -14,14 +14,14 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/pagination"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 )
 
@@ -844,7 +844,7 @@ func decodeLocations(out *[]Location, value string) error {
 }
 
 // mappingsOf is ls as the load phase reads it, each prefix spelled as a
-// located URL is (bind.NormalURI), or why a prefix match could mistake one: a
+// located URL is (reftable.NormalURI), or why a prefix match could mistake one: a
 // prefix that is no absolute URI, holds a query or a fragment, or ends in no
 // "/" (else "https://e.com/x" would match "https://e.com/xy/b.yaml"), one
 // prefix written twice however it is spelled, an empty location, and a URL
@@ -866,11 +866,11 @@ func mappingsOf(ls []Location) ([]load.Mapping, error) {
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q maps to no location", optLocate, l.Prefix)
 		case refscope.IsURL(l.Location) && !strings.HasSuffix(l.Location, "/"):
 			return nil, fmt.Errorf("openapi: option %q: the location %q is a URL ending in no \"/\"", optLocate, l.Location)
-		case seen[bind.NormalURI(u)]:
+		case seen[reftable.NormalURI(u)]:
 			return nil, fmt.Errorf("openapi: option %q: the prefix %q is mapped twice", optLocate, l.Prefix)
 		}
-		seen[bind.NormalURI(u)] = true
-		out = append(out, load.Mapping{Prefix: bind.NormalURI(u), Location: l.Location})
+		seen[reftable.NormalURI(u)] = true
+		out = append(out, load.Mapping{Prefix: reftable.NormalURI(u), Location: l.Location})
 	}
 	return out, nil
 }

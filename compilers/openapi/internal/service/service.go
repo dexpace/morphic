@@ -10,14 +10,14 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -73,7 +73,7 @@ type loaded struct {
 	siblings load.Siblings
 	media    load.MediaTypes
 	others   load.Others
-	encoding map[bind.DocID]oas.EncodingRules
+	encoding map[reftable.DocID]specrules.EncodingRules
 }
 
 // Policy is the caller's choice of how a source is lowered, as the compiler's
@@ -100,7 +100,7 @@ func New(srcIndex int, doc *load.LoadedOpenAPIDocument, p Policy) Ctx {
 	streaming, binary := p.StreamingInference, p.BinaryInference
 	return Ctx{
 		Ctx: lowering.New(lowering.Loaded{Location: doc.Location, Places: doc.Places, Bindings: doc.Bindings,
-			Declares:  resolve.NewNames(slices.Collect(doc.Doc.Components.GetSchemas().Keys())...),
+			Declares:  componentlookup.NewNames(slices.Collect(doc.Doc.Components.GetSchemas().Keys())...),
 			Documents: documents, Rules: doc.Dialects, Sources: sourcesOf(doc)}, p.Schema),
 		Doc:               doc.Doc,
 		SrcIndex:          srcIndex,
@@ -121,19 +121,19 @@ func New(srcIndex int, doc *load.LoadedOpenAPIDocument, p Policy) Ctx {
 // the source know (load.Others.Named), at the minor and in the dialect it is
 // read in (load.Other.Rows). Two names one document is read by are two
 // entries naming one Document.Sources entry.
-func documentsOf(srcIndex int, doc *load.LoadedOpenAPIDocument) (map[bind.DocID]lowering.BoundDocument, map[bind.DocID]oas.EncodingRules) {
-	documents := map[bind.DocID]lowering.BoundDocument{
-		bind.Source: {Place: provenance.Doc{Source: srcIndex, Overlay: doc.Overlay.Attribution()}},
+func documentsOf(srcIndex int, doc *load.LoadedOpenAPIDocument) (map[reftable.DocID]lowering.BoundDocument, map[reftable.DocID]specrules.EncodingRules) {
+	documents := map[reftable.DocID]lowering.BoundDocument{
+		reftable.Source: {Place: provenance.Doc{Source: srcIndex, Overlay: doc.Overlay.Attribution()}},
 	}
-	encoding := map[bind.DocID]oas.EncodingRules{bind.Source: doc.Rows.Encoding}
+	encoding := map[reftable.DocID]specrules.EncodingRules{reftable.Source: doc.Rows.Encoding}
 	table := doc.Bindings.Table()
 	if table == nil {
 		return documents, encoding
 	}
-	for id := range bind.DocID(table.Documents()) {
+	for id := range reftable.DocID(table.Documents()) {
 		name := table.Document(id).Name
 		o, ok := doc.Others.Named(name)
-		if !ok || id == bind.Source {
+		if !ok || id == reftable.Source {
 			continue
 		}
 		documents[id] = lowering.BoundDocument{Name: name, Place: provenance.Doc{Source: o.Index}, IDs: ids.In(o.Label)}
@@ -160,7 +160,7 @@ func sourcesOf(doc *load.LoadedOpenAPIDocument) []ir.SourceInfo {
 // declares, at that document's own coordinates (lowering.InDocument), and
 // false, c unchanged, for a document the compile did not read beside the
 // source.
-func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
+func InDocument(c Ctx, id reftable.DocID) (Ctx, bool) {
 	in, ok := lowering.InDocument(c.Ctx, id)
 	if !ok {
 		return c, false
@@ -199,7 +199,7 @@ func (c Ctx) Siblings() load.Siblings {
 
 // MediaTypeUse returns the model the load phase built of media, a content
 // entry, and whether media is written as a $ref (load.MediaTypes.Use).
-func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, bool) {
+func (c Ctx) MediaTypeUse(media *soa.MediaType) (*componentlookup.ReferencedMediaType, bool) {
 	return c.loaded.media.Use(media)
 }
 
@@ -207,7 +207,7 @@ func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, b
 // with, those of the document whose content c reads, as c.SchemaRules returns
 // the Schema Object's: what a part takes where its encoding leaves a field
 // unwritten.
-func EncodingRules(c Ctx) oas.EncodingRules { return c.loaded.encoding[c.Position("").Doc] }
+func EncodingRules(c Ctx) specrules.EncodingRules { return c.loaded.encoding[c.Position("").Doc] }
 
 // Declared returns what the entry ref, written at usePtr in c's document,
 // resolves to, with the context its declaration is lowered in and the pointer
@@ -226,7 +226,7 @@ func Declared[T, S any, R chainable[T, S], P interface {
 		return nil, c, usePtr
 	}
 	use := c.Position(usePtr)
-	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, use)
+	obj, decl := componentlookup.ObjectAt[T, S](c.RefScope(), ref, use)
 	if obj == nil || decl == use {
 		return obj, c, usePtr
 	}

@@ -17,8 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -486,7 +486,7 @@ func literalTyped(lit *ir.Literal, s *statement.Schema) bool {
 	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
 		return true
 	}
-	prim, known := spelling.Lookup(string(types[0]))
+	prim, known := typeformat.Lookup(string(types[0]))
 	return known && narrowsOrIs(lit.ValueType, prim)
 }
 

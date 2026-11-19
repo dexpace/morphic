@@ -12,9 +12,9 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -71,7 +71,7 @@ func appendPluralExample(c service.Ctx, out []ir.Example, re *soa.ReferencedExam
 	}
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
-	docs := resolve.UseDocs[soa.Example](c.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
+	docs := componentlookup.UseDocs[soa.Example](c.Bindings(), re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
 	proto := ir.Example{
 		Name:        name,
 		Summary:     docs.Summary,

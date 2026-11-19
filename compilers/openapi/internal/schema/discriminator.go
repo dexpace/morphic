@@ -12,12 +12,12 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -320,12 +320,12 @@ func namedBranches(c lowering.Ctx, s, holder *statement.Schema) []ir.TypeID {
 // $ref, by name and by ID: the route OpenAPI's implicit mapping takes to it. It
 // is false for a branch naming none, one written inline or a $ref to any other
 // position. b is the branch's reference (referenceOf), nil for none.
-func componentNamed(scope resolve.Scope, b *statement.Statement) (string, ir.TypeID, bool) {
+func componentNamed(scope componentlookup.Scope, b *statement.Statement) (string, ir.TypeID, bool) {
 	if b == nil {
 		return "", "", false
 	}
 	at, ok := landsAt(b)
-	if !ok || at.Doc != bind.Source {
+	if !ok || at.Doc != reftable.Source {
 		return "", "", false
 	}
 	id, state := scope.ComponentRef(at.Pointer)

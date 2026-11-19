@@ -17,9 +17,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -28,7 +28,7 @@ const head = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"
 
 // table loads spec as root.yaml beside others, each written to disk under its
 // name, and returns the table the load bound.
-func table(t *testing.T, spec string, others map[string]string) *bind.ReferenceTargetTable {
+func table(t *testing.T, spec string, others map[string]string) *reftable.ReferenceTargetTable {
 	t.Helper()
 	dir := t.TempDir()
 	for name, body := range others {
@@ -42,16 +42,16 @@ func table(t *testing.T, spec string, others map[string]string) *bind.ReferenceT
 }
 
 // at is the source's position at pointer.
-func at(pointer string) bind.DocumentPointer {
-	return bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer(pointer)}
+func at(pointer string) reftable.DocumentPointer {
+	return reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer(pointer)}
 }
 
 // docNamed returns the number of the document the table read as name.
-func docNamed(t *testing.T, tb *bind.ReferenceTargetTable, name string) bind.DocID {
+func docNamed(t *testing.T, tb *reftable.ReferenceTargetTable, name string) reftable.DocID {
 	t.Helper()
 	for id := range tb.Documents() {
-		if strings.HasSuffix(tb.Document(bind.DocID(id)).Name, "/"+name) {
-			return bind.DocID(id)
+		if strings.HasSuffix(tb.Document(reftable.DocID(id)).Name, "/"+name) {
+			return reftable.DocID(id)
 		}
 	}
 	require.FailNow(t, "the load read no document named "+name)
@@ -445,7 +445,7 @@ components:
 
 // TestAt_NamesWhatAReferenceReadsAsASchema pins positions the grammar reads as
 // raw YAML, or in another document, named as the reference reaching them
-// reads them (bind.ReferenceTargetTable.Kinds): a schema an extension holds is named from
+// reads them (reftable.ReferenceTargetTable.Kinds): a schema an extension holds is named from
 // its pointer, as no owner names it, a parameter another document holds by
 // its name, and a document a reference reads as a schema after the document.
 func TestAt_NamesWhatAReferenceReadsAsASchema(t *testing.T) {
@@ -471,12 +471,12 @@ components:
 
 	assert.Equal(t, "Thing", read.At(at("/x-lib/Thing")), "an extension's schema is named from its pointer")
 	assert.Equal(t, "p", read.At(at("/x-lib/Thing/properties/p")))
-	assert.Equal(t, "size", read.At(bind.DocumentPointer{Doc: params, Pointer: "/Size/schema"}))
+	assert.Equal(t, "size", read.At(reftable.DocumentPointer{Doc: params, Pointer: "/Size/schema"}))
 	assert.Equal(t, compile.SubHint("q", "item"),
-		read.At(bind.DocumentPointer{Doc: params, Pointer: "/Size/schema/properties/q/items"}))
-	assert.Equal(t, "pet.yaml", read.At(bind.DocumentPointer{Doc: pet}), "a document's root schema is named for the document")
-	assert.Equal(t, compile.SubHint("tag", "item"), read.At(bind.DocumentPointer{Doc: pet, Pointer: "/properties/tag/items"}))
-	assert.Equal(t, compile.SubHint("list.yaml", "item"), read.At(bind.DocumentPointer{Doc: list, Pointer: "/items"}),
+		read.At(reftable.DocumentPointer{Doc: params, Pointer: "/Size/schema/properties/q/items"}))
+	assert.Equal(t, "pet.yaml", read.At(reftable.DocumentPointer{Doc: pet}), "a document's root schema is named for the document")
+	assert.Equal(t, compile.SubHint("tag", "item"), read.At(reftable.DocumentPointer{Doc: pet, Pointer: "/properties/tag/items"}))
+	assert.Equal(t, compile.SubHint("list.yaml", "item"), read.At(reftable.DocumentPointer{Doc: list, Pointer: "/items"}),
 		"the root's items are named by role, not as a key")
 }
 
@@ -514,9 +514,9 @@ components:
 	assert.Equal(t, "foo", read.At(at("/components/schemas/S/x-param/schema")))
 	assert.Equal(t, "request", read.At(at("/components/schemas/S/x-body"+json)))
 	assert.Equal(t, compile.SubHint("response", "item"), read.At(at("/components/schemas/S/x-resp"+json+"/items")))
-	assert.Equal(t, "page", read.At(bind.DocumentPointer{Doc: lib, Pointer: "/x-params/P/schema"}),
+	assert.Equal(t, "page", read.At(reftable.DocumentPointer{Doc: lib, Pointer: "/x-params/P/schema"}),
 		"a parameter in a document read whole as a schema")
-	assert.Equal(t, "lib.yaml", read.At(bind.DocumentPointer{Doc: lib}), "the document read whole")
+	assert.Equal(t, "lib.yaml", read.At(reftable.DocumentPointer{Doc: lib}), "the document read whole")
 }
 
 // titlesSpec writes a title at each kind of position a title names, beside one
@@ -766,8 +766,8 @@ components:
 	})
 	read := naming.New(tb, true)
 	pet := docNamed(t, tb, "pet.yaml")
-	assert.Equal(t, "domestic_pet", read.At(bind.DocumentPointer{Doc: pet}), "a document's root, by its title")
-	assert.Equal(t, "tag_line", read.At(bind.DocumentPointer{Doc: pet, Pointer: "/properties/tag"}))
+	assert.Equal(t, "domestic_pet", read.At(reftable.DocumentPointer{Doc: pet}), "a document's root, by its title")
+	assert.Equal(t, "tag_line", read.At(reftable.DocumentPointer{Doc: pet, Pointer: "/properties/tag"}))
 	assert.Equal(t, "s", read.At(at("/components/schemas/C/properties/s")),
 		"a title another document's component is named by")
 }

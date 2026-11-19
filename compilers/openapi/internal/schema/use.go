@@ -11,13 +11,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -71,9 +71,9 @@ func (u Use) SiteAt(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointe
 // keyword naming its identifier, whether the dialect ignores it beside a $ref s
 // writes, as the binder does, whether it defines `dependencies`, and whether it
 // reads an `items` list as a tuple (listedTuple).
-func dialectIn(rules oas.SchemaRules, s *statement.Schema) annotation.Dialect {
+func dialectIn(rules specrules.SchemaRules, s *statement.Schema) annotation.Dialect {
 	return annotation.Dialect{Identifier: rules.Identifier(), IdentifierIgnored: rules.IgnoresRefFields() && writesRef(s),
-		Dependencies: rules.Defines("dependencies"), ListedTuple: rules.Takes("items", oas.List)}
+		Dependencies: rules.Defines("dependencies"), ListedTuple: rules.Takes("items", specrules.List)}
 }
 
 // writesRef reports whether s writes a $ref the binder reads as one: a string,
@@ -360,10 +360,10 @@ func readLent(c lowering.Ctx, js *statement.Statement) Use {
 // what it appended, where the run ends on no schema, as a chain that loops or
 // fails does. The table's count of the chain's hops bounds the run.
 func (u *Use) appendFallbackChainRun(c lowering.Ctx, js *statement.Statement) (*statement.Schema, bool) {
-	var e bind.ReferenceSite
+	var e reftable.ReferenceSite
 	if js.Ref != nil && js.Ref.Bound {
 		e = js.Ref.Entry
-		if e.Chain.Status != bind.Resolved {
+		if e.Chain.Status != reftable.Resolved {
 			return nil, false
 		}
 	}

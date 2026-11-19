@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -230,7 +230,7 @@ func foldsReference(c lowering.Ctx, bs *statement.Schema) bool {
 // the bindings cannot tell is no match.
 func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 	site, placed := siteOf(e.schema.Schema)
-	at := bind.DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
+	at := reftable.DocumentPointer{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
 	own, known := c.Bindings().Table().Base(site)
 	position, knownAt := c.Bindings().Table().Base(at)
 	return placed && known && knownAt && own == position

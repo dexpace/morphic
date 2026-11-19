@@ -14,8 +14,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // TestReferenceKinds_EveryKindTheLibraryHasIsRead pins that the one place this
@@ -51,7 +51,7 @@ func TestReferenceKinds_EveryKindTheLibraryHasIsRead(t *testing.T) {
 			require.True(t, known, "%s: the load phase reads it as a reference object", name)
 			ref, bound := got.Bindings.Reference(model)
 			require.True(t, bound, "%s: the bindings know where it is written", name)
-			assert.Equal(t, bind.Resolved, ref.Chain.Status, "%s: and where its chain ends", name)
+			assert.Equal(t, reftable.Resolved, ref.Chain.Status, "%s: and where its chain ends", name)
 			core, _ := r.GetCoreAny().(interface{ GetRootNode() *yaml.Node })
 			built, _, err := decodeObject(t.Context(), kind, core.GetRootNode())
 			require.NoError(t, err, name)

@@ -23,10 +23,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -111,9 +111,9 @@ components:
 	got := judgeSource(t.Context(), root, treeOf(t.Context(), provenance.Doc{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
-	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
-	assert.False(t, got.seen[objectKey{node: p, kind: oas.Header}], "and not as another kind")
-	assert.False(t, got.seen[objectKey{node: nodeAt(t, top, "R"), kind: oas.Parameter}], "a reference object is no parameter")
+	assert.True(t, got.seen[objectKey{node: p, kind: specrules.Parameter}], "the parameter, once however it is reached")
+	assert.False(t, got.seen[objectKey{node: p, kind: specrules.Header}], "and not as another kind")
+	assert.False(t, got.seen[objectKey{node: nodeAt(t, top, "R"), kind: specrules.Parameter}], "a reference object is no parameter")
 }
 
 // nodeAt returns the node at the keys below n, which must hold them.
@@ -210,7 +210,7 @@ func TestLoad_WhatAnAliasMountsIsReportedOnce(t *testing.T) {
 // reported as an error.
 func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, scan.MaxNesting, oas.MaxDepth)
+	assert.Equal(t, scan.MaxNesting, specrules.MaxDepth)
 
 	const depth = 600
 	schema := strings.Repeat("{type: array, items: ", depth) + "{type: bogus}" + strings.Repeat("}", depth)
@@ -466,7 +466,7 @@ func TestJudgeSource_DeferringASchemaChangesNoFinding(t *testing.T) {
 			continue
 		}
 		version := declaredVersion(&root)
-		if m, ok := oas.ParseMinor(version); !ok || m == oas.V30 {
+		if m, ok := specrules.ParseMinor(version); !ok || m == specrules.V30 {
 			continue
 		}
 		checked++
@@ -484,20 +484,20 @@ func TestJudgeSource_DeferringASchemaChangesNoFinding(t *testing.T) {
 func judgedSchemas(t *testing.T, root *yaml.Node, version string, deferred bool) ([]ir.Diagnostic, map[objectKey]bool) {
 	t.Helper()
 	seen := map[objectKey]bool{}
-	var pending []oas.Pending
-	opts := oas.Options{
+	var pending []specrules.Pending
+	opts := specrules.Options{
 		Locate: walkedFrom(root, func(n *yaml.Node) ir.Provenance {
 			return ir.Provenance{Position: ir.Position{Line: n.Line, Column: n.Column}}
 		}),
 		ReadAt: true,
-		Seen:   func(k oas.Kind, n *yaml.Node) { seen[objectKey{node: nodeview.Deref(n), kind: k}] = true },
+		Seen:   func(k specrules.Kind, n *yaml.Node) { seen[objectKey{node: nodeview.Deref(n), kind: k}] = true },
 	}
-	checker := oas.NewChecker()
+	checker := specrules.NewChecker()
 	if !deferred {
 		return checker.Check(t.Context(), root, version, opts), seen
 	}
 	later := opts
-	later.Later = func(p oas.Pending) { pending = append(pending, p) }
+	later.Later = func(p specrules.Pending) { pending = append(pending, p) }
 	diags := checker.Check(t.Context(), root, version, later)
 	return append(diags, checker.CheckPending(t.Context(), pending, version, opts)...), seen
 }

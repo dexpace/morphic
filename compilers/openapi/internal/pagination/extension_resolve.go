@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -169,13 +169,13 @@ func (pg *pager) bodyOutput(op *ir.Operation, tokens []string) (*ir.PropPath, st
 // headerOutput is the header name, which every success response of op must
 // declare once: what an extension's expression reads, and what the inference
 // reads a next cursor from (headerCursor). w is the document.
-func headerOutput(w *whole.CompiledDocumentView, op *ir.Operation, name string) (*ir.PropPath, string) {
+func headerOutput(w *compileddoc.CompiledDocumentView, op *ir.Operation, name string) (*ir.PropPath, string) {
 	if len(op.Responses) == 0 {
 		return nil, "reads response header " + strconv.Quote(name) + ", and the operation declares no success response"
 	}
 	var out *ir.PropPath
 	for i := range op.Responses {
-		found := w.Header(whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}, op.Responses[i].Headers, name)
+		found := w.Header(compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}, op.Responses[i].Headers, name)
 		switch {
 		case len(found) != 1:
 			return nil, "reads response header " + strconv.Quote(name) + ", which a success response does not declare once"

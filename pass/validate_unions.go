@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // checkRepeatedVariants reports each variant of a union naming a type an
@@ -20,7 +20,7 @@ import (
 // its own.
 func checkRepeatedVariants(doc *ir.Document, live []ir.TypeID) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	var first reuse.Map[ir.TypeID, int]
+	var first scratchstate.Map[ir.TypeID, int]
 	for _, id := range live {
 		u, isUnion := doc.Types[id].(*ir.Union)
 		if !isUnion || (u.WireTagged && u.Discriminator == nil) {

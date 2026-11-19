@@ -8,11 +8,11 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -86,7 +86,7 @@ func refSpelling(js *statement.Statement) (keyword, value string) {
 }
 
 // unresolvedWhy is the reason the $ref at js reports when it resolves to no
-// type here: why its own hop lands on no schema (bind.Hop.Why), or why the
+// type here: why its own hop lands on no schema (reftable.Hop.Why), or why the
 // table never read it (unreadWhy). It is empty for any other, a target
 // declaring nothing to lower. The position may well exist, so without it the
 // report reads as though it named nothing.
@@ -98,7 +98,7 @@ func unresolvedWhy(c lowering.Ctx, js *statement.Statement) string {
 }
 
 // unreadWhy is why the table holds nothing for a schema or a discriminator it
-// read: the budget or the merge bound stopped the reading (bind.ReferenceTargetTable.Unread).
+// read: the budget or the merge bound stopped the reading (reftable.ReferenceTargetTable.Unread).
 func unreadWhy(refs *typed.Bindings) string {
 	if why := refs.Table().Unread(); why != "" {
 		return ": " + why
@@ -109,8 +109,8 @@ func unreadWhy(refs *typed.Bindings) string {
 // hopWhy is the reason unresolvedWhy and mappingWhy give for the hop h, or
 // nothing for one that resolved. It names no document: a finding about a
 // reference is placed in the document that writes it.
-func hopWhy(h bind.Hop) string {
-	if h.Status == bind.Resolved {
+func hopWhy(h reftable.Hop) string {
+	if h.Status == reftable.Resolved {
 		return ""
 	}
 	return ": " + h.Why()
@@ -131,7 +131,7 @@ func resolveSchemaRef(c lowering.Ctx, ts *compile.Types, js *statement.Statement
 
 // resolveAt is resolvePointer at a position of the bindings' table, read at
 // its own document's coordinates (lowering.InDocument).
-func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
+func resolveAt(c lowering.Ctx, ts *compile.Types, at reftable.DocumentPointer, decl *statement.Statement) (ir.TypeID, bool) {
 	c, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false
@@ -143,7 +143,7 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.DocumentPointer, decl 
 // bindings' table lands on, hop by hop, so a position only a keyword kept
 // verbatim names, a `not` or an `if`, or only an alias a chain passes, is
 // lowered as one a lowered keyword names is, where its hop lands
-// (bind.ReferenceSite.Lands): a member of a loop of $refs lands nowhere. A position a lowering already
+// (reftable.ReferenceSite.Lands): a member of a loop of $refs lands nowhere. A position a lowering already
 // reached keeps the node built there (compile.Types.ReserveNodeAtCoordinate). It reports
 // nothing itself: a promise reports when it is kept.
 func ReserveNodesAtReferenceTargets(c lowering.Ctx, ts *compile.Types) {
@@ -199,7 +199,7 @@ func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *statement.Statem
 // resolvesAt reports whether a reference to at, a position of the bindings'
 // table, resolves, as resolveAt resolves one, without promising its node
 // (declaredAt).
-func resolvesAt(c lowering.Ctx, at bind.DocumentPointer) bool {
+func resolvesAt(c lowering.Ctx, at reftable.DocumentPointer) bool {
 	_, ok := declaredAt(c, at, c.Statements().At(at))
 	return ok
 }

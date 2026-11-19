@@ -10,8 +10,8 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -274,8 +274,8 @@ func conjunctSchemas(c lowering.Ctx, r refinement, s *statement.Schema) []*state
 
 // narrowsOrIs reports whether p is o or narrower.
 func narrowsOrIs(p, o ir.PrimKind) bool {
-	rel := spelling.Relate(p, o)
-	return rel == spelling.Same || rel == spelling.ANarrower
+	rel := typeformat.Relate(p, o)
+	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
 // declaredPrim returns the primitive s's type and format select, else its type
@@ -286,7 +286,7 @@ func declaredPrim(s *statement.Schema, fits func(ir.PrimKind) bool) (ir.PrimKind
 		return prim, true
 	}
 	if types := effectiveTypes(s); len(types) == 1 {
-		if prim, known := spelling.Lookup(string(types[0])); known && fits(prim) {
+		if prim, known := typeformat.Lookup(string(types[0])); known && fits(prim) {
 			return prim, true
 		}
 	}

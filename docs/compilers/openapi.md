@@ -59,7 +59,7 @@ an `openapi/unsupported-version` error and compiles to no Document.
   `e2e.TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect`,
   `e2e.TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn`,
   `e2e.TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor`,
-  `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
+  `specrules.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
 ### `yaml-decoding`
@@ -335,12 +335,12 @@ pointer for every node to place its findings; or the weighing runs past the node
 document and a document a reference reads keep the first total.
 
 That total is a second reading of what a compile walks, and two generated tests hold it to the
-walks: `bind.TestNamedPointerBytes_TotalsWhatATablesWalksSpell` counts the pointer of every frame
+walks: `reftable.TestNamedPointerBytes_TotalsWhatATablesWalksSpell` counts the pointer of every frame
 the binder's walks push, and `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut` what a whole
 compile allocates more as a key above a value grows, so a walk spelling a pointer at each node of
 a value counted by its root fails one of them. Each holds the documents its grammar writes and no
 others: neither reads a document naming a dialect or another document, nor one whose total is not
-taken (`bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`), which the refusals
+taken (`reftable.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`), which the refusals
 above leave to the first total. The first counts frames, so a pointer a walk spells without pushing
 one is not counted: the binder spells one for a requirement key that is a URI, for a tuple's entry
 and for a schema's `discriminator`, each at a frame it pushes or one token below a schema's. The
@@ -361,7 +361,7 @@ second holds each minor and counts what is allocated, not what is held at once.
   `load.TestLoad_ReportsAShapeOnceItsNestingRefuses`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
-  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
+  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `specrules.TestCheck_WorkIsBounded`,
   `openapi.TestCompile_ReferenceExpansionBindsOnlyPastTheLimit`,
   `openapi.TestCompile_EveryCopiedDeclarationIsCharged`,
   `openapi.TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull`,
@@ -386,28 +386,28 @@ second holds each minor and counts what is allocated, not what is held at once.
   `e2e.TestCompile_AnOverlayDocumentIsHeldToTheAliasTextBudget`,
   `e2e.TestCompile_AnExternalDocumentIsHeldToTheAliasTextBudget`,
   `e2e.TestCompile_AnObjectReachedInsideAContainerAndAsTheContainerIsCheckedOnce`,
-  `load.TestResolve_AReachedObjectIsChargedToNoBudget`, `oas.TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain`,
-  `oas.TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor`,
+  `load.TestResolve_AReachedObjectIsChargedToNoBudget`, `specrules.TestCheck_ANodeSeenIsSkippedWhenItIsReadAgain`,
+  `specrules.TestCheck_SkipLeavesUnreadAMappingItAnswersTrueFor`,
   `e2e.TestCompile_ARawValueNestingLongKeysIsNotRefusedAsPointerAmplification`,
   `e2e.TestCompile_ARawValueAReferenceLandsInIsNamedNodeByNode`,
   `e2e.TestCompile_APropertyNamedExampleHoldsASchemaAndIsNamedNodeByNode`,
-  `bind.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
-  `bind.TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode`,
-  `bind.TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping`,
-  `bind.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`,
-  `bind.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
-  `bind.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
-  `bind.TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce`,
-  `bind.TestNamedPointerBytes_ALandingIsNamedAtEachPositionItIsReachedAt`,
-  `bind.TestNamedPointerBytes_AKeyWrittenTwiceIsNamedAtTheCopyAMergeReads`,
-  `bind.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
-  `bind.TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt`,
-  `bind.TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt`,
-  `bind.TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects`,
-  `bind.TestNamedPointerBytes_TotalsEachPositionATableReads`,
-  `bind.TestNamedPointerBytes_TotalsWhatATablesWalksSpell`,
-  `bind.TestNamedPointerBytes_AKeyARawValueWritesTwiceIsNamed`,
-  `bind.TestNamedPointerBytes_AKeywordJudgedByEntryIsNamedNodeByNode`,
+  `reftable.TestNamedPointerBytes_TheTotalDoesNotDependOnWhichMountIsWrittenFirst`,
+  `reftable.TestNamedPointerBytes_AFieldNoModelHoldsIsNamedNodeByNode`,
+  `reftable.TestNamedPointerBytes_AMemberAMergeKeyBringsInIsNamedAtTheMapping`,
+  `reftable.TestNamedPointerBytes_AReferenceIntoARawValueNamesItNodeByNode`,
+  `reftable.TestNamedPointerBytes_IsIncompleteWhereTheDocumentIsNotClosed`,
+  `reftable.TestNamedPointerBytes_AFragmentLandsWhereItsDecodingNames`,
+  `reftable.TestNamedPointerBytes_ALandingNamedInPlaceIsCountedOnce`,
+  `reftable.TestNamedPointerBytes_ALandingIsNamedAtEachPositionItIsReachedAt`,
+  `reftable.TestNamedPointerBytes_AKeyWrittenTwiceIsNamedAtTheCopyAMergeReads`,
+  `reftable.TestNamedPointerBytes_ADynamicRefLandsAsARefDoes`,
+  `reftable.TestNamedPointerBytes_ADiscriminatorValueLandsAsTheBinderReadsIt`,
+  `reftable.TestNamedPointerBytes_ARequirementKeyLandsAsTheBinderReadsIt`,
+  `reftable.TestNamedPointerBytes_ALandingIsNamedAsTheKindItsReferenceExpects`,
+  `reftable.TestNamedPointerBytes_TotalsEachPositionATableReads`,
+  `reftable.TestNamedPointerBytes_TotalsWhatATablesWalksSpell`,
+  `reftable.TestNamedPointerBytes_AKeyARawValueWritesTwiceIsNamed`,
+  `reftable.TestNamedPointerBytes_AKeywordJudgedByEntryIsNamedNodeByNode`,
   `load.TestNamedWithin_ADocumentBreakingTheFormatRulesIsNotWithin`,
   `e2e.TestCompile_SpellsNoPointerTheNamedTotalLeavesOut`,
   `e2e.TestCompile_ARawValueARequirementKeyNamesIsNamedNodeByNode`,
@@ -756,19 +756,19 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
 [`querystring`](#querystring)'s.
 
 - Codes: `openapi/validation`
-- Tests: `oas.TestCheck_RulesGradeByLevel`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `oas.TestCheck_CountsBoundTheEntries`,
-  `oas.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `oas.TestCheck_ShapesFollowTheField`,
-  `oas.TestCheck_NumbersFollowTheirShape`,
-  `oas.TestCheck_PathTemplatesAnswerToPathParameters`,
-  `oas.TestCheck_AServerURLNamesOnlyItsVariables`,
-  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
-  `oas.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
-  `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
-  `oas.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
-  `oas.TestCheck_KeywordsHoldWhatJSONSchemaRequires`, `oas.TestCheckFormat_AKeyIsAString`,
-  `oas.TestCheck_TheEmptyStringIsJudgedByItsFormat`,
-  `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
+- Tests: `specrules.TestCheck_RulesGradeByLevel`,
+  `specrules.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`, `specrules.TestCheck_CountsBoundTheEntries`,
+  `specrules.TestCheck_ANullReadAsLeftOutIsNoFieldToARule`, `specrules.TestCheck_ShapesFollowTheField`,
+  `specrules.TestCheck_NumbersFollowTheirShape`,
+  `specrules.TestCheck_PathTemplatesAnswerToPathParameters`,
+  `specrules.TestCheck_AServerURLNamesOnlyItsVariables`,
+  `specrules.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `specrules.TestCheck_AFindingIsMadeOnceWhereItIsPlaced`,
+  `specrules.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
+  `specrules.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
+  `specrules.TestCheck_KeywordsHoldWhatJSONSchemaRequires`, `specrules.TestCheckFormat_AKeyIsAString`,
+  `specrules.TestCheck_TheEmptyStringIsJudgedByItsFormat`,
+  `specrules.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
   `load.TestResolve_AnObjectReachedTwiceIsReportedOnce`,
@@ -776,23 +776,23 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`,
-  `oas.TestCheck_ASchemaIsHeldToItsDialectsRows`, `oas.TestCheck_AFindingInADraftNamesItsDialect`,
-  `oas.TestCheck_ARootReadsItsOwnRows`, `oas.TestCheckPending_ReadsWhatACheckHandedBack`,
+  `specrules.TestCheck_ASchemaIsHeldToItsDialectsRows`, `specrules.TestCheck_AFindingInADraftNamesItsDialect`,
+  `specrules.TestCheck_ARootReadsItsOwnRows`, `specrules.TestCheckPending_ReadsWhatACheckHandedBack`,
   `load.TestNamesDialect_ReadsTheKeyAndTheField`, `load.TestJudgeSource_DeferringASchemaChangesNoFinding`,
   `e2e.TestOlderDrafts_ASchemaIsHeldToItsDialectsRows`,
-  `oas.TestCheck_JudgedTellsEachValueTheCheckRefusedWhereItIsWritten`,
-  `oas.TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid`,
-  `oas.TestCheck_JudgedTellsEachValueAFrameSharesAcceptedOrRefused`,
+  `specrules.TestCheck_JudgedTellsEachValueTheCheckRefusedWhereItIsWritten`,
+  `specrules.TestCheck_ATagOutsideTheRulesetIsRefusedWithTheTagSaid`,
+  `specrules.TestCheck_JudgedTellsEachValueAFrameSharesAcceptedOrRefused`,
   `nodeview.TestUnread_ReadsAsNullAndWrittenReturnsWhatTheSourceWrote`,
   `e2e.TestCompile_ABooleanWrittenAsAStringIsReadAsTheFieldLeftOut`,
   `e2e.TestCompile_AScalarOrSequenceTaggedOutsideTheRulesetIsReadAsLeftOut`,
   `e2e.TestCompile_ANodeASchemaAndAPropertiesMapReadStaysAsWritten`,
   `e2e.TestCompile_ASharedNodeIsReadAsItsInlineSpellingIs`,
-  `oas.TestCheck_AFieldOfAnyShapeAcceptsNothing`,
+  `specrules.TestCheck_AFieldOfAnyShapeAcceptsNothing`,
   `e2e.TestCompile_AScalarAValueSharesIsReadAsTheRefusingPlaceReadsIt`,
   `e2e.TestCompile_ARefusedValueIsReadAlikeWhetherADocumentMayNameADialect`,
   `e2e.TestCompile_ANodeASchemaAcceptsIsKeptInADocumentThatMayNameADialect`,
-  `oas.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
+  `specrules.TestCheckFormat_PlacesEachKeyAtItsOwnLine`, `nodeview.TestKeyOf_AKeyThatIsNoScalarNamesNoKey`,
   `e2e.TestCompile_AKeyThatIsNoScalarIsReportedOnceAndLeftOut`,
   `e2e.TestCompile_TwoKeysThatAreNoScalarAreEachReportedInEitherOrder`,
   `e2e.TestCompile_AKeyWrittenTwiceInAnotherDocumentIsReported`,
@@ -802,8 +802,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AnInnerSharedNodeIsPlacedAtItsLeastPointerInEveryDeclarationOrder`,
   `e2e.TestCompile_ATypeMismatchOnASharedMountIsPlacedAtTheLeastMount`,
   `e2e.TestCompile_ANodeInsideTwoMountsIsPlacedByTheirTokens`,
-  `oas.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `oas.TestLessPointer_OrdersTokenByToken`,
-  `oas.TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced`,
+  `specrules.TestCheck_AFindingNamesTheLeastPositionThatReadIt`, `specrules.TestLessPointer_OrdersTokenByToken`,
+  `specrules.TestCheck_ARepeatedEntryNamesItsFirstCopyWhereItIsPlaced`,
   `e2e.TestCompile_ARepeatedEntryNamesItsFirstCopyWhereItsDocumentHoldsIt`,
   `scan.TestLeast_OrdersByThePointersTokens`, `scan.TestLeast_AgreesWithSortingEveryPointer`,
   `e2e.TestCompile_AValueARefLandsOnIsJudgedBeforeItIsBuilt`,
@@ -834,10 +834,10 @@ the field.
 
 - Cases: `empty-required-values`, `relaxed-required-fields`
 - Codes: `openapi/validation`
-- Tests: `oas.TestCheck_RequiredFieldsFollowTheMinor`,
-  `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
-  `oas.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
-  `oas.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `oas.TestCheck_AnHTTPSchemeIsAToken`
+- Tests: `specrules.TestCheck_RequiredFieldsFollowTheMinor`,
+  `specrules.TestCheck_AtLeastOneSectionStandsInADocument`,
+  `specrules.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
+  `specrules.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `specrules.TestCheck_AnHTTPSchemeIsAToken`
 
 ### `later-version-construct`
 
@@ -916,14 +916,14 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
   `e2e.TestOlderDrafts_RefSiblingsAreWarnedOf`,
   `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
-  `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
-  `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
-  `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
-  `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
+  `specrules.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
+  `specrules.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
+  `specrules.TestCheck_ValuesAddedLaterAreWarnedOf`,
+  `specrules.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`,
-  `oas.TestCheck_AKeywordALaterDialectAddsIsWarnedOf`, `oas.TestCheck_ARefsSiblingsInADraftAreWarnedOf`,
-  `oas.TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne`,
-  `oas.TestSchemaRules_LaterKeywordsAreTheOwnRowsADialectLacks`
+  `specrules.TestCheck_AKeywordALaterDialectAddsIsWarnedOf`, `specrules.TestCheck_ARefsSiblingsInADraftAreWarnedOf`,
+  `specrules.TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne`,
+  `specrules.TestSchemaRules_LaterKeywordsAreTheOwnRowsADialectLacks`
 
 ### `references`
 
@@ -1218,17 +1218,17 @@ the item as what else it writes.
   `e2e.TestCompile_ASourceLocatedAtAURLIsBoundedAsAPublicDocument`,
   `e2e.TestCompile_AFetchedDocumentWhoseReaderSaidNothingIsRefusedToABoundedAsker`,
   `e2e.TestCompile_ADeclarationOfAFileAnswersNoFetchedDocument`,
-  `bind.TestBind_AChainOfDeclaringDocumentsCostsWorkLinearInItsLength`,
-  `bind.TestBind_AChainOfDeclaringURLsCostsWorkLinearAndEachIsRequestedOnce`,
-  `bind.TestBind_RequestsWhatMainRequests`,
+  `reftable.TestBind_AChainOfDeclaringDocumentsCostsWorkLinearInItsLength`,
+  `reftable.TestBind_AChainOfDeclaringURLsCostsWorkLinearAndEachIsRequestedOnce`,
+  `reftable.TestBind_RequestsWhatMainRequests`,
   `e2e.TestCompile_OneURLSpelledSixWaysIsOneRequestOneKeyAndOneType`,
   `e2e.TestCompile_ADocumentAnotherOriginServesDeclaresNothingForTheSource`,
   `e2e.TestCompile_AFilesDeclarationAnswersTheSourceAndNoRead`,
   `e2e.TestCompile_AFetchedDocumentReadsAURLAFileDeclares`,
   `e2e.TestCompile_ATwoDocumentsDeclaringOneSelfAnswerNoReference`,
   `e2e.TestCompile_AFileDeclaringAURLIsNotRequestedWhereReadsAreAllowed`,
-  `bind.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`, `bind.TestBind_ASelfIsADocumentsBaseAndName`,
-  `bind.TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt`,
+  `reftable.TestBind_ADeclarationAnswersOnlyWhoCouldReadItsDocument`, `reftable.TestBind_ASelfIsADocumentsBaseAndName`,
+  `reftable.TestBind_AMappedLocationIsJudgedWhereAFetchedDocumentReadsIt`,
   `e2e.TestCompile_AFileIsOneDocumentWhateverItsReferenceSpellsIt`,
   `e2e.TestCompile_AMappedURLIsTheDocumentItsLocationHolds`,
   `e2e.TestCompile_AMappedURLThatNormalizesOutOfItsPrefixIsRefused`,
@@ -1240,19 +1240,19 @@ the item as what else it writes.
   `openapi.TestDecodeOptions_LocateRefusesAPrefixThatIsNoURIPrefix`,
   `e2e.TestCompile_AFileURIIsRefusedByItsSpellingWhereReadsAreConfined`,
   `e2e.TestCompile_AnIdentifierAndAReferenceMeetInOneSpelling`,
-  `resolve.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
-  `resolve.TestLocate_NormalizingTwiceChangesNothing`, `bind.TestNormalURI_IsIdempotentOverGeneratedURLs`,
-  `bind.TestNormalURI_SpellsEachEqualURLOneWay`, `bind.TestNormalURI_KeepsWhatEachSchemeWrites`,
+  `componentlookup.TestLocate_AnAbsoluteURLIsSpelledByRFC3986Normalization`,
+  `componentlookup.TestLocate_NormalizingTwiceChangesNothing`, `reftable.TestNormalURI_IsIdempotentOverGeneratedURLs`,
+  `reftable.TestNormalURI_SpellsEachEqualURLOneWay`, `reftable.TestNormalURI_KeepsWhatEachSchemeWrites`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`, `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
-  `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
-  `bind.TestFragmentName_DeclaresAnyNameDraft4Writes`,
+  `reftable.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
+  `reftable.TestFragmentName_DeclaresAnyNameDraft4Writes`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
-  `bind.TestDialectRule_AnIdentifierBesideARefNamesNothing`,
-  `bind.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
-  `bind.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
-  `bind.TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot`,
-  `bind.TestDialectRule_AWalkStartsInTheDialectAboveIt`, `e2e.TestGolden_SplitSpec`,
+  `reftable.TestDialectRule_AnIdentifierBesideARefNamesNothing`,
+  `reftable.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
+  `reftable.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
+  `reftable.TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot`,
+  `reftable.TestDialectRule_AWalkStartsInTheDialectAboveIt`, `e2e.TestGolden_SplitSpec`,
   `e2e.TestExternalContent_ARefInItNamesItsOwnDocument`,
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
@@ -1266,51 +1266,51 @@ the item as what else it writes.
   `e2e.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `e2e.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
   `e2e.TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost`,
-  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `resolve.TestLocate`, `resolve.TestFilePart`,
-  `resolve.TestFileOf`, `resolve.TestSameDocument`,
-  `resolve.TestPlaces_PlacesAFileWhereItsDirectoryLies`, `load.TestLoad_RejectsARelativeLocation`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `componentlookup.TestLocate`, `componentlookup.TestFilePart`,
+  `componentlookup.TestFileOf`, `componentlookup.TestSameDocument`,
+  `componentlookup.TestPlaces_PlacesAFileWhereItsDirectoryLies`, `load.TestLoad_RejectsARelativeLocation`,
   `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,
   `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`,
   `e2e.TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference`,
   `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`,
-  `load.TestExternal_ASourceReadOverTheNetworkReadsNoFile`, `bind.TestReachable`,
+  `load.TestExternal_ASourceReadOverTheNetworkReadsNoFile`, `reftable.TestReachable`,
   `load.TestLoad_AFileURIAndAPathAreOneDocument`, `e2e.TestCompile_AFileNamedLikeAURLIsReadAsAFile`,
   `e2e.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `e2e.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
   `e2e.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
-  `bind.TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt`,
-  `bind.TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould`,
+  `reftable.TestBind_ReadsARelativeURIUnderAnIDWhereTheIDPlacesIt`,
+  `reftable.TestBind_RefusesAReadUnderAnIDAsItsSpellingsWould`,
   `e2e.TestCompile_OneFileUnderTwoNamesIsOneDocument`,
   `e2e.TestExternalContent_ASchemaRefPastARefNamesItsContent`,
   `e2e.TestExternalContent_ASourcePositionItNamesByFileResolvesInEitherOrder`,
   `e2e.TestCompile_SchemaEmptyPointerSegmentIsUnresolved`,
   `load.TestLoad_ARootDefinitionResolvesAsTheResolverReadsIt`,
-  `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`, `bind.TestBind_ReadsEachHop`,
-  `bind.TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts`,
-  `bind.TestBind_ReadsADefinitionByTheDefsRule`,
+  `load.TestLoad_ARootDefinitionAnswersBeforeASchemasOwn`, `reftable.TestBind_ReadsEachHop`,
+  `reftable.TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts`,
+  `reftable.TestBind_ReadsADefinitionByTheDefsRule`,
   `e2e.TestCompile_DefsPointerUnderANestedIDReadsTheBaseItNames`,
   `e2e.TestExternalContent_ARefGivesItsUseSiteAsFallbackWhatItsTypeReaches`,
   `schema.TestSchema_AnEmptyRefBesideKeywordsIsAConjunctAsInAnAllOf`,
-  `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
-  `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
-  `bind.TestBind_CountsWorkLinearInTheDocument`,
-  `bind.TestBind_CountsWorkLinearAcrossHeldDocuments`, `bind.TestBind_ReadsEveryWebhookAsAPathItem`,
+  `reftable.TestBind_ReadsEachPositionAsTheJSONItSpells`, `reftable.TestBind_ReadsARepeatedKeyAsItsLast`,
+  `reftable.TestBind_StopsAtItsBudget`, `reftable.TestBind_ThePassTheBudgetRunsOutInStands`,
+  `reftable.TestBind_CountsWorkLinearInTheDocument`,
+  `reftable.TestBind_CountsWorkLinearAcrossHeldDocuments`, `reftable.TestBind_ReadsEveryWebhookAsAPathItem`,
   `e2e.TestReferenceObjects_AnEndingSlashNamesAnEmptyMember`,
   `e2e.TestReferenceObjects_AnEndInTheSourceIsReadThereUnderSelf`,
   `e2e.TestReferenceObjects_AnEndInAnotherDocumentIsDeclaredThere`,
-  `load.TestBindAll_BindsEveryRefInTheCorpus`, `bind.TestBind_ReadsWhatAnotherDocumentDeclares`,
-  `bind.TestBind_ReadsBelowAnIDOfAnotherDocument`, `bind.TestBind_AnIDNamingItsDocumentReturnsToIt`,
-  `bind.TestBind_AnIdentifierIsNoLocationToFetch`,
-  `bind.TestBind_AHeldDocumentMayDeclareAnothersURI`,
-  `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
-  `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`,
-  `bind.TestBind_DeclarationOrderReachesNoAnswer`,
-  `bind.TestBind_ADocumentNoPassReachesDeclaresNothing`,
-  `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
-  `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
+  `load.TestBindAll_BindsEveryRefInTheCorpus`, `reftable.TestBind_ReadsWhatAnotherDocumentDeclares`,
+  `reftable.TestBind_ReadsBelowAnIDOfAnotherDocument`, `reftable.TestBind_AnIDNamingItsDocumentReturnsToIt`,
+  `reftable.TestBind_AnIdentifierIsNoLocationToFetch`,
+  `reftable.TestBind_AHeldDocumentMayDeclareAnothersURI`,
+  `reftable.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
+  `reftable.TestBind_ALocationADocumentDeclaresIsThatIdentifier`,
+  `reftable.TestBind_DeclarationOrderReachesNoAnswer`,
+  `reftable.TestBind_ADocumentNoPassReachesDeclaresNothing`,
+  `reftable.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
+  `reftable.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceObjects_ARepeatedKeyIsReadAtItsLastCopy`,
-  `bind.TestTable_SaysWhyARefWentUnread`, `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
-  `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
+  `reftable.TestTable_SaysWhyARefWentUnread`, `reftable.TestBind_SaysAKeyMayLiePastTheMergeBound`,
+  `reftable.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
   `canary.TestBindingOracle_AgreesWithTheLibrary`,
   `load.TestResolve_AFindingNamesTheDocumentItIsIn`,
   `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
@@ -1347,7 +1347,7 @@ the item as what else it writes.
   `e2e.TestCompile_ARefAMergeKeyWritesThatIsNoStringLeavesTheEntryOut`,
   `e2e.TestCompile_AComponentWhoseRefIsNoStringIsKeptAsWritten`,
   `e2e.TestCompile_ReportsAReferenceNamingNothingBeneathANestedEncoding`,
-  `e2e.TestGolden_EncodingNestedReferences`, `bind.TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw`,
+  `e2e.TestGolden_EncodingNestedReferences`, `reftable.TestPlace_ReadsBeneathAFieldNoModelHoldsAsRaw`,
   `e2e.TestCompile_AFieldNoModelHoldsReadsAsAnExtension`,
   `e2e.TestCompile_ReadsThroughAReferenceIntoANestedEncodingKeptAsRawYAML`,
   `e2e.TestCompile_RefusesAReferenceToNoSchemaBeneathANestedEncoding`,
@@ -1395,9 +1395,9 @@ compile proceeds.
   `e2e.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
   `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
-  `bind.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
-  `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
-  `e2e.TestCompile_MergeChainPastBoundStillCompiles`, `bind.TestBind_AnswersAlikeInEitherOrder`,
+  `reftable.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
+  `reftable.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
+  `e2e.TestCompile_MergeChainPastBoundStillCompiles`, `reftable.TestBind_AnswersAlikeInEitherOrder`,
   `e2e.TestReferenceObjects_ALoopIsReportedOnceAtItsLeastMember`,
   `e2e.TestReferenceObjects_AReadNeedingItselfIsUnresolved`
 
@@ -2115,7 +2115,7 @@ With the policy on, its info sits at the same pointer. With the policy off nothi
   `e2e.TestNullableInference_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
   `schema.TestNullableInference_ABranchWidensTheAllOfHoldingIt`,
-  `oas.TestCheck_NullableAppliesBesideAType`,
+  `specrules.TestCheck_NullableAppliesBesideAType`,
   `e2e.TestNullableInference_ANullableWithNoTypeIsWarnedOfUnderEitherPolicy`,
   `schema.TestNullableInference_OnlyABooleanStatesNull`,
   `schema.TestNullableTrue_PastTheMergeBoundOnlyAListedKeyStates`,
@@ -3573,10 +3573,10 @@ folds its own declarations alone, with an `openapi/budget-exceeded` error at the
   `schema.TestAllOf_AnUnknownFormatWinsInEitherOrder`,
   `schema.TestAllOf_ReconcileAccumulatesRicherDetailForAnUnknownFormat`,
   `merge.TestFold_AUint8NarrowsInt16InEitherOrder`,
-  `spelling.TestNarrows_HoldsEveryContainment`,
-  `spelling.TestNarrows_OmitsRoundingContainments`,
-  `spelling.TestRelate_ClassifiesEveryVerdict`,
-  `spelling.TestFormatTable_EveryRowNarrowsItsBareType`,
+  `typeformat.TestNarrows_HoldsEveryContainment`,
+  `typeformat.TestNarrows_OmitsRoundingContainments`,
+  `typeformat.TestRelate_ClassifiesEveryVerdict`,
+  `typeformat.TestFormatTable_EveryRowNarrowsItsBareType`,
   `merge.TestAdmits_JudgesEachKindExactly`,
   `merge.TestAdmitsFormat_JudgesTimeAsAFullTime`,
   `merge.TestAdmitsFormat_SharesNoStringWithAKind`,
@@ -4685,7 +4685,7 @@ is a reference wherever its discriminator ends up.
   `schema.TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim`,
   `schema.TestDiscriminator_AnEmptyPropertyNameBesideAnUntaggedUnionIsKeptForItsNode`,
   `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
-  `bind.TestBind_ReadsAMappingValueNamingNoComponentAsAReference`,
+  `reftable.TestBind_ReadsAMappingValueNamingNoComponentAsAReference`,
   `load.TestBindSchemas_ReadsTheComponentNamesTheModelReads`,
   `schema.TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference`,
   `schema.TestDiscriminatorMapping_ReadsAComponentsNameFirst`,
@@ -5155,8 +5155,8 @@ saying what a document of its version writes instead, and the lowering reads `it
   `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
   `e2e.TestOlderDrafts_ATupleIsReadInTheDialectWhereItIsWritten`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
-  `bind.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
-  `oas.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
+  `reftable.TestTuples_AListOfItemsHoldsSchemas`, `load.TestLandingTargets`,
+  `specrules.TestCheck_AnItemsListFollowsTheSchemasRows`, `schema.TestLower_PrefixItemsBesideAListedTupleIsKept`
 - Status: open: whether a `Rest` or an `Elem` beside a live `unevaluatedItems: false` is typed
   rather than left to the entry (#1883).
 
@@ -5384,9 +5384,9 @@ table pairs with `string`, `byte` and `http-date` among them, is the `string` va
   `schema.TestPrincipalKept_ABoundATypeListVariantReadsIsKeptNowhere`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `merge.TestKindOf_ANumberAsTextIsAString`,
-  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
-  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`,
-  `spelling.TestEncodedTable_IsApartFromTheFormatTable`
+  `typeformat.TestFormatTable_EveryRowDistinguishesTheBareType`,
+  `typeformat.TestFormatTable_EveryStringRowLowersToItsPrimitive`,
+  `typeformat.TestEncodedTable_IsApartFromTheFormatTable`
 - Status: partly built: a value bound beside a `$ref` to a number carried as text, or beside an
   `allOf` refining one, lands in the `Constraints` of the alias over it, and a length or `pattern`
   beside `byte`, `base64url` or `http-date` in those of its `bytes` or `datetime_offset`, which
@@ -5570,8 +5570,8 @@ of its own, since reading it so loses nothing.
 - Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `statement.TestSchema_KeyReadsANullKeywordAsLeftOut`,
-  `bind.TestDynamicAnchor_ANullAnchorNamesNothing`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `reftable.TestDynamicAnchor_ANullAnchorNamesNothing`,
+  `specrules.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
   `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
 ### `null-alone`
@@ -5765,7 +5765,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestBoundsFor_ReadsEachBoundForTheKindsItAppliesTo`,
   `schema.TestDeclaredInstanceTypes_ReadsTheTypesASchemaDeclares`,
   `e2e.TestDialectShapes_AreReportedWhereverTheCheckReadsASchema`,
-  `oas.TestCheck_BoundsFollowTheSchemasRows`,
+  `specrules.TestCheck_BoundsFollowTheSchemasRows`,
   `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
@@ -5788,7 +5788,7 @@ no bound ([`string-formats`](#string-formats)).
   `schema.TestAllOf_TheBindingCountIsKeptInEveryOrder`,
   `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
-  `oas.TestShape_Admits`
+  `specrules.TestShape_Admits`
 - Status: partly built: two declarations of one field that each keep a bound meet the fold of
   [`allof-redeclared-property`](#allof-redeclared-property) (#1889). A bound left unread is reported
   at its position, with the census's other keywords, not at the keyword. A bound beside an enum a
@@ -5969,23 +5969,23 @@ written beside a reference that expands is read as one beside a `$ref` is
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
   `schema.TestDynamicRef_NamingNoDynamicAnchorIsTheRefItSpells`,
   `schema.TestDynamicRef_AnAnchorOnlyAnotherDocumentDeclaresIsKept`,
-  `bind.TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor`,
-  `bind.TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead`,
-  `bind.TestBind_ReadsADynamicRefAMergeMayHideTheAnchorOfAsDynamic`,
+  `reftable.TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor`,
+  `reftable.TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead`,
+  `reftable.TestBind_ReadsADynamicRefAMergeMayHideTheAnchorOfAsDynamic`,
   `e2e.TestCompile_ADynamicRefNamingNoDynamicAnchorReadsAsTheRefItSpells`,
   `e2e.TestCompile_AStaticDynamicRefLowersAsItsRefTwinAtEveryPosition`,
   `e2e.TestCompile_ADynamicRefResolvingNowhereIsAnUnresolvedRef`,
   `e2e.TestCompile_ATwoMemberCycleThroughADynamicRefIsACyclicRef`,
   `e2e.TestCompile_AnAliasLoopAnExpansionClosesKeepsTheReference`,
-  `bind.TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached`,
-  `bind.TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing`, `bind.TestBind_TheRecursiveReachGrowsLinearly`,
+  `reftable.TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached`,
+  `reftable.TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing`, `reftable.TestBind_TheRecursiveReachGrowsLinearly`,
   `e2e.TestCompile_ARecursiveRefNoOtherAnchoredResourceReachesExpands`,
   `e2e.TestCompile_ARecursiveRefAnotherAnchoredResourceReachesIsKept`,
   `e2e.TestCompile_ARecursiveRefAnotherDocumentsAnchoredResourceReachesIsKept`,
   `e2e.TestCompile_ARecursiveRefInAResourceNestedInAnAnchoredOneIsKept`,
   `schema.TestDynamicRef_AnAnchorAnotherDocumentsResourceReachesIsKept`,
-  `bind.TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName`,
-  `bind.TestTable_ANameTheBudgetCutsTheWalkOfIsNotKnown`,
+  `reftable.TestTable_ANameSeveralDocumentsDeclareIsWalkedOncePerName`,
+  `reftable.TestTable_ANameTheBudgetCutsTheWalkOfIsNotKnown`,
   `e2e.TestCompile_ADynamicRefAnotherDocumentsResourceReachesIsKept`,
   `e2e.TestCompile_ADynamicRefNoOtherDocumentDeclaresTheNameExpands`,
   `e2e.TestCompile_ADynamicRefNamesTooManyForTheReachWalkAreKept`,
@@ -5995,14 +5995,14 @@ written beside a reference that expands is read as one beside a `$ref` is
   `schema.TestRecursiveRef_ExpandsWhereItsTargetIsStatic`,
   `schema.TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt`,
   `schema.TestRecursiveRef_LandsOnTheRootOfItsResource`, `schema.TestSameResource_SaysWhyTwoPositionsMayLieInTwo`,
-  `bind.TestLandDynamic_LandsWhereTheRefItSpellsWould`,
+  `reftable.TestLandDynamic_LandsWhereTheRefItSpellsWould`,
   `e2e.TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsItsDocumentsAnchorsOnce`,
-  `bind.TestDynamicAnchor_CountsWhatADocumentDeclares`,
-  `bind.TestDynamicAnchor_SaysWhenTheCountProvesNothing`,
-  `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
-  `bind.TestResource_NamesTheRootOfAPositionsResource`
+  `reftable.TestDynamicAnchor_CountsWhatADocumentDeclares`,
+  `reftable.TestDynamicAnchor_SaysWhenTheCountProvesNothing`,
+  `reftable.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
+  `reftable.TestResource_NamesTheRootOfAPositionsResource`
 - Status: partly built: an expanded reference reads no null from its target (#1967).
 
 ### `content-vocabulary`
@@ -6125,8 +6125,8 @@ resolves to the schema declaring it.
   `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
   `e2e.TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect`,
   `e2e.TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader`,
-  `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
-  `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
+  `specrules.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
+  `reftable.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
   `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`,
   `e2e.TestCompile_ASchemaOnlyARefReachesReadsItsOwnDialect`,
@@ -6198,7 +6198,7 @@ error.
   `operation.TestPathRoute_SplitsAsTheRuleTableDoes`,
   `operation.TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends`,
   `operation.TestRouteShape_LeavesOutEachExpressionsName`,
-  `oas.TestCheck_PathTemplatesAnswerToPathParameters`, `oas.TestFragmentAt_SplitsAsTheLoweringDoes`
+  `specrules.TestCheck_PathTemplatesAnswerToPathParameters`, `specrules.TestFragmentAt_SplitsAsTheLoweringDoes`
 
 ### `path-item-operations`
 
@@ -6390,8 +6390,8 @@ each key read into one is reported the same way, once, whether the tag forms a g
   `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
-  `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
-  `oas.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
+  `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `specrules.TestCheck_TagParentsExist`,
+  `specrules.TestCheck_DuplicatesAreFound`, `operation.TestOperation_ARepeatedTagIsKeptOnce`,
   `operation.TestOperation_ALongTagListFoldsAsAShortOne`
 
 ### `path-prefix-groups`
@@ -6590,7 +6590,7 @@ beside it stands, and the empty map is kept under `degraded_lowering` with an
 
 - Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
 - Codes: `openapi/degraded-construct`, `openapi/inapplicable-location-keyword`
-- Tests: `oas.TestCheck_SerializationKeywordsBesideContent`,
+- Tests: `specrules.TestCheck_SerializationKeywordsBesideContent`,
   `operation.TestParameter_ContentStatesNoDefaultStyle`,
   `e2e.TestContentParameters_SerializationKeywordsAreReported`,
   `operation.TestParams_ContentStyleParameter`,
@@ -6616,7 +6616,7 @@ location but `query`, which OpenAPI forbids, it is an `openapi/validation` error
 - Codes: `openapi/inapplicable-location-keyword`
 - Tests: `operation.TestParams_AllowEmptyValueLowers`,
   `operation.TestParams_AllowEmptyValueUnderAStyleThatCannotWriteOneIsReported`,
-  `oas.TestCheck_AllowEmptyValueWarnsUnderAStyleThatCannotWriteIt`
+  `specrules.TestCheck_AllowEmptyValueWarnsUnderAStyleThatCannotWriteIt`
 
 ### `reserved-header-names`
 
@@ -6632,7 +6632,7 @@ once.
 
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`,
-  `oas.TestCheck_ReservedHeaderParameter`, `oas.TestCheck_ReservedHeaderEntries`,
+  `specrules.TestCheck_ReservedHeaderParameter`, `specrules.TestCheck_ReservedHeaderEntries`,
   `e2e.TestReservedHeaderNames_ReportedOnceWhereverWritten`, `e2e.TestUnknownKeys_ObjectsKeptWhole`
 
 ### `idempotency-inference`
@@ -6684,7 +6684,7 @@ Object is judged where it is written, whether anything lowers it or not.
 
 - Cases: `param-querystring`, `querystring-forbidden-keywords`
 - Codes: `openapi/invalid-location-keyword`, `openapi/validation`
-- Tests: `oas.TestCheck_QuerystringTakesOnlyContent`,
+- Tests: `specrules.TestCheck_QuerystringTakesOnlyContent`,
   `operation.TestParams_QueryStringDeclaredStyleIsKeptAndReported`
 
 ### `allow-reserved-locations`
@@ -6697,8 +6697,8 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 
 - Cases: `param-allowreserved-locations`
 - Codes: `openapi/inapplicable-location-keyword`
-- Tests: `oas.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
-  `oas.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
+- Tests: `specrules.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
+  `specrules.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
 
 ### `parameter-schema-keywords`
 
@@ -6764,7 +6764,7 @@ written.
 
 - Cases: `media-type-spelling`, `multi-content`, `component-media-types-32`
 - Codes: `openapi/validation`
-- Tests: `oas.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
+- Tests: `specrules.TestCheck_ContentKeyIsAMediaType`, `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
   `service.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
   `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
@@ -7174,7 +7174,7 @@ in any case.
 - Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`,
   `openapi/partless-form-body`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
-  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
+  `specrules.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `specrules.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_KeyedOnTheMemberTheBodyDeclares`,
@@ -7206,7 +7206,7 @@ in any case.
   `operation.TestPartEncodings_AUnionBranchsPartIsKeyed`,
   `operation.TestPartMembers_AUnionBodyHasItsVariantsMembers`,
   `operation.TestMemberHolders_StopsPastItsBound`,
-  `oas.TestEncodingRules_TakesEffectWhereTheTextSays`,
+  `specrules.TestEncodingRules_TakesEffectWhereTheTextSays`,
   `operation.TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf`,
   `operation.TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords`,
   `operation.TestPartEncodings_AUnionPastItsBoundIsReported`,
@@ -7337,7 +7337,7 @@ reported follows the spellings and not the order the map writes them in.
   `operation.TestHeaders_SerializationKeywordsFollowTheDeclaration`,
   `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
   `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`,
-  `oas.TestCheck_HeaderNamesAreFieldNames`
+  `specrules.TestCheck_HeaderNamesAreFieldNames`
 
 ### `http-date-inference`
 
@@ -7437,12 +7437,12 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `runtimeexpr.TestEmbeds_FindsAnExpressionInBraces`,
   `runtimeexpr.TestEmbeds_AllocatesNothing`,
   `runtimeexpr.TestBodyPath_WalksEveryContentToTheSameMembers`,
-  `whole.TestDocument_MemberAgreesWithMembers`,
-  `whole.TestDocument_WalkNamesEachMemberFromTheRoot`,
-  `whole.TestDocument_HeaderMatchesTheNameWithoutCase`,
-  `whole.TestDocument_ReadsOnceAndAllocatesNothingAfter`,
-  `whole.TestDocument_ABodyReadFlattensNoModel`,
-  `whole.TestDocument_MembersFlattensAModelOnceWhateverNamesIt`,
+  `compileddoc.TestDocument_MemberAgreesWithMembers`,
+  `compileddoc.TestDocument_WalkNamesEachMemberFromTheRoot`,
+  `compileddoc.TestDocument_HeaderMatchesTheNameWithoutCase`,
+  `compileddoc.TestDocument_ReadsOnceAndAllocatesNothingAfter`,
+  `compileddoc.TestDocument_ABodyReadFlattensNoModel`,
+  `compileddoc.TestDocument_MembersFlattensAModelOnceWhateverNamesIt`,
   `e2e.TestBodyAlias_ReadsTheSameInEitherOrder`,
   `e2e.TestBodyAlias_ReadsAnOperationInANestedGroup`,
   `openapi.TestRun_ReadsTheFinishedDocumentOnce`, `openapi.TestRun_AppendsNothingAfterAFirstAsk`,
@@ -7499,7 +7499,7 @@ does, or a constant URL, which embeds none; one that is none of them is reported
   `operation.TestCallbacks_ACallbackNamingItselfStopsAtTheBound`,
   `openapi.TestCompile_ACallbackNamingItselfIsChargedAtEachLevel`,
   `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
-  `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
+  `specrules.TestCheck_CallbackKeysAreRuntimeExpressions`
 
 ## 13. Security
 
@@ -7592,7 +7592,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `e2e.TestSecurityUnresolved_ATaggedSchemeRefIsRefusedAndTheEntryLeftOut`,
   `auth.TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt`,
   `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
-  `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
+  `specrules.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
   `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,
   `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
   `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
@@ -7607,7 +7607,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AURIIsReadInTheDocumentHoldingIt`,
   `auth.TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder`,
   `auth.TestSecurityRequirement_AKeyAnotherDocumentMintsStillNamesTheSourcesEntry`,
-  `oas.TestSecurityRules_AnswerAsTheTableDoes`,
+  `specrules.TestSecurityRules_AnswerAsTheTableDoes`,
   `auth.TestSecurityRequirement_AnUnresolvedNameNamesADeclaredNearMiss`,
   `auth.TestSecurityRequirement_EveryErrorForANameNamesItsNearMiss`,
   `auth.TestNearest_TakesTheFirstReadingThatMatches`,
@@ -7751,8 +7751,8 @@ its entry, and the table reports each.
   `e2e.TestUnknownKeys_InsideAKeptSchema`, `e2e.TestUnknownKeys_ReportedOnceInEveryObjectAndMinor`,
   `e2e.TestUnknownKeys_MergedKeyIsPlacedWhereItIsWritten`,
   `e2e.TestUnknownKeys_SubObjectKeyMergedPastTheBoundIsReported`,
-  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `oas.TestCheck_UnknownKeysAreReportedAtEveryObject`,
-  `oas.TestCheck_KeysBesideARef`,
+  `e2e.TestUnknownKeys_EveryKeptKeyIsReported`, `specrules.TestCheck_UnknownKeysAreReportedAtEveryObject`,
+  `specrules.TestCheck_KeysBesideARef`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
   `annotation.TestUnknownKeywordsIn_AKeywordMergedPastTheBoundIsUnreachable`,
   `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
@@ -7800,7 +7800,7 @@ how operations are arranged rather than filling a fact a node holds.
    reports an info `openapi/undecided-<fact>` saying why.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
    the fact or for the convention, which imports only `ir`, the compiler's `diag`, `ids` and
-   `promotion`, and `whole`, the one reading of the finished document every such step shares, and
+   `promotion`, and `compileddoc`, the one reading of the finished document every such step shares, and
    `runtimeexpr` where it reads an expression the document writes, and so nothing of the walks that
    built the document. The compiler's run reads them in one block, in one order: links
    ([`links`](#links)), then the document's root, whose kept keys a promotion may read, then
@@ -8046,7 +8046,7 @@ saying why.
   `promotion.TestPromoter_ReferentFallsBackBeneathOwnKeys`,
   `promotion.TestPromoter_ReferentReadsWhatASchemaOffersAsFallback`,
   `promotion.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
-  `promotion.TestPromoter_ReadsReplacementNames`, `whole.TestParamIndex_NamedReadsALocationQualifiedName`,
+  `promotion.TestPromoter_ReadsReplacementNames`, `compileddoc.TestParamIndex_NamedReadsALocationQualifiedName`,
   `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
   `replacement.TestResolve_ANameNamingNothingFillsNothing`,
   `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
@@ -8214,8 +8214,8 @@ streams, or as a mark on the operation itself, is read by no source, so it speak
   `pagination.TestPromote_ReadsAHeaderOffItsOwnOperation`,
   `pagination.TestPromote_AllocatesLinearInWhatItReads`,
   `pagination.TestPromote_ReadsAPageThroughAnAlias`,
-  `whole.TestDocument_APromotionNoMemberMarksFlattensNoModel`,
-  `whole.TestDocument_ListsEveryOperationOnce`,
+  `compileddoc.TestDocument_APromotionNoMemberMarksFlattensNoModel`,
+  `compileddoc.TestDocument_ListsEveryOperationOnce`,
   `pagination.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `promotion.TestPageStatementOf_ReadsAnExpressionOrAMark`,
   `promotion.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
@@ -8377,8 +8377,8 @@ declaration both mounts share.
   `pagination.TestInferWalks_ReadsTheBodyMembersEveryContentHolds`,
   `pagination.TestInferWalks_SaysWhyAPostIsNoWalk`, `pagination.TestInferWalks_ReadsALinkWalkOnlyOffAPage`,
   `pagination.TestInferWalks_AllocatesLinearInTheBodiesItReads`,
-  `whole.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
-  `whole.TestDocument_ListsEveryOperationOnce`,
+  `compileddoc.TestDocument_StandsReadsThroughAliasScalarsToTheCap`,
+  `compileddoc.TestDocument_ListsEveryOperationOnce`,
   `pagination.TestInference_TheZeroValueHonoursThePolicy`,
   `openapi.TestDecodeOptions_TextReachesEveryField`
 

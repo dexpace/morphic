@@ -131,21 +131,21 @@ linters:
         - pattern: ^core\.OpenAPI\.OpenAPI$
           pkg: ^github\.com/speakeasy-api/openapi/openapi/core$
           msg: ask the rule table how a document's version reads, not the version
-        - pattern: ^oas\.ParseMinor$
-          pkg: /compilers/openapi/internal/oas$
+        - pattern: ^specrules\.ParseMinor$
+          pkg: /compilers/openapi/internal/specrules$
           msg: ask the rule table how a document's version reads, not the version
         # The OpenAPI compiler binds every $ref itself
         # (docs/compilers/openapi.md#references), so the parser library's
         # reference wrapper holds no resolution: what its resolution accessors
         # return is nothing, or an inline entry's own object, which
-        # resolve.Object answers through the bindings' table, a $ref a `<<`
+        # componentlookup.Object answers through the bindings' table, a $ref a `<<`
         # merges in among what it reads as one. They are refused outside
-        # resolve and tests, which exclusions below excuse. A call through a
+        # componentlookup and tests, which exclusions below excuse. A call through a
         # type parameter is not matched, as its receiver's static type is the
         # parameter; the plants show that miss.
         - pattern: ^openapi\.Reference\.(GetObject|GetResolvedObject|MustGetObject|GetObjectAny|GetReferenceResolutionInfo|IsResolved)$
           pkg: ^github\.com/speakeasy-api/openapi/openapi$
-          msg: read what a reference stands for through resolve.Object, which asks the bindings
+          msg: read what a reference stands for through componentlookup.Object, which asks the bindings
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
@@ -286,9 +286,9 @@ linters:
         linters:
           - forbidigo
         text: not the version
-      # resolve is where a reference wrapper is read, through the bindings'
+      # componentlookup is where a reference wrapper is read, through the bindings'
       # table. The path is unanchored so the plants' look-alike is excused too.
-      - path: (^|/)compilers/openapi/internal/resolve/
+      - path: (^|/)compilers/openapi/internal/componentlookup/
         linters:
           - forbidigo
         text: which asks the bindings

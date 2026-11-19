@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -16,13 +16,13 @@ import (
 // a model's members are, and where a body holds a page, each read once however
 // many operations or members name it.
 type reader struct {
-	w      *whole.CompiledDocumentView
+	w      *compileddoc.CompiledDocumentView
 	models *models
 	pages  map[pageKey]page
 }
 
 // newReader returns a reader over w that has read nothing yet.
-func newReader(w *whole.CompiledDocumentView) *reader {
+func newReader(w *compileddoc.CompiledDocumentView) *reader {
 	return &reader{w: w, models: &models{w: w, read: map[ir.TypeID]*model{}}, pages: map[pageKey]page{}}
 }
 
@@ -30,7 +30,7 @@ func newReader(w *whole.CompiledDocumentView) *reader {
 // which the readers of a page's items, next cursor, flag, totals and links
 // take.
 type models struct {
-	w    *whole.CompiledDocumentView
+	w    *compileddoc.CompiledDocumentView
 	read map[ir.TypeID]*model
 }
 

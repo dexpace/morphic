@@ -11,7 +11,7 @@ import (
 )
 
 // TestReusedMaps_AreEmptiedThroughReusedMapAlone holds every map the package
-// empties for another collection to reuse.Map, whose limit bounds what
+// empties for another collection to scratchstate.Map, whose limit bounds what
 // emptying costs: a bare clear of a map kept across collections makes one huge
 // collection tax every later one, and a delete from one leaves it as large as
 // it grew, which the map's limit cannot see.

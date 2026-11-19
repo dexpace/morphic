@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/reuse"
+	"github.com/dexpace/morphic/scratchstate"
 )
 
 // nameReader reads one scope after another through the same buffers, which
@@ -25,7 +25,7 @@ type nameReader struct {
 	// the last set read whose name has that hash. A hash is its key rather
 	// than the name, since a name compared joined is not a string the scope
 	// holds.
-	seen reuse.Map[uint64, int]
+	seen scratchstate.Map[uint64, int]
 	// hash makes the keys of seen, under one seed for the whole run, and
 	// joined holds the words it hashes with their separators left out.
 	hash   maphash.Hash

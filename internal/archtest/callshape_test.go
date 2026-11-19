@@ -48,8 +48,8 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/operation": 3,
 		"compilers/openapi/internal/schema":    6,
 	},
-	"compilers/openapi/internal/bind": {
-		// bind.Config's six functions, which #1488 keeps under #1477's rule: I/O
+	"compilers/openapi/internal/reftable": {
+		// reftable.Config's six functions, which #1488 keeps under #1477's rule: I/O
 		// (Open), policy bind may not import (Locate, Map, Refuse), and two readings
 		// of a document's rows, which load holds and bind may not import, asked
 		// only of a document a reference opens, so no list made before binding
@@ -80,14 +80,14 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
-		"compilers/openapi/internal/doctree":     1,
-		"compilers/openapi/internal/load":        3,
-		"compilers/openapi/internal/oas":         3,
-		"compilers/openapi/internal/overlay":     3,
-		"compilers/openapi/internal/sourceindex": 2,
+		"compilers/openapi/internal/doctree":         1,
+		"compilers/openapi/internal/load":            3,
+		"compilers/openapi/internal/specrules":       3,
+		"compilers/openapi/internal/overlay":         3,
+		"compilers/openapi/internal/sourcetreestats": 2,
 	},
-	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate, Seen, Skip, Judged, Referenced, RootRows and Later,
+	"compilers/openapi/internal/specrules": {
+		// specrules.Options' Locate, Seen, Skip, Judged, Referenced, RootRows and Later,
 		// which #1488 keeps under #1477's rule: the checker places its own
 		// findings, and the nodes their messages name, to drop the repeat an
 		// alias makes, a policy, and the others observe or steer the walk,
@@ -107,7 +107,7 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/load": 1,
 		"compilers/openapi/internal/scan": 1,
 	},
-	"compilers/openapi/internal/resolve": {
+	"compilers/openapi/internal/componentlookup": {
 		// DirectoryLocator, through which Places asks the reader where a
 		// directory lies: I/O at a designed seam, as DocumentReader is load's.
 		"engine":        1,

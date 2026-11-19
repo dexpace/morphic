@@ -11,11 +11,11 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -123,7 +123,7 @@ func (f modelFields) Interned(pointer jsontext.Pointer) bool {
 // place returns where p is in the bindings' table, read at f.c's position for
 // its pointer, as the model's own document holds it, and false for a site in
 // another document, such as a component a $ref there reached.
-func (f modelFields) place(p ir.Provenance) (bind.DocumentPointer, bool) {
+func (f modelFields) place(p ir.Provenance) (reftable.DocumentPointer, bool) {
 	return f.c.Position(p.Pointer), p.Source == f.c.Place().At(p.Pointer).Source
 }
 
@@ -176,7 +176,7 @@ func (f modelFields) Admits(p ir.Provenance, kind merge.JSONInstanceKind) (admit
 // writes beside it. A schema st is an allOf entry of, and no union branch, is
 // no variant, so st alone is read. Each holder stands two tokens up the
 // pointer, so the climb ends within half its tokens.
-func variantHolders(c lowering.Ctx, at bind.DocumentPointer, st *statement.Statement) []*statement.Statement {
+func variantHolders(c lowering.Ctx, at reftable.DocumentPointer, st *statement.Statement) []*statement.Statement {
 	out := []*statement.Statement{st}
 	for range strings.Count(string(at.Pointer), "/") / 2 {
 		holder, keyword, ok := holderOf(c, at, st)
@@ -184,7 +184,7 @@ func variantHolders(c lowering.Ctx, at bind.DocumentPointer, st *statement.State
 			break
 		}
 		out = append(out, holder)
-		at, st = bind.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()}, holder
+		at, st = reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()}, holder
 	}
 	return out
 }
@@ -193,13 +193,13 @@ func variantHolders(c lowering.Ctx, at bind.DocumentPointer, st *statement.State
 // which st, at at, is, with that keyword, and false where st is no such entry:
 // its pointer ends elsewhere, names an entry its holder lacks, or st is read
 // elsewhere.
-func holderOf(c lowering.Ctx, at bind.DocumentPointer, st *statement.Statement) (*statement.Statement, string, bool) {
+func holderOf(c lowering.Ctx, at reftable.DocumentPointer, st *statement.Statement) (*statement.Statement, string, bool) {
 	index, err := strconv.Atoi(at.Pointer.LastToken())
 	if err != nil {
 		return nil, "", false
 	}
 	keyword := at.Pointer.Parent().LastToken()
-	holder := c.Statements().At(bind.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()})
+	holder := c.Statements().At(reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer.Parent().Parent()})
 	var entries []statement.Subschema
 	switch keyword {
 	case "oneOf":

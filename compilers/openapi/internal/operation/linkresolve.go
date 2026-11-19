@@ -7,12 +7,12 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,7 +22,7 @@ import (
 // on that response instead, with the finding that says why: a link is lowered
 // whole or not at all, so no consumer reads one missing a value its source
 // states. c is the source's context.
-func (l *Links) Resolve(c service.Ctx, w *whole.CompiledDocumentView, srv *servers.Registry) []ir.Diagnostic {
+func (l *Links) Resolve(c service.Ctx, w *compileddoc.CompiledDocumentView, srv *servers.Registry) []ir.Diagnostic {
 	if len(l.pending) == 0 {
 		return nil
 	}
@@ -43,7 +43,7 @@ func (l *Links) Resolve(c service.Ctx, w *whole.CompiledDocumentView, srv *serve
 
 // place lowers p onto the response of from it sits on, or keeps it verbatim
 // there.
-func place(ix opIndex, w *whole.CompiledDocumentView, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
+func place(ix opIndex, w *compileddoc.CompiledDocumentView, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
 	d := &p.draft
 	at := p.slot.in(from)
 	link, failed := resolveLink(ix, w, from, at, d)
@@ -66,10 +66,10 @@ func place(ix opIndex, w *whole.CompiledDocumentView, srv *servers.Registry, fro
 }
 
 // responseView is what resolving a link reads of the response carrying it, and
-// where the link is written. key names the response, which whole.CompiledDocumentView
+// where the link is written. key names the response, which compileddoc.CompiledDocumentView
 // indexes its headers under.
 type responseView struct {
-	key       whole.ResponseKey
+	key       compileddoc.ResponseKey
 	links     *[]ir.OperationLink
 	unmodeled *ir.Unmodeled
 	payload   *ir.Payload
@@ -79,12 +79,12 @@ type responseView struct {
 // in returns the response s names on op. add took s as the response was
 // appended, so the response is there.
 func (s responseSlot) in(op *ir.Operation) responseView {
-	key := whole.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
+	key := compileddoc.ResponseKey{Op: op.ID, List: s.list, Index: s.index}
 	switch s.list {
-	case whole.ListErrors:
+	case compileddoc.ListErrors:
 		e := &op.Errors[s.index]
 		return responseView{key: key, links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
-	case whole.ListDefault:
+	case compileddoc.ListDefault:
 		r := op.Default
 		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
 	default:
@@ -113,7 +113,7 @@ func untyped(format string, args ...any) *linkFailure {
 }
 
 // resolveLink resolves d, which a response of from carries, at.
-func resolveLink(ix opIndex, w *whole.CompiledDocumentView, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
+func resolveLink(ix opIndex, w *compileddoc.CompiledDocumentView, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
 	target, failed := ix.target(d)
 	if failed != nil {
 		return ir.OperationLink{}, failed
@@ -157,7 +157,7 @@ type opIndex struct {
 	byDecl map[jsontext.Pointer][]*ir.Operation
 }
 
-// indexOperations indexes ops, the document's operations (whole.CompiledDocumentView.Ops).
+// indexOperations indexes ops, the document's operations (compileddoc.CompiledDocumentView.Ops).
 // byDecl holds those the source declares, whose provenance names c's source.
 func indexOperations(c service.Ctx, ops []*ir.Operation) opIndex {
 	ix := opIndex{byID: map[ir.OpID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
@@ -201,7 +201,7 @@ func (ix opIndex) target(d *linkDraft) (*ir.Operation, *linkFailure) {
 // declaration mounted more than once names several.
 func (ix opIndex) byReference(d *linkDraft) (*ir.Operation, *linkFailure) {
 	ref := *d.operationRef
-	if _, ok := resolve.FragmentPointer(ref); !ok {
+	if _, ok := componentlookup.FragmentPointer(ref); !ok {
 		return nil, invalid("names operationRef %q, which is no JSON pointer to an operation", ref)
 	}
 	pointer, internal := d.c.RefScope().InternalPointer(ref)

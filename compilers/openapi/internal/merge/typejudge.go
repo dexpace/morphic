@@ -10,7 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -167,7 +167,7 @@ func (j typeJudge) heldNull(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 }
 
 // arms relates two resolved types, neither the top type nor degraded, that it
-// can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
+// can narrow: two bare primitives (typeformat.Relate); a Scalar, Enum or Literal
 // against a bare primitive; an alias against the type it stands for, by what it
 // adds (standsFor); then each as the node it stands for (view): two identical
 // such nodes; two literals of different values, disjoint; two enums (enums);
@@ -180,7 +180,7 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 	aFor, bFor := j.standsFor(at, b.Target), j.standsFor(bt, a.Target).flipped()
 	switch {
 	case aBare && bBare:
-		return fromSpelling(spelling.Relate(ap.Prim, bp.Prim))
+		return fromSpelling(typeformat.Relate(ap.Prim, bp.Prim))
 	case bBare:
 		return j.nodeAgainstBare(a, at, b, bp.Prim)
 	case aBare:
@@ -727,17 +727,17 @@ func idless(ms []ir.EnumMember) []ir.EnumMember {
 }
 
 // fromSpelling maps spelling's verdict on two kinds to a relation.
-func fromSpelling(r spelling.Relation) relation {
-	if r == spelling.Same {
+func fromSpelling(r typeformat.Relation) relation {
+	if r == typeformat.Same {
 		return relSame
 	}
-	if r == spelling.ANarrower {
+	if r == typeformat.ANarrower {
 		return firstTypeIsNarrower
 	}
-	if r == spelling.BNarrower {
+	if r == typeformat.BNarrower {
 		return secondTypeIsNarrower
 	}
-	if r == spelling.Overlap {
+	if r == typeformat.Overlap {
 		return relOverlap
 	}
 	return relDisjoint
@@ -1095,7 +1095,7 @@ func heldFormat(enc *ir.Encoding) (string, bool) {
 	return enc.Name, true
 }
 
-// relateKinds relates two kinds as spelling.Relate does, reading a held format
+// relateKinds relates two kinds as typeformat.Relate does, reading a held format
 // as a string format of its own (formatAgainst).
 func relateKinds(a, b valueKind) relation {
 	switch {
@@ -1104,12 +1104,12 @@ func relateKinds(a, b valueKind) relation {
 	case b.format != "":
 		return formatAgainst(b.format, a).flipped()
 	default:
-		return fromSpelling(spelling.Relate(a.prim, b.prim))
+		return fromSpelling(typeformat.Relate(a.prim, b.prim))
 	}
 }
 
 // formatAgainst relates the held format f to the kind k, from f's side, as
-// spelling.Relate relates one string format to another kind: the same as
+// typeformat.Relate relates one string format to another kind: the same as
 // itself, within string and the top, an overlap with bytes, which octets may
 // spell, and disjoint from any other kind, a string format or another family,
 // since no string satisfies two formats' grammars
@@ -1186,8 +1186,8 @@ func (r registry) travelsAs(s *ir.Scalar) ir.TypeID {
 // spelledIn reports whether JSON writes a value of k as an instance of wire:
 // k is wire or narrows it, as bytes and datetime_offset narrow string.
 func spelledIn(k, wire ir.PrimKind) bool {
-	rel := spelling.Relate(k, wire)
-	return rel == spelling.Same || rel == spelling.ANarrower
+	rel := typeformat.Relate(k, wire)
+	return rel == typeformat.Same || rel == typeformat.ANarrower
 }
 
 // kindUnder is the valueKind of the primitive k, reached under enc, the first
@@ -1208,7 +1208,7 @@ func kindUnder(enc *ir.Encoding, k ir.PrimKind) valueKind {
 // string itself included, is judged by its JSON type, which no encoding name
 // changes.
 func rewritesText(enc *ir.Encoding, k ir.PrimKind) bool {
-	return enc != nil && enc.Name != "" && spelling.Relate(k, ir.PrimString) == spelling.ANarrower
+	return enc != nil && enc.Name != "" && typeformat.Relate(k, ir.PrimString) == typeformat.ANarrower
 }
 
 // admits reports whether v is a value of the type ref names. A null is judged

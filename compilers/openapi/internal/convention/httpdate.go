@@ -6,9 +6,9 @@ package convention
 import (
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,7 +45,7 @@ func httpDate(policy HTTPDateInference, p promotion.Promoter, reg ir.TypeRegistr
 // and its type reads as an instant: on the parameter itself, as its type may be
 // one a $ref shares. A parameter in any other location is not read, whatever
 // its name. The rule is docs/compilers/openapi.md#http-date-inference.
-func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *whole.CompiledDocumentView,
+func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *compileddoc.CompiledDocumentView,
 	op *ir.Operation,
 ) []ir.Diagnostic {
 	if !policy.Honours() || len(op.Params) == 0 {
@@ -72,7 +72,7 @@ func httpDateParam(policy HTTPDateInference, promoter promotion.Promoter, w *who
 
 // headerName returns the name the first of the placements ix holds for p puts
 // it in a header under, and false where none does.
-func headerName(ix whole.ParamIndex, p *ir.Parameter) (string, bool) {
+func headerName(ix compileddoc.ParamIndex, p *ir.Parameter) (string, bool) {
 	for _, at := range ix.Placements(p.ID) {
 		if at.Location == ir.HTTPLocationHeader {
 			return at.Name, true

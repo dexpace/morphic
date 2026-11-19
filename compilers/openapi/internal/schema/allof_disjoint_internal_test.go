@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // aliasChain writes n schemas, the first named name, each a $ref to the next,
@@ -60,7 +60,7 @@ func TestToldWhereWritten_ReadsWhatSaysASchemaAdmitsNothing(t *testing.T) {
     Beside: {$ref: '#/components/schemas/Str', type: object}
 `+aliasChain("Short", maxAdmissionReads-1, "F")+aliasChain("Long", maxAdmissionReads, "F")))
 	for name, want := range rows {
-		st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
 		assert.Equal(t, want, toldWhereWritten(l.Ctx, st), name)
 	}
 }
@@ -106,7 +106,7 @@ func TestUnionApartFromBody_ReadsKindsAndACutReadSharesOne(t *testing.T) {
     Cut: {type: string, anyOf: [{type: integer}, {$ref: '#/components/schemas/Cyc'}]}
 `))
 	for name, want := range map[string]bool{"Apart": true, "Shared": false, "Cut": false} {
-		st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
 		assert.Equal(t, want, unionApartFromBody(l.Ctx, st.Schema), name)
 	}
 }

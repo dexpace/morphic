@@ -230,7 +230,7 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    responsibility no file holds yet starts a file named for it, however small, and a helper goes
    with what it serves, not with its caller. A rule reads a schema from its statement
    (`compilers/openapi/internal/statement`), not from the parser library's model, and a keyword the
-   statement lacks is added to `oas`'s rows and filled in the statement's `model.go`, the one file
+   statement lacks is added to `specrules`'s rows and filled in the statement's `model.go`, the one file
    that reads the model. Two places outside it still read the model's fields: the load phase, which
    builds the bindings from it before any statement is read, and the operation walk. Wherever the
    model is read, it can read an absent field and an empty one alike, so check what it returns

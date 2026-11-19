@@ -6,9 +6,9 @@ package dialect
 import (
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // SchemaDialectRows is the rows each schema of a compile is read with: by where it is
@@ -17,20 +17,20 @@ import (
 // every schema with the zero rows, which define nothing.
 type SchemaDialectRows struct {
 	// byRoot is the rows of each schema resource root naming its dialect
-	// (bind.ReferencedDocument.Dialects), and byNode those of each mapping and list such
+	// (reftable.ReferencedDocument.Dialects), and byNode those of each mapping and list such
 	// a root's tree holds, a root it holds governing its own.
-	byRoot map[bind.DocumentPointer]oas.SchemaRules
-	byNode map[*yaml.Node]oas.SchemaRules
+	byRoot map[reftable.DocumentPointer]specrules.SchemaRules
+	byNode map[*yaml.Node]specrules.SchemaRules
 	// byDoc is the rows each document's schemas no root governs are read with,
-	// the source's at bind.Source.
-	byDoc map[bind.DocID]oas.SchemaRules
+	// the source's at reftable.Source.
+	byDoc map[reftable.DocID]specrules.SchemaRules
 }
 
 // At returns the rows the schema at p is read with: those of the innermost
 // root at or above it naming its dialect, else those of p's document, else
 // the source's, as for a document the compile did not read beside it.
-func (t SchemaDialectRows) At(p bind.DocumentPointer) oas.SchemaRules {
-	if r, ok := bind.DialectAt(t.byRoot, p); ok {
+func (t SchemaDialectRows) At(p reftable.DocumentPointer) specrules.SchemaRules {
+	if r, ok := reftable.DialectAt(t.byRoot, p); ok {
 		return r
 	}
 	return t.In(p.Doc)
@@ -39,7 +39,7 @@ func (t SchemaDialectRows) At(p bind.DocumentPointer) oas.SchemaRules {
 // RootAt returns the rows of the root naming its dialect at p, and false
 // where none is there, a root above p not counted: what a check entering the
 // schema at p switches to.
-func (t SchemaDialectRows) RootAt(p bind.DocumentPointer) (oas.SchemaRules, bool) {
+func (t SchemaDialectRows) RootAt(p reftable.DocumentPointer) (specrules.SchemaRules, bool) {
 	r, ok := t.byRoot[p]
 	return r, ok
 }
@@ -49,21 +49,21 @@ func (t SchemaDialectRows) RootAt(p bind.DocumentPointer) (oas.SchemaRules, bool
 // places at several positions reads at all of them the rows of the first root
 // to govern it (Builder.Root), so a reading asks Of of a schema the bindings
 // place nowhere, and asks At of one they place.
-func (t SchemaDialectRows) Of(n *yaml.Node) oas.SchemaRules {
+func (t SchemaDialectRows) Of(n *yaml.Node) specrules.SchemaRules {
 	if r, ok := t.byNode[nodeview.Deref(n)]; ok {
 		return r
 	}
-	return t.byDoc[bind.Source]
+	return t.byDoc[reftable.Source]
 }
 
 // In returns the rows the schemas document id declares are read with where
 // no root names a dialect: the document's own, else the source's, as for the
 // source and for a document the compile did not read beside it.
-func (t SchemaDialectRows) In(id bind.DocID) oas.SchemaRules {
+func (t SchemaDialectRows) In(id reftable.DocID) specrules.SchemaRules {
 	if r, ok := t.byDoc[id]; ok {
 		return r
 	}
-	return t.byDoc[bind.Source]
+	return t.byDoc[reftable.Source]
 }
 
 // Builder fills a Table as the load phase reads each document's dialects:
@@ -75,21 +75,21 @@ type Builder struct {
 
 // NewBuilder returns a Builder of a Table reading the source's schemas no
 // root governs with source.
-func NewBuilder(source oas.SchemaRules) *Builder {
-	return &Builder{t: SchemaDialectRows{byRoot: map[bind.DocumentPointer]oas.SchemaRules{}, byNode: map[*yaml.Node]oas.SchemaRules{},
-		byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: source}}}
+func NewBuilder(source specrules.SchemaRules) *Builder {
+	return &Builder{t: SchemaDialectRows{byRoot: map[reftable.DocumentPointer]specrules.SchemaRules{}, byNode: map[*yaml.Node]specrules.SchemaRules{},
+		byDoc: map[reftable.DocID]specrules.SchemaRules{reftable.Source: source}}}
 }
 
 // Document notes that the schemas of document id that no root governs are
 // read with rules.
-func (b *Builder) Document(id bind.DocID, rules oas.SchemaRules) {
+func (b *Builder) Document(id reftable.DocID, rules specrules.SchemaRules) {
 	b.t.byDoc[id] = rules
 }
 
 // Root notes that the schema resource root at at, whose node is node, names a
 // dialect read with rules, and governs what its tree holds (Govern). Roots
 // are noted innermost first, so a nested root keeps its own.
-func (b *Builder) Root(at bind.DocumentPointer, node *yaml.Node, rules oas.SchemaRules) {
+func (b *Builder) Root(at reftable.DocumentPointer, node *yaml.Node, rules specrules.SchemaRules) {
 	b.t.byRoot[at] = rules
 	b.Govern(node, rules)
 }
@@ -99,7 +99,7 @@ func (b *Builder) Root(at bind.DocumentPointer, node *yaml.Node, rules oas.Schem
 // it holds. No scalar is noted, since the only schema one can be is a boolean,
 // which writes no keyword. Each mapping and list is walked once, so the walk
 // reads each entry the document writes once.
-func (b *Builder) Govern(root *yaml.Node, rules oas.SchemaRules) {
+func (b *Builder) Govern(root *yaml.Node, rules specrules.SchemaRules) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
 		n := nodeview.Deref(stack[len(stack)-1])

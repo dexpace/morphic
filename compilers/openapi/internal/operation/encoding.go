@@ -13,8 +13,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -56,7 +56,7 @@ var arrangingFields = []string{"style", "explode", "allowReserved"}
 
 // arranges reports whether enc writes an RFC6570-style field the table does
 // not say has no effect under mt, which arranges the part's value.
-func arranges(rules oas.EncodingRules, enc *soa.Encoding, mt string) bool {
+func arranges(rules specrules.EncodingRules, enc *soa.Encoding, mt string) bool {
 	return enc.Style != nil && !rules.Ignores("style", mt) ||
 		enc.Explode != nil && !rules.Ignores("explode", mt) ||
 		enc.AllowReserved != nil && !rules.Ignores("allowReserved", mt)
@@ -79,7 +79,7 @@ func arrangement(enc *soa.Encoding) (style string, explode *bool, allowReserved 
 // RFC6570-style field outside the media types it applies to, and headers
 // outside multipart. Each is reported where it is written as the check reports
 // a field written where the specification gives it no effect.
-func keepIgnoredFields(c service.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string, rules oas.EncodingRules) (ir.Unmodeled, []ir.Diagnostic) {
+func keepIgnoredFields(c service.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope, mt string, rules specrules.EncodingRules) (ir.Unmodeled, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, field := range append([]string{"headers"}, arrangingFields...) {
@@ -91,7 +91,7 @@ func keepIgnoredFields(c service.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer
 			nodeview.Child(enc.GetRootNode(), field), ir.ReasonNoIRHome, c.Place().At(at))
 		diags = append(diags, keepDiags...)
 		if written {
-			diags = append(diags, c.DiagAt(ir.SeverityWarning, oas.NoEffect, at,
+			diags = append(diags, c.DiagAt(ir.SeverityWarning, specrules.NoEffect, at,
 				"Encoding Object field %q has no effect under %q, where the specification ignores it; kept verbatim under Unmodeled",
 				field, mt))
 		}

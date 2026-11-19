@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 )
 
 // Mapping puts the documents under a URI prefix at a location, as the caller
 // writes it (openapi.Location): the URL Prefix + rest is read at Location +
-// rest. Prefix is an absolute URI ending in "/", spelled as resolve.Locate
+// rest. Prefix is an absolute URI ending in "/", spelled as componentlookup.Locate
 // spells a located URL; Location is a directory, a relative one read against
 // the source's, or an http(s) URL ending in "/".
 type Mapping struct {

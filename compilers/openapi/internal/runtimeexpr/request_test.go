@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -61,7 +61,7 @@ func TestRequestValue_ResolvesEachSpelling(t *testing.T) {
 	} {
 		t.Run(tc.text, func(t *testing.T) {
 			t.Parallel()
-			in, typ, why := runtimeexpr.RequestValue(whole.New(&ir.Document{Types: registry()}), requestOp(), tc.text)
+			in, typ, why := runtimeexpr.RequestValue(compileddoc.New(&ir.Document{Types: registry()}), requestOp(), tc.text)
 			if tc.error != "" {
 				assert.Nil(t, in)
 				assert.Contains(t, why, tc.error)

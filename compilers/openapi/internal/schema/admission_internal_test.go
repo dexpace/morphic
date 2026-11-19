@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
@@ -112,7 +112,7 @@ func statementsOfDocument(l *Lowerer, visit func(at jsontext.Pointer, st *statem
 		if n == nil || depth > 512 {
 			return
 		}
-		if st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: at}); st.Held() {
+		if st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at}); st.Held() {
 			visit(at, st)
 		}
 		switch n.Kind {
@@ -324,8 +324,8 @@ func TestVariantHolders_ClimbsEverySchemaHoldingAUnionBranch(t *testing.T) {
     N: {type: object, allOf: [{allOf: [{oneOf: [{anyOf: [{type: string}]}]}]}]}
     T: {prefixItems: [{type: string}]}
 `))
-	at := func(p string) bind.DocumentPointer {
-		return bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer(p)}
+	at := func(p string) reftable.DocumentPointer {
+		return reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer(p)}
 	}
 	for _, tc := range []struct {
 		from    string
@@ -472,7 +472,7 @@ func TestAdmissionOf_PartialIsWhatAKeywordRefusesInPart(t *testing.T) {
 	}
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", schemas.String()))
 	for name, row := range rows {
-		st := l.Ctx.Statements().At(bind.DocumentPointer{Doc: bind.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
+		st := l.Ctx.Statements().At(reftable.DocumentPointer{Doc: reftable.Source, Pointer: jsontext.Pointer("/components/schemas/" + name)})
 		r := admissionOf(l.Ctx, st)
 		assert.Equal(t, row.partial, r.partial&r.admits, "%s: %s", name, row.schema)
 	}
@@ -583,7 +583,7 @@ func TestAdmissionOf_AUnionHoldsFewSetsApart(t *testing.T) {
 			fmt.Fprintf(&b, "    E%d: {enum: [a%d, b%d, c]}\n", j, j, j)
 		}
 		l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", b.String()))
-		at := bind.DocumentPointer{Doc: bind.Source, Pointer: "/components/schemas/U"}
+		at := reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/components/schemas/U"}
 		union := admissionOf(l.Ctx, l.Ctx.Statements().At(at)).admitted
 		assert.LessOrEqual(t, len(union.joined), maxJoinedSets, "a union of %d", k)
 		assert.Equal(t, 2*k+1, union.size(), "a union of %d holds each member once", k)

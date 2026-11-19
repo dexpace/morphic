@@ -7,7 +7,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // settle makes the tree read as the table judged it, once every judgment is
@@ -59,7 +59,7 @@ func setAside(j judgment, a *aside) {
 		}
 	}
 	for key := range j.seen {
-		if key.kind == oas.PathItem {
+		if key.kind == specrules.PathItem {
 			asidePathItem(key.node, a)
 		}
 	}

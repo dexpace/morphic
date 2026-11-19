@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -105,7 +105,7 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	t.Parallel()
 	p := mapped()
 	doc := replacementDoc(`"v2"`)
-	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
+	assert.Empty(t, replacement.Resolve(p, compileddoc.New(doc)))
 
 	op := doc.Services[0].Groups[0].Operations[0]
 	v2 := ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")
@@ -150,7 +150,7 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 	for _, value := range []string{`["v2","gone"]`, `"old"`, `["getOld"]`, `"X-Old"`} {
 		p := mapped()
 		doc := replacementDoc(value)
-		diags := replacement.Resolve(p, whole.New(doc))
+		diags := replacement.Resolve(p, compileddoc.New(doc))
 		require.NotEmpty(t, diags, value)
 		for _, d := range diags {
 			assert.Equal(t, diag.DegradedConstruct, d.Code, value)
@@ -197,7 +197,7 @@ func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
 		p := mapped()
 		doc := replacementDoc(`"v2"`)
 		severalV2(doc, first)
-		diags := replacement.Resolve(p, whole.New(doc))
+		diags := replacement.Resolve(p, compileddoc.New(doc))
 
 		messages := make([]string, 0, len(diags))
 		for _, d := range diags {
@@ -233,14 +233,14 @@ func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	t.Parallel()
 	unmapped := promotion.New(promotion.ExtensionPromotions{})
 	doc := replacementDoc(`"v2"`)
-	assert.Empty(t, replacement.Resolve(unmapped, whole.New(doc)))
+	assert.Empty(t, replacement.Resolve(unmapped, compileddoc.New(doc)))
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy)
 
 	p := mapped()
 	doc = replacementDoc(`"v2"`)
 	doc.Services[0].Groups[0].Operations[0].Deprecation = nil
 	doc.Types[ids.DocumentIDNamespace{}.NamedType("/components/schemas/v2")] = (*ir.Model)(nil)
-	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
+	assert.Empty(t, replacement.Resolve(p, compileddoc.New(doc)))
 	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Deprecation)
 }
 
@@ -256,7 +256,7 @@ func TestResolve_StopsAtTheGroupDepthBound(t *testing.T) {
 		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}
 	}
 	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{deep}}}}
-	assert.Empty(t, replacement.Resolve(p, whole.New(doc)))
+	assert.Empty(t, replacement.Resolve(p, compileddoc.New(doc)))
 	for range ir.MaxGroupDepth + 1 {
 		deep = deep.Groups[0]
 	}

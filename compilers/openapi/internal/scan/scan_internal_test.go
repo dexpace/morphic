@@ -24,7 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
@@ -215,7 +215,7 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), budget.AtMost(defaultSurplus), budget.Unbounded()))
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, sourcetreestats.Build(t.Context(), nil, sourcetreestats.MaxIndexedNodes), budget.AtMost(defaultSurplus), budget.Unbounded()))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -244,11 +244,11 @@ func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
 // decode never reaches the scan in a real compile — load returns a parse error
 // first — so a decode failure here is a broken fixture, not a case to scan.
-func indexOf(t *testing.T, data []byte) sourceindex.Measurements {
+func indexOf(t *testing.T, data []byte) sourcetreestats.Measurements {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal(data, &root), "the fixture must decode")
-	return sourceindex.Build(t.Context(), &root, sourceindex.MaxIndexedNodes)
+	return sourcetreestats.Build(t.Context(), &root, sourcetreestats.MaxIndexedNodes)
 }
 
 // reproducerDir is where the cycle fixtures live. The reader below and the table

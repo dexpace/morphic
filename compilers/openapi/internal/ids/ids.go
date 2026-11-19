@@ -409,10 +409,10 @@ const (
 	// NotComponent is a pointer addressing no top-level component schema.
 	NotComponent ComponentState = iota
 	// NamedComponent is a top-level component schema with a name, and from
-	// resolve.Scope.ComponentRef, one the document declares.
+	// componentlookup.Scope.ComponentRef, one the document declares.
 	NamedComponent
 	// UndeclaredComponent is a pointer shaped as a component schema's naming
-	// none the document declares, which only resolve.Scope.ComponentRef can tell.
+	// none the document declares, which only componentlookup.Scope.ComponentRef can tell.
 	UndeclaredComponent
 	// UnnamedComponent is the component schema keyed "", the position
 	// /components/schemas/ addresses. It is a component schema, and an empty name

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -80,7 +80,7 @@ components:
 		"/components/schemas/parameters/$defs/schema":                  false,
 		"/components/schemas/headers/patternProperties/schema":         false,
 	} {
-		st := l.Ctx.Statements().At(bind.DocumentPointer{Pointer: at})
+		st := l.Ctx.Statements().At(reftable.DocumentPointer{Pointer: at})
 		require.Equal(t, statement.Stated, st.Truth, "%s is written", at)
 		assert.Equal(t, want, carriedAt(l.Ctx, st.Schema), at)
 	}

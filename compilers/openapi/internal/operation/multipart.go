@@ -16,14 +16,14 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -126,7 +126,7 @@ func unknownNestedKeys(c service.Ctx, part bodyPart, entry *yaml.Node, at jsonte
 // (docs/compilers/openapi.md#multipart-encoding): enc writes no contentType,
 // even an empty one, and arranges nothing (arranges), since an arrangement
 // replaces the content type, implicit or explicit.
-func takesDefault(rules oas.EncodingRules, enc *soa.Encoding, mt string) bool {
+func takesDefault(rules specrules.EncodingRules, enc *soa.Encoding, mt string) bool {
 	return enc.ContentType == nil && !arranges(rules, enc, mt)
 }
 

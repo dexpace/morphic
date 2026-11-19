@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -108,7 +108,7 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for version, want := range map[string]string{"3.0.3": tc.v30, "3.1.0": tc.v31, "3.2.0": tc.v32} {
-				got := defaultContentType(newPartUnions(), node, oas.Table().EncodingRules(version), []ir.TypeRef{{Target: tc.value}}, tc.encodedBy)
+				got := defaultContentType(newPartUnions(), node, specrules.Table().EncodingRules(version), []ir.TypeRef{{Target: tc.value}}, tc.encodedBy)
 				if want == "" {
 					assert.Nil(t, got, version)
 					continue
@@ -117,7 +117,7 @@ func TestDefaultContentType_ReadsEachValueByItsRow(t *testing.T) {
 			}
 		})
 	}
-	rules := oas.Table().EncodingRules("3.1.0")
+	rules := specrules.Table().EncodingRules("3.1.0")
 	assert.Equal(t, []string{"text/plain"}, defaultContentType(newPartUnions(), node, rules,
 		[]ir.TypeRef{{Target: ir.PrimTypeID(ir.PrimString)}, {Target: ir.PrimTypeID(ir.PrimBool)}}, unencoded),
 		"values of one row take it")
@@ -138,7 +138,7 @@ func TestDefaultContentType_ReadsUpToItsBound(t *testing.T) {
 		}
 		return ir.TypeRegistry{"t/u": u, ir.PrimTypeID(ir.PrimString): &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString}}
 	}
-	rules := oas.Table().EncodingRules("3.1.0")
+	rules := specrules.Table().EncodingRules("3.1.0")
 	for n, want := range map[int][]string{maxDefaultValues - 1: {"text/plain"}, maxDefaultValues: nil} {
 		reg := union(n)
 		node := func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok }
@@ -202,9 +202,9 @@ func TestReadContentEncoding_ReadsEveryDeclaration(t *testing.T) {
 func TestPrimitiveCase_KeysEachKind(t *testing.T) {
 	t.Parallel()
 	assert.Zero(t, primitiveCase("no-such-kind", "", unencoded))
-	assert.Equal(t, oas.DefaultScalar, primitiveCase(ir.PrimInt64, "base64", partlyEncoded),
+	assert.Equal(t, specrules.DefaultScalar, primitiveCase(ir.PrimInt64, "base64", partlyEncoded),
 		"a number takes its row whatever contentEncoding says")
-	assert.Equal(t, oas.DefaultRawBinary, primitiveCase(ir.PrimBytes, "", partlyEncoded),
+	assert.Equal(t, specrules.DefaultRawBinary, primitiveCase(ir.PrimBytes, "", partlyEncoded),
 		"raw bytes take theirs too")
-	assert.Equal(t, oas.DefaultUntyped, primitiveCase(ir.PrimAny, "base64", encoded), "and an untyped value its")
+	assert.Equal(t, specrules.DefaultUntyped, primitiveCase(ir.PrimAny, "base64", encoded), "and an untyped value its")
 }

@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -173,7 +173,7 @@ func TestCompile_AFetchedDocumentsReferenceToAMappedURLIsNotAFile(t *testing.T) 
 	bad := unresolvedRefs(diags)
 	require.Len(t, bad, 1, "%+v", diags)
 	assert.Equal(t, 1, bad[0].Provenance.Source, "in net.yaml's entry")
-	assert.Contains(t, bad[0].Message, bind.OffNetwork)
+	assert.Contains(t, bad[0].Message, reftable.OffNetwork)
 	assert.Equal(t, []string{srv.URL + "/net.yaml"}, rec.locations(), "b.yaml is not read")
 }
 

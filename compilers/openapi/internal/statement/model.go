@@ -10,9 +10,9 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // model is the parser's schema value, which this file alone reads.
@@ -153,7 +153,7 @@ func truthOf(js *model) SchemaValueForm {
 // fill reads each slot's values. A typed value is m's, the parser's model,
 // as the walk reads the model; for a Truncated s, only where s's keys list
 // its keyword (listedOnly). A value kept as the node it was written as is its
-// key's. Each keyword lands in its own slot (oas.SlotOf) whatever the rows
+// key's. Each keyword lands in its own slot (specrules.SlotOf) whatever the rows
 // say: a policy reads a 3.0 `nullable` in a 3.1 schema
 // (docs/compilers/openapi.md#nullable), and the key's Slot carries the rows'
 // verdict. A listed key whose value is not read opens its slot and fills
@@ -174,7 +174,7 @@ func fill(s *Schema, m *oas3.Schema) {
 	s.Logic = logicOf(m)
 	s.Notes = notesOf(m)
 	for _, k := range s.Keys {
-		open(s, oas.SlotOf(k.Name))
+		open(s, specrules.SlotOf(k.Name))
 		if k.read() {
 			fillNode(s, k)
 		}
@@ -462,7 +462,7 @@ func arrayOf(m *oas3.Schema) *Array {
 
 // objectOf returns what m's keywords asserting about an object say, m being
 // read at at, nil where it holds none of them.
-func objectOf(m *oas3.Schema, at bind.DocumentPointer) *Object {
+func objectOf(m *oas3.Schema, at reftable.DocumentPointer) *Object {
 	if m.Properties == nil && m.PatternProperties == nil && m.AdditionalProperties == nil &&
 		m.PropertyNames == nil && m.UnevaluatedProperties == nil && m.Required == nil &&
 		m.MinProperties == nil && m.MaxProperties == nil && m.Discriminator == nil {
@@ -478,15 +478,15 @@ func objectOf(m *oas3.Schema, at bind.DocumentPointer) *Object {
 // discriminatorOf returns what d says, read where the walk reads it: under
 // the schema read at at, a position the bindings know only where at is not
 // the zero one.
-func discriminatorOf(d *oas3.Discriminator, at bind.DocumentPointer) *Discriminator {
+func discriminatorOf(d *oas3.Discriminator, at reftable.DocumentPointer) *Discriminator {
 	if d == nil {
 		return nil
 	}
 	out := &Discriminator{PropertyName: d.GetPropertyName(), DefaultMapping: d.GetDefaultMapping(),
 		Node: nodeview.Deref(d.GetRootNode()), Unknown: d.GetCore().GetUnknownProperties(),
 		Extensions: listedExtensions(d.GetExtensions().Len(), d.GetExtensions().All())}
-	if at != (bind.DocumentPointer{}) {
-		out.At = bind.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer + "/discriminator"}
+	if at != (reftable.DocumentPointer{}) {
+		out.At = reftable.DocumentPointer{Doc: at.Doc, Pointer: at.Pointer + "/discriminator"}
 	}
 	if n := d.GetMapping().Len(); n > 0 {
 		out.Mapping = make([]MappingEntry, 0, n)

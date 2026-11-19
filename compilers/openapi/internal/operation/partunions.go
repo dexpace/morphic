@@ -7,8 +7,8 @@ import (
 	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -33,7 +33,7 @@ type partUnions struct {
 // body holds, under rules, encodedBy saying what the declarations write of
 // contentEncoding.
 type defaultKey struct {
-	rules     oas.EncodingRules
+	rules     specrules.EncodingRules
 	of        ir.TypeID
 	encodedBy contentEncoding
 	item      bool
@@ -78,7 +78,7 @@ func newPartUnions() *partUnions {
 // (defaultContentType over partValues), read once for each type, rules and
 // encodedBy, and false where the values it applies to are not read. The list
 // is shared, so a caller copies it before keeping it.
-func (u *partUnions) partDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, decl *ir.Property, encodedBy contentEncoding) ([]string, bool) {
+func (u *partUnions) partDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, decl *ir.Property, encodedBy contentEncoding) ([]string, bool) {
 	key := defaultKey{rules: rules, of: decl.Type.Target, encodedBy: encodedBy}
 	if r, read := u.defaults[key]; read {
 		return r.types, r.ok
@@ -94,7 +94,7 @@ func (u *partUnions) partDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules 
 // itemDefault returns the default content type of the items of type item a
 // sequential body holds, read once for each type, rules and encodedBy. The
 // list is shared, so a caller copies it before keeping it.
-func (u *partUnions) itemDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules oas.EncodingRules, item ir.TypeRef, encodedBy contentEncoding) []string {
+func (u *partUnions) itemDefault(node func(ir.TypeID) (ir.TypeDef, bool), rules specrules.EncodingRules, item ir.TypeRef, encodedBy contentEncoding) []string {
 	key := defaultKey{rules: rules, of: item.Target, encodedBy: encodedBy, item: true}
 	if r, read := u.defaults[key]; read {
 		return r.types

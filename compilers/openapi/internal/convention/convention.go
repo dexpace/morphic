@@ -7,8 +7,8 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -16,7 +16,7 @@ import (
 // and returns what the readings report. p is the run's promoter, whose keys a
 // reading defers to, and w the document its lowerings built, whose service
 // tree and registry are whole.
-func Apply(policy Policy, p promotion.Promoter, w *whole.CompiledDocumentView) (diags []ir.Diagnostic) {
+func Apply(policy Policy, p promotion.Promoter, w *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
 	for _, op := range w.Ops {
 		diags = append(diags, operation(policy, p, w, op)...)
 	}
@@ -37,7 +37,7 @@ func Apply(policy Policy, p promotion.Promoter, w *whole.CompiledDocumentView) (
 // operation fills what op's names imply: its idempotency token, the redaction
 // of its parameters and of every header it declares, and the text of each of
 // its header parameters and its responses' headers.
-func operation(policy Policy, p promotion.Promoter, w *whole.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
+func operation(policy Policy, p promotion.Promoter, w *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
 	reg := w.Types
 	diags := idempotency(policy.Idempotency, w, op)
 	for i := range op.Params {

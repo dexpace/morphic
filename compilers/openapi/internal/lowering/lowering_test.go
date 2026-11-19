@@ -15,19 +15,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -78,9 +78,9 @@ func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 				service.Policy{})
 			rules := c.SchemaRules()
 			assert.Equal(t, tc.v30, rules.Defines("nullable"))
-			assert.Equal(t, tc.v30, rules.Takes("exclusiveMinimum", oas.Boolean))
+			assert.Equal(t, tc.v30, rules.Takes("exclusiveMinimum", specrules.Boolean))
 			assert.Equal(t, tc.v30, rules.RequiredWhen("items", "type", "array"))
-			assert.Equal(t, !tc.v30, rules.Takes("exclusiveMinimum", oas.Number))
+			assert.Equal(t, !tc.v30, rules.Takes("exclusiveMinimum", specrules.Number))
 		})
 	}
 }
@@ -162,7 +162,7 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, atSource(t, carrying.Ctx).Bindings(), "a copy shares it")
 	e, ok := carrying.RefScope().Bindings.Entry(alias)
 	require.True(t, ok && e.Lands(), "its $ref lands where the load phase resolved it")
-	assert.Equal(t, bind.DocumentPointer{Pointer: "/components/schemas/Target"}, e.Hop.Target)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/components/schemas/Target"}, e.Hop.Target)
 }
 
 // TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML pins that a mapping
@@ -188,9 +188,9 @@ x-lib:
 	require.True(t, ok)
 	require.NotNil(t, pet.GetSchema().GetDiscriminator())
 
-	at, ok := c.RefScope().MappingTarget(bind.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
+	at, ok := c.RefScope().MappingTarget(reftable.DocumentPointer{Pointer: "/components/schemas/Pet/discriminator"}, "#/x-lib/Cat")
 	require.True(t, ok)
-	assert.Equal(t, bind.DocumentPointer{Pointer: "/x-lib/Cat"}, at)
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/x-lib/Cat"}, at)
 	built := c.Bindings().At(at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
@@ -228,7 +228,7 @@ func TestStatements_IsOneTableForTheRun(t *testing.T) {
 	require.NotNil(t, target.Kinds)
 	assert.Equal(t, []statement.JSONSchemaTypeName{statement.KindString}, target.Kinds.Types, "read off the bindings")
 	k, _ := target.Key("type")
-	assert.Equal(t, oas.SlotKinds, k.Slot, "read in the rows the load phase read")
+	assert.Equal(t, specrules.SlotKinds, k.Slot, "read in the rows the load phase read")
 	other := servicetest.Context(t, bindingsSpec, service.Policy{})
 	assert.NotSame(t, table, other.Statements(), "another run reads its own")
 }
@@ -340,7 +340,7 @@ func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := service.New(0, doc, service.Policy{})
 
-	assert.Equal(t, bind.DynamicAnchor{Site: bind.DocumentPointer{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
+	assert.Equal(t, reftable.DynamicAnchor{Site: reftable.DocumentPointer{Pointer: "/components/schemas/A"}, Count: 2, Complete: true},
 		c.DynamicAnchor("m"))
 }
 
@@ -349,7 +349,7 @@ func TestDynamicAnchor_ReadsTheBindingsOfItsDocument(t *testing.T) {
 func TestPosition_PlacesAPointerInTheContextsDocument(t *testing.T) {
 	t.Parallel()
 	c := servicetest.Context(t, bindingsSpec, service.Policy{})
-	assert.Equal(t, bind.DocumentPointer{Pointer: "/a"}, c.Position("/a"))
+	assert.Equal(t, reftable.DocumentPointer{Pointer: "/a"}, c.Position("/a"))
 }
 
 // TestNew_CarriesTheLimits pins that the budgets reach the walk through the
@@ -379,7 +379,7 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 		reads++
 		return ir.Unmodeled{"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`true`)}}
 	}
-	at := bind.DocumentPointer{Pointer: "/components/schemas/S"}
+	at := reftable.DocumentPointer{Pointer: "/components/schemas/S"}
 	assert.True(t, c.Promoter().Referent(at, false, entries).Redacted)
 	assert.True(t, atSource(t, c.Ctx).Promoter().Referent(at, false, entries).Redacted)
 	assert.Equal(t, 1, reads, "a copy of the context reads the promoter the context does")
@@ -391,7 +391,7 @@ func TestNew_CarriesThePromotionPolicy(t *testing.T) {
 // atSource returns the copy of c InDocument takes to the source's coordinates.
 func atSource(t *testing.T, c lowering.Ctx) lowering.Ctx {
 	t.Helper()
-	at, ok := lowering.InDocument(c, bind.Source)
+	at, ok := lowering.InDocument(c, reftable.Source)
 	require.True(t, ok)
 	return at
 }
@@ -404,15 +404,15 @@ func atSource(t *testing.T, c lowering.Ctx) lowering.Ctx {
 func TestNew_ReadsWhatTheLoadPhaseReadAsValues(t *testing.T) {
 	t.Parallel()
 	sources := []ir.SourceInfo{{Path: "spec.yaml"}, {Path: "ext.yaml"}}
-	documents := map[bind.DocID]lowering.BoundDocument{
-		bind.Source: {Place: provenance.Doc{Source: 3}},
-		1:           {Name: "/r/ext.yaml", Place: provenance.Doc{Source: 4}, IDs: ids.In("ext.yaml")},
+	documents := map[reftable.DocID]lowering.BoundDocument{
+		reftable.Source: {Place: provenance.Doc{Source: 3}},
+		1:               {Name: "/r/ext.yaml", Place: provenance.Doc{Source: 4}, IDs: ids.In("ext.yaml")},
 	}
-	c := lowering.New(lowering.Loaded{Declares: resolve.NewNames("User"), Documents: documents, Sources: sources},
+	c := lowering.New(lowering.Loaded{Declares: componentlookup.NewNames("User"), Documents: documents, Sources: sources},
 		lowering.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 3, Pointer: "/a"}, c.Place().At("/a"))
-	assert.Equal(t, bind.DocumentPointer{Doc: bind.Source, Pointer: "/a"}, c.Position("/a"))
+	assert.Equal(t, reftable.DocumentPointer{Doc: reftable.Source, Pointer: "/a"}, c.Position("/a"))
 	assert.True(t, c.DeclaresSchema("User"))
 	assert.False(t, c.RefScope().Foreign)
 	there, ok := lowering.InDocument(c, 1)

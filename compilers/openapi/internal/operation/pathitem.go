@@ -14,10 +14,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -492,7 +492,7 @@ func keepItemParams(c service.Ctx, into carrier, pi *soa.PathItem, mountPtr, dec
 		if !ok || cedes(paramConstruct(slot)) {
 			continue
 		}
-		p := resolve.Object[soa.Parameter](c.Bindings(), rp)
+		p := componentlookup.Object[soa.Parameter](c.Bindings(), rp)
 		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
 		occurrence := ledger.count(p.GetName(), string(p.GetIn()))
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))

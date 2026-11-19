@@ -10,10 +10,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,7 +37,7 @@ type pendingLink struct {
 // never reordered, so an index taken as a response is appended still names it
 // once the service is whole.
 type responseSlot struct {
-	list  whole.ResponseList
+	list  compileddoc.ResponseList
 	index int
 }
 
@@ -98,7 +98,7 @@ func draftLinks(c service.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDr
 			continue
 		}
 		d, draftDiags := draftLink(lc, l, lptr, name)
-		d.docs = resolve.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
+		d.docs = componentlookup.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
 		beside, besideDiags := service.Beside[soa.Link](c, rl, use, true)
 		d.extra = annotation.MergeUnmodeled(d.extra, beside)
 		diags = append(diags, besideDiags...)

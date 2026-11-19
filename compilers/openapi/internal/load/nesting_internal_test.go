@@ -21,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -229,8 +229,8 @@ func TestRefusals_PlaceAWholeDocumentFindingAtWhole(t *testing.T) {
 		code     string
 	}{
 		"an index that stops early": {src: "a: 1\n", opts: Options{
-			buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
-				return sourceindex.Build(ctx, root, 1)
+			buildIndex: func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
+				return sourcetreestats.Build(ctx, root, 1)
 			},
 		}, code: diag.SourceTooLarge},
 		"an alias scan that faults": {src: "a: &x [*x]\n", pointers: faulting, code: diag.CycleScanFailed},

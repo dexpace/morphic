@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -69,7 +69,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 	require.NotNil(t, loadedDoc)
 	var pi *soa.PathItem
 	for _, rp := range loadedDoc.Doc.GetPaths().All() {
-		pi = resolve.Object[soa.PathItem](loadedDoc.Bindings, rp)
+		pi = componentlookup.Object[soa.PathItem](loadedDoc.Bindings, rp)
 	}
 	require.NotNil(t, pi)
 	op := pi.Get()
@@ -85,7 +85,7 @@ func TestParameters_PathItemMergeOverride(t *testing.T) {
 
 	byName := map[string]sourcedParam{}
 	for _, sp := range merged {
-		byName[resolve.Object[soa.Parameter](b, sp.ref).GetName()] = sp
+		byName[componentlookup.Object[soa.Parameter](b, sp.ref).GetName()] = sp
 	}
 	_, hasID := byName["id"]
 	_, hasTrace := byName["trace"]

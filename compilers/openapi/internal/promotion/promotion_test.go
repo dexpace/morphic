@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
@@ -1156,7 +1156,7 @@ func TestPromoter_ReferentReadsWhatASchemaOffersAsFallback(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := promotion.New(promotion.ExtensionPromotions{}).Referent(bind.DocumentPointer{}, tc.declared,
+			got := promotion.New(promotion.ExtensionPromotions{}).Referent(reftable.DocumentPointer{}, tc.declared,
 				func() ir.Unmodeled { return tc.entries })
 			assert.Equal(t, tc.want, got)
 		})
@@ -1174,8 +1174,8 @@ func TestPromoter_ReferentReadsEachSchemaOnce(t *testing.T) {
 		reads++
 		return ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}
 	}
-	first := bind.DocumentPointer{Pointer: "/components/schemas/A"}
-	second := bind.DocumentPointer{Pointer: "/components/schemas/B"}
+	first := reftable.DocumentPointer{Pointer: "/components/schemas/A"}
+	second := reftable.DocumentPointer{Pointer: "/components/schemas/B"}
 
 	p := promotion.New(promotion.ExtensionPromotions{})
 	copied := p
@@ -1192,7 +1192,7 @@ func TestPromoter_ReferentReadsEachSchemaOnce(t *testing.T) {
 func TestPromoter_ReferentReadsNothingOffPolicy(t *testing.T) {
 	t.Parallel()
 	p := promotion.New(promotion.ExtensionPromotions{Disabled: true})
-	assert.Equal(t, promotion.Referent{}, p.Referent(bind.DocumentPointer{}, true, func() ir.Unmodeled {
+	assert.Equal(t, promotion.Referent{}, p.Referent(reftable.DocumentPointer{}, true, func() ir.Unmodeled {
 		t.Error("a policy mapping no key read the schema")
 		return nil
 	}))

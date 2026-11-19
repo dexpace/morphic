@@ -6,9 +6,9 @@ package stream
 import (
 	"strconv"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
 	"github.com/dexpace/morphic/compilers/openapi/internal/runtimeexpr"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,7 +24,7 @@ const (
 // and reports each key that fills nothing as info
 // diag.UnpromotedExtension. Every key stays as written. p is the run's
 // promoter.
-func PromoteDetail(p promotion.Promoter, w *whole.CompiledDocumentView) (diags []ir.Diagnostic) {
+func PromoteDetail(p promotion.Promoter, w *compileddoc.CompiledDocumentView) (diags []ir.Diagnostic) {
 	for _, op := range w.Ops {
 		diags = append(diags, terminator(p, op)...)
 		diags = append(diags, condition(p, w, op)...)
@@ -152,7 +152,7 @@ func fillTerminator(op *ir.Operation, text string, contents []keyed) {
 // expression naming a boolean input of the request, which asks for the stream
 // when true, where op streams a success response that also offers a content
 // that does not stream. Any other key is reported and fills nothing.
-func condition(p promotion.Promoter, w *whole.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
+func condition(p promotion.Promoter, w *compileddoc.CompiledDocumentView, op *ir.Operation) []ir.Diagnostic {
 	st, diags := p.TextOf(promotion.TargetStreamCondition, op.Unmodeled)
 	if st.Text == "" {
 		return diags
@@ -174,7 +174,7 @@ func condition(p promotion.Promoter, w *whole.CompiledDocumentView, op *ir.Opera
 }
 
 // namesBoolean reports whether id stands for the boolean primitive.
-func namesBoolean(w *whole.CompiledDocumentView, id ir.TypeID) bool {
+func namesBoolean(w *compileddoc.CompiledDocumentView, id ir.TypeID) bool {
 	prim, ok := w.Stands(id).(*ir.Primitive)
 	return ok && prim.Prim == ir.PrimBool
 }

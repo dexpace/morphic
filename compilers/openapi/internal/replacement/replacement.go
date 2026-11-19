@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,7 +23,7 @@ import (
 // model, a schema by its components name, and a security scheme by its key
 // (docs/compilers/openapi.md#extension-promotion). p is the run's promoter,
 // and w the document, which is whole.
-func Resolve(p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Diagnostic {
+func Resolve(p promotion.Promoter, w *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	r := resolver{p: p, w: w}
 	if !r.p.Maps(promotion.TargetDeprecationReplacedBy) {
 		return nil
@@ -49,10 +49,10 @@ func Resolve(p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Diagnosti
 // mapping reads their replacements, and 8,000 such headers add under half a
 // second to a compile, which an index per list would not repay. A model's
 // member, which messages every compile reads name, is read by its name alone
-// (whole.CompiledDocumentView.Member), which indexes a model's own properties once.
+// (compileddoc.CompiledDocumentView.Member), which indexes a model's own properties once.
 type resolver struct {
 	p promotion.Promoter
-	w *whole.CompiledDocumentView
+	w *compileddoc.CompiledDocumentView
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
@@ -130,7 +130,7 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 
 // memberFinder returns what finds a member of the model id by name: one of
 // the members the model flattens to, by the name it travels under, which a
-// flattening holds one member of (whole.CompiledDocumentView.Member).
+// flattening holds one member of (compileddoc.CompiledDocumentView.Member).
 func (r *resolver) memberFinder(id ir.TypeID) func(string) (ir.EntityRef, int) {
 	return func(name string) (ir.EntityRef, int) {
 		if p, found := r.w.Member(id, name); found {

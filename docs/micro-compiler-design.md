@@ -287,7 +287,7 @@ GitHub #982). It is still built on the first `$dynamicRef` and not before; what
 changed is that no lowering carries it as a parameter.
 
 *Later still:* the walk and its bounds are gone. It was a second reading of what
-`internal/bind` reads anyway, with its own idea of where a schema is, so `bind` reads
+`internal/reftable` reads anyway, with its own idea of where a schema is, so `reftable` reads
 each document's `$dynamicAnchor`s beside its other identifiers, and
 `Ctx.DynamicAnchorSites` only asks the table (GitHub #401, #454, #1031).
 
@@ -300,7 +300,7 @@ exception than that phrasing suggests — a memo caches a pure function of the d
 where the interning table accumulates decisions — but each is shared and mutated, and
 the claim as written does not admit them.
 
-*Later:* a second shared record does accumulate decisions. `resolve.Reached`, held
+*Later:* a second shared record does accumulate decisions. `componentlookup.Reached`, held
 by `Ctx` and written by every reference resolution, records where each one landed,
 so the compiler can keep the component entries no lowering reached (GitHub #616).
 It is not a handle in the sense rejected above for diagnostics: only the document's
@@ -388,7 +388,7 @@ it: one algorithm, not three layers.
 
 What that hid is where the boundary actually is. It does not run between files; it runs between two
 questions. *What does this `$ref` name, and is something already interned there* needs two facts
-about the document and nothing else — that is `internal/resolve`. *Follow it far enough to lower
+about the document and nothing else — that is `internal/componentlookup`. *Follow it far enough to lower
 what it points at* is the schema walk reached through a reference, and recurses back into it. Seven
 of `resolve.go`'s functions answered the first question and left; eight answered the second and
 stayed. Deriving that split is what the command below does:
@@ -593,7 +593,7 @@ reported (#750) nor where it met the depth bound (#748).
 
 *Later:* names did move to the table (#981). The drift this section feared needs two readings, and
 the declaration walk now gives no name at all: every lowering asks `lowering.NameAt`, which reads
-the grammar's kinds (`bind.ReferenceTargetTable.Kinds`) and the document, so the table's is the only reading. The
+the grammar's kinds (`reftable.ReferenceTargetTable.Kinds`) and the document, so the table's is the only reading. The
 home a declaration lowers in is still the declaration walk's.
 
 ## 7. Enforcement
@@ -793,7 +793,7 @@ sorts, which `maps.Keys` + `slices.Sorted` already cover.
 - **A pointer-keyed source index.** The `$ref` defects this was held back on — #40 (percent-encoded
   fragments failing to resolve), #141 (an `$anchor` fragment derived from as though it were a
   pointer) and #143 (siblings adjacent to a `$ref` on an allOf branch dropped) — are all closed, and
-  the walk-sharing half has since landed: `internal/sourceindex` walks the decoded tree once and
+  the walk-sharing half has since landed: `internal/sourcetreestats` walks the decoded tree once and
   answers what the cycle and amplification refusals each used to walk it to ask, over the single
   decode the loader now performs. What is still out of scope is the other half — a pointer → node
   map that would make reference resolution a lookup, a per-node key index that would make
@@ -836,7 +836,7 @@ Each row is one PR unless noted. "Done when" is the acceptance test, not a summa
 | ~~2.2–2.7~~ | ~~The remaining Tier-0 extractions: `load`, `scan`, `ids`, `value`, `annotation` (+ site), `merge`~~ | **Landed.** Goldens byte-identical, each package carries its own rules entry proven by planting a forbidden import, and each carries unit tests needing no document. Two departures from the plan above: the scan took `nodeview` with it as a package of its own, because `schema` and `compose` read the source through it too, and `annotation` took the readers `schema.go` declared as well as the four in `resolve.go` — the two files were mutually dependent | 0.1 |
 | 3.1 | Introduce `Ctx` with accessors; derive indexes at entry | No exported `Ctx` field is a map; goldens byte-identical | 2.x |
 | 3.2 | Convert the leaves to the contract: `constraints` → `annotation`, `meta` and `auth` → `operation` | Those files hold no `lowerer` method | 3.1 |
-| 3.3 | Extract `internal/resolve` | ditto, plus a bounded-recursion test | 3.2 |
+| 3.3 | Extract `internal/componentlookup` | ditto, plus a bounded-recursion test | 3.2 |
 | 3.4 | Extract `internal/schema` (schema ⇄ compose ⇄ resolve) | ditto. Both open questions are already settled: `hoist` dissolved into the framework, and `diagnosedConstraints` was redundant and is gone | 3.3 |
 | 3.5 | Extract `internal/operation` (operations, params, content) | ditto | 3.4 |
 | 3.6 | Delete the `lowerer` struct | `grep -c '^func (l \*\?lowerer)'` returns 0 | 3.5 |

@@ -13,8 +13,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -50,7 +50,7 @@ func (r *scriptedReader) asked(location string) []compilers.AddressSpace {
 // externalWithin reads through r beside a source at self, charging each
 // document it reads to documents.
 func externalWithin(r compilers.DocumentReader, self string, documents budget.Limit) *external {
-	src := sourceDocument{path: self, judged: judgment{checker: oas.NewChecker()}}
+	src := sourceDocument{path: self, judged: judgment{checker: specrules.NewChecker()}}
 	return newExternal(Options{Reader: r}, newExternalReads(src, documents), &aside{})
 }
 

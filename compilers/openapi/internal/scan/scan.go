@@ -16,7 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -50,7 +50,7 @@ func Pointers(ctx context.Context, root *yaml.Node) func(*yaml.Node) (jsontext.P
 // placesIn indexes root's tree by stepsIn under the compiler's node bound,
 // each node aliases share placed at the least of its places (rehome).
 func placesIn(ctx context.Context, root *yaml.Node) map[*yaml.Node]step {
-	steps, _ := stepsIn(ctx, root, sourceindex.MaxIndexedNodes)
+	steps, _ := stepsIn(ctx, root, sourcetreestats.MaxIndexedNodes)
 	rehome(steps)
 	return steps
 }
@@ -189,7 +189,7 @@ func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagno
 // The index must cover the whole tree that reaches the parser: an alias to an
 // ancestor shows only from the root. surplus is the alias budget, which no
 // guard of yaml.v3's enforces on a node decode (GitHub #479).
-func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Measurements,
+func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourcetreestats.Measurements,
 	surplus, maxBytes budget.Limit,
 ) []ir.Diagnostic {
 	return scanRecovered(whole, func() []ir.Diagnostic {
@@ -214,7 +214,7 @@ func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx
 // and having refused those makes the alias graph a DAG above the index's
 // tracked depth. One below it is the weigh walk's to end, by its cut, so the
 // walk terminates on its own account.
-func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Measurements) (ir.Diagnostic, bool) {
+func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourcetreestats.Measurements) (ir.Diagnostic, bool) {
 	cycles := idx.AnchorCycles()
 	if len(cycles) == 0 {
 		return ir.Diagnostic{}, false

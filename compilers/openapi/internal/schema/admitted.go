@@ -9,8 +9,8 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -28,7 +28,7 @@ func (f scalarForm) narrows(g scalarForm) bool {
 	if f.spelled == g.spelled {
 		return true
 	}
-	return f.listed && g.listed && spelling.Relate(f.prim, g.prim) == spelling.ANarrower
+	return f.listed && g.listed && typeformat.Relate(f.prim, g.prim) == typeformat.ANarrower
 }
 
 // admitted is what a schema's keywords leave an instance able to be: its kinds,

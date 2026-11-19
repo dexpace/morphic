@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
@@ -259,7 +259,7 @@ func TestAdmitsFormat_JudgesTimeAsAFullTime(t *testing.T) {
 		assert.Equal(t, tc.admits, admits, "%s: %s of %v", tc.name, tc.format, tc.v)
 		assert.Equal(t, tc.held, held, "%s: whether %s is held", tc.name, tc.format)
 	}
-	_, paired := spelling.Lookup("string/time")
+	_, paired := typeformat.Lookup("string/time")
 	assert.False(t, paired, "a held format the table pairs with a kind would have two judges")
 }
 
@@ -298,7 +298,7 @@ func TestAdmitsFormat_SharesNoStringWithAKind(t *testing.T) {
 	require.NoError(t, err)
 	for _, c := range consts {
 		k := ir.PrimKind(c.Value)
-		if k == ir.PrimBytes || spelling.Relate(k, ir.PrimString) != spelling.ANarrower {
+		if k == ir.PrimBytes || typeformat.Relate(k, ir.PrimString) != typeformat.ANarrower {
 			continue
 		}
 		assert.NotEmpty(t, samples[k], "%s refines string and has no sample", k)

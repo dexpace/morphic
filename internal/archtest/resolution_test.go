@@ -48,7 +48,7 @@ const (
 // TestResolutionCalls_HeldToTheBaseline fails when a count rises, since each new
 // use deepens the dependence on the library's resolution, and when one falls
 // until the count here is lowered to match, so the map only shrinks (GitHub
-// #920). It is empty: the compiler binds every $ref itself (internal/bind), a
+// #920). It is empty: the compiler binds every $ref itself (internal/reftable), a
 // schema's and a reference object's, so no production package uses the
 // library's resolution, and any use is a new one.
 var resolutionBaseline = map[string]map[string]int{}

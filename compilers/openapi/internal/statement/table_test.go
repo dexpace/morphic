@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -244,8 +244,8 @@ func TestTable_AtFindsWhatOfReads(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		st   *statement.Statement
-		slot oas.Slot
-	}{{"A", a, oas.SlotArray}, {"B", b, oas.SlotUnknown}} {
+		slot specrules.Slot
+	}{{"A", a, specrules.SlotArray}, {"B", b, specrules.SlotUnknown}} {
 		assert.Equal(t, component(c, tc.name), tc.st.At, tc.name)
 		k, _ := tc.st.Key("additionalItems")
 		assert.Equal(t, tc.slot, k.Slot, "%s: read in the rows of where it is", tc.name)

@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strconv"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -23,7 +23,7 @@ import (
 // coordinate. Choices and variants are sorted by name, as an object's members
 // keep no order. An operation holding a filled choice is marked; the key stays.
 // p is the run's promoter.
-func PromoteChoices(p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Diagnostic {
+func PromoteChoices(p promotion.Promoter, w *compileddoc.CompiledDocumentView) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, op := range w.Ops {
 		st, written, readDiags := p.StatementOf(promotion.TargetParamChoices, op.Unmodeled)
@@ -56,7 +56,7 @@ func PromoteChoices(p promotion.Promoter, w *whole.CompiledDocumentView) []ir.Di
 
 // reader reads the choices one operation's key states.
 type reader struct {
-	w   *whole.CompiledDocumentView
+	w   *compileddoc.CompiledDocumentView
 	op  *ir.Operation
 	key string
 }
@@ -81,7 +81,7 @@ func (r reader) choice(name string, raw jsontext.Value, where ir.Provenance) (ir
 // readChoice reads the choice name: an object stating a boolean optional and two
 // variants or more, each naming parameters, of which none every request
 // carries sits in some variants only. A variant names only parameters the
-// operation declares one by one (whole.ParamIndex.Named), as ir.ParamChoice
+// operation declares one by one (compileddoc.ParamIndex.Named), as ir.ParamChoice
 // requires: a sum the document declares is a schema's union, never a choice.
 func (r reader) readChoice(name string, raw jsontext.Value, where ir.Provenance) (ir.ParamChoice, *refusal) {
 	var fields map[string]jsontext.Value

@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 	"github.com/dexpace/morphic/engine/reader"
@@ -95,9 +95,9 @@ func TestDeclaredAt_NamesNoUndeclaredComponentOrUnreadDocument(t *testing.T) {
 	assert.False(t, ok, "a document the compile does not list")
 	_, ok = chainOf(c.Ctx, d, "./ext.yaml#/X")
 	assert.False(t, ok)
-	_, ok = declaredAt(c.Ctx, bind.DocumentPointer{Pointer: "/components/schemas/Ghost"}, nil)
+	_, ok = declaredAt(c.Ctx, reftable.DocumentPointer{Pointer: "/components/schemas/Ghost"}, nil)
 	assert.False(t, ok, "an undeclared component")
-	_, ok = declaredAt(c.Ctx, bind.DocumentPointer{Pointer: "/x-none"}, nil)
+	_, ok = declaredAt(c.Ctx, reftable.DocumentPointer{Pointer: "/x-none"}, nil)
 	assert.False(t, ok, "no schema")
 }
 
@@ -255,7 +255,7 @@ func TestChainOf_ReadsEachPositionOnce(t *testing.T) {
 	chain, ok := chainOf(l.Ctx, petDiscriminator(t, l), "#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, ids.DocumentIDNamespace{}.NamedType("/components/schemas/Cat"), chain.end().id, "the position reads through to Cat")
-	held := bind.DocumentPointer{Pointer: "/components/schemas/Hold/properties/p"}
+	held := reftable.DocumentPointer{Pointer: "/components/schemas/Hold/properties/p"}
 	again := lowering.ReadOncePerRun(l.Ctx, chainFrom{held, l.Ctx.Statements().Of(l.Ctx.Bindings().At(held))}, func() valueChain {
 		t.Error("the position was read again")
 		return valueChain{}

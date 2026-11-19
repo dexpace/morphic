@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 )
 
 // TestFirstDeclared_KeepsEachKeysFirstDeclaration pins the index precedence
@@ -51,7 +51,7 @@ paths:
 	const usePtr = jsontext.Pointer("/paths/~1b")
 
 	within := testing.AllocsPerRun(20, func() {
-		resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, bind.DocumentPointer{Pointer: usePtr})
+		componentlookup.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, reftable.DocumentPointer{Pointer: usePtr})
 		_ = l.ctx.Siblings()
 	})
 	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, usePtr) })

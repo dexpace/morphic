@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -198,10 +198,10 @@ func conjunctsOf(c lowering.Ctx, st *statement.Statement) []*statement.Statement
 // do not read as a $ref, names none, or is placed nowhere. One an allOf entry
 // writes names none: no position expands it (keepEntryDynamicRef), so it masks
 // no kind (docs/compilers/openapi.md#allof-refinement).
-func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (bind.DocumentPointer, bool) {
+func dynamicExpansionOf(c lowering.Ctx, st *statement.Statement) (reftable.DocumentPointer, bool) {
 	at, placed := siteOf(st.Schema)
 	if st.Ref != nil || !placed || !declaresDynamicRef(st.Schema) || writtenAsEntry(at.Pointer) {
-		return bind.DocumentPointer{}, false
+		return reftable.DocumentPointer{}, false
 	}
 	in, _ := lowering.InDocument(c, at.Doc)
 	return dynamicTarget(in, st.Schema, at.Pointer)
@@ -409,7 +409,7 @@ func (w *admissionWalk) join(branches []*statement.Statement, exclusive bool) *a
 // refuse while admitting others: every kind for a value set, a number for a
 // numeric bound, a string for a string bound, a string and a number for a
 // format, and an array or an object for a keyword applying to that kind alone
-// (oas.SlotOf), `dependentSchemas` and the drafts' `dependencies` among them,
+// (specrules.SlotOf), `dependentSchemas` and the drafts' `dependencies` among them,
 // but one refusing none (refusesNothing). A `type` refuses a kind whole, which
 // admits holds; a `not` or an `if` makes the read loose (looseIn); and a
 // keyword written null is left out.
@@ -420,25 +420,25 @@ func narrowedWithin(t *statement.MemoizingSchemaReader, s *statement.Schema) kin
 			continue
 		}
 		switch k.Slot {
-		case oas.SlotValues:
+		case specrules.SlotValues:
 			out |= anyInstance
-		case oas.SlotFormat:
+		case specrules.SlotFormat:
 			if _, ok := formOf(s); ok {
 				out |= kindString | kindNumber
 			}
-		case oas.SlotNumber:
+		case specrules.SlotNumber:
 			out |= kindNumber
-		case oas.SlotText:
+		case specrules.SlotText:
 			out |= kindString
-		case oas.SlotArray:
+		case specrules.SlotArray:
 			if !refusesNothing(t, s, k.Name) {
 				out |= kindArray
 			}
-		case oas.SlotObject:
+		case specrules.SlotObject:
 			if !refusesNothing(t, s, k.Name) {
 				out |= kindObject
 			}
-		case oas.SlotLogic:
+		case specrules.SlotLogic:
 			if k.Name == "dependentSchemas" || k.Name == "dependencies" {
 				out |= kindObject
 			}

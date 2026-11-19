@@ -35,7 +35,7 @@ const (
 type admissionReader struct {
 	c lowering.Ctx
 	// nullable reports whether the dialect c reads its schemas in defines the
-	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
+	// nullable keyword (specrules.SchemaRules.Defines). A schema the read reaches
 	// elsewhere is read in its own document's (definesNullableAt).
 	nullable bool
 	// cut marks a read that met what no cap answers for: a cycle, a $ref

@@ -9,7 +9,7 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 )
 
 // walk is the parser library's walk of start, stopped once ctx is done. The

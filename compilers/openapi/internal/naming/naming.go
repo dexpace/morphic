@@ -10,8 +10,8 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -26,9 +26,9 @@ const MaxHops = 64
 // alone, so the memo answers as a fresh Namer would. A Namer must not outlive
 // the trees its table holds, and is not safe for concurrent use.
 type Namer struct {
-	table *bind.ReferenceTargetTable
-	views map[bind.DocID]*nodeview.View
-	memo  map[bind.DocumentPointer]string
+	table *reftable.ReferenceTargetTable
+	views map[reftable.DocID]*nodeview.View
+	memo  map[reftable.DocumentPointer]string
 	// titles reads the title a schema names its node by, and is nil where
 	// titles name nothing.
 	titles *titles
@@ -37,10 +37,10 @@ type Namer struct {
 // New returns a Namer over the documents table read, naming a schema by its
 // title where byTitle holds (titles.at), and by its position where it does
 // not. A nil table reads none, and names each position by its pointer alone.
-func New(table *bind.ReferenceTargetTable, byTitle bool) *Namer {
-	n := &Namer{table: table, views: map[bind.DocID]*nodeview.View{}, memo: map[bind.DocumentPointer]string{}}
+func New(table *reftable.ReferenceTargetTable, byTitle bool) *Namer {
+	n := &Namer{table: table, views: map[reftable.DocID]*nodeview.View{}, memo: map[reftable.DocumentPointer]string{}}
 	if byTitle {
-		n.titles = &titles{table: table, read: map[*yaml.Node]string{}, lists: map[bind.DocumentPointer]map[string]int{}}
+		n.titles = &titles{table: table, read: map[*yaml.Node]string{}, lists: map[reftable.DocumentPointer]map[string]int{}}
 	}
 	return n
 }
@@ -49,7 +49,7 @@ func New(table *bind.ReferenceTargetTable, byTitle bool) *Namer {
 // takes, before it is made neutral. A component schema's own node is named by
 // its key and carries no hint, but the positions beneath it compose theirs
 // from it, so At answers for it too.
-func (n *Namer) At(p bind.DocumentPointer) string {
+func (n *Namer) At(p reftable.DocumentPointer) string {
 	if hint, ok := n.memo[p]; ok {
 		return hint
 	}
@@ -62,7 +62,7 @@ func (n *Namer) At(p bind.DocumentPointer) string {
 // the memo: a chain followed from another position stops at MaxHops sooner
 // than one followed from p, so a name remembered from either would make the
 // other depend on which was asked first.
-func (n *Namer) at(p bind.DocumentPointer, hops int) string {
+func (n *Namer) at(p reftable.DocumentPointer, hops int) string {
 	hint, branch, _ := n.walk(p)
 	if branch && !n.conjoined(p) {
 		hint = n.branch(p, hint, hops)
@@ -75,7 +75,7 @@ func (n *Namer) at(p bind.DocumentPointer, hops int) string {
 // two, a node of the position's own, named by its position as any other
 // (docs/compilers/openapi.md#naming); a reference alone is named after what it
 // names.
-func (n *Namer) conjoined(p bind.DocumentPointer) bool {
+func (n *Namer) conjoined(p reftable.DocumentPointer) bool {
 	if n.table == nil {
 		return false
 	}
@@ -92,7 +92,7 @@ func (n *Namer) conjoined(p bind.DocumentPointer) bool {
 // title of each schema on the way (titles.at) where titles name, and reports
 // whether p is a composition branch its title does not name, and whether its
 // title names it.
-func (n *Namer) walk(p bind.DocumentPointer) (hint string, branch, titled bool) {
+func (n *Namer) walk(p reftable.DocumentPointer) (hint string, branch, titled bool) {
 	tokens := slices.Collect(p.Pointer.Tokens())
 	r := n.read(p)
 	start, owner := n.owner(p, tokens, r.kinds)
@@ -108,7 +108,7 @@ func (n *Namer) walk(p bind.DocumentPointer) (hint string, branch, titled bool) 
 // branch names the composition branch at p, which steps named positionally
 // for want of a title: a branch holding a $ref is named after it (Through),
 // keeping its positional name where the $ref suggests none.
-func (n *Namer) branch(p bind.DocumentPointer, positional string, hops int) string {
+func (n *Namer) branch(p reftable.DocumentPointer, positional string, hops int) string {
 	return cmp.Or(n.through(p, hops), positional)
 }
 
@@ -116,12 +116,12 @@ func (n *Namer) branch(p bind.DocumentPointer, positional string, hops int) stri
 // position it lands on, else what its text suggests (unresolvedName). It is ""
 // where p holds no $ref, and where a $ref names nothing either way, such as
 // one landing on a component keyed "".
-func (n *Namer) Through(p bind.DocumentPointer) string {
+func (n *Namer) Through(p reftable.DocumentPointer) string {
 	return n.through(p, 0)
 }
 
 // through is Through having followed hops $refs already.
-func (n *Namer) through(p bind.DocumentPointer, hops int) string {
+func (n *Namer) through(p reftable.DocumentPointer, hops int) string {
 	if n.table == nil || hops >= MaxHops {
 		return ""
 	}
@@ -129,7 +129,7 @@ func (n *Namer) through(p bind.DocumentPointer, hops int) string {
 	switch {
 	case !ok:
 		return ""
-	case e.Hop.Status == bind.Resolved:
+	case e.Hop.Status == reftable.Resolved:
 		return n.at(e.Hop.Target, hops+1)
 	default:
 		return unresolvedName(e.Hop.Ref)
@@ -138,7 +138,7 @@ func (n *Namer) through(p bind.DocumentPointer, hops int) string {
 
 // node returns the node written at pointer in doc, read as the parser reads
 // it, or nil where the document holds none.
-func (n *Namer) node(doc bind.DocID, pointer jsontext.Pointer) *yaml.Node {
+func (n *Namer) node(doc reftable.DocID, pointer jsontext.Pointer) *yaml.Node {
 	if n.table == nil || doc < 0 || int(doc) >= n.table.Documents() {
 		return nil
 	}
@@ -150,7 +150,7 @@ func (n *Namer) node(doc bind.DocID, pointer jsontext.Pointer) *yaml.Node {
 }
 
 // view returns the view the document doc is read through, one per document.
-func (n *Namer) view(doc bind.DocID) *nodeview.View {
+func (n *Namer) view(doc reftable.DocID) *nodeview.View {
 	v, ok := n.views[doc]
 	if !ok {
 		v = nodeview.New()

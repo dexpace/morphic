@@ -4,7 +4,7 @@
 package canary_test
 
 // The binding oracle (GitHub #914): the compiler binds every $ref itself, a
-// schema's and a reference object's (compilers/openapi/internal/bind), and
+// schema's and a reference object's (compilers/openapi/internal/reftable), and
 // this holds what it binds to what the parser library's resolver, which the
 // compiler never asks, resolves the same $ref to. The two agree except where the library is wrong, or where the
 // compiler reads a reference by a rule of its own; each such disagreement is
@@ -44,10 +44,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/internal/exectest"
 	"github.com/dexpace/morphic/internal/harness/openapicases"
 )
@@ -209,7 +209,7 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 		return nil, false
 	}
 	view := nodeview.New()
-	nodeAt := func(at bind.DocumentPointer) *yaml.Node {
+	nodeAt := func(at reftable.DocumentPointer) *yaml.Node {
 		path, found := view.DocumentPath(table.Document(at.Doc).Root, at.Pointer)
 		if !found {
 			return nil
@@ -227,15 +227,15 @@ func binderAnswers(t *testing.T, spec string) (map[jsontext.Pointer]string, bool
 // or a reference object's, by its pointer: a site read as several kinds of
 // reference object, which only raw YAML is, by the first. A $dynamicRef the
 // table reads as the $ref it spells is no $ref the library reads.
-func sourceChains(table *bind.ReferenceTargetTable) map[jsontext.Pointer]bind.Chain {
-	out := map[jsontext.Pointer]bind.Chain{}
+func sourceChains(table *reftable.ReferenceTargetTable) map[jsontext.Pointer]reftable.Chain {
+	out := map[jsontext.Pointer]reftable.Chain{}
 	for _, e := range table.Entries() {
-		if e.Site.Doc == bind.Source && e.Keyword == "$ref" {
+		if e.Site.Doc == reftable.Source && e.Keyword == "$ref" {
 			out[e.Site.Pointer] = e.Chain
 		}
 	}
 	for _, r := range table.References() {
-		if _, seen := out[r.Site.Pointer]; r.Site.Doc == bind.Source && !seen {
+		if _, seen := out[r.Site.Pointer]; r.Site.Doc == reftable.Source && !seen {
 			out[r.Site.Pointer] = r.Chain
 		}
 	}
@@ -259,7 +259,7 @@ func binderEnds(t *testing.T, spec string) (map[jsontext.Pointer]string, bool) {
 
 // loadedTable loads spec and returns its binding table, or false when load
 // refuses spec.
-func loadedTable(t *testing.T, spec string) (*bind.ReferenceTargetTable, bool) {
+func loadedTable(t *testing.T, spec string) (*reftable.ReferenceTargetTable, bool) {
 	t.Helper()
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: location, Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
@@ -273,13 +273,13 @@ func loadedTable(t *testing.T, spec string) (*bind.ReferenceTargetTable, bool) {
 
 // chainAnswer is the answer a chain gives: the position of the node it ends
 // on, read by nodeAt, or why it ends on none.
-func chainAnswer(c bind.Chain, nodeAt func(bind.DocumentPointer) *yaml.Node) string {
+func chainAnswer(c reftable.Chain, nodeAt func(reftable.DocumentPointer) *yaml.Node) string {
 	switch c.Status {
-	case bind.Resolved:
+	case reftable.Resolved:
 		return nodeAnswer(nodeAt(c.End))
-	case bind.Cyclic:
+	case reftable.Cyclic:
 		return answerCyclic
-	case bind.OverBudget:
+	case reftable.OverBudget:
 		return answerOverBudget
 	default:
 		return answerUnresolved

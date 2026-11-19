@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -27,7 +27,7 @@ func remoteDoc(ref string) string {
 // what it fetches against the rule table, as a load hands it one.
 func remoteReader(t *testing.T) *external {
 	t.Helper()
-	self := sourceDocument{judged: judgment{checker: oas.NewChecker()}}
+	self := sourceDocument{judged: judgment{checker: specrules.NewChecker()}}
 	return newExternal(Options{Reader: reader.Disk{}}, newExternalReads(self, budget.Unbounded()), &aside{})
 }
 
@@ -38,12 +38,12 @@ func remoteReader(t *testing.T) *external {
 func TestExternal_ASourceReadOverTheNetworkReadsNoFile(t *testing.T) {
 	t.Parallel()
 	fake := &fakeReader{data: []byte("X: {type: integer}\n")}
-	self := sourceDocument{path: "http://host/v1/root.yaml", judged: judgment{checker: oas.NewChecker()}}
+	self := sourceDocument{path: "http://host/v1/root.yaml", judged: judgment{checker: specrules.NewChecker()}}
 	e := newExternal(Options{Reader: fake}, newExternalReads(self, budget.Unbounded()), &aside{})
 
 	for _, name := range []string{"/etc/secret.yaml", "file:///etc/secret.yaml"} {
 		_, err := e.document(t.Context(), name, self.path)
-		require.ErrorContains(t, err, bind.OffNetwork, name)
+		require.ErrorContains(t, err, reftable.OffNetwork, name)
 	}
 	assert.Empty(t, fake.reqs, "nothing is read")
 }
@@ -102,7 +102,7 @@ func TestLoad_ANetworkDocumentReachingALocalFileIsRefusedAndReadsNothing(t *test
 
 		_, unresolved := budgetFindings(diags)
 		require.Len(t, unresolved, 1, "only the network crossing is unresolved: %+v", diags)
-		assert.Contains(t, unresolved[0], bind.OffNetwork)
+		assert.Contains(t, unresolved[0], reftable.OffNetwork)
 		assert.NotContains(t, unresolved[0], "./local.yaml", "the source's own reference to the file resolves")
 	}
 }

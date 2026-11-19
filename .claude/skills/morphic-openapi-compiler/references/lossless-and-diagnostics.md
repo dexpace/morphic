@@ -234,7 +234,7 @@ and every diagnostic is true, located, and decided from what actually happened.
 
 - **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate every
   position: each schema, schema map or schema list a field of the rule table
-  `compilers/openapi/internal/oas` holds, and each `schemaFields` key, with the schema written
+  `compilers/openapi/internal/specrules` holds, and each `schemaFields` key, with the schema written
   inline, as a `$ref` to a declaration, beside a `$ref`, and under an `$id` naming another base,
   its `$ref`s relative and absolute. Make each reach the same path or record what it cannot carry.
 - **Why.** Parameter, header and nested-object positions dropped keywords the property position

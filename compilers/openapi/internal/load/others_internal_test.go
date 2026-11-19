@@ -16,8 +16,8 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
 
@@ -48,7 +48,7 @@ func loadReferencing(t *testing.T, ref string) (*LoadedOpenAPIDocument, []string
 
 // TestOthers_NamesADocumentByEverySpellingItIsReadUnder pins how a document a
 // reference reads is found again by the name the binder spells it with, which
-// for a URL is the one spelling it is located by (resolve.Locate), escaping
+// for a URL is the one spelling it is located by (componentlookup.Locate), escaping
 // what the URL's syntax requires. A name no read answered, or one no
 // request could be built from, finds nothing; nor does an index past the list.
 // A space is no URI reference, which validation reports, and the document is
@@ -194,7 +194,7 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("components:\n  schemas:\n"+
 		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
-	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
+	table := reftable.Bind(t.Context(), &root, reftable.Config{Self: "/spec.yaml",
 		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
 		Open: func(name, _ string) (*yaml.Node, error) {
 			var n yaml.Node

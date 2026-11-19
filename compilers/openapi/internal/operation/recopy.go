@@ -9,7 +9,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -33,7 +33,7 @@ func chargeItemCopy(c service.Ctx, kept, servers int, taken []sourcedParam) {
 		if sp.in != nil {
 			pc = *sp.in
 		}
-		if p := resolve.Object[soa.Parameter](c.Bindings(), sp.ref); p != nil {
+		if p := componentlookup.Object[soa.Parameter](c.Bindings(), sp.ref); p != nil {
 			service.ChargeExpansionAt(pc, sp.pointer, p.GetRootNode())
 		}
 	}

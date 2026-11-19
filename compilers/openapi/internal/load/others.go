@@ -13,12 +13,12 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -54,7 +54,7 @@ type Others struct {
 	// found is what reading each document found in its own entry: a stream
 	// past its first document, and a YAML version it declares and is not read
 	// as. repeats is each key one of its mappings writes twice
-	// (oas.CheckRepeatedKeys), reported unless a reached object's check reports
+	// (specrules.CheckRepeatedKeys), reported unless a reached object's check reports
 	// it first (unreportedRepeats).
 	found, repeats []ir.Diagnostic
 }
@@ -105,11 +105,11 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (bind.ReferencedDocument.Unreached). Such a document lowers nothing and is no input
+// in (reftable.ReferencedDocument.Unreached). Such a document lowers nothing and is no input
 // of the result.
-func unreachedKeys(table *bind.ReferenceTargetTable) map[string]bool {
+func unreachedKeys(table *reftable.ReferenceTargetTable) map[string]bool {
 	unused := map[string]bool{}
-	for id := range bind.DocID(table.Documents()) {
+	for id := range reftable.DocID(table.Documents()) {
 		if d := table.Document(id); d.Unreached {
 			unused[d.Name] = true
 		}
@@ -151,7 +151,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		o.found = slices.Concat(o.found, streamDiagnostics(first+i, externalStream, doc.Rest), versionDiagnostics(tree, doc))
 		// Once ctx is done no document is read on, so a cancel costs one ask.
 		if root := read.trees[keys[0]]; !cancelled && ctx.Err() == nil {
-			o.repeats = append(o.repeats, oas.CheckRepeatedKeys(ctx, root, version, oas.Options{
+			o.repeats = append(o.repeats, specrules.CheckRepeatedKeys(ctx, root, version, specrules.Options{
 				Locate: walkedFrom(root, tree.Node), Budget: budget.AtMost(maxTreeNodes)})...)
 		} else {
 			cancelled = true
@@ -191,7 +191,7 @@ func pointersIn(ctx context.Context, trees map[string]*yaml.Node, keys []string)
 // between its segments whatever the system, or its cleaned path where no
 // relative path reaches it, as from a relative directory to an absolute path,
 // which nothing relates without the working directory; a URL as key spells
-// it. A file URI names a file (resolve.Places.FileOf), so the file is
+// it. A file URI names a file (componentlookup.Places.FileOf), so the file is
 // one label however a reference spells it. relative reports the first.
 func (s sourceDocument) labelOf(key string) (label string, relative bool) {
 	file, ok := s.places.FileOf(key)

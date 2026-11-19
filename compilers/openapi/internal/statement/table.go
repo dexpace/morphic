@@ -11,11 +11,11 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // Source is what a Table reads: the bindings holding each schema of the
@@ -55,7 +55,7 @@ func NewTable(src Source) *MemoizingSchemaReader {
 
 // At returns the statement of the schema the bindings hold at p, an Unwritten
 // one where they hold none.
-func (t *MemoizingSchemaReader) At(p bind.DocumentPointer) *Statement {
+func (t *MemoizingSchemaReader) At(p reftable.DocumentPointer) *Statement {
 	return t.Of(t.src.Bindings.At(p))
 }
 
@@ -92,7 +92,7 @@ func (t *MemoizingSchemaReader) Read(s *Schema) *Statement {
 // Truncated where its merges run past nodeview.MergeDepthLimit. Past
 // indexAbove keys it indexes them first, so that marking, and every later Key,
 // finds a key without scanning.
-func readKeys(s *Schema, rules oas.SchemaRules) {
+func readKeys(s *Schema, rules specrules.SchemaRules) {
 	view := nodeview.New()
 	pairs := view.MappingPairs(s.Node)
 	s.Truncated = !view.Expanded(s.Node)
@@ -187,7 +187,7 @@ func conjoins(s *Schema) bool {
 // (docs/compilers/openapi.md#allof-inline-residue). Written anywhere else, the
 // same object conjoins, as `{allOf: [{$ref: …}], …}` does.
 func failedEntry(s *Schema) bool {
-	if !s.Ref.Bound || s.Ref.Entry.Chain.Status == bind.Resolved {
+	if !s.Ref.Bound || s.Ref.Entry.Chain.Status == reftable.Resolved {
 		return false
 	}
 	at := string(s.At.Pointer)
@@ -284,27 +284,27 @@ func (t *MemoizingSchemaReader) reference(s *Schema) *Schema {
 
 // open makes s's struct of slot, where it has none yet: a key of the slot's
 // keywords opens it, whether or not its value is read.
-func open(s *Schema, slot oas.Slot) {
+func open(s *Schema, slot specrules.Slot) {
 	switch {
-	case slot == oas.SlotKinds && s.Kinds == nil:
+	case slot == specrules.SlotKinds && s.Kinds == nil:
 		s.Kinds = &Kinds{}
-	case slot == oas.SlotValues && s.Values == nil:
+	case slot == specrules.SlotValues && s.Values == nil:
 		s.Values = &Values{}
-	case slot == oas.SlotFormat && s.Format == nil:
+	case slot == specrules.SlotFormat && s.Format == nil:
 		s.Format = &Format{}
-	case slot == oas.SlotNumber && s.Number == nil:
+	case slot == specrules.SlotNumber && s.Number == nil:
 		s.Number = &Number{}
-	case slot == oas.SlotText && s.Text == nil:
+	case slot == specrules.SlotText && s.Text == nil:
 		s.Text = &Text{}
-	case slot == oas.SlotArray && s.Array == nil:
+	case slot == specrules.SlotArray && s.Array == nil:
 		s.Array = &Array{}
-	case slot == oas.SlotObject && s.Object == nil:
+	case slot == specrules.SlotObject && s.Object == nil:
 		s.Object = &Object{}
-	case slot == oas.SlotChoice && s.Choice == nil:
+	case slot == specrules.SlotChoice && s.Choice == nil:
 		s.Choice = &Choice{}
-	case slot == oas.SlotLogic && s.Logic == nil:
+	case slot == specrules.SlotLogic && s.Logic == nil:
 		s.Logic = &Logic{}
-	case slot == oas.SlotNotes && s.Notes == nil:
+	case slot == specrules.SlotNotes && s.Notes == nil:
 		s.Notes = &Notes{}
 	}
 }

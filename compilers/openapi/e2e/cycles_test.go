@@ -23,7 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -739,11 +739,11 @@ func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 
 // scanIndex decodes a spec and indexes it, which is what load hands the scan
 // once the compile's one decode has run.
-func scanIndex(t *testing.T, src string) sourceindex.Measurements {
+func scanIndex(t *testing.T, src string) sourcetreestats.Measurements {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return sourceindex.Build(t.Context(), &root, sourceindex.MaxIndexedNodes)
+	return sourcetreestats.Build(t.Context(), &root, sourcetreestats.MaxIndexedNodes)
 }
 
 // TestCompile_SchemaEmptyPointerSegmentIsUnresolved pins where reading the

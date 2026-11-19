@@ -11,13 +11,13 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/ir"
 )
 
-// scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
-// known pairing interns the shared primitive; a pairing spelling.LookupEncoded
+// scalarTypeID maps a scalar (type, format) pair to a TypeID via typeformat.Lookup: a
+// known pairing interns the shared primitive; a pairing typeformat.LookupEncoded
 // knows, such as byte, a number carried as text, one neither table lists, and
 // the 2020-12 content vocabulary beside a string each hoist a named Scalar
 // wrapping the base primitive with an Encoding, so what the position wrote never
@@ -60,10 +60,10 @@ type scalarShape struct {
 }
 
 // scalarShapeOf returns what a scalar of type st that s writes, with format,
-// lowers to: a pairing spelling.LookupEncoded knows, such as byte, a Scalar over
+// lowers to: a pairing typeformat.LookupEncoded knows, such as byte, a Scalar over
 // the primitive it names with its encoding and wire type; a pairing neither
 // table lists a Scalar over the type's base keeping the format as its encoding
-// name; and a pairing spelling.Lookup lists the primitive it selects, shared
+// name; and a pairing typeformat.Lookup lists the primitive it selects, shared
 // unless s writes the content vocabulary for a type that takes it, a string's
 // (keywordKinds).
 func scalarShapeOf(s *statement.Schema, st statement.JSONSchemaTypeName, format string) scalarShape {
@@ -73,10 +73,10 @@ func scalarShapeOf(s *statement.Schema, st statement.JSONSchemaTypeName, format 
 		key += "/" + format
 		read = keyBit("format")
 	}
-	if row, encoded := spelling.LookupEncoded(key); encoded {
+	if row, encoded := typeformat.LookupEncoded(key); encoded {
 		return scalarShape{base: row.Prim, format: row.Encoding, wire: wireOf(row), read: read}
 	}
-	prim, known := spelling.Lookup(key)
+	prim, known := typeformat.Lookup(key)
 	if !known {
 		if num, carried := numberAsText(s, st, format); carried {
 			return scalarShape{base: num, format: numberTextEncoding, wire: new(ir.PrimString), read: read}
@@ -88,7 +88,7 @@ func scalarShapeOf(s *statement.Schema, st statement.JSONSchemaTypeName, format 
 
 // wireOf returns the primitive row's value travels as, the WireType of the
 // Scalar scalarShapeOf gives it: nil where the primitive's own spelling says it.
-func wireOf(row spelling.Encoded) *ir.PrimKind {
+func wireOf(row typeformat.Encoded) *ir.PrimKind {
 	if row.Wire == "" {
 		return nil
 	}
@@ -109,7 +109,7 @@ func numberAsText(s *statement.Schema, st statement.JSONSchemaTypeName, format s
 	if st != statement.KindString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
 		return "", false
 	}
-	return spelling.Lookup(string(statement.KindNumber) + "/" + format)
+	return typeformat.Lookup(string(statement.KindNumber) + "/" + format)
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its
@@ -119,7 +119,7 @@ func formatPrimitive(s *statement.Schema) (ir.PrimKind, bool) {
 	if len(types) != 1 {
 		return "", false
 	}
-	return spelling.Lookup(string(types[0]) + "/" + s.FormatName())
+	return typeformat.Lookup(string(types[0]) + "/" + s.FormatName())
 }
 
 // baseForType returns the base primitive for an unknown-format scalar of type st.
@@ -204,7 +204,7 @@ func textBounds(c lowering.Ctx, s *statement.Schema, bounds []string, pointer js
 // scalarEncoding builds the Encoding a scalar position declares: the whole
 // 2020-12 content vocabulary, where withContent says the scalar's type takes it,
 // over the OpenAPI `format` spelling of the encoding name. formatName is the
-// encoding name the format contributes — the one spelling.LookupEncoded names,
+// encoding name the format contributes — the one typeformat.LookupEncoded names,
 // as "base64" for format: byte, an unrecognized format verbatim, "" when the
 // pairing is already captured by the primitive kind.
 func scalarEncoding(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema,

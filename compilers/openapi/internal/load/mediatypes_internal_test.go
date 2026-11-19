@@ -18,11 +18,11 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 )
 
 // mediaTypeSpec declares components/mediaTypes entries of every shape the
@@ -259,10 +259,10 @@ paths:
             application/json: {$ref: '#/components/mediaTypes/Y'}
 `)
 	media, _ := mediaTypesFrom(t.Context(), doc, provenance.Tree{}, faulting)
-	bd := typed.NewBuilder(bind.Bind(t.Context(), doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
+	bd := typed.NewBuilder(reftable.Bind(t.Context(), doc.GetRootNode(), reftable.Config{Self: "spec.yaml"}))
 	faults := mediaFaults{}
 
-	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), bind.DocumentPointer{}, faults)
+	indexWalk(bd, walkSource(t.Context(), doc, Siblings{}, media), reftable.DocumentPointer{}, faults)
 
 	diags := faults.diags(places{}, bd.Bindings().Table())
 	require.Len(t, diags, 2, "%+v", diags)

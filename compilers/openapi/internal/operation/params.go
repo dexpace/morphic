@@ -13,11 +13,11 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -55,7 +55,7 @@ func lowerParameters(c service.Ctx, w operationLoweringState, mount jsontext.Poi
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
-		param.Docs = resolve.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
+		param.Docs = componentlookup.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
 		// What the chain writes beside its $ref rides on the parameter it lowers to.
 		beside, besideDiags := service.Beside[soa.Parameter](pc, sp.ref, sp.pointer, true)
 		param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, beside)
@@ -443,7 +443,7 @@ func shadowedKeys(b *typed.Bindings, opParams []*soa.ReferencedParameter) map[id
 // paramKey builds the identity a parameter is merged by (ids.SlotOf), read
 // through the bindings b, as the lowering reads it.
 func paramKey(b *typed.Bindings, rp *soa.ReferencedParameter) (ids.ParamSlot, bool) {
-	p := resolve.Object[soa.Parameter](b, rp)
+	p := componentlookup.Object[soa.Parameter](b, rp)
 	if p == nil {
 		return ids.ParamSlot{}, false
 	}

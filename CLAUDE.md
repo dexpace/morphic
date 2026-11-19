@@ -163,7 +163,8 @@ in the docs.
 barrier/     Layer 0 — runs code its caller does not own, turns a panic in it into an error, and
              quotes what that code says on one bounded line. Outside tests, the one package
              that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
-reuse/       Layer 0 — scratch state a check reads one collection after another through: the
+scratchstate/
+             Layer 0 — scratch state a check reads one collection after another through: the
              map both checkers empty between collections. Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,

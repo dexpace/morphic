@@ -13,7 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 const (
@@ -148,7 +148,7 @@ func TestExternal_AJudgementThatPassesBoundsTheDocumentForLaterAskers(t *testing
 
 // proxiedExternal reads through r beside a source at spec.yaml.
 func proxiedExternal(r *proxiedReader) *external {
-	src := sourceDocument{path: "spec.yaml", judged: judgment{checker: oas.NewChecker()}}
+	src := sourceDocument{path: "spec.yaml", judged: judgment{checker: specrules.NewChecker()}}
 	return newExternal(Options{Reader: r}, newExternalReads(src, budget.Unbounded()), &aside{})
 }
 

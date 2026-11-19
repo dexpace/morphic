@@ -7,7 +7,7 @@ import (
 	"encoding/json/jsontext"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
 )
 
@@ -28,7 +28,7 @@ func TwinKeyword(c lowering.Ctx, s *statement.Schema, key string) string {
 	switch {
 	case key == "id" && rules.Identifier() == "id":
 		return "$id"
-	case key == "definitions" && rules.Takes("definitions", oas.Map):
+	case key == "definitions" && rules.Takes("definitions", specrules.Map):
 		return "$defs"
 	case key == "dependencies" && rules.Defines("dependencies"):
 		return "dependentSchemas"
@@ -43,7 +43,7 @@ func TwinKeyword(c lowering.Ctx, s *statement.Schema, key string) string {
 // where it is: those of where the bindings place it (placedAt), so a node an
 // alias places under two roots reads at each the dialect of that place, and
 // those of its node where they place it nowhere (dialect.SchemaDialectRows.Of).
-func rulesOf(c lowering.Ctx, s *statement.Schema) oas.SchemaRules {
+func rulesOf(c lowering.Ctx, s *statement.Schema) specrules.SchemaRules {
 	if there, at, placed := placedAt(c, s); placed {
 		return there.Rules().At(there.Position(at))
 	}

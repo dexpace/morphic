@@ -4,7 +4,7 @@
 package canary_test
 
 // The validation oracle (GitHub #918): the compiler holds a document to the
-// OpenAPI Specification's rules itself (compilers/openapi/internal/oas), and
+// OpenAPI Specification's rules itself (compilers/openapi/internal/specrules), and
 // this holds what it finds to what the parser library's validation finds in
 // the same document. The two agree except where the library reads the
 // specification otherwise, or where another package owns a rule; each such
@@ -31,13 +31,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -310,7 +310,7 @@ func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding, skipped string) {
 	t.Helper()
 	version, root, _ := declaredVersion(t, d.data)
-	if _, ok := oas.ParseMinor(version); !ok {
+	if _, ok := specrules.ParseMinor(version); !ok {
 		return nil, nil, fmt.Sprintf("declares %q, a version the table does not cover", version)
 	}
 	doc, refused := loaded(t, d)
@@ -361,9 +361,9 @@ func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Load
 		}
 		return prov
 	}
-	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate, Rows: doc.Rows.Schema,
-		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) {
-			return doc.Dialects.RootAt(bind.DocumentPointer{Doc: bind.Source, Pointer: at})
+	diags := specrules.NewChecker().Check(t.Context(), root, version, specrules.Options{Locate: locate, Rows: doc.Rows.Schema,
+		RootRows: func(at jsontext.Pointer) (specrules.SchemaRules, bool) {
+			return doc.Dialects.RootAt(reftable.DocumentPointer{Doc: reftable.Source, Pointer: at})
 		}})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {

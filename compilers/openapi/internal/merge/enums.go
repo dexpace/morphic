@@ -6,7 +6,7 @@ package merge
 import (
 	"reflect"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -43,11 +43,11 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 }
 
 // valueTypeHolding is the holding of two enums' value types: the narrower says
-// all the other does (spelling.Relate), and one says all the other does of
+// all the other does (typeformat.Relate), and one says all the other does of
 // itself. It is false where neither is within the other, since no value type
 // says both.
 func valueTypeHolding(a, b ir.PrimKind) (holding, bool) {
-	return holdingOf(fromSpelling(spelling.Relate(a, b)))
+	return holdingOf(fromSpelling(typeformat.Relate(a, b)))
 }
 
 // narrowestValueType returns the value type within every other of the enums
@@ -59,10 +59,10 @@ func narrowestValueType(nodes []ir.TypeDef) (ir.PrimKind, bool) {
 		if !ok {
 			return "", false
 		}
-		switch rel := spelling.Relate(e.ValueType, narrowest); {
-		case k == 0, rel == spelling.ANarrower:
+		switch rel := typeformat.Relate(e.ValueType, narrowest); {
+		case k == 0, rel == typeformat.ANarrower:
 			narrowest = e.ValueType
-		case rel != spelling.Same && rel != spelling.BNarrower:
+		case rel != typeformat.Same && rel != typeformat.BNarrower:
 			return "", false
 		}
 	}

@@ -16,7 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -125,7 +125,7 @@ func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], tree proven
 	_, err := eachModel(items, "sibling search", met)
 	// The document's walk, then each model's in turn, until one panics or ctx
 	// is done.
-	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
+	for i := 0; err == nil && i < len(s.list) && i < sourcetreestats.MaxIndexedNodes && ctx.Err() == nil; i++ {
 		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
 	}
 	return s, faults
@@ -187,7 +187,7 @@ func (s *Siblings) addLanding(ctx context.Context, items iter.Seq[soa.WalkItem],
 		return s.model(ctx, at, rp, buildSibling)
 	}
 	_, err := eachModel(locatedWalk(items, pointer), "sibling search", met)
-	for i := first; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
+	for i := first; err == nil && i < len(s.list) && i < sourcetreestats.MaxIndexedNodes && ctx.Err() == nil; i++ {
 		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
 	}
 	return first, err

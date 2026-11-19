@@ -11,9 +11,9 @@ import (
 	"github.com/speakeasy-api/openapi/sequencedmap"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
 )
@@ -45,7 +45,7 @@ func lowerRequestBody(c service.Ctx, w operationLoweringState, op *ir.Operation,
 	// A Request Body Object's description documents the body rather than any
 	// one media type in it (GitHub #609), and a summary or description beside a
 	// $ref of its chain documents this use of it (GitHub #610).
-	payload.Docs = resolve.UseDocs[soa.RequestBody](c.Bindings(), src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
+	payload.Docs = componentlookup.UseDocs[soa.RequestBody](c.Bindings(), src.GetRequestBody(), ir.Docs{Description: rb.GetDescription()})
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as annotation.XMLHints already reads its own.

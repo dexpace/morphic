@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/compilers/openapi/internal/promotion"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
 // pagerOver is a pager over reg, under the default policy.
 func pagerOver(reg ir.TypeRegistry) *pager {
-	return &pager{p: promotion.New(promotion.ExtensionPromotions{}), w: whole.New(&ir.Document{Types: reg})}
+	return &pager{p: promotion.New(promotion.ExtensionPromotions{}), w: compileddoc.New(&ir.Document{Types: reg})}
 }
 
 // TestMarker_AUseOfATypeTheRegistryLacksMarksNothing drives the guard no
@@ -36,7 +36,7 @@ func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 // no model reaches it and the root is not read, and a level steps into a
 // member's model only where that model reaches the key. None of this changes
 // what a search finds, only what it reads, so it is held here; that no model
-// is then flattened is whole.TestDocument_APromotionNoMemberMarksFlattensNoModel's.
+// is then flattened is compileddoc.TestDocument_APromotionNoMemberMarksFlattensNoModel's.
 // A member naming a type the registry lacks, as a dangling reference would,
 // keeps nothing.
 func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {

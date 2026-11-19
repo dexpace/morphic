@@ -10,9 +10,9 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
 
@@ -71,7 +71,7 @@ func newSourceDocument(src compilers.Source, places *refscope.Places, root *yaml
 // document's are.
 func fetchedFrom(location string) bool {
 	u, err := url.Parse(location)
-	return err == nil && bind.OverNetwork(location) && u.Host != ""
+	return err == nil && reftable.OverNetwork(location) && u.Host != ""
 }
 
 // Location is where src lies, as the references in it are read against: its

@@ -14,12 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -53,16 +53,16 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.LoadedOpenAPIDocum
 }
 
 // extDoc returns the bindings' number for ext.yaml.
-func extDoc(t *testing.T, c lowering.Ctx) bind.DocID {
+func extDoc(t *testing.T, c lowering.Ctx) reftable.DocID {
 	t.Helper()
 	table := c.Bindings().Table()
-	for id := range bind.DocID(table.Documents()) {
+	for id := range reftable.DocID(table.Documents()) {
 		if filepath.Base(table.Document(id).Name) == "ext.yaml" {
 			return id
 		}
 	}
 	require.FailNow(t, "the bindings read no ext.yaml")
-	return bind.Source
+	return reftable.Source
 }
 
 // TestInDocument_PlacesWhatAnotherDocumentDeclares pins the context a lowering
@@ -88,14 +88,14 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.True(t, there.RefScope().Foreign)
 	assert.Equal(t, c.Bindings().Table().Document(id).Name, there.RefScope().Holder)
 
-	back, ok := lowering.InDocument(there, bind.Source)
+	back, ok := lowering.InDocument(there, reftable.Source)
 	require.True(t, ok)
 	assert.Equal(t, ids.DocumentIDNamespace{}, back.IDs())
 	assert.Equal(t, ir.Provenance{Pointer: "/X"}, back.Place().At("/X"))
 	assert.False(t, back.RefScope().Foreign)
 	assert.Empty(t, back.RefScope().Holder)
 	assert.Equal(t, there.Position("/X").Pointer, back.Position("/X").Pointer)
-	assert.Equal(t, bind.Source, back.Position("/X").Doc)
+	assert.Equal(t, reftable.Source, back.Position("/X").Doc)
 	assert.Equal(t, id, there.Position("/X").Doc)
 
 	none := *doc
@@ -119,14 +119,14 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	there, ok := lowering.InDocument(c, id)
 	require.True(t, ok)
 	assert.True(t, there.SchemaRules().Defines("nullable"), "ext.yaml declares 3.0.3")
-	back, ok := lowering.InDocument(there, bind.Source)
+	back, ok := lowering.InDocument(there, reftable.Source)
 	require.True(t, ok)
 	assert.False(t, back.SchemaRules().Defines("nullable"))
 
 	assert.True(t, c.Rules().In(id).Defines("nullable"))
-	assert.False(t, c.Rules().In(bind.Source).Defines("nullable"))
+	assert.False(t, c.Rules().In(reftable.Source).Defines("nullable"))
 
-	unread := bind.DocID(c.Bindings().Table().Documents())
+	unread := reftable.DocID(c.Bindings().Table().Documents())
 	assert.False(t, c.Rules().In(unread).Defines("nullable"), "a document the compile did not read")
 }
 
@@ -141,8 +141,8 @@ func TestRules_OfReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 	require.True(t, ok)
 	x := c.Bindings().End(a)
 	require.NotNil(t, x)
-	assert.True(t, c.Rules().Of(x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
-	assert.True(t, c.Rules().Of(a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+	assert.True(t, c.Rules().Of(x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", specrules.Boolean))
+	assert.True(t, c.Rules().Of(a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", specrules.Number),
 		"the source's own schema reads its document's")
 }
 
@@ -161,7 +161,7 @@ func TestRules_OfReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 	x := c.Bindings().End(a)
 	require.NotNil(t, x)
 	boolean := func(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return c.Rules().Of(js.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean)
+		return c.Rules().Of(js.GetSchema().GetRootNode()).Takes("exclusiveMinimum", specrules.Boolean)
 	}
 	assert.True(t, boolean(c, x), "ext.yaml's X, from the source")
 	assert.True(t, boolean(there, x), "ext.yaml's X, from ext.yaml")
@@ -180,7 +180,7 @@ func TestRules_AtReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	there, ok := lowering.InDocument(c, extDoc(t, c))
 	require.True(t, ok)
 	boolean := func(c lowering.Ctx, at jsontext.Pointer) bool {
-		return c.Rules().At(c.Position(at)).Takes("exclusiveMinimum", oas.Boolean)
+		return c.Rules().At(c.Position(at)).Takes("exclusiveMinimum", specrules.Boolean)
 	}
 	assert.True(t, boolean(there, "/X"), "ext.yaml's root names draft 4")
 	assert.False(t, boolean(c, "/components/schemas/A"), "the source's own schema reads its document's")
@@ -196,7 +196,7 @@ func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	if c.SchemaRules() != doc.Rows.Schema {
 		t.Error("the context read rows of its own, not the load phase's")
 	}
-	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
+	table := testing.AllocsPerRun(10, func() { _ = specrules.Table() })
 	built := testing.AllocsPerRun(10, func() {
 		_ = service.New(0, doc, service.Policy{})
 	})

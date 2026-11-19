@@ -6,8 +6,8 @@ package load
 import (
 	"encoding/json/jsontext"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,13 +20,13 @@ import (
 type places struct {
 	source provenance.Doc
 	others Others
-	table  *bind.ReferenceTargetTable
+	table  *reftable.ReferenceTargetTable
 }
 
 // position returns where a finding at the position at of the bindings' table
 // is placed.
-func (p places) position(at bind.DocumentPointer) ir.Provenance {
-	if at.Doc == bind.Source {
+func (p places) position(at reftable.DocumentPointer) ir.Provenance {
+	if at.Doc == reftable.Source {
 		return p.source.At(at.Pointer)
 	}
 	return p.in(p.table.Document(at.Doc).Name, at.Pointer)

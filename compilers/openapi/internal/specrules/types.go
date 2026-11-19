@@ -1,0 +1,447 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package specrules
+
+import "slices"
+
+// Kind names an OpenAPI object. The zero value is no object.
+type Kind uint8
+
+// The objects of the specification. Raw values (an example, a default) are
+// not objects: a field holding one has the Any shape.
+const (
+	Document Kind = 1 + iota
+	Info
+	Contact
+	License
+	Server
+	ServerVariable
+	Components
+	Paths
+	PathItem
+	Operation
+	ExternalDocs
+	Parameter
+	RequestBody
+	MediaType
+	Encoding
+	Responses
+	Response
+	Callback
+	Example
+	Link
+	Header
+	Tag
+	Reference
+	Schema
+	Discriminator
+	XML
+	SecurityScheme
+	OAuthFlows
+	OAuthFlow
+	SecurityRequirement
+)
+
+// Shape is the form a field's value takes in the source.
+type Shape uint8
+
+// The shapes a value takes. Any, the zero value, leaves a value unchecked.
+const (
+	AnyShapeUnchecked Shape = iota
+	String
+	Boolean
+	Number
+	// PositiveNumber is a number strictly greater than zero.
+	PositiveNumber
+	// Natural is a non-negative integer.
+	Natural
+	// Nested is a mapping read as an object of the Of kind.
+	Nested
+	// Map is a mapping whose every entry is read as the Of kind.
+	Map
+	// List is a sequence whose every item is read as the Of kind.
+	List
+	// StringMap is a mapping whose entries are strings.
+	StringMap
+	// StringList is a sequence of strings.
+	StringList
+	// RawMap is a mapping whose entries are kept unread.
+	RawMap
+	// RawList is a sequence whose items are kept unread.
+	RawList
+)
+
+// Format is a syntax a string value, or a map key, must have.
+type Format uint8
+
+// The syntaxes the table names. FormatNone, the zero value, is no syntax.
+const (
+	FormatNone Format = iota
+	// URI is a URI reference: relative references are admitted.
+	URI
+	// AbsoluteURI is a URI with a scheme.
+	AbsoluteURI
+	// Email is an email address.
+	Email
+	// ComponentName is a Components Object key: ^[a-zA-Z0-9\.\-_]+$.
+	ComponentName
+	// Token is a name of one or more token characters: an HTTP field name, a
+	// cookie name (RFC 9110 §5.6.2).
+	Token
+	// AuthScheme is a Token, with the empty string left to the lowering, which
+	// reports a security scheme that names no HTTP scheme.
+	AuthScheme
+	// RuntimeExpression is a string whose braces hold runtime expressions, or
+	// a runtime expression bare.
+	RuntimeExpression
+	// VersionNumber is a version of the specification: major.minor.patch,
+	// each a run of decimal digits.
+	VersionNumber
+	// ServerURL is a URL reference that may write {variables}.
+	ServerURL
+	// MediaRanges is a comma-separated list of media types, each specific or
+	// a wildcard range.
+	MediaRanges
+	// AnchorName is a name a $anchor or a $dynamicAnchor declares: a letter or
+	// '_', then letters, digits, '-', '_' and '.' (JSON Schema 2020-12 §8.2.2).
+	AnchorName
+	// ResourceURI is a URI reference whose fragment, if any, is empty, as a
+	// $id must be (JSON Schema 2020-12 §8.2.1).
+	ResourceURI
+	// PlainName is a plain name as JSON Schema drafts 6, 7 and 2019-09 write
+	// one: a letter, then letters, digits, '-', '_', ':' and '.'
+	// (draft-handrews-json-schema-02 §8.2.3).
+	PlainName
+	// PlainNameURI is a URI reference whose fragment, where it is written alone
+	// and is no JSON pointer, is a PlainName, as a draft 6 or 7 identifier
+	// naming a subschema must be (draft-handrews-json-schema-01 §8.2.3).
+	PlainNameURI
+	// FieldName is an HTTP field name: a Token, which HTTP compares in any case
+	// (RFC 9110 §5.1), so two keys of a map keyed by one that differ in case
+	// alone name one field.
+	FieldName
+	// SelfURI is a URI reference holding no fragment, not even an empty one,
+	// as OpenAPI 3.2 has a document's $self be.
+	SelfURI
+	// MediaTypeKey is a media type or a media type range, as a content map's
+	// key must be: type "/" subtype, each a token, so "*/*" and "type/*", then
+	// any parameters (RFC 9110 §8.3.1, §12.5.1).
+	MediaTypeKey
+)
+
+// Level is how firmly the specification states a rule.
+type Level uint8
+
+// The levels. A finding of a Must rule is an error and of a Should rule a
+// warning, matching RFC 2119.
+const (
+	Must Level = iota
+	Should
+)
+
+// Cite is the sentence of a specification text a row comes from. Sentence is
+// a verbatim fragment of that text under the heading Section: OpenAPI's at
+// Minor, or, where Text names it, another specification's, such as a JSON
+// Schema draft whose dialect a Schema Object can declare.
+type Cite struct {
+	Section  string
+	Sentence string
+	Minor    Minor
+	Text     Text
+}
+
+// Text is a specification text other than OpenAPI's that a Cite quotes. The
+// zero Text is OpenAPI's own. It is one byte, beside Minor, so a Cite, which
+// every row of the table holds, grows by nothing for naming one.
+type Text uint8
+
+// The texts beside OpenAPI's: the Internet-Drafts the keywords of the JSON
+// Schema drafts come from, the dialects a Schema Object can be read in beside
+// its minor's own.
+const (
+	// TextDraft04Core is draft-zyp-json-schema-04, draft 4's core text.
+	TextDraft04Core Text = 1 + iota
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, draft 4's
+	// validation text.
+	TextDraft04Validation
+	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
+	// text draft 4's $ref comes from.
+	TextJSONReference03
+	// TextDraft06Core is draft-wright-json-schema-01, draft 6's core text.
+	TextDraft06Core
+	// TextDraft06Validation is draft-wright-json-schema-validation-01, draft
+	// 6's validation text.
+	TextDraft06Validation
+	// TextDraft07Core is draft-handrews-json-schema-01, draft 7's core text.
+	TextDraft07Core
+	// TextDraft07Validation is draft-handrews-json-schema-validation-01, draft
+	// 7's validation text.
+	TextDraft07Validation
+	// TextDraft2019Core is draft-handrews-json-schema-02, 2019-09's core text.
+	TextDraft2019Core
+	// TextDraft2019Validation is draft-handrews-json-schema-validation-02,
+	// 2019-09's validation text.
+	TextDraft2019Validation
+)
+
+// Term is one condition on the object a rule judges: the sibling field Field
+// holds one of In, or, where Written, the object writes Field, whatever its
+// value. The field "$key" is the key the parent holds the object under.
+type Term struct {
+	Field   string
+	In      []string
+	Written bool
+}
+
+// Value is one value a field admits, from the minors in Span, and only where
+// every When term holds.
+type Value struct {
+	Name string
+	Span MinorVersionRange
+	When []Term
+}
+
+// Alt is a second shape a field admits, from the minors in Span.
+type Alt struct {
+	Shape Shape
+	Span  MinorVersionRange
+}
+
+// Default is a value the field Field takes where its object leaves it
+// unwritten, at the minors Span holds, for a value of the case Case names.
+type Default struct {
+	Field string
+	Value string
+	Cites []Cite
+	Span  MinorVersionRange
+	Case  DefaultCase
+}
+
+// DefaultCase is the case a Default holds in: what the value the object
+// applies to is, as the specification's table of defaults keys it.
+type DefaultCase int
+
+// The cases a Default holds in.
+const (
+	// DefaultUntyped is a value whose schema writes no type.
+	DefaultUntyped DefaultCase = 1 + iota
+	// DefaultRawBinary is raw bytes, a string of format binary.
+	DefaultRawBinary
+	// DefaultByteFormat is a string of format byte writing no contentEncoding.
+	DefaultByteFormat
+	// DefaultEncodedByteFormat is a string of format byte writing
+	// contentEncoding.
+	DefaultEncodedByteFormat
+	// DefaultContentEncoded is any other string writing contentEncoding.
+	DefaultContentEncoded
+	// DefaultString is any other string.
+	DefaultString
+	// DefaultScalar is a number, an integer or a boolean.
+	DefaultScalar
+	// DefaultObject is an object.
+	DefaultObject
+	// DefaultNestedArray is an array inside the array an encoding applies to
+	// item by item.
+	DefaultNestedArray
+)
+
+// Field is one field of an object.
+type Field struct {
+	Name string
+	// Owner is the package that reports the field's missing-field finding.
+	Owner string
+	// Values is the values admitted, if the field is enumerated.
+	Values []Value
+	// Alts are the other shapes the field admits.
+	Alts []Alt
+	// Cites are the sentences of the specification the field comes from.
+	Cites []Cite
+	// Defined is the minors whose object defines the field. A construct
+	// written at an earlier minor is reported as added by a later one.
+	Defined MinorVersionRange
+	// Required is the minors at which the field must be present; empty
+	// means never.
+	Required MinorVersionRange
+	// NonEmpty is the minors whose grammar refuses the empty string.
+	NonEmpty MinorVersionRange
+	// Shape is the form the field's value takes in the source.
+	Shape Shape
+	// Of is the object kind an Object, Map or List holds.
+	Of Kind
+	// Format is the syntax of a string value; Keys that of a map's keys.
+	Format Format
+	Keys   Format
+	// IsJSONSchemaKeyword marks a JSON Schema keyword, which the dialect a schema is
+	// read in defines rather than the minor (SchemaRules).
+	IsJSONSchemaKeyword bool
+	// Decimal marks a numeric bound the schema lowering reads as the decimal
+	// its text spells, quoted or not, so the check judges it as read rather
+	// than by its shape: a literal no decimal spells, and an exclusive bound
+	// in the other form than its row gives.
+	Decimal bool
+	// Within is the media types under which a field of an object a media
+	// type holds takes effect; empty means under every one.
+	Within []Within
+}
+
+// Within is a media type, named without parameters and in lower case, under
+// which a field takes effect at the minors Span holds; one whose subtype is
+// "*" names every media type of its type, as "multipart/*" names each
+// multipart one.
+type Within struct {
+	MediaType string
+	Cites     []Cite
+	Span      MinorVersionRange
+}
+
+// Pattern is a family of keys an object admits beside its fixed fields:
+// every key that is neither one of them nor an extension.
+type Pattern struct {
+	// Name spells the key as the specification does: "/{path}".
+	Name  string
+	Shape Shape
+	Of    Kind
+	Span  MinorVersionRange
+	// Keys is the syntax of the key itself.
+	Keys  Format
+	Cites []Cite
+	// ByURI marks a key that may name its object by URI where it is no
+	// component name, as a Security Requirement Object's may from 3.2.
+	ByURI bool
+}
+
+// RuleKind names what a Rule demands.
+type RuleKind uint8
+
+// The rule kinds. Each rule reads the fields it names on one object.
+const (
+	// RuleExclusive: at most one of Fields is present.
+	RuleExclusive RuleKind = 1 + iota
+	// RuleExactlyOne: exactly one of Fields is present.
+	RuleExactlyOne
+	// RuleAnyOf: at least one of Fields is present.
+	RuleAnyOf
+	// RuleCount: Field holds between Min and Max entries; Max 0 is no cap.
+	RuleCount
+	// RuleRequiredWhen: Field is present when every When term holds.
+	RuleRequiredWhen
+	// RuleForbiddenWhen: no field of Fields is present when every When
+	// term holds.
+	RuleForbiddenWhen
+	// RuleMustBe: Field, when written, is Value if every When term holds.
+	RuleMustBe
+	// RuleMember: Field's value is among the strings of the list Of.
+	RuleMember
+	// RuleUnique: the items of the list Field are unique by their Key, or
+	// whole where Key is empty.
+	RuleUnique
+	// RuleSyntax: Field, when written, has the syntax Format if every When
+	// term holds.
+	RuleSyntax
+	// RuleInapplicable: Field has no effect when every When term holds.
+	RuleInapplicable
+	// RuleMisplaced: no field of Fields is present when every When term
+	// holds; one that is lowers as declared.
+	RuleMisplaced
+	// RuleCode: a predicate written in Go, named by Name.
+	RuleCode
+	// RuleReserved: Field, where every When term holds, names none of Names,
+	// in any case: the value of a string field, or each key of a map field.
+	// OpenAPI says a definition under such a name SHALL be ignored.
+	RuleReserved
+)
+
+// Rule binds several fields of an object, or judges one beyond its shape.
+type Rule struct {
+	// Field is the field a conditional, count, member or unique rule judges.
+	Field string
+	// Of names the list field a Member rule reads.
+	Of string
+	// Key is the entry key a Unique rule compares.
+	Key string
+	// Value is the value a MustBe rule demands.
+	Value string
+	// Scope says, for an Inapplicable rule, where the field does apply.
+	Scope string
+	// Name names the predicate of a Code rule.
+	Name string
+	// Owner is the package that already reports the rule; the engine skips it.
+	Owner string
+	// Fields is the fields an exclusion, alternative or ban names.
+	Fields []string
+	// Names is the names a Reserved rule reserves.
+	Names []string
+	// When is the terms a conditional rule applies under: it judges only where
+	// every one holds.
+	When []Term
+	// Cites are the sentences of the specification the rule comes from.
+	Cites []Cite
+	// Min and Max bound a Count rule.
+	Min, Max int
+	// Span is the minors the rule holds at, Kind what it demands, and Level how
+	// firmly the specification states it.
+	Span  MinorVersionRange
+	Kind  RuleKind
+	Level Level
+	// Format is the syntax a Syntax rule demands of Field.
+	Format Format
+}
+
+// Object is one OpenAPI object: its fields, its pattern fields, its rules and
+// the defaults of its fields.
+type Object struct {
+	// Name is the specification's title for the object: "Info Object".
+	Name      string
+	Fields    []Field
+	Patterned []Pattern
+	Rules     []Rule
+	Defaults  []Default
+	// Referenceable is the minors at which a Reference Object may stand in
+	// the object's place.
+	Referenceable MinorVersionRange
+	// Boolean is the minors at which true or false may stand in the
+	// object's place.
+	Boolean MinorVersionRange
+	// RefSiblings is the minors at which the keys a mapping writes beside a
+	// $ref are the object's own, applied beside the reference. Before it each
+	// such key is a later minor's construct; empty for an object whose $ref
+	// no minor gives siblings.
+	RefSiblings MinorVersionRange
+	// Kind is the object's kind.
+	Kind Kind
+	// Extensible reports whether the object admits extension keys, those
+	// starting "x-".
+	Extensible bool
+}
+
+// Spec is the table: every object of the specification. The JSON Schema
+// dialects a Schema Object can be read in are schemaDialects', read only for a
+// schema naming one (Spec.SchemaRules).
+type Spec struct {
+	objects []Object
+	index   map[Kind]int
+}
+
+// Object returns the object of kind k.
+func (s Spec) Object(k Kind) (Object, bool) {
+	i, ok := s.index[k]
+	if !ok {
+		return Object{}, false
+	}
+	return s.objects[i], true
+}
+
+// must returns the object of kind k, which the table holds for every kind.
+func (s Spec) must(k Kind) Object { return s.objects[s.index[k]] }
+
+// Table returns the specification's rules for OpenAPI 3.0, 3.1 and 3.2.
+func Table() Spec {
+	objs := slices.Concat(documentObjects(), pathObjects(), parameterObjects(), responseObjects(),
+		componentObjects(), securityObjects(), schemaObjects())
+	index := make(map[Kind]int, len(objs))
+	for i, o := range objs {
+		index[o.Kind] = i
+	}
+	return Spec{objects: objs, index: index}
+}

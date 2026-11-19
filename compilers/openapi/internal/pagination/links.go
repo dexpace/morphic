@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -89,7 +89,7 @@ func agreed(pages []page, of func(page) []ir.PropID) []ir.PropID {
 // leading x_ aside, is next_<cursor>, else the cursor's own, and the least of
 // its spellings. It returns nil where none is, or where two headers, as HTTP
 // compares their names, are so named.
-func headerCursor(w *whole.CompiledDocumentView, op *ir.Operation, cursor string) (*ir.PropPath, string) {
+func headerCursor(w *compileddoc.CompiledDocumentView, op *ir.Operation, cursor string) (*ir.PropPath, string) {
 	for _, name := range [...]string{"next_" + cursor, cursor} {
 		spellings := map[string][]string{} // by the name as HTTP compares it
 		for i := range op.Responses {
@@ -251,14 +251,14 @@ func (r *reader) linkPage(id ir.TypeID) page {
 // linkHeader reports whether every success response of op declaring a page
 // body declares one Link header of a plain string type, the header RFC 8288
 // names, and one does.
-func linkHeader(w *whole.CompiledDocumentView, op *ir.Operation) bool {
+func linkHeader(w *compileddoc.CompiledDocumentView, op *ir.Operation) bool {
 	declared := false
 	for i := range op.Responses {
 		if pageBody(op.Responses[i].Payload) == nil {
 			continue
 		}
 		headers := op.Responses[i].Headers
-		found := w.Header(whole.ResponseKey{Op: op.ID, List: whole.ListResponses, Index: i}, headers, "Link")
+		found := w.Header(compileddoc.ResponseKey{Op: op.ID, List: compileddoc.ListResponses, Index: i}, headers, "Link")
 		if len(found) != 1 {
 			return false
 		}

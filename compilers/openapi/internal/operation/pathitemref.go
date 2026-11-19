@@ -13,9 +13,9 @@ import (
 	"github.com/speakeasy-api/openapi/extensions"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/ir"
@@ -56,7 +56,7 @@ func pathItemLayers(use service.Ctx, rp *soa.ReferencedPathItem, usePtr jsontext
 	}
 	visit(rp, use, usePtr) // an alias's own position, as for an inline item
 	last := rp
-	for _, hop := range resolve.Hops[soa.PathItem](use.Bindings(), rp) {
+	for _, hop := range componentlookup.Hops[soa.PathItem](use.Bindings(), rp) {
 		in, _ := service.InDocument(use, hop.At.Doc)
 		visit(hop.Ref, in, hop.At.Pointer)
 		last = hop.Ref
@@ -146,7 +146,7 @@ func itemConstructs(l layer) []itemConstruct {
 	}
 	for i, rp := range l.item.GetParameters() {
 		if slot, ok := paramKey(l.in.Bindings(), rp); ok {
-			p := resolve.Object[soa.Parameter](l.in.Bindings(), rp)
+			p := componentlookup.Object[soa.Parameter](l.in.Bindings(), rp)
 			out = append(out, itemConstruct{key: paramConstruct(slot),
 				label: fmt.Sprintf("the parameter %q in %s", p.GetName(), p.GetIn()),
 				rel:   ids.Ptr("parameters", strconv.Itoa(i))})

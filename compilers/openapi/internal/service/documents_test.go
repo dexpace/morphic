@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -50,13 +50,13 @@ func loadSplit(t *testing.T, ext string) (service.Ctx, *load.LoadedOpenAPIDocume
 }
 
 // extDoc returns the bindings' number for ext.yaml: where A's $ref lands.
-func extDoc(t *testing.T, c service.Ctx) bind.DocID {
+func extDoc(t *testing.T, c service.Ctx) reftable.DocID {
 	t.Helper()
 	a, ok := c.Doc.Components.Schemas.Get("A")
 	require.True(t, ok)
 	e, ok := c.Bindings().Entry(a)
 	require.True(t, ok)
-	require.NotEqual(t, bind.Source, e.Hop.Target.Doc, "sanity: A lands in ext.yaml")
+	require.NotEqual(t, reftable.Source, e.Hop.Target.Doc, "sanity: A lands in ext.yaml")
 	return e.Hop.Target.Doc
 }
 
@@ -195,7 +195,7 @@ func TestInDocument_PlacesADocumentByItsNumberNotItsSourcesEntry(t *testing.T) {
 	require.True(t, doc.Overlay.Applied())
 	c := service.New(0, doc, service.Policy{})
 	id := extDoc(t, c)
-	require.Equal(t, bind.DocID(1), id, "sanity: ext.yaml is the table's second document")
+	require.Equal(t, reftable.DocID(1), id, "sanity: ext.yaml is the table's second document")
 
 	there, ok := service.InDocument(c, id)
 	require.True(t, ok)

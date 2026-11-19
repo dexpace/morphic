@@ -17,10 +17,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -181,13 +181,13 @@ func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
 	assert.True(t, r30.Schema.Defines("nullable"))
 	assert.False(t, r31.Schema.Defines("nullable"))
 	assert.True(t, r31.Schema.Defines("prefixItems"))
-	_, untyped30 := r30.Encoding.ContentType(oas.DefaultUntyped)
-	_, untyped31 := r31.Encoding.ContentType(oas.DefaultUntyped)
+	_, untyped30 := r30.Encoding.ContentType(specrules.DefaultUntyped)
+	_, untyped31 := r31.Encoding.ContentType(specrules.DefaultUntyped)
 	assert.False(t, untyped30)
 	assert.True(t, untyped31)
 	r04 := rowsOf("3.1.0", "jsonSchemaDialect: '"+draft04+"'\n")
-	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean))
-	_, untyped04 := r04.Encoding.ContentType(oas.DefaultUntyped)
+	assert.True(t, r04.Schema.Takes("exclusiveMinimum", specrules.Boolean))
+	_, untyped04 := r04.Encoding.ContentType(specrules.DefaultUntyped)
 	assert.True(t, untyped04, "a dialect leaves the Encoding Object's rows the minor's")
 }
 
@@ -344,13 +344,13 @@ func TestLoad_RejectsAnOverlaySharingTheSourceIndex(t *testing.T) {
 // source index walks.
 //
 // The bound is reached by shrinking it rather than by building a document of
-// sourceindex.MaxIndexedNodes nodes — that would be several gigabytes of
+// sourcetreestats.MaxIndexedNodes nodes — that would be several gigabytes of
 // fixture, and the part worth testing is what the loader does with a truncated
 // index, not that the walk stops at a number.
 func TestLoad_ADocumentTooLargeToIndexIsRefused(t *testing.T) {
 	t.Parallel()
-	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
-		return sourceindex.Build(ctx, root, 1)
+	opts := Options{buildIndex: func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
+		return sourcetreestats.Build(ctx, root, 1)
 	}}
 
 	doc, diags, err := Load(t.Context(), 4, openapitest.SourceOf(minimal31), opts)
@@ -380,7 +380,7 @@ func TestLoad_TheSameDocumentLoadsOnceItFitsTheIndex(t *testing.T) {
 // independent of each other and of anything running beside them.
 func countingIndexBuilder(base Options) (Options, *int) {
 	built := 0
-	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
+	base.buildIndex = func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
 		built++
 		return defaultIndex(ctx, root)
 	}

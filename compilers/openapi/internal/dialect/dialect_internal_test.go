@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 )
 
 // draft04 names JSON Schema draft 4, a dialect the table has rows for.
@@ -31,7 +31,7 @@ func TestGovern_NotesEachListOnce(t *testing.T) {
 	}
 	var tree yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(b.String()), &tree))
-	rows, _ := oas.Table().SchemaRules("3.1.0", "")
+	rows, _ := specrules.Table().SchemaRules("3.1.0", "")
 	d := NewBuilder(rows)
 	d.Govern(tree.Content[0], rows)
 	assert.Len(t, d.t.byNode, depth+3, "the root mapping, each list and the one schema")
@@ -47,9 +47,9 @@ func TestGovern_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("A: {x: &n {type: integer}, y: *n}\nB: {z: *n}\n"), &tree))
 	root := tree.Content[0]
 	a, b := root.Content[1], root.Content[3]
-	source, _ := oas.Table().SchemaRules("3.0.3", "")
-	first, _ := oas.Table().SchemaRules("3.1.0", draft04)
-	second, _ := oas.Table().SchemaRules("3.1.0", "")
+	source, _ := specrules.Table().SchemaRules("3.0.3", "")
+	first, _ := specrules.Table().SchemaRules("3.1.0", draft04)
+	second, _ := specrules.Table().SchemaRules("3.1.0", "")
 	d := NewBuilder(source)
 	d.Govern(a, first)
 	d.Govern(b, second)

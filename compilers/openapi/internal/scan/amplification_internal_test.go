@@ -20,7 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -30,7 +30,7 @@ import (
 // source index derives it.
 func rawNodes(t testing.TB, n *yaml.Node) int {
 	t.Helper()
-	return sourceindex.Build(t.Context(), n, sourceindex.MaxIndexedNodes).Nodes()
+	return sourcetreestats.Build(t.Context(), n, sourcetreestats.MaxIndexedNodes).Nodes()
 }
 
 const amplificationBombFixture = "../../../../testdata/openapi/amplification_alias_bomb.yaml"

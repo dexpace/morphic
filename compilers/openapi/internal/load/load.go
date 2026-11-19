@@ -16,18 +16,18 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/dialect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
-	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourcetreestats"
+	"github.com/dexpace/morphic/compilers/openapi/internal/specrules"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -76,11 +76,11 @@ type Options struct {
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
-	// document of sourceindex.MaxIndexedNodes nodes, and counts the indexes one
+	// document of sourcetreestats.MaxIndexedNodes nodes, and counts the indexes one
 	// load builds. Carrying it here rather than in a package-level variable keeps
 	// the bound an input to the stage, so nothing a test does to it is visible to
 	// a concurrent load.
-	buildIndex func(ctx context.Context, root *yaml.Node) sourceindex.Measurements
+	buildIndex func(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements
 	// entered is told each phase a load enters, before the context is asked, or
 	// is nil. It is unexported because it is this package's test seam: a test
 	// cancels at the start of a phase through it, and lists the phases a load
@@ -89,7 +89,7 @@ type Options struct {
 	// judging is told each object a check of what the references reach reads
 	// as a kind, or is nil. It is this package's test seam: a test counts how
 	// often each is read, and in which phase.
-	judging func(oas.Kind, *yaml.Node)
+	judging func(specrules.Kind, *yaml.Node)
 }
 
 // readyForModel clears the name of each anchor in the model's source tree, in
@@ -179,13 +179,13 @@ type LoadedOpenAPIDocument struct {
 }
 
 // Rows is what the rule table says at the minor a document is read at, in a
-// dialect: how its schemas read (oas.SchemaRules), what its Encoding Objects
-// leave unwritten (oas.EncodingRules), and how its Security Requirement
-// Objects name a scheme (oas.SecurityRules).
+// dialect: how its schemas read (specrules.SchemaRules), what its Encoding Objects
+// leave unwritten (specrules.EncodingRules), and how its Security Requirement
+// Objects name a scheme (specrules.SecurityRules).
 type Rows struct {
-	Schema   oas.SchemaRules
-	Encoding oas.EncodingRules
-	Security oas.SecurityRules
+	Schema   specrules.SchemaRules
+	Encoding specrules.EncodingRules
+	Security specrules.SecurityRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -291,8 +291,8 @@ func sourceChecks(ctx context.Context, sites places, doc *soa.OpenAPI, sibs Sibl
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
 // what Options.buildIndex stands in for when a caller leaves it nil, which
 // everything outside this package's tests does.
-func defaultIndex(ctx context.Context, root *yaml.Node) sourceindex.Measurements {
-	return sourceindex.Build(ctx, root, sourceindex.MaxIndexedNodes)
+func defaultIndex(ctx context.Context, root *yaml.Node) sourcetreestats.Measurements {
+	return sourcetreestats.Build(ctx, root, sourcetreestats.MaxIndexedNodes)
 }
 
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
@@ -317,7 +317,7 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, whole,
 			"source document exceeds the %d-node bound the pre-parse scan indexes",
-			sourceindex.MaxIndexedNodes)}
+			sourcetreestats.MaxIndexedNodes)}
 	}
 
 	diags := shapeRefusals(ctx, tree, whole, idx, opts, closed)
@@ -335,7 +335,7 @@ func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, ro
 // node, and whole one about the tree as a whole. A closed document, the source
 // as written or patched, past the pointer bound is weighed again by what a
 // compile names (namedWithin).
-func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Measurements, opts Options,
+func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourcetreestats.Measurements, opts Options,
 	closed bool,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
@@ -354,17 +354,17 @@ func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenanc
 
 // namedWithin reports whether the pointers a compile of idx's tree names one
 // by one total within the bound its size allows, counting a value kept raw by
-// its root alone (bind.NamedPointerBytes, GitHub #1499). A tree a reference
+// its root alone (reftable.NamedPointerBytes, GitHub #1499). A tree a reference
 // leaves, one too large to weigh so, one that may name a dialect, whose
 // schemas another grammar may read (namesDialect), and one a mapping of which
 // writes a key the Format section refuses, where the check of its keys spells
-// a pointer for every node to place its findings (oas.BreaksFormat), are not
+// a pointer for every node to place its findings (specrules.BreaksFormat), are not
 // within it.
-func namedWithin(ctx context.Context, idx sourceindex.Measurements) bool {
-	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) || oas.BreaksFormat(ctx, idx.Root(), maxTreeNodes) {
+func namedWithin(ctx context.Context, idx sourcetreestats.Measurements) bool {
+	if namesDialect(ctx, idx.Root(), declaredVersion(idx.Root())) || specrules.BreaksFormat(ctx, idx.Root(), maxTreeNodes) {
 		return false
 	}
-	total, complete := bind.NamedPointerBytes(ctx, idx.Root(), sourceindex.MaxIndexedNodes)
+	total, complete := reftable.NamedPointerBytes(ctx, idx.Root(), sourcetreestats.MaxIndexedNodes)
 	return complete && total <= scan.PointerAllowance(idx.Written())
 }
 
@@ -375,7 +375,7 @@ func namedWithin(ctx context.Context, idx sourceindex.Measurements) bool {
 func taggedMappingRefusal(tree provenance.Tree, n *yaml.Node) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.TaggedMapping, tree.Node(n),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
-		n.Tag, sourceindex.MapTag)
+		n.Tag, sourcetreestats.MapTag)
 }
 
 // unmarshal builds a speakeasy document from an already-decoded node tree,
@@ -422,17 +422,17 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 
 // rowsAt returns what spec says at the minor version names, in the dialect uri
 // names, and whether that is one spec has no Schema Object rows for
-// (oas.Spec.SchemaRules).
-func rowsAt(spec oas.Spec, version, uri string) (rows Rows, unread bool) {
+// (specrules.Spec.SchemaRules).
+func rowsAt(spec specrules.Spec, version, uri string) (rows Rows, unread bool) {
 	schema, unread := spec.SchemaRules(version, uri)
 	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 
 // supportedMinor returns the normalized major.minor prefix of an OpenAPI version
 // string and whether the compiler supports it: a minor the rule table covers
-// (oas.ParseMinor), so no document is compiled that the table holds to nothing.
+// (specrules.ParseMinor), so no document is compiled that the table holds to nothing.
 func supportedMinor(version string) (string, bool) {
-	m, ok := oas.ParseMinor(version)
+	m, ok := specrules.ParseMinor(version)
 	if !ok {
 		return "", false
 	}

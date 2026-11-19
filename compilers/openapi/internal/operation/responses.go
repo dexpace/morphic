@@ -15,11 +15,11 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/compileddoc"
+	"github.com/dexpace/morphic/compilers/openapi/internal/componentlookup"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
-	"github.com/dexpace/morphic/compilers/openapi/internal/whole"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -80,13 +80,13 @@ func lowerResponses(c service.Ctx, w operationLoweringState, op *ir.Operation, s
 			ec, drafts, ecDiags := lowerErrorCase(rc, w, r, code, rng, rptr, rr)
 			ec.Unmodeled = annotation.MergeUnmodeled(ec.Unmodeled, beside)
 			diags = append(diags, ecDiags...)
-			w.links.add(op.ID, responseSlot{list: whole.ListErrors, index: len(op.Errors)}, drafts)
+			w.links.add(op.ID, responseSlot{list: compileddoc.ListErrors, index: len(op.Errors)}, drafts)
 			op.Errors = append(op.Errors, ec)
 		} else {
 			resp, drafts, respDiags := lowerResponse(rc, w, r, code, statusConditions(rng, named), rptr, rr)
 			resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 			diags = append(diags, respDiags...)
-			w.links.add(op.ID, responseSlot{list: whole.ListResponses, index: len(op.Responses)}, drafts)
+			w.links.add(op.ID, responseSlot{list: compileddoc.ListResponses, index: len(op.Responses)}, drafts)
 			op.Responses = append(op.Responses, resp)
 		}
 	}
@@ -114,7 +114,7 @@ func lowerDefaultResponse(c service.Ctx, w operationLoweringState, op *ir.Operat
 	resp.Unmodeled = annotation.MergeUnmodeled(resp.Unmodeled, beside)
 	diags = append(diags, besideDiags...)
 	op.Default = &resp
-	w.links.add(op.ID, responseSlot{list: whole.ListDefault}, drafts)
+	w.links.add(op.ID, responseSlot{list: compileddoc.ListDefault}, drafts)
 	return diags
 }
 
@@ -185,7 +185,7 @@ func lowerResponseParts(c service.Ctx, w operationLoweringState, r *soa.Response
 	parts := responseParts{name: responseName(code), payload: payload, headers: headers}
 	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
 	diags = append(diags, summaryDiags...)
-	parts.docs = resolve.UseDocs[soa.Response](c.Bindings(), ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
+	parts.docs = componentlookup.UseDocs[soa.Response](c.Bindings(), ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
 	links, linkDiags := draftLinks(c, r, rptr)
 	parts.links = links
 	diags = append(diags, linkDiags...)

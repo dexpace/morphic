@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
+	"github.com/dexpace/morphic/compilers/openapi/internal/typeformat"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -116,12 +116,12 @@ func variantFormat(s *statement.Schema, st statement.JSONSchemaTypeName, types [
 	return format
 }
 
-// pairs reports whether format pairs with st: spelling.Lookup lists the
-// pairing, or spelling.LookupEncoded does, as it does byte beside a string.
+// pairs reports whether format pairs with st: typeformat.Lookup lists the
+// pairing, or typeformat.LookupEncoded does, as it does byte beside a string.
 func pairs(st statement.JSONSchemaTypeName, format string) bool {
 	key := string(st) + "/" + format
-	_, listed := spelling.Lookup(key)
-	_, encoded := spelling.LookupEncoded(key)
+	_, listed := typeformat.Lookup(key)
+	_, encoded := typeformat.LookupEncoded(key)
 	return listed || encoded
 }
 

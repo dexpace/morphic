@@ -17,9 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -120,10 +120,10 @@ func TestLoad_ASchemaChainIsReadToTheDocumentBudget(t *testing.T) {
 	got, _ := loadExternal(t, t.TempDir(), schemaRoot(srv.URL+"/0.yaml#/x"), Options{MaxExternalDocuments: budget.AtMost(5)})
 
 	assert.Equal(t, int32(5), requests.Load(), "exactly the budget is read")
-	entry, ok := got.Bindings.Table().Entry(bind.DocumentPointer{Pointer: "/components/schemas/A"})
+	entry, ok := got.Bindings.Table().Entry(reftable.DocumentPointer{Pointer: "/components/schemas/A"})
 	require.True(t, ok)
-	assert.Equal(t, bind.Resolved, entry.Hop.Status, "the first document is read")
-	assert.Equal(t, bind.Unresolved, entry.Chain.Status, "the chain is not followed past the budget")
+	assert.Equal(t, reftable.Resolved, entry.Hop.Status, "the first document is read")
+	assert.Equal(t, reftable.Unresolved, entry.Chain.Status, "the chain is not followed past the budget")
 	assert.Equal(t, 5, got.Bindings.Table().Documents()-1, "the five documents read, besides the source")
 }
 
@@ -196,7 +196,7 @@ func TestLoad_TheDocumentBudgetRefusesAFileChainToo(t *testing.T) {
 // file alike: an anchored network document and a file, each named twice, fit a
 // budget of two, and under a budget of one the budget is reported once and
 // each $ref into the URL, which an absolute URI names and the binder reads
-// after the file (bind.PendingExternalDocumentRead), is refused unfetched.
+// after the file (reftable.PendingExternalDocumentRead), is refused unfetched.
 func TestLoad_ADocumentIsReadOnceAgainstTheBudget(t *testing.T) {
 	t.Parallel()
 	trigger, requests := countingServer(t, anchoredExternalDoc)

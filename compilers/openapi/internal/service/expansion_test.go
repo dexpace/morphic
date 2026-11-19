@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/reftable"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service"
 	"github.com/dexpace/morphic/compilers/openapi/internal/service/servicetest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -23,7 +23,7 @@ import (
 )
 
 // raw reads a tree as raw YAML, where no position holds a schema.
-var raw = bind.Reading{}
+var raw = reftable.Reading{}
 
 // declaration is a tree weighing 14 read as raw YAML: a mapping (1), the keys
 // a and b (2 each), the scalar xyz (4), a sequence (1) and its items 1 and 2
@@ -46,16 +46,16 @@ func doubling(levels int) *yaml.Node {
 
 // reading returns how the grammar reads the source position pointer, which
 // holds an object a $ref can name.
-func reading(t *testing.T, pointer string) bind.Reading {
+func reading(t *testing.T, pointer string) reftable.Reading {
 	t.Helper()
-	table := bind.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.1.0\n"), bind.Config{Self: "spec.yaml"})
-	r := table.ReadingAt(bind.DocumentPointer{Pointer: jsontext.Pointer(pointer)})
+	table := reftable.Bind(t.Context(), openapitest.YAMLDocument(t, "openapi: 3.1.0\n"), reftable.Config{Self: "spec.yaml"})
+	r := table.ReadingAt(reftable.DocumentPointer{Pointer: jsontext.Pointer(pointer)})
 	require.True(t, r.Referable())
 	return r
 }
 
 // parameter returns how the grammar reads a component parameter.
-func parameter(t *testing.T) bind.Reading {
+func parameter(t *testing.T) reftable.Reading {
 	t.Helper()
 	return reading(t, "/components/parameters/P")
 }
@@ -103,7 +103,7 @@ func TestWeightOf_CountsASchemaAsOneNode(t *testing.T) {
 	tests := []struct {
 		name string
 		root *yaml.Node
-		at   bind.Reading
+		at   reftable.Reading
 		want int
 	}{
 		{"an inline schema", withSchema(big), param, asOne},
@@ -328,7 +328,7 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	param := service.ReadingOf(c, "/paths/~1a/get/parameters/0")
 	assert.True(t, param.Referable())
 	assert.True(t, param.Below("schema").Schema())
-	assert.Equal(t, bind.Reading{}, service.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
+	assert.Equal(t, reftable.Reading{}, service.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
 		"a schema is no object a $ref of this kind names")
 }
 
