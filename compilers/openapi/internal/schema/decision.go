@@ -648,15 +648,18 @@ func competingSet(w *admissionReader, s *statement.Schema) admitted {
 
 // restKinds returns the kinds s lowers to with the union it writes beside
 // its allOf left out, and whether the kind-inference policy read them: what
-// its own keywords and comp's entries declare, else claim, as the run's
-// admission settles a statement's (settleKinds).
+// its own keywords (ownKinds) and comp's entries declare, else claim, as the
+// run's admission settles a statement's (settleKinds).
 func restKinds(c lowering.Ctx, s *statement.Schema, comp allOfComposition) (kindSet, bool) {
-	rest := admission{firm: declaredInstanceTypes(s) & valueKinds(c, s), claims: claimedKinds(c, s)}
+	var rest admission
+	rest.firm, rest.claims = ownKinds(c, s)
 	for _, e := range comp.entries {
 		bs := e.schema.Schema
 		if e.schema.Ref == nil && declaresUnion(bs) {
 			// An entry's union is the one left out, as s's own (entryUnionsApart).
-			rest.conjoinKinds(&admission{firm: declaredInstanceTypes(bs) & valueKinds(c, bs), claims: claimedKinds(c, bs)})
+			var own admission
+			own.firm, own.claims = ownKinds(c, bs)
+			rest.conjoinKinds(&own)
 			continue
 		}
 		rest.conjoinKinds(admissionOf(c, e.schema))

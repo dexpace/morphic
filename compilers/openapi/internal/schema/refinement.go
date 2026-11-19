@@ -98,47 +98,24 @@ func refinedShape(c lowering.Ctx, s *statement.Schema, comp allOfComposition, pr
 	return nodeShape(ir.KindPrimitive)
 }
 
-// lowerUndecided lowers s, written at pointer, which writes no kind and no
-// shape keyword, by the types its allOf, refining electing no entry, admits
-// (undecidedTypes), as a type list naming them lowers, and to the top type
-// where it admits none of a primitive's kinds alone. fin finishes the node
-// standing at pointer after keeping its unread keywords.
-func lowerUndecided(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, d dispatch,
-	fin finisher, st stand,
-) (ir.TypeID, []ir.Diagnostic) {
-	types := undecidedTypes(c, s, pointer)
-	switch len(types) {
-	case 0:
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return ts.PrimID(ir.PrimAny), 0, nil
-		})
-	case 1:
-		return keepingUnread(c, ts, s, pointer, d, fin, st, func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
-			return lowerTyped(c, ts, depth, s, pointer, types[0], fin, st)
-		})
-	default:
-		return lowerUntypedUnion(c, ts, depth, s, pointer, types, false, fin, st)
-	}
-}
-
 // primitiveKinds are the kinds a primitive holds.
 const primitiveKinds = kindString | kindNumber | kindBoolean
 
-// undecidedTypes returns the types s, written at pointer, lowers by where its
-// allOf refines electing no entry: the kinds its conjuncts admit together, null
-// aside (lowersTo), and where they state value sets of the members those share
-// (sharedKinds), in one order whatever the order written. It returns none
-// where those are none, as for sets sharing no member, or hold an object or an
-// array, whose shape no entry was elected to give, every kind among them, or
-// the kind-inference policy read them, as it reads only those: the position is
-// then the top type.
-func undecidedTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) []statement.Kind {
-	r, refines := refinementOf(c, s, pointer)
-	if !refines || r.principal != nil {
+// undecidedTypes returns the types s lowers by where its allOf refines electing
+// no entry: the kinds its conjuncts admit together, null aside (lowersTo), and
+// where they state value sets of the members those share (sharedKinds), in one
+// order whatever the order written. It returns none where those are none, as
+// for sets sharing no member, or hold an object or an array, whose shape no
+// entry was elected to give, every kind among them, or the kind-inference
+// policy read them, as it reads only those: the position is then the top
+// type. The decision turns on no pointer (decisionAt).
+func undecidedTypes(c lowering.Ctx, s *statement.Schema) []statement.Kind {
+	d := decisionOf(c, s)
+	if !d.refines || d.principalAt >= 0 {
 		return nil
 	}
 	kinds, inferred := lowersTo(c, c.Statements().Read(s))
-	kinds &= sharedKinds(r.joint) &^ kindNull
+	kinds &= sharedKinds(d.r.joint) &^ kindNull
 	if kinds == 0 || kinds&^primitiveKinds != 0 || inferred {
 		return nil
 	}

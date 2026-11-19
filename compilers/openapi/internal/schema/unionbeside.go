@@ -43,7 +43,7 @@ func hasUnionSiblings(c lowering.Ctx, s *statement.Schema) bool {
 	}
 	// A oneOf and an anyOf sharing no value lower as the body beside them
 	// where it is no Model (unionPairApart), whatever their branches say.
-	return !unionBranchesDeclareShape(c, s) || pairSharesNoValue(c, s) && !composesAsModel(c, s)
+	return !unionBranchesDeclareShape(c, s) || pairSharesNoValue(c, s) && !ownDispatch(c, s).buildsModel(c, s)
 }
 
 // restatableKeywords are the keywords beside a union that its branches can say
@@ -183,7 +183,7 @@ func classifyUnionSiblings(c lowering.Ctx, s *statement.Schema, pointer jsontext
 	if unionAside(c, s) {
 		return unionSharesNoKind
 	}
-	if !composesAsModel(c, s) {
+	if !ownDispatch(c, s).buildsModel(c, s) {
 		if pairSharesNoValue(c, s) {
 			return unionPairApart
 		}
@@ -317,30 +317,6 @@ func routedSubtype(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer
 	return tag.routed
 }
 
-// composesAsModel reports whether the structural siblings lower to a Model,
-// which is the only node with composition fields for a union to distribute
-// across. It mirrors lower's dispatch: const and enum win over everything, then
-// an allOf that composes, then a declared object type, then object keywords
-// with no type where the kinds the position lowers to are an object alone
-// (untypedKinds): what the union's branches declare, else what the
-// kind-inference policy reads off the keywords. So a bare property set,
-// `required`, closure or catch-all beside branches each declaring an object
-// composes, as beside `type: object`.
-func composesAsModel(c lowering.Ctx, s *statement.Schema) bool {
-	if s.Const() != nil || enumWritten(s) {
-		return false
-	}
-	if allOfComposes(c, s) {
-		return true
-	}
-	types := effectiveTypes(s)
-	if len(types) > 0 {
-		return len(types) == 1 && types[0] == statement.KindObject
-	}
-	kinds, _ := untypedKinds(c, s)
-	return kinds == kindObject
-}
-
 // branchesNameReferents reports whether every union branch can be conjoined with
 // the sibling model. Base and Mixins conjoin *by reference*, so a $ref branch
 // qualifies exactly when it names a schema this compilation resolves, and an
@@ -386,7 +362,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *state
 			return id, diags
 		case pairSharesNoValue(c, s):
 			return id, append(diags, diagUnionsShareNothing(c, s, pointer, "its body alone")...)
-		case writesBothUnions(s) || !composesAsModel(c, s):
+		case writesBothUnions(s) || !ownDispatch(c, s).buildsModel(c, s):
 			// Two sharing only a null the body keeps out share no value with it,
 			// and a union sharing no kind with a body that is no Model none.
 			return id, append(diags, diagUnionApartFromBody(c, s, pointer)...)

@@ -484,3 +484,24 @@ func nestedOrders(t *testing.T, first, last string) []*ir.Document {
 const nestedAB = `    A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
 `
+
+// TestAllOf_AnEntryNamingATypeListOfNoObjectComposesNone pins an allOf entry
+// whose $ref names a type list holding no object: no variant of the list is a
+// model to compose, so the model takes no base and keeps the $ref, as it does
+// for a target of one type that is no object.
+func TestAllOf_AnEntryNamingATypeListOfNoObjectComposesNone(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    SI: {type: [string, integer]}
+    S:
+      allOf:
+        - $ref: '#/components/schemas/SI'
+        - {type: object, properties: {a: {type: string}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	m, ok := doc.Types[componentID("S")].(*ir.Model)
+	require.True(t, ok, "%T", doc.Types[componentID("S")])
+	assert.Nil(t, m.Base)
+	assert.Empty(t, m.Mixins)
+	assert.Contains(t, m.Unmodeled, "openapi:$ref")
+}

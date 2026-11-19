@@ -102,6 +102,9 @@ type allOfEntry struct {
 	// capped marks an inline entry whose allOf was not flattened because it sits
 	// past statement.MaxFlattenDepth, so the diagnostic can say why it was kept.
 	capped bool
+	// split marks the reference of an entry writing one beside other keys,
+	// which the statement lists apart from them (statement.Entry.Split).
+	split bool
 }
 
 // allOfComposition is the flattened allOf of the schema written at pointer: its
@@ -147,7 +150,9 @@ func allOfEntries(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer)
 	entries := c.Statements().Read(s).Entries
 	out := make([]allOfEntry, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, allOfEntry{schema: c.Statements().Read(e.Schema), pointer: pointer + e.Rel, wrapper: e.Wrapper, capped: e.Capped})
+		out = append(out, allOfEntry{
+			schema: c.Statements().Read(e.Schema), pointer: pointer + e.Rel, wrapper: e.Wrapper, capped: e.Capped, split: e.Split,
+		})
 	}
 	return allOfComposition{pointer: pointer, entries: out}
 }
@@ -323,8 +328,11 @@ func objectVariant(c lowering.Ctx, ref *statement.Statement) (ir.TypeID, bool) {
 		return "", false
 	}
 	in, placed := lowering.InDocument(c, at.Doc)
-	i := slices.Index(effectiveTypes(target.Schema), statement.KindObject)
-	if !placed || i < 0 || !lowersTypeArray(in, target.Schema, at.Pointer) {
+	if !placed || !lowersTypeArray(in, target.Schema, at.Pointer) {
+		return "", false
+	}
+	i := slices.Index(typingOf(in, target.Schema).types, statement.KindObject)
+	if i < 0 {
 		return "", false
 	}
 	return in.IDs().ForPointer(at.Pointer + ids.Ptr("type", strconv.Itoa(i))), true

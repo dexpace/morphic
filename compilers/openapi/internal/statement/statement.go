@@ -45,6 +45,11 @@ type Entry struct {
 	Rel     jsontext.Pointer
 	Wrapper bool
 	Capped  bool
+	// Split marks the reference of an allOf entry writing one beside other
+	// keys: the first of the two entries that object is listed as. The
+	// keywords beside it follow, after their own allOf's entries where they
+	// write one, so the two need not be adjacent.
+	Split bool
 }
 
 // Schema is one schema object as read: where (zero for a value the bindings

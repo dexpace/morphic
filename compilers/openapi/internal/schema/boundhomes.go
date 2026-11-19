@@ -5,7 +5,6 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/statement"
@@ -58,7 +57,7 @@ func homesAt(c lowering.Ctx, s *statement.Schema, target ir.TypeRef, pointer jso
 // ownHomes returns which bounds the node the refinement s, written at pointer,
 // owns holds for the voices of its allOf: where an inline principal built it,
 // that principal's (nodeHomes), none for a value set's or a $ref's, and
-// otherwise what s's own election builds.
+// otherwise what s's own dispatch builds.
 func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) boundHomes {
 	takes := boundKinds(c, s)
 	if r, refined := refinementOf(c, s, pointer); refined && r.principal != nil {
@@ -66,32 +65,32 @@ func ownHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) bou
 		if _, set := valueSetPrincipal(r); set || e.schema.Ref != nil {
 			return boundHomes{}
 		}
-		return nodeHomes(c, e.schema.Schema, e.pointer, principalDispatch(*e), takes)
+		return nodeHomes(c, e.schema.Schema, principalDispatch(*e), takes)
 	}
 	d, _ := dispatchAt(c, s, pointer)
-	return nodeHomes(c, s, pointer, d, takes)
+	return nodeHomes(c, s, d, takes)
 }
 
-// nodeHomes returns which bounds the node s, written at pointer, lowers to by
-// the election d holds, as its builder reads them of the voices, takes the
-// kinds its position admits: none of a value set's, the value bounds of the
-// types a Scalar built for each type its lowering names takes, the collection
-// bounds of an array's List or Tuple, a type list's variant's among them, a
-// union's of oneOf or anyOf the value bounds alone, and none of an object's,
-// which lowerModel builds with no voice.
-func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d dispatch, takes kindSet) boundHomes {
+// nodeHomes returns which bounds the node s lowers to by the dispatch d holds,
+// as its builder reads them of the voices, takes the kinds its position
+// admits: none of a value set's, the value bounds of the types a Scalar built
+// for each type its lowering names (typingOf) takes, the collection bounds of
+// an array's List or Tuple, a type list's variant's among them, a union's of
+// oneOf or anyOf the value bounds alone, and none of an object's, which
+// lowerModel builds with no voice.
+func nodeHomes(c lowering.Ctx, s *statement.Schema, d dispatch, takes kindSet) boundHomes {
 	if d.won == "const" || d.won == "enum" {
 		return boundHomes{}
 	}
 	if declaresUnion(s) {
 		return boundHomes{value: takes}
 	}
-	types, top := nodeTypes(c, s, pointer)
-	if top {
+	t := typingOf(c, s)
+	if t.top() {
 		return boundHomes{value: takes}
 	}
 	var homes boundHomes
-	for _, st := range types {
+	for _, st := range t.types {
 		switch st {
 		case statement.KindObject:
 		case statement.KindArray:
@@ -99,7 +98,7 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 		default:
 			// A type list's variant takes the format only where no other listed
 			// type pairs with it (variantFormat), as lowerTypeVariant builds it.
-			if carriesText(s, st, variantFormat(s, st, types)) {
+			if carriesText(s, st, variantFormat(s, st, t.types)) {
 				homes.numberText = true
 				continue
 			}
@@ -107,25 +106,4 @@ func nodeHomes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, d 
 		}
 	}
 	return homes
-}
-
-// nodeTypes returns the types the nodes of the position s, written at pointer,
-// are built for where it picks no family and declares no union: the types it
-// writes, none where it writes only null, and else the ones its shape keywords
-// speak of (untypedKinds) or its allOf admits (lowerUndecided), top where it
-// admits none, which lowers to an alias of the top type.
-func nodeTypes(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (types []statement.Kind, top bool) {
-	if types := effectiveTypes(s); len(types) > 0 {
-		return types, false
-	}
-	if writesType(s) {
-		return nil, false
-	}
-	kinds, _ := untypedKinds(c, s)
-	if kinds == 0 {
-		types := undecidedTypes(c, s, pointer)
-		return types, len(types) == 0
-	}
-	// An object, an array, or both, as lowerUntyped builds them.
-	return slices.DeleteFunc(slices.Clone(inferredKinds), func(st statement.Kind) bool { return typeKinds(st)&kinds == 0 }), false
 }

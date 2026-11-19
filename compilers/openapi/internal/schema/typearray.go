@@ -60,7 +60,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schem
 // typeArray is what every variant of one type array reads beside its schema: the
 // types it lists, the voices of the position it is written at, and the mark an
 // object or array variant's build writes, where the kind-inference policy read
-// the types (lowerUntypedUnion).
+// the types (lowerTypeList).
 type typeArray struct {
 	types  []statement.Kind
 	voices []annotation.Voice

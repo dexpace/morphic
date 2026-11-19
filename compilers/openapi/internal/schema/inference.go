@@ -37,22 +37,28 @@ func untypedKinds(c lowering.Ctx, s *statement.Schema) (kindSet, bool) {
 // whichever order the keywords are written in.
 var inferredKinds = []statement.Kind{statement.KindObject, statement.KindArray}
 
-// lowerUntypedUnion lowers s, which writes no type, by types, as a type list
-// naming them beside its keywords lowers (lowerUnion): an object and an array
-// its shape keywords speak of, or the kinds an allOf electing no entry admits
-// (lowerUndecided). Where the policy read the kinds, the union and each
-// variant are marked, as each variant's kind was read off the keywords too.
-// The union stands where st says.
-func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer,
-	types []statement.Kind, inferred bool, fin finisher, st stand,
+// lowerTypeList lowers s, at pointer, by the several types t names, one
+// variant per type, each from this same schema (lowerUnion): the types it
+// lists, an object and an array its shape keywords speak of, or the kinds an
+// allOf electing no entry admits (typingOf). The homes are the variants', not
+// the Union's, and a type list is what built them, so its `type` is read.
+// Where the policy read the kinds, the union and each variant are marked, as
+// each variant's kind was read off the keywords too. The union stands where
+// st says.
+func lowerTypeList(c lowering.Ctx, ts *compile.Types, depth int, s *statement.Schema, pointer jsontext.Pointer, t typing,
+	fin finisher, st stand,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var mark finisher
-	if inferred {
+	if t.inferred {
 		mark = markKindInferred
 	}
+	var read keySet
+	if t.by == byType {
+		read = keyBit("type")
+	}
 	var kept finished
-	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: types, mark: mark},
-		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), 0, pointer, st, &kept, fin)), st)
+	id, diags := lowerUnion(c, ts, depth, s, pointer, typeArray{types: t.types, mark: mark},
+		mark.then(keepUnreadAcross(c, ts, s, nodeShape(ir.KindUnion), read, pointer, st, &kept, fin)), st)
 	return id, append(diags, kept.diags...)
 }
 
@@ -60,7 +66,7 @@ func lowerUntypedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *statemen
 // keywords s writes that give a type to the instances they apply to, a
 // member's, an element's or a value's (siblingKeyword.infers), and none where
 // the policy is off. The run's admission reads it as the kinds a statement
-// declaring none lowers to (readOne), which lowerUntyped lowers by
+// declaring none lowers to (readOne), which lowerTyping lowers by
 // (untypedKinds).
 func claimedKinds(c lowering.Ctx, s *statement.Schema) kindSet {
 	if !c.KindInference.Honours() {
@@ -99,7 +105,7 @@ func shapeKinds(s *statement.Schema) kindSet {
 }
 
 // markKindInferred names the kind-inference policy in the provenance of td,
-// in hand, the node a position owns whose kind lowerUntyped read off its shape
+// in hand, the node a position owns whose kind lowerTyping read off its shape
 // keywords (docs/compilers/openapi.md#policies).
 func markKindInferred(td ir.TypeDef, _ keySet, _ *principalKept) {
 	common := td.Common()
