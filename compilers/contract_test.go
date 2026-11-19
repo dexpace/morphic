@@ -63,14 +63,14 @@ func detected(c compilers.Compiler, parsed any) compilers.Detection {
 	}
 }
 
-func at(source int, severity ir.Severity) ir.Diagnostic {
+func diagnosticAtSource(source int, severity ir.Severity) ir.Diagnostic {
 	return ir.NewDiagnostic(severity, "alpha/finding", "a finding", ir.Provenance{Source: source})
 }
 
 func TestDetectionCompile_AKeptContractComesBackWhole(t *testing.T) {
 	t.Parallel()
 	c := keeping()
-	c.diags = []ir.Diagnostic{at(0, ir.SeverityWarning), at(ir.NoSource, ir.SeverityInfo)}
+	c.diags = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning), diagnosticAtSource(ir.NoSource, ir.SeverityInfo)}
 	parse := &struct{ tree string }{"parsed"}
 
 	out, err := detected(c, parse).Compile(t.Context())
@@ -92,14 +92,14 @@ func TestDetectionCompile_ADocumentMayNameWhatElseItRead(t *testing.T) {
 	c := keeping()
 	read := ir.SourceInfo{Format: alpha.String(), Path: "shared.alpha", Hash: digest([]byte("shared"))}
 	c.doc.Sources = append(c.doc.Sources, read)
-	c.doc.Diagnostics = []ir.Diagnostic{at(1, ir.SeverityWarning)}
-	c.diags = []ir.Diagnostic{at(1, ir.SeverityInfo)}
+	c.doc.Diagnostics = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)}
+	c.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityInfo)}
 
 	out, err := detected(c, nil).Compile(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, c.doc.Sources, out.Sources)
-	assert.Equal(t, []ir.Diagnostic{at(1, ir.SeverityWarning), at(1, ir.SeverityInfo)}, out.Diagnostics)
+	assert.Equal(t, []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning), diagnosticAtSource(1, ir.SeverityInfo)}, out.Diagnostics)
 }
 
 // TestDetectionCompile_BothChannelsComeBackAsOne pins that a caller reads a
@@ -107,7 +107,7 @@ func TestDetectionCompile_ADocumentMayNameWhatElseItRead(t *testing.T) {
 // Document's first, then each returned one it does not hold.
 func TestDetectionCompile_BothChannelsComeBackAsOne(t *testing.T) {
 	t.Parallel()
-	stored, both, returned := at(0, ir.SeverityError), at(0, ir.SeverityWarning), at(ir.NoSource, ir.SeverityInfo)
+	stored, both, returned := diagnosticAtSource(0, ir.SeverityError), diagnosticAtSource(0, ir.SeverityWarning), diagnosticAtSource(ir.NoSource, ir.SeverityInfo)
 	c := keeping()
 	c.doc.Diagnostics = []ir.Diagnostic{stored, both}
 	c.diags = []ir.Diagnostic{both, returned}
@@ -123,7 +123,7 @@ func TestDetectionCompile_ARefusalComesBackWithItsTable(t *testing.T) {
 	c := keeping()
 	c.doc = nil
 	c.table = []ir.SourceInfo{{Path: spec.Path}, {Path: "patch.overlay"}}
-	c.diags = []ir.Diagnostic{at(1, ir.SeverityError)}
+	c.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityError)}
 
 	out, err := detected(c, nil).Compile(t.Context())
 
@@ -151,10 +151,10 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 			func(c *scripted) { c.doc = nil }, "no error diagnostic",
 		},
 		"a refusal with only a warning": {
-			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{at(0, ir.SeverityWarning)} }, "no error diagnostic",
+			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning)} }, "no error diagnostic",
 		},
 		"a refusal finding past its table": {
-			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{at(1, ir.SeverityError)} }, "indexes source 1 of 1",
+			func(c *scripted) { c.doc, c.diags = nil, []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityError)} }, "indexes source 1 of 1",
 		},
 		"a document stamped with no irVersion": {
 			func(c *scripted) { c.doc.IRVersion = "" }, `stamped irVersion "", where this build writes "` + ir.IRVersion + `"`,
@@ -201,13 +201,13 @@ func TestDetectionCompile_EachBreachIsAContractError(t *testing.T) {
 			func(c *scripted) { c.doc.Sources[0].Hash = digest([]byte("other")) }, "hashes source 0",
 		},
 		"a finding on the document past its table": {
-			func(c *scripted) { c.doc.Diagnostics = []ir.Diagnostic{at(1, ir.SeverityWarning)} }, "on the document",
+			func(c *scripted) { c.doc.Diagnostics = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)} }, "on the document",
 		},
 		"a returned finding past the table": {
-			func(c *scripted) { c.diags = []ir.Diagnostic{at(1, ir.SeverityWarning)} }, "indexes source 1 of 1",
+			func(c *scripted) { c.diags = []ir.Diagnostic{diagnosticAtSource(1, ir.SeverityWarning)} }, "indexes source 1 of 1",
 		},
 		"a returned finding at a sentinel the IR does not declare": {
-			func(c *scripted) { c.diags = []ir.Diagnostic{at(-2, ir.SeverityWarning)} }, "indexes source -2",
+			func(c *scripted) { c.diags = []ir.Diagnostic{diagnosticAtSource(-2, ir.SeverityWarning)} }, "indexes source -2",
 		},
 	}
 	for name, tc := range cases {
@@ -235,7 +235,7 @@ func TestDetectionCompile_HandsBackCopiesOfWhatTheCompilerAnsweredWith(t *testin
 	c := keeping()
 	c.doc = nil
 	c.table = []ir.SourceInfo{{Path: spec.Path}}
-	c.diags = []ir.Diagnostic{at(0, ir.SeverityError)}
+	c.diags = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityError)}
 
 	out, err := detected(c, nil).Compile(t.Context())
 	require.NoError(t, err)
@@ -340,7 +340,7 @@ func TestRegistry_DetectRefusesADeclineIndexingAnotherSource(t *testing.T) {
 			reg := compilers.NewRegistry()
 			require.NoError(t, reg.Register(&stubCompiler{
 				formats:  []compilers.SourceFormat{alpha},
-				declines: []ir.Diagnostic{at(tc.source, ir.SeverityError)},
+				declines: []ir.Diagnostic{diagnosticAtSource(tc.source, ir.SeverityError)},
 			}))
 
 			det, _, err := reg.Detect(t.Context(), spec, compilers.Configuration{})
@@ -396,10 +396,10 @@ func TestRegistry_DetectRefusesADeclineSpeakingWithNoError(t *testing.T) {
 		broken   bool
 	}{
 		"silence":                   {},
-		"an error":                  {declines: []ir.Diagnostic{at(0, ir.SeverityError)}},
-		"a warning beside an error": {declines: []ir.Diagnostic{at(0, ir.SeverityWarning), at(0, ir.SeverityError)}},
-		"a warning alone":           {declines: []ir.Diagnostic{at(0, ir.SeverityWarning)}, broken: true},
-		"an info alone":             {declines: []ir.Diagnostic{at(ir.NoSource, ir.SeverityInfo)}, broken: true},
+		"an error":                  {declines: []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityError)}},
+		"a warning beside an error": {declines: []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning), diagnosticAtSource(0, ir.SeverityError)}},
+		"a warning alone":           {declines: []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning)}, broken: true},
+		"an info alone":             {declines: []ir.Diagnostic{diagnosticAtSource(ir.NoSource, ir.SeverityInfo)}, broken: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

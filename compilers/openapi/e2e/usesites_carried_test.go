@@ -28,31 +28,31 @@ func checkCarriedParams(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		"the whole diagnostic list: the one tier no group reads")
 	a := opTree(t, doc, "a")
 
-	p := namedItem(t, at(a, "params"), "p")
+	p := namedItem(t, valueAtPath(a, "params"), "p")
 	assert.Empty(t, cmp.Diff(map[string]any{
 		"openapi:x-a":                "FROM_PARAMETER",
 		"openapi:schema/x-a":         "FROM_SCHEMA",
 		"openapi:schema/x-sensitive": true,
-	}, keptValues(at(p, "unmodeled"))))
-	assert.Equal(t, true, at(p, "secret"), "the schema states the redaction")
-	assert.Equal(t, "extension-promotion", at(p, "provenance", "inferred"))
+	}, keptValues(valueAtPath(p, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(p, "secret"), "the schema states the redaction")
+	assert.Equal(t, "extension-promotion", valueAtPath(p, "provenance", "inferred"))
 
-	c := namedItem(t, at(a, "params"), "c")
+	c := namedItem(t, valueAtPath(a, "params"), "c")
 	assert.Empty(t, cmp.Diff(map[string]any{
 		"openapi:content/application~1json/x-a":         "FROM_MEDIA",
 		"openapi:content/application~1json/x-sensitive": true,
 		"openapi:content/application~1json/schema/x-a":  "FROM_SCHEMA",
-	}, keptValues(at(c, "unmodeled"))))
-	assert.Equal(t, true, at(c, "secret"), "the content entry states the redaction")
-	assert.Equal(t, "extension-promotion", at(c, "provenance", "inferred"))
+	}, keptValues(valueAtPath(c, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(c, "secret"), "the content entry states the redaction")
+	assert.Equal(t, "extension-promotion", valueAtPath(c, "provenance", "inferred"))
 
-	h := namedItem(t, at(a, "responses", "0", "headers"), "X-H")
+	h := namedItem(t, valueAtPath(a, "responses", "0", "headers"), "X-H")
 	assert.Empty(t, cmp.Diff(map[string]any{
 		"openapi:x-a": "FROM_HEADER",
 		"openapi:content/text~1plain/x-sensitive": true,
-	}, keptValues(at(h, "unmodeled"))))
-	assert.Equal(t, true, at(h, "secret"), "a header states redaction through its content as a parameter does")
-	assert.Equal(t, "extension-promotion", at(h, "provenance", "inferred"))
+	}, keptValues(valueAtPath(h, "unmodeled"))))
+	assert.Equal(t, true, valueAtPath(h, "secret"), "a header states redaction through its content as a parameter does")
+	assert.Equal(t, "extension-promotion", valueAtPath(h, "provenance", "inferred"))
 }
 
 // checkCarriedTiers holds an operation to its own tier first and its path
@@ -61,12 +61,12 @@ func checkCarriedParams(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func checkCarriedTiers(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	t.Helper()
 	a := opTree(t, doc, "a")
-	assert.Equal(t, "beta", at(a, "stability"), "the path item states beta")
-	assert.Equal(t, "extension-promotion", at(a, "provenance", "inferred"))
-	assert.Contains(t, keptValues(at(a, "unmodeled")), "openapi:pathItem/x-stability")
+	assert.Equal(t, "beta", valueAtPath(a, "stability"), "the path item states beta")
+	assert.Equal(t, "extension-promotion", valueAtPath(a, "provenance", "inferred"))
+	assert.Contains(t, keptValues(valueAtPath(a, "unmodeled")), "openapi:pathItem/x-stability")
 
 	own := opTree(t, doc, "own")
-	assert.Equal(t, "stable", at(own, "stability"), "the operation's own key is the nearer statement")
+	assert.Equal(t, "stable", valueAtPath(own, "stability"), "the operation's own key is the nearer statement")
 	for _, f := range findings(diags) {
 		assert.NotContains(t, f, "/paths/~1a/x-stability", "a carried key draws no finding")
 	}
@@ -83,20 +83,20 @@ func checkCarriedTags(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		"openapi:x-note":             "n",
 		"openapi:x-stability":        "beta",
 		"openapi:externalDocs/x-doc": float64(1),
-	}, keptValues(at(d, "tagDefs", "0", "unmodeled"))))
+	}, keptValues(valueAtPath(d, "tagDefs", "0", "unmodeled"))))
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-stability": "alpha"},
-		keptValues(at(d, "tagDefs", "1", "unmodeled"))), "the tag forming no group keeps its tier")
-	for key := range keptValues(at(d, "unmodeled")) {
+		keptValues(valueAtPath(d, "tagDefs", "1", "unmodeled"))), "the tag forming no group keeps its tier")
+	for key := range keptValues(valueAtPath(d, "unmodeled")) {
 		assert.False(t, strings.HasPrefix(key, "openapi:tags/"), "the document keeps no tag's key: %s", key)
 	}
 	assert.Equal(t, []string{"openapi/unpromoted-extension info /tags/1/x-stability"}, findings(diags))
 
 	g, ok := groupTree(t, doc, "operation-group/tags/T")
 	require.True(t, ok, "tag T forms a group")
-	assert.Equal(t, "beta", at(g, "stability"))
-	assert.Equal(t, "extension-promotion", at(g, "inferred"))
+	assert.Equal(t, "beta", valueAtPath(g, "stability"))
+	assert.Equal(t, "extension-promotion", valueAtPath(g, "inferred"))
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-note": "n", "openapi:x-stability": "beta"},
-		keptValues(at(g, "unmodeled"))))
+		keptValues(valueAtPath(g, "unmodeled"))))
 	_, ok = groupTree(t, doc, "operation-group/tags/Lone")
 	assert.False(t, ok, "no operation names Lone, so it forms no group")
 }
@@ -163,8 +163,8 @@ func TestParameter_SchemaAndObjectSpellOneKeyEndToEnd(t *testing.T) {
 		"openapi/unknown-schema-keyword info /paths/~1a/get/parameters/0/schema/divisibleBy",
 		"openapi/unknown-schema-keyword info /paths/~1a/get/responses/200/headers/X-H/schema/divisibleBy",
 	}, findings(diags))
-	p := namedItem(t, at(opTree(t, doc, "a"), "params"), "p")
-	assert.Contains(t, keptValues(at(p, "unmodeled")), "openapi:schema/divisibleBy")
+	p := namedItem(t, valueAtPath(opTree(t, doc, "a"), "params"), "p")
+	assert.Contains(t, keptValues(valueAtPath(p, "unmodeled")), "openapi:schema/divisibleBy")
 }
 
 // TestParameter_XMLAndBranchKeptOnceEndToEnd compiles the two specs in which a
@@ -173,14 +173,14 @@ func TestParameter_SchemaAndObjectSpellOneKeyEndToEnd(t *testing.T) {
 func TestParameter_XMLAndBranchKeptOnceEndToEnd(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_xml_kept_once"))
-	q := namedItem(t, at(tree(t, operationAt(t, doc, "GET", "/p")), "params"), "q")
-	assert.Equal(t, []string{"openapi:schema/xml"}, sortedKeys(keptValues(at(q, "unmodeled"))))
+	q := namedItem(t, valueAtPath(tree(t, operationAt(t, doc, "GET", "/p")), "params"), "q")
+	assert.Equal(t, []string{"openapi:schema/xml"}, sortedKeys(keptValues(valueAtPath(q, "unmodeled"))))
 	assert.Equal(t, []string{"openapi/degraded-construct info /paths/~1p/get/parameters/0/schema/xml"}, findings(diags))
 
 	doc, diags = compileNamedVerified(t, "x.yaml", testdataSpec(t, "param_branch_kept_once"))
 	g := opTree(t, doc, "g")
-	id := namedItem(t, at(g, "params"), "schema_id")
-	assert.Equal(t, []string{"openapi:schema/format", "openapi:schema/readOnly"}, sortedKeys(keptValues(at(id, "unmodeled"))),
+	id := namedItem(t, valueAtPath(g, "params"), "schema_id")
+	assert.Equal(t, []string{"openapi:schema/format", "openapi:schema/readOnly"}, sortedKeys(keptValues(valueAtPath(id, "unmodeled"))),
 		"each keyword the branch keeps is kept once, under its own key")
 	assert.Equal(t, []string{
 		"openapi/degraded-construct info /paths/~1s~1{schema_id}/get/parameters/0/schema/allOf/1",
@@ -198,9 +198,9 @@ func TestParameter_RedactionIsSingleSidedEndToEnd(t *testing.T) {
 	assert.Empty(t, diags)
 	a := opTree(t, doc, "a")
 	for _, name := range []string{"inl", "ref"} {
-		p := namedItem(t, at(a, "params"), name)
-		assert.Equal(t, true, at(p, "secret"), name)
-		assert.Equal(t, "extension-promotion", at(p, "provenance", "inferred"), name)
+		p := namedItem(t, valueAtPath(a, "params"), name)
+		assert.Equal(t, true, valueAtPath(p, "secret"), name)
+		assert.Equal(t, "extension-promotion", valueAtPath(p, "provenance", "inferred"), name)
 	}
 }
 
@@ -212,12 +212,12 @@ func TestTags_KeysOnTheTagAndTierOnItsGroupEndToEnd(t *testing.T) {
 	doc, diags := compileNamedVerified(t, "x.yaml", testdataSpec(t, "tag_keys_and_group_tier"))
 	assert.Empty(t, diags)
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-note": "n", "openapi:x-stability": "beta"},
-		keptValues(at(tree(t, doc), "tagDefs", "0", "unmodeled"))))
+		keptValues(valueAtPath(tree(t, doc), "tagDefs", "0", "unmodeled"))))
 	g, ok := groupTree(t, doc, "operation-group/tags/Billing")
 	require.True(t, ok)
-	assert.Equal(t, "beta", at(g, "stability"))
-	assert.Equal(t, "extension-promotion", at(g, "inferred"))
-	assert.Nil(t, at(opTree(t, doc, "a"), "stability"), "the tier is read through the group alone")
+	assert.Equal(t, "beta", valueAtPath(g, "stability"))
+	assert.Equal(t, "extension-promotion", valueAtPath(g, "inferred"))
+	assert.Nil(t, valueAtPath(opTree(t, doc, "a"), "stability"), "the tier is read through the group alone")
 }
 
 // TestTags_ARepeatedNameKeepsEachDeclaration compiles two tags of one name: the
@@ -229,13 +229,13 @@ func TestTags_ARepeatedNameKeepsEachDeclaration(t *testing.T) {
 	assert.Equal(t, []string{"openapi/validation/validation-duplicate-key error /tags/1/name"}, findings(diags))
 	d := tree(t, doc)
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-first": float64(1), "openapi:x-stability": "beta"},
-		keptValues(at(d, "tagDefs", "0", "unmodeled"))))
+		keptValues(valueAtPath(d, "tagDefs", "0", "unmodeled"))))
 	assert.Empty(t, cmp.Diff(map[string]any{"openapi:x-second": float64(2), "openapi:x-stability": "alpha"},
-		keptValues(at(d, "tagDefs", "1", "unmodeled"))))
+		keptValues(valueAtPath(d, "tagDefs", "1", "unmodeled"))))
 	g, ok := groupTree(t, doc, "operation-group/tags/T")
 	require.True(t, ok)
-	assert.Equal(t, "beta", at(g, "stability"), "the first declaration of a name wins")
-	assert.Equal(t, []string{"openapi:x-first", "openapi:x-stability"}, sortedKeys(keptValues(at(g, "unmodeled"))))
+	assert.Equal(t, "beta", valueAtPath(g, "stability"), "the first declaration of a name wins")
+	assert.Equal(t, []string{"openapi:x-first", "openapi:x-stability"}, sortedKeys(keptValues(valueAtPath(g, "unmodeled"))))
 }
 
 // sortedKeys returns the keys of m in order.

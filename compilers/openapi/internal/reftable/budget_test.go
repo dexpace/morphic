@@ -69,7 +69,7 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 	for _, e := range full.Entries() {
 		want[e.Site] = e
 	}
-	disc := at("/components/schemas/P/discriminator")
+	disc := documentPointerAt("/components/schemas/P/discriminator")
 	values := []string{"#/x-lib/C", "#/components/schemas/H/properties/p"}
 
 	stopped, missing, stoppedMappings := 0, 0, 0
@@ -305,7 +305,7 @@ func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
 			require.False(t, table.Exhausted(), name)
 			if name == "a loop" {
 				require.Len(t, table.Loops(), 1, "the loop is found whole")
-				assert.Equal(t, at("/components/schemas/C0"), table.Loops()[0].Site)
+				assert.Equal(t, documentPointerAt("/components/schemas/C0"), table.Loops()[0].Site)
 			}
 			return table.Steps()
 		}
@@ -334,9 +334,9 @@ func TestTable_SaysWhyARefWentUnread(t *testing.T) {
 	require.Equal(t, 2, other.Documents())
 	assert.True(t, other.Truncated(), "a document read cleanly after the source keeps its verdict")
 	assert.Equal(t, "it is past a `<<` merge chain deeper than the 64 levels the compiler expands", deep.Unread())
-	_, ok := deep.Entry(at("/components/schemas/A"))
+	_, ok := deep.Entry(documentPointerAt("/components/schemas/A"))
 	assert.False(t, ok, "A's $ref is past the bound")
-	assert.Equal(t, at("/components/schemas/T"), entryAt(t, deep, "/components/schemas/B").Hop.Target)
+	assert.Equal(t, documentPointerAt("/components/schemas/T"), entryAt(t, deep, "/components/schemas/B").Hop.Target)
 }
 
 // mergedKeys writes a document whose x-d70 merges the definitions and keys of
@@ -388,7 +388,7 @@ func TestBind_SaysAKeyMayLiePastTheMergeBound(t *testing.T) {
 	} {
 		assert.Equal(t, want, entryAt(t, table, site).Hop.Reason, site)
 	}
-	assert.Equal(t, at("/x-d10/k"), entryAt(t, table, "/components/schemas/Near").Hop.Target)
+	assert.Equal(t, documentPointerAt("/x-d10/k"), entryAt(t, table, "/components/schemas/Near").Hop.Target)
 
 	merged := bound(t, mergedKeys(true), self)
 	assert.Equal(t, reftable.MergeBound, entryAt(t, merged, "/components/schemas/Plain").Hop.Reason,
@@ -427,7 +427,7 @@ components:
 		"/components/schemas/Shallow/properties/mid/properties/s": "/components/schemas/Shallow/properties/mid/$defs/Y",
 		"/components/schemas/Plain":                               "/$defs/X",
 	} {
-		assert.Equal(t, at(want), entryAt(t, table, site).Hop.Target, site)
+		assert.Equal(t, documentPointerAt(want), entryAt(t, table, site).Hop.Target, site)
 	}
 
 	rooted := bound(t, chain.String()+`<<: *i70
@@ -465,7 +465,7 @@ func TestBind_AnswersAlikeInEitherOrder(t *testing.T) {
 	assert.Equal(t, forward.Entries(), backward.Entries())
 	assert.Equal(t, forward.Loops(), backward.Loops())
 	assert.Equal(t, forward.Landings(), backward.Landings())
-	disc := at("/components/schemas/P/discriminator")
+	disc := documentPointerAt("/components/schemas/P/discriminator")
 	for _, v := range []string{"#/x-lib/C", "#/components/schemas/M"} {
 		f, _ := forward.Mapping(disc, v)
 		b, _ := backward.Mapping(disc, v)

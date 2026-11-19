@@ -15,9 +15,9 @@ import (
 func TestCheck_ABasedIntegerIsTheCoreSchemas(t *testing.T) {
 	verify(t, []scenario{
 		{"octal", "3.1.0", specrules.Schema, `{maxLength: 0o17}`, nil},
-		{"octal with no digit", "3.1.0", specrules.Schema, `{maxLength: 0o}`, []finding{at(mismatch, "/maxLength")}},
-		{"octal with a separator", "3.1.0", specrules.Schema, `{maxLength: 0o1_7}`, []finding{at(mismatch, "/maxLength")}},
-		{"hex with a sign after its prefix", "3.1.0", specrules.Schema, `{maxLength: 0x-1}`, []finding{at(mismatch, "/maxLength")}},
-		{"octal past its digits", "3.1.0", specrules.Schema, `{maxLength: 0o19}`, []finding{at(mismatch, "/maxLength")}},
+		{"octal with no digit", "3.1.0", specrules.Schema, `{maxLength: 0o}`, []finding{findingAtPointer(mismatch, "/maxLength")}},
+		{"octal with a separator", "3.1.0", specrules.Schema, `{maxLength: 0o1_7}`, []finding{findingAtPointer(mismatch, "/maxLength")}},
+		{"hex with a sign after its prefix", "3.1.0", specrules.Schema, `{maxLength: 0x-1}`, []finding{findingAtPointer(mismatch, "/maxLength")}},
+		{"octal past its digits", "3.1.0", specrules.Schema, `{maxLength: 0o19}`, []finding{findingAtPointer(mismatch, "/maxLength")}},
 	})
 }

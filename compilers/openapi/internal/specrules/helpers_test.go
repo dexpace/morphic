@@ -50,8 +50,8 @@ const (
 // finding is what a test compares of a diagnostic: its code and where it sits.
 type finding struct{ Code, At string }
 
-// at returns the finding of code at the pointer.
-func at(code, pointer string) finding { return finding{Code: code, At: pointer} }
+// findingAtPointer returns the finding of code at the pointer.
+func findingAtPointer(code, pointer string) finding { return finding{Code: code, At: pointer} }
 
 // run checks doc as an object of the kind in a document declaring version, and
 // returns the diagnostics.

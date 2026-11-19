@@ -523,11 +523,11 @@ components:
 		{"default", "/paths/~1a/post/responses/default/content/application~1json"},
 	} {
 		content := map[string]any{
-			"request": at(a, "request", "contents", "0"),
-			"ok":      at(a, "responses", "0", "payload", "contents", "0"),
-			"default": at(a, "default", "payload", "contents", "0"),
+			"request": valueAtPath(a, "request", "contents", "0"),
+			"ok":      valueAtPath(a, "responses", "0", "payload", "contents", "0"),
+			"default": valueAtPath(a, "default", "payload", "contents", "0"),
 		}[payload.name]
-		assert.Equal(t, "s", at(content, "docs", "summary"), payload.name)
+		assert.Equal(t, "s", valueAtPath(content, "docs", "summary"), payload.name)
 		assert.Empty(t, cmp.Diff(map[string]string{
 			"openapi:x-a":               `vendor_extension "own" /components/mediaTypes/M/x-a`,
 			"openapi:reference/0/x-a":   `out_of_scope "` + payload.name + `" ` + payload.at + `/x-a`,
@@ -535,7 +535,7 @@ components:
 			"openapi:reference/1/x-a":   `out_of_scope "a1" /components/mediaTypes/A1/x-a`,
 			"openapi:reference/1/x-one": `out_of_scope 1 /components/mediaTypes/A1/x-one`,
 			"openapi:reference/2/x-a":   `out_of_scope "a2" /components/mediaTypes/A2/x-a`,
-		}, entries(t, at(content, "unmodeled"))), payload.name)
+		}, entries(t, valueAtPath(content, "unmodeled"))), payload.name)
 	}
 	reported := make([]string, 0, len(diags))
 	for _, d := range diags {

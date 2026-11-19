@@ -71,14 +71,14 @@ func TestBind_ReadsAPointerThroughAReferenceObject(t *testing.T) {
 	assert.Equal(t, reftable.Schema, body.Hop.Role)
 
 	plain := entryAt(t, table, "/components/schemas/Plain")
-	assert.Equal(t, at("/components/responses/Inline/content/application~1json/schema"), plain.Hop.Target,
+	assert.Equal(t, documentPointerAt("/components/responses/Inline/content/application~1json/schema"), plain.Hop.Target,
 		"an inline object is read where it is written")
 
 	loops := table.Loops()
 	require.Len(t, loops, 1)
 	assert.Equal(t, []reftable.DocumentPointer{
-		at("/components/pathItems/P/get/responses/200/content/application~1json/schema"),
-		at("/components/schemas/S"),
+		documentPointerAt("/components/pathItems/P/get/responses/200/content/application~1json/schema"),
+		documentPointerAt("/components/schemas/S"),
 	}, loops[0].Members)
 
 	assert.Equal(t, reftable.Unpassable, entryAt(t, table, "/components/schemas/Gone").Hop.Reason)
@@ -180,7 +180,7 @@ func TestBind_PassesAReferenceObjectWhereAPointerIntoAnotherDocumentStarts(t *te
 			assert.Equal(t, reftable.Resolved, far.Status, far.Why())
 			assert.Equal(t, reftable.DocumentPointer{Doc: other, Pointer: tc.target}, far.Target)
 			near := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Near%d", i))).Hop
-			assert.Equal(t, at(tc.target), near.Target, "the same pointer into the source")
+			assert.Equal(t, documentPointerAt(tc.target), near.Target, "the same pointer into the source")
 			bare := entryAt(t, table, jsontext.Pointer(fmt.Sprintf("/components/schemas/Bare%d", i))).Hop
 			assert.Equal(t, reftable.NoTarget, bare.Reason, "a document with no openapi member")
 		})
@@ -258,12 +258,12 @@ x-lib:
   h: {$ref: '#/components/schemas/Holder/properties/p'}
   Box: {discriminator: {propertyName: k, mapping: {i: '#/x-lib/b'}}}
 `, reftable.Config{Self: self.Self, Components: []string{"P", "Holder", "Box", "Q", "Cat"}})
-	disc := at("/components/schemas/P/discriminator")
+	disc := documentPointerAt("/components/schemas/P/discriminator")
 	for value, want := range map[string]reftable.Chain{
-		"#/x-lib/a":       {Status: reftable.Resolved, End: at("/x-lib/b"), Hops: 2},
-		"#/$defs/D":       {Status: reftable.Resolved, End: at("/components/schemas/P/$defs/D"), Hops: 1},
-		"#/x-lib/h":       {Status: reftable.Resolved, End: at("/components/schemas/Holder/$defs/X"), Hops: 3},
-		"#/x-lib/b":       {Status: reftable.Resolved, End: at("/x-lib/b"), Hops: 1},
+		"#/x-lib/a":       {Status: reftable.Resolved, End: documentPointerAt("/x-lib/b"), Hops: 2},
+		"#/$defs/D":       {Status: reftable.Resolved, End: documentPointerAt("/components/schemas/P/$defs/D"), Hops: 1},
+		"#/x-lib/h":       {Status: reftable.Resolved, End: documentPointerAt("/components/schemas/Holder/$defs/X"), Hops: 3},
+		"#/x-lib/b":       {Status: reftable.Resolved, End: documentPointerAt("/x-lib/b"), Hops: 1},
 		"#/x-lib/missing": {Status: reftable.Unresolved},
 	} {
 		m, ok := table.Mapping(disc, value)
@@ -273,9 +273,9 @@ x-lib:
 	}
 	_, ok := table.Mapping(disc, "Cat")
 	assert.False(t, ok, "a component's name is the lowering's to read")
-	_, ok = table.Mapping(at("/x-lib/Box/discriminator"), "#/x-lib/b")
+	_, ok = table.Mapping(documentPointerAt("/x-lib/Box/discriminator"), "#/x-lib/b")
 	assert.True(t, ok, "a discriminator in raw YAML a $ref lands on is read")
-	_, ok = table.Mapping(at("/components/schemas/Q/discriminator"), "#/x-lib/b")
+	_, ok = table.Mapping(documentPointerAt("/components/schemas/Q/discriminator"), "#/x-lib/b")
 	assert.True(t, ok, "and every other discriminator")
 }
 
@@ -309,14 +309,14 @@ x-lib:
 	in := func(pointer jsontext.Pointer) reftable.DocumentPointer {
 		return reftable.DocumentPointer{Doc: other, Pointer: pointer}
 	}
-	assert.Equal(t, reftable.Landing{At: at("/x-lib/S"), Name: "spec.yaml", Site: at("/components/schemas/P/discriminator"),
-		Reached: true}, got[at("/x-lib/S")], "the least of a mapping value and a $ref reaching it")
-	assert.Equal(t, reftable.Landing{At: in("/B"), Name: "other.yaml", Site: at("/components/schemas/M"), Reached: true},
+	assert.Equal(t, reftable.Landing{At: documentPointerAt("/x-lib/S"), Name: "spec.yaml", Site: documentPointerAt("/components/schemas/P/discriminator"),
+		Reached: true}, got[documentPointerAt("/x-lib/S")], "the least of a mapping value and a $ref reaching it")
+	assert.Equal(t, reftable.Landing{At: in("/B"), Name: "other.yaml", Site: documentPointerAt("/components/schemas/M"), Reached: true},
 		got[in("/B")], "reached through a chain")
 	assert.Equal(t, reftable.Landing{At: in("/D"), Name: "other.yaml", Site: in("/C"), Reached: true},
 		got[in("/D")], "a $ref another document writes places it, though it also leads there through R")
 	assert.Equal(t, reftable.Landing{At: in("/C"), Name: "other.yaml", Site: in("/R/content/a~1b/schema"), Reached: true},
 		got[in("/C")], "the content R resolved to is read")
-	assert.Equal(t, reftable.Landing{At: in("/E"), Name: "other.yaml", Site: at("/components/schemas/Y"), Reached: true},
+	assert.Equal(t, reftable.Landing{At: in("/E"), Name: "other.yaml", Site: documentPointerAt("/components/schemas/Y"), Reached: true},
 		got[in("/E")], "a source position orders before the other document's own $ref to it")
 }

@@ -43,9 +43,9 @@ func read(t testing.TB, text string) doctree.ParsedYAMLDocument {
 	return doc
 }
 
-// at walks from n, a document node or a root, through each step: a key of a
+// nodeAtSteps walks from n, a document node or a root, through each step: a key of a
 // mapping or an index of a sequence. It returns the value node.
-func at(t testing.TB, n *yaml.Node, steps ...string) *yaml.Node {
+func nodeAtSteps(t testing.TB, n *yaml.Node, steps ...string) *yaml.Node {
 	t.Helper()
 	require.NotNil(t, n)
 	if n.Kind == yaml.DocumentNode {
@@ -200,7 +200,7 @@ func TestRead_ATailIsWhatTheStreamHoldsPastItsFirstDocument(t *testing.T) {
 			doc := read(t, tc.text)
 
 			assert.Equal(t, tc.want, doc.Rest)
-			at(t, doc.Root, tc.first)
+			nodeAtSteps(t, doc.Root, tc.first)
 		})
 	}
 }
@@ -214,7 +214,7 @@ func TestRead_AStreamOfEmptyDocumentsPastTheBoundIsStillReported(t *testing.T) {
 	doc := read(t, minDoc+strings.Repeat("---\n", 1025)+"---\nfoo: bar\n")
 
 	assert.Equal(t, doctree.Tail{Capped: true}, doc.Rest, "nothing counted, and the bound ended the count")
-	at(t, doc.Root, "openapi")
+	nodeAtSteps(t, doc.Root, "openapi")
 }
 
 // TestRead_AStreamHoldingNoDocumentHasARootOfNoKind holds the root of a stream
@@ -265,7 +265,7 @@ func TestRead_ADirectiveIsTheOneGoverningTheDocumentTaken(t *testing.T) {
 		"a later document opening with a directive is read and counted, not left unparsed")
 
 	middle := read(t, "openapi: 3.1.0\ninfo:\n  title: t\n  version: \"1\"\n  description: \"a\n%YAML 1.3\n  b\"\npaths: {}\n")
-	assert.Equal(t, "a %YAML 1.3 b", at(t, middle.Root, "info", "description").Value,
+	assert.Equal(t, "a %YAML 1.3 b", nodeAtSteps(t, middle.Root, "info", "description").Value,
 		"a line that starts with the directive's spelling inside a scalar is text")
 
 	_, err := doctree.Read(t.Context(), []byte("%YAML 2.0\n---\n"+minDoc), budget.Unbounded())
@@ -386,7 +386,7 @@ func TestRead_ACoreScalarIsRetaggedAndNeverRewritten(t *testing.T) {
 	doc := read(t, text)
 
 	for _, tc := range tests {
-		n := at(t, doc.Root, append([]string{"components", "schemas", "S"}, tc.path...)...)
+		n := nodeAtSteps(t, doc.Root, append([]string{"components", "schemas", "S"}, tc.path...)...)
 		assert.Equal(t, tc.tag, n.ShortTag(), "%v", tc.path)
 		assert.Equal(t, tc.value, n.Value, "%v: the text is what the source wrote", tc.path)
 	}
@@ -401,7 +401,7 @@ func TestRead_AMergeKeyStillMergesAndAMergeValueIsText(t *testing.T) {
 	doc := read(t, "base: &b {p: 1}\nuses:\n  <<: *b\n  q: 2\nvalue: <<\n")
 
 	assert.Equal(t, "!!merge", doc.Root.Content[0].Content[3].Content[0].ShortTag(), "the key keeps merging")
-	assert.Equal(t, "!!str", at(t, doc.Root, "value").ShortTag())
+	assert.Equal(t, "!!str", nodeAtSteps(t, doc.Root, "value").ShortTag())
 }
 
 // TestRead_NoKeyAndNoValueIsRewrittenToItsNumber holds the first design's
@@ -413,13 +413,13 @@ func TestRead_NoKeyAndNoValueIsRewrittenToItsNumber(t *testing.T) {
 	doc := read(t, minDoc+"components:\n  schemas:\n    S:\n      required: [\"007\", 007]\n"+
 		"      properties:\n        007: {type: string}\n        1: {type: string}\n        01: {type: integer}\n")
 
-	props := at(t, doc.Root, "components", "schemas", "S", "properties")
+	props := nodeAtSteps(t, doc.Root, "components", "schemas", "S", "properties")
 	var keys []string
 	for i := 0; i < len(props.Content); i += 2 {
 		keys = append(keys, props.Content[i].Value)
 	}
 	assert.Equal(t, []string{"007", "1", "01"}, keys)
-	req := at(t, doc.Root, "components", "schemas", "S", "required")
+	req := nodeAtSteps(t, doc.Root, "components", "schemas", "S", "required")
 	assert.Equal(t, "007", req.Content[0].Value)
 	assert.Equal(t, "007", req.Content[1].Value)
 }
@@ -432,7 +432,7 @@ func TestRead_AJSONTextIsNeverResolvedAgain(t *testing.T) {
 
 	doc := read(t, `{"openapi":"3.1.0","info":{"title":"t","version":"1"},"paths":{},"x-n":[1E3,-0,0.5e-2,99999999999999999999]}`)
 
-	n := at(t, doc.Root, "x-n")
+	n := nodeAtSteps(t, doc.Root, "x-n")
 	got := make([]string, 0, len(n.Content))
 	for _, c := range n.Content {
 		got = append(got, c.Value+" "+c.ShortTag())
@@ -498,18 +498,18 @@ func TestRead_AnEscapedSlashReadsAsASlashOnlyWhereTheStyleSaysSo(t *testing.T) {
 
 	doc := read(t, text)
 
-	assert.Equal(t, "x"+bs+"/y", at(t, doc.Root, "a").Value, "single-quoted")
-	assert.Equal(t, "x"+bs+"/y", at(t, doc.Root, "b").Value, "plain")
-	assert.Equal(t, "x"+bs+"/y\n", at(t, doc.Root, "c").Value, "block")
-	assert.Equal(t, "1", at(t, doc.Root, "d").Value)
-	assert.Equal(t, "# c"+bs+"/d", at(t, doc.Root, "d").LineComment, "a comment is text")
-	assert.Equal(t, "x"+bs+"/y", at(t, doc.Root, "e").Value, "an escaped backslash, then a slash")
-	assert.Equal(t, "x"+bs+"/y", at(t, doc.Root, "f").Value, "an escaped backslash, then an escaped slash")
+	assert.Equal(t, "x"+bs+"/y", nodeAtSteps(t, doc.Root, "a").Value, "single-quoted")
+	assert.Equal(t, "x"+bs+"/y", nodeAtSteps(t, doc.Root, "b").Value, "plain")
+	assert.Equal(t, "x"+bs+"/y\n", nodeAtSteps(t, doc.Root, "c").Value, "block")
+	assert.Equal(t, "1", nodeAtSteps(t, doc.Root, "d").Value)
+	assert.Equal(t, "# c"+bs+"/d", nodeAtSteps(t, doc.Root, "d").LineComment, "a comment is text")
+	assert.Equal(t, "x"+bs+"/y", nodeAtSteps(t, doc.Root, "e").Value, "an escaped backslash, then a slash")
+	assert.Equal(t, "x"+bs+"/y", nodeAtSteps(t, doc.Root, "f").Value, "an escaped backslash, then an escaped slash")
 	assert.Empty(t, cmp.Diff(positions(read(t, twin).Root), positions(doc.Root)), "positions as the one-for-one twin's")
 
 	d := read(t, "t: \"x"+bs+bs+bs+"x61y\"\nu: \"p"+bs+"/q\"\n")
-	assert.Equal(t, "x"+bs+"ay", at(t, d.Root, "t").Value, "an escaped backslash then the escape of a")
-	assert.Equal(t, "p/q", at(t, d.Root, "u").Value)
+	assert.Equal(t, "x"+bs+"ay", nodeAtSteps(t, d.Root, "t").Value, "an escaped backslash then the escape of a")
+	assert.Equal(t, "p/q", nodeAtSteps(t, d.Root, "u").Value)
 }
 
 // TestRead_ALineBreakYAML11EndsALineAtIsACharacter pins the three characters
@@ -523,12 +523,12 @@ func TestRead_ALineBreakYAML11EndsALineAtIsACharacter(t *testing.T) {
 
 	doc := read(t, text)
 
-	assert.Equal(t, "p"+nel+"q", at(t, doc.Root, "a").Value)
-	assert.Equal(t, "p"+nel+"q", at(t, doc.Root, "b").Value)
-	assert.Equal(t, "p"+ls+"q", at(t, doc.Root, "c").Value)
-	assert.Equal(t, "p"+ps+"q\nr\n", at(t, doc.Root, "d").Value)
+	assert.Equal(t, "p"+nel+"q", nodeAtSteps(t, doc.Root, "a").Value)
+	assert.Equal(t, "p"+nel+"q", nodeAtSteps(t, doc.Root, "b").Value)
+	assert.Equal(t, "p"+ls+"q", nodeAtSteps(t, doc.Root, "c").Value)
+	assert.Equal(t, "p"+ps+"q\nr\n", nodeAtSteps(t, doc.Root, "d").Value)
 	assert.Equal(t, "p"+nel+"k", doc.Root.Content[0].Content[8].Value, "the key")
-	z := at(t, doc.Root, "z")
+	z := nodeAtSteps(t, doc.Root, "z")
 	assert.Equal(t, [2]int{8, 4}, [2]int{z.Line, z.Column}, "z's value is on line 8")
 	assert.Equal(t, 8, doc.Root.Content[0].Content[10].Line, "z's key is on line 8, where the text writes it")
 	assert.Equal(t, 1, doc.Root.Content[0].Content[10].Column)
@@ -555,10 +555,10 @@ func TestRead_APlaceholderNeverShowsInATree(t *testing.T) {
 
 			doc := read(t, "openapi: 3.1.0\ninfo:\n  title: "+title+tail)
 
-			assert.Equal(t, "x"+e0+"y", at(t, doc.Root, "info", "title").Value)
-			assert.Equal(t, "a"+nel+"b", at(t, doc.Root, "info", "description").Value)
+			assert.Equal(t, "x"+e0+"y", nodeAtSteps(t, doc.Root, "info", "title").Value)
+			assert.Equal(t, "a"+nel+"b", nodeAtSteps(t, doc.Root, "info", "description").Value)
 			if strings.Contains(title, "x-t") {
-				assert.Equal(t, "!e"+e0, at(t, doc.Root, "info", "x-t").Tag, "a percent run in a tag is the character it decodes to")
+				assert.Equal(t, "!e"+e0, nodeAtSteps(t, doc.Root, "info", "x-t").Tag, "a percent run in a tag is the character it decodes to")
 			}
 		})
 	}
@@ -576,8 +576,8 @@ func TestRead_ATextHoldingEveryPlaceholderIsTheParsersOwn(t *testing.T) {
 
 	doc := read(t, "a: \"p"+nel+"q\"\nb: "+every.String()+"\n")
 
-	assert.Equal(t, "p q", at(t, doc.Root, "a").Value, "a raw U+0085 in a double-quoted scalar reads as a space")
-	assert.Equal(t, every.String(), at(t, doc.Root, "b").Value)
+	assert.Equal(t, "p q", nodeAtSteps(t, doc.Root, "a").Value, "a raw U+0085 in a double-quoted scalar reads as a space")
+	assert.Equal(t, every.String(), nodeAtSteps(t, doc.Root, "b").Value)
 }
 
 // TestRead_StopsAtADoneContextWithNoPartialTree puts a cancel at each check of

@@ -133,7 +133,7 @@ func TestRefConjunction_AUseWritingKeywordsBesideItsRefCompilesAsTheAllOfSpellin
 // nodeAt is the JSON of the type with the ID given, nil where the document
 // holds none.
 func nodeAt(tree any, id string) map[string]any {
-	node, _ := at(tree, "types", id).(map[string]any)
+	node, _ := valueAtPath(tree, "types", id).(map[string]any)
 	return node
 }
 
@@ -146,7 +146,7 @@ func carriersNamed(tree any, name string) []map[string]any {
 	walk = func(v any) {
 		switch x := v.(type) {
 		case map[string]any:
-			if at(x, "name", "source") == name && x["type"] != nil && x["kind"] == nil {
+			if valueAtPath(x, "name", "source") == name && x["type"] != nil && x["kind"] == nil {
 				found = append(found, x)
 			}
 			for _, child := range x {
@@ -186,9 +186,9 @@ func requireCarrier(t *testing.T, tree any, site conjSite) map[string]any {
 // holdsPromotion reports whether the JSON of a node or carrier holds the
 // deprecation the extension fills, its mark and the entry keeping the key.
 func holdsPromotion(node any) (since, marked, kept bool) {
-	since = at(node, "deprecation", "since") == "2"
-	marked = strings.Contains(fmt.Sprint(at(node, "provenance", "inferred")), "extension-promotion")
-	for key := range keptReasons(at(node, "unmodeled")) {
+	since = valueAtPath(node, "deprecation", "since") == "2"
+	marked = strings.Contains(fmt.Sprint(valueAtPath(node, "provenance", "inferred")), "extension-promotion")
+	for key := range keptReasons(valueAtPath(node, "unmodeled")) {
 		// A parameter or a header keeps what its schema writes under openapi:schema/.
 		kept = kept || key == "openapi:x-deprecated-since" || key == "openapi:schema/x-deprecated-since"
 	}
@@ -235,7 +235,7 @@ func TestRefConjunction_APromotedFactAndItsMarkSitOnOneNodeInEverySpelling(t *te
 							return
 						}
 						assert.False(t, since || marked || kept, "the carrier over an object holds none of the three")
-						decorator := nodeAt(tree, fmt.Sprint(at(carrier, "type", "target")))
+						decorator := nodeAt(tree, fmt.Sprint(valueAtPath(carrier, "type", "target")))
 						require.NotNil(t, decorator)
 						assert.Equal(t, "model", decorator["kind"])
 						assert.Equal(t, true, decorator["anonymous"])
@@ -533,16 +533,16 @@ func TestRefConjunction_AKeywordOnlyAModelHoldsBesideARefAtAParameterIsKeptOnThe
 
 				tree := documentTree(t, beside)
 				carrier := requireCarrier(t, tree, site)
-				assert.Empty(t, keptReasons(at(carrier, "unmodeled")), "the parameter keeps nothing the model holds")
-				model := nodeAt(tree, fmt.Sprint(at(carrier, "type", "target")))
+				assert.Empty(t, keptReasons(valueAtPath(carrier, "unmodeled")), "the parameter keeps nothing the model holds")
+				model := nodeAt(tree, fmt.Sprint(valueAtPath(carrier, "type", "target")))
 				require.NotNil(t, model)
 				assert.Equal(t, "model", model["kind"])
 				assert.Equal(t, true, model["anonymous"])
 				if tc.key == "" {
-					assert.Equal(t, "x", at(model, "xml", "name"))
+					assert.Equal(t, "x", valueAtPath(model, "xml", "name"))
 					return
 				}
-				assert.Contains(t, keptReasons(at(model, "unmodeled")), tc.key)
+				assert.Contains(t, keptReasons(valueAtPath(model, "unmodeled")), tc.key)
 			})
 		}
 	}
@@ -635,14 +635,14 @@ func TestRefConjunction_ADynamicRefReadAsARefIsThatConjunctUnderEitherKeyword(t 
 			}
 			if carrierName(site) != "" {
 				node = requireCarrier(t, tree, site)
-				assert.Equal(t, string(componentID("T")), at(node, "type", "target"))
+				assert.Equal(t, string(componentID("T")), valueAtPath(node, "type", "target"))
 			} else {
 				require.NotNil(t, node)
 				assert.Equal(t, "scalar", node["kind"])
-				assert.Equal(t, string(componentID("T")), at(node, "base", "target"))
+				assert.Equal(t, string(componentID("T")), valueAtPath(node, "base", "target"))
 			}
-			assert.EqualValues(t, 1, at(node, "constraints", "minLength"))
-			assert.Empty(t, keptReasons(at(node, "unmodeled")))
+			assert.EqualValues(t, 1, valueAtPath(node, "constraints", "minLength"))
+			assert.Empty(t, keptReasons(valueAtPath(node, "unmodeled")))
 		})
 	}
 }
@@ -677,7 +677,7 @@ func TestRefConjunction_ADynamicRefBesideARefIsKeptOnTheUseInEverySpelling(t *te
 				}
 			}
 			for _, c := range carriersNamed(documentTree(t, beside), carrierName(site)) {
-				if _, kept := keptReasons(at(c, "unmodeled"))["openapi:$dynamicRef"]; kept {
+				if _, kept := keptReasons(valueAtPath(c, "unmodeled"))["openapi:$dynamicRef"]; kept {
 					holders++
 				}
 			}
@@ -772,7 +772,7 @@ func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 			if statedBesideARef(d) {
 				continue
 			}
-			findings = append(findings, fmt.Sprintf("%v %v", at(d, "severity"), at(d, "code")))
+			findings = append(findings, fmt.Sprintf("%v %v", valueAtPath(d, "severity"), valueAtPath(d, "code")))
 		}
 	}
 	slices.Sort(findings)
@@ -787,8 +787,8 @@ func spellingView(t *testing.T, doc *ir.Document) map[string]any {
 // for a keyword beside a $ref at 3.0: the later-version warning, or the
 // warning that a `nullable` has no effect, which it stands in for.
 func statedBesideARef(d any) bool {
-	code := at(d, "code")
-	pointer := fmt.Sprint(at(d, "provenance", "pointer"))
+	code := valueAtPath(d, "code")
+	pointer := fmt.Sprint(valueAtPath(d, "provenance", "pointer"))
 	return code == "openapi/later-version-construct" ||
 		code == "openapi/validation/validation-no-effect" && strings.HasSuffix(pointer, "/nullable")
 }

@@ -58,7 +58,7 @@ func TestKinds_ReadsEachPositionByTheGrammar(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(string(tc.pointer), func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, table.Kinds(at(tc.pointer)))
+			assert.Equal(t, tc.want, table.Kinds(documentPointerAt(tc.pointer)))
 		})
 	}
 }
@@ -88,8 +88,8 @@ components:
 	pet, ok := table.Find("/pet.yaml")
 	require.True(t, ok)
 
-	assert.Equal(t, []reftable.Kind{kOth, kRaw, kSch, kMap, kSch}, table.Kinds(at("/x-lib/Thing/properties/p")))
-	assert.Equal(t, []reftable.Kind{kOth, kRaw, kRaw}, table.Kinds(at("/x-lib/Other")), "no reference reads it")
+	assert.Equal(t, []reftable.Kind{kOth, kRaw, kSch, kMap, kSch}, table.Kinds(documentPointerAt("/x-lib/Thing/properties/p")))
+	assert.Equal(t, []reftable.Kind{kOth, kRaw, kRaw}, table.Kinds(documentPointerAt("/x-lib/Other")), "no reference reads it")
 	assert.Equal(t, []reftable.Kind{kRaw, kPar, kSch}, table.Kinds(reftable.DocumentPointer{Doc: params, Pointer: "/Size/schema"}))
 	assert.Equal(t, []reftable.Kind{kSch, kMap, kSch}, table.Kinds(reftable.DocumentPointer{Doc: pet, Pointer: "/properties/p"}))
 }
@@ -107,7 +107,7 @@ func TestKinds_KeepsWhatTheSourceWrites(t *testing.T) {
   parameters:
     P: {$ref: '#/components/schemas/S'}
 `, cfg)
-	assert.Equal(t, []reftable.Kind{kOth, kCom, kMap, kSch}, table.Kinds(at("/components/schemas/S")))
+	assert.Equal(t, []reftable.Kind{kOth, kCom, kMap, kSch}, table.Kinds(documentPointerAt("/components/schemas/S")))
 }
 
 // TestKinds_ReadsTheLesserOfTwoReadings pins a raw position two references
@@ -127,7 +127,7 @@ func TestKinds_ReadsTheLesserOfTwoReadings(t *testing.T) {
 		"the parameter first":              lib + parameter + schema,
 		"the schema reached a round later": lib + later + parameter,
 	} {
-		assert.Equal(t, []reftable.Kind{kOth, kRaw, kSch}, bound(t, head+src, cfg).Kinds(at("/x-lib/T")), name)
+		assert.Equal(t, []reftable.Kind{kOth, kRaw, kSch}, bound(t, head+src, cfg).Kinds(documentPointerAt("/x-lib/T")), name)
 	}
 }
 
@@ -136,8 +136,8 @@ func TestKinds_ReadsTheLesserOfTwoReadings(t *testing.T) {
 func TestKinds_StopsAtTheTokenCap(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head, self)
-	within := table.Kinds(at(jsontext.Pointer(strings.Repeat("/x-p", reftable.MaxPointerTokens))))
-	past := table.Kinds(at(jsontext.Pointer(strings.Repeat("/x-p", reftable.MaxPointerTokens+1))))
+	within := table.Kinds(documentPointerAt(jsontext.Pointer(strings.Repeat("/x-p", reftable.MaxPointerTokens))))
+	past := table.Kinds(documentPointerAt(jsontext.Pointer(strings.Repeat("/x-p", reftable.MaxPointerTokens+1))))
 	assert.Len(t, within, reftable.MaxPointerTokens+1, "every token is read")
 	assert.Len(t, past, reftable.MaxPointerTokens+1, "the one past the cap is not")
 }
@@ -157,14 +157,14 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 		pos               reftable.DocumentPointer
 		schema, referable bool
 	}{
-		{at(""), false, false},
-		{at("/components/parameters/P"), false, true},
-		{at("/components/parameters/P/schema"), true, false},
-		{at("/paths/~1a/get/responses/200/headers/X"), false, true},
-		{at("/paths/~1a/get/callbacks/c/{$url}"), false, true},
-		{at("/components/securitySchemes/S"), false, true},
-		{at("/components/examples/E/value"), false, false},
-		{at("/x-ext/schema"), false, false},
+		{documentPointerAt(""), false, false},
+		{documentPointerAt("/components/parameters/P"), false, true},
+		{documentPointerAt("/components/parameters/P/schema"), true, false},
+		{documentPointerAt("/paths/~1a/get/responses/200/headers/X"), false, true},
+		{documentPointerAt("/paths/~1a/get/callbacks/c/{$url}"), false, true},
+		{documentPointerAt("/components/securitySchemes/S"), false, true},
+		{documentPointerAt("/components/examples/E/value"), false, false},
+		{documentPointerAt("/x-ext/schema"), false, false},
 		{reftable.DocumentPointer{Doc: params, Pointer: "/Size"}, false, true},
 		{reftable.DocumentPointer{Doc: params, Pointer: "/Size/schema"}, true, false},
 	}
@@ -187,7 +187,7 @@ func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
 // nesting it.
 func TestReading_BelowStepsTheGrammar(t *testing.T) {
 	t.Parallel()
-	param := bound(t, head, self).ReadingAt(at("/components/parameters/P"))
+	param := bound(t, head, self).ReadingAt(documentPointerAt("/components/parameters/P"))
 	require.True(t, param.Referable())
 	assert.True(t, param.Below("schema").Schema())
 	assert.True(t, param.Below("content").Below("application/json").Below("schema").Schema())
@@ -209,12 +209,12 @@ func TestReading_BelowStepsTheGrammar(t *testing.T) {
 func TestReadingAt_ReadsRawWhereItPlacesNothing(t *testing.T) {
 	t.Parallel()
 	var none *reftable.ReferenceTargetTable
-	assert.Equal(t, reftable.Reading{}, none.ReadingAt(at("/components/parameters/P")))
+	assert.Equal(t, reftable.Reading{}, none.ReadingAt(documentPointerAt("/components/parameters/P")))
 	assert.False(t, reftable.Reading{}.Below("schema").Schema())
 	assert.False(t, reftable.Reading{}.Referable())
 
 	table := bound(t, head, self)
 	within := jsontext.Pointer("/components/schemas/A" + strings.Repeat("/not", reftable.MaxPointerTokens-3))
-	require.True(t, table.ReadingAt(at(within)).Schema(), "every token is read")
-	assert.Equal(t, reftable.Reading{}, table.ReadingAt(at(within+"/not")), "the one past the cap is not")
+	require.True(t, table.ReadingAt(documentPointerAt(within)).Schema(), "every token is read")
+	assert.Equal(t, reftable.Reading{}, table.ReadingAt(documentPointerAt(within+"/not")), "the one past the cap is not")
 }

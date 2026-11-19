@@ -83,9 +83,9 @@ func tree(t *testing.T, v any) any {
 	return out
 }
 
-// at follows path from v through maps by key and slices by index, and returns
+// valueAtPath follows path from v through maps by key and slices by index, and returns
 // nil where the path leaves the value.
-func at(v any, path ...string) any {
+func valueAtPath(v any, path ...string) any {
 	for _, step := range path {
 		switch x := v.(type) {
 		case map[string]any:
@@ -109,7 +109,7 @@ func keptValues(u any) map[string]any {
 	out := map[string]any{}
 	entries, _ := u.(map[string]any)
 	for key, entry := range entries {
-		out[key] = at(entry, "value")
+		out[key] = valueAtPath(entry, "value")
 	}
 	return out
 }
@@ -119,7 +119,7 @@ func keptReasons(u any) map[string]any {
 	out := map[string]any{}
 	entries, _ := u.(map[string]any)
 	for key, entry := range entries {
-		out[key] = at(entry, "reason")
+		out[key] = valueAtPath(entry, "reason")
 	}
 	return out
 }
@@ -130,7 +130,7 @@ func keptPointers(u any) map[string]any {
 	out := map[string]any{}
 	entries, _ := u.(map[string]any)
 	for key, entry := range entries {
-		out[key] = at(entry, "provenance", "pointer")
+		out[key] = valueAtPath(entry, "provenance", "pointer")
 	}
 	return out
 }
@@ -141,7 +141,7 @@ func namedItem(t *testing.T, list any, name string) any {
 	t.Helper()
 	items, _ := list.([]any)
 	for _, item := range items {
-		if at(item, "name", "source") == name || at(item, "wireName") == name {
+		if valueAtPath(item, "name", "source") == name || valueAtPath(item, "wireName") == name {
 			return item
 		}
 	}

@@ -52,9 +52,9 @@ func TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect(t *testing.T) {
 		"    D: {$schema: null}\n", self)
 	d := "http://json-schema.org/draft-04/schema#"
 	assert.Equal(t, map[reftable.DocumentPointer]string{
-		at("/components/schemas/A"):                                         d,
-		at("/paths/~1p/get/parameters/0/schema"):                            d,
-		at("/paths/~1p/get/responses/200/content/application~1json/schema"): d,
+		documentPointerAt("/components/schemas/A"):                                         d,
+		documentPointerAt("/paths/~1p/get/parameters/0/schema"):                            d,
+		documentPointerAt("/paths/~1p/get/responses/200/content/application~1json/schema"): d,
 	}, rootsOf(table))
 	for _, r := range dialectRoots(table) {
 		require.NotNil(t, r.Node, r.At.Pointer)
@@ -103,8 +103,8 @@ func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
 		"    T: {$schema: "+d4+", properties: {a: {$id: 'https://example.com/a', $schema: 'https://example.com/inner'},\n"+
 		"      b: {$id: 'spec.yaml', $schema: 'https://example.com/self'}, c: {$schema: 'https://example.com/none'}}}\n", self)
 	assert.Equal(t, map[reftable.DocumentPointer]string{
-		at("/components/schemas/T"):              "http://json-schema.org/draft-04/schema#",
-		at("/components/schemas/T/properties/a"): "https://example.com/inner",
+		documentPointerAt("/components/schemas/T"):              "http://json-schema.org/draft-04/schema#",
+		documentPointerAt("/components/schemas/T/properties/a"): "https://example.com/inner",
 	}, rootsOf(table))
 }
 

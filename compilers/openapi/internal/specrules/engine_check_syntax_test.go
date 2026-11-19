@@ -20,16 +20,16 @@ func TestCheck_NamesSentInAHeaderOrACookieAreTokens(t *testing.T) {
 	param := func(name, in string) string { return "{name: " + name + ", in: " + in + ", schema: {}}" }
 	verify(t, []scenario{
 		{"a header token", "3.1.0", specrules.Parameter, param("X-Request-Id", "header"), nil},
-		{"a header with a space", "3.1.0", specrules.Parameter, param(`"X Id"`, "header"), []finding{at(badFormat, "/name")}},
-		{"a header with a colon", "3.0.3", specrules.Parameter, param(`"X:Id"`, "header"), []finding{at(badFormat, "/name")}},
-		{"an empty header name", "3.2.0", specrules.Parameter, param(`""`, "header"), []finding{at(badFormat, "/name")}},
+		{"a header with a space", "3.1.0", specrules.Parameter, param(`"X Id"`, "header"), []finding{findingAtPointer(badFormat, "/name")}},
+		{"a header with a colon", "3.0.3", specrules.Parameter, param(`"X:Id"`, "header"), []finding{findingAtPointer(badFormat, "/name")}},
+		{"an empty header name", "3.2.0", specrules.Parameter, param(`""`, "header"), []finding{findingAtPointer(badFormat, "/name")}},
 		{"a cookie token", "3.1.0", specrules.Parameter, param("session_id", "cookie"), nil},
-		{"a cookie with a semicolon", "3.1.0", specrules.Parameter, param(`"a;b"`, "cookie"), []finding{at(badFormat, "/name")}},
-		{"a cookie with a non-ASCII letter", "3.2.0", specrules.Parameter, param(`"café"`, "cookie"), []finding{at(badFormat, "/name")}},
+		{"a cookie with a semicolon", "3.1.0", specrules.Parameter, param(`"a;b"`, "cookie"), []finding{findingAtPointer(badFormat, "/name")}},
+		{"a cookie with a non-ASCII letter", "3.2.0", specrules.Parameter, param(`"café"`, "cookie"), []finding{findingAtPointer(badFormat, "/name")}},
 		{"a query name is any string", "3.1.0", specrules.Parameter, param(`"a b;c"`, "query"), nil},
 		{"a path name is the template's to judge", "3.1.0", specrules.Parameter, `{name: "a b", in: path, required: true, schema: {}}`, nil},
-		{"no name, no token to judge", "3.1.0", specrules.Parameter, `{in: header, schema: {}}`, []finding{at(required, "")}},
-		{"a name that is no scalar", "3.1.0", specrules.Parameter, `{name: [a], in: header, schema: {}}`, []finding{at(mismatch, "/name")}},
+		{"no name, no token to judge", "3.1.0", specrules.Parameter, `{in: header, schema: {}}`, []finding{findingAtPointer(required, "")}},
+		{"a name that is no scalar", "3.1.0", specrules.Parameter, `{name: [a], in: header, schema: {}}`, []finding{findingAtPointer(mismatch, "/name")}},
 	})
 }
 
@@ -39,9 +39,9 @@ func TestCheck_AnAPIKeyIsSentUnderAToken(t *testing.T) {
 	key := func(name, in string) string { return "{type: apiKey, name: " + name + ", in: " + in + "}" }
 	verify(t, []scenario{
 		{"a header token", "3.1.0", specrules.SecurityScheme, key("X-API-Key", "header"), nil},
-		{"a header with a space", "3.0.3", specrules.SecurityScheme, key(`"X API"`, "header"), []finding{at(badFormat, "/name")}},
-		{"an empty header name", "3.1.0", specrules.SecurityScheme, key(`""`, "header"), []finding{at(badFormat, "/name")}},
-		{"a cookie with a comma", "3.2.0", specrules.SecurityScheme, key(`"a,b"`, "cookie"), []finding{at(badFormat, "/name")}},
+		{"a header with a space", "3.0.3", specrules.SecurityScheme, key(`"X API"`, "header"), []finding{findingAtPointer(badFormat, "/name")}},
+		{"an empty header name", "3.1.0", specrules.SecurityScheme, key(`""`, "header"), []finding{findingAtPointer(badFormat, "/name")}},
+		{"a cookie with a comma", "3.2.0", specrules.SecurityScheme, key(`"a,b"`, "cookie"), []finding{findingAtPointer(badFormat, "/name")}},
 		{"a cookie token", "3.2.0", specrules.SecurityScheme, key("sid", "cookie"), nil},
 		{"a query name is any string", "3.1.0", specrules.SecurityScheme, key(`"a b"`, "query"), nil},
 		{"a name beside another type is not judged", "3.1.0", specrules.SecurityScheme,
@@ -55,9 +55,9 @@ func TestCheck_AnAPIKeyIsSentUnderAToken(t *testing.T) {
 func TestCheck_AnHTTPSchemeIsAToken(t *testing.T) {
 	verify(t, []scenario{
 		{"bearer", "3.0.3", specrules.SecurityScheme, `{type: http, scheme: bearer}`, nil},
-		{"a scheme with a space", "3.0.3", specrules.SecurityScheme, `{type: http, scheme: "my scheme"}`, []finding{at(badFormat, "/scheme")}},
-		{"a scheme with a slash", "3.1.0", specrules.SecurityScheme, `{type: http, scheme: "a/b"}`, []finding{at(badFormat, "/scheme")}},
-		{"a scheme with a slash in 3.2", "3.2.0", specrules.SecurityScheme, `{type: http, scheme: "a/b"}`, []finding{at(badFormat, "/scheme")}},
+		{"a scheme with a space", "3.0.3", specrules.SecurityScheme, `{type: http, scheme: "my scheme"}`, []finding{findingAtPointer(badFormat, "/scheme")}},
+		{"a scheme with a slash", "3.1.0", specrules.SecurityScheme, `{type: http, scheme: "a/b"}`, []finding{findingAtPointer(badFormat, "/scheme")}},
+		{"a scheme with a slash in 3.2", "3.2.0", specrules.SecurityScheme, `{type: http, scheme: "a/b"}`, []finding{findingAtPointer(badFormat, "/scheme")}},
 		{"an empty scheme is the lowering's", "3.1.0", specrules.SecurityScheme, `{type: http, scheme: ""}`, nil},
 		{"a scheme beside another type is not judged", "3.1.0", specrules.SecurityScheme,
 			`{type: apiKey, name: n, in: query, scheme: "a b"}`, nil},
@@ -72,11 +72,11 @@ func TestCheck_TheOpenAPIFieldIsAVersionNumber(t *testing.T) {
 	verify(t, []scenario{
 		{"a version number", "3.1.0", specrules.Document, doc("3.1.0"), nil},
 		{"many digits", "3.1.0", specrules.Document, doc("3.10.207"), nil},
-		{"two parts", "3.1.0", specrules.Document, doc("3.1"), []finding{at(badFormat, "/openapi")}},
-		{"four parts", "3.1.0", specrules.Document, doc("3.1.0.1"), []finding{at(badFormat, "/openapi")}},
-		{"a suffix", "3.1.0", specrules.Document, doc("3.1.0-rc1"), []finding{at(badFormat, "/openapi")}},
-		{"a letter", "3.1.0", specrules.Document, doc("3.1.x"), []finding{at(badFormat, "/openapi")}},
-		{"an empty part", "3.1.0", specrules.Document, doc("3..1"), []finding{at(badFormat, "/openapi")}},
+		{"two parts", "3.1.0", specrules.Document, doc("3.1"), []finding{findingAtPointer(badFormat, "/openapi")}},
+		{"four parts", "3.1.0", specrules.Document, doc("3.1.0.1"), []finding{findingAtPointer(badFormat, "/openapi")}},
+		{"a suffix", "3.1.0", specrules.Document, doc("3.1.0-rc1"), []finding{findingAtPointer(badFormat, "/openapi")}},
+		{"a letter", "3.1.0", specrules.Document, doc("3.1.x"), []finding{findingAtPointer(badFormat, "/openapi")}},
+		{"an empty part", "3.1.0", specrules.Document, doc("3..1"), []finding{findingAtPointer(badFormat, "/openapi")}},
 	})
 }
 
@@ -91,10 +91,10 @@ func TestCheck_AServerURLWritesOnlyWhatAURLHolds(t *testing.T) {
 		{"a relative URL", "3.1.0", specrules.Server, url("/v1"), nil},
 		{"an escape", "3.1.0", specrules.Server, url("https://x/%41%e9"), nil},
 		{"text beyond ASCII", "3.1.0", specrules.Server, url("https://exämple.org"), nil},
-		{"a malformed escape", "3.1.0", specrules.Server, url("https://x/%zz"), []finding{at(badFormat, "/url")}},
-		{"an escape cut short", "3.1.0", specrules.Server, url("https://x/%4"), []finding{at(badFormat, "/url")}},
-		{"a space", "3.0.3", specrules.Server, url("https://a b"), []finding{at(badFormat, "/url")}},
-		{"a pipe", "3.1.0", specrules.Server, url("https://a|b"), []finding{at(badFormat, "/url")}},
+		{"a malformed escape", "3.1.0", specrules.Server, url("https://x/%zz"), []finding{findingAtPointer(badFormat, "/url")}},
+		{"an escape cut short", "3.1.0", specrules.Server, url("https://x/%4"), []finding{findingAtPointer(badFormat, "/url")}},
+		{"a space", "3.0.3", specrules.Server, url("https://a b"), []finding{findingAtPointer(badFormat, "/url")}},
+		{"a pipe", "3.1.0", specrules.Server, url("https://a|b"), []finding{findingAtPointer(badFormat, "/url")}},
 	})
 }
 
@@ -108,11 +108,11 @@ func TestCheck_AnEncodingContentTypeListsMediaTypes(t *testing.T) {
 		{"any", "3.1.0", specrules.Encoding, enc("*/*"), nil},
 		{"a list with parameters", "3.1.0", specrules.Encoding, enc("text/plain; charset=utf-8, application/json"), nil},
 		{"an empty element", "3.1.0", specrules.Encoding, enc("text/plain,"), nil},
-		{"empty", "3.1.0", specrules.Encoding, enc(""), []finding{at(empty, "/contentType")}},
-		{"no element", "3.1.0", specrules.Encoding, enc(", ,"), []finding{at(badFormat, "/contentType")}},
-		{"no subtype", "3.1.0", specrules.Encoding, enc("text"), []finding{at(badFormat, "/contentType")}},
-		{"prose", "3.1.0", specrules.Encoding, enc("not a media type"), []finding{at(badFormat, "/contentType")}},
-		{"one bad element", "3.1.0", specrules.Encoding, enc("image/png, png"), []finding{at(badFormat, "/contentType")}},
+		{"empty", "3.1.0", specrules.Encoding, enc(""), []finding{findingAtPointer(empty, "/contentType")}},
+		{"no element", "3.1.0", specrules.Encoding, enc(", ,"), []finding{findingAtPointer(badFormat, "/contentType")}},
+		{"no subtype", "3.1.0", specrules.Encoding, enc("text"), []finding{findingAtPointer(badFormat, "/contentType")}},
+		{"prose", "3.1.0", specrules.Encoding, enc("not a media type"), []finding{findingAtPointer(badFormat, "/contentType")}},
+		{"one bad element", "3.1.0", specrules.Encoding, enc("image/png, png"), []finding{findingAtPointer(badFormat, "/contentType")}},
 	})
 }
 
@@ -137,11 +137,11 @@ func TestCheck_CallbackKeysAreRuntimeExpressions(t *testing.T) {
 		`'{{$url}}'`, `'{$urls}'`, `'$response.'`, `'a{b'`,
 	}
 	for _, key := range bad {
-		verify(t, []scenario{{"invalid " + key, "3.1.0", specrules.Callback, cb(key), []finding{at(badFormat, "/"+path(key))}}})
+		verify(t, []scenario{{"invalid " + key, "3.1.0", specrules.Callback, cb(key), []finding{findingAtPointer(badFormat, "/"+path(key))}}})
 	}
 	verify(t, []scenario{
 		{"extensions are not keys", "3.1.0", specrules.Callback, `{x-e: 1}`, nil},
-		{"an invalid key in 3.0", "3.0.3", specrules.Callback, `{"$request.bogus": {}}`, []finding{at(badFormat, "/$request.bogus")}},
+		{"an invalid key in 3.0", "3.0.3", specrules.Callback, `{"$request.bogus": {}}`, []finding{findingAtPointer(badFormat, "/$request.bogus")}},
 	})
 }
 
@@ -236,24 +236,24 @@ func TestCheck_ANullBesideARequirementsNameListsNoScopes(t *testing.T) {
 func TestCheck_ANullReadAsLeftOutIsNoFieldToARule(t *testing.T) {
 	verify(t, []scenario{
 		{"an exclusion", "3.1.0", specrules.Parameter, `{name: a, in: query, schema: {}, content: ~}`,
-			[]finding{at(mismatch, "/content")}},
+			[]finding{findingAtPointer(mismatch, "/content")}},
 		{"a choice", "3.1.0", specrules.Parameter, `{name: a, in: query, content: ~}`,
-			[]finding{at(mismatch, "/content"), at(required, "")}},
+			[]finding{findingAtPointer(mismatch, "/content"), findingAtPointer(required, "")}},
 		{"a section", "3.1.0", specrules.Document, "{openapi: 3.1.0, info: {title: t, version: v}, paths: ~}",
-			[]finding{at(mismatch, "/paths"), at(required, "")}},
+			[]finding{findingAtPointer(mismatch, "/paths"), findingAtPointer(required, "")}},
 		{"a field barred", "3.2.0", specrules.Parameter, `{name: a, in: querystring, content: {a/b: {}}, explode: ~}`,
-			[]finding{at(mismatch, "/explode")}},
+			[]finding{findingAtPointer(mismatch, "/explode")}},
 		{"a field idle", "3.1.0", specrules.Parameter, `{name: a, in: path, required: true, schema: {}, allowReserved: ~}`,
-			[]finding{at(mismatch, "/allowReserved")}},
+			[]finding{findingAtPointer(mismatch, "/allowReserved")}},
 		{"an encoding idle", "3.2.0", specrules.Response, `{description: d, content: {application/json: {encoding: ~}}}`,
-			[]finding{at(mismatch, "/content/application~1json/encoding")}},
+			[]finding{findingAtPointer(mismatch, "/content/application~1json/encoding")}},
 		{"a field a later minor added", "3.1.0", specrules.RequestBody, `{content: {application/json: {prefixEncoding: ~}}}`,
-			[]finding{at(later, "/content/application~1json/prefixEncoding"),
-				at(mismatch, "/content/application~1json/prefixEncoding")}},
+			[]finding{findingAtPointer(later, "/content/application~1json/prefixEncoding"),
+				findingAtPointer(mismatch, "/content/application~1json/prefixEncoding")}},
 		{"a null of the wrong shape is written", "3.1.0", specrules.Parameter, `{name: a, in: query, schema: ~, content: {a/b: {}}}`,
-			[]finding{at(mismatch, "/schema"), at(exclusive, "")}},
+			[]finding{findingAtPointer(mismatch, "/schema"), findingAtPointer(exclusive, "")}},
 		{"a null example is a value", "3.1.0", specrules.MediaType, `{example: ~, examples: {}}`,
-			[]finding{at(exclusive, "")}},
+			[]finding{findingAtPointer(exclusive, "")}},
 	})
 }
 
@@ -291,10 +291,10 @@ func TestCheck_SeenReportsTheObjectsReadAsTheirKind(t *testing.T) {
 func TestCheck_AnAnchorIsANameJSONSchemaAdmits(t *testing.T) {
 	verify(t, []scenario{
 		{"a name", "3.1.0", specrules.Schema, `{$anchor: _a1.b-c, $dynamicAnchor: Node}`, nil},
-		{"a leading digit", "3.1.0", specrules.Schema, `{$anchor: 1a}`, []finding{at(badFormat, "/$anchor")}},
-		{"a colon", "3.2.0", specrules.Schema, `{$dynamicAnchor: "a:b"}`, []finding{at(badFormat, "/$dynamicAnchor")}},
+		{"a leading digit", "3.1.0", specrules.Schema, `{$anchor: 1a}`, []finding{findingAtPointer(badFormat, "/$anchor")}},
+		{"a colon", "3.2.0", specrules.Schema, `{$dynamicAnchor: "a:b"}`, []finding{findingAtPointer(badFormat, "/$dynamicAnchor")}},
 		{"empty", "3.1.0", specrules.Schema, `{$anchor: "", $dynamicAnchor: ""}`,
-			[]finding{at(empty, "/$anchor"), at(empty, "/$dynamicAnchor")}},
-		{"3.0 has no anchors", "3.0.3", specrules.Schema, `{$anchor: 1a}`, []finding{at(later, "/$anchor"), at(badFormat, "/$anchor")}},
+			[]finding{findingAtPointer(empty, "/$anchor"), findingAtPointer(empty, "/$dynamicAnchor")}},
+		{"3.0 has no anchors", "3.0.3", specrules.Schema, `{$anchor: 1a}`, []finding{findingAtPointer(later, "/$anchor"), findingAtPointer(badFormat, "/$anchor")}},
 	})
 }

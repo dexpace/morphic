@@ -604,9 +604,9 @@ func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	assert.False(t, known)
 
 	deep := bound(t, deepMerge(), self)
-	_, known = deep.Base(at("/components/schemas/A"))
+	_, known = deep.Base(documentPointerAt("/components/schemas/A"))
 	assert.False(t, known, "past the merge bound")
-	_, known = deep.Base(at("/components/schemas/B"))
+	_, known = deep.Base(documentPointerAt("/components/schemas/B"))
 	assert.True(t, known, "within it")
 }
 

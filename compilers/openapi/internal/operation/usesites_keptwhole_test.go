@@ -26,9 +26,9 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 		assert.Equal(t, "openapi/degraded-construct info", d.Code+" "+string(d.Severity), d.Message)
 	}
 	facts := opTree(t, doc, "facts")
-	params, headers := at(facts, "params"), at(facts, "responses", "0", "headers")
+	params, headers := valueAtPath(facts, "params"), valueAtPath(facts, "responses", "0", "headers")
 	body := tree(t, doc.Types[ir.TypeID("type/anonymous/paths/~1facts/get/responses/200/content/application~1json/schema")])
-	properties := at(body, "properties")
+	properties := valueAtPath(body, "properties")
 	for _, c := range []struct {
 		name, scope, branch string
 		carrier             any
@@ -43,9 +43,9 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 		{"property ref_first", "", "allOf/1", namedItem(t, properties, "ref_first")},
 		{"property branch_first", "", "allOf/0", namedItem(t, properties, "branch_first")},
 	} {
-		assert.Equal(t, true, at(c.carrier, "secret"), c.name)
-		assert.Equal(t, "old", at(c.carrier, "deprecation", "message"), c.name)
-		held := entries(t, at(c.carrier, "unmodeled"))
+		assert.Equal(t, true, valueAtPath(c.carrier, "secret"), c.name)
+		assert.Equal(t, "old", valueAtPath(c.carrier, "deprecation", "message"), c.name)
+		held := entries(t, valueAtPath(c.carrier, "unmodeled"))
 		kept := make([]string, 0, len(held))
 		for key := range held {
 			kept = append(kept, key)
@@ -60,11 +60,11 @@ func TestPromotion_ReadsAKeyInABranchKeptWhole(t *testing.T) {
 
 	for _, name := range []string{"pagesRefFirst", "pagesBranchFirst", "pagesContentRefFirst", "pagesContentBranchFirst"} {
 		op := opTree(t, doc, name)
-		if !assert.NotNil(t, at(op, "pagination"), name) {
+		if !assert.NotNil(t, valueAtPath(op, "pagination"), name) {
 			continue
 		}
-		assert.Equal(t, "cursor", at(op, "pagination", "strategy"), name)
-		assert.Equal(t, at(namedItem(t, at(op, "params"), "cursor"), "id"), at(op, "pagination", "inputCursor", "param"), name)
-		assert.NotNil(t, at(op, "pagination", "nextCursor", "segments"), name)
+		assert.Equal(t, "cursor", valueAtPath(op, "pagination", "strategy"), name)
+		assert.Equal(t, valueAtPath(namedItem(t, valueAtPath(op, "params"), "cursor"), "id"), valueAtPath(op, "pagination", "inputCursor", "param"), name)
+		assert.NotNil(t, valueAtPath(op, "pagination", "nextCursor", "segments"), name)
 	}
 }

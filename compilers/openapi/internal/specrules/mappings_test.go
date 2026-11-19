@@ -50,21 +50,21 @@ func TestCheckFormat_AKeyIsAString(t *testing.T) {
 	}{
 		{"a well-formed document draws nothing",
 			"a: {b: 1}\nm: &m {k: v}\nn: {<<: *m}\nl: {<<: [*m, *m]}\n", []finding{}},
-		{"a mapping key", "x-e:\n  ? {k: v}\n  : 1\n", []finding{at(mismatch, "/x-e")}},
-		{"a list key", "x-e:\n  ? [k]\n  : 1\n", []finding{at(mismatch, "/x-e")}},
+		{"a mapping key", "x-e:\n  ? {k: v}\n  : 1\n", []finding{findingAtPointer(mismatch, "/x-e")}},
+		{"a list key", "x-e:\n  ? [k]\n  : 1\n", []finding{findingAtPointer(mismatch, "/x-e")}},
 		{"two keys of one mapping are two findings", "x-e:\n  ? [a]\n  : 1\n  ? [b]\n  : 2\n",
-			[]finding{at(mismatch, "/x-e"), at(mismatch, "/x-e")}},
-		{"an alias to a mapping as a key", "m: &m {k: v}\nx-e: {*m : 1}\n", []finding{at(mismatch, "/x-e")}},
-		{"a merge of a scalar", "x-e: {<<: 5}\n", []finding{at(mismatch, "/x-e")}},
-		{"a merge of an alias to a scalar", "s: &s five\nx-e: {<<: *s}\n", []finding{at(mismatch, "/x-e")}},
-		{"a scalar in a merge list", "m: &m {k: v}\nx-e: {<<: [*m, 5]}\n", []finding{at(mismatch, "/x-e")}},
+			[]finding{findingAtPointer(mismatch, "/x-e"), findingAtPointer(mismatch, "/x-e")}},
+		{"an alias to a mapping as a key", "m: &m {k: v}\nx-e: {*m : 1}\n", []finding{findingAtPointer(mismatch, "/x-e")}},
+		{"a merge of a scalar", "x-e: {<<: 5}\n", []finding{findingAtPointer(mismatch, "/x-e")}},
+		{"a merge of an alias to a scalar", "s: &s five\nx-e: {<<: *s}\n", []finding{findingAtPointer(mismatch, "/x-e")}},
+		{"a scalar in a merge list", "m: &m {k: v}\nx-e: {<<: [*m, 5]}\n", []finding{findingAtPointer(mismatch, "/x-e")}},
 		{"a scalar in an aliased merge list", "m: &m {k: v}\nl: &l [*m, 5]\nx-e: {<<: *l}\n",
-			[]finding{at(mismatch, "/x-e")}},
+			[]finding{findingAtPointer(mismatch, "/x-e")}},
 		{"a key no scalar in a merged mapping is the merging mapping's",
-			"x-e: {<<: {? [k] : 1}}\n", []finding{at(mismatch, "/x-e")}},
-		{"in a merged list too", "x-e: {<<: [{? [k] : 1}]}\n", []finding{at(mismatch, "/x-e")}},
+			"x-e: {<<: {? [k] : 1}}\n", []finding{findingAtPointer(mismatch, "/x-e")}},
+		{"in a merged list too", "x-e: {<<: [{? [k] : 1}]}\n", []finding{findingAtPointer(mismatch, "/x-e")}},
 		{"a node an alias mounts twice is reported once", "m: &m {? [k] : 1}\na: *m\nb: *m\n",
-			[]finding{at(mismatch, "/m")}},
+			[]finding{findingAtPointer(mismatch, "/m")}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -101,12 +101,12 @@ func TestCheckFormat_IsBoundedAndKeyedToTheMinor(t *testing.T) {
 	t.Parallel()
 	const doc = "x-e:\n  ? [k]\n  : 1\n" // six nodes
 	assert.Empty(t, formatFindings(t, "2.0", doc, budget.Unbounded()))
-	assert.Equal(t, []finding{at(diag.BudgetExceeded, "")}, formatFindings(t, "3.1.0", doc, budget.AtMost(2)),
+	assert.Equal(t, []finding{findingAtPointer(diag.BudgetExceeded, "")}, formatFindings(t, "3.1.0", doc, budget.AtMost(2)),
 		"cut before the mapping holding the key, the third node")
-	assert.Equal(t, []finding{at(mismatch, "/x-e"), at(diag.BudgetExceeded, "")},
+	assert.Equal(t, []finding{findingAtPointer(mismatch, "/x-e"), findingAtPointer(diag.BudgetExceeded, "")},
 		formatFindings(t, "3.1.0", doc, budget.AtMost(5)), "cut past it, one node short of the tree")
-	assert.Equal(t, []finding{at(mismatch, "/x-e")}, formatFindings(t, "3.1.0", doc, budget.AtMost(6)))
-	assert.Equal(t, []finding{at(mismatch, "/x-e")}, formatFindings(t, "3.1.0", doc, budget.Unbounded()))
+	assert.Equal(t, []finding{findingAtPointer(mismatch, "/x-e")}, formatFindings(t, "3.1.0", doc, budget.AtMost(6)))
+	assert.Equal(t, []finding{findingAtPointer(mismatch, "/x-e")}, formatFindings(t, "3.1.0", doc, budget.Unbounded()))
 }
 
 // TestCheckFormat_NamesEachKind pins kindName over what a merge can name: a

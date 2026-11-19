@@ -47,36 +47,36 @@ func TestCheck_ASchemaIsHeldToItsDialectsRows(t *testing.T) {
 		name, dialect, doc string
 		want               []finding
 	}{
-		{"an empty required in draft 4", draft04, `{required: []}`, []finding{at(entries, "/required")}},
+		{"an empty required in draft 4", draft04, `{required: []}`, []finding{findingAtPointer(entries, "/required")}},
 		{"an empty required in draft 7", draft07, `{required: []}`, nil},
-		{"a number for draft 4's id", draft04, `{id: 5}`, []finding{at(mismatch, "/id")}},
+		{"a number for draft 4's id", draft04, `{id: 5}`, []finding{findingAtPointer(mismatch, "/id")}},
 		{"a $id draft 4 reads for nothing", draft04, `{$id: 'not a uri#x'}`, nil},
 		{"draft 4's definitions", draft04, `{definitions: {Unused: {type: string, minLength: abc}}}`,
-			[]finding{at(mismatch, "/definitions/Unused/minLength")}},
-		{"a number for definitions", draft04, `{definitions: 5}`, []finding{at(mismatch, "/definitions")}},
-		{"a number for dependencies", draft04, `{dependencies: 5}`, []finding{at(mismatch, "/dependencies")}},
+			[]finding{findingAtPointer(mismatch, "/definitions/Unused/minLength")}},
+		{"a number for definitions", draft04, `{definitions: 5}`, []finding{findingAtPointer(mismatch, "/definitions")}},
+		{"a number for dependencies", draft04, `{dependencies: 5}`, []finding{findingAtPointer(mismatch, "/dependencies")}},
 		{"a boolean schema in draft 4", draft04, `{properties: {a: true}, not: false}`,
-			[]finding{at(mismatch, "/properties/a"), at(mismatch, "/not")}},
+			[]finding{findingAtPointer(mismatch, "/properties/a"), findingAtPointer(mismatch, "/not")}},
 		{"a boolean schema in draft 6", draft06, `{properties: {a: true}, not: false}`, nil},
 		{"draft 4's additionalProperties takes a boolean", draft04, `{additionalProperties: false}`, nil},
 		{"draft 7's dependencies", draft07, `{dependencies: {a: {minLength: abc}, b: [x, x], c: 5, d: [], e: true}}`,
-			[]finding{at(mismatch, "/dependencies/a/minLength"), at(duplicate, "/dependencies/b/1"),
-				at(mismatch, "/dependencies/c")}},
+			[]finding{findingAtPointer(mismatch, "/dependencies/a/minLength"), findingAtPointer(duplicate, "/dependencies/b/1"),
+				findingAtPointer(mismatch, "/dependencies/c")}},
 		{"draft 4's dependencies", draft04, `{dependencies: {a: [], b: [{}], c: true}}`,
-			[]finding{at(entries, "/dependencies/a"), at(mismatch, "/dependencies/b"), at(mismatch, "/dependencies/c")}},
+			[]finding{findingAtPointer(entries, "/dependencies/a"), findingAtPointer(mismatch, "/dependencies/b"), findingAtPointer(mismatch, "/dependencies/c")}},
 		{"a draft's tuple", draft07, `{items: [{minLength: abc}, 5], additionalItems: 5}`,
-			[]finding{at(mismatch, "/items/0/minLength"), at(mismatch, "/items/1"), at(mismatch, "/additionalItems")}},
-		{"a null rest", draft07, `{items: [{}], additionalItems: null}`, []finding{at(mismatch, "/additionalItems")}},
+			[]finding{findingAtPointer(mismatch, "/items/0/minLength"), findingAtPointer(mismatch, "/items/1"), findingAtPointer(mismatch, "/additionalItems")}},
+		{"a null rest", draft07, `{items: [{}], additionalItems: null}`, []finding{findingAtPointer(mismatch, "/additionalItems")}},
 		{"draft 4's exclusive bound", draft04, `{minimum: 1, exclusiveMinimum: true, exclusiveMaximum: 5}`,
-			[]finding{at(form, "/exclusiveMaximum")}},
-		{"a list of items in 2020-12", draft2020, `{items: [{}]}`, []finding{at(itemsList, "/items")}},
+			[]finding{findingAtPointer(form, "/exclusiveMaximum")}},
+		{"a list of items in 2020-12", draft2020, `{items: [{}]}`, []finding{findingAtPointer(itemsList, "/items")}},
 		{"a keyword 2020-12 added", draft04, `{examples: 5, $defs: {A: {minLength: abc}}}`,
-			[]finding{at(later, "/examples"), at(mismatch, "/examples"), at(later, "/$defs"),
-				at(mismatch, "/$defs/A/minLength")}},
-		{"prefixItems beside a draft's tuple", draft07, `{items: [{}], prefixItems: [{}]}`, []finding{at(later, "/prefixItems")}},
-		{"an anchor draft 7 defines none of", draft07, `{$anchor: 1a}`, []finding{at(later, "/$anchor"), at(badFormat, "/$anchor")}},
+			[]finding{findingAtPointer(later, "/examples"), findingAtPointer(mismatch, "/examples"), findingAtPointer(later, "/$defs"),
+				findingAtPointer(mismatch, "/$defs/A/minLength")}},
+		{"prefixItems beside a draft's tuple", draft07, `{items: [{}], prefixItems: [{}]}`, []finding{findingAtPointer(later, "/prefixItems")}},
+		{"an anchor draft 7 defines none of", draft07, `{$anchor: 1a}`, []finding{findingAtPointer(later, "/$anchor"), findingAtPointer(badFormat, "/$anchor")}},
 		{"an anchor in 2019-09's grammar", draft2019, `{$anchor: 'a:b'}`, nil},
-		{"an empty anchor in 2019-09", draft2019, `{$anchor: ''}`, []finding{at(empty, "/$anchor")}},
+		{"an empty anchor in 2019-09", draft2019, `{$anchor: ''}`, []finding{findingAtPointer(empty, "/$anchor")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			want := append([]finding(nil), tc.want...)
@@ -100,16 +100,16 @@ func TestCheck_ABooleanSchemaStandsWhereItsDialectAdmitsOne(t *testing.T) {
 	}{
 		{"in a keyword 2020-12 added", draft04, specrules.Schema,
 			`{prefixItems: [true], $defs: {A: false}, dependentSchemas: {a: true}, contains: true}`,
-			[]finding{at(later, "/prefixItems"), at(later, "/$defs"), at(later, "/dependentSchemas"), at(later, "/contains")}},
+			[]finding{findingAtPointer(later, "/prefixItems"), findingAtPointer(later, "/$defs"), findingAtPointer(later, "/dependentSchemas"), findingAtPointer(later, "/contains")}},
 		{"in draft 4's own keywords", draft04, specrules.Schema, `{allOf: [true], properties: {a: false}}`,
-			[]finding{at(mismatch, "/allOf/0"), at(mismatch, "/properties/a")}},
+			[]finding{findingAtPointer(mismatch, "/allOf/0"), findingAtPointer(mismatch, "/properties/a")}},
 		{"for a list or a map of schemas", draft06, specrules.Schema, `{allOf: true, properties: false}`,
-			[]finding{at(mismatch, "/allOf"), at(mismatch, "/properties")}},
+			[]finding{findingAtPointer(mismatch, "/allOf"), findingAtPointer(mismatch, "/properties")}},
 		{"for a list a keyword 2020-12 added", draft04, specrules.Schema, `{prefixItems: true}`,
-			[]finding{at(later, "/prefixItems"), at(mismatch, "/prefixItems")}},
-		{"a media type's in draft 4", draft04, specrules.MediaType, `{schema: true}`, []finding{at(mismatch, "/schema")}},
+			[]finding{findingAtPointer(later, "/prefixItems"), findingAtPointer(mismatch, "/prefixItems")}},
+		{"a media type's in draft 4", draft04, specrules.MediaType, `{schema: true}`, []finding{findingAtPointer(mismatch, "/schema")}},
 		{"a parameter's in draft 4", draft04, specrules.Parameter, `{name: q, in: query, schema: false}`,
-			[]finding{at(mismatch, "/schema")}},
+			[]finding{findingAtPointer(mismatch, "/schema")}},
 		{"a media type's in draft 6", draft06, specrules.MediaType, `{schema: true}`, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -179,7 +179,7 @@ func TestCheck_ARefsSiblingsInADraftAreWarnedOf(t *testing.T) {
 	doc := `{$ref: '#/a', description: d, minLength: abc, $schema: 'http://json-schema.org/draft-07/schema#', ` +
 		`definitions: {}, $comment: c, $id: x, x-a: 1, $defs: {}}`
 	assert.Empty(t, cmp.Diff([]finding{
-		at(later, "/$defs"), at(later, "/description"), at(later, "/minLength"), at(mismatch, "/minLength"),
+		findingAtPointer(later, "/$defs"), findingAtPointer(later, "/description"), findingAtPointer(later, "/minLength"), findingAtPointer(mismatch, "/minLength"),
 	}, findingsIn(t, draft07, doc)))
 	assert.Empty(t, findingsIn(t, draft2019, `{$ref: '#/a', description: d}`), "2019-09 applies them")
 	for _, d := range func() []ir.Diagnostic {
@@ -265,14 +265,14 @@ func TestCheck_BoundsFollowTheSchemasRows(t *testing.T) {
 		want               []finding
 	}{
 		{"decimals", "", `{minimum: '5', maximum: 1e3, multipleOf: 2}`, nil},
-		{"no decimal", "", `{maximum: .inf}`, []finding{at(literal, "/maximum")}},
-		{"a step no decimal spells", "", `{multipleOf: abc}`, []finding{at(literal, "/multipleOf")}},
+		{"no decimal", "", `{maximum: .inf}`, []finding{findingAtPointer(literal, "/maximum")}},
+		{"a step no decimal spells", "", `{multipleOf: abc}`, []finding{findingAtPointer(literal, "/multipleOf")}},
 		{"a number bound in 2020-12", "", `{exclusiveMinimum: 5}`, nil},
-		{"a boolean bound in 2020-12", "", `{exclusiveMinimum: true}`, []finding{at(form, "/exclusiveMinimum")}},
-		{"a number bound past a decimal", "", `{exclusiveMaximum: .inf}`, []finding{at(literal, "/exclusiveMaximum")}},
+		{"a boolean bound in 2020-12", "", `{exclusiveMinimum: true}`, []finding{findingAtPointer(form, "/exclusiveMinimum")}},
+		{"a number bound past a decimal", "", `{exclusiveMaximum: .inf}`, []finding{findingAtPointer(literal, "/exclusiveMaximum")}},
 		{"a boolean bound in draft 4", draft04, `{minimum: 1, exclusiveMaximum: false}`, nil},
-		{"a number bound in draft 4", draft04, `{exclusiveMinimum: 5}`, []finding{at(form, "/exclusiveMinimum")}},
-		{"a boolean bound in draft 6", draft06, `{exclusiveMinimum: true}`, []finding{at(form, "/exclusiveMinimum")}},
+		{"a number bound in draft 4", draft04, `{exclusiveMinimum: 5}`, []finding{findingAtPointer(form, "/exclusiveMinimum")}},
+		{"a boolean bound in draft 6", draft06, `{exclusiveMinimum: true}`, []finding{findingAtPointer(form, "/exclusiveMinimum")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Empty(t, cmp.Diff(tc.want, findingsIn(t, tc.dialect, tc.doc), cmpopts.EquateEmpty()))

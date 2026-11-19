@@ -32,24 +32,24 @@ func TestCheck_ReservedHeaderParameter(t *testing.T) {
 	verify(t, []scenario{
 		{"unreferenced component", "3.1.0", specrules.Document,
 			head + "components: {parameters: {U: {name: authorization, in: header, schema: {type: string}}}}}",
-			[]finding{at(reservedHeader, "/components/parameters/U/name")}},
+			[]finding{findingAtPointer(reservedHeader, "/components/parameters/U/name")}},
 		{"a component an operation uses", "3.1.0", specrules.Document,
 			head + "paths: {/a: {get: {parameters: [{$ref: '#/components/parameters/U'}], responses: {'200': {description: ok}}}}}, " +
 				"components: {parameters: {U: {name: authorization, in: header, schema: {type: string}}}}}",
-			[]finding{at(reservedHeader, "/components/parameters/U/name")}},
+			[]finding{findingAtPointer(reservedHeader, "/components/parameters/U/name")}},
 		{"an inline parameter", "3.1.0", specrules.Document,
 			head + "paths: {/a: {get: {parameters: [{name: ACCEPT, in: header, schema: {type: string}}], " +
 				"responses: {'200': {description: ok}}}}}}",
-			[]finding{at(reservedHeader, "/paths/~1a/get/parameters/0/name")}},
+			[]finding{findingAtPointer(reservedHeader, "/paths/~1a/get/parameters/0/name")}},
 		{"each of the three names, in any case", "3.0.3", specrules.Document,
 			"{openapi: 3.0.3, info: {title: t, version: '1'}, paths: {/a: {get: {parameters: [" +
 				"{name: Accept, in: header, schema: {type: string}}, " +
 				"{name: content-type, in: header, schema: {type: string}}, " +
 				"{name: AUTHORIZATION, in: header, schema: {type: string}}], responses: {'200': {description: ok}}}}}}",
 			[]finding{
-				at(reservedHeader, "/paths/~1a/get/parameters/0/name"),
-				at(reservedHeader, "/paths/~1a/get/parameters/1/name"),
-				at(reservedHeader, "/paths/~1a/get/parameters/2/name"),
+				findingAtPointer(reservedHeader, "/paths/~1a/get/parameters/0/name"),
+				findingAtPointer(reservedHeader, "/paths/~1a/get/parameters/1/name"),
+				findingAtPointer(reservedHeader, "/paths/~1a/get/parameters/2/name"),
 			}},
 		{"an ordinary header name", "3.1.0", specrules.Parameter, `{name: X-Trace, in: header, schema: {type: string}}`, nil},
 		{"a name that only contains a reserved one", "3.1.0", specrules.Parameter,
@@ -58,7 +58,7 @@ func TestCheck_ReservedHeaderParameter(t *testing.T) {
 		{"the same name in a cookie", "3.1.0", specrules.Parameter, `{name: Authorization, in: cookie, schema: {type: string}}`, nil},
 		{"a header parameter on its own", "3.1.0", specrules.Parameter,
 			`{name: Authorization, in: header, schema: {type: string}}`,
-			[]finding{at(reservedHeader, "/name")}},
+			[]finding{findingAtPointer(reservedHeader, "/name")}},
 	})
 }
 
@@ -69,13 +69,13 @@ func TestCheck_ReservedHeaderEntries(t *testing.T) {
 	verify(t, []scenario{
 		{"a response's Content-Type", "3.1.0", specrules.Response,
 			`{description: ok, headers: {Content-Type: {schema: {type: string}}}}`,
-			[]finding{at(reservedHeader, "/headers/Content-Type")}},
+			[]finding{findingAtPointer(reservedHeader, "/headers/Content-Type")}},
 		{"a response's lower-case spelling", "3.0.3", specrules.Response,
 			`{description: ok, headers: {content-type: {schema: {type: string}}}}`,
-			[]finding{at(reservedHeader, "/headers/content-type")}},
+			[]finding{findingAtPointer(reservedHeader, "/headers/content-type")}},
 		{"an encoding's Content-Type", "3.2.0", specrules.Encoding,
 			`{headers: {CONTENT-TYPE: {schema: {type: string}}, X-Part: {schema: {type: string}}}}`,
-			[]finding{at(reservedHeader, "/headers/CONTENT-TYPE")}},
+			[]finding{findingAtPointer(reservedHeader, "/headers/CONTENT-TYPE")}},
 		{"Accept and ordinary names are not reserved in a map", "3.1.0", specrules.Response,
 			`{description: ok, headers: {Accept: {schema: {type: string}}, X-Other: {schema: {type: string}}}}`, nil},
 	})
@@ -127,14 +127,14 @@ components:
 func TestCheck_KeysBesideARef(t *testing.T) {
 	verify(t, []scenario{
 		{"every position a Reference Object is read", "3.1.0", specrules.Document, besideRefDocument, []finding{
-			at(unknownKey, "/paths/~1a/post/parameters/0/x-note"),
-			at(unknownKey, "/paths/~1a/post/parameters/0/required"),
-			at(unknownKey, "/paths/~1a/post/requestBody/x-note"),
-			at(unknownKey, "/paths/~1a/post/responses/200/x-note"),
-			at(unknownKey, "/paths/~1a/post/responses/200/headers"),
-			at(unknownKey, "/paths/~1a/post/callbacks/cb/x-cb"),
-			at(unknownKey, "/paths/~1b/get/parameters/0/x-alias"),
-			at(unknownKey, "/components/parameters/Alias/x-alias"),
+			findingAtPointer(unknownKey, "/paths/~1a/post/parameters/0/x-note"),
+			findingAtPointer(unknownKey, "/paths/~1a/post/parameters/0/required"),
+			findingAtPointer(unknownKey, "/paths/~1a/post/requestBody/x-note"),
+			findingAtPointer(unknownKey, "/paths/~1a/post/responses/200/x-note"),
+			findingAtPointer(unknownKey, "/paths/~1a/post/responses/200/headers"),
+			findingAtPointer(unknownKey, "/paths/~1a/post/callbacks/cb/x-cb"),
+			findingAtPointer(unknownKey, "/paths/~1b/get/parameters/0/x-alias"),
+			findingAtPointer(unknownKey, "/components/parameters/Alias/x-alias"),
 		}},
 		{"summary and description alone", "3.1.0", specrules.Parameter,
 			`{$ref: '#/components/parameters/P', summary: s, description: d}`, nil},
@@ -144,7 +144,7 @@ func TestCheck_KeysBesideARef(t *testing.T) {
 				`components: {pathItems: {P: {post: {operationId: p, responses: {'200': {description: ok}}}}}}}`,
 			nil},
 		{"one bogus key beside a parameter's $ref", "3.0.3", specrules.Parameter,
-			`{$ref: '#/components/parameters/P', bogus: 1}`, []finding{at(unknownKey, "/bogus")}},
+			`{$ref: '#/components/parameters/P', bogus: 1}`, []finding{findingAtPointer(unknownKey, "/bogus")}},
 	})
 }
 
@@ -187,7 +187,7 @@ func TestCheck_UnknownKeysAreReportedAtEveryObject(t *testing.T) {
 			doc := strings.ReplaceAll(k.doc, "VERSION", version)
 			scenarios = append(scenarios, scenario{
 				name: version + " " + k.name, version: version, kind: k.kind, doc: doc,
-				want: []finding{at(unknownKey, "/bogus")},
+				want: []finding{findingAtPointer(unknownKey, "/bogus")},
 			}, scenario{
 				name: version + " " + k.name + " as an extension", version: version, kind: k.kind,
 				doc: strings.ReplaceAll(doc, "bogus", "x-bogus"),

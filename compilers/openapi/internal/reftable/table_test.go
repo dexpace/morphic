@@ -50,8 +50,8 @@ func entryAt(t *testing.T, table *reftable.ReferenceTargetTable, site jsontext.P
 	return e
 }
 
-// at is the source position pointer names.
-func at(pointer jsontext.Pointer) reftable.DocumentPointer {
+// documentPointerAt is the source position pointer names.
+func documentPointerAt(pointer jsontext.Pointer) reftable.DocumentPointer {
 	return reftable.DocumentPointer{Pointer: pointer}
 }
 
@@ -141,7 +141,7 @@ func TestBind_ReadsEachHop(t *testing.T) {
 			assert.Equal(t, tc.reason, e.Hop.Reason, e.Hop.Why())
 			if tc.reason == reftable.NoReason {
 				assert.Equal(t, reftable.Resolved, e.Hop.Status)
-				assert.Equal(t, at(tc.target), e.Hop.Target)
+				assert.Equal(t, documentPointerAt(tc.target), e.Hop.Target)
 			} else {
 				assert.Equal(t, reftable.Unresolved, e.Hop.Status)
 				assert.Equal(t, reftable.Unresolved, e.Chain.Status)
@@ -266,7 +266,7 @@ func TestBind_ReadsADefinitionByTheDefsRule(t *testing.T) {
 				return
 			}
 			require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, at(tc.want), e.Hop.Target, "a definition is placed where it is written")
+			assert.Equal(t, documentPointerAt(tc.want), e.Hop.Target, "a definition is placed where it is written")
 		})
 	}
 }
@@ -290,7 +290,7 @@ func TestBind_ReadsEachPositionAsTheJSONItSpells(t *testing.T) {
 		"/components/schemas/Base/properties/r":  "/components/schemas/Base/$defs/m",
 		"/components/schemas/Child/properties/r": "/components/schemas/Child/$defs/m",
 	} {
-		assert.Equal(t, at(want), entryAt(t, table, site).Hop.Target, site)
+		assert.Equal(t, documentPointerAt(want), entryAt(t, table, site).Hop.Target, site)
 	}
 }
 
@@ -305,7 +305,7 @@ func TestBind_ReadsEveryWebhookAsAPathItem(t *testing.T) {
 		"components:\n  schemas:\n    T: {type: string}\n", self)
 	for _, name := range []string{"x-h", "example", "plain"} {
 		e := entryAt(t, table, jsontext.Pointer("/webhooks/"+name+"/post/requestBody/content/a~1b/schema"))
-		assert.Equal(t, at("/components/schemas/T"), e.Hop.Target, name)
+		assert.Equal(t, documentPointerAt("/components/schemas/T"), e.Hop.Target, name)
 	}
 }
 
@@ -326,9 +326,9 @@ x-lib:
   S: {$ref: '#/components/schemas/Missing'}
   S: {type: string}
 `, self)
-	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: at("/x-lib/S"), Hops: 1},
+	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/x-lib/S"), Hops: 1},
 		entryAt(t, table, "/components/schemas/A").Chain, "in raw YAML")
-	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: at("/components/schemas/M"), Hops: 1}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
+	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/components/schemas/M"), Hops: 1}, entryAt(t, table, "/components/schemas/B").Chain, "in the model")
 }
 
 // TestBind_FollowsEachChainToItsEnd pins where a chain ends: at the first
@@ -346,7 +346,7 @@ x-lib:
   C: {type: string}
 `, self)
 	a := entryAt(t, table, "/components/schemas/A")
-	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: at("/x-lib/C"), Hops: 2},
+	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/x-lib/C"), Hops: 2},
 		a.Chain)
 	d := entryAt(t, table, "/components/schemas/D")
 	assert.Equal(t, reftable.Resolved, d.Hop.Status, "D's own hop lands")
@@ -363,7 +363,7 @@ func TestBind_ReportsALoopOfDefinitionsAtItsLeastMember(t *testing.T) {
 		"{A: {$ref: '#/$defs/B'}, B: {$ref: '#/$defs/A'}}"} {
 		table := bound(t, head+"components:\n  schemas:\n    H: {$defs: "+defs+"}\n", self)
 		require.Len(t, table.Loops(), 1, defs)
-		assert.Equal(t, at("/components/schemas/H/$defs/A"), table.Loops()[0].Site, defs)
+		assert.Equal(t, documentPointerAt("/components/schemas/H/$defs/A"), table.Loops()[0].Site, defs)
 	}
 }
 
@@ -385,8 +385,8 @@ func TestBind_ReportsEachLoopOnceAtItsLeastMember(t *testing.T) {
 		table := bound(t, head+"components:\n  schemas:\n"+b.String(), self)
 		loops := table.Loops()
 		require.Len(t, loops, 1, "%v", order)
-		assert.Equal(t, reftable.Loop{Members: []reftable.DocumentPointer{at("/components/schemas/B"), at("/components/schemas/C")},
-			Site: at("/components/schemas/B")}, loops[0], "%v", order)
+		assert.Equal(t, reftable.Loop{Members: []reftable.DocumentPointer{documentPointerAt("/components/schemas/B"), documentPointerAt("/components/schemas/C")},
+			Site: documentPointerAt("/components/schemas/B")}, loops[0], "%v", order)
 		for site, member := range map[jsontext.Pointer]bool{"/components/schemas/B": true,
 			"/components/schemas/C": true, "/components/schemas/A": false} {
 			e := entryAt(t, table, site)
@@ -558,13 +558,13 @@ func TestBind_ReadsOtherDocuments(t *testing.T) {
 	assert.Equal(t, "pet.yaml", table.Document(whole.Hop.Target.Doc).Name)
 	assert.Equal(t, reftable.Raw, whole.Hop.Role)
 	back := entryAt(t, table, "/components/schemas/Back")
-	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: at("/components/schemas/Leaf"), Hops: 2},
+	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/components/schemas/Leaf"), Hops: 2},
 		back.Chain, "a chain back into the source ends there, past a $ref naming another document")
 	there, ok := table.Entry(reftable.DocumentPointer{Doc: back.Hop.Target.Doc, Pointer: "/S"})
 	require.True(t, ok)
-	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: at("/components/schemas/Leaf"), Hops: 1}, there.Chain, "another document's $ref naming the source")
+	assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt("/components/schemas/Leaf"), Hops: 1}, there.Chain, "another document's $ref naming the source")
 	for _, value := range []string{"other.yaml#/S", "other.yaml#/T", "#/components/schemas/Leaf"} {
-		m, ok := table.Mapping(at("/components/schemas/Pick/discriminator"), value)
+		m, ok := table.Mapping(documentPointerAt("/components/schemas/Pick/discriminator"), value)
 		require.True(t, ok, value)
 		require.Equal(t, reftable.Resolved, m.Chain.Status, value)
 	}

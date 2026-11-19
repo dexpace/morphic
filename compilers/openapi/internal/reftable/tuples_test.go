@@ -51,13 +51,13 @@ func TestTuples_AListOfItemsHoldsSchemas(t *testing.T) {
 		e := entryAt(t, table, site)
 		assert.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
 	}
-	_, ok := table.Entry(at("/components/schemas/U/additionalItems"))
+	_, ok := table.Entry(documentPointerAt("/components/schemas/U/additionalItems"))
 	assert.False(t, ok, "beside one items schema additionalItems is no schema the table reads")
 
 	plain := bound(t, src, self)
 	assert.Empty(t, landingsAt(t, plain), "2020-12 reads no tuple in a list of items")
 	for _, site := range []jsontext.Pointer{tuple + "/items/1", tuple + "/additionalItems"} {
-		_, ok := plain.Entry(at(site))
+		_, ok := plain.Entry(documentPointerAt(site))
 		assert.False(t, ok, "%s is no schema 2020-12 reads", site)
 	}
 }
@@ -131,7 +131,7 @@ func TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar(t *testing.
 	for site, target := range map[jsontext.Pointer]jsontext.Pointer{"x": "/definitions/X", "y": "/definitions/Y"} {
 		e := entryAt(t, table, "/components/schemas/D/properties/"+site)
 		require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-		assert.Equal(t, at("/components/schemas/D"+target), e.Hop.Target)
+		assert.Equal(t, documentPointerAt("/components/schemas/D"+target), e.Hop.Target)
 	}
 	assert.Equal(t, reftable.BadPointer, entryAt(t, table, "/components/schemas/D/properties/n").Hop.Reason)
 	twice := entryAt(t, bound(t, src("id", ", Z: {id: '#1x'}"), draftRule(self)), "/components/schemas/D/properties/x")
@@ -159,7 +159,7 @@ func TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere(t *testing
 	assert.NotEqual(t, reftable.Resolved, held.Hop.Status, "draft 4 ignores the $schema and the $id beside e's $ref")
 	e := entryAt(t, bound(t, src(""), draftRule(self)), "/components/schemas/R")
 	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, at("/components/schemas/T/properties/e"), e.Hop.Target)
+	assert.Equal(t, documentPointerAt("/components/schemas/T/properties/e"), e.Hop.Target)
 }
 
 // TestDialectRule_AnIdentifierBesideARefNamesNothing pins a rule ignoring what
@@ -190,12 +190,12 @@ func TestDialectRule_AnIdentifierBesideARefNamesNothing(t *testing.T) {
 			table := bound(t, src, ruleFor(self, rule))
 			e := entryAt(t, table, props+"p")
 			require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, at(c.p), e.Hop.Target, "the base p's $ref resolves against")
+			assert.Equal(t, documentPointerAt(c.p), e.Hop.Target, "the base p's $ref resolves against")
 			for site, target := range map[jsontext.Pointer]jsontext.Pointer{"g": props + "f", "h": props + "p"} {
 				e := entryAt(t, table, props+site)
 				if !c.ignores {
 					require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-					assert.Equal(t, at(target), e.Hop.Target, site)
+					assert.Equal(t, documentPointerAt(target), e.Hop.Target, site)
 					continue
 				}
 				assert.NotEqual(t, reftable.Resolved, e.Hop.Status, "%s names what an ignored id would", site)
@@ -223,9 +223,9 @@ func TestDialectRule_ReadsWhatADialectSpellsOtherwise(t *testing.T) {
 	} {
 		e := entryAt(t, table, site)
 		require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-		assert.Equal(t, at(want), e.Hop.Target, site)
+		assert.Equal(t, documentPointerAt(want), e.Hop.Target, site)
 	}
-	base, known := table.Base(at("/components/schemas/T/definitions/Foo"))
+	base, known := table.Base(documentPointerAt("/components/schemas/T/definitions/Foo"))
 	assert.True(t, known)
 	assert.Equal(t, "https://example.com/t", base, "a fragment id names no resource of its own")
 
@@ -233,7 +233,7 @@ func TestDialectRule_ReadsWhatADialectSpellsOtherwise(t *testing.T) {
 	for _, site := range []jsontext.Pointer{"/components/schemas/T/properties/a", "/components/schemas/T/properties/b"} {
 		assert.NotEqual(t, reftable.Resolved, entryAt(t, plain, site).Hop.Status, "%s reads as 2020-12 does", site)
 	}
-	_, ok := plain.Entry(at("/components/schemas/T/definitions/Foo/properties/c"))
+	_, ok := plain.Entry(documentPointerAt("/components/schemas/T/definitions/Foo/properties/c"))
 	assert.False(t, ok, "a definitions entry is no schema 2020-12 reads")
 }
 
@@ -262,7 +262,7 @@ func TestDialectRule_AValueNamingNoDialectChoosesNone(t *testing.T) {
 	assert.Empty(t, table.Document(reftable.Source).Dialects, "the value roots no dialect")
 	e := entryAt(t, table, "/components/schemas/R")
 	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, at("/components/schemas/I"), e.Hop.Target)
+	assert.Equal(t, documentPointerAt("/components/schemas/I"), e.Hop.Target)
 
 	named := bound(t, src, answer(false))
 	assert.Len(t, named.Document(reftable.Source).Dialects, 1)
@@ -309,11 +309,11 @@ func TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot(t *testing.T) {
 	} {
 		e := entryAt(t, table, site)
 		require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-		assert.Equal(t, at(want), e.Hop.Target, "%s: an embedded resource reads draft 4 below its root", site)
+		assert.Equal(t, documentPointerAt(want), e.Hop.Target, "%s: an embedded resource reads draft 4 below its root", site)
 	}
 	assert.NotEqual(t, reftable.Resolved, entryAt(t, table, "/components/schemas/A/properties/u").Hop.Status,
 		"a fragment id roots no resource, so its $schema names nothing and 2020-12 reads no anchor in it")
-	_, ok := table.Entry(at("/components/schemas/A/properties/p/definitions/X"))
+	_, ok := table.Entry(documentPointerAt("/components/schemas/A/properties/p/definitions/X"))
 	assert.False(t, ok, "a schema rooting no resource holds no definitions")
 }
 
@@ -356,7 +356,7 @@ func TestDialectRule_ARootReadsItsOwnIdentifiersInItsDialect(t *testing.T) {
 	} {
 		e := entryAt(t, table, site)
 		require.Equal(t, reftable.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
-		assert.Equal(t, at(want), e.Hop.Target, site)
+		assert.Equal(t, documentPointerAt(want), e.Hop.Target, site)
 	}
 }
 
@@ -373,7 +373,7 @@ func TestDialectRule_AnAnchorTakesItsDialectsGrammar(t *testing.T) {
 	table := bound(t, src, draftRule(self))
 	e := entryAt(t, table, "/components/schemas/T/properties/a")
 	require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-	assert.Equal(t, at("/components/schemas/T/definitions/L"), e.Hop.Target)
+	assert.Equal(t, documentPointerAt("/components/schemas/T/definitions/L"), e.Hop.Target)
 	assert.Equal(t, reftable.NoAnchor, entryAt(t, table, "/components/schemas/U/properties/a").Hop.Reason,
 		"2020-12 declares no anchor its grammar refuses, and a $ref naming one finds none")
 }

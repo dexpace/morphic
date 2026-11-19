@@ -203,7 +203,7 @@ func TestRegistry_FormatsAreAskedOnce(t *testing.T) {
 func TestRegistry_DetectNamesTheFormatsItRegisteredNotTheOnesItIsToldNow(t *testing.T) {
 	t.Parallel()
 	b := newBreaker("none", nil)
-	b.declines = []ir.Diagnostic{at(0, ir.SeverityWarning)} // a decline with no error is a breach
+	b.declines = []ir.Diagnostic{diagnosticAtSource(0, ir.SeverityWarning)} // a decline with no error is a breach
 	reg := registryOf(t, b)
 	b.formats[0] = beta
 

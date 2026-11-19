@@ -159,13 +159,13 @@ func TestCheck_AKeywordALaterDialectAddsIsWarnedOf(t *testing.T) {
 	assert.Contains(t, keywords, "prefixItems")
 	verify(t, []scenario{
 		{"a boolean schema 3.1 admits", "3.0.3", specrules.Schema, `{unevaluatedProperties: false, if: true}`,
-			[]finding{at(later, "/unevaluatedProperties"), at(later, "/if")}},
+			[]finding{findingAtPointer(later, "/unevaluatedProperties"), findingAtPointer(later, "/if")}},
 		{"a boolean schema 3.1 admits as an entry", "3.0.3", specrules.Schema, `{prefixItems: [true], $defs: {A: false}}`,
-			[]finding{at(later, "/prefixItems"), at(later, "/$defs")}},
+			[]finding{findingAtPointer(later, "/prefixItems"), findingAtPointer(later, "/$defs")}},
 		{"a value 3.1 refuses", "3.0.3", specrules.Schema, `{const: 1, contentSchema: 5}`,
-			[]finding{at(later, "/const"), at(later, "/contentSchema"), at(mismatch, "/contentSchema")}},
+			[]finding{findingAtPointer(later, "/const"), findingAtPointer(later, "/contentSchema"), findingAtPointer(mismatch, "/contentSchema")}},
 		{"beside a $ref", "3.0.3", specrules.Schema, `{$ref: '#/a', const: 1, prefixItems: [{}]}`,
-			[]finding{at(later, "/const"), at(later, "/prefixItems")}},
+			[]finding{findingAtPointer(later, "/const"), findingAtPointer(later, "/prefixItems")}},
 		{"unknown keys are not reported", "3.1.0", specrules.Schema, `{madeUp: 1, x-ext: 2}`, nil},
 	})
 	for _, d := range run(t, "3.0.3", specrules.Schema, `{$ref: '#/a', const: 1}`) {

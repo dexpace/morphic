@@ -55,7 +55,7 @@ const dynamicSpec = head + `components:
 func TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor(t *testing.T) {
 	t.Parallel()
 	table := bound(t, dynamicSpec, self)
-	p := at("/components/schemas/P")
+	p := documentPointerAt("/components/schemas/P")
 	for name, want := range map[string]reftable.Status{
 		"ByAnchor": reftable.Resolved, "ByPointer": reftable.Resolved, "Twinned": reftable.Unresolved, "Nowhere": reftable.Unresolved,
 	} {
@@ -66,7 +66,7 @@ func TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor(t *tes
 	assert.Equal(t, p, entryAt(t, table, "/components/schemas/ByAnchor").Hop.Target)
 	assert.Equal(t, reftable.DuplicateAnchor, entryAt(t, table, "/components/schemas/Twinned").Hop.Reason)
 	for _, name := range []string{"Dynamic", "Duplicated", "Mixed", "Null", "Listed"} {
-		_, ok := table.Entry(at(jsontext.Pointer("/components/schemas/" + name)))
+		_, ok := table.Entry(documentPointerAt(jsontext.Pointer("/components/schemas/" + name)))
 		assert.False(t, ok, "%s is no $ref site", name)
 	}
 	for _, name := range []string{"Beside", "BesidePointer"} {
@@ -78,7 +78,7 @@ func TestBind_ReadsADynamicRefAsTheRefItSpellsUnlessItNamesADynamicAnchor(t *tes
 	assert.False(t, ok, "a nil table read none")
 
 	toDynamic := entryAt(t, table, "/components/schemas/ToDynamic")
-	assert.Equal(t, reftable.Chain{End: at("/components/schemas/Dynamic"), Hops: 1, Status: reftable.Resolved}, toDynamic.Chain)
+	assert.Equal(t, reftable.Chain{End: documentPointerAt("/components/schemas/Dynamic"), Hops: 1, Status: reftable.Resolved}, toDynamic.Chain)
 	toStatic := entryAt(t, table, "/components/schemas/ToStatic")
 	assert.Equal(t, reftable.Chain{End: p, Hops: 2, Status: reftable.Resolved}, toStatic.Chain)
 }
@@ -91,7 +91,7 @@ func TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead(t *testing.T) {
 	t.Parallel()
 	const src = head + "components:\n  schemas:\n    S: {$ref: '#/components/schemas/A'}\n" +
 		"    A: {$dynamicRef: 'o.yaml#n'}\n"
-	a := at("/components/schemas/A")
+	a := documentPointerAt("/components/schemas/A")
 
 	dynamic := bound(t, src, withDocuments(map[string]string{"o.yaml": "T: {$dynamicAnchor: n}\n"}))
 	_, ok := dynamic.Entry(a)
@@ -114,7 +114,7 @@ func TestBind_ReadsADynamicRefIntoAnotherDocumentOnceItIsRead(t *testing.T) {
 func TestBind_ReadsADynamicRefAMergeMayHideTheAnchorOfAsDynamic(t *testing.T) {
 	t.Parallel()
 	const ref = "    D: {$dynamicRef: '#n'}\n"
-	_, ok := bound(t, deepMerge()+ref, self).Entry(at("/components/schemas/D"))
+	_, ok := bound(t, deepMerge()+ref, self).Entry(documentPointerAt("/components/schemas/D"))
 	assert.False(t, ok)
 	assert.Equal(t, "$dynamicRef", entryAt(t, bound(t, head+"components:\n  schemas:\n"+ref, self),
 		"/components/schemas/D").Keyword)

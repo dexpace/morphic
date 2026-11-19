@@ -98,7 +98,7 @@ func TestBind_ReadsIdentifiers(t *testing.T) {
 				return
 			}
 			require.Equal(t, reftable.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, at(tc.want), e.Hop.Target, "an identifier is placed where its schema is written")
+			assert.Equal(t, documentPointerAt(tc.want), e.Hop.Target, "an identifier is placed where its schema is written")
 			assert.Equal(t, reftable.Schema, e.Hop.Role)
 		})
 	}
@@ -118,7 +118,7 @@ func TestBind_ReadsNoIdentifierTheModelIgnores(t *testing.T) {
 	assert.Equal(t, reftable.NoAnchor, entryAt(t, table, "/components/schemas/A").Hop.Reason)
 	b := entryAt(t, table, "/components/schemas/B")
 	require.Equal(t, reftable.Resolved, b.Hop.Status, b.Hop.Why())
-	assert.Equal(t, at("/paths/~1a/parameters/0/schema"), b.Hop.Target)
+	assert.Equal(t, documentPointerAt("/paths/~1a/parameters/0/schema"), b.Hop.Target)
 }
 
 // TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument pins whose
@@ -132,7 +132,7 @@ func TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument(t *testing.T) {
 	}))
 	a := entryAt(t, table, "/components/schemas/A")
 	require.Equal(t, reftable.Resolved, a.Chain.Status)
-	assert.Equal(t, at("/components/schemas/B"), a.Chain.End)
+	assert.Equal(t, documentPointerAt("/components/schemas/B"), a.Chain.End)
 	assert.Equal(t, reftable.DocumentPointer{Doc: 1, Pointer: "/T"}, entryAt(t, table, "/components/schemas/C").Hop.Target)
 }
 
@@ -159,7 +159,7 @@ func TestBind_ReadsAMappingValueNamingNoComponentAsAReference(t *testing.T) {
 		y, ok := table.Mapping(disc, value)
 		require.True(t, ok, "%q names no component, so it is a URI reference", value)
 		require.Equal(t, reftable.Resolved, y.Hop.Status, value)
-		assert.Equal(t, at("/components/schemas/Y"), y.Hop.Target, "%q is read against d's resource", value)
+		assert.Equal(t, documentPointerAt("/components/schemas/Y"), y.Hop.Target, "%q is read against d's resource", value)
 	}
 	_, ok = table.Mapping(disc, "Y")
 	assert.False(t, ok, "a value naming a component is read by name, not by the table")
@@ -194,7 +194,7 @@ func TestBind_NamesTheDocumentByItsNormalizedURI(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n"+
 		"    B: {$id: 'https://x.test/b', $defs: {d: {$id: 'HTTPS://X.TEST/Spec.yaml', $ref: '#/components/schemas/C'}}}\n"+
 		"    C: {}\n", cfg)
-	assert.Equal(t, at("/components/schemas/C"), entryAt(t, table, "/components/schemas/B/$defs/d").Hop.Target)
+	assert.Equal(t, documentPointerAt("/components/schemas/C"), entryAt(t, table, "/components/schemas/B/$defs/d").Hop.Target)
 
 	table = bound(t, head+"components:\n  schemas:\n    A: {$ref: 'other.yaml#/X'}\n", reftable.Config{Self: "/spec%zz.yaml"})
 	assert.Equal(t, reftable.ExternalOff, entryAt(t, table, "/components/schemas/A").Hop.Reason)
@@ -338,7 +338,7 @@ func TestBind_AReferenceInANetworkDocumentReadsOnlyTheNetwork(t *testing.T) {
 	for _, site := range []jsontext.Pointer{"/components/schemas/F", "/components/schemas/I/properties/p"} {
 		assert.Equal(t, "the document it names could not be read: "+reftable.OffNetwork, entryAt(t, table, site).Hop.Why(), site)
 	}
-	m, ok := table.Mapping(at("/components/schemas/M/discriminator"), "file:///dir/secret.yaml#/X")
+	m, ok := table.Mapping(documentPointerAt("/components/schemas/M/discriminator"), "file:///dir/secret.yaml#/X")
 	require.True(t, ok)
 	assert.Equal(t, "the document it names could not be read: "+reftable.OffNetwork, m.Hop.Why())
 	for _, site := range []jsontext.Pointer{"/components/schemas/S", "/components/schemas/N", "/components/schemas/V"} {

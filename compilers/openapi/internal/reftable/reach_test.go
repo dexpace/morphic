@@ -54,7 +54,7 @@ func TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached(t *testing.
 	table := bound(t, anchoredChain(4), reachConfig())
 	require.False(t, table.Exhausted())
 	for i, wantReached := range []bool{false, true, true, true} {
-		declared, reached, known := table.RecursiveAnchor(at(jsontext.Pointer(fmt.Sprintf("/components/schemas/R%d", i))))
+		declared, reached, known := table.RecursiveAnchor(documentPointerAt(jsontext.Pointer(fmt.Sprintf("/components/schemas/R%d", i))))
 		assert.True(t, declared, "R%d", i)
 		assert.Equal(t, wantReached, reached, "R%d", i)
 		assert.True(t, known, "R%d", i)
@@ -66,7 +66,7 @@ func TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached(t *testing.
 		"discriminator: {propertyName: k, mapping: {x: 'https://x.test/t'}}}\n"+
 		"    T: {$schema: '"+reachDraft+"', $id: 'https://x.test/t', $recursiveAnchor: true}\n", reachConfig())
 	for name, want := range map[string]bool{"M": false, "T": true} {
-		_, reached, known := mapped.RecursiveAnchor(at(jsontext.Pointer("/components/schemas/" + name)))
+		_, reached, known := mapped.RecursiveAnchor(documentPointerAt(jsontext.Pointer("/components/schemas/" + name)))
 		assert.Equal(t, want, reached, name)
 		assert.True(t, known, name)
 	}
@@ -76,7 +76,7 @@ func TestRecursiveAnchor_AResourceAnotherAnchoredOneReachesIsReached(t *testing.
 		"    A: {$schema: '"+reachDraft+"', $id: 'https://x.test/a', $recursiveAnchor: true}\n"+
 		"    B: {$schema: '"+reachDraft+"', $id: 'https://x.test/b', $recursiveAnchor: true}\n", reachConfig())
 	for _, name := range []string{"A", "B"} {
-		_, reached, known := alone.RecursiveAnchor(at(jsontext.Pointer("/components/schemas/" + name)))
+		_, reached, known := alone.RecursiveAnchor(documentPointerAt(jsontext.Pointer("/components/schemas/" + name)))
 		assert.False(t, reached, name)
 		assert.True(t, known, name)
 	}
@@ -109,7 +109,7 @@ func TestRecursiveAnchor_AWalkTheBudgetCutsKnowsNothing(t *testing.T) {
 		cut := bound(t, spec, cfg)
 		require.True(t, cut.Exhausted(), "limit %d", limit)
 		for i := range 6 {
-			_, _, known := cut.RecursiveAnchor(at(jsontext.Pointer(fmt.Sprintf("/components/schemas/R%d", i))))
+			_, _, known := cut.RecursiveAnchor(documentPointerAt(jsontext.Pointer(fmt.Sprintf("/components/schemas/R%d", i))))
 			assert.False(t, known, "limit %d: R%d", limit, i)
 		}
 	}
@@ -131,7 +131,7 @@ func TestRecursiveAnchor_AReferenceTheMergeBoundHidesTheResourceOfKnowsNothing(t
 	cfg.Dialect = reachConfig().Dialect
 	table := bound(t, anchoredChain(1)+"    Use: {$ref: 'other.yaml#/Outer'}\n", cfg)
 	require.False(t, table.Exhausted())
-	declared, _, known := table.RecursiveAnchor(at("/components/schemas/R0"))
+	declared, _, known := table.RecursiveAnchor(documentPointerAt("/components/schemas/R0"))
 	assert.True(t, declared)
 	assert.False(t, known, "Outer's resource may be an anchored one the bound hides")
 }
@@ -277,7 +277,7 @@ func TestBind_AReferenceToADynamicRefThatReadsAsARefEndsWhereItEnds(t *testing.T
 		"    ByAnchor: {$dynamicRef: '#pet'}\n"+
 		"    ByRef: {$ref: '#pet'}\n"+
 		"    S: {$ref: '#/components/schemas/ByPointer'}\n", self)
-	pet := at("/components/schemas/Pet")
+	pet := documentPointerAt("/components/schemas/Pet")
 
 	for site, keyword := range map[string]string{"ByPointer": "$dynamicRef", "ByAnchor": "$dynamicRef", "ByRef": "$ref"} {
 		e := entryAt(t, table, jsontext.Pointer("/components/schemas/"+site))
@@ -292,6 +292,6 @@ func TestBind_AReferenceToADynamicRefThatReadsAsARefEndsWhereItEnds(t *testing.T
 
 	// A truly dynamic reference is no entry.
 	dyn := bound(t, head+"components:\n  schemas:\n    Pet: {$dynamicAnchor: pet}\n    D: {$dynamicRef: '#pet'}\n", self)
-	_, ok := dyn.Entry(at("/components/schemas/D"))
+	_, ok := dyn.Entry(documentPointerAt("/components/schemas/D"))
 	assert.False(t, ok, "a reference naming a dynamic anchor is dynamic")
 }

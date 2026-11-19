@@ -18,12 +18,12 @@ import (
 func TestContentDocs_ChainAndDeclarationKeepApart(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, specsDir, "content_ref_summary_keys"))
-	q := namedItem(t, at(opTree(t, doc, "a"), "params"), "q")
+	q := namedItem(t, valueAtPath(opTree(t, doc, "a"), "params"), "q")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:content/application~1json/reference/0/summary": `no_ir_home "The use." ` +
 			`/paths/~1a/get/parameters/0/content/application~1json/summary`,
 		"openapi:content/application~1json/summary": `out_of_scope "The declaration." /components/mediaTypes/M/summary`,
-	}, entries(t, at(q, "unmodeled"))))
+	}, entries(t, valueAtPath(q, "unmodeled"))))
 	assert.Equal(t, []string{
 		"openapi/unhomed-construct info /paths/~1a/get/parameters/0/content/application~1json/summary",
 		"openapi/unknown-object-key warning /components/mediaTypes/M/summary",
@@ -40,8 +40,8 @@ func TestContentDocs_AKeyIsReadWhole(t *testing.T) {
 	a := opTree(t, doc, "a")
 
 	const mt = `openapi:content/application~1json; profile="a~1b c"/`
-	q := namedItem(t, at(a, "params"), "q")
-	values := entries(t, at(q, "unmodeled"))
+	q := namedItem(t, valueAtPath(a, "params"), "q")
+	values := entries(t, valueAtPath(q, "unmodeled"))
 	assert.Len(t, values, 6)
 	for key, want := range map[string]string{
 		mt + `docs`:                `{"summary":"undeclared-docs"}`,
@@ -54,8 +54,8 @@ func TestContentDocs_AKeyIsReadWhole(t *testing.T) {
 		assert.Contains(t, values[key], want, key)
 	}
 
-	p := namedItem(t, at(a, "params"), "p")
-	pg := entries(t, at(p, "unmodeled"))
+	p := namedItem(t, valueAtPath(a, "params"), "p")
+	pg := entries(t, valueAtPath(p, "unmodeled"))
 	assert.Len(t, pg, 2)
 	assert.Contains(t, pg["openapi:schema~1x-a"], `"FROM_OBJECT_KEY"`)
 	assert.Contains(t, pg["openapi:schema/x-a"], `"FROM_SCHEMA"`)
@@ -68,7 +68,7 @@ func TestContentDocs_AKeyIsReadWhole(t *testing.T) {
 func TestCallbacks_AUseKeepsItsDocs(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, specFrom(t, conformanceSpecsDir, "ref-beside-keys"))
-	binding := at(opTree(t, doc, "a"), "bindings", "http", "0", "unmodeled")
+	binding := valueAtPath(opTree(t, doc, "a"), "bindings", "http", "0", "unmodeled")
 	assert.Empty(t, cmp.Diff(map[string]string{
 		"openapi:callbacks/cb/reference/0/description": `no_ir_home "cbd" /paths/~1a/post/callbacks/cb/description`,
 		"openapi:callbacks/cb/reference/0/summary":     `no_ir_home "cbs" /paths/~1a/post/callbacks/cb/summary`,

@@ -69,7 +69,7 @@ func electionView(t *testing.T, doc *ir.Document, rename func(string) string) an
 	if list, ok := tree["diagnostics"].([]any); ok {
 		for _, d := range list {
 			findings = append(findings, fmt.Sprintf("%v %v %v",
-				at(d, "severity"), at(d, "code"), at(d, "provenance", "pointer")))
+				valueAtPath(d, "severity"), valueAtPath(d, "code"), valueAtPath(d, "provenance", "pointer")))
 		}
 	}
 	slices.Sort(findings)

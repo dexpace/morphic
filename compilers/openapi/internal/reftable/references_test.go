@@ -75,7 +75,7 @@ x-m: {<<: [{o: {name: o, in: query}}, {q: {name: q, in: query}}]}
 // the source pointer site.
 func referenceAt(t *testing.T, table *reftable.ReferenceTargetTable, site jsontext.Pointer, kind reftable.RefKind) reftable.Reference {
 	t.Helper()
-	r, ok := table.Reference(at(site), kind)
+	r, ok := table.Reference(documentPointerAt(site), kind)
 	require.True(t, ok, "a reference at %s", site)
 	return r
 }
@@ -103,7 +103,7 @@ func TestBind_ReadsEachReferenceObject(t *testing.T) {
 			kind = reftable.RefRequestBody
 		}
 		r := referenceAt(t, table, site, kind)
-		assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: at(end), Hops: hopsTo(site)}, r.Chain, site)
+		assert.Equal(t, reftable.Chain{Status: reftable.Resolved, End: documentPointerAt(end), Hops: hopsTo(site)}, r.Chain, site)
 	}
 	fails := map[jsontext.Pointer]reftable.Hop{
 		params + "Header":   {Ref: "#/components/headers/H", Status: reftable.Unresolved, Reason: reftable.NotObject, Detail: "parameter"},
@@ -146,7 +146,7 @@ func TestBind_ReportsALoopOfReferenceObjectsAtItsLeastMember(t *testing.T) {
 			loops = append(loops, l)
 		}
 	}
-	l1, l2 := at("/components/requestBodies/L1"), at("/components/requestBodies/L2")
+	l1, l2 := documentPointerAt("/components/requestBodies/L1"), documentPointerAt("/components/requestBodies/L2")
 	assert.Equal(t, []reftable.Loop{{Members: []reftable.DocumentPointer{l1, l2}, Site: l1, Kind: reftable.RefRequestBody}}, loops)
 	for _, p := range []reftable.DocumentPointer{l1, l2} {
 		r, ok := table.Reference(p, reftable.RefRequestBody)
@@ -251,7 +251,7 @@ func TestBind_PlacesEachObjectLandingAtTheLeastReferenceReachingIt(t *testing.T)
 	table := bound(t, head+"components:\n  parameters:\n    B: {$ref: '#/x-p/q'}\n    A: {$ref: '#/x-p/r'}\n"+
 		"x-p:\n  r: {$ref: '#/x-p/q'}\n  q: {name: q, in: query}\n", self)
 	reached := func(p, site jsontext.Pointer) reftable.ObjectLanding {
-		return reftable.ObjectLanding{At: at(p), Kind: reftable.RefParameter, Name: "spec.yaml", Site: at(site), Reached: true}
+		return reftable.ObjectLanding{At: documentPointerAt(p), Kind: reftable.RefParameter, Name: "spec.yaml", Site: documentPointerAt(site), Reached: true}
 	}
 	assert.Equal(t, []reftable.ObjectLanding{
 		reached("/x-p/q", "/components/parameters/A"),
@@ -303,13 +303,13 @@ x-l:
 `, self)
 	var kinds []reftable.RefKind
 	for _, l := range table.ObjectLandings() {
-		if l.At == at("/x-l/q") {
+		if l.At == documentPointerAt("/x-l/q") {
 			kinds = append(kinds, l.Kind)
 		}
 	}
 	assert.Equal(t, []reftable.RefKind{reftable.RefParameter, reftable.RefHeader}, kinds)
 	require.Len(t, table.Loops(), 1)
-	assert.Equal(t, reftable.Loop{Members: []reftable.DocumentPointer{at("/x-l/a"), at("/x-l/b")}, Site: at("/x-l/a"),
+	assert.Equal(t, reftable.Loop{Members: []reftable.DocumentPointer{documentPointerAt("/x-l/a"), documentPointerAt("/x-l/b")}, Site: documentPointerAt("/x-l/a"),
 		Kind: reftable.RefParameter}, table.Loops()[0])
 }
 
@@ -333,7 +333,7 @@ func TestPositionOrder_ReadsTheSourceFirstThenEachDocumentByName(t *testing.T) {
 	require.Less(t, b, a, "b.yaml is read first")
 	order := reftable.PositionOrder(table)
 	assert.Negative(t, order(reftable.DocumentPointer{Doc: a, Pointer: "/P"}, reftable.DocumentPointer{Doc: b, Pointer: "/A"}))
-	assert.Negative(t, order(at("/z"), reftable.DocumentPointer{Doc: a, Pointer: "/A"}))
+	assert.Negative(t, order(documentPointerAt("/z"), reftable.DocumentPointer{Doc: a, Pointer: "/A"}))
 	assert.Negative(t, order(reftable.DocumentPointer{Doc: a, Pointer: "/A"}, reftable.DocumentPointer{Doc: a, Pointer: "/P"}))
 }
 
