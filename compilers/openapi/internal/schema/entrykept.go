@@ -662,14 +662,7 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 	}
 	diags = append(diags, keepUnknownOf(c, p, bs, unknown, at)...)
 	diags = append(diags, keepTextBounds(c, p, bs, text, at)...)
-	where := "on this inline entry"
-	switch {
-	case k.entry.schema.Ref != nil:
-		where = "beside this $ref, which names nothing"
-	case besideRef(k.entry):
-		where = "beside this $ref"
-	}
-	return append(diags, recordEntryUnhomed(c, ts, p, k.entry, unhomed, shape, where, warn)...)
+	return append(diags, recordEntryUnhomed(c, ts, p, k.entry, unhomed, shape, namesOf(k.entry).where, warn)...)
 }
 
 // besideRef reports whether e is what an allOf entry writing a $ref beside
@@ -679,17 +672,23 @@ func recordOwnKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, k kep
 func besideRef(e allOfEntry) bool { return e.schema.WrittenBeside != nil }
 
 // entryNames is how a report names an allOf entry: at the head of a sentence
-// (lead), as the entry it is about (this), and as what it keeps (kept).
-type entryNames struct{ lead, this, kept string }
+// (lead), as the entry it is about (this), as what it keeps (kept), and as
+// where a keyword it keeps is written (where).
+type entryNames struct{ lead, this, kept, where string }
 
 // namesOf returns how a report names e: as an inline entry, or as the
-// conjunct written beside its $ref where it is one (besideRef).
+// conjunct written beside its $ref where it is one (besideRef), a keyword of
+// an entry whose own $ref names nothing being written beside that $ref.
 func namesOf(e allOfEntry) entryNames {
+	n := entryNames{lead: "inline allOf entry", this: "this inline entry", kept: "the entry", where: "on this inline entry"}
 	if besideRef(e) {
-		return entryNames{lead: "conjunct beside this allOf entry's $ref", this: "the conjunct beside this $ref",
-			kept: "the conjunct"}
+		n = entryNames{lead: "conjunct beside this allOf entry's $ref", this: "the conjunct beside this $ref",
+			kept: "the conjunct", where: "beside this $ref"}
 	}
-	return entryNames{lead: "inline allOf entry", this: "this inline entry", kept: "the entry"}
+	if e.schema.Ref != nil {
+		n.where = "beside this $ref, which names nothing"
+	}
+	return n
 }
 
 // keepEntryDynamicRef keeps the dynamic reference keyword the inline entry bs
