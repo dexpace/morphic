@@ -362,7 +362,7 @@ func composingElected(loweringContext lowering.Ctx, admissionReaderValue *admiss
 // nothing beside it conjoining with it, as hasUnionSiblings reads one written
 // at the position (docs/compilers/openapi.md#union-beside-structure): one
 // conjunct writes a union (unionEntries) and nothing else conjoins with it
-// (argumentStandsAlone).
+// (standsAlone).
 func soleUnion(loweringContext lowering.Ctx, schema *statement.Schema, conjuncts []conjunct) *conjunct {
 	unions := unionEntries(schema, conjuncts)
 	if len(unions) != 1 || !standsAlone(loweringContext, schema, conjuncts, unions, unions[0]) {
@@ -373,7 +373,7 @@ func soleUnion(loweringContext lowering.Ctx, schema *statement.Schema, conjuncts
 
 // unionPair returns the conjunct writing the union the position elects where
 // its conjuncts write a oneOf and an anyOf, on one inline entry or one each on
-// two, and nothing else conjoining with them (argumentStandsAlone): the
+// two, and nothing else conjoining with them (standsAlone): the
 // position is then one schema writing both
 // (docs/compilers/openapi.md#competing-keywords), whatever the kinds their
 // branches admit.
@@ -518,7 +518,7 @@ func unionEntries(schema *statement.Schema, conjuncts []conjunct) []*conjunct {
 	return unions
 }
 
-// argumentStandsAlone reports whether nothing beside unions, the conjuncts
+// standsAlone reports whether nothing beside unions, the conjuncts
 // writing them, conjoins with them, elected writing the one the position is: no
 // other conjunct writes a discriminator, which routes that union, and each
 // keyword a conjunct writes that a variant would carry (siblingKeywords), an
