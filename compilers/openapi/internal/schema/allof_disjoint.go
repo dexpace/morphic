@@ -475,10 +475,29 @@ type pairApartOf struct{ s *statement.Schema }
 // every spelling's lowering and report read one answer
 // (docs/compilers/openapi.md#competing-keywords).
 func pairApart(c lowering.Ctx, s *statement.Schema) []string {
-	return lowering.Remembered(c, pairApartOf{s}, func() []string {
+	return pairReadingOf(c, s).apart
+}
+
+// pairNullAlone reports whether the oneOf and the anyOf written for the
+// position s, read as pairApart reads them, admit null and nothing else
+// together, neither admitting null alone by itself.
+func pairNullAlone(c lowering.Ctx, s *statement.Schema) bool {
+	return pairReadingOf(c, s).nullAlone
+}
+
+// pairReading is what a position's oneOf and anyOf admit together: named
+// apart where nothing, and whether null alone.
+type pairReading struct {
+	apart     []string
+	nullAlone bool
+}
+
+// pairReadingOf reads the pair pairApart describes, once a run.
+func pairReadingOf(c lowering.Ctx, s *statement.Schema) pairReading {
+	return lowering.Remembered(c, pairApartOf{s}, func() pairReading {
 		comp := allOfBranches(c, s, "")
 		if !writesUnionPair(s, comp) {
-			return nil
+			return pairReading{}
 		}
 		w := newAdmissionReader(c)
 		w.nullable = definesNullableAt(c, c.Statements().Read(s))
@@ -489,21 +508,25 @@ func pairApart(c lowering.Ctx, s *statement.Schema) []string {
 				p.read(&w, comp.branchPath(e.pointer), e.schema.Schema)
 			}
 		}
-		if p.joint.reachable() || p.alone || w.incomplete() || len(p.names) < 2 {
-			return nil
+		if w.incomplete() || p.alone {
+			return pairReading{}
+		}
+		if p.joint.reachable() || len(p.names) < 2 {
+			return pairReading{nullAlone: p.joint.reachable() && p.joint.kinds == kindNull && !p.nullUnion}
 		}
 		slices.Sort(p.names)
-		return p.names
+		return pairReading{apart: p.names}
 	})
 }
 
 // pairReads is what pairApart has read of a position's unions: what they
-// admit together, each named by what it admits, and whether one admits
-// nothing alone, which its own schema reports.
+// admit together, each named by what it admits, whether one admits nothing
+// alone, which its own schema reports, and whether one admits null alone.
 type pairReads struct {
-	joint admitted
-	names []string
-	alone bool
+	joint     admitted
+	names     []string
+	alone     bool
+	nullUnion bool
 }
 
 // read adds the oneOf and the anyOf x writes, at the path at from the
@@ -516,6 +539,7 @@ func (p *pairReads) read(w *admissionReader, at string, x *statement.Schema) {
 		}
 		read := w.union(branches)
 		p.joint, p.alone = p.joint.and(read), p.alone || !read.reachable()
+		p.nullUnion = p.nullUnion || read.reachable() && read.kinds == kindNull
 		if word := readWords(read); word != "" {
 			p.names = append(p.names, strings.TrimPrefix(at+"/"+key, "/")+": "+word)
 		}

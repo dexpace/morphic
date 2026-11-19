@@ -331,6 +331,9 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case principal == nil:
 		principal = pairedWith(c, s, conjuncts, w.elect(conjuncts, electable))
 	}
+	if body := nullPairBody(c, s, conjuncts, joint); body != nil {
+		principal = body
+	}
 	r := refinement{votes: votes, joint: joint, held: pairHeld(c, s, conjuncts, principal), contradicts: contradicts}
 	refAt := readThrough(conjuncts, principal)
 	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
@@ -421,6 +424,24 @@ func pairedWith(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, elect
 		return elected
 	}
 	return pairElected(c, s, unions)
+}
+
+// nullPairBody returns the conjunct a position elects where the oneOf and the
+// anyOf written for it admit null alone (pairNullAlone) and its conjuncts
+// share that null: the first entry writing no union that says what the
+// position is, so the position is a use of that body keeping both, as a $ref
+// body is elected by its vote (docs/compilers/openapi.md#allof-refinement).
+// It is nil where none is.
+func nullPairBody(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, joint admitted) *conjunct {
+	if !joint.reachable() || !pairNullAlone(c, s) {
+		return nil
+	}
+	for i := range conjuncts {
+		if cj := &conjuncts[i]; cj.branch != nil && cj.says && !declaresUnion(cj.schema) {
+			return cj
+		}
+	}
+	return nil
 }
 
 // pairEntries returns the two inline entries writing a union, one a oneOf

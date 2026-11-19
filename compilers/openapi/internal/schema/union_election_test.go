@@ -509,3 +509,26 @@ func TestUnion_APairElectingAValueSetOfNullAloneWarnsWhereItSharesNoValue(t *tes
 	}
 	assert.Empty(t, warned["Shared"])
 }
+
+// TestUnion_TwoUnionsSharingNullAloneBesideAnInlineBodyAdmittingNullAreKept
+// pins a oneOf of an object or null and an anyOf of a string or null, which
+// share null alone, beside an inline string or null: beside the allOf, on one
+// entry and on two, a use of the body keeping both unions, as beside a $ref
+// to such a body, distributing neither; with no body, the oneOf's Union.
+func TestUnion_TwoUnionsSharingNullAloneBesideAnInlineBodyAdmittingNullAreKept(t *testing.T) {
+	t.Parallel()
+	const one, anyOf = "oneOf: [{type: object, properties: {x: {type: string}}}, {type: 'null'}]", "anyOf: [{type: string}, {type: 'null'}]"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    Beside: {allOf: [{type: [string, 'null']}], `+one+`, `+anyOf+`}
+    OneEntry: {allOf: [{type: [string, 'null']}, {`+one+`, `+anyOf+`}]}
+    TwoEntries: {allOf: [{type: [string, 'null']}, {`+one+`}, {`+anyOf+`}]}
+    NoBody: {allOf: [{`+one+`}, {`+anyOf+`}]}
+`))
+	for _, name := range []string{"Beside", "OneEntry", "TwoEntries"} {
+		scalar, ok := typeByName(doc, name).(*ir.Scalar)
+		require.True(t, ok, "%s is a use of the body", name)
+		assert.Contains(t, scalar.Unmodeled, "openapi:oneOf", name)
+		assert.Contains(t, scalar.Unmodeled, "openapi:anyOf", name)
+	}
+	_, ok := typeByName(doc, "NoBody").(*ir.Union)
+	assert.True(t, ok, "with no body to use the oneOf is elected")
+}
