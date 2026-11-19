@@ -88,3 +88,33 @@ func TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf(t 
 		}
 	}
 }
+
+// TestElection_TwoUnionEntriesElectByCompetingKeywords holds that a oneOf of
+// an object and a $ref to a string and an anyOf of that $ref alone, beside a
+// string, lower alike beside the allOf, on one entry, on two in either order
+// and one allOf deeper, in either order of the branches and the components:
+// the oneOf is elected, both declaring shape, though the anyOf's kinds are the
+// body's, and the anyOf is kept as degraded_lowering (GitHub #2011).
+func TestElection_TwoUnionEntriesElectByCompetingKeywords(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, site := range scalarPairSites {
+			for _, reversed := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/%t", version, site.name, reversed), func(t *testing.T) {
+					t.Parallel()
+					one := "[{type: object, properties: {x: {type: string}}}, {$ref: '#/components/schemas/Kstr'}]"
+					if reversed {
+						one = reversedBranches(t, one)
+					}
+					doc, _ := compileSpellingsAlike(t, site, version,
+						unionPairSpellings("{type: string}", one, "[{$ref: '#/components/schemas/Kstr'}]"))
+					union, ok := kindNode(t, doc, entryPositionID(site.at)).(*ir.Union)
+					require.True(t, ok, "the position is a Union")
+					assert.True(t, union.Exclusive, "the oneOf is elected")
+					assert.Len(t, union.Variants, 2)
+					assert.Equal(t, map[string]ir.UnmodeledReason{"openapi:anyOf": ir.ReasonDegradedLowering}, keptOn(union))
+				})
+			}
+		}
+	}
+}

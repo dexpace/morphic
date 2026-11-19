@@ -205,3 +205,27 @@ func TestUnion_TwoUnionsSharingNoValueBesideAScalarKeepBoth(t *testing.T) {
 		assert.Contains(t, warned[0], "share no value", name)
 	}
 }
+
+// TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords pins a oneOf
+// of an object and a $ref to a string and an anyOf of that $ref alone, beside
+// a string, beside the allOf and on two entries in either order: the oneOf is
+// elected, both declaring shape, though the anyOf's kinds are the body's, and
+// the anyOf is kept as degraded_lowering.
+func TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords(t *testing.T) {
+	t.Parallel()
+	const oneOf = "oneOf: [{type: object, properties: {x: {type: string}}}, {$ref: '#/components/schemas/Kstr'}]"
+	const anyOf = "anyOf: [{$ref: '#/components/schemas/Kstr'}]"
+	doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(`    Kstr: {type: string}
+    Beside: {allOf: [{type: string}], `+oneOf+`, `+anyOf+`}
+    TwoEntries: {allOf: [{type: string}, {`+oneOf+`}, {`+anyOf+`}]}
+    AnyOfFirst: {allOf: [{type: string}, {`+anyOf+`}, {`+oneOf+`}]}
+`))
+	for _, name := range []string{"Beside", "TwoEntries", "AnyOfFirst"} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s is a Union", name)
+		assert.True(t, union.Exclusive, "%s elects the oneOf", name)
+		assert.Len(t, union.Variants, 2, name)
+		require.Contains(t, union.Unmodeled, "openapi:anyOf", name)
+		assert.Equal(t, ir.ReasonDegradedLowering, union.Unmodeled["openapi:anyOf"].Reason, name)
+	}
+}

@@ -325,9 +325,9 @@ func decide(c lowering.Ctx, s *statement.Schema) decision {
 	case undecided:
 		principal = &conjuncts[0]
 	case principal == nil:
-		principal = w.elect(conjuncts, electable)
+		principal = pairedWith(c, s, conjuncts, w.elect(conjuncts, electable))
 	}
-	r := refinement{votes: votes, joint: joint, held: heldBy(c, principal), contradicts: contradicts}
+	r := refinement{votes: votes, joint: joint, held: pairHeld(c, s, conjuncts, principal), contradicts: contradicts}
 	refAt := readThrough(conjuncts, principal)
 	markBeaten(&w, r.votes, electable, principal, contradicts, undecided)
 	// A use saying nothing more of a reference naming no schema is that
@@ -402,6 +402,59 @@ func pairElected(c lowering.Ctx, s *statement.Schema, unions []*conjunct) *conju
 		return other
 	}
 	return one
+}
+
+// pairedWith returns the conjunct the refinement elects where elected writes
+// one union of a oneOf and an anyOf written one each on two inline entries
+// (pairEntries): of the two, the one competing keywords prefer at s
+// (pairElected), as one schema writing both elects, not the one the kinds of
+// the conjuncts favour (docs/compilers/openapi.md#competing-keywords). Else it
+// is elected. pairEntries finds one oneOf and one anyOf, so pairElected
+// returns one of them.
+func pairedWith(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, elected *conjunct) *conjunct {
+	unions := pairEntries(s, conjuncts)
+	if !slices.Contains(unions, elected) {
+		return elected
+	}
+	return pairElected(c, s, unions)
+}
+
+// pairEntries returns the two inline entries writing a union, one a oneOf
+// and the other an anyOf, where they are the only conjuncts writing one, and
+// nil otherwise.
+func pairEntries(s *statement.Schema, conjuncts []conjunct) []*conjunct {
+	if declaresUnion(s) {
+		return nil
+	}
+	var unions []*conjunct
+	for i := range conjuncts {
+		cj := &conjuncts[i]
+		if cj.branch != nil && cj.branch.schema.Ref == nil && !cj.branch.wrapper && declaresUnion(cj.schema) {
+			unions = append(unions, cj)
+		}
+	}
+	if len(unions) != 2 || writesBothUnions(unions[0].schema) || writesBothUnions(unions[1].schema) ||
+		(len(unions[0].schema.ChoiceKeywords().OneOf) > 0) == (len(unions[1].schema.ChoiceKeywords().OneOf) > 0) {
+		return nil
+	}
+	return unions
+}
+
+// pairHeld is what the position lowering to principal admits: what principal
+// does, and where it writes one union of a pair on two entries (pairEntries,
+// pairElected), what the union passed over admits too, as one schema writing
+// both holds both.
+func pairHeld(c lowering.Ctx, s *statement.Schema, conjuncts []conjunct, principal *conjunct) admitted {
+	held := heldBy(c, principal)
+	unions := pairEntries(s, conjuncts)
+	if !slices.Contains(unions, principal) || pairElected(c, s, unions) != principal {
+		return held
+	}
+	other := unions[0]
+	if other == principal {
+		other = unions[1]
+	}
+	return held.and(heldBy(c, other))
 }
 
 // unionEntries returns the conjuncts writing a union where each is an inline

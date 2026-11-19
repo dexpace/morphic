@@ -4490,8 +4490,8 @@ asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins wi
 collapsing would resolve the position to a shared primitive, which must never carry one
 declaration's keywords. The same preference decides between a `oneOf` and an `anyOf` written on two
 entries of one `allOf`, whether it refines ([`allof-refinement`](#allof-refinement)) or composes
-([`union-beside-structure`](#union-beside-structure)), whichever is written first, the `anyOf` kept
-with its entry; with nothing else conjoining with them, the two lower as one schema writing both
+([`union-beside-structure`](#union-beside-structure)), whichever is written first and whatever
+kinds the other entries admit, the one passed over kept with its entry; with nothing else conjoining with them, the two lower as one schema writing both
 does, wherever their entries are. Written one each on two entries of an `allOf` that refines, the
 elected union collapses no more than it does beside the `allOf`, a body beside them or none: the
 elected `anyOf: [{type: 'null'}, {$ref: S}]` stays a `Union` of `S` behind a nullable reference,
@@ -4532,7 +4532,9 @@ asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
   `e2e.TestElection_TwoUnionsAloneLowerAsOneSchemaWritingBoth`,
   `e2e.TestElection_AUnionPassedOverThatSaysNothingIsKeptEverywhere`,
   `e2e.TestElection_APrincipalUnionBesideAPairAndABodyCollapsesAsBesideTheAllOf`,
+  `e2e.TestElection_TwoUnionEntriesElectByCompetingKeywords`,
   `schema.TestUnion_AnAnyOfAloneDeclaringShapeIsElected`,
+  `schema.TestUnion_TwoUnionEntriesBesideABodyElectByCompetingKeywords`,
   `e2e.TestRefConjunction_APassedOverRefIsKeptUnderItsKeyInEverySpelling`
 
 ### `discriminator`
