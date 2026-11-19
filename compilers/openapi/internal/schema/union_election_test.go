@@ -482,3 +482,30 @@ func TestUnion_APairOnTwoEntriesReadsAUnionBranchsNull(t *testing.T) {
 		assert.False(t, p.Type.Nullable, p.Name.Source)
 	}
 }
+
+// TestUnion_APairElectingAValueSetOfNullAloneWarnsWhereItSharesNoValue holds
+// that a oneOf of null alone written as a value set, elected over an anyOf
+// sharing no value with it, draws the one warning that the conjuncts share no
+// value on one schema, on entries of an allOf and beside an allOf of an object
+// body, and that two sharing the null draw none.
+func TestUnion_APairElectingAValueSetOfNullAloneWarnsWhereItSharesNoValue(t *testing.T) {
+	t.Parallel()
+	_, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    Flat: {oneOf: [{enum: [null]}], anyOf: [{type: string}]}
+    Const: {oneOf: [{const: null}], anyOf: [{type: integer}]}
+    Entries: {allOf: [{oneOf: [{enum: [null]}]}, {anyOf: [{type: string}]}]}
+    BesideObject: {allOf: [{type: object}], oneOf: [{const: null}], anyOf: [{type: integer}]}
+    Shared: {oneOf: [{enum: [null]}], anyOf: [{type: 'null'}]}
+`))
+	warned := map[string][]string{}
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			name := string(d.Provenance.Pointer)[strings.LastIndexByte(string(d.Provenance.Pointer), '/')+1:]
+			warned[name] = append(warned[name], d.Message)
+		}
+	}
+	for _, name := range []string{"Flat", "Const", "Entries", "BesideObject"} {
+		require.Len(t, warned[name], 1, name)
+		assert.Contains(t, warned[name][0], "share no value", name)
+	}
+	assert.Empty(t, warned["Shared"])
+}

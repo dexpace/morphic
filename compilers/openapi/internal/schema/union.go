@@ -41,7 +41,13 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *statement.
 		return nullRef(c, ref.Target, declared, true), append(diags, liftedNullFindings(c, at, s, pointer)...)
 	}
 	if allNullUnion(c, at, s) {
-		return lowerNullOnlyUnion(c, ts, s, pointer, fin, st)
+		ref, diags := lowerNullOnlyUnion(c, ts, s, pointer, fin, st)
+		if st.of == nil {
+			// The union of null alone is a conjunct like any other, so a pair
+			// sharing no value is reported here as where it is not null alone.
+			diags = append(diags, diagUnionsShareNothing(c, s, pointer, unionShape)...)
+		}
+		return ref, diags
 	}
 	owner, diags := keepingUnread(c, ts, s, pointer, dispatch{said: branchesSay(c, s, s)}, fin, st,
 		func(fin finisher) (ir.TypeID, keySet, []ir.Diagnostic) {
