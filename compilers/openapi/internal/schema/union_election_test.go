@@ -346,9 +346,9 @@ func TestUnion_TwoUnionsSharingNoMemberWarnOnceWhereverWritten(t *testing.T) {
 
 // TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay pins the reference to a
 // schema writing a oneOf and an anyOf: nullable only where each union may
-// admit null, beside a $ref to an object, beside an allOf of it and on two
-// entries as on one schema, drawing no inferred-nullable info where one union
-// keeps null out; and nullable where the other's branch admits anything.
+// admit null, beside a $ref to an object and beside an allOf of it, drawing no
+// inferred-nullable info where one union keeps null out; and nullable where the
+// other's branch admits anything.
 func TestUnion_APairAdmitsNullOnlyWhereBothUnionsMay(t *testing.T) {
 	t.Parallel()
 	const unions = "oneOf: [{type: object, properties: {x: {type: string}}}], anyOf: [{type: object}, {type: 'null'}]"
