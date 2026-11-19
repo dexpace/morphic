@@ -16,7 +16,7 @@ func TestFixtures(t *testing.T) {
 	n := ir.Naming{Canonical: "fixture"}
 	n.Hint = "fixture"
 	_, err := url.QueryUnescape("a+b")
-	_ = compile.OpID(compile.Space("graphql"+"x"), "")
+	_ = compile.OperationID(compile.Space("graphql"+"x"), "")
 	if err != nil || n.Hint == "" {
 		t.Fatal(err)
 	}

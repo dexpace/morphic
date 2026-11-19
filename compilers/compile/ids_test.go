@@ -23,15 +23,15 @@ func TestIDGrammar_KindPrefixes(t *testing.T) {
 	const pointer = "/components/schemas/User"
 
 	assert.Equal(t, ir.TypeID("type/openapi/components/schemas/User"), compile.TypeID(space, pointer))
-	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1pets/get"), compile.OpID(space, "/paths/~1pets/get"))
+	assert.Equal(t, ir.OperationID("operation/openapi/paths/~1pets/get"), compile.OperationID(space, "/paths/~1pets/get"))
 	assert.Equal(t, ir.PropertyID("property/openapi/components/schemas/User/properties/id"),
-		compile.PropID(space, "/components/schemas/User/properties/id"))
+		compile.PropertyID(space, "/components/schemas/User/properties/id"))
 	assert.Equal(t, ir.AuthID("auth/openapi/components/securitySchemes/apiKey"),
 		compile.AuthID(space, "/components/securitySchemes/apiKey"))
 	assert.Equal(t, ir.ServiceID("service/openapi/0"), compile.ServiceID(space, "0"))
 	assert.Equal(t, ir.GroupID("operation-group/tags/pets"), compile.GroupID("tags", "/pets"))
 	assert.Equal(t, ir.ParameterID("parameter/openapi/paths/~1pets/get/parameters/limit/query"),
-		compile.ParamID(space, "/paths/~1pets/get/parameters/limit/query"))
+		compile.ParameterID(space, "/paths/~1pets/get/parameters/limit/query"))
 }
 
 // TestEnumMemberID_UsesTheEnumMemberKind pins the kind an enum member's ID opens

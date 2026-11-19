@@ -54,12 +54,12 @@ const UnresolvedSpace Space = ir.IDSpaceUnresolved
 // neighbouring naming grammar.
 const (
 	typeKind       = ir.IDKindType
-	opKind         = ir.IDKindOperation
-	propKind       = ir.IDKindProperty
+	operationKind  = ir.IDKindOperation
+	propertyKind   = ir.IDKindProperty
 	authKind       = ir.IDKindAuth
 	serviceKind    = ir.IDKindService
 	groupKind      = ir.IDKindGroup
-	paramKind      = ir.IDKindParameter
+	parameterKind  = ir.IDKindParameter
 	enumMemberKind = ir.IDKindEnumMember
 	serverKind     = ir.IDKindServer
 )
@@ -74,11 +74,13 @@ const (
 func TypeID(space Space, path string) ir.TypeID { return ir.TypeID(idFor(typeKind, space, path)) }
 
 // OperationID returns the ID of the operation at path within space.
-func OpID(space Space, path string) ir.OperationID { return ir.OperationID(idFor(opKind, space, path)) }
+func OperationID(space Space, path string) ir.OperationID {
+	return ir.OperationID(idFor(operationKind, space, path))
+}
 
 // PropertyID returns the ID of the property at path within space.
-func PropID(space Space, path string) ir.PropertyID {
-	return ir.PropertyID(idFor(propKind, space, path))
+func PropertyID(space Space, path string) ir.PropertyID {
+	return ir.PropertyID(idFor(propertyKind, space, path))
 }
 
 // AuthID returns the ID of the security scheme at path within space.
@@ -95,8 +97,8 @@ func GroupID(space Space, path string) ir.GroupID {
 }
 
 // ParameterID returns the ID of the parameter at path within space.
-func ParamID(space Space, path string) ir.ParameterID {
-	return ir.ParameterID(idFor(paramKind, space, path))
+func ParameterID(space Space, path string) ir.ParameterID {
+	return ir.ParameterID(idFor(parameterKind, space, path))
 }
 
 // EnumMemberID returns the ID of the enum member at path within space.

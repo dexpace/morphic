@@ -207,17 +207,17 @@ func (d DocumentIDNamespace) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 // names, where another model carries the field's first declaration, so that no
 // declaration's own ID is taken.
 func (d DocumentIDNamespace) ComposedProp(pointer jsontext.Pointer) ir.PropertyID {
-	return compile.PropID(d.space(ComposedSpace), string(pointer))
+	return compile.PropertyID(d.space(ComposedSpace), string(pointer))
 }
 
 // Op returns the stable ID of the operation at pointer.
 func Op(pointer jsontext.Pointer) ir.OperationID {
-	return compile.OpID(OpenAPISpace, string(pointer))
+	return compile.OperationID(OpenAPISpace, string(pointer))
 }
 
 // Prop returns the stable ID of the property at pointer in d.
 func (d DocumentIDNamespace) Prop(pointer jsontext.Pointer) ir.PropertyID {
-	return compile.PropID(d.space(OpenAPISpace), string(pointer))
+	return compile.PropertyID(d.space(OpenAPISpace), string(pointer))
 }
 
 // Param returns the stable ID of the occurrence-th parameter, counting from one,
@@ -230,7 +230,7 @@ func (d DocumentIDNamespace) Prop(pointer jsontext.Pointer) ir.PropertyID {
 // number follows the location (numbered) and equals no other parameter's ID:
 // that would take an operation mounted at another's parameters list.
 func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParameterID {
-	return compile.ParamID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
+	return compile.ParameterID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
 }
 
 // ParamSlot is what OpenAPI identifies a parameter by within one list: its

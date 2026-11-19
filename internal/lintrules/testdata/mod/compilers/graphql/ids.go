@@ -87,17 +87,17 @@ func plantIDs(doc *ir.Document, pointer string, existing ir.OperationID, s compi
 	_ = compile.Space(pointer)                             // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
 	_ = compile.Space('A')                                 // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
 	_ = compile.Space(rune(65))                            // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
-	_ = compile.OpID(compile.Space("graphql"+pointer), "") // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
-	_ = compile.OpID(untypedSpace, pointer)                // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
-	_ = compile.OpID("graph"+"ql", pointer)                // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
+	_ = compile.OperationID(compile.Space("graphql"+pointer), "") // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
+	_ = compile.OperationID(untypedSpace, pointer)                // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
+	_ = compile.OperationID("graph"+"ql", pointer)                // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
 	s += "/x"                                              // want "idderivations: builds a compile.Space from something other than one string literal; a namespace is a literal, or the path glued onto it loses its separator"
 
-	_ = compile.OpID(fixedSpace, pointer)
-	_ = compile.OpID(compile.Space("graphql"), pointer)
-	_ = compile.OpID("graphql", pointer)
-	_ = compile.OpID(("graphql"), pointer)
+	_ = compile.OperationID(fixedSpace, pointer)
+	_ = compile.OperationID(compile.Space("graphql"), pointer)
+	_ = compile.OperationID("graphql", pointer)
+	_ = compile.OperationID(("graphql"), pointer)
 	_ = compile.Space(("graphql"))
-	_ = compile.OpID(s, pointer)
+	_ = compile.OperationID(s, pointer)
 	_ = as[ir.TypeID](pointer)
 	if existing == "" || doc.Types[anyTypeID] == nil || doc.Types[frame.AnyID] == nil {
 		return ""
