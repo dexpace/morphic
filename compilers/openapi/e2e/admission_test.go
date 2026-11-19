@@ -526,7 +526,7 @@ func TestCompile_AFieldRedeclaredAsAStructureAdmittingItsKindIsNotAConflict(t *t
 // TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind holds
 // that a field declared integer in one allOf entry and in the other as an
 // allOf naming a union of an object and an integer, with properties beside it,
-// keeps integer with nothing reported, in both branch orders: that declaration
+// keeps integer with nothing reported, in both entry orders: that declaration
 // is no structure but a use of the union (docs/compilers/openapi.md#allof-refinement),
 // and integer is within one of its variants.
 func TestCompile_AFieldRedeclaredAsAUseOfAUnionHoldingItsKindKeepsTheKind(t *testing.T) {

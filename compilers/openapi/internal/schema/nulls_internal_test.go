@@ -86,7 +86,7 @@ func TestNulls_AnEntryWithNoSchemaSaysNothing(t *testing.T) {
 	n := &nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
 	assert.Equal(t, alike(nullSilent), n.conjunct(Standalone(openapitest.EmptyEitherSchema()), nullSite{}),
-		"a branch whose either-value holds neither schema nor bool says nothing either")
+		"an entry whose either-value holds neither schema nor bool says nothing either")
 }
 
 // TestNullAloneReading_IsTheWholeSchemasReading holds the reading a null branch

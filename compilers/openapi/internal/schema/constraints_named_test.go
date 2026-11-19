@@ -635,7 +635,7 @@ func TestUnion_ADistributedBodyReadsBoundsByTheTypesItComposes(t *testing.T) {
 	})
 }
 
-// budgetSpec writes a position naming a schema of n branches none of which
+// budgetSpec writes a position naming a schema of n entries none of which
 // declares a type, beside an array, in either order.
 func budgetSpec(n int) string {
 	var b strings.Builder

@@ -115,7 +115,7 @@ func assertTypeArrayNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // whose type it applies to, a Scalar of its own at <pointer>/type/<index>, none
 // on the variant it does not, a format paired with one listed type on that
 // variant alone, one no listed type takes kept on the union, and nothing on the
-// property carrying one, a bound on a branch beside it included.
+// property carrying one, a bound on an entry beside it included.
 func assertTypeArrayBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	variantOf := func(name string, i int) ir.TypeDef {
 		u, ok := doc.Types[componentID(name)].(*ir.Union)
@@ -135,7 +135,7 @@ func assertTypeArrayBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	assert.Equal(t, &ir.Constraints{Min: &two}, held("Mixed", 0))
 	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(3))}, held("Mixed", 1))
 	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(2))}, held("OnBranch", 1))
-	assert.Empty(t, doc.Types[componentID("OnBranch")].Common().Unmodeled, "the branch folded")
+	assert.Empty(t, doc.Types[componentID("OnBranch")].Common().Unmodeled, "the entry folded")
 	assert.Equal(t, ir.PrimInteger, primOf(t, variantOf("Dated", 0)))
 	assert.Equal(t, &ir.Constraints{MinLength: new(int64(10))}, held("Dated", 1))
 	dated, ok := variantOf("Dated", 1).(*ir.Scalar)

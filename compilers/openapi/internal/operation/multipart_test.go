@@ -536,12 +536,12 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got [2]ir.PartEncoding
-			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for i, pair := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				got[i] = onlyPartEncoding(t, `{allOf: [`+
-					`{type: object, properties: {file: `+branches[0]+`}}, `+
-					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+					`{type: object, properties: {file: `+pair[0]+`}}, `+
+					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
-			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
 			assert.Equal(t, tc.filename, got[0].Filename, "filename")
 			assert.Equal(t, tc.multi, got[0].Multi, "multi")
 		})
@@ -553,7 +553,7 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 }
 
 // TestPartEncoding_AMergedUnionReadsThroughItsVariants holds a part whose
-// merged type is a union to the flags its variants give, in either branch
+// merged type is a union to the flags its variants give, in either entry
 // order: it repeats where a variant is a list, and is files where every value
 // it admits is a file.
 func TestPartEncoding_AMergedUnionReadsThroughItsVariants(t *testing.T) {
@@ -574,12 +574,12 @@ func TestPartEncoding_AMergedUnionReadsThroughItsVariants(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var got [2]ir.PartEncoding
-			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			for i, pair := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
 				got[i] = onlyPartEncoding(t, `{allOf: [`+
-					`{type: object, properties: {file: `+branches[0]+`}}, `+
-					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+					`{type: object, properties: {file: `+pair[0]+`}}, `+
+					`{type: object, properties: {file: `+pair[1]+`}}]}`)
 			}
-			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two entry orders agree")
 			assert.Equal(t, tc.filename, got[0].Filename, "filename")
 			assert.Equal(t, tc.multi, got[0].Multi, "multi")
 		})
@@ -851,7 +851,7 @@ components:
 				assert.Contains(t, got, id, "the %s part is keyed at the object both paths reach", part)
 			}
 			assert.NotContains(t, diagMessages(diags), "form body composition is nested past",
-				"a path enters what the capped branch's entry names, so no cap is reported")
+				"a path enters what the capped entry's entry names, so no cap is reported")
 		})
 	}
 }

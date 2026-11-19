@@ -175,7 +175,7 @@ func TestVoices_KeptAndMetEntriesHoldAtEveryOutcome(t *testing.T) {
 					got := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+path)
 					assert.Contains(t, got, tc.why, path)
 				}
-				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing a kept branch writes folds")
+				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing a kept entry writes folds")
 				for _, m := range composedModels(t, doc) {
 					assert.ElementsMatch(t, tc.kept, keptEntries(m), m.ID)
 					assert.Equal(t, tc.cons, m.Constraints, m.ID)
