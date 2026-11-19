@@ -543,7 +543,7 @@ type entryUnionIndex struct {
 // written on the entry, else beside the allOf, and how the position lowers it:
 // unionSharesNoKind where the unions its entries write share no kind with the
 // rest (unionApart), else as classifyConjoined says. ok is false where the
-// union stays with its branch, as for the base of a hierarchy the
+// union stays with its entry, as for the base of a hierarchy the
 // discriminator routes.
 func entryUnion(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
 	at := entryUnionIndexOf(c, s)
@@ -576,7 +576,7 @@ func entryUnionIndexOf(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
 // branch naming a referent. Of several, the one writing a oneOf, each other
 // kept on every variant; two writing a oneOf, or several anyOfs, leave none,
 // in any order. One declaring no shape stays residue. A discriminator on both
-// s and the branch leaves none: nothing says which routes it. A $ref site or a
+// s and the entry leaves none: nothing says which routes it. A $ref site or a
 // union beside the allOf lowers first.
 func findEntryUnion(c lowering.Ctx, s *statement.Schema) entryUnionIndex {
 	if declaresUnion(s) || dispatchOf(s).won != "allOf" {
@@ -645,7 +645,7 @@ func variantHint(c lowering.Ctx, b *statement.Statement, vptr jsontext.Pointer) 
 }
 
 // variantNamesTarget reports whether s, a branch composing the base of
-// branches, its flattened conjuncts, is a use of that one target: it and no
+// entries, its flattened conjuncts, is a use of that one target: it and no
 // conjunct writes a member, a catch-all, a discriminator or a union, and no
 // $ref but the base's is written (docs/compilers/openapi.md#union).
 func variantNamesTarget(s *statement.Schema, entries []allOfEntry) bool {

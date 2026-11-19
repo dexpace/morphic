@@ -192,12 +192,12 @@ func standingUnion(c lowering.Ctx, a *statement.Schema) *statement.Schema {
 const maxDiscriminatorAncestorDepth = 256
 
 // discriminatedAncestors returns s's composition ancestors declaring a
-// discriminator, nearest first: the resolved targets of s's own $ref branches
+// discriminator, nearest first: the resolved targets of s's own $ref entries
 // in source order, then theirs, level by level. Nearest means fewest hops,
 // which decides between two ancestors whose mappings name the same subtype.
 //
 // The visited set bounds the work; the depth cap bounds only the levels. A
-// schema reached by several branches would be walked once per path, so the
+// schema reached by several entries would be walked once per path, so the
 // frontier multiplies by the fan-out each level (2^level for a chain of
 // diamonds). TestAllOf_DiscriminatorValueCyclicComposition (cyclic) and
 // TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic) pin it.
@@ -267,10 +267,10 @@ func composedByBranch(c lowering.Ctx, s *statement.Schema, u unionAt) bool {
 	})
 }
 
-// unvisitedRefTargets returns the schemas s's $ref composition branches resolve
+// unvisitedRefTargets returns the schemas s's $ref composition entries resolve
 // to, in source order, skipping those already seen and marking those it returns.
 // Marking as it enqueues rather than when the walk reaches them is what keeps a
-// schema two branches both name from being queued, and walked, twice.
+// schema two entries both name from being queued, and walked, twice.
 func unvisitedRefTargets(c lowering.Ctx, s *statement.Schema, visited map[*statement.Schema]bool) []*statement.Schema {
 	var out []*statement.Schema
 	for b := range allOfRefEntries(c, s) {

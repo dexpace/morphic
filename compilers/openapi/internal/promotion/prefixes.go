@@ -19,7 +19,7 @@ import (
 // reads, as the likeliest one it misspells. The keys read are each reader's
 // own: the promotion mapping's (Promoter.Keys) and grouping, the keys the run's
 // grouping reads. doc is the whole document, every node's Unmodeled read once;
-// an extension inside an entry kept verbatim, such as an allOf branch, is a
+// an extension inside an entry kept verbatim, such as an allOf entry, is a
 // value of that entry and is not read.
 func UnreadExtensions(p Promoter, grouping []string, doc *ir.Document) []ir.Diagnostic {
 	if len(p.prefixes) == 0 {
