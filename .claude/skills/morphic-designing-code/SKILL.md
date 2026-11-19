@@ -10,19 +10,20 @@ Correct comes first: a design that scales and reads well but gives a wrong resul
 code here should scale with the document, take the next format and emitter without a rewrite, and
 stay simple to read and extend. Lean functional, not strictly: data in plain values, behaviour in
 functions of explicit inputs that return their results and diagnostics, and a method only where a
-type guards its own state. When in doubt, default to the styleguide's stance: data and functions,
+type guards its own state. Otherwise, follow the styleguide: data and functions,
 immutable, explicit, errors handled. `CLAUDE.md`'s invariants and Go style outrank what follows;
-each rule here is a cost a later refactor or performance change paid.
+each rule here is a cost a later change paid.
 
 ## Before writing
 
-Each row names the rule, and code holding it to copy.
+Each row names a rule and code to copy.
 
 | Adding | Rule | Good example |
 |---|---|---|
 | any function | ask what would make it wrong, and refuse that at entry (`CLAUDE.md`, "Assert aggressively") | `Classify` in `compilers/openapi/internal/value/scalar.go` |
 | work on a path every input takes | ask what it costs before writing it (`.claude/skills/morphic-reviewing-prs/references/performance.md#price-common-path`) | `TestWalkValues_StructsAndMapsCostNoAllocation` |
 | a lowering, check, pass or helper | `references/design-rules.md#functional-core` | `Read` in `compilers/openapi/internal/annotation/annotation.go` |
+| a name | `references/design-rules.md#name-what-it-holds` | `HasFilename` in `ir/operation.go` |
 | state every walk of a run must share | `references/design-rules.md#shared-run-state` | `readings` in `compilers/openapi/internal/lowering/lowering.go` |
 | a walk, index, lookup or cache over a document | `references/design-rules.md#read-once-per-run`, pruned by `references/design-rules.md#prune-a-visitor-to-its-carriers` | `checkInferred` in `ir/irverify/inferred.go` |
 | a value with a format, or a state meaning none | `references/design-rules.md#type-the-form` | `Limit` in `compilers/openapi/internal/budget/limit.go` |

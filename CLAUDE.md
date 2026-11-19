@@ -449,6 +449,10 @@ departs from it, with what holds each difference.
   mechanism; `errgroup` for groups; bounded fan-out.
 - **Naming:** MixedCaps; scope-proportional length; no `Get` prefix on getters; initialisms in
   one consistent case; package names short lowercase nouns; never shadow builtins or imports.
+  Names are long, literal and plain, in the specification's words: no figurative or abbreviated
+  name, and one letter only for a loop counter, a receiver, a comparison pair or a standard-library
+  convention such as `t *testing.T`
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#name-what-it-holds`).
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
   preconditions, `assert` for values; compare with `cmp.Diff`, or `assert.Equal` on a value holding
   no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex

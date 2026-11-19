@@ -75,6 +75,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Probe.** This lists what to type or justify:
   `git diff origin/main -- '*.go' ':!*_test.go' | grep -nE '^\+.*((return|[=!]=|:?=) -1\b|strings\.(Split|Join)\()'`.
 
+## Name a declaration for what it holds, in the specification's words
+`name-what-it-holds`
+
+- **Rule.** A name is long, literal and plain: the specification's term where it has one
+  (`foldingAllOfBranches`, not `voicesAmong`), the kind of thing it declares (`Measurements`, not
+  an `Index` that indexes nothing), a question for a bool (`HasFilename`), and its type's noun for a
+  parameter (`schema`, not `s`). One letter names only a loop counter, a receiver, a comparison
+  pair or a standard-library convention (`t *testing.T`). A figurative word, an abbreviation or a
+  noun another package uses otherwise is renamed, not explained in a doc comment.
+- **Why.** Names that needed their comments, and comments that needed other coined names, left
+  the code and the compiled IR unreadable to their owner (#2130).
+- **Probe.** This lists the one-letter parameters a change adds:
+  `git diff origin/main -- '*.go' | grep -nE '^\+func [A-Za-z][^(]*\((.*[, ])?[a-z] [*A-Za-z.]+[,)]'`.
+
 ## Place shared code by its second user
 `second-user`
 
