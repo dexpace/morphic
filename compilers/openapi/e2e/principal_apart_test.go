@@ -165,7 +165,7 @@ func TestPrincipalApart_AReportNamesTheEntryWhereACarrierKeepsIt(t *testing.T) {
 		}
 	}
 	require.Len(t, said, 1)
-	assert.Contains(t, said[0], "under the key naming its entry, allOf/0,")
+	assert.Contains(t, said[0], "under the key naming it, allOf/0,")
 	assert.NotContains(t, said[0], "openapi:allOf/0")
 }
 
