@@ -436,9 +436,9 @@ const composedShape = "a composition"
 const unionShape = "the union it lowered as"
 
 // diagUnionsShareNothing is the warning s, written at pointer and writing a
-// oneOf and an anyOf, draws where the two share no value (pairApart), a null
-// only where both may admit it, as the same two on its allOf's entries draw
-// (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
+// oneOf and an anyOf, draws where the two share no value (pairApartNames), a
+// null only where both may admit it, as the same two on its allOf's entries
+// draw (docs/compilers/openapi.md#allof-disjoint-conjuncts): each named by its
 // keyword, and the position lowered as shape.
 func diagUnionsShareNothing(c lowering.Ctx, s *statement.Schema, pointer jsontext.Pointer, shape string) []ir.Diagnostic {
 	comp := allOfComposition{pointer: pointer}
