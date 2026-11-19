@@ -282,3 +282,35 @@ func TestUnion_AnEntryElectingAUnionOfNullAloneIsNamedByItsNull(t *testing.T) {
 		assert.Contains(t, warned[0], names, name)
 	}
 }
+
+// TestUnion_AVariantAdmitsNullOnlyWhereTheRestDoes pins a union whose branch
+// admits a string or null beside a string body, beside the allOf, on its entry
+// and as the oneOf of a pair beside and on two entries: the variant is a
+// string, not nullable, the body keeping null out, and nothing warns, the
+// branch's string living. With no body the variant keeps its null, but where
+// the anyOf passed over keeps null out, alone or on two entries.
+func TestUnion_AVariantAdmitsNullOnlyWhereTheRestDoes(t *testing.T) {
+	t.Parallel()
+	const branches = "[{type: string, enum: [b]}, {type: [string, 'null']}]"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Beside: {allOf: [{type: string}], anyOf: `+branches+`}
+    Entry: {allOf: [{type: string}, {anyOf: `+branches+`}]}
+    PairBeside: {allOf: [{type: string}], oneOf: `+branches+`, anyOf: [{}]}
+    PairTwo: {allOf: [{type: string}, {oneOf: `+branches+`}, {anyOf: [{}]}]}
+    NoBody: {anyOf: `+branches+`}
+    PairAlone: {oneOf: `+branches+`, anyOf: [{type: string}]}
+    PairAloneTwo: {allOf: [{oneOf: `+branches+`}, {anyOf: [{type: string}]}]}
+`))
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityWarning, d.Severity, d.Message)
+	}
+	for name, nullable := range map[string]bool{
+		"Beside": false, "Entry": false, "PairBeside": false, "PairTwo": false, "NoBody": true,
+		"PairAlone": false, "PairAloneTwo": false,
+	} {
+		union, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s is a Union", name)
+		require.Len(t, union.Variants, 2, name)
+		assert.False(t, union.Variants[0].Type.Nullable, name)
+		assert.Equal(t, nullable, union.Variants[1].Type.Nullable, name)
+	}
+}

@@ -3956,6 +3956,10 @@ declares, which lifting it would drop, and reading it would take a distant decla
 whose `null` only the nullable-inference policy admits is a null branch while the policy is on, and
 the reference's `null` then names it in `Inferred`, with its `openapi/inferred-nullable` info at the
 branch ([`nullable`](#nullable)); with the policy off, the branch admits nothing and is a variant.
+A variant's own `null`, as `{type: [string, 'null']}` admits, is shared only where every conjunct
+may admit it: where what the position writes beside the union keeps null out, the union passed over
+among it, the variant's reference is not nullable, and nothing is reported, the branch's other
+values living.
 
 A null branch writing a key beside `type`, `enum`, `const`, and a `nullable` its dialect or the
 nullable-inference policy reads, such as a `description`, is kept whole under
@@ -3980,7 +3984,8 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
 
 - Cases: `nullable-union-discriminator`, `nullable-31-ref`, `null-alone`, `enum-null-member`
 - Codes: `openapi/degraded-construct`, `openapi/inferred-nullable`, `openapi/duplicate-enum-value`
-- Tests: `schema.TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold`,
+- Tests: `schema.TestUnion_AVariantAdmitsNullOnlyWhereTheRestDoes`,
+  `schema.TestCollapsedUnion_KeepsEveryCensusKeywordItCannotHold`,
   `schema.TestCollapsedUnion_KeepsItsDiscriminatorAtEveryPosition`,
   `schema.TestNullAlone_ReadsTheSchemasOwnKeywords`,
   `schema.TestNullBranch_IsTheReferencesInEverySpelling`,

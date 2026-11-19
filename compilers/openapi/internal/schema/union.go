@@ -261,6 +261,38 @@ func (u unionAt) branches(c lowering.Ctx) ([]statement.Sub, string, bool) {
 	return unionBranches(c, u.schema, u.holder)
 }
 
+// restKeepsNull returns whether what u's position writes but u's own union
+// keeps null out (restForbidsNull), read on first asking: most unions hold no
+// variant admitting null.
+func restKeepsNull(c lowering.Ctx, u unionAt) func() bool {
+	var read, forbids bool
+	return func() bool {
+		if !read {
+			read, forbids = true, restForbidsNull(c, u.schema, u.holder)
+		}
+		return forbids
+	}
+}
+
+// restForbidsNull reports whether body keeps null out by what it writes but
+// the union of holder, the union holder passes over among it, as
+// bodyAdmitsNull reads that rest: a rest saying nothing of null keeps none
+// out, and a passed-over union read past the budget decides nothing.
+func restForbidsNull(c lowering.Ctx, body, holder *statement.Schema) bool {
+	n := newNulls(c)
+	n.variants, n.rest = true, holder
+	if n.conjunct(c.Statements().Read(body), nullSite{}).forbids(c) {
+		return true
+	}
+	passed, _ := passedOver(c, body, holder)
+	if passed == nil {
+		return false
+	}
+	m := newNulls(c)
+	m.variants = true
+	return m.branchesNull(passed).forbids(c) && !m.conjuncts.Exhausted()
+}
+
 // otherCombinator names each union keyword's counterpart, so the branch set
 // unionBranches passed over is read off the choice it returned rather than
 // restated beside it.
@@ -324,6 +356,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 	}
 	diags = append(diags, recordNullBranches(c, &common.Unmodeled, nullBranchKeeps(c, u.schema, u.holder, u.at))...)
 	variants := make([]ir.Variant, 0, len(branches))
+	keepsNull := restKeepsNull(c, u)
 	for i, b := range branches {
 		st := c.Statements().Sub(b)
 		if !u.variantBranch(c, i, st) {
@@ -331,6 +364,12 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, u unionAt, common ir.TypeComm
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
 		t := variantType(st, vptr)
+		if t.Nullable && keepsNull() {
+			// A null is shared only where every conjunct may admit it, so a
+			// rest keeping it out leaves the variant none, its other values
+			// living (docs/compilers/openapi.md#union-null-variant).
+			t.Nullable, t.Inferred = false, ""
+		}
 		variants = append(variants, ir.Variant{
 			Name: compile.NamingHint(variantHint(c, st, vptr)),
 			Type: t,
